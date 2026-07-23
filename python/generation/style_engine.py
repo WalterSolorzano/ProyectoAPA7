@@ -239,3 +239,18 @@ def format_block_quote(p, text: str, rules: APARuleSet) -> None:
     run.font.name = rules.font_family
     run.font.size = Pt(rules.font_size_pt)
     run.font.color.rgb = RGBColor(0, 0, 0)
+
+
+def normalize_global_body_spacing(doc: docx.Document, rules: APARuleSet, cover_paragraph_count: int = 0) -> None:
+    """
+    Pasada final global: Forzar interlineado doble (w:line=480, lineRule=auto) y 0pt antes/despues
+    en el 100% de los parrafos del cuerpo fuera de la portada y celdas de tabla.
+    """
+    paragraphs = doc.paragraphs[cover_paragraph_count:]
+    for p in paragraphs:
+        if not p.text.strip():
+            continue
+        p.paragraph_format.line_spacing = rules.line_spacing
+        p.paragraph_format.space_before = Pt(rules.space_before_pt)
+        p.paragraph_format.space_after = Pt(rules.space_after_pt)
+

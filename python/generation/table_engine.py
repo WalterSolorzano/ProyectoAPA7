@@ -62,9 +62,13 @@ def set_table_apa7_borders(table) -> None:
         hdr_trPr = table.rows[0]._tr.get_or_add_trPr()
         hdr_trPr.append(parse_xml(f'<w:tblHeader {nsdecls("w")}/>'))
 
-    # Borde inferior SOLO en la primera fila (encabezado)
+    # Borde inferior SOLO en la primera fila (encabezado) y forzar negrita en los runs del encabezado
     if len(table.rows) > 0:
         for cell in table.rows[0].cells:
+            for p in cell.paragraphs:
+                for r in p.runs:
+                    r.bold = True
+
             tcPr = cell._tc.get_or_add_tcPr()
 
             # Eliminar bordes existentes de la celda

@@ -81,7 +81,7 @@ def generate_apa7_docx(
     # 4. Portada sintética (si no existe archivo original o el usuario la solicitó explícitamente)
     use_orig_cover = (getattr(portada, 'use_original_cover', True) if portada else True) if original_file.exists() else False
 
-    paragraphs_before_body = len(doc.paragraphs)
+    paragraphs_before_body = 0
     if not use_orig_cover and portada and (portada.title or portada.author):
         format_apa_portada(doc, portada, rules)
         paragraphs_before_body = len(doc.paragraphs)
@@ -182,7 +182,11 @@ def generate_apa7_docx(
     if references:
         format_apa_referencias_section(doc, references, rules)
 
-    # 8. Guardar resultado final
+    # 8. Pasada global final de interlineado doble (w:line=480) en todo el cuerpo
+    from generation.style_engine import normalize_global_body_spacing
+    normalize_global_body_spacing(doc, rules, cover_paragraph_count)
+
+    # 9. Guardar resultado final
     doc.save(out_path)
 
     # 9. Activar updateFields en settings.xml para que Word recalcule TOC/PAGEREF automáticamente
