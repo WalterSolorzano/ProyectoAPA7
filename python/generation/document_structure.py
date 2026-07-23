@@ -37,6 +37,7 @@ def setup_apa_header(doc: docx.Document, format_type: APAFormat, running_head_te
     - Profesional: Running head en mayúsculas a la izquierda + Número de página a la derecha.
     """
     section = doc.sections[0]
+    section.different_first_page_header_footer = True
     header = section.header
     header.is_linked_to_previous = False
     

@@ -84,6 +84,8 @@ export interface ElementModel {
   id: string;
   type: ElementType;
   heading_level?: number;
+  list_level?: number;
+  is_cover_section?: boolean;
   text: string;
   original_text?: string;
   style_name: string;

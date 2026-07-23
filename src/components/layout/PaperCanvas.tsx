@@ -206,7 +206,7 @@ export const PaperCanvas: React.FC = () => {
                 ) : (
                   <span></span>
                 )}
-                <span>{pageIdx + 1}</span>
+                <span>{!isCoverPage ? pageIdx + 1 : ''}</span>
               </div>
 
               {/* RENDERIZADO SECUENCIAL ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
@@ -474,13 +474,13 @@ export const PaperCanvas: React.FC = () => {
                         )}
 
                         {elem.type === 'bullet' && (
-                          <p style={{ marginLeft: '24px', textIndent: '-12px', marginBottom: '0px' }}>
+                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
                             • {elem.text}
                           </p>
                         )}
 
                         {elem.type === 'numbered_list' && (
-                          <p style={{ marginLeft: '24px', textIndent: '-12px', marginBottom: '0px' }}>
+                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
                             {currentItemNum}. {elem.text}
                           </p>
                         )}
@@ -489,8 +489,8 @@ export const PaperCanvas: React.FC = () => {
                           <div style={{ margin: '16px 0', textAlign: 'center', width: '100%' }}>
                             {showFigureLabel && (
                               <>
-                                <p style={{ fontWeight: 'bold', textAlign: 'left' }}>Figura {elem.image_info?.figure_number}</p>
-                                {elem.image_info?.caption && <p style={{ fontStyle: 'italic', textAlign: 'left' }}>{elem.image_info.caption}</p>}
+                                <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0' }}>Figura {elem.image_info?.figure_number}</p>
+                                {elem.image_info?.caption && <p style={{ fontStyle: 'italic', textAlign: 'left', margin: '0 0 8px 0' }}>{elem.image_info.caption}</p>}
                               </>
                             )}
 
@@ -518,8 +518,8 @@ export const PaperCanvas: React.FC = () => {
 
                         {elem.type === 'table' && elem.table_info && (
                           <div style={{ margin: '16px 0', width: '100%' }}>
-                            <p style={{ fontWeight: 'bold' }}>Tabla {elem.table_info.table_number}</p>
-                            {elem.table_info.caption && <p style={{ fontStyle: 'italic' }}>{elem.table_info.caption}</p>}
+                            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>Tabla {elem.table_info.table_number}</p>
+                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
                             <table style={{
                               width: '100%',
                               borderCollapse: 'collapse',
@@ -546,6 +546,11 @@ export const PaperCanvas: React.FC = () => {
                                 ))}
                               </tbody>
                             </table>
+                            {elem.table_info.note && (
+                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155' }}>
+                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
