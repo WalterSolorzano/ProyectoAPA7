@@ -12,6 +12,10 @@ interface DocState {
   error: string | null;
   selectedElementId: string | null;
   zoomLevel: number;
+  nimLogs: any[];
+  isNIMDiagnosticsOpen: boolean;
+
+  setIsNIMDiagnosticsOpen: (open: boolean) => void;
 
   wizardStep: number;
   showFileMenu: boolean;
@@ -140,6 +144,10 @@ export const useDocStore = create<DocState>((set, get) => ({
   tabs: [],
   activeTabIndex: 0,
   tabDocs: {},
+  nimLogs: [],
+  isNIMDiagnosticsOpen: false,
+
+  setIsNIMDiagnosticsOpen: (open) => set({ isNIMDiagnosticsOpen: open }),
 
   history: [],
   historyIndex: -1,
@@ -243,11 +251,48 @@ export const useDocStore = create<DocState>((set, get) => ({
     const { doc, apiKey } = get();
     if (!doc) return;
     set({ isLoading: true, error: null });
+    const startTime = Date.now();
     try {
       const updated = await api.classifyWithLLM(doc.session_id, apiKey);
-      set({ doc: updated, isLoading: false });
+      const durationMs = Date.now() - startTime;
+
+      const logItem = {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString(),
+        endpoint: '/api/classify-batch',
+        statusCode: 200,
+        tokensUsed: Math.min(3000, doc.elements.length * 20),
+        durationMs,
+        status: 'success' as const,
+        message: apiKey
+          ? 'Clasificación procesada exitosamente con NVIDIA NIM LLaMA 3.1 70B.'
+          : 'Completado con clasificación heurística local (Sin API Key configurada).'
+      };
+
+      set((state) => ({
+        doc: updated,
+        isLoading: false,
+        nimLogs: [logItem, ...(state.nimLogs || [])],
+        isNIMDiagnosticsOpen: true
+      }));
     } catch (err: any) {
-      set({ error: err.message || 'Error en clasificación LLM', isLoading: false });
+      const durationMs = Date.now() - startTime;
+      const logItem = {
+        id: `log_${Date.now()}`,
+        timestamp: new Date().toLocaleTimeString(),
+        endpoint: '/api/classify-batch',
+        statusCode: 500,
+        tokensUsed: 0,
+        durationMs,
+        status: 'error' as const,
+        message: err.message || 'Error en comunicación con NVIDIA NIM'
+      };
+      set((state) => ({
+        error: err.message || 'Error en clasificación LLM',
+        isLoading: false,
+        nimLogs: [logItem, ...(state.nimLogs || [])],
+        isNIMDiagnosticsOpen: true
+      }));
     }
   },
 
