@@ -138,8 +138,10 @@ async def classify_batch_with_nvidia_nim(
                 elem.confidence = 0.85
             continue
 
+        nim_model = os.getenv("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct")
+
         prompt_payload = {
-            "model": "meta/llama-3.1-70b-instruct",
+            "model": nim_model,
             "messages": [
                 {
                     "role": "system",
