@@ -76,8 +76,10 @@ export const Step0PreferencesModal: React.FC = () => {
           </label>
           <div style={{ display: 'flex', gap: '10px' }}>
             {[
-              { id: 'decimal', label: '1., 2., 3., 4.', desc: 'Numeración Secuencial APA 7' },
+              { id: 'decimal', label: '1., 2., 3., 4.', desc: 'Arábigos Secuenciales' },
               { id: 'lowerLetter', label: 'a., b., c., d.', desc: 'Letras Minúsculas' },
+              { id: 'lowerRoman', label: 'i., ii., iii., iv.', desc: 'Romanos Minúsculas' },
+              { id: 'upperRoman', label: 'I., II., III., IV.', desc: 'Romanos Mayúsculas' },
               { id: 'none', label: '• Viñetas Puntos', desc: 'Viñetas Estándar' },
             ].map((lst) => (
               <div

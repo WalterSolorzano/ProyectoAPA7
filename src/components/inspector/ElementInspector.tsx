@@ -178,6 +178,27 @@ export const ElementInspector: React.FC = () => {
               </div>
             )}
 
+            {selectedElem.type === 'numbered_list' && (
+              <div className="inspector-section">
+                <label className="inspector-label">
+                  Estilo de Numeración de Lista
+                </label>
+                <select
+                  className="form-select"
+                  value={useDocStore.getState().rules.number_style_level1 || 'decimal'}
+                  onChange={(e) =>
+                    useDocStore.getState().setRules({ number_style_level1: e.target.value as any })
+                  }
+                >
+                  <option value="decimal">1., 2., 3. (Números Arábigos)</option>
+                  <option value="lowerRoman">i., ii., iii. (Números Romanos Minúsculas)</option>
+                  <option value="upperRoman">I., II., III. (Números Romanos Mayúsculas)</option>
+                  <option value="lowerLetter">a., b., c. (Letras Minúsculas)</option>
+                  <option value="upperLetter">A., B., C. (Letras Mayúsculas)</option>
+                </select>
+              </div>
+            )}
+
             <div className="inspector-section">
               <label className="inspector-label">
                 Contenido del Texto
