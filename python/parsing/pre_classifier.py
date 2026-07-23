@@ -369,14 +369,22 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     has_explicit_cover_keywords = False
     for idx, elem in enumerate(elements[:6]):
         txt_norm = _normalize_accent((elem.text or "").lower())
-        if any(k in txt_norm for k in ["universidad", "facultad", "carrera", "elaborado por", "tutor:", "carnet:"]):
+        if any(k in txt_norm for k in ["universidad nacional", "facultad de", "carrera de", "elaborado por:", "tutor:", "carnet:"]):
             has_explicit_cover_keywords = True
             break
 
-    if body_start_idx == -1 and not has_explicit_cover_keywords:
-        body_start_idx = 0
-    elif body_start_idx == -1:
-        body_start_idx = 0
+    if body_start_idx == -1:
+        if first_heading_idx != -1 and first_heading_idx > 0:
+            body_start_idx = first_heading_idx
+        elif has_explicit_cover_keywords:
+            last_cover = 0
+            for i, e in enumerate(elements[:10]):
+                txt_norm = _normalize_accent((e.text or "").lower())
+                if any(k in txt_norm for k in ["universidad nacional", "facultad de", "carrera de", "elaborado por:", "tutor:", "carnet:", "managua, nicaragua"]):
+                    last_cover = i
+            body_start_idx = last_cover + 1
+        else:
+            body_start_idx = 0
 
     portada_boundary: int = body_start_idx
 

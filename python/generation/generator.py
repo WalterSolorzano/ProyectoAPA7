@@ -53,8 +53,12 @@ def generate_apa7_docx(
 
     # 1. Intentar cargar el archivo original.docx de la sesión
     session_id = doc_model.session_id
-    base_dir = out_path.parent.parent.parent  # storage/sessions/
     original_file = out_path.parent / "original.docx"
+
+    if not original_file.exists() and doc_model.file_name:
+        fname_orig = out_path.parent / doc_model.file_name
+        if fname_orig.exists():
+            original_file = fname_orig
 
     if not original_file.exists() and session_id:
         alt_orig = Path("storage") / "sessions" / session_id / "original.docx"
@@ -74,10 +78,13 @@ def generate_apa7_docx(
     running_head: str = portada.running_head if portada else ""
     setup_apa_header(doc, doc_model.apa_format, running_head, rules)
 
-    # 4. Portada sintética (si no existe archivo original o el usuario la solicito explícitamente)
-    use_orig_cover = getattr(portada, 'use_original_cover', True) if portada else True
-    if (not original_file.exists() or not use_orig_cover) and portada and (portada.title or portada.author):
+    # 4. Portada sintética (si no existe archivo original o el usuario la solicitó explícitamente)
+    use_orig_cover = (getattr(portada, 'use_original_cover', True) if portada else True) if original_file.exists() else False
+
+    paragraphs_before_body = len(doc.paragraphs)
+    if not use_orig_cover and portada and (portada.title or portada.author):
         format_apa_portada(doc, portada, rules)
+        paragraphs_before_body = len(doc.paragraphs)
 
     # 5. Formatear tablas existentes con bordes APA 7
     for table in doc.tables:
@@ -92,10 +99,23 @@ def generate_apa7_docx(
 
     numbered_counters: dict[int, int] = {1: 0, 2: 0, 3: 0}
     last_numbered_level: int = 0
-    p_idx = 0
 
     # Iterar párrafos existentes o crear nuevos si no existen suficientes
     existing_paragraphs = list(doc.paragraphs)
+
+    # Calcular cuántos párrafos de la cabecera pertenecen a la portada para no sobreescribirlos
+    cover_paragraph_count = 0
+    if use_orig_cover:
+        for item in doc_model.elements:
+            elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
+            if elem.is_cover_section or elem.type == ElementType.PORTADA_BLOCK:
+                cover_paragraph_count += 1
+            else:
+                break
+    else:
+        cover_paragraph_count = paragraphs_before_body
+
+    p_idx = cover_paragraph_count
 
     for item in doc_model.elements:
         elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
