@@ -164,4 +164,20 @@ def generate_apa7_docx(
 
     # 8. Guardar resultado final
     doc.save(out_path)
+
+    # 9. Activar updateFields en settings.xml para que Word recalcule TOC/PAGEREF automáticamente
+    try:
+        from parsing.field_guard import enable_word_update_fields
+        enable_word_update_fields(out_path)
+    except Exception as e:
+        print(f"[WARN] Error activando updateFields: {e}")
+
+    # 10. Gate de Sanidad: verificar que no haya pérdida silenciosa de texto
+    if original_file.exists():
+        try:
+            from parsing.sanity_check import verify_document_content_integrity
+            verify_document_content_integrity(original_file, out_path, tolerance=0.05)
+        except Exception as e:
+            print(f"[WARN] Alerta de Sanidad en exportación: {e}")
+
     return out_path

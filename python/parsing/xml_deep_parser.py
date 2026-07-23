@@ -112,9 +112,25 @@ def extract_textbox_paragraphs(doc_element) -> List[str]:
 
 
 def _extract_paragraphs_from_element(parent_element, output_list: List[str]) -> None:
-    """Extrae texto de todos los w:p dentro de un elemento XML."""
+    """Extrae texto de todos los w:p dentro de un elemento XML ignorando la rama mc:Fallback (VML legacy)."""
     for p in parent_element.findall('.//w:p', NAMESPACES):
-        texts = [t.text for t in p.findall('.//w:t', NAMESPACES) if t.text]
+        texts: List[str] = []
+        for elem in p.iter():
+            tag = str(elem.tag)
+            # Ignorar la rama mc:Fallback completa
+            if tag.endswith("Fallback"):
+                continue
+            if tag.endswith("t") and elem.text:
+                # Verificar que ningun ancestro sea Fallback
+                parent = elem.getparent()
+                in_fallback = False
+                while parent is not None and parent != p:
+                    if str(parent.tag).endswith("Fallback"):
+                        in_fallback = True
+                        break
+                    parent = parent.getparent()
+                if not in_fallback:
+                    texts.append(elem.text)
         p_text = "".join(texts).strip()
         if p_text:
             output_list.append(p_text)

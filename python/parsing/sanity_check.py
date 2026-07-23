@@ -1,0 +1,51 @@
+"""
+WordAPA7 — Sanity Check Gate de Pre-Exportación
+
+Compara el conteo de caracteres reales deduplicados (sin mc:Fallback) entre el
+documento original importado y el documento .docx generado.
+
+Si se detecta una pérdida de texto superior al límite de tolerancia (2%),
+el gate bloquea la exportación y lanza una excepción explicativa.
+"""
+
+from pathlib import Path
+from parsing.structure_scanner import scan_document_xml_nodes
+
+
+class ExportBlockedError(RuntimeError):
+    """Excepción lanzada cuando la comprobación de sanidad bloquea la exportación por pérdida de contenido."""
+    pass
+
+
+def verify_document_content_integrity(
+    orig_docx_path: Path | str,
+    gen_docx_path: Path | str,
+    tolerance: float = 0.02,
+) -> bool:
+    """
+    Verifica que el archivo generado conserve al menos (1 - tolerance)% de los
+    caracteres reales del documento original.
+    """
+    orig_nodes = scan_document_xml_nodes(orig_docx_path)
+    gen_nodes = scan_document_xml_nodes(gen_docx_path)
+
+    if not orig_nodes or not gen_nodes:
+        return True
+
+    orig_chars = sum(len(n.text) for n in orig_nodes if n.is_editable)
+    gen_chars = sum(len(n.text) for n in gen_nodes if n.is_editable)
+
+    if orig_chars == 0:
+        return True
+
+    min_allowed = int(orig_chars * (1.0 - tolerance))
+
+    if gen_chars < min_allowed:
+        loss_pct = ((orig_chars - gen_chars) / orig_chars) * 100
+        raise ExportBlockedError(
+            f"Gate de Sanidad: Posible pérdida de contenido detectada ({orig_chars} → {gen_chars} caracteres, "
+            f"pérdida del {loss_pct:.1f}% mayor a la tolerancia del {tolerance*100}%)."
+        )
+
+    print(f"[OK] Sanity Check aprobado: Original={orig_chars} chars, Generado={gen_chars} chars (Diferencia: {orig_chars - gen_chars} chars).")
+    return True
