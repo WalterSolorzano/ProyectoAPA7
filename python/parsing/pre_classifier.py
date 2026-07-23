@@ -398,56 +398,116 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 table_counter += 1
                 elem.table_info.table_number = table_counter
 
-    # ── PASADA 3: Inferencia de Jerarquía de Headings ──────────────────────
-    heading_sizes: List[float] = []
-    for e in elements:
-        if not e.is_cover_section and e.type == ElementType.HEADING and e.font_size > 0:
-            heading_sizes.append(e.font_size)
+    # ── PASADA 3: Scoring Multi-Criterio e Inferencia de Jerarquía ─────────────
+    # Calcular mediana de tamaño de fuente
+    body_sizes = [e.font_size for e in elements if e.font_size and e.font_size > 0 and not e.is_cover_section]
+    median_size = sorted(body_sizes)[len(body_sizes) // 2] if body_sizes else 12.0
 
-    unique_sizes: List[float] = sorted(list(set(heading_sizes)), reverse=True)
-    size_to_level: dict[float, int] = {}
-    for i, sz in enumerate(unique_sizes[:5]):
-        size_to_level[sz] = i + 1
+    highest_level_seen = 0
 
     for elem in elements:
         if elem.is_cover_section or elem.type == ElementType.PORTADA_BLOCK:
             elem.heading_level = None
+            elem.needs_review = False
             continue
 
-        if elem.type == ElementType.HEADING:
-            style_lower = (elem.style_name or "").lower()
-            txt = (elem.text or "").strip()
+        style_lower = (elem.style_name or "").lower()
+        txt = (elem.text or "").strip()
+        words = txt.split()
 
-            # 1. Prioridad: Estilo nativo de Word
-            if "heading 1" in style_lower or "título 1" in style_lower or "titulo 1" in style_lower:
-                elem.heading_level = 1
-            elif "heading 2" in style_lower or "título 2" in style_lower or "titulo 2" in style_lower:
-                elem.heading_level = 2
-            elif "heading 3" in style_lower or "título 3" in style_lower or "titulo 3" in style_lower:
-                elem.heading_level = 3
-            elif "heading 4" in style_lower or "título 4" in style_lower:
-                elem.heading_level = 4
-            elif "heading 5" in style_lower or "título 5" in style_lower:
-                elem.heading_level = 5
-            # 2. Prioridad: Patrón de numeración explícita (ej: "1.1", "1.1.1")
-            elif re.match(r'^\d+\.\d+\.\d+\s', txt):
-                elem.heading_level = 3
-            elif re.match(r'^\d+\.\d+\s', txt):
-                elem.heading_level = 2
-            elif re.match(r'^\d+\.\s', txt):
-                elem.heading_level = 1
-            # 3. Fallback: Jerarquía por tamaño de fuente
-            elif elem.font_size in size_to_level:
-                elem.heading_level = size_to_level[elem.font_size]
-            elif not elem.heading_level or elem.heading_level == 0:
-                elem.heading_level = 1
+        # 1. Caso A: Estilos Nativos de Word (Confianza Máxima 0.99)
+        if "heading 1" in style_lower or "título 1" in style_lower or "titulo 1" in style_lower:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 1
+            elem.confidence = 0.99
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, 1)
+            continue
+        elif "heading 2" in style_lower or "título 2" in style_lower or "titulo 2" in style_lower:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 2
+            elem.confidence = 0.99
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, 2)
+            continue
+        elif "heading 3" in style_lower or "título 3" in style_lower or "titulo 3" in style_lower:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 3
+            elem.confidence = 0.99
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, 3)
+            continue
+        elif "heading 4" in style_lower or "título 4" in style_lower:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 4
+            elem.confidence = 0.99
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, 4)
+            continue
+        elif "heading 5" in style_lower or "título 5" in style_lower:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 5
+            elem.confidence = 0.99
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, 5)
+            continue
 
-    # Marcar elementos con baja confianza como needing review
-    for elem in elements:
-        if elem.confidence < 0.85 and elem.type not in (
-            ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE,
-            ElementType.PAGE_BREAK, ElementType.SECTION_BREAK,
-        ):
+        # Skip non-textual or special elements
+        if elem.type in (ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK):
+            elem.needs_review = False
+            continue
+
+        # 2. Caso B: Algoritmo de Scoring Heurístico Multi-Criterio
+        score = 0.0
+
+        if elem.is_bold:
+            score += 0.4
+        if len(words) < 12:
+            score += 0.2
+        if txt and not txt.endswith("."):
+            score += 0.1
+        if elem.font_size > median_size:
+            score += 0.2
+        if elem.alignment == "center":
+            score += 0.15
+        if len(words) > 25 or (txt and txt.count(".") > 1):
+            score -= 0.5
+
+        # Decisiones por Umbral de Score
+        if score >= 0.7:
+            elem.type = ElementType.HEADING
+            elem.confidence = min(0.95, 0.70 + (score * 0.25))
+            elem.needs_review = False
+        elif 0.4 <= score < 0.7:
+            elem.type = ElementType.HEADING
+            elem.confidence = 0.60
             elem.needs_review = True
+        else:
+            if elem.type == ElementType.HEADING and not elem.style_name:
+                elem.type = ElementType.PARAGRAPH
+            elem.confidence = max(elem.confidence, 0.90)
+            elem.needs_review = False
+
+        # Inferencia de Jerarquía Incremental
+        if elem.type == ElementType.HEADING:
+            if re.match(r'^\d+\.\d+\.\d+\s', txt):
+                target_lvl = 3
+            elif re.match(r'^\d+\.\d+\s', txt):
+                target_lvl = 2
+            elif re.match(r'^\d+\.\s', txt):
+                target_lvl = 1
+            elif elem.alignment == "center" or elem.font_size > median_size:
+                target_lvl = 1
+            elif elem.is_bold and elem.is_italic:
+                target_lvl = 3
+            else:
+                target_lvl = 2
+
+            # Garantizar desarrollo incremental de la jerarquía (no saltar a H3 si no hay H1/H2)
+            if target_lvl > highest_level_seen + 1:
+                target_lvl = min(target_lvl, highest_level_seen + 1 if highest_level_seen > 0 else 1)
+
+            elem.heading_level = target_lvl
+            highest_level_seen = max(highest_level_seen, target_lvl)
 
     return elements

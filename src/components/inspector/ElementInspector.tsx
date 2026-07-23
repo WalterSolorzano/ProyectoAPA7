@@ -43,13 +43,40 @@ export const ElementInspector: React.FC = () => {
         {/* Si el elemento seleccionado es de Portada, mostrar el Editor Interactivo de Portada */}
         {isPortadaElem ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ backgroundColor: 'var(--word-blue-light)', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--word-blue)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <FileText size={14} /> Hoja Especial de Portada
+            <div style={{ backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--word-blue)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <FileText size={14} /> Estrategia de la Hoja de Portada
               </span>
-              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Modifica aquí los datos de tu portada personalizada en vivo.
-              </p>
+              
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {[
+                  { value: 'keep_original', label: '○ No tocar la portada (byte-idéntica al original)', desc: 'Recomendado si ya tiene formato institucional de la UNI' },
+                  { value: 'keep_design_update_data', label: '● Mantener diseño, solo corregir datos editados abajo', desc: 'Edición quirúrgica in-place de nombres o títulos' },
+                  { value: 'generate_apa7_template', label: '○ Reemplazar con portada generada plantilla APA 7', desc: 'Formato estándar centrado APA 7' },
+                ].map((mode) => {
+                  const currentCoverMode = portada.use_original_cover ? 'keep_design_update_data' : 'generate_apa7_template';
+                  const isSel = currentCoverMode === mode.value;
+
+                  return (
+                    <div
+                      key={mode.value}
+                      onClick={() => setPortada({ use_original_cover: mode.value !== 'generate_apa7_template' })}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '4px',
+                        border: `1px solid ${isSel ? 'var(--word-blue)' : '#cbd5e1'}`,
+                        backgroundColor: isSel ? '#ffffff' : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: isSel ? 700 : 500, color: isSel ? 'var(--word-blue)' : '#334155' }}>
+                        {mode.label}
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{mode.desc}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
