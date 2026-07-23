@@ -1,25 +1,63 @@
-/* WordAPA7 — Left Navigation & Collapsible Outline Pane (Enfocado en Problemas) */
+/* WordAPA7 — Left Navigation & Collapsible Outline Pane (Con Botón de Ocultar/Mostrar) */
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ConfidenceBadge } from '../shared/ConfidenceBadge';
-import { FileText, BookOpen, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Eye, EyeOff, ListFilter } from 'lucide-react';
 
 export const DocumentOutlinePane: React.FC = () => {
   const { doc, selectedElementId, setSelectedElementId } = useDocStore();
   const [filter, setFilter] = useState<'problems' | 'headings' | 'all'>('problems');
   const [showHighConfidence, setShowHighConfidence] = useState<boolean>(false);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
   if (!doc) return null;
 
-  // Filtrar problemas (< 85% de confianza)
+  // Si está colapsado, mostrar barra lateral delgada para expandir
+  if (isCollapsed) {
+    return (
+      <div
+        onClick={() => setIsCollapsed(false)}
+        style={{
+          width: '40px',
+          minWidth: '40px',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid var(--border-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          paddingTop: '16px',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease'
+        }}
+        title="Mostrar Esquema de Navegación"
+      >
+        <button
+          className="btn btn-secondary btn-xs"
+          style={{ padding: '6px', borderRadius: '50%' }}
+          onClick={(e) => { e.stopPropagation(); setIsCollapsed(false); }}
+        >
+          <Eye size={16} color="var(--word-blue)" />
+        </button>
+        <span style={{
+          writingMode: 'vertical-rl',
+          transform: 'rotate(180deg)',
+          fontSize: '11px',
+          fontWeight: 700,
+          color: 'var(--word-blue)',
+          marginTop: '16px',
+          letterSpacing: '1px'
+        }}>
+          ESQUEMA DE NAVEGACIÓN
+        </span>
+      </div>
+    );
+  }
+
   const problemElements = doc.elements.filter((e) => e.type !== 'empty' && e.confidence < 0.85 && !e.is_user_modified);
   const headingElements = doc.elements.filter((e) => e.type === 'heading');
   const highConfidenceElements = doc.elements.filter((e) => e.type !== 'empty' && e.confidence >= 0.85);
 
-  const portadaElements = doc.elements.filter((e) => e.type === 'portada_block' || (doc.elements.indexOf(e) < 4 && e.type !== 'heading'));
-
-  // Determinar lista a desplegar según el filtro seleccionado
   const displayElements = doc.elements.filter((e) => {
     if (e.type === 'empty') return false;
     if (filter === 'problems') return e.confidence < 0.85 && !e.is_user_modified;
@@ -30,10 +68,31 @@ export const DocumentOutlinePane: React.FC = () => {
   return (
     <div className="nav-pane" style={{ width: '300px', minWidth: '300px', backgroundColor: '#ffffff', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
       
-      {/* Header del Esquema */}
+      {/* Header del Esquema con Botón Ocultar */}
       <div className="nav-pane-header" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>ESQUEMA DE NAVEGACIÓN</span>
-        <span style={{ fontSize: '11px', color: 'var(--word-blue)', fontWeight: 600 }}>{doc.elements.length} elems</span>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <ListFilter size={14} color="var(--word-blue)" /> ESQUEMA DE NAVEGACIÓN
+        </span>
+        
+        <button
+          onClick={() => setIsCollapsed(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '11px',
+            color: '#64748b',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            transition: 'background 0.15s ease'
+          }}
+          title="Ocultar Esquema para ver el Lienzo Completo"
+        >
+          <EyeOff size={14} /> Ocultar
+        </button>
       </div>
 
       {/* Chips de Filtro con "⚠️ Problemas" como Predeterminado */}

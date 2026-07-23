@@ -384,11 +384,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # Si el elemento esta antes del cuerpo, pertenece a la sección de portada
         if idx < portada_boundary:
             elem.is_cover_section = True
-            if elem.type in (ElementType.IMAGE, ElementType.PARAGRAPH, ElementType.UNKNOWN) and not elem.style_name.lower().startswith('heading'):
-                elem.type = ElementType.PORTADA_BLOCK
-                elem.confidence = 0.95
-                if elem.image_info:
-                    elem.image_info.figure_number = 0
+            elem.type = ElementType.PORTADA_BLOCK
+            elem.heading_level = None
+            elem.confidence = 0.95
+            if elem.image_info:
+                elem.image_info.figure_number = 0
         else:
             elem.is_cover_section = False
             if elem.type == ElementType.IMAGE and elem.image_info:
@@ -401,7 +401,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # ── PASADA 3: Inferencia de Jerarquía de Headings ──────────────────────
     heading_sizes: List[float] = []
     for e in elements:
-        if e.type == ElementType.HEADING and e.font_size > 0:
+        if not e.is_cover_section and e.type == ElementType.HEADING and e.font_size > 0:
             heading_sizes.append(e.font_size)
 
     unique_sizes: List[float] = sorted(list(set(heading_sizes)), reverse=True)
@@ -410,6 +410,10 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         size_to_level[sz] = i + 1
 
     for elem in elements:
+        if elem.is_cover_section or elem.type == ElementType.PORTADA_BLOCK:
+            elem.heading_level = None
+            continue
+
         if elem.type == ElementType.HEADING:
             style_lower = (elem.style_name or "").lower()
             txt = (elem.text or "").strip()
