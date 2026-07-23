@@ -1,136 +1,178 @@
-/* WordAPA7 — Left Navigation & Collapsible Outline Pane */
+/* WordAPA7 — Left Navigation & Collapsible Outline Pane (Enfocado en Problemas) */
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ConfidenceBadge } from '../shared/ConfidenceBadge';
-import { FileText, BookOpen, Table2 } from '../shared/Icons';
+import { FileText, BookOpen, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 
 export const DocumentOutlinePane: React.FC = () => {
   const { doc, selectedElementId, setSelectedElementId } = useDocStore();
-  const [filter, setFilter] = useState<'all' | 'doubtful' | 'headings' | 'tables'>('all');
+  const [filter, setFilter] = useState<'problems' | 'headings' | 'all'>('problems');
+  const [showHighConfidence, setShowHighConfidence] = useState<boolean>(false);
 
   if (!doc) return null;
 
-  const doubtfulCount = doc.elements.filter((e) => e.confidence < 0.85 && !e.is_user_modified && e.type !== 'empty').length;
+  // Filtrar problemas (< 85% de confianza)
+  const problemElements = doc.elements.filter((e) => e.type !== 'empty' && e.confidence < 0.85 && !e.is_user_modified);
+  const headingElements = doc.elements.filter((e) => e.type === 'heading');
+  const highConfidenceElements = doc.elements.filter((e) => e.type !== 'empty' && e.confidence >= 0.85);
 
   const portadaElements = doc.elements.filter((e) => e.type === 'portada_block' || (doc.elements.indexOf(e) < 4 && e.type !== 'heading'));
-  const headingElements = doc.elements.filter((e) => e.type === 'heading');
-  const allFiltered = doc.elements.filter((e) => {
+
+  // Determinar lista a desplegar según el filtro seleccionado
+  const displayElements = doc.elements.filter((e) => {
     if (e.type === 'empty') return false;
-    if (filter === 'doubtful') return e.confidence < 0.85 && !e.is_user_modified;
+    if (filter === 'problems') return e.confidence < 0.85 && !e.is_user_modified;
     if (filter === 'headings') return e.type === 'heading';
-    if (filter === 'tables') return e.type === 'table' || e.type === 'image';
     return true;
   });
 
   return (
-    <div className="nav-pane">
-      <div className="nav-pane-header">
-        <span>ESQUEMA DE NAVEGACIÓN</span>
+    <div className="nav-pane" style={{ width: '300px', minWidth: '300px', backgroundColor: '#ffffff', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Header del Esquema */}
+      <div className="nav-pane-header" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>ESQUEMA DE NAVEGACIÓN</span>
         <span style={{ fontSize: '11px', color: 'var(--word-blue)', fontWeight: 600 }}>{doc.elements.length} elems</span>
       </div>
 
-      {/* Chips de Filtro */}
-      <div style={{ display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: '1px solid var(--border-color)', overflowX: 'auto', flexShrink: 0, backgroundColor: '#f3f2f1' }}>
+      {/* Chips de Filtro con "⚠️ Problemas" como Predeterminado */}
+      <div style={{ display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: '1px solid var(--border-color)', backgroundColor: '#f8fafc' }}>
         <button
-          className={`ribbon-tab ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-          style={{ padding: '4px 8px', fontSize: '11px' }}
+          className={`ribbon-tab ${filter === 'problems' ? 'active' : ''}`}
+          onClick={() => setFilter('problems')}
+          style={{
+            padding: '4px 10px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: problemElements.length > 0 ? '#dc2626' : 'inherit',
+            backgroundColor: filter === 'problems' && problemElements.length > 0 ? '#fee2e2' : undefined
+          }}
         >
-          Todos
+          <AlertTriangle size={12} style={{ marginRight: '4px' }} />
+          Problemas ({problemElements.length})
         </button>
-        <button
-          className={`ribbon-tab ${filter === 'doubtful' ? 'active' : ''}`}
-          onClick={() => setFilter('doubtful')}
-          style={{ padding: '4px 8px', fontSize: '11px', color: doubtfulCount > 0 ? '#d97706' : 'inherit' }}
-        >
-          Dudas ({doubtfulCount})
-        </button>
+
         <button
           className={`ribbon-tab ${filter === 'headings' ? 'active' : ''}`}
           onClick={() => setFilter('headings')}
-          style={{ padding: '4px 8px', fontSize: '11px' }}
+          style={{ padding: '4px 10px', fontSize: '11px' }}
         >
           Títulos ({headingElements.length})
         </button>
+
+        <button
+          className={`ribbon-tab ${filter === 'all' ? 'active' : ''}`}
+          onClick={() => setFilter('all')}
+          style={{ padding: '4px 10px', fontSize: '11px' }}
+        >
+          Todos
+        </button>
       </div>
 
-      {/* Lista del Esquema Organizada sin Emojis */}
-      <div className="nav-pane-content">
+      {/* Contenido Guiado */}
+      <div className="nav-pane-content" style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
         
-        {/* Sección de Portada */}
-        {portadaElements.length > 0 && filter === 'all' && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <FileText size={12} /> PORTADA DEL DOCUMENTO
-            </div>
-            {portadaElements.map((elem) => (
-              <div
-                key={elem.id}
-                onClick={() => setSelectedElementId(elem.id)}
-                style={{
-                  padding: '6px 8px',
-                  marginBottom: '4px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: `1px solid ${selectedElementId === elem.id ? 'var(--word-blue)' : 'var(--border-color)'}`,
-                  backgroundColor: selectedElementId === elem.id ? 'var(--word-blue-light)' : '#ffffff',
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--word-blue)' }}>[PORTADA] </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>{elem.text || 'Logo/Elemento Portada'}</span>
+        {/* Banner Informativo de Problemas */}
+        {filter === 'problems' && (
+          <div style={{ marginBottom: '12px' }}>
+            {problemElements.length === 0 ? (
+              <div style={{ padding: '16px', backgroundColor: '#dcfce7', borderRadius: '6px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                <CheckCircle2 size={24} color="#16a34a" style={{ display: 'block', margin: '0 auto 6px auto' }} />
+                <strong style={{ fontSize: '12px', color: '#15803d', display: 'block' }}>¡Todo 100% Verificado!</strong>
+                <span style={{ fontSize: '11px', color: '#166534' }}>
+                  No hay elementos dudosos que requieran revisión manual.
+                </span>
               </div>
-            ))}
+            ) : (
+              <div style={{ padding: '10px 12px', backgroundColor: '#fff7ed', borderRadius: '6px', border: '1px solid #ffedd5', fontSize: '11px', color: '#c2410c' }}>
+                <strong>Tienes {problemElements.length} elementos por revisar:</strong>
+                <span style={{ display: 'block', color: '#9a3412', marginTop: '2px' }}>
+                  Haz clic en cada ítem para inspeccionarlo en el lienzo.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Sección de Títulos y Cuerpo */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <BookOpen size={12} /> ESTRUCTURA DEL CUERPO
-          </div>
-          {allFiltered.map((elem) => {
-            const isSelected = selectedElementId === elem.id;
-            const isHeading = elem.type === 'heading';
-            const lvl = elem.heading_level || 1;
-            const indentPx = isHeading ? (lvl - 1) * 12 : 8;
-
-            return (
-              <div
-                key={elem.id}
-                onClick={() => setSelectedElementId(elem.id)}
-                style={{
-                  marginLeft: `${indentPx}px`,
-                  padding: '6px 8px',
-                  marginBottom: '4px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: `1px solid ${isSelected ? 'var(--word-blue)' : 'var(--border-color)'}`,
-                  backgroundColor: isSelected ? 'var(--word-blue-light)' : '#ffffff',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: isHeading ? 'var(--word-blue)' : 'var(--text-secondary)' }}>
-                    {elem.type} {elem.heading_level ? `N${elem.heading_level}` : ''}
-                  </span>
-                  <ConfidenceBadge confidence={elem.confidence} isUserModified={elem.is_user_modified} />
-                </div>
-
-                <p style={{
-                  fontSize: '11px',
-                  color: 'var(--text-main)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontWeight: isHeading ? 600 : 400
-                }}>
-                  {elem.text || (elem.image_info ? `Figura: ${elem.image_info.filename}` : `Tabla ${elem.table_info?.table_number}`)}
-                </p>
+        {/* Resumen Colapsable de Elementos de Alta Confianza (95%+) */}
+        {filter === 'all' && highConfidenceElements.length > 0 && (
+          <div style={{ marginBottom: '12px', borderRadius: '6px', border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', overflow: 'hidden' }}>
+            <div
+              onClick={() => setShowHighConfidence(!showHighConfidence)}
+              style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 600, color: '#166534' }}>
+                <CheckCircle2 size={14} color="#16a34a" />
+                <span>{highConfidenceElements.length} elementos correctos (95%+)</span>
               </div>
-            );
-          })}
-        </div>
+              {showHighConfidence ? <ChevronDown size={14} color="#166534" /> : <ChevronRight size={14} color="#166534" />}
+            </div>
+
+            {showHighConfidence && (
+              <div style={{ padding: '8px', borderTop: '1px solid #bbf7d0', backgroundColor: '#ffffff', maxHeight: '180px', overflowY: 'auto' }}>
+                {highConfidenceElements.map((elem) => (
+                  <div
+                    key={elem.id}
+                    onClick={() => setSelectedElementId(elem.id)}
+                    style={{ padding: '4px 8px', fontSize: '11px', color: '#334155', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
+                  >
+                    <span style={{ fontWeight: 600 }}>[{elem.type}]</span> {(elem.text || '').slice(0, 40)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Renderizado de la Lista Filtrada */}
+        {displayElements.length > 0 && (
+          <div>
+            {displayElements.map((elem) => {
+              const isSelected = selectedElementId === elem.id;
+              const isHeading = elem.type === 'heading';
+              const lvl = elem.heading_level || 1;
+              const indentPx = isHeading ? (lvl - 1) * 10 : 0;
+
+              return (
+                <div
+                  key={elem.id}
+                  onClick={() => setSelectedElementId(elem.id)}
+                  style={{
+                    marginLeft: `${indentPx}px`,
+                    padding: '8px 10px',
+                    marginBottom: '6px',
+                    borderRadius: '4px',
+                    border: `1px solid ${isSelected ? 'var(--word-blue)' : 'var(--border-color)'}`,
+                    backgroundColor: isSelected ? '#eff6fc' : '#ffffff',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 0 0 1px var(--word-blue)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: isHeading ? 'var(--word-blue)' : '#475569' }}>
+                      {elem.type} {elem.heading_level ? `Nivel ${elem.heading_level}` : ''}
+                    </span>
+                    <ConfidenceBadge confidence={elem.confidence} isUserModified={elem.is_user_modified} />
+                  </div>
+
+                  <p style={{
+                    fontSize: '11px',
+                    color: '#0f172a',
+                    margin: 0,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    fontWeight: isHeading ? 600 : 400
+                  }}>
+                    {elem.text || (elem.image_info ? `Figura: ${elem.image_info.filename}` : `Tabla ${elem.table_info?.table_number}`)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

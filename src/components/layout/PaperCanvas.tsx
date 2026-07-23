@@ -35,6 +35,16 @@ export const PaperCanvas: React.FC = () => {
     };
   }, [zoomLevel, setZoomLevel]);
 
+  // Scroll automático y resalte al seleccionar un elemento desde el esquema
+  useEffect(() => {
+    if (selectedElementId) {
+      const targetEl = document.getElementById(`paper-elem-${selectedElementId}`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [selectedElementId]);
+
   if (!doc) return null;
 
   const fontFamily = rules.font_family || 'Times New Roman';
@@ -376,6 +386,7 @@ export const PaperCanvas: React.FC = () => {
                     return (
                       <div
                         key={elem.id}
+                        id={`paper-elem-${elem.id}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedElementId(elem.id);
@@ -388,9 +399,11 @@ export const PaperCanvas: React.FC = () => {
                         }}
                         style={{
                           position: 'relative',
-                          borderRadius: '2px',
+                          borderRadius: '4px',
                           padding: '2px 4px',
                           cursor: 'pointer',
+                          backgroundColor: isSelected ? '#eff6fc' : 'transparent',
+                          boxShadow: isSelected ? '0 0 0 2px var(--word-blue)' : 'none',
                           transition: 'all 0.15s ease'
                         }}
                       >

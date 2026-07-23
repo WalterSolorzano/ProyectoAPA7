@@ -166,38 +166,40 @@ export const App: React.FC = () => {
           {wizardStep === 6 && <Step6ExportWizard />}
         </div>
 
-        {/* Panel Derecho: Inspector de Propiedades y Vista Previa */}
-        <div style={{
-          width: '320px', minWidth: '320px', maxWidth: '320px',
-          flexShrink: 0, display: 'flex', flexDirection: 'column',
-          height: '100%', overflow: 'hidden',
-          background: 'var(--bg-base)', borderLeft: '1px solid var(--border-subtle)',
-        }}>
+        {/* Panel Derecho: Inspector de Datos de Portada (solo en Paso 1 de Portada) */}
+        {wizardStep === 1 && (
           <div style={{
-            display: 'flex', borderBottom: '1px solid var(--border-subtle)',
-            flexShrink: 0,
+            width: '320px', minWidth: '320px', maxWidth: '320px',
+            flexShrink: 0, display: 'flex', flexDirection: 'column',
+            height: '100%', overflow: 'hidden',
+            background: 'var(--bg-base)', borderLeft: '1px solid var(--border-subtle)',
           }}>
-            <button
-              className={`ribbon-tab${rightPanel === 'inspector' ? ' active' : ''}`}
-              onClick={() => setRightPanel('inspector')}
-              style={{ flex: 1, justifyContent: 'center' }}
-            >
-              <Settings size={12} style={{ marginRight: '4px' }} />
-              Inspector
-            </button>
-            <button
-              className={`ribbon-tab${rightPanel === 'preview' ? ' active' : ''}`}
-              onClick={() => setRightPanel('preview')}
-              style={{ flex: 1, justifyContent: 'center' }}
-            >
-              <Eye size={12} style={{ marginRight: '4px' }} />
-              Vista Previa
-            </button>
+            <div style={{
+              display: 'flex', borderBottom: '1px solid var(--border-subtle)',
+              flexShrink: 0,
+            }}>
+              <button
+                className={`ribbon-tab${rightPanel === 'inspector' ? ' active' : ''}`}
+                onClick={() => setRightPanel('inspector')}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <Settings size={12} style={{ marginRight: '4px' }} />
+                Inspector
+              </button>
+              <button
+                className={`ribbon-tab${rightPanel === 'preview' ? ' active' : ''}`}
+                onClick={() => setRightPanel('preview')}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <Eye size={12} style={{ marginRight: '4px' }} />
+                Vista Previa
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              {rightPanel === 'inspector' ? <ElementInspector /> : <LivePreview />}
+            </div>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            {rightPanel === 'inspector' ? <ElementInspector /> : <LivePreview />}
-          </div>
-        </div>
+        )}
       </div>
       <StatusBar />
     </div>
