@@ -1,9 +1,9 @@
-/* WordAPA7 — Interactive Canvas with 1-to-1 Original Document Fidelity */
+/* WordAPA7 — Interactive Canvas with Faithful Original Document Layout */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { Type, Image as ImageIcon, Table as TableIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 
 export const PaperCanvas: React.FC = () => {
   const { doc, rules, selectedElementId, setSelectedElementId, updateElementType } = useDocStore();
@@ -57,7 +57,7 @@ export const PaperCanvas: React.FC = () => {
     if (elem.type === 'heading') units = 2;
     if (elem.type === 'image') units = 4;
     if (elem.type === 'table') units = 6;
-    if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.5 : 0.8;
+    if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.2 : 0.6;
     if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 250));
 
     const isFirstBodyHeading = !elem.is_cover_section && elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
@@ -121,7 +121,7 @@ export const PaperCanvas: React.FC = () => {
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontWeight: 600, color: 'var(--word-blue)' }}>Vista Previa Fiel al Documento Word</span>
+          <span style={{ fontWeight: 600, color: 'var(--word-blue)' }}>Vista Previa del Documento</span>
           <span style={{ color: '#cbd5e1' }}>|</span>
           <span style={{ fontSize: '11px', color: '#64748b' }}>
             Tipografía: <strong>{fontFamily}</strong> ({rules.font_size_pt}pt)
@@ -159,6 +159,29 @@ export const PaperCanvas: React.FC = () => {
         {pages.map((pageElements, pageIdx) => {
           const isCoverPage = pageIdx === 0;
 
+          // Separar elementos de portada en bloques lógicos para renderizado limpio
+          const coverHeaderTexts: ElementModel[] = [];
+          const coverAuthorTexts: ElementModel[] = [];
+          const coverFooterTexts: ElementModel[] = [];
+          const coverLogoImage = pageElements.find(e => (e.is_cover_section || e.type === 'portada_block') && e.image_info && (e.image_info.width_cm || 0) > 2.0);
+
+          if (isCoverPage) {
+            pageElements.forEach(e => {
+              if (e.is_cover_section || e.type === 'portada_block') {
+                const txt = (e.text || '').trim();
+                const txtLower = txt.toLowerCase();
+
+                if (txtLower.includes('elaborado por') || txtLower.includes('br.') || txtLower.includes('carnet') || txtLower.includes('tutor:')) {
+                  coverAuthorTexts.push(e);
+                } else if (txtLower.includes('grupo') || txtLower.includes('junio') || txtLower.includes('managua') || txtLower.includes('nicaragua')) {
+                  coverFooterTexts.push(e);
+                } else if (txt) {
+                  coverHeaderTexts.push(e);
+                }
+              }
+            });
+          }
+
           return (
             <div
               key={pageIdx}
@@ -195,23 +218,114 @@ export const PaperCanvas: React.FC = () => {
                 <span>{!isCoverPage ? pageIdx + 1 : ''}</span>
               </div>
 
-              {/* Contenido de los Elementos de la Página */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-                {pageElements.map((elem) => {
-                  const isSelected = selectedElementId === elem.id;
-                  const isContextMenuOpen = contextMenuElemId === elem.id;
-                  const isCoverElem = elem.is_cover_section || elem.type === 'portada_block';
-                  const showFigureLabel = !isCoverElem && elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0;
+              {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
+              {isCoverPage && coverHeaderTexts.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: '780px' }}>
+                  
+                  {/* Encabezado: Logo + Universidad/Título */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '4px' }}>
+                    {coverLogoImage?.image_info?.relative_url && (
+                      <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                        <img
+                          src={coverLogoImage.image_info.relative_url}
+                          alt="Logo Universidad"
+                          style={{ maxHeight: '110px', maxWidth: '320px', objectFit: 'contain' }}
+                        />
+                      </div>
+                    )}
+                    {coverHeaderTexts.map(elem => (
+                      <p
+                        key={elem.id}
+                        id={`paper-elem-${elem.id}`}
+                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                        style={{
+                          margin: '2px 0',
+                          textAlign: (elem.alignment as any) || 'center',
+                          fontWeight: elem.is_bold ? 'bold' : 'normal',
+                          fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
+                          color: '#0f172a',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {elem.text}
+                      </p>
+                    ))}
+                  </div>
 
-                  if (elem.type === 'heading') {
-                    globalListCounter = 0;
-                  } else if (elem.type === 'numbered_list') {
-                    globalListCounter += 1;
-                  }
-                  const currentItemNum = globalListCounter;
+                  {/* Bloque Autores: Grilla de Columnas Limpia */}
+                  {coverAuthorTexts.length > 0 && (
+                    <div style={{ width: '100%', margin: '20px 0' }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                        gap: '12px',
+                        alignItems: 'start',
+                        borderLeft: '2px solid #e2e8f0',
+                        paddingLeft: '12px'
+                      }}>
+                        {coverAuthorTexts.map(elem => (
+                          <div
+                            key={elem.id}
+                            id={`paper-elem-${elem.id}`}
+                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                            style={{
+                              padding: '4px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              backgroundColor: selectedElementId === elem.id ? '#eff6fc' : 'transparent'
+                            }}
+                          >
+                            <p style={{
+                              margin: 0,
+                              fontSize: '11pt',
+                              fontWeight: elem.text.toLowerCase().includes('elaborado') || elem.text.toLowerCase().includes('tutor') ? 'bold' : 'normal',
+                              color: '#0f172a',
+                              whiteSpace: 'pre-line'
+                            }}>
+                              {elem.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                  // Renderizado Fiel de Elementos de Portada sin alterar su diseño
-                  if (isCoverElem) {
+                  {/* Pie de Portada: Grupo & Fecha */}
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto', paddingTop: '16px' }}>
+                    {coverFooterTexts.map(elem => (
+                      <p
+                        key={elem.id}
+                        id={`paper-elem-${elem.id}`}
+                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                        style={{
+                          margin: 0,
+                          fontSize: '11pt',
+                          fontWeight: 'bold',
+                          color: '#0f172a',
+                          cursor: 'pointer',
+                          textAlign: elem.text.toLowerCase().includes('managua') || elem.text.toLowerCase().includes('junio') ? 'right' : 'left'
+                        }}
+                      >
+                        {elem.text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                  {pageElements.map((elem) => {
+                    const isSelected = selectedElementId === elem.id;
+                    const isContextMenuOpen = contextMenuElemId === elem.id;
+                    const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0;
+
+                    if (elem.type === 'heading') {
+                      globalListCounter = 0;
+                    } else if (elem.type === 'numbered_list') {
+                      globalListCounter += 1;
+                    }
+                    const currentItemNum = globalListCounter;
+
                     return (
                       <div
                         key={elem.id}
@@ -220,235 +334,194 @@ export const PaperCanvas: React.FC = () => {
                           e.stopPropagation();
                           setSelectedElementId(elem.id);
                         }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedElementId(elem.id);
+                          setContextMenuElemId(elem.id);
+                        }}
                         style={{
-                          padding: '2px 4px',
+                          position: 'relative',
                           borderRadius: '4px',
+                          padding: '2px 4px',
                           cursor: 'pointer',
                           backgroundColor: isSelected ? '#eff6fc' : 'transparent',
                           boxShadow: isSelected ? '0 0 0 2px var(--word-blue)' : 'none',
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        {elem.image_info?.relative_url ? (
-                          <div style={{ textAlign: (elem.alignment as any) || 'center', margin: '8px 0' }}>
-                            <img
-                              src={elem.image_info.relative_url}
-                              alt="Imagen Portada"
-                              style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }}
-                            />
+                        {/* Menú Contextual */}
+                        {isContextMenuOpen && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '-36px',
+                            left: '0',
+                            backgroundColor: '#ffffff',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            display: 'flex',
+                            gap: '4px',
+                            zIndex: 300,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                          }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                              onClick={() => { updateElementType(elem.id, 'heading', 1, elem.text); setContextMenuElemId(null); }}
+                            >
+                              Heading 1
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                              onClick={() => { updateElementType(elem.id, 'heading', 2, elem.text); setContextMenuElemId(null); }}
+                            >
+                              Heading 2
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                              onClick={() => { updateElementType(elem.id, 'paragraph', 1, elem.text); setContextMenuElemId(null); }}
+                            >
+                              Párrafo
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                              onClick={() => { updateElementType(elem.id, 'bullet', 1, elem.text); setContextMenuElemId(null); }}
+                            >
+                              Viñeta
+                            </button>
                           </div>
-                        ) : (
+                        )}
+
+                        {/* Elementos por Tipo */}
+                        {elem.type === 'heading' && (
                           <p style={{
-                            margin: '4px 0',
-                            textAlign: (elem.alignment as any) || 'center',
-                            fontWeight: elem.is_bold ? 'bold' : 'normal',
-                            fontStyle: elem.is_italic ? 'italic' : 'normal',
-                            fontSize: elem.font_size ? `${elem.font_size}pt` : `${rules.font_size_pt}pt`,
-                            color: '#0f172a'
+                            fontWeight: 'bold',
+                            fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
+                            textAlign: elem.heading_level === 1 ? 'center' : 'left',
+                            marginTop: '12px',
+                            marginBottom: '6px'
                           }}>
                             {elem.text}
                           </p>
                         )}
-                      </div>
-                    );
-                  }
 
-                  // Renderizado Estándar del Cuerpo
-                  return (
-                    <div
-                      key={elem.id}
-                      id={`paper-elem-${elem.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedElementId(elem.id);
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setSelectedElementId(elem.id);
-                        setContextMenuElemId(elem.id);
-                      }}
-                      style={{
-                        position: 'relative',
-                        borderRadius: '4px',
-                        padding: '2px 4px',
-                        cursor: 'pointer',
-                        backgroundColor: isSelected ? '#eff6fc' : 'transparent',
-                        boxShadow: isSelected ? '0 0 0 2px var(--word-blue)' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {/* Menú Contextual */}
-                      {isContextMenuOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '-36px',
-                          left: '0',
-                          backgroundColor: '#ffffff',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '4px',
-                          padding: '4px 8px',
-                          display: 'flex',
-                          gap: '4px',
-                          zIndex: 300,
-                          boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
-                        }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                            onClick={() => { updateElementType(elem.id, 'heading', 1, elem.text); setContextMenuElemId(null); }}
-                          >
-                            Heading 1
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                            onClick={() => { updateElementType(elem.id, 'heading', 2, elem.text); setContextMenuElemId(null); }}
-                          >
-                            Heading 2
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                            onClick={() => { updateElementType(elem.id, 'paragraph', 1, elem.text); setContextMenuElemId(null); }}
-                          >
-                            Párrafo
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                            onClick={() => { updateElementType(elem.id, 'bullet', 1, elem.text); setContextMenuElemId(null); }}
-                          >
-                            Viñeta
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Elementos por Tipo */}
-                      {elem.type === 'heading' && (
-                        <p style={{
-                          fontWeight: 'bold',
-                          fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
-                          textAlign: elem.heading_level === 1 ? 'center' : 'left',
-                          marginTop: '12px',
-                          marginBottom: '6px'
-                        }}>
-                          {elem.text}
-                        </p>
-                      )}
-
-                      {elem.type === 'paragraph' && (
-                        <p style={{
-                          textIndent: '0.5in',
-                          lineHeight: rules.line_spacing,
-                          textAlign: 'justify',
-                          margin: '0 0 6px 0'
-                        }}>
-                          {elem.text}
-                        </p>
-                      )}
-
-                      {elem.type === 'block_quote' && (
-                        <p style={{
-                          marginLeft: '0.5in',
-                          lineHeight: rules.line_spacing,
-                          fontSize: `${rules.font_size_pt - 1}pt`,
-                          margin: '6px 0'
-                        }}>
-                          {elem.text}
-                        </p>
-                      )}
-
-                      {elem.type === 'bullet' && (
-                        <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                          • {elem.text}
-                        </p>
-                      )}
-
-                      {elem.type === 'numbered_list' && (
-                        <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                          {currentItemNum}. {elem.text}
-                        </p>
-                      )}
-
-                      {(elem.type === 'image' || elem.image_info) && (
-                        <div style={{ margin: '16px 0', textAlign: 'center', width: '100%' }}>
-                          {showFigureLabel && (
-                            <>
-                              <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0' }}>Figura {elem.image_info?.figure_number}</p>
-                              {elem.image_info?.caption && <p style={{ fontStyle: 'italic', textAlign: 'left', margin: '0 0 8px 0' }}>{elem.image_info.caption}</p>}
-                            </>
-                          )}
-
-                          <div style={{
-                            margin: '8px auto',
-                            maxWidth: '100%',
-                            height: '140px',
-                            backgroundColor: '#f8fafc',
-                            border: '1px dashed #cbd5e1',
-                            borderRadius: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#64748b',
-                            overflow: 'hidden'
+                        {elem.type === 'paragraph' && (
+                          <p style={{
+                            textIndent: '0.5in',
+                            lineHeight: rules.line_spacing,
+                            textAlign: 'justify',
+                            margin: '0 0 6px 0'
                           }}>
-                            {elem.image_info?.relative_url ? (
-                              <img src={elem.image_info.relative_url} alt="Figura" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
-                            ) : (
-                              <span style={{ fontSize: '12px' }}>{elem.text || '[Gráfico]'}</span>
+                            {elem.text}
+                          </p>
+                        )}
+
+                        {elem.type === 'block_quote' && (
+                          <p style={{
+                            marginLeft: '0.5in',
+                            lineHeight: rules.line_spacing,
+                            fontSize: `${rules.font_size_pt - 1}pt`,
+                            margin: '6px 0'
+                          }}>
+                            {elem.text}
+                          </p>
+                        )}
+
+                        {elem.type === 'bullet' && (
+                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                            • {elem.text}
+                          </p>
+                        )}
+
+                        {elem.type === 'numbered_list' && (
+                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                            {currentItemNum}. {elem.text}
+                          </p>
+                        )}
+
+                        {(elem.type === 'image' || elem.image_info) && (
+                          <div style={{ margin: '16px 0', textAlign: 'center', width: '100%' }}>
+                            {showFigureLabel && (
+                              <>
+                                <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0' }}>Figura {elem.image_info?.figure_number}</p>
+                                {elem.image_info?.caption && <p style={{ fontStyle: 'italic', textAlign: 'left', margin: '0 0 8px 0' }}>{elem.image_info.caption}</p>}
+                              </>
+                            )}
+
+                            <div style={{
+                              margin: '8px auto',
+                              maxWidth: '100%',
+                              height: '140px',
+                              backgroundColor: '#f8fafc',
+                              border: '1px dashed #cbd5e1',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#64748b',
+                              overflow: 'hidden'
+                            }}>
+                              {elem.image_info?.relative_url ? (
+                                <img src={elem.image_info.relative_url} alt="Figura" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                              ) : (
+                                <span style={{ fontSize: '12px' }}>{elem.text || '[Gráfico]'}</span>
+                              )}
+                            </div>
+
+                            {elem.image_info?.note && (
+                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155', textAlign: 'left' }}>
+                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
+                              </p>
                             )}
                           </div>
+                        )}
 
-                          {elem.image_info?.note && (
-                            <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155', textAlign: 'left' }}>
-                              <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {elem.type === 'table' && elem.table_info && (
-                        <div style={{ margin: '16px 0', width: '100%' }}>
-                          <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>Tabla {elem.table_info.table_number}</p>
-                          {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
-                          <table style={{
-                            width: '100%',
-                            borderCollapse: 'collapse',
-                            borderTop: '1px solid #000000',
-                            borderBottom: '1px solid #000000',
-                            margin: '8px 0'
-                          }}>
-                            {elem.table_info.headers && (
-                              <thead>
-                                <tr style={{ borderBottom: '1px solid #000000' }}>
-                                  {elem.table_info.headers.map((h, i) => (
-                                    <th key={i} style={{ padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>{h}</th>
-                                  ))}
-                                </tr>
-                              </thead>
+                        {elem.type === 'table' && elem.table_info && (
+                          <div style={{ margin: '16px 0', width: '100%' }}>
+                            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>Tabla {elem.table_info.table_number}</p>
+                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
+                            <table style={{
+                              width: '100%',
+                              borderCollapse: 'collapse',
+                              borderTop: '1px solid #000000',
+                              borderBottom: '1px solid #000000',
+                              margin: '8px 0'
+                            }}>
+                              {elem.table_info.headers && (
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid #000000' }}>
+                                    {elem.table_info.headers.map((h, i) => (
+                                      <th key={i} style={{ padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                              )}
+                              <tbody>
+                                {elem.table_info.rows.map((row, rIdx) => (
+                                  <tr key={rIdx}>
+                                    {row.map((cell, cIdx) => (
+                                      <td key={cIdx} style={{ padding: '6px' }}>{cell}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {elem.table_info.note && (
+                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155' }}>
+                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
+                              </p>
                             )}
-                            <tbody>
-                              {elem.table_info.rows.map((row, rIdx) => (
-                                <tr key={rIdx}>
-                                  {row.map((cell, cIdx) => (
-                                    <td key={cIdx} style={{ padding: '6px' }}>{cell}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          {elem.table_info.note && (
-                            <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155' }}>
-                              <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
