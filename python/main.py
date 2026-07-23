@@ -178,6 +178,17 @@ async def upload_docx(
             detail="El archivo esta vacio. Por favor selecciona un documento .docx valido.",
         )
 
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="El archivo excede el limite maximo de 50 MB.",
+        )
+
+    # Guardar original.docx en la carpeta de sesion
+    session_dir = STORAGE_DIR / "sessions" / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "original.docx").write_bytes(content)
+
     try:
         # Validar y aplicar wizard params
         fmt = APAFormat.STUDENT
@@ -217,27 +228,28 @@ class DoiRequest(BaseModel):
     doi: str
 
 
-@app.post("/api/resolve-doi")
-async def resolve_doi_endpoint(req: DoiRequest):
+class BulkAcceptRequest(BaseModel):
+    session_id: str
+    element_ids: List[str]
+
+
+@app.post("/api/bulk-accept")
+async def bulk_accept_endpoint(req: BulkAcceptRequest) -> DocumentModel:
     """
-    Resuelve una referencia bibliográfica usando DOI content negotiation.
+    Aprueba atómicamente una lista de elementos en 1 solo guardado de sesión.
     """
-    from modules.referencias_module import resolve_doi
-    doi_clean = req.doi.strip()
-    formatted = await resolve_doi(doi_clean)
-    if formatted:
-        return {
-            "status": "ok",
-            "doi": doi_clean,
-            "apa_formatted": formatted,
-            "title": formatted.split('.')[0] if '.' in formatted else formatted,
-            "authors": [formatted.split('(')[0].strip()] if '(' in formatted else ["Autor"]
-        }
-    return {
-        "status": "not_found",
-        "doi": doi_clean,
-        "apa_formatted": f"DOI: {doi_clean} (No se pudo recuperar formato automático)"
-    }
+    doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+    
+    target_ids = set(req.element_ids)
+    for elem in doc.elements:
+        if elem.id in target_ids:
+            elem.needs_review = False
+            elem.auto_applied = True
+
+    save_session_state(doc, STORAGE_DIR)
+    return doc
 
 
 @app.post("/api/classify/{session_id}")

@@ -276,11 +276,16 @@ export const useDocStore = create<DocState>((set, get) => ({
   },
 
   acceptHighConfidenceElements: async () => {
-    const { doc, updateElementType } = get();
+    const { doc } = get();
     if (!doc) return;
     const highConf = doc.elements.filter((e) => e.confidence >= 0.85 && !e.is_user_modified && e.type !== 'empty');
-    for (const elem of highConf) {
-      await updateElementType(elem.id, elem.type, elem.heading_level || 1, elem.text);
+    if (highConf.length === 0) return;
+    set({ isLoading: true });
+    try {
+      const updated = await api.bulkAcceptElements(doc.session_id, highConf.map(e => e.id));
+      set({ doc: updated, isLoading: false });
+    } catch (e: any) {
+      set({ error: e.message || 'Error al aprobar elementos', isLoading: false });
     }
   },
 

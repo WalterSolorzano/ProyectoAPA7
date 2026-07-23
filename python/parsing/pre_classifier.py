@@ -359,7 +359,6 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     figure_counter: int = 0
     table_counter: int = 0
 
-    # Determinar el limite real de la portada: buscar el titulo principal del cuerpo ("Introducción")
     body_start_idx = -1
     for idx, elem in enumerate(elements):
         txt_norm = _normalize_accent((elem.text or "").lower())
@@ -367,27 +366,31 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             body_start_idx = idx
             break
 
-    if body_start_idx == -1:
-        # Si no hay 'Introduccion', buscar el primer heading que no tenga palabras de portada y este despues del indice 10
-        for idx, elem in enumerate(elements):
-            if elem.type == ElementType.HEADING and idx >= 10:
-                body_start_idx = idx
-                break
+    has_explicit_cover_keywords = False
+    for idx, elem in enumerate(elements[:6]):
+        txt_norm = _normalize_accent((elem.text or "").lower())
+        if any(k in txt_norm for k in ["universidad", "facultad", "carrera", "elaborado por", "tutor:", "carnet:"]):
+            has_explicit_cover_keywords = True
+            break
 
-    if body_start_idx == -1:
-        body_start_idx = len(elements)
+    if body_start_idx == -1 and not has_explicit_cover_keywords:
+        body_start_idx = 0
+    elif body_start_idx == -1:
+        body_start_idx = 0
 
     portada_boundary: int = body_start_idx
 
     for idx, elem in enumerate(elements):
-        # Si el elemento esta antes del cuerpo, es 100% PORTADA_BLOCK
+        # Si el elemento esta antes del cuerpo, pertenece a la sección de portada
         if idx < portada_boundary:
-            if elem.type in (ElementType.IMAGE, ElementType.PARAGRAPH, ElementType.HEADING):
+            elem.is_cover_section = True
+            if elem.type in (ElementType.IMAGE, ElementType.PARAGRAPH, ElementType.UNKNOWN) and not elem.style_name.lower().startswith('heading'):
                 elem.type = ElementType.PORTADA_BLOCK
                 elem.confidence = 0.95
                 if elem.image_info:
                     elem.image_info.figure_number = 0
         else:
+            elem.is_cover_section = False
             if elem.type == ElementType.IMAGE and elem.image_info:
                 figure_counter += 1
                 elem.image_info.figure_number = figure_counter

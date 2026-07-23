@@ -366,6 +366,7 @@ class PortadaMapRequest(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "1.0.0"
+    app: str = "WordAPA7"
 
 
 # ── COMPATIBILITY ALIASES & CLASSES ──────────────────────────────────────────
@@ -395,6 +396,8 @@ class ElementModel(BaseModel):
     id: str
     type: ElementType = ElementType.UNKNOWN
     heading_level: Optional[int] = 1
+    list_level: Optional[int] = 1
+    is_cover_section: bool = False
     text: str = ""
     original_text: Optional[str] = None
     style_name: str = "Normal"

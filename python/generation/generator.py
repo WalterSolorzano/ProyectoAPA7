@@ -1,10 +1,8 @@
 """
-WordAPA7 — Generador Final de Documentos DOCX (Con Preservación de Portada Original)
+WordAPA7 — Generador Final de Documentos DOCX (Con Modificación Directa sobre Original)
 
-Ensambla todo el documento formateado segun APA 7:
-1. Portada (Original intacta preservada O Formulario Estudiante/Profesional)
-2. Cuerpo del Documento (Titulos Nivel 1-5, Parrafos, Listas, Tablas, Imagenes)
-3. Seccion de Referencias con Sangria Francesa
+Abre el archivo original.docx de la sesión y le aplica los estilos APA 7
+sin destruir imágenes, tablas, shapes, logos, cuadros de texto o fórmulas.
 """
 
 from pathlib import Path
@@ -27,11 +25,10 @@ from generation.style_engine import (
     format_heading_paragraph,
     format_normal_paragraph,
     format_block_quote,
-    normalize_all_fonts,
 )
-from generation.table_engine import format_apa_table
-from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.table_engine import set_table_apa7_borders, format_apa_table
 from generation.image_handler import format_apa_figure
+from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
@@ -46,7 +43,7 @@ def generate_apa7_docx(
 ) -> Path:
     """
     Genera el archivo .docx final aplicando todas las reglas APA 7.
-    Preserva la portada original intacta si use_original_cover es True.
+    Modifica el archivo original.docx de la sesión conservando shapes, logos y layout intactos.
     """
     if rules is None:
         rules = APARuleSet()
@@ -54,76 +51,93 @@ def generate_apa7_docx(
     out_path = Path(output_filepath)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    doc = docx.Document()
+    # 1. Intentar cargar el archivo original.docx de la sesión
+    session_id = doc_model.session_id
+    base_dir = out_path.parent.parent.parent  # storage/sessions/
+    original_file = out_path.parent / "original.docx"
 
-    # 1. Configuracion de pagina y margenes
+    if not original_file.exists() and session_id:
+        alt_orig = Path("storage") / "sessions" / session_id / "original.docx"
+        if alt_orig.exists():
+            original_file = alt_orig
+
+    if original_file.exists():
+        doc = docx.Document(original_file)
+    else:
+        # Fallback si no existe original (ej: pruebas unitarias sintéticas)
+        doc = docx.Document()
+
+    # 2. Configuración de página y márgenes
     apply_page_setup(doc, rules, preserve_landscape=doc_model.has_landscape_sections)
 
-    # 2. Encabezado y numero de pagina
+    # 3. Encabezado y número de página
     running_head: str = portada.running_head if portada else ""
     setup_apa_header(doc, doc_model.apa_format, running_head, rules)
 
-    # 3. Portada
+    # 4. Portada sintética (si no existe archivo original o el usuario la solicito explícitamente)
     use_orig_cover = getattr(portada, 'use_original_cover', True) if portada else True
-    if not use_orig_cover and portada and (portada.title or portada.author):
+    if (not original_file.exists() or not use_orig_cover) and portada and (portada.title or portada.author):
         format_apa_portada(doc, portada, rules)
 
-    # 4. Cuerpo del documento
+    # 5. Formatear tablas existentes con bordes APA 7
+    for table in doc.tables:
+        set_table_apa7_borders(table)
+
+    # 6. Mapear y aplicar estilos sobre los párrafos existentes del documento
+    elem_map: dict[str, ElementModel] = {}
+    for item in doc_model.elements:
+        elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
+        if elem.id:
+            elem_map[elem.id] = elem
+
     numbered_counters: dict[int, int] = {1: 0, 2: 0, 3: 0}
     last_numbered_level: int = 0
+    p_idx = 0
+
+    # Iterar párrafos existentes o crear nuevos si no existen suficientes
+    existing_paragraphs = list(doc.paragraphs)
 
     for item in doc_model.elements:
-        if isinstance(item, dict):
-            elem = ElementModel.model_validate(item)
-        else:
-            elem = item
-
+        elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
         elem_type = elem.type
         elem_level: int = elem.heading_level if elem.heading_level else 1
+        list_lvl: int = elem.list_level if elem.list_level else 1
 
         if elem_type == ElementType.EMPTY:
             continue
 
-        elif elem_type == ElementType.PORTADA_BLOCK:
-            # EXCLUIDO DE FORMATO APA 7: Preservar elemento original de portada intacto
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if elem.alignment == 'center' else WD_ALIGN_PARAGRAPH.LEFT
-            p.paragraph_format.space_before = Pt(2)
-            p.paragraph_format.space_after = Pt(2)
-            p.paragraph_format.first_line_indent = Inches(0)
-            if elem.text:
-                r = p.add_run(elem.text)
-                r.bold = elem.is_bold
-                r.italic = elem.is_italic
+        # No formatear párrafos pertenecientes a la sección de portada
+        if elem.is_cover_section or elem_type == ElementType.PORTADA_BLOCK:
+            continue
 
-        elif elem_type == ElementType.HEADING:
+        # Obtener o crear párrafo objetivo
+        if p_idx < len(existing_paragraphs):
+            p = existing_paragraphs[p_idx]
+            p_idx += 1
+        else:
+            p = doc.add_paragraph()
+
+        if elem_type == ElementType.HEADING:
             numbered_counters = {1: 0, 2: 0, 3: 0}
             last_numbered_level = 0
-            p = doc.add_paragraph()
             lvl: int = elem.heading_level if elem.heading_level else 1
-            format_heading_paragraph(p, lvl, elem.text or "", rules)
+            format_heading_paragraph(p, lvl, elem.text or p.text, rules)
 
         elif elem_type == ElementType.PARAGRAPH:
-            p = doc.add_paragraph()
-            format_normal_paragraph(p, elem.text or "", rules)
+            format_normal_paragraph(p, elem.text or p.text, rules)
 
         elif elem_type == ElementType.BLOCK_QUOTE:
             numbered_counters = {1: 0, 2: 0, 3: 0}
             last_numbered_level = 0
-            p = doc.add_paragraph()
-            format_block_quote(p, elem.text or "", rules)
+            format_block_quote(p, elem.text or p.text, rules)
 
         elif elem_type == ElementType.BULLET:
             numbered_counters = {1: 0, 2: 0, 3: 0}
             last_numbered_level = 0
-            p = doc.add_paragraph()
-            bullet_lvl = elem_level if elem_level in (1, 2, 3) else 1
-            format_bullet_item(p, elem.text or "", bullet_lvl, rules)
+            format_bullet_item(p, elem.text or p.text, list_lvl, rules)
 
         elif elem_type == ElementType.NUMBERED_LIST:
-            p = doc.add_paragraph()
-            num_lvl = elem_level if elem_level in (1, 2, 3) else 1
-
+            num_lvl = list_lvl if list_lvl in (1, 2, 3) else 1
             if num_lvl <= last_numbered_level:
                 for l in range(num_lvl + 1, 4):
                     numbered_counters[l] = 0
@@ -131,8 +145,7 @@ def generate_apa7_docx(
             numbered_counters[num_lvl] = numbered_counters.get(num_lvl, 0) + 1
             last_numbered_level = num_lvl
             item_index = numbered_counters[num_lvl]
-
-            format_numbered_item(p, elem.text or "", num_lvl, item_index, rules)
+            format_numbered_item(p, elem.text or p.text, num_lvl, item_index, rules)
 
         elif elem_type == ElementType.IMAGE:
             if elem.image_info:
@@ -145,12 +158,10 @@ def generate_apa7_docx(
         elif elem_type == ElementType.PAGE_BREAK:
             doc.add_page_break()
 
-    # 5. Seccion de Referencias Bibliograficas
+    # 7. Sección de Referencias Bibliográficas
     if references:
         format_apa_referencias_section(doc, references, rules)
 
-    # 6. Normalizar fuentes y guardar
-    normalize_all_fonts(doc, rules.font_family)
-    doc.save(str(out_path))
-
+    # 8. Guardar resultado final
+    doc.save(out_path)
     return out_path

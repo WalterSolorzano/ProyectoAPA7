@@ -57,6 +57,24 @@ export async function uploadDocxWithWizard(
   return res.json();
 }
 
+export async function bulkAcceptElements(
+  sessionId: string,
+  elementIds: string[]
+): Promise<DocumentModel> {
+  const res = await fetch(`${API_BASE}/bulk-accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, element_ids: elementIds }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al aprobar elementos');
+  }
+
+  return res.json();
+}
+
 export async function classifyWithLLM(
   sessionId: string,
   apiKey?: string
