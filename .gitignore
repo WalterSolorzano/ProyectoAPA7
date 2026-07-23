@@ -1,0 +1,65 @@
+# Node dependencies
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python environment & cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files (MUST NOT BE UPLOADED)
+.env
+.env*.local
+
+# Application local storage & session files
+storage/
+sessions/
+*.docx
+!apa7_template.docx
+
+# Editor files & OS metadata
+.vscode/
+.idea/
+.claude/
+.system_generated/
+thumbs.db
+.DS_Store
+*.log
+browser_screenshot.png
+page1_screenshot.png
+page2_screenshot.png
+page2_scroll_screenshot.png
+middle_scroll_screenshot.png
+
+# Random trash files found in workspace
+(numFmt
+0
+0.85
+1
+1,
+1000
+13
+1cm
+400
+400,
+85%
+List[Dict[str
+List[dict]
+body_start_idx
+min_size
+numFmt,+
+p.title
+set({
+state.history.length
+treat
+{,
+{,+
+{,-
