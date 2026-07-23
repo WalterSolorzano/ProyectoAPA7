@@ -513,6 +513,11 @@ export const PaperCanvas: React.FC = () => {
                                 <span style={{ fontSize: '12px' }}>{elem.text || '[Gráfico]'}</span>
                               )}
                             </div>
+                            {elem.image_info?.note && (
+                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155', textAlign: 'left' }}>
+                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
+                              </p>
+                            )}
                           </div>
                         )}
 

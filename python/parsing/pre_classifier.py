@@ -398,22 +398,42 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 table_counter += 1
                 elem.table_info.table_number = table_counter
 
-    # ── PASADA 3: Inferencia de Jerarquia de Headings ──────────────────────
-    # Recolectar tamanos de fuente de headings clasificados
+    # ── PASADA 3: Inferencia de Jerarquía de Headings ──────────────────────
     heading_sizes: List[float] = []
     for e in elements:
         if e.type == ElementType.HEADING and e.font_size > 0:
             heading_sizes.append(e.font_size)
 
     unique_sizes: List[float] = sorted(list(set(heading_sizes)), reverse=True)
-
     size_to_level: dict[float, int] = {}
     for i, sz in enumerate(unique_sizes[:5]):
         size_to_level[sz] = i + 1
 
     for elem in elements:
         if elem.type == ElementType.HEADING:
-            if elem.font_size in size_to_level:
+            style_lower = (elem.style_name or "").lower()
+            txt = (elem.text or "").strip()
+
+            # 1. Prioridad: Estilo nativo de Word
+            if "heading 1" in style_lower or "título 1" in style_lower or "titulo 1" in style_lower:
+                elem.heading_level = 1
+            elif "heading 2" in style_lower or "título 2" in style_lower or "titulo 2" in style_lower:
+                elem.heading_level = 2
+            elif "heading 3" in style_lower or "título 3" in style_lower or "titulo 3" in style_lower:
+                elem.heading_level = 3
+            elif "heading 4" in style_lower or "título 4" in style_lower:
+                elem.heading_level = 4
+            elif "heading 5" in style_lower or "título 5" in style_lower:
+                elem.heading_level = 5
+            # 2. Prioridad: Patrón de numeración explícita (ej: "1.1", "1.1.1")
+            elif re.match(r'^\d+\.\d+\.\d+\s', txt):
+                elem.heading_level = 3
+            elif re.match(r'^\d+\.\d+\s', txt):
+                elem.heading_level = 2
+            elif re.match(r'^\d+\.\s', txt):
+                elem.heading_level = 1
+            # 3. Fallback: Jerarquía por tamaño de fuente
+            elif elem.font_size in size_to_level:
                 elem.heading_level = size_to_level[elem.font_size]
             elif not elem.heading_level or elem.heading_level == 0:
                 elem.heading_level = 1

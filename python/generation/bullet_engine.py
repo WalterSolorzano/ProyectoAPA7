@@ -19,9 +19,9 @@ from models import BulletStyle, NumberStyle, APARuleSet
 
 
 APA_LIST_INDENT: dict[int, tuple[float, float]] = {
-    1: (0.5, -0.25),    # Nivel 1: cuerpo 1.27cm, marker 0.63cm
-    2: (0.75, -0.25),   # Nivel 2: cuerpo 1.90cm, marker 1.27cm
-    3: (1.0, -0.25),    # Nivel 3: cuerpo 2.54cm, marker 1.90cm
+    1: (0.5, -0.25),    # Nivel 1: cuerpo 1.27cm (0.5 in)
+    2: (1.0, -0.25),    # Nivel 2: cuerpo 2.54cm (1.0 in)
+    3: (1.5, -0.25),    # Nivel 3: cuerpo 3.81cm (1.5 in)
 }
 
 
