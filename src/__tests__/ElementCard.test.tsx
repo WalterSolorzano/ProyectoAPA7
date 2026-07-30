@@ -37,11 +37,15 @@ vi.mock('../components/shared/ConfidenceBadge', () => ({
     ),
 }));
 
-// Mock de lucide-react GripVertical
-vi.mock('lucide-react', () => ({
-  GripVertical: ({ size }: { size: number }) =>
-    React.createElement('span', { 'data-testid': 'grip-icon' }, 'grip'),
-}));
+// Mock de lucide-react GripVertical manteniendo el resto
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('lucide-react')>();
+  return {
+    ...actual,
+    GripVertical: ({ size }: { size: number }) =>
+      React.createElement('span', { 'data-testid': 'grip-icon' }, 'grip'),
+  };
+});
 
 /** Factory que crea un ElementModel completo para tests */
 function makeElement(overrides: Partial<ElementModel> = {}): ElementModel {
@@ -69,12 +73,14 @@ function makeElement(overrides: Partial<ElementModel> = {}): ElementModel {
 }
 
 describe('ElementCard', () => {
-  const mockUpdateElementType = vi.fn();
+  const mockUpdateElementType = vi.fn().mockResolvedValue(undefined);
+  const mockShowToast = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     (useDocStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       updateElementType: mockUpdateElementType,
+      showToast: mockShowToast,
     });
   });
 
@@ -130,6 +136,11 @@ describe('ElementCard', () => {
             height_cm: 8,
             caption: 'Resultados',
             figure_number: 1,
+            alignment: 'center',
+            wrap_style: 'inline',
+            caption_position: 'above',
+            constrain_proportions: true,
+            design_style: 'standard',
           },
         }),
       })
@@ -157,7 +168,7 @@ describe('ElementCard', () => {
     );
 
     expect(screen.getByText('Tabla 1')).toBeTruthy();
-    expect(screen.getByText('2 columnas, 1 filas')).toBeTruthy();
+    expect(screen.getByText(/2 columnas, 1 filas/)).toBeTruthy();
   });
 
   it('renderiza correctamente elementos bullet', () => {

@@ -1,7 +1,8 @@
 /* WordAPA7 — Modal de Diagnóstico y Logs de llamadas a NVIDIA NIM */
 
-import React from 'react';
-import { X, Activity, Cpu, CheckCircle, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Activity, Cpu, CheckCircle, AlertTriangle, ShieldCheck, RefreshCw, Save, Server, Cloud } from 'lucide-react';
+import { useDocStore } from '../../store/useDocStore';
 
 export interface NIMLogItem {
   id: string;
@@ -27,6 +28,29 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
   logs,
   apiKeyPresent
 }) => {
+  const { apiKey, setApiKey, aiProviderConfig, setAiProviderConfig } = useDocStore();
+  const [localApiKey, setLocalApiKey] = useState(apiKey || '');
+  const [useLocal, setUseLocal] = useState(aiProviderConfig.useLocal);
+  const [nimUrl, setNimUrl] = useState(aiProviderConfig.nimUrl);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Sync state when opened
+  React.useEffect(() => {
+    if (isOpen) {
+      setLocalApiKey(apiKey || '');
+      setUseLocal(aiProviderConfig.useLocal);
+      setNimUrl(aiProviderConfig.nimUrl);
+      setIsSaved(false);
+    }
+  }, [isOpen, apiKey, aiProviderConfig]);
+
+  const handleSave = () => {
+    setApiKey(localApiKey.trim());
+    setAiProviderConfig({ useLocal, nimUrl: nimUrl.trim() });
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -95,22 +119,73 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
           </button>
         </div>
 
-        {/* Estado de Conexión */}
-        <div style={{ padding: '12px 20px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-            {apiKeyPresent ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontWeight: 600 }}>
-                <CheckCircle size={14} /> NVIDIA_API_KEY Configurada (Modo Lotes Activo)
-              </span>
-            ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706', fontWeight: 600 }}>
-                <AlertTriangle size={14} /> Sin NVIDIA_API_KEY (Utilizando Clasificación por Reglas)
-              </span>
-            )}
+        {/* Configuración de Proveedor AI */}
+        <div style={{ padding: '16px 20px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <h4 style={{ fontSize: '13px', fontWeight: 700, margin: '0 0 12px 0', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Server size={14} /> Configuración de Conexión
+          </h4>
+          
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+              <input type="radio" checked={!useLocal} onChange={() => setUseLocal(false)} />
+              <Cloud size={14} color={!useLocal ? '#185ABD' : '#94a3b8'} /> NVIDIA NIM Cloud
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+              <input type="radio" checked={useLocal} onChange={() => setUseLocal(true)} />
+              <Server size={14} color={useLocal ? '#16a34a' : '#94a3b8'} /> Servidor Local (Offline)
+            </label>
           </div>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
-            Caché Local: <strong>Activa (SHA-256)</strong>
-          </span>
+
+          {!useLocal && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>NVIDIA API Key:</label>
+              <input
+                type="password"
+                placeholder="nvapi-..."
+                value={localApiKey}
+                onChange={(e) => setLocalApiKey(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', padding: '8px', fontSize: '12px' }}
+              />
+              <span style={{ fontSize: '10px', color: '#64748b' }}>Requerido para usar los modelos en la nube de NVIDIA.</span>
+            </div>
+          )}
+
+          {useLocal && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>URL del Servidor Local (Compatible OpenAI):</label>
+              <input
+                type="text"
+                placeholder="http://localhost:8000/v1/chat/completions"
+                value={nimUrl}
+                onChange={(e) => setNimUrl(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', padding: '8px', fontSize: '12px' }}
+              />
+              <span style={{ fontSize: '10px', color: '#64748b' }}>Ej: NIM en Docker o LM Studio local. No se requiere API Key.</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+              {(!useLocal && localApiKey) || useLocal ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontWeight: 600 }}>
+                  <CheckCircle size={14} /> Listo para Procesar
+                </span>
+              ) : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706', fontWeight: 600 }}>
+                  <AlertTriangle size={14} /> Faltan credenciales (Se usará modo Reglas)
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleSave}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Save size={14} /> {isSaved ? 'Guardado' : 'Guardar Configuración'}
+            </button>
+          </div>
         </div>
 
         {/* Historial de Llamadas / Logs */}

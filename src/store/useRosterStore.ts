@@ -22,34 +22,33 @@ export interface GrupoItem {
 interface RosterState {
   integrantes: IntegranteItem[];
   profesores: ProfesorItem[];
-  grupos: GrupoItem[];
+  grupos: string[];
 
   addIntegrante: (nombre: string, carnet?: string) => void;
   removeIntegrante: (id: string) => void;
   addProfesor: (nombre: string) => void;
   removeProfesor: (id: string) => void;
   addGrupo: (valor: string) => void;
-  removeGrupo: (id: string) => void;
+  removeGrupo: (valor: string) => void;
 }
 
 export const useRosterStore = create<RosterState>()(
   persist(
     (set) => ({
       integrantes: [
-        { id: 'int_1', nombre: 'Br. Wilmary Eunice Díaz Escorcia', carnet: '2023-0802I' },
-        { id: 'int_2', nombre: 'Br. Walter Noel Solórzano Gaitán', carnet: '2023-0432U' },
-        { id: 'int_3', nombre: 'Br. Alexa Marian Doña Hernández', carnet: '2021-0251U' },
-        { id: 'int_4', nombre: 'Br. Paulo Antonio Flores Contreras', carnet: '2020-1160U' },
-        { id: 'int_5', nombre: 'Br. Lance Andrew Sobalvarro Padilla', carnet: '2023-0366U' },
+        { id: 'int_1', nombre: 'Br. María del Pilar Bermúdez Bermúdez', carnet: '2023-0451U' },
+        { id: 'int_2', nombre: 'Br. Walter Noel Solorzano Gaitán', carnet: '2023-0432U' },
+        { id: 'int_3', nombre: 'Br. Iván Fernando Álvarez Ríos', carnet: '2022-0215I' },
+        { id: 'int_4', nombre: 'Br. Stephani Valeria Castellón Borge', carnet: '2021-0574I' },
+        { id: 'int_5', nombre: 'Br. Maynard Damián Orozco Baquedano', carnet: '2023-0397U' },
+        { id: 'int_6', nombre: 'Br. Wilmary Eunice Díaz Escorcia', carnet: '2023-0802I' },
+        { id: 'int_7', nombre: 'Br. Paulo Antonio Flores Contreras', carnet: '2020-1160U' },
       ],
       profesores: [
-        { id: 'prof_1', nombre: 'Ing. Hason Enoc Vivas Pavón' },
-        { id: 'prof_2', nombre: 'Ing. Carlos Rodríguez' }
+        { id: 'prof_1', nombre: 'Ing. Juan Carlos Aburto Poveda' },
+        { id: 'prof_2', nombre: 'Ing. Hason Enoc Vivas Pavón' },
       ],
-      grupos: [
-        { id: 'grp_1', valor: '4M6 – IND' },
-        { id: 'grp_2', valor: '5M1 – CO' }
-      ],
+      grupos: ['3T1 IND', '4M6 – IND', '5M1 – CO'],
 
       addIntegrante: (nombre, carnet) =>
         set((state) => {
@@ -94,17 +93,13 @@ export const useRosterStore = create<RosterState>()(
       addGrupo: (valor) =>
         set((state) => {
           if (!valor.trim()) return state;
-          return {
-            grupos: [
-              ...state.grupos,
-              { id: `grp_${Date.now()}`, valor: valor.trim() },
-            ],
-          };
+          if (state.grupos.includes(valor.trim())) return state;
+          return { grupos: [...state.grupos, valor.trim()] };
         }),
 
-      removeGrupo: (id) =>
+      removeGrupo: (valor) =>
         set((state) => ({
-          grupos: state.grupos.filter((g) => g.id !== id),
+          grupos: state.grupos.filter((g) => g !== valor),
         })),
     }),
     {

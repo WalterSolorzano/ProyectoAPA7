@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Type, CheckCircle2, ListTree, BookOpen, Layers } from 'lucide-react';
+import { Type, CheckCircle2, ListTree, BookOpen, Layers, ChevronUp, CornerDownRight } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
+import { APARuleSet } from '../../types';
 
 export const Step2HeadingsWizard: React.FC = () => {
   const { doc, updateElementType, setSelectedElementId, selectedElementId } = useDocStore();
@@ -24,24 +25,24 @@ export const Step2HeadingsWizard: React.FC = () => {
       {/* Panel Izquierdo: Lista Guiada por Niveles */}
       <div style={{
         width: '400px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid var(--border-color)',
+        backgroundColor: 'var(--canvas-bg)',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
         {/* Encabezado del Panel */}
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--word-blue)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'var(--canvas-bg)' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Type size={16} /> Paso 2: Clasificación de Títulos ({headings.length})
           </h3>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
             Identifica tus Secciones Principales (Nivel 1) y Subsecciones (Nivel 2 y 3).
           </span>
         </div>
 
         {/* Filtros por Nivel Guiados (Títulos 1 vs Títulos 2) */}
-        <div style={{ display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+        <div style={{ display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'var(--canvas-bg)' }}>
           <button
             className={`ribbon-tab ${levelFilter === 'all' ? 'active' : ''}`}
             onClick={() => setLevelFilter('all')}
@@ -52,7 +53,7 @@ export const Step2HeadingsWizard: React.FC = () => {
           <button
             className={`ribbon-tab ${levelFilter === 1 ? 'active' : ''}`}
             onClick={() => setLevelFilter(1)}
-            style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: 'var(--word-blue)' }}
+            style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}
           >
             Nivel 1 ({level1Count})
           </button>
@@ -72,8 +73,55 @@ export const Step2HeadingsWizard: React.FC = () => {
           </button>
         </div>
 
+        {/* Numeración de Títulos por Nivel */}
+        {levelFilter !== 'all' ? (
+          <div style={{ padding: '10px 12px', backgroundColor: 'rgba(250,173,20,0.08)', borderBottom: '1px solid rgba(250,173,20,0.2)', fontSize: '11px' }}>
+            <strong style={{ color: '#92400e' }}>Estilo de Numeración (Nivel {levelFilter}):</strong>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+              {[
+                { val: 'roman', label: 'Romanos', icon: 'Ⅰ' },
+                { val: 'decimal', label: 'Decimal', icon: '1.' },
+                { val: 'none', label: 'Sin Num.', icon: '—' },
+              ].map((opt) => {
+                const ruleKey = `heading_numbering_style_lvl${levelFilter}` as keyof APARuleSet;
+                const currentStyle = useDocStore.getState().rules[ruleKey] || 'decimal';
+                return (
+                  <button
+                    key={opt.val}
+                    onClick={() => {
+                      useDocStore.getState().setRules({ [ruleKey]: opt.val });
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      border: `1.5px solid ${currentStyle === opt.val ? '#eab308' : '#e2e8f0'}`,
+                      borderRadius: '6px',
+                      backgroundColor: currentStyle === opt.val ? '#fef9c3' : '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: currentStyle === opt.val ? 700 : 500,
+                      color: currentStyle === opt.val ? '#92400e' : '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <span style={{ fontSize: '14px' }}>{opt.icon}</span> {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '10px 12px', backgroundColor: 'var(--canvas-bg)', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+            Selecciona un Nivel (1, 2 o 3) arriba para configurar su estilo de numeración de forma independiente.
+          </div>
+        )}
+
         {/* Leyenda APA 7 */}
-        <div style={{ padding: '8px 12px', backgroundColor: '#eff6fc', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
+        <div style={{ padding: '8px 12px', backgroundColor: 'rgba(124,92,252,0.1)', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
           <strong>Estándar de Alineación APA 7:</strong>
           <span style={{ display: 'block', marginTop: '2px', color: '#1e3a8a' }}>
             • <strong>Nivel 1:</strong> Centrado, Negrita (Secciones Principales)<br />
@@ -85,7 +133,7 @@ export const Step2HeadingsWizard: React.FC = () => {
         {/* Lista de Títulos Filtrados */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
           {filteredHeadings.length === 0 ? (
-            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
               No se encontraron títulos en esta categoría.
             </div>
           ) : (
@@ -98,66 +146,66 @@ export const Step2HeadingsWizard: React.FC = () => {
                   key={h.id}
                   onClick={() => setSelectedElementId(h.id)}
                   style={{
-                    padding: '10px',
-                    marginBottom: '8px',
+                    padding: '8px 12px',
+                    marginBottom: '4px',
                     borderRadius: '6px',
-                    border: `1px solid ${isSelected ? 'var(--word-blue)' : '#e2e8f0'}`,
+                    border: `1px solid ${isSelected ? 'var(--word-blue)' : 'transparent'}`,
                     backgroundColor: isSelected ? '#eff6fc' : '#ffffff',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{
                       fontSize: '10px',
                       fontWeight: 700,
                       backgroundColor: currentLvl === 1 ? 'var(--word-blue)' : currentLvl === 2 ? '#0284c7' : '#475569',
                       color: '#ffffff',
-                      padding: '1px 6px',
+                      padding: '2px 6px',
                       borderRadius: '4px'
                     }}>
-                      TÍTULO NIVEL {currentLvl}
+                      L{currentLvl}
                     </span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>#{idx + 1}</span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        title="Subir Nivel"
+                        disabled={currentLvl <= 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateElementType(h.id, 'heading', Math.max(1, currentLvl - 1), h.text);
+                        }}
+                        style={{ padding: '2px 6px', fontSize: '10px', cursor: currentLvl <= 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        Subir Nivel
+                      </button>
+                      <button
+                        title="Degradar a Párrafo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateElementType(h.id, 'paragraph', 1, h.text);
+                        }}
+                        style={{ padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}
+                      >
+                        Degradar a Párrafo
+                      </button>
+                    </div>
                   </div>
+
 
                   <p style={{
                     fontSize: '12px',
-                    fontWeight: 'bold',
-                    margin: '6px 0',
-                    color: '#0f172a',
-                    fontStyle: currentLvl === 3 ? 'italic' : 'normal',
-                    textAlign: currentLvl === 1 ? 'center' : 'left'
+                    fontWeight: isSelected ? '600' : '400',
+                    margin: 0,
+                    color: 'var(--text-main)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}>
                     {h.text}
                   </p>
-
-                  {/* Cambiar Nivel en 1 Clic */}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                    {[1, 2, 3].map((lvl) => (
-                      <button
-                        key={lvl}
-                        className={`btn btn-xs ${currentLvl === lvl ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{ padding: '2px 8px', fontSize: '10px' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateElementType(h.id, 'heading', lvl, h.text);
-                        }}
-                      >
-                        Nivel {lvl}
-                      </button>
-                    ))}
-                    <button
-                      className="btn btn-xs btn-secondary"
-                      style={{ padding: '2px 6px', fontSize: '10px', marginLeft: 'auto' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateElementType(h.id, 'paragraph', 1, h.text);
-                      }}
-                    >
-                      Párrafo
-                    </button>
-                  </div>
                 </div>
               );
             })
@@ -165,9 +213,64 @@ export const Step2HeadingsWizard: React.FC = () => {
         </div>
       </div>
 
-      {/* Panel Derecho: Lienzo Sincronizado */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: '#f1f5f9' }}>
+      {/* Panel Derecho: Lienzo Sincronizado y Slide-in Panel */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>
         <PaperCanvas />
+        
+        {/* Slide-in Panel para el Elemento Seleccionado */}
+        {selectedElementId && headings.find(h => h.id === selectedElementId) && (
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            width: '320px',
+            backgroundColor: 'var(--canvas-bg)',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            padding: '16px',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            <h4 style={{ margin: 0, fontSize: '14px', color: 'var(--text-main)', fontWeight: 600 }}>Editar Título</h4>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+              {headings.find(h => h.id === selectedElementId)?.text}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[1, 2, 3].map((lvl) => {
+                const h = headings.find(el => el.id === selectedElementId);
+                const currentLvl = h?.heading_level || 1;
+                return (
+                  <button
+                    key={lvl}
+                    className={`btn btn-sm ${currentLvl === lvl ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      if (h) updateElementType(h.id, 'heading', lvl, h.text);
+                    }}
+                  >
+                    Nivel {lvl}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn btn-sm btn-secondary"
+                style={{ flex: 1, color: '#991b1b', borderColor: 'rgba(255,77,79,0.2)' }}
+                onClick={() => {
+                  const h = headings.find(el => el.id === selectedElementId);
+                  if (h) updateElementType(h.id, 'paragraph', 1, h.text);
+                }}
+              >
+                Degradar a Párrafo
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

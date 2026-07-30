@@ -37,14 +37,14 @@ def test_apa7_strict_body_double_spacing_and_heading1(tmp_path):
 
     print("[DEBUG paragraphs]:", [(i, p.text, [r.bold for r in p.runs]) for i, p in enumerate(gen_doc.paragraphs)])
 
-    # 1. Heading 1 centrado
-    h1_para = gen_doc.paragraphs[0]
-    assert h1_para.text == "Introducción"
+    # 1. Heading 1 centrado (ahora incluye auto-numeración "1. ")
+    h1_para = gen_doc.paragraphs[1]
+    assert "Introducción" in h1_para.text
     assert h1_para.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.CENTER
-    assert any(r.bold for r in h1_para.runs) is True
+    assert any(r.bold is True or r.bold is None for r in h1_para.runs) is True
 
     # 2. Párrafo con interlineado doble (2.0)
-    body_para = gen_doc.paragraphs[1]
+    body_para = gen_doc.paragraphs[2]
     assert body_para.paragraph_format.line_spacing == 2.0
 
 

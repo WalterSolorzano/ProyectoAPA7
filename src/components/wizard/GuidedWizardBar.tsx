@@ -33,44 +33,26 @@ export const GuidedWizardBar: React.FC = () => {
   };
 
   return (
-    <div style={{
-      backgroundColor: '#ffffff',
-      borderBottom: '1px solid var(--border-color)',
-      padding: '8px 16px',
+    <div className="guided-wizard-bar" style={{
       display: 'flex',
       flexDirection: 'column',
       gap: '8px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-      zIndex: 100
+      width: '100%',
+      padding: '4px 8px'
     }}>
-      {/* Fila 1: Título del Paso Actual y Controles de Avanzar/Retroceder */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="guided-wizard-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--word-blue)',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            fontWeight: 700
-          }}>
-            {wizardStep + 1}
-          </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--word-blue)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-primary)' }}>
                 {currentStepObj.title}
               </span>
-              <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '10px' }}>
+              <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
                 {currentStepObj.desc}
               </span>
             </div>
             <span style={{ fontSize: '11px', color: '#64748b' }}>
-              Paso {wizardStep + 1} de {WIZARD_STEPS.length} — Acompañamiento APA 7 Activo
+              Paso {wizardStep + 1} de {WIZARD_STEPS.length}
             </span>
           </div>
         </div>
@@ -91,59 +73,45 @@ export const GuidedWizardBar: React.FC = () => {
             <button
               className="btn btn-primary btn-sm"
               onClick={handleNext}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', fontSize: '12px', fontWeight: 600 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', fontSize: '12px' }}
             >
-              Aprobar y Siguiente <ChevronRight size={14} />
+              Siguiente <ChevronRight size={14} />
             </button>
           ) : (
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => exportDocx(false)}
-              disabled={isLoading}
-              style={{ backgroundColor: '#15803d', borderColor: '#15803d', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', fontSize: '12px', fontWeight: 700 }}
-            >
-              <Download size={14} /> {isLoading ? 'Generando...' : 'DESCARGAR .DOCX APA 7'}
-            </button>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a', padding: '4px 10px', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+              Paso Final de Exportacion
+            </span>
           )}
         </div>
       </div>
 
       {/* Fila 2: Indicador Visual de Pasos (Timeline / Wizard Steps) */}
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '2px' }}>
+      <div className="guided-wizard-steps" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px' }}>
         {WIZARD_STEPS.map((step) => {
-          const StepIcon = step.icon;
           const isActive = step.id === wizardStep;
           const isDone = step.id < wizardStep;
 
           return (
             <div
               key={step.id}
+              className={`guided-wizard-step${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
               onClick={() => setWizardStep(step.id)}
               style={{
-                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: isActive ? '#eff6fc' : isDone ? '#f8fafc' : '#ffffff',
-                border: `1px solid ${isActive ? 'var(--word-blue)' : isDone ? '#cbd5e1' : '#e2e8f0'}`,
+                padding: '4px 10px',
+                borderRadius: '12px',
+                backgroundColor: isDone ? 'var(--accent-secondary)' : isActive ? 'var(--accent-primary)' : 'transparent',
+                boxShadow: isActive ? '0 0 8px rgba(124,92,252,0.6)' : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              {isDone ? (
-                <CheckCircle2 size={13} color="#16a34a" />
-              ) : (
-                <StepIcon size={13} color={isActive ? 'var(--word-blue)' : '#94a3b8'} />
-              )}
               <span style={{
-                fontSize: '11px',
-                fontWeight: isActive ? 700 : 500,
-                color: isActive ? 'var(--word-blue)' : isDone ? '#0f172a' : '#64748b',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                fontSize: '13px',
+                fontWeight: isActive ? 600 : 400,
+                color: isActive || isDone ? '#ffffff' : 'var(--text-muted)',
+                whiteSpace: 'nowrap'
               }}>
                 {step.title}
               </span>
@@ -157,10 +125,11 @@ export const GuidedWizardBar: React.FC = () => {
         <div style={{
           width: `${progressPct}%`,
           height: '100%',
-          backgroundColor: 'var(--word-blue)',
+          background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
           transition: 'width 0.25s ease'
         }} />
       </div>
+
     </div>
   );
 };

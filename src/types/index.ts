@@ -12,6 +12,8 @@ export type ElementType =
   | 'section_break'
   | 'empty'
   | 'portada_block'
+  | 'equation'
+  | 'toc'
   | 'unknown';
 
 export type APAFormat = 'student' | 'professional';
@@ -42,6 +44,8 @@ export interface WizardAnswers {
 
 // ── IMAGE / TABLE MODELS ─────────────────────────────────────────────────────
 
+export type DesignStyle = 'standard' | 'sidebar' | 'scientific' | 'corner' | 'full_width';
+
 export interface ImageModel {
   element_id: string;
   file_path: string;
@@ -52,6 +56,14 @@ export interface ImageModel {
   caption: string;
   note?: string;
   figure_number: number;
+  // Nuevos campos configurables para control total de imagen
+  width_inches?: number | null;
+  height_inches?: number | null;
+  alignment: 'left' | 'center' | 'right';
+  wrap_style: 'inline' | 'square' | 'tight' | 'top_and_bottom';
+  caption_position: 'above' | 'below';
+  constrain_proportions: boolean;
+  design_style: DesignStyle;
 }
 
 export interface TableModel {
@@ -80,6 +92,13 @@ export interface OriginalMetadata {
   section_index: number;
 }
 
+export interface AIFinding {
+  pattern: string;
+  severity: string;
+  detail: string;
+  count: number;
+}
+
 export interface ElementModel {
   id: string;
   type: ElementType;
@@ -100,6 +119,7 @@ export interface ElementModel {
   is_user_modified: boolean;
   image_info?: ImageModel;
   table_info?: TableModel;
+  page_number?: number;
 
   // Classification
   needs_review: boolean;
@@ -120,6 +140,10 @@ export interface ElementModel {
   // Post-apply state
   applied_style?: string;
   applied_at?: string;
+
+  // AI detection
+  ai_score?: number;
+  ai_findings?: AIFinding[];
 }
 
 // ── APA RULES ─────────────────────────────────────────────────────────────────
@@ -160,6 +184,9 @@ export interface APARuleSet {
 
   // Headings
   heading_levels: Record<number, HeadingLevelConfig>;
+  heading_numbering_style_lvl1: 'decimal' | 'roman' | 'none';
+  heading_numbering_style_lvl2: 'decimal' | 'roman' | 'none';
+  heading_numbering_style_lvl3: 'decimal' | 'roman' | 'none';
 
   // References
   reference_hanging_indent_cm: number;
@@ -175,6 +202,7 @@ export interface APARuleSet {
 export interface PortadaData {
   apa_format: APAFormat;
   use_original_cover?: boolean;
+  force_skip_cover?: boolean;
   title: string;
   author: string;
   institution: string;
@@ -260,6 +288,10 @@ export interface DocumentMeta {
   content_source: string;
   content_warning?: string;
   sections: SectionInfo[];
+  page_count_exact?: number;
+  paragraph_pages?: number[];
+  page_layout_provider?: string;
+  page_layout_confidence?: number;
 }
 
 // ── DOCUMENT MODEL (root) ─────────────────────────────────────────────────────
@@ -269,6 +301,9 @@ export interface DocumentPortada {
   element_ids: string[];
   fields: Record<string, string>;
   profile_name?: string;
+  textbox_texts?: string[];
+  body_start_paragraph_idx?: number;
+  body_start_source?: string;
 }
 
 export interface DocumentModel {
@@ -283,6 +318,7 @@ export interface DocumentModel {
   referencias: ReferenciaModel[];
   citas_intext: CitationModel[];
   apa_validation?: APAValidationResult;
+  schema_version?: number;
 }
 
 // ── SESSIONS ──────────────────────────────────────────────────────────────────
@@ -328,8 +364,32 @@ export interface PreviewResponse {
   html: string;
 }
 
-export interface ResolveDoiResponse {
-  doi: string;
-  formatted?: string;
-  error?: string;
+export interface LLMProgressState {
+  status: 'idle' | 'processing' | 'complete' | 'error';
+  total_batches: number;
+  completed_batches: number;
+  current_provider: string;
+  current_provider_id: string;
+  elements_processed: number;
+  elements_total: number;
+  estimated_time_remaining_seconds: number;
+  provider_fallbacks: Array<{ from: string; to: string }>;
+  last_error: string | null;
+}
+
+export interface LLMUsageStats {
+  total_tokens: number;
+  providers_used: string[];
+  estimated_cost_usd: number;
+  cache_hits: number;
+  api_calls: number;
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  logo?: string;
+  description: string;
+  isAvailable: boolean;
+  priority: number;
 }

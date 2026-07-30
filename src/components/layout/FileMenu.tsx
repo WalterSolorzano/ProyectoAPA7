@@ -6,7 +6,7 @@ import { listSessions, recoverSession } from '../../api/backend';
 import { SessionRecovery } from '../../types';
 import {
   FileText, FilePlus, FolderOpen, Save, Download, X, ArrowLeft,
-  Upload, File, Clock, Plus,
+  Upload, File, Clock, Plus, HardDrive, RefreshCw,
 } from 'lucide-react';
 
 type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export';
@@ -36,6 +36,7 @@ export const FileMenu: React.FC = () => {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const openFileInputRef = useRef<HTMLInputElement>(null);
 
   // Load sessions for "Open" page
   useEffect(() => {
@@ -73,8 +74,8 @@ export const FileMenu: React.FC = () => {
   };
 
   const handleExportTracked = () => {
-    // Track Changes export — delegates to standard export as baseline
-    exportDocx();
+    // Track Changes export — delegates to standard export with track_changes enabled
+    exportDocx(true);
     handleClose();
   };
 
@@ -85,6 +86,8 @@ export const FileMenu: React.FC = () => {
         doc: recovered,
         showFileMenu: false,
         activeTab: 'classifier',
+        wizardComplete: true,
+        wizardStep: 1,
       });
       setPage('home');
     } catch {
@@ -136,6 +139,11 @@ export const FileMenu: React.FC = () => {
               <button
                 className="filemenu-new-card"
                 onClick={() => {
+                  if (useDocStore.getState().hasUnsavedChanges) {
+                    const confirmDiscard = window.confirm("Tienes cambios sin guardar. ¿Estás seguro de que quieres crear un nuevo documento y descartarlos?");
+                    if (!confirmDiscard) return;
+                  }
+                  
                   // Reset to wizard so user picks format before returning to Welcome
                   useDocStore.setState({
                     doc: null,
@@ -151,6 +159,7 @@ export const FileMenu: React.FC = () => {
                     validationIssues: [],
                     history: [],
                     historyIndex: -1,
+                    hasUnsavedChanges: false,
                   });
                   setPage('home');
                 }}
@@ -194,7 +203,38 @@ export const FileMenu: React.FC = () => {
       case 'open':
         return (
           <div className="filemenu-content">
-            <h2 className="filemenu-heading">Abrir sesion reciente</h2>
+            <h2 className="filemenu-heading">Abrir</h2>
+
+            {/* ── Primary action: open a file from disk (like Word's File → Open) ── */}
+            <div
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '16px 20px', borderRadius: '10px',
+                border: '2px dashed #185ABD', backgroundColor: '#eff6ff',
+                cursor: 'pointer', marginBottom: '24px',
+                transition: 'background 0.2s',
+              }}
+              onClick={() => openFileInputRef.current?.click()}
+            >
+              <HardDrive size={28} color="#185ABD" />
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#185ABD' }}>Abrir archivo desde tu computadora</div>
+                <div style={{ fontSize: '12px', color: '#475569' }}>Selecciona un .docx para cargarlo y formatearlo en APA 7</div>
+              </div>
+              <input
+                ref={openFileInputRef}
+                type="file"
+                accept=".docx,.doc"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                }}
+              />
+            </div>
+
+            {/* ── Sessions from server (recent docs) ── */}
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sesiones recientes</h3>
             {sessionsLoading ? (
               <div className="filemenu-loading">
                 <div className="loading-spinner" />

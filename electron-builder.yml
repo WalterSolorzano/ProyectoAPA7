@@ -1,0 +1,24 @@
+appId: com.wordapa7.app
+productName: WordAPA7
+directories:
+  output: dist-electron-builder
+  buildResources: build
+files:
+  - dist/**/*
+  - dist-electron/**/*
+extraResources:
+  - from: dist-python/
+    to: python-backend/
+    filter:
+      - "**/*"
+win:
+  target: nsis
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  perMachine: true
+  runAfterFinish: true
+  include: build/installer.nsh

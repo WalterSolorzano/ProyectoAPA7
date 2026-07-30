@@ -14,10 +14,17 @@ interface ContextMenuProps {
   y: number;
   elementId: string;
   currentType: ElementType;
+  headingLevel?: number;
   onClose: () => void;
   onChangeType: (type: ElementType, headingLevel?: number) => void;
   onAcceptClassification: () => void;
   onMarkForReview: () => void;
+
+  // Nuevas acciones estructurales
+  onEnumerateRoman?: () => void;
+  onEnumerateDecimal?: () => void;
+  onForcePageBreak?: () => void;
+  onApplyTemplate?: () => void;
 }
 
 interface MenuItem {
@@ -31,11 +38,17 @@ interface MenuItem {
 export const ContextMenu: React.FC<ContextMenuProps> = ({
   x,
   y,
+  elementId,
   currentType,
+  headingLevel,
   onChangeType,
   onClose,
   onAcceptClassification,
   onMarkForReview,
+  onEnumerateRoman,
+  onEnumerateDecimal,
+  onForcePageBreak,
+  onApplyTemplate,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [submenuOpen, setSubmenuOpen] = React.useState<string | null>(null);
@@ -167,6 +180,41 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       style={{ left: adjustedPos.x, top: adjustedPos.y }}
     >
       {menuItems.map(renderMenuItem)}
+
+      {/* ── Acciones Estructurales Adicionales ── */}
+      <div className="context-menu-separator" />
+
+      <div style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', padding: '4px 12px 2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Numeración
+      </div>
+
+      <button className="context-menu-item" onClick={() => { onEnumerateRoman?.(); onClose(); }}>
+        <span className="context-menu-item-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><text x="3" y="16" fontSize="14" fontWeight="bold" fill="currentColor">I</text></svg>
+        </span>
+        <span className="context-menu-item-label">Numeración Romana (I, II, III...)</span>
+      </button>
+
+      <button className="context-menu-item" onClick={() => { onEnumerateDecimal?.(); onClose(); }}>
+        <span className="context-menu-item-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><text x="3" y="16" fontSize="14" fontWeight="bold" fill="currentColor">1</text></svg>
+        </span>
+        <span className="context-menu-item-label">Numeración Decimal (1, 2, 3...)</span>
+      </button>
+
+      <button className="context-menu-item" onClick={() => { onForcePageBreak?.(); onClose(); }}>
+        <span className="context-menu-item-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="2" x2="12" y2="22" stroke="currentColor"/><polyline points="8 6 12 2 16 6"/><polyline points="8 18 12 22 16 18"/></svg>
+        </span>
+        <span className="context-menu-item-label">Forzar Salto de Página</span>
+      </button>
+
+      <button className="context-menu-item" onClick={() => { onApplyTemplate?.(); onClose(); }}>
+        <span className="context-menu-item-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="12" y1="9" x2="12" y2="15"/></svg>
+        </span>
+        <span className="context-menu-item-label">Aplicar Plantilla de Estructura</span>
+      </button>
 
       <div className="context-menu-separator" />
 

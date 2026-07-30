@@ -30,17 +30,51 @@ def add_page_number_field(run):
     run._r.append(fldChar3)
 
 
+def _clean_existing_page_numbers(doc: docx.Document):
+    """
+    Elimina cualquier campo PAGE / NUMPAGES existente en los headers y footers
+    de todas las secciones del documento.  Esto evita que el numero de pagina
+    APA se superponga a uno ya presente en el documento original (doble numero).
+    Es seguro llamarlo aunque el documento no tenga headers (no-op).
+    """
+    for section in doc.sections:
+        for attr in ('header', 'first_page_header', 'even_page_header',
+                     'footer', 'first_page_footer', 'even_page_footer'):
+            hf = getattr(section, attr, None)
+            if hf is None:
+                continue
+            try:
+                element = hf._element
+            except (AttributeError, Exception):
+                continue
+
+            for p in element.findall(f'.//{qn("w:p")}'):
+                should_clean = False
+                for instr in p.findall(f'.//{qn("w:instrText")}'):
+                    text = (instr.text or '').upper()
+                    if 'PAGE' in text or 'NUMPAGES' in text:
+                        should_clean = True
+                        break
+                if should_clean:
+                    # Elimina todos los runs del parrafo que contienen el field
+                    for r in list(p.findall(qn("w:r"))):
+                        p.remove(r)
+
+
 def setup_apa_header(doc: docx.Document, format_type: APAFormat, running_head_text: str, rules: APARuleSet):
     """
     Configura el encabezado de las páginas según el tipo APA (Estudiante vs Profesional).
     - Estudiante: Número de página a la derecha.
     - Profesional: Running head en mayúsculas a la izquierda + Número de página a la derecha.
     """
+    # Clean existing page number fields to prevent double numbering
+    _clean_existing_page_numbers(doc)
+
     section = doc.sections[0]
     section.different_first_page_header_footer = True
     header = section.header
     header.is_linked_to_previous = False
-    
+
     p = header.paragraphs[0]
     p.text = ""
     p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT

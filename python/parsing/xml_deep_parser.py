@@ -25,43 +25,69 @@ NAMESPACES = {
 }
 
 
-def sanitize_numbering_xml(docx_bytes: bytes) -> bytes:
+def process_numbering_single_pass(docx_bytes: bytes) -> Tuple[bytes, dict[str, str]]:
     """
-    Lee el paquete zip del DOCX y valida/corrige el archivo word/numbering.xml
-    si contiene w:numId sin su w:abstractNumId correspondiente.
-    Devuelve los bytes del DOCX sanitizado.
+    Realiza en un solo paso:
+    1. La sanitizacion de referencias abstractNumId rotas.
+    2. La extraccion del mapa numId -> numFmt.
+    Retorna (docx_bytes_sanitizados, numbering_type_map)
     """
+    W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    result_map: dict[str, str] = {}
+    
     try:
         in_stream = io.BytesIO(docx_bytes)
         out_stream = io.BytesIO()
 
         with zipfile.ZipFile(in_stream, 'r') as in_zip:
             if 'word/numbering.xml' not in in_zip.namelist():
-                return docx_bytes  # No hay numbering.xml, nada que arreglar
+                return docx_bytes, result_map
 
             numbering_xml = in_zip.read('word/numbering.xml')
             root = ET.fromstring(numbering_xml)
 
-            # Obtener abstractNumIds declarados
+            # PARTE 1: Mapping numId -> numFmt
+            num_to_ab: dict[str, str] = {}
+            for num_elem in root.findall(f'.//{{{W_NS}}}num'):
+                num_id = num_elem.attrib.get(f'{{{W_NS}}}numId')
+                ab_ref = num_elem.find(f'{{{W_NS}}}abstractNumId')
+                if num_id and ab_ref is not None:
+                    ab_id = ab_ref.attrib.get(f'{{{W_NS}}}val')
+                    if ab_id:
+                        num_to_ab[num_id] = ab_id
+
+            ab_to_fmt: dict[str, str] = {}
+            for ab_elem in root.findall(f'.//{{{W_NS}}}abstractNum'):
+                ab_id = ab_elem.attrib.get(f'{{{W_NS}}}abstractNumId')
+                for lvl in ab_elem.findall(f'.//{{{W_NS}}}lvl'):
+                    ilvl = lvl.attrib.get(f'{{{W_NS}}}ilvl', '0')
+                    if ilvl == '0':
+                        numFmt = lvl.find(f'{{{W_NS}}}numFmt')
+                        if numFmt is not None:
+                            ab_to_fmt[ab_id] = numFmt.attrib.get(f'{{{W_NS}}}val', 'bullet')
+                        break
+
+            for num_id, ab_id in num_to_ab.items():
+                result_map[num_id] = ab_to_fmt.get(ab_id, 'bullet')
+
+            # PARTE 2: Sanitizacion
             abstract_ids = set()
-            for elem in root.findall('.//w:abstractNum', NAMESPACES):
-                ab_id = elem.attrib.get(f'{{{NAMESPACES["w"]}}}abstractNumId')
+            for elem in root.findall(f'.//{{{W_NS}}}abstractNum'):
+                ab_id = elem.attrib.get(f'{{{W_NS}}}abstractNumId')
                 if ab_id:
                     abstract_ids.add(ab_id)
 
-            # Verificar numId que apuntan a abstractNumId inexistentes
             modified = False
-            for num_elem in list(root.findall('.//w:num', NAMESPACES)):
-                ab_ref = num_elem.find('.//w:abstractNumId', NAMESPACES)
+            for num_elem in list(root.findall(f'.//{{{W_NS}}}num')):
+                ab_ref = num_elem.find(f'.//{{{W_NS}}}abstractNumId')
                 if ab_ref is not None:
-                    ref_val = ab_ref.attrib.get(f'{{{NAMESPACES["w"]}}}val')
+                    ref_val = ab_ref.attrib.get(f'{{{W_NS}}}val')
                     if ref_val and ref_val not in abstract_ids:
-                        # Referencia rota detectada, remover el elemento num corrupto
                         root.remove(num_elem)
                         modified = True
 
             if not modified:
-                return docx_bytes
+                return docx_bytes, result_map
 
             # Reconstruir zip con numbering.xml sanitizado
             new_numbering_bytes = ET.tostring(root, encoding='utf-8', xml_declaration=True)
@@ -73,42 +99,210 @@ def sanitize_numbering_xml(docx_bytes: bytes) -> bytes:
                     else:
                         out_zip.writestr(item, in_zip.read(item.filename))
 
-            return out_stream.getvalue()
+            return out_stream.getvalue(), result_map
     except Exception as err:
-        # Si la sanitización falla por alguna razón XML, devolver bytes originales
-        print(f"[WARN] Error sanitizando numbering.xml: {err}")
-        return docx_bytes
+        print(f"[WARN] Error en process_numbering_single_pass: {err}")
+        return docx_bytes, result_map
 
 
 def extract_textbox_paragraphs(doc_element) -> List[str]:
     """
     Extrae texto contenido dentro de cuadros de texto (w:txbxContent)
     y formas de Word (wps:wsp) que contienen su propio txbxContent.
-    Cubre portadas basadas en shapes y formularios.
+    Usa iter() e itertext() para cubrir mc:AlternateContent y namespaces variados.
+    Resultados deduplicados usando un conjunto de textos normalizados.
     """
+    seen: set[str] = set()
     textbox_texts: List[str] = []
+    W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     try:
+        if not hasattr(doc_element, '_element'):
+            return textbox_texts
         root = doc_element._element
-
-        # 1. Extraer de w:txbxContent directo (text boxes clasicos)
-        for txbx in root.findall('.//w:txbxContent', NAMESPACES):
-            _extract_paragraphs_from_element(txbx, textbox_texts)
-
-        # 2. Extraer de formas Word (wps:wsp → wps:txbx → w:txbxContent)
-        wps_ns = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape'
-        for wsp in root.findall(f'.//{{{wps_ns}}}wsp', NAMESPACES):
-            for txbx in wsp.findall('.//w:txbxContent', NAMESPACES):
-                _extract_paragraphs_from_element(txbx, textbox_texts)
-
-        # 3. Extraer de grupos de formas (wpg:wgp)
-        wpg_ns = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup'
-        for wgp in root.findall(f'.//{{{wpg_ns}}}wgp', NAMESPACES):
-            for txbx in wgp.findall('.//w:txbxContent', NAMESPACES):
-                _extract_paragraphs_from_element(txbx, textbox_texts)
-
+        for txbx in root.iter(f'{{{W}}}txbxContent'):
+            for p in txbx.findall(f'.//{{{W}}}p'):
+                text = ''.join(t for t in p.itertext() if t).strip()
+                if text and len(text) > 1:
+                    norm = text.lower().replace('  ', ' ').strip()
+                    if norm not in seen:
+                        seen.add(norm)
+                        textbox_texts.append(text)
     except Exception as e:
         print(f"[WARN] Error en extract_textbox_paragraphs: {e}")
     return textbox_texts
+
+
+def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
+    """
+    Agrupa textos de textboxes en pares (nombre + carnet/grupo) detectando
+    patrones como 'Br. Nombre Apellido', 'Carnet: 2023-XXXX', 'Grupo: XXX'.
+    Retorna lista de dicts con 'name', 'id' (carnet), 'role', 'group'.
+    """
+    import re
+    members: List[dict] = []
+    current: dict = {}
+
+    for text in textbox_texts:
+        t = text.strip()
+        t_lower = t.lower()
+
+        # Detectar patrón "Br. Nombre Apellido Apellido"
+        if t_lower.startswith('br.'):
+            # Finalizar miembro anterior si existe
+            if current.get('name'):
+                members.append(current)
+            current = {'name': t, 'id': '', 'role': 'br.', 'group': ''}
+
+        # Detectar patrón "Ing. Nombre"
+        elif t_lower.startswith('ing.') or t_lower.startswith('m.sc.') or t_lower.startswith('dr.'):
+            if current.get('name'):
+                members.append(current)
+                current = {}
+            # Es un tutor/docente - guardar separadamente
+            members.append({'name': t, 'id': '', 'role': 'tutor', 'group': ''})
+            current = {}
+
+        # Detectar "Carnet: XXXX" o número de carnet
+        elif 'carnet:' in t_lower:
+            carnet_val = t.split(':', 1)[-1].strip() if ':' in t else t
+            if current.get('name') and not current['name'].startswith(('ing.', 'm.sc.', 'dr.')):
+                current['id'] = carnet_val
+            else:
+                # Si no hay nombre actual, guardar como suplemento
+                current['carnet_raw'] = carnet_val
+
+        # Detectar "Grupo: XXX"
+        elif 'grupo:' in t_lower:
+            group_val = t.split(':', 1)[-1].strip() if ':' in t else t
+            if current.get('name'):
+                current['group'] = group_val
+            else:
+                current = {'name': '', 'id': '', 'role': '', 'group': group_val}
+
+        # Detectar fecha (pero NO si parece carnet)
+        elif re.search(r'(20\d{2})', t) and not re.search(r'\d{4}[-]\d{4}', t):
+            # Guardar miembro actual primero si existe
+            if current.get('name'):
+                members.append(current)
+            members.append({'name': t, 'id': '', 'role': 'date', 'group': ''})
+            current = {}
+
+        else:
+            # Texto sin clasificar - puede ser continuación del nombre
+            if current.get('name') and not current.get('id'):
+                pass  # Ignorar textos intermedios
+            elif current.get('name'):
+                members.append(current)
+                current = {}
+
+    # Finalizar último miembro
+    if current.get('name'):
+        members.append(current)
+
+    return members
+
+
+def find_body_start_via_xml(docx_bytes: bytes) -> int:
+    """
+    Lee el XML del documento directamente para encontrar el primer párrafo
+    que marca el inicio del cuerpo (no portada).
+
+    Busca:
+    - Primer heading o keyword académico (introducción, resumen, etc.)
+    - Párrafos largos (+35 palabras)
+
+    Retorna el índice del primer párrafo de cuerpo en la lista de párrafos del documento.
+    """
+    import zipfile
+    import io
+    from xml.etree import ElementTree as ET
+
+    W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+    BODY_KEYWORDS = [
+        "introduccion", "introducción", "resumen", "abstract",
+        "metodologia", "metodología", "resultados", "discusion",
+        "discusión", "conclusion", "conclusión", "conclusiones",
+        "referencias", "bibliografia", "bibliografía", "anexo",
+        "capitulo", "capítulo", "marco teorico", "marco teórico",
+        "antecedentes", "planteamiento", "justificacion",
+        "justificación"
+    ]
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(docx_bytes), 'r') as z:
+            if 'word/document.xml' not in z.namelist():
+                return 0
+            doc_xml = z.read('word/document.xml')
+            root = ET.fromstring(doc_xml)
+            body = root.find(f'{{{W_NS}}}body')
+            if body is None:
+                return 0
+
+            paras = list(body)
+            for i, child in enumerate(paras):
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if tag != 'p':
+                    continue
+
+                # Extraer texto completo
+                texts = []
+                for t in child.iter(f'{{{W_NS}}}t'):
+                    if t.text:
+                        texts.append(t.text)
+                text = ''.join(texts).strip()
+
+                if not text:
+                    continue
+
+                text_lower = text.lower()
+                word_count = len(text.split())
+
+                # Palabras clave de cuerpo académico
+                for kw in BODY_KEYWORDS:
+                    if kw in text_lower:
+                        return i
+
+                # Párrafos largos (+35 palabras) son cuerpo
+                if word_count > 35:
+                    return i
+
+                # Heading numerado (1., 1.1., I.)
+                import re
+                if re.match(r'^(?:\d+\.){1,4}\d*\s', text_lower) and word_count <= 15:
+                    return i
+
+            # Si no se encontró, estimar: volver índice del primer texto sustancial
+            for i, child in enumerate(paras):
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if tag != 'p':
+                    continue
+                texts = []
+                for t in child.iter(f'{{{W_NS}}}t'):
+                    if t.text:
+                        texts.append(t.text)
+                text = ''.join(texts).strip()
+                if len(text.split()) >= 5:
+                    return i
+    except Exception as e:
+        print(f"[WARN] Error en find_body_start_via_xml: {e}")
+
+    return 0
+
+
+def _deduplicate_textbox_texts(textbox_texts: List[str]) -> List[str]:
+    """
+    Deduplica textos de textboxes basado en contenido normalizado.
+    Los textboxes suelen aparecer duplicados (Choice + Fallback en AlternateContent).
+    """
+    seen: set[str] = set()
+    result: List[str] = []
+    for t in textbox_texts:
+        norm = t.lower().replace('  ', ' ').strip()
+        if norm not in seen:
+            seen.add(norm)
+            result.append(t)
+    return result
 
 
 def _extract_paragraphs_from_element(parent_element, output_list: List[str]) -> None:

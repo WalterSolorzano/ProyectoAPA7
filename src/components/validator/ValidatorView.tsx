@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { RefreshCw, CheckCircle, AlertTriangle, XCircle, ShieldCheck, LucideIcon } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertTriangle, XCircle, ShieldCheck, Sparkles, LucideIcon } from 'lucide-react';
 
 const SEVERITY_ICON: Record<string, LucideIcon> = {
   ok: CheckCircle,
@@ -11,7 +11,7 @@ const SEVERITY_ICON: Record<string, LucideIcon> = {
 };
 
 export const ValidatorView: React.FC = () => {
-  const { validationIssues, runValidation, isLoading } = useDocStore();
+  const { validationIssues, runValidation, isLoading, aiCitationValidation, apiKey } = useDocStore();
 
   useEffect(() => {
     runValidation();
@@ -26,12 +26,29 @@ export const ValidatorView: React.FC = () => {
       <div className="view-page-inner">
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <h2 className="view-page-title" style={{ marginBottom: 0 }}>
-            Informe de Validacion de Citas y Referencias
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 className="view-page-title" style={{ marginBottom: 0 }}>
+              Informe de Validacion de Citas y Referencias
+            </h2>
+            {aiCitationValidation && apiKey && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                padding: '2px 8px', borderRadius: '4px',
+                backgroundColor: '#f0fdf4', color: '#16a34a',
+                border: '1px solid #bbf7d0',
+                fontSize: '10px', fontWeight: 600,
+              }}>
+                <Sparkles size={10} />
+                IA activa
+              </span>
+            )}
+          </div>
           <button
             className="btn btn-secondary btn-sm"
-            onClick={runValidation}
+            onClick={async () => {
+              try { await runValidation(); }
+              catch (err: any) { useDocStore.getState().showToast(err.message || 'Error al validar documento', 'error'); }
+            }}
             disabled={isLoading}
           >
             {isLoading ? (

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
 from pydantic import BaseModel, Field
 
 
@@ -27,6 +27,9 @@ class ElementType(str, Enum):
     SECTION_BREAK  = "section_break"
     EMPTY          = "empty"
     PORTADA_BLOCK  = "portada_block"
+    EQUATION       = "equation"
+    TOC            = "toc"           # Tabla de Contenidos nativa de Word
+    CAPTION        = "caption"
     UNKNOWN        = "unknown"
 
 
@@ -116,6 +119,11 @@ class APARuleSet(BaseModel):
         5: HeadingLevelConfig(bold=True, italic=True,  alignment="left",   indent_cm=1.27, inline_text=True),
     })
 
+    # Numeracion de headings
+    heading_numbering_style_lvl1: str = "decimal"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl2: str = "decimal"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl3: str = "decimal"  # "decimal" | "roman" | "none"
+
     # Referencias
     reference_hanging_indent_cm: float = 1.27
     doi_as_hyperlink: bool = True
@@ -153,65 +161,6 @@ class OriginalMetadata(BaseModel):
 
 # ── ELEMENTO DEL DOCUMENTO ────────────────────────────────────────────────────
 
-class DocumentElement(BaseModel):
-    id: str                                # "elem_001"
-
-    # Clasificación
-    type: ElementType = ElementType.UNKNOWN
-    confidence: float = 0.0
-    needs_review: bool = True
-    auto_applied: bool = False
-    llm_reasoning: Optional[str] = None
-    pre_classifier_rule: Optional[str] = None
-
-    # Texto (headings, párrafos, bullets, listas)
-    text: Optional[str] = None
-    level: Optional[int] = None            # heading level (1-5) o bullet/list level (1-3)
-    heading_inline: bool = False           # True para heading 4 y 5
-
-    # Bullet / lista
-    bullet_source: Optional[str] = None   # "ooxml_list" | "manual_char" | "tab_indent"
-    bullet_style: Optional[BulletStyle] = None
-    number_style: Optional[NumberStyle] = None
-    number_start: Optional[int] = None
-    original_char: Optional[str] = None
-
-    # Imagen
-    image_id: Optional[str] = None
-    image_file: Optional[str] = None
-    image_path: Optional[str] = None      # Ruta relativa en sessions/{hash}/images/
-    position_type: Optional[str] = None   # "inline" | "floating"
-    size: Optional[dict[str, int]] = None
-    apa_figure_number: Optional[int] = None
-    apa_title: Optional[str] = None
-    apa_caption: Optional[str] = None
-    apa_note: Optional[str] = None
-    after_element: Optional[str] = None
-
-    # Tabla
-    table_index: Optional[int] = None
-    rows: Optional[int] = None
-    cols: Optional[int] = None
-    table_data: Optional[list[list[str]]] = None
-    has_merged_cells: bool = False
-    apa_table_number: Optional[int] = None
-    # apa_title y apa_note se comparten con imagen
-
-    # Intocable
-    is_intocable: bool = False
-    intocable_reason: Optional[str] = None
-
-    # Citas en este párrafo
-    cita_ids: list[str] = Field(default_factory=list)
-
-    # Estado post-apply
-    applied_style: Optional[str] = None
-    applied_at: Optional[str] = None
-
-    # Original (solo lectura)
-    original: OriginalMetadata = Field(default_factory=OriginalMetadata)
-
-
 # ── CITA IN-TEXT ─────────────────────────────────────────────────────────────
 
 class CitaError(BaseModel):
@@ -219,40 +168,7 @@ class CitaError(BaseModel):
     description: str
 
 
-class CitaInText(BaseModel):
-    id: str
-    element_id: str
-    char_start: int
-    char_end: int
-    original_text: str
-    citation_type: CitationType
-
-    # Para citas secundarias
-    primary_author: Optional[str] = None
-    primary_year: Optional[int] = None
-    secondary_author: Optional[str] = None
-    secondary_year: Optional[int] = None
-
-    errors: list[CitaError] = Field(default_factory=list)
-    suggested_fix: Optional[str] = None
-    matched_reference_id: Optional[str] = None
-    has_matching_reference: bool = False
-    user_approved: bool = False    # True si el usuario aprobó la corrección
-    user_ignored: bool = False
-
-
 # ── REFERENCIA BIBLIOGRÁFICA ─────────────────────────────────────────────────
-
-class ReferenciaItem(BaseModel):
-    id: str
-    input_type: str = "free_text"   # "doi" | "url" | "free_text" | "auto_detected"
-    input_raw: str = ""
-    apa7_formatted: str = ""
-    confidence: float = 0.0
-    resolved: bool = False
-    cited_count: int = 0
-    never_cited: bool = False
-
 
 # ── VALIDACIÓN APA ────────────────────────────────────────────────────────────
 
@@ -288,17 +204,32 @@ class DocumentMeta(BaseModel):
     parsed_at: str = ""
     autosave_at: Optional[str] = None
     page_count: int = 0
+    page_count_exact: bool = False
+    paragraph_pages: List[int] = Field(default_factory=list)
+    page_layout_provider: str = ""
+    page_layout_confidence: float = 0.0
     word_count: int = 0
     has_images: bool = False
     has_tables: bool = False
     has_equations: bool = False
     has_ole_objects: bool = False
+    # Detección de anclajes/enlaces: se registran para advertir al usuario,
+    # ya que no se modelan como elementos propios en el pipeline actual.
+    has_bookmarks: bool = False
+    has_hyperlinks: bool = False
+    hyperlink_count: int = 0
     portada_detected: bool = False
     apa_format: APAFormat = APAFormat.STUDENT
     work_mode: WorkMode = WorkMode.REVIEW
     content_source: str = "paragraphs"   # "paragraphs" | "textboxes" | "mixed"
     content_warning: Optional[str] = None
     sections: list[SectionInfo] = Field(default_factory=list)
+    # Truncamiento preventivo cuando el documento excede el límite de elementos
+    # configurado (WORDAPA7_MAX_ELEMENTS). Permite advertir al usuario que el
+    # resto del documento no fue importado.
+    elements_truncated: bool = False
+    elements_truncated_at: int = 0
+    forensic_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 # ── MODELO RAÍZ ───────────────────────────────────────────────────────────────
@@ -381,6 +312,19 @@ class ImageModel(BaseModel):
     caption: str = ""
     note: Optional[str] = None
     figure_number: int = 1
+    # Nuevos campos configurables para control total de imagen
+    width_inches: Optional[float] = None      # Ancho en pulgadas (si se prefiere sobre cm)
+    height_inches: Optional[float] = None     # Alto en pulgadas
+    alignment: str = "center"                 # "left" | "center" | "right"
+    wrap_style: str = "inline"                # "inline" | "square" | "tight" | "top_and_bottom"
+    caption_position: str = "above"           # "above" | "below"
+    constrain_proportions: bool = True        # Mantener proporcion al cambiar ancho
+    design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width"
+    
+    # Nuevos atributos flotantes (anchor)
+    is_anchor: bool = False
+    anchor_pos_h: Optional[str] = None
+    anchor_pos_v: Optional[str] = None
 
 
 class TableModel(BaseModel):
@@ -412,6 +356,12 @@ class ElementModel(BaseModel):
     is_user_modified: bool = False
     image_info: Optional[ImageModel] = None
     table_info: Optional[TableModel] = None
+    page_number: Optional[int] = None
+    ai_matches: Optional[List[str]] = None
+
+    # Preservacion XML
+    has_math: bool = False
+    has_fields: bool = False
 
     # Clasificacion y revision
     needs_review: bool = True
@@ -433,10 +383,16 @@ class ElementModel(BaseModel):
     applied_style: Optional[str] = None
     applied_at: Optional[str] = None
 
+    # Deteccion de IA
+    ai_score: float = 0.0
+    ai_findings: list[dict] = Field(default_factory=list)
+    has_shading_residue: bool = False
+
 
 class PortadaData(BaseModel):
     apa_format: APAFormat = APAFormat.STUDENT
     use_original_cover: bool = True  # Conservar portada original intacta del documento
+    force_skip_cover: bool = False  # True = saltar todos los elementos de portada sin tocarlos
     title: str = ""
     author: str = ""
     institution: str = ""
@@ -467,6 +423,12 @@ class ReferenciaModel(BaseModel):
     doi_or_url: Optional[str] = None
     raw_text: str = ""
     formatted_apa: Optional[str] = None
+    # P2.17 — Conteo de citas en el cuerpo del documento.
+    # citation_matcher.cross_check_citations_and_references() asigna estos
+    # campos. Antes solo existían en ReferenciaItem (no usado por
+    # DocumentModel.referencias), por lo que la asignación se perdía.
+    cited_count: int = 0
+    never_cited: bool = False
 
 
 class ValidationIssueModel(BaseModel):
@@ -474,4 +436,3 @@ class ValidationIssueModel(BaseModel):
     severity: ValidationStatus = ValidationStatus.OK
     message: str
     suggestion: str = ""
-

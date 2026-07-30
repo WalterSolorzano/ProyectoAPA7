@@ -3,13 +3,97 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut, Check, X, Flame, Sparkles, Loader2 } from 'lucide-react';
+import { suggestCaption, rewriteText } from '../../api/backend';
+
+export const computePages = (elements: ElementModel[]): ElementModel[][] => {
+  const pages: ElementModel[][] = [];
+  let currentPage: ElementModel[] = [];
+  let currentEstimatedHeight = 0;
+  const MAX_PAGE_UNITS = 30;
+
+  elements.forEach((elem) => {
+    if (elem.type === 'empty') return;
+
+    let units = 1;
+    if (elem.type === 'heading') units = 2;
+    if (elem.type === 'image') units = 4;
+    if (elem.type === 'table') units = 6;
+    if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.2 : 0.6;
+    if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 250));
+
+    const isFirstBodyHeading = !elem.is_cover_section && elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
+    const isLevel1Heading = elem.type === 'heading' && elem.heading_level === 1;
+
+    if (
+      elem.type === 'page_break' ||
+      isFirstBodyHeading ||
+      (isLevel1Heading && currentPage.length > 0) ||
+      (currentEstimatedHeight + units > MAX_PAGE_UNITS && currentPage.length > 0)
+    ) {
+      if (currentPage.length > 0) {
+        pages.push(currentPage);
+        currentPage = [];
+        currentEstimatedHeight = 0;
+      }
+    }
+
+    if (elem.type !== 'page_break') {
+      currentPage.push(elem);
+      currentEstimatedHeight += units;
+    }
+  });
+
+  if (currentPage.length > 0) pages.push(currentPage);
+  if (pages.length === 0) pages.push([]);
+
+  return pages;
+};
 
 export const PaperCanvas: React.FC = () => {
-  const { doc, rules, selectedElementId, setSelectedElementId, updateElementType } = useDocStore();
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, updateElementType } = useDocStore();
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [contextMenuElemId, setContextMenuElemId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [showAIHeatmap, setShowAIHeatmap] = useState<boolean>(false);
+  const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const handleSuggestCaption = async (elem: ElementModel) => {
+    if (!doc) return;
+    setAiLoadingId(elem.id);
+    try {
+      const contextText = elem.text || "";
+      const suggestion = await suggestCaption(doc.session_id, elem.id, contextText);
+      const newImageInfo = { ...elem.image_info, caption: suggestion };
+      useDocStore.getState().updateElementImage(elem.id, newImageInfo);
+      useDocStore.getState().showToast('Leyenda sugerida aplicada', 'success');
+    } catch (err: any) {
+      useDocStore.getState().showToast(err.message || 'Error al sugerir leyenda', 'error');
+    } finally {
+      setAiLoadingId(null);
+      setContextMenuElemId(null);
+    }
+  };
+
+  const handleRewriteText = async (elem: ElementModel) => {
+    if (!doc) return;
+    const instruction = prompt("Instrucción para reescribir (ej. 'Hazlo más formal' o 'Corrige ortografía'):", "Corrige la gramática y adapta al tono académico APA.");
+    if (!instruction) return;
+    
+    setAiLoadingId(elem.id);
+    try {
+      const rewritten = await rewriteText(doc.session_id, elem.id, elem.text, instruction);
+      useDocStore.getState().updateElementType(elem.id, elem.type, elem.heading_level, rewritten);
+      useDocStore.getState().showToast('Texto reescrito aplicado', 'success');
+    } catch (err: any) {
+      useDocStore.getState().showToast(err.message || 'Error al reescribir', 'error');
+    } finally {
+      setAiLoadingId(null);
+      setContextMenuElemId(null);
+    }
+  };
 
   // Zoom con Ctrl + Scroll
   useEffect(() => {
@@ -45,43 +129,7 @@ export const PaperCanvas: React.FC = () => {
   const fontFamily = rules.font_family || 'Times New Roman';
 
   // Algoritmo de paginación virtual respetando salto de página del cuerpo
-  const pages: ElementModel[][] = [];
-  let currentPage: ElementModel[] = [];
-  let currentEstimatedHeight = 0;
-  const MAX_PAGE_UNITS = 30;
-
-  doc.elements.forEach((elem) => {
-    if (elem.type === 'empty') return;
-
-    let units = 1;
-    if (elem.type === 'heading') units = 2;
-    if (elem.type === 'image') units = 4;
-    if (elem.type === 'table') units = 6;
-    if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.2 : 0.6;
-    if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 250));
-
-    const isFirstBodyHeading = !elem.is_cover_section && elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
-
-    if (
-      elem.type === 'page_break' ||
-      isFirstBodyHeading ||
-      (currentEstimatedHeight + units > MAX_PAGE_UNITS && currentPage.length > 0)
-    ) {
-      if (currentPage.length > 0) {
-        pages.push(currentPage);
-        currentPage = [];
-        currentEstimatedHeight = 0;
-      }
-    }
-
-    if (elem.type !== 'page_break') {
-      currentPage.push(elem);
-      currentEstimatedHeight += units;
-    }
-  });
-
-  if (currentPage.length > 0) pages.push(currentPage);
-  if (pages.length === 0) pages.push([]);
+  const pages = computePages(doc.elements);
 
   let globalListCounter = 0;
 
@@ -91,16 +139,13 @@ export const PaperCanvas: React.FC = () => {
       style={{
         flex: 1,
         overflowY: 'auto',
-        backgroundColor: '#cbd5e1',
+        backgroundColor: 'var(--canvas-bg)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: '24px 16px',
-        position: 'relative'
-      }}
-      onClick={() => {
-        setSelectedElementId(null);
-        setContextMenuElemId(null);
+        position: 'relative',
+        scrollbarColor: 'rgba(255,255,255,0.15) transparent'
       }}
     >
       {/* Barra de Herramientas Flotante del Lienzo */}
@@ -129,6 +174,43 @@ export const PaperCanvas: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            className={`btn btn-xs ${showAIHeatmap ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setShowAIHeatmap(!showAIHeatmap)}
+            title="Activar/Desactivar Mapa de Calor IA"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
+          >
+            <Flame size={12} color={showAIHeatmap ? '#fca5a5' : '#64748b'} />
+            Mapa IA
+          </button>
+          
+          {useDocStore.getState().citationAuditResult && (
+            <div style={{ display: 'flex', gap: '6px', marginRight: '8px' }}>
+              <div 
+                title="Citas fantasma: Existen en el texto pero no en la bibliografía"
+                style={{ 
+                  display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
+                  backgroundColor: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#fef2f2' : '#f0fdf4',
+                  color: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#dc2626' : '#16a34a',
+                  border: `1px solid ${useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#fecaca' : '#bbf7d0'}`
+                }}
+              >
+                {useDocStore.getState().citationAuditResult?.ghost_citations?.length || 0} Citas Fantasma
+              </div>
+              <div 
+                title="Referencias huérfanas: Existen en la bibliografía pero nunca se citaron"
+                style={{ 
+                  display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
+                  backgroundColor: useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#fffbeb' : '#f0fdf4',
+                  color: useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#d97706' : '#16a34a',
+                  border: `1px solid ${useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#fde68a' : '#bbf7d0'}`
+                }}
+              >
+                {useDocStore.getState().citationAuditResult?.orphan_references?.length || 0} Refs Huérfanas
+              </div>
+            </div>
+          )}
+
           <button
             className="btn btn-secondary btn-xs"
             onClick={() => setZoomLevel(prev => Math.max(prev - 10, 50))}
@@ -189,7 +271,7 @@ export const PaperCanvas: React.FC = () => {
                 width: '680px',
                 minHeight: '880px',
                 backgroundColor: '#ffffff',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
                 padding: '54px 54px',
                 boxSizing: 'border-box',
                 position: 'relative',
@@ -219,7 +301,14 @@ export const PaperCanvas: React.FC = () => {
               </div>
 
               {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
-              {isCoverPage && coverHeaderTexts.length > 0 ? (
+              {isCoverPage && portada.use_original_cover && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: '780px' }}>
+                  <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '8px', maxWidth: '80%' }}>
+                    <p style={{ fontWeight: 'bold', color: '#475569', margin: 0, fontSize: '14pt' }}>[Portada Original Conservada]</p>
+                    <p style={{ fontSize: '11pt', color: '#64748b', marginTop: '12px' }}>El documento mantendrá la portada exacta del archivo original al generar el documento final.</p>
+                  </div>
+                </div>
+              ) : isCoverPage && coverHeaderTexts.length > 0 && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: '780px' }}>
                   
                   {/* Encabezado: Logo + Universidad/Título */}
@@ -326,13 +415,50 @@ export const PaperCanvas: React.FC = () => {
                     }
                     const currentItemNum = globalListCounter;
 
+                    let aiBgColor = 'transparent';
+                    let tooltipText = undefined;
+                    
+                    const hasGhostCitation = useDocStore.getState().citationAuditResult?.ghost_citations?.some((c: any) => c.element_id === elem.id);
+                    let borderColor = 'transparent';
+                    if (hasGhostCitation) borderColor = '#dc2626';
+                    
+                    if (showAIHeatmap) {
+                      const score = elem.ai_score !== undefined ? elem.ai_score : (elem.confidence < 0.5 ? 0.9 : 0.1);
+                      if (score >= 0.75) {
+                        aiBgColor = 'rgba(239, 68, 68, 0.15)'; // High Risk - Red
+                      } else if (score >= 0.4) {
+                        aiBgColor = 'rgba(234, 179, 8, 0.15)'; // Medium Risk - Yellow
+                      }
+                      
+                      if (elem.ai_findings && elem.ai_findings.length > 0) {
+                        tooltipText = `Riesgo IA: ${Math.round(score * 100)}%\n` + 
+                          elem.ai_findings.map(f => `- ${f.pattern}: ${f.detail}`).join('\n');
+                      } else {
+                        tooltipText = `Riesgo IA Estimado: ${Math.round(score * 100)}%`;
+                      }
+                    }
+
+                    // Detector IA Margen (Siempre activo si el score > 0.5)
+                    const aiScore = elem.ai_score !== undefined ? elem.ai_score : 0;
+                    const isAIGenerated = aiScore > 0.5;
+                    const aiMarginBorder = isAIGenerated ? '3px solid #f59e0b' : '3px solid transparent';
+                    const aiTooltip = isAIGenerated ? `Posible contenido IA (${Math.round(aiScore * 100)}%). Patrones detectados.` : undefined;
+
                     return (
                       <div
                         key={elem.id}
                         id={`paper-elem-${elem.id}`}
+                        title={hasGhostCitation ? 'Este párrafo contiene una cita sin referencia bibliográfica.' : (tooltipText || aiTooltip)}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedElementId(elem.id);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (elem.type !== 'image' && elem.type !== 'table') {
+                            setEditingId(elem.id);
+                            setEditValue(elem.text || '');
+                          }
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -342,12 +468,13 @@ export const PaperCanvas: React.FC = () => {
                         }}
                         style={{
                           position: 'relative',
-                          borderRadius: '4px',
-                          padding: '2px 4px',
-                          cursor: 'pointer',
-                          backgroundColor: isSelected ? '#eff6fc' : 'transparent',
-                          boxShadow: isSelected ? '0 0 0 2px var(--word-blue)' : 'none',
-                          transition: 'all 0.15s ease'
+                          border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed #dc2626' : '2px solid transparent',
+                          borderLeft: isSelected ? '2px solid var(--word-blue)' : aiMarginBorder,
+                          borderRadius: '2px',
+                          padding: '2px 2px 2px 6px',
+                          backgroundColor: isSelected ? 'rgba(43, 87, 154, 0.05)' : (hasGhostCitation ? 'rgba(254, 242, 242, 0.5)' : aiBgColor),
+                          transition: 'all 0.2s',
+                          cursor: 'text'
                         }}
                       >
                         {/* Menú Contextual */}
@@ -393,54 +520,137 @@ export const PaperCanvas: React.FC = () => {
                             >
                               Viñeta
                             </button>
+                            
+                            {/* AI Actions */}
+                            <div style={{ width: '1px', backgroundColor: '#e2e8f0', margin: '0 4px' }} />
+                            {(elem.type === 'image' || elem.type === 'table') && (
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => handleSuggestCaption(elem)}
+                              >
+                                <Sparkles size={10} /> Sugerir Leyenda
+                              </button>
+                            )}
+                            {(elem.type === 'paragraph' || elem.type === 'heading') && (
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => handleRewriteText(elem)}
+                              >
+                                <Sparkles size={10} /> Reescribir Texto
+                              </button>
+                            )}
                           </div>
                         )}
 
-                        {/* Elementos por Tipo */}
-                        {elem.type === 'heading' && (
-                          <p style={{
-                            fontWeight: 'bold',
-                            fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
-                            textAlign: elem.heading_level === 1 ? 'center' : 'left',
-                            marginTop: '12px',
-                            marginBottom: '6px'
+                        {aiLoadingId === elem.id && (
+                          <div style={{
+                            position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.7)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
                           }}>
-                            {elem.text}
-                          </p>
+                            <Loader2 size={20} className="animate-spin" color="var(--word-blue)" />
+                          </div>
                         )}
 
-                        {elem.type === 'paragraph' && (
-                          <p style={{
-                            textIndent: '0.5in',
-                            lineHeight: rules.line_spacing,
-                            textAlign: 'justify',
-                            margin: '0 0 6px 0'
-                          }}>
-                            {elem.text}
-                          </p>
-                        )}
+                        {editingId === elem.id ? (
+                          <div style={{ position: 'relative', margin: '4px 0' }}>
+                            <textarea
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              autoFocus
+                              style={{
+                                width: '100%',
+                                minHeight: '60px',
+                                fontFamily: fontFamily,
+                                fontSize: `${rules.font_size_pt}pt`,
+                                padding: '8px',
+                                border: '2px solid var(--word-blue)',
+                                borderRadius: '4px',
+                                outline: 'none',
+                                resize: 'vertical'
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setEditingId(null);
+                                } else if (e.key === 'Enter' && e.ctrlKey) {
+                                  if (editValue !== elem.text) {
+                                    updateElementType(elem.id, elem.type, elem.heading_level, editValue);
+                                  }
+                                  setEditingId(null);
+                                }
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setEditingId(null)}
+                                title="Cancelar (Esc)"
+                              >
+                                <X size={14} />
+                              </button>
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                  if (editValue !== elem.text) {
+                                    updateElementType(elem.id, elem.type, elem.heading_level, editValue);
+                                  }
+                                  setEditingId(null);
+                                }}
+                                title="Guardar (Ctrl+Enter)"
+                              >
+                                <Check size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {elem.type === 'heading' && (
+                              <p style={{
+                                fontWeight: 'bold',
+                                fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
+                                textAlign: elem.heading_level === 1 ? 'center' : 'left',
+                                marginTop: '12px',
+                                marginBottom: '6px'
+                              }}>
+                                {elem.text}
+                              </p>
+                            )}
 
-                        {elem.type === 'block_quote' && (
-                          <p style={{
-                            marginLeft: '0.5in',
-                            lineHeight: rules.line_spacing,
-                            fontSize: `${rules.font_size_pt - 1}pt`,
-                            margin: '6px 0'
-                          }}>
-                            {elem.text}
-                          </p>
-                        )}
+                            {elem.type === 'paragraph' && (
+                              <p style={{
+                                textIndent: '0.5in',
+                                lineHeight: rules.line_spacing,
+                                textAlign: 'justify',
+                                margin: '0 0 6px 0'
+                              }}>
+                                {elem.text}
+                              </p>
+                            )}
 
-                        {elem.type === 'bullet' && (
-                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                            • {elem.text}
-                          </p>
-                        )}
+                            {elem.type === 'block_quote' && (
+                              <p style={{
+                                marginLeft: '0.5in',
+                                lineHeight: rules.line_spacing,
+                                fontSize: `${rules.font_size_pt - 1}pt`,
+                                margin: '6px 0'
+                              }}>
+                                {elem.text}
+                              </p>
+                            )}
 
-                        {elem.type === 'numbered_list' && (
-                          <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                            {currentItemNum}. {elem.text}
-                          </p>
+                            {elem.type === 'bullet' && (
+                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                                • {elem.text}
+                              </p>
+                            )}
+
+                            {elem.type === 'numbered_list' && (
+                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                                {currentItemNum}. {elem.text}
+                              </p>
+                            )}
+                          </>
                         )}
 
                         {(elem.type === 'image' || elem.image_info) && (

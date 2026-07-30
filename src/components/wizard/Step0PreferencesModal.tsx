@@ -18,8 +18,8 @@ export const Step0PreferencesModal: React.FC = () => {
   };
 
   return (
-    <div style={{ flex: 1, padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div className="card" style={{ maxWidth: '640px', width: '100%', border: '1px solid var(--word-blue)', padding: '24px', boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
+    <div style={{ flex: 1, padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' }}>
+      <div className="card" style={{ maxWidth: '640px', width: '100%', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', boxShadow: '0 8px 30px rgba(0,0,0,0.08)', backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)' }}>
         
         {/* Banner Encabezado */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
@@ -27,10 +27,10 @@ export const Step0PreferencesModal: React.FC = () => {
             <Sparkles size={24} />
           </div>
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--word-blue)', margin: 0 }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
               Paso 0: Preferencias de tu Documento APA 7
             </h2>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               Elige cómo deseas que el asistente aplique el estándar APA 7ma Edición a tu documento.
             </span>
           </div>
@@ -38,8 +38,8 @@ export const Step0PreferencesModal: React.FC = () => {
 
         {/* 1. Selección de Tipografía */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <Type size={15} color="var(--word-blue)" /> ¿Qué fuente oficial APA 7 deseas usar?
+          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: 'var(--text-secondary)' }}>
+            <Type size={15} color="var(--accent-primary)" /> ¿Qué fuente oficial APA 7 deseas usar?
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {[
@@ -54,8 +54,8 @@ export const Step0PreferencesModal: React.FC = () => {
                 style={{
                   padding: '10px 12px',
                   borderRadius: '6px',
-                  border: `2px solid ${rules.font_family === f.font ? 'var(--word-blue)' : '#e2e8f0'}`,
-                  backgroundColor: rules.font_family === f.font ? '#eff6fc' : '#ffffff',
+                  border: rules.font_family === f.font ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: rules.font_family === f.font ? 'rgba(124,92,252,0.1)' : 'rgba(255,255,255,0.04)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease'
                 }}
@@ -71,8 +71,8 @@ export const Step0PreferencesModal: React.FC = () => {
 
         {/* 2. Estilo de Listas Numeradas */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <ListOrdered size={15} color="var(--word-blue)" /> ¿Cómo deseas enumerar las listas del cuerpo?
+          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: 'var(--text-secondary)' }}>
+            <ListOrdered size={15} color="var(--accent-primary)" /> ¿Cómo deseas enumerar las listas del cuerpo?
           </label>
           <div style={{ display: 'flex', gap: '10px' }}>
             {[
@@ -89,8 +89,8 @@ export const Step0PreferencesModal: React.FC = () => {
                   flex: 1,
                   padding: '10px',
                   borderRadius: '6px',
-                  border: `2px solid ${rules.number_style_level1 === lst.id ? 'var(--word-blue)' : '#e2e8f0'}`,
-                  backgroundColor: rules.number_style_level1 === lst.id ? '#eff6fc' : '#ffffff',
+                  border: rules.number_style_level1 === lst.id ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: rules.number_style_level1 === lst.id ? 'rgba(124,92,252,0.1)' : 'rgba(255,255,255,0.04)',
                   cursor: 'pointer',
                   textAlign: 'center'
                 }}
@@ -104,8 +104,8 @@ export const Step0PreferencesModal: React.FC = () => {
 
         {/* 3. Estrategia de Portada */}
         <div style={{ marginBottom: '24px' }}>
-          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <ShieldCheck size={15} color="var(--word-blue)" /> ¿Qué hacemos con tu Hoja de Portada?
+          <label style={{ fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: 'var(--text-secondary)' }}>
+            <ShieldCheck size={15} color="var(--accent-primary)" /> ¿Qué hacemos con tu Hoja de Portada?
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div
@@ -113,12 +113,12 @@ export const Step0PreferencesModal: React.FC = () => {
               style={{
                 padding: '12px',
                 borderRadius: '6px',
-                border: `2px solid ${portada.use_original_cover !== false ? 'var(--word-blue)' : '#e2e8f0'}`,
-                backgroundColor: portada.use_original_cover !== false ? '#eff6fc' : '#ffffff',
+                border: portada.use_original_cover !== false ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: portada.use_original_cover !== false ? 'rgba(124,92,252,0.1)' : 'rgba(255,255,255,0.04)',
                 cursor: 'pointer'
               }}
             >
-              <strong style={{ fontSize: '13px', color: 'var(--word-blue)', display: 'block' }}>
+              <strong style={{ fontSize: '13px', color: 'var(--accent-primary)', display: 'block' }}>
                 CONSERVAR PORTADA ORIGINAL INTACTA (RECOMENDADO)
               </strong>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
@@ -131,12 +131,12 @@ export const Step0PreferencesModal: React.FC = () => {
               style={{
                 padding: '12px',
                 borderRadius: '6px',
-                border: `2px solid ${portada.use_original_cover === false ? 'var(--word-blue)' : '#e2e8f0'}`,
-                backgroundColor: portada.use_original_cover === false ? '#eff6fc' : '#ffffff',
+                border: portada.use_original_cover === false ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: portada.use_original_cover === false ? 'rgba(124,92,252,0.1)' : 'rgba(255,255,255,0.04)',
                 cursor: 'pointer'
               }}
             >
-              <strong style={{ fontSize: '13px', color: '#0f172a', display: 'block' }}>
+              <strong style={{ fontSize: '13px', color: 'var(--text-main)', display: 'block' }}>
                 GENERAR NUEVA PORTADA SINTÉTICA APA 7
               </strong>
               <span style={{ fontSize: '11px', color: '#64748b' }}>
@@ -158,7 +158,10 @@ export const Step0PreferencesModal: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px'
+            gap: '8px',
+            background: 'linear-gradient(135deg, #7c5cfc, #9b79ff)',
+            color: '#fff',
+            border: 'none'
           }}
         >
           Guardar Preferencias e Iniciar Revisión Guiada (Paso 1: Portada) <ChevronRight size={16} />

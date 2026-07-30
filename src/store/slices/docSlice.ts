@@ -1,0 +1,1 @@
+export interface DocSlice { doc: any; }

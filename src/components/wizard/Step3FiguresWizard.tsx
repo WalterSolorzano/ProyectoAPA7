@@ -19,22 +19,22 @@ export const Step3FiguresWizard: React.FC = () => {
       {/* Panel Izquierdo: Lista Guiada de Figuras Detectadas */}
       <div style={{
         width: '380px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid var(--border-color)',
+        backgroundColor: 'var(--canvas-bg)',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--word-blue)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'var(--canvas-bg)' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ImageIcon size={16} /> Paso 3: Rotulación de Figuras ({figures.length})
           </h3>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
             Verifica el etiquetado secuencial APA 7 (Figura 1, Figura 2...) de las imágenes de tu trabajo.
           </span>
         </div>
 
-        <div style={{ padding: '10px 16px', backgroundColor: '#eff6fc', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'rgba(124,92,252,0.1)', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
           <strong>Estándar APA 7ma Edición para Figuras:</strong>
           <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
             <li><strong>Número:</strong> "Figura X" en Negrita arriba de la imagen.</li>
@@ -46,7 +46,7 @@ export const Step3FiguresWizard: React.FC = () => {
         {/* Lista de Figuras */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
           {figures.length === 0 ? (
-            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
               No se detectaron figuras en el cuerpo del documento.
             </div>
           ) : (
@@ -67,7 +67,7 @@ export const Step3FiguresWizard: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--word-blue)' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent-primary)' }}>
                       Figura {fig.image_info?.figure_number || idx + 1}
                     </span>
                     <span style={{ fontSize: '10px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -76,7 +76,7 @@ export const Step3FiguresWizard: React.FC = () => {
                   </div>
 
                   {fig.image_info?.relative_url && (
-                    <div style={{ textAlign: 'center', margin: '6px 0', backgroundColor: '#f8fafc', padding: '4px', borderRadius: '4px' }}>
+                    <div style={{ textAlign: 'center', margin: '6px 0', backgroundColor: 'var(--canvas-bg)', padding: '4px', borderRadius: '4px' }}>
                       <img
                         src={fig.image_info.relative_url}
                         alt="Vista Previa Figura"
@@ -86,7 +86,7 @@ export const Step3FiguresWizard: React.FC = () => {
                   )}
 
                   {fig.image_info?.caption && (
-                    <p style={{ fontSize: '11px', fontStyle: 'italic', color: '#475569', margin: '4px 0 0 0' }}>
+                    <p style={{ fontSize: '11px', fontStyle: 'italic', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                       {fig.image_info.caption}
                     </p>
                   )}
@@ -98,8 +98,9 @@ export const Step3FiguresWizard: React.FC = () => {
       </div>
 
       {/* Panel Derecho: Lienzo Sincronizado */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: '#f1f5f9' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>
         <PaperCanvas />
+
       </div>
     </div>
   );

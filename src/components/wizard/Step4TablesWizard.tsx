@@ -18,22 +18,22 @@ export const Step4TablesWizard: React.FC = () => {
       {/* Panel Izquierdo: Lista Guiada de Tablas Detectadas */}
       <div style={{
         width: '380px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid var(--border-color)',
+        backgroundColor: 'var(--canvas-bg)',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--word-blue)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'var(--canvas-bg)' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <TableIcon size={16} /> Paso 4: Formato de Tablas ({tables.length})
           </h3>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
             Verifica el diseño APA 7 (líneas horizontales superior/inferior, sin bordes verticales).
           </span>
         </div>
 
-        <div style={{ padding: '10px 16px', backgroundColor: '#eff6fc', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'rgba(124,92,252,0.1)', borderBottom: '1px solid #dbeafe', fontSize: '11px', color: '#1e40af' }}>
           <strong>Estándar APA 7ma Edición para Tablas:</strong>
           <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
             <li><strong>Bordes:</strong> Línea horizontal arriba, abajo y separando encabezados.</li>
@@ -45,7 +45,7 @@ export const Step4TablesWizard: React.FC = () => {
         {/* Lista de Tablas */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
           {tables.length === 0 ? (
-            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            <div style={{ textIndent: 0, padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
               No se detectaron tablas numéricas en el cuerpo del documento.
             </div>
           ) : (
@@ -66,7 +66,7 @@ export const Step4TablesWizard: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--word-blue)' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent-primary)' }}>
                       Tabla {tbl.table_info?.table_number || idx + 1}
                     </span>
                     <span style={{ fontSize: '10px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -75,12 +75,12 @@ export const Step4TablesWizard: React.FC = () => {
                   </div>
 
                   {tbl.table_info?.caption && (
-                    <p style={{ fontSize: '11px', fontStyle: 'italic', color: '#475569', margin: '4px 0' }}>
+                    <p style={{ fontSize: '11px', fontStyle: 'italic', color: 'var(--text-secondary)', margin: '4px 0' }}>
                       {tbl.table_info.caption}
                     </p>
                   )}
 
-                  <div style={{ fontSize: '10px', color: '#64748b' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
                     Filas: {tbl.table_info?.rows.length || 0} | Columnas: {tbl.table_info?.headers?.length || 0}
                   </div>
                 </div>
@@ -91,8 +91,10 @@ export const Step4TablesWizard: React.FC = () => {
       </div>
 
       {/* Panel Derecho: Lienzo Sincronizado */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: '#f1f5f9' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>
         <PaperCanvas />
+
+
       </div>
     </div>
   );

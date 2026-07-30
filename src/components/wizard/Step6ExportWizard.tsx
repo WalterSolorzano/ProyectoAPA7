@@ -1,118 +1,186 @@
-/* WordAPA7 — Paso 6: Export & Final Download Wizard */
+/* WordAPA7 — Paso 6: Export & Final Download Wizard (Redesign) */
 
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Download, CheckCircle2, ShieldCheck, Sparkles, FileText, ArrowRight } from 'lucide-react';
+import { Download, CheckCircle2, FileText, AlertTriangle } from 'lucide-react';
+import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 
 export const Step6ExportWizard: React.FC = () => {
-  const { doc, rules, portada, references, exportDocx, isLoading } = useDocStore();
+  const { doc, exportDocx, exportPdf, isLoading } = useDocStore();
 
   if (!doc) return null;
 
-  const totalHeadings = doc.elements.filter(e => e.type === 'heading').length;
-  const totalFigures = doc.elements.filter(e => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
-  const totalTables = doc.elements.filter(e => e.type === 'table').length;
-
   return (
-    <div style={{ flex: 1, padding: '32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#f8fafc' }}>
-      <div className="card" style={{ maxWidth: '680px', width: '100%', border: '2px solid #16a34a', padding: '32px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', backgroundColor: '#f3f2f1' }}>
+      
+      {/* Panel Izquierdo: Vista Previa Aproximada */}
+      <div style={{
+        flex: '1 1 60%',
+        backgroundColor: '#e6e6e6',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: '1px solid rgba(255,255,255,0.08)'
+      }}>
+        {/* Etiqueta de advertencia de fidelidad (Alineada al Mega-prompt) */}
+        <div style={{
+          position: 'absolute',
+          top: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          backgroundColor: '#fff3cd', /* Warning Yellow bg */
+          color: '#856404', /* Warning dark text - ratio 7.1:1, superando WCAG AA 4.5:1 */
+          padding: '6px 12px',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: '12px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          boxShadow: 'var(--shadow-2)',
+          border: '1px solid #ffeeba'
+        }}>
+          <AlertTriangle size={14} />
+          Vista previa aproximada (El formato APA milimétrico se aplicará en el documento exportado)
+        </div>
+
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <ReactPDFPreview />
+        </div>
+      </div>
+
+      {/* Panel Derecho: Acciones Finales (Jerarquía Visual Fuerte) */}
+      <div style={{
+        flex: '0 0 40%',
+        minWidth: '350px',
+        maxWidth: '450px',
+        backgroundColor: 'var(--canvas-bg)',
+        padding: '48px 32px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        animation: 'fadeIn var(--motion-normal)'
+      }}>
         
-        {/* Encabezado Éxito */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '50%',
-            backgroundColor: '#dcfce7',
-            color: '#16a34a',
-            display: 'inline-flex',
+        <div style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          backgroundColor: 'var(--word-green)',
+          color: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '24px',
+          boxShadow: 'var(--shadow-2)'
+        }}>
+          <CheckCircle2 size={32} />
+        </div>
+
+        <h2 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px', textAlign: 'center' }}>
+          ¡Documento APA 7 Listo!
+        </h2>
+        
+        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '32px', lineHeight: 1.5 }}>
+          Se han aplicado todas las validaciones estructurales, espaciados y reglas de formato tipográfico.
+        </p>
+
+        {/* Único CTA Primario (Word Blue) */}
+        <button
+          onClick={() => exportDocx(false)}
+          disabled={isLoading}
+          style={{
+            width: '100%',
+            padding: '16px',
+            background: 'linear-gradient(135deg, #7c5cfc, #9b79ff)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '15px',
+            fontWeight: 600,
+            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '12px'
-          }}>
-            <CheckCircle2 size={32} />
-          </div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0' }}>
-            ¡Documento Corregido y Listo para Descargar!
-          </h2>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>
-            Se completaron los 7 pasos de acompañamiento y validación del estándar APA 7ma Edición.
-          </span>
-        </div>
+            gap: '8px',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            boxShadow: 'var(--shadow-1)',
+            transition: 'all var(--motion-fast)',
+            opacity: isLoading ? 0.7 : 1,
+          }}
+          onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--word-blue-hover)'; }}
+          onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--word-blue)'; }}
+          onFocus={(e) => { e.currentTarget.style.outline = '2px solid var(--word-blue)'; e.currentTarget.style.outlineOffset = '2px'; }}
+          onBlur={(e) => { e.currentTarget.style.outline = 'none'; }}
+        >
+          <Download size={20} />
+          {isLoading ? 'GENERANDO ARCHIVO...' : 'DESCARGAR DOCUMENTO FINAL (.DOCX)'}
+        </button>
 
-        {/* Resumen de Ajustes Realizados */}
-        <div style={{ backgroundColor: '#f1f5f9', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#334155', margin: '0 0 12px 0' }}>
-            Resumen de Modificaciones Aprobadas:
-          </h4>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#334155' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Portada:</strong> {portada.use_original_cover !== false ? 'Original Preservada Intacta' : 'APA 7 Sintética'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Fuente:</strong> {rules.font_family} {rules.font_size_pt} pt</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Jerarquía Títulos:</strong> {totalHeadings} Niveles 1, 2, 3</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Rotulación Figuras:</strong> {totalFigures} Figuras APA 7</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Formato Tablas:</strong> {totalTables} Tablas APA 7</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#16a34a" />
-              <span><strong>Párrafos:</strong> Sangría 1.27 cm & Doble (2.0)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Botones Prominentes de Descarga Final */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Acciones Secundarias (Text Links) */}
+        <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
           <button
-            className="btn btn-primary"
-            onClick={() => exportDocx(false)}
+            onClick={() => exportPdf()}
             disabled={isLoading}
             style={{
-              padding: '14px',
-              fontSize: '15px',
-              fontWeight: 700,
-              backgroundColor: '#15803d',
-              borderColor: '#15803d',
+              width: '100%',
+              padding: '12px',
+              backgroundColor: 'transparent',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
+              fontWeight: 500,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px'
+              gap: '6px',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              transition: 'all var(--motion-fast)',
             }}
+            onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.backgroundColor = '#f3f2f1'; e.currentTarget.style.color = 'var(--text-main)'; } }}
+            onMouseLeave={(e) => { if (!isLoading) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
           >
-            <Download size={18} />
-            {isLoading ? 'Generando archivo Word .DOCX...' : 'DESCARGAR DOCUMENTO FINAL ARREGLADO (.DOCX)'}
+            <FileText size={16} /> Descargar PDF Final
           </button>
 
           <button
-            className="btn btn-secondary"
             onClick={() => exportDocx(true)}
             disabled={isLoading}
             style={{
-              padding: '10px',
+              width: '100%',
+              padding: '12px',
+              backgroundColor: 'transparent',
+              color: 'var(--text-secondary)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
               fontSize: '13px',
+              fontWeight: 500,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '6px',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              textDecoration: 'underline',
+              transition: 'color var(--motion-fast)',
             }}
+            onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.color = 'var(--word-blue)'; }}
+            onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            <FileText size={15} /> Descargar con Control de Cambios Marcados (.DOCX)
+            Descargar con Control de Cambios Marcados (.DOCX)
           </button>
         </div>
+        
       </div>
+
+      {/* Definición de keyframes para animaciones si no existen en CSS global */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };

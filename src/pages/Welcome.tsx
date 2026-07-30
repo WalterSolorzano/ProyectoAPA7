@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useDocStore } from '../store/useDocStore';
-import { Upload, FileText, PenLine, BookOpen, GraduationCap, History } from 'lucide-react';
+import { Upload, FileText, BookOpen, GraduationCap, ArrowRight } from 'lucide-react';
 
 export const Welcome: React.FC = () => {
   const { uploadFile, isLoading, error, setPortada } = useDocStore();
@@ -33,9 +33,21 @@ export const Welcome: React.FC = () => {
   };
 
   return (
-    <div className="welcome-layout">
+    <div className="welcome-layout" style={{ backgroundColor: 'var(--app-bg)' }}>
+      <style>{`
+        .welcome-mode-card:hover { background-color: rgba(124,92,252,0.1) !important; }
+        .welcome-mode-card.selected { border-color: var(--accent-primary) !important; }
+        .welcome-dropzone { 
+          background-color: rgba(255,255,255,0.03) !important; 
+          border: 2px dashed rgba(255,255,255,0.12) !important; 
+        }
+        .welcome-dropzone.dragging { border-color: var(--accent-primary) !important; }
+        .welcome-dropzone-title, .welcome-dropzone-subtitle { color: var(--text-secondary) !important; }
+        .welcome-heading { color: var(--text-main) !important; }
+        .welcome-step-number { background-color: var(--accent-primary) !important; color: #fff !important; border-color: var(--accent-primary) !important; }
+      `}</style>
       {/* ── Left Sidebar ─────────────────────────────────────────── */}
-      <div className="welcome-sidebar">
+      <div className="welcome-sidebar" style={{ backgroundColor: 'var(--sidebar-bg)' }}>
         <div>
           <div className="welcome-brand">
             <div className="welcome-brand-icon">
@@ -52,14 +64,6 @@ export const Welcome: React.FC = () => {
               <FileText size={18} />
               Inicio
             </button>
-            <button className="welcome-nav-btn">
-              <PenLine size={18} />
-              Nuevo Documento
-            </button>
-            <button className="welcome-nav-btn">
-              <BookOpen size={18} />
-              Plantillas APA 7
-            </button>
           </nav>
         </div>
 
@@ -75,9 +79,39 @@ export const Welcome: React.FC = () => {
       <div className="welcome-main">
         <h2 className="welcome-heading">Bienvenido a WordAPA7</h2>
         <p className="welcome-subheading">
-          Selecciona una modalidad e importa tu archivo .docx de Microsoft Word
-          para aplicarle formato APA 7 automatizado.
+          Convierte tus documentos .docx de Microsoft Word al formato APA 7a edicion.
         </p>
+
+        {/* ── 3-Step Workflow Explanation ─────────────────────────── */}
+        <div className="welcome-steps">
+          <div className="welcome-step">
+            <div className="welcome-step-number">1</div>
+            <div className="welcome-step-content">
+              <h3 className="welcome-step-title">Sube tu archivo .docx</h3>
+              <p className="welcome-step-desc">Importa tu documento de Word existente. El sistema analiza automaticamente su estructura.</p>
+            </div>
+          </div>
+          <div className="welcome-step-arrow">
+            <ArrowRight size={18} strokeWidth={2} />
+          </div>
+          <div className="welcome-step">
+            <div className="welcome-step-number">2</div>
+            <div className="welcome-step-content">
+              <h3 className="welcome-step-title">Revisa y Edita</h3>
+              <p className="welcome-step-desc">Clasifica elementos, corrige titulos, completa portada y referencias. Todo en una interfaz clara.</p>
+            </div>
+          </div>
+          <div className="welcome-step-arrow">
+            <ArrowRight size={18} strokeWidth={2} />
+          </div>
+          <div className="welcome-step">
+            <div className="welcome-step-number">3</div>
+            <div className="welcome-step-content">
+              <h3 className="welcome-step-title">Exporta APA 7</h3>
+              <p className="welcome-step-desc">Descarga tu documento formateado profesionalmente segun el estandar APA 7a edicion.</p>
+            </div>
+          </div>
+        </div>
 
         {/* ── Mode Selection Cards ────────────────────────────────── */}
         <div className="welcome-mode-cards">
@@ -89,9 +123,9 @@ export const Welcome: React.FC = () => {
             <div className="welcome-mode-card-icon">
               <GraduationCap size={26} strokeWidth={2} />
             </div>
-            <h3 className="welcome-mode-card-title">Modo A: Formato Estudiante</h3>
+            <h3 className="welcome-mode-card-title">Formato Estudiante</h3>
             <p className="welcome-mode-card-desc">
-              Ideal para tareas universitarias, ensayos y trabajos de grado.
+              Para tareas universitarias, ensayos y trabajos de grado.
               Incluye pagina de titulo centrada, numero de pagina y datos del curso.
             </p>
           </div>
@@ -104,7 +138,7 @@ export const Welcome: React.FC = () => {
             <div className="welcome-mode-card-icon">
               <BookOpen size={26} strokeWidth={2} />
             </div>
-            <h3 className="welcome-mode-card-title">Modo B: Formato Profesional</h3>
+            <h3 className="welcome-mode-card-title">Formato Profesional</h3>
             <p className="welcome-mode-card-desc">
               Para articulos de investigacion y publicaciones cientificas.
               Incluye Running Head, Nota de Autor y formato de revista academica.
@@ -157,20 +191,6 @@ export const Welcome: React.FC = () => {
             {error}
           </div>
         )}
-
-        {/* ── History Section ─────────────────────────────────────── */}
-        <div className="welcome-history">
-          <div className="welcome-history-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <History size={14} />
-            Historial reciente
-          </div>
-          <div className="welcome-history-item">
-            <div className="flex items-center gap-sm">
-              <FileText size={16} style={{ color: 'var(--text-tertiary)' }} />
-              <span className="text-sm">No hay documentos recientes</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

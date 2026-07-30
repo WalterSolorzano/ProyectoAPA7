@@ -6,9 +6,12 @@ completamente procesada y clasificada con imagenes extraidas en el almacenamient
 """
 
 import io
+import os
+import time
 import hashlib
 import uuid
 from datetime import datetime, timezone
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -27,12 +30,99 @@ from models import (
     BulletStyle,
 )
 from parsing.xml_deep_parser import (
-    sanitize_numbering_xml,
+    process_numbering_single_pass,
     extract_textbox_paragraphs,
     get_section_orientation_info,
     is_inside_textbox_or_shape,
+    _deduplicate_textbox_texts,
+    extract_unique_textbox_pairs,
+    find_body_start_via_xml,
 )
 from parsing.pre_classifier import pre_classify_elements
+from parsing.image_extractor_recursive import extract_all_images_recursive, associate_captions_by_proximity
+from parsing.fast_mmap_parser import fast_parse_body_start
+
+# Namespace OOXML para constantes
+W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+
+def _detect_toc_paragraph_indices(body) -> set[int]:
+    """
+    Pre-recorrido del cuerpo del documento para detectar TODOS los parrafos
+    que pertenecen a un campo TOC de Word.
+
+    Un campo TOC en OOXML tiene esta estructura:
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText>TOC \\o "1-3" \\h \\z</w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Tabla de Contenidos generada...</w:t></w:r>
+      ... (pueden haber multiples parrafos con texto generado) ...
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+
+    Retorna un set de indices de parrafo (0-based dentro del body) que estan
+    dentro del rango TOC (desde 'begin' hasta 'end' inclusive).
+    """
+    toc_indices: set[int] = set()
+    inside_toc = False
+    toc_field_depth = 0  # Seguimiento de anidamiento de campos dentro del TOC
+
+    for idx, child in enumerate(body):
+        tag = child.tag if isinstance(child.tag, str) else ""
+        if not tag.endswith("p"):
+            continue
+
+        if not inside_toc:
+            # Buscar si este parrafo inicia un campo TOC
+            try:
+                instrs = child.findall(f'.//{{{W_NS}}}instrText')
+                has_toc_instr = any(
+                    it.text and 'TOC' in it.text.upper()
+                    for it in instrs
+                )
+            except Exception:
+                has_toc_instr = False
+
+            if has_toc_instr:
+                inside_toc = True
+                toc_field_depth = 0  # Se incrementara con los fldChar begin del parrafo
+                toc_indices.add(idx)
+                # Contar campos en el mismo parrafo para inicializar la profundidad
+                try:
+                    fldchars = child.findall(f'.//{{{W_NS}}}fldChar')
+                    for fc in fldchars:
+                        fld_type = fc.attrib.get(f'{{{W_NS}}}fldCharType', '')
+                        if fld_type == 'begin':
+                            toc_field_depth += 1
+                        elif fld_type == 'end':
+                            toc_field_depth -= 1
+                except Exception:
+                    pass
+                # Si no se encontro begin (caso raro), forzar depth=1
+                if toc_field_depth <= 0:
+                    toc_field_depth = 1
+        else:
+            # Dentro del campo TOC: mantener contador de profundidad
+            # para manejar campos anidados (PAGEREF dentro de entradas TOC)
+            try:
+                fldchars = child.findall(f'.//{{{W_NS}}}fldChar')
+                for fc in fldchars:
+                    fld_type = fc.attrib.get(f'{{{W_NS}}}fldCharType', '')
+                    if fld_type == 'begin':
+                        toc_field_depth += 1  # Nuevo campo anidado
+                    elif fld_type == 'end':
+                        toc_field_depth -= 1  # Cierre de campo anidado o TOC
+            except Exception:
+                pass
+
+            if toc_field_depth > 0:
+                toc_indices.add(idx)
+            else:
+                # La profundidad llego a 0: el campo TOC se cerro
+                toc_indices.add(idx)  # El parrafo con 'end' del TOC tambien se marca
+                inside_toc = False
+                toc_field_depth = 0
+
+    return toc_indices
 
 
 def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
@@ -41,12 +131,13 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     los campos de portada APA (title, author, institution, course, instructor, date).
 
     Estrategia:
-    1. Buscar keywords institucionales ("universidad", "facultad", etc.) → institution
-    2. Buscar keywords de curso ("seminario", "curso", etc.) → course
-    3. Buscar keywords de instructor ("profesor", "dr.", etc.) → instructor
-    4. Buscar patron de fecha (año, formato fecha) → date
+    1. Buscar keywords institucionales ("universidad", "facultad", etc.) -> institution
+    2. Buscar keywords de curso ("seminario", "curso", etc.) -> course
+    3. Buscar keywords de instructor ("profesor", "dr.", etc.) -> instructor
+    4. Buscar patron de fecha (año, formato fecha) -> date
     5. Intentar detectar nombre de autor (patrones nombre+apellido)
-    6. El texto restante mas largo/substancial → title
+    6. Extraer Miembros/Integrantes individuales con sus carnets
+    7. El texto restante mas largo/substancial -> title
 
     Retorna un dict con los campos inferidos (solo los que se detectaron).
     """
@@ -62,11 +153,65 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     if not cleaned:
         return fields
 
+    # PRIMERO: Extraer miembros/integrantes desde los textboxes
+    # Esto captura pares (Br. Nombre + Carnet: XXXX) y tutores
+    member_pairs = extract_unique_textbox_pairs(textbox_texts)
+    if member_pairs:
+        # Extraer FECHA si algun miembro tiene role='date'
+        for m in member_pairs:
+            if m.get('role') == 'date' and m.get('name'):
+                fields["date"] = m['name']
+                break
+
+        # Separar tutores de estudiantes
+        student_members = []
+        tutor_members = []
+        for m in member_pairs:
+            if m.get('role') == 'tutor':
+                tutor_members.append(m)
+            elif m.get('name') and m['role'] == 'br.':
+                student_members.append(m)
+            elif not m.get('role'):
+                student_members.append(m)
+
+        if student_members:
+            # Construir author string: "Br. Nombre Apellido | Carnet: 2023-XXXX"
+            author_parts = []
+            for m in student_members:
+                part = m['name']
+                if m.get('id'):
+                    part += f" | Carnet: {m['id']}"
+                author_parts.append(part)
+            fields["author"] = "\n".join(author_parts)
+
+        if tutor_members:
+            tutor_names = [m['name'] for m in tutor_members if m.get('name')]
+            if tutor_names:
+                fields["instructor"] = "\n".join(tutor_names)
+
+        # Si ya tenemos miembros, quitar esos textos de 'cleaned' para no re-asignarlos
+        used_texts = set()
+        for m in member_pairs:
+            if m.get('name'):
+                used_texts.add(m['name'].lower().replace('  ', ' ').strip())
+            if m.get('carnet_raw'):
+                used_texts.add(m['carnet_raw'].lower().strip())
+
+        remaining = [
+            t for t in cleaned
+            if t.lower().replace('  ', ' ').strip() not in used_texts
+        ]
+        if not remaining:
+            return fields
+    else:
+        remaining = list(cleaned)
+
     # Track de indices ya asignados para no reusar el mismo texto
     assigned: set[int] = set()
-    remaining: list[str] = list(cleaned)  # copia para indexado
+    # Re-indexar 'remaining' para el proceso de inferencia de campos
+    remaining_with_idx = list(enumerate(remaining))
 
-    # ── Patrones de deteccion ──────────────────────────────────────────────
+    # ---- Patrones de deteccion ----
     INSTITUTION_KW = [
         "universidad", "facultad", "escuela", "instituto", "colegio",
         "departamento", "universidad de", "universidad del",
@@ -86,14 +231,14 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
         "director", "directora",
     ]
     DATE_PATTERNS = [
-        re.compile(r'\b(20\d{2})\b'),                       # año solo: 2024
+        re.compile(r'\b(20\d{2})\b'),
         re.compile(r'\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(de\s+)?(20\d{2})\b', re.IGNORECASE),
         re.compile(r'\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(de\s+)?(20\d{2})\b', re.IGNORECASE),
         re.compile(r'\b(\d{1,2})/(\d{1,2})/(20\d{2})\b'),
     ]
 
-    # ── Paso 1: Detectar institution ───────────────────────────────────────
-    for i, text in enumerate(remaining):
+    # ---- Paso 1: Detectar institution ----
+    for i, text in remaining_with_idx:
         if i in assigned:
             continue
         text_lower = text.lower()
@@ -102,8 +247,8 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             assigned.add(i)
             break
 
-    # ── Paso 2: Detectar course ────────────────────────────────────────────
-    for i, text in enumerate(remaining):
+    # ---- Paso 2: Detectar course ----
+    for i, text in remaining_with_idx:
         if i in assigned:
             continue
         text_lower = text.lower()
@@ -112,124 +257,209 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             assigned.add(i)
             break
 
-    # ── Paso 3: Detectar instructor ────────────────────────────────────────
-    for i, text in enumerate(remaining):
+    # ---- Paso 3: Detectar instructor (si aun no se asigno via member_pairs) ----
+    if not fields.get("instructor"):
+        for i, text in remaining_with_idx:
+            if i in assigned:
+                continue
+            text_lower = text.lower()
+            if any(kw in text_lower for kw in INSTRUCTOR_KW):
+                fields["instructor"] = text
+                assigned.add(i)
+                break
+
+    # ---- Paso 4: Detectar date ----
+    for i, text in remaining_with_idx:
         if i in assigned:
             continue
-        text_lower = text.lower()
-        if any(kw in text_lower for kw in INSTRUCTOR_KW):
-            fields["instructor"] = text
-            assigned.add(i)
-            break
-
-    # ── Paso 4: Detectar date ──────────────────────────────────────────────
-    for i, text in enumerate(remaining):
-        if i in assigned:
+        # NO detectar como fecha si contiene patron de carnet (2022-0215I)
+        if re.search(r'Carnet\s*:', text, re.IGNORECASE) or re.search(r'\b\d{4}[-]\d{4}[A-Za-z]?\b', text):
+            # Texto contiene carnet, no es fecha
+            if 'carnet' in text.lower():
+                assigned.add(i)
             continue
         for pat in DATE_PATTERNS:
             m = pat.search(text)
             if m:
-                fields["date"] = text.strip()
-                assigned.add(i)
-                break
+                # Verificar que no sea parte de un carnet
+                full_match = m.group(0)
+                context_start = max(0, m.start() - 5)
+                context = text[context_start:m.end() + 5]
+                if not re.search(r'Carnet|carnet|[-]\d{4}', context):
+                    fields["date"] = text.strip()
+                    assigned.add(i)
+                    break
         if i in assigned:
             break
 
-    # ── Paso 5: Detectar author ────────────────────────────────────────────
-    # Patron heuristico: texto corto (1-4 palabras) que parece nombre propio
-    # (capitalizacion adecuada, sin keywords institucionales ni de curso)
-    name_pattern = re.compile(
-        r'^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3}$'
-    )
-    for i, text in enumerate(remaining):
-        if i in assigned:
-            continue
-        # El texto debe verse como nombre (2-4 palabras capitalizadas)
-        words = text.split()
-        if 2 <= len(words) <= 5:
-            all_capitalized = all(
-                w[0].isupper() or w[0] in "ÁÉÍÓÚÑ"
-                for w in words if w and w[0].isalpha()
-            )
-            # No debe contener keywords de institution, course, o instructor
-            text_lower = text.lower()
-            is_not_other = not any(
-                kw in text_lower
-                for kw in INSTITUTION_KW + COURSE_KW + INSTRUCTOR_KW
-            )
-            if all_capitalized and is_not_other:
-                fields["author"] = text
-                assigned.add(i)
-                break
-
-    # ── Paso 6: Detectar title ─────────────────────────────────────────────
-    # El texto mas largo no asignado (o el primero si hay empate)
+    # ---- Paso 5: Detectar title ----
+    # El texto mas largo no asignado (excluyendo carnets, grupos y textos muy cortos)
     unassigned = [
         (i, remaining[i])
         for i in range(len(remaining))
         if i not in assigned
     ]
-    if unassigned:
+    # Filtrar textos que parecen carnets, IDs, grupos o nombres de miembros
+    filtered = []
+    for i, t in unassigned:
+        t_stripped = t.strip()
+        if re.search(r'^\d{4}[-]\d{4}', t_stripped) or re.search(r'Carnet|carnet', t_stripped):
+            continue
+        if len(t_stripped) < 4:
+            continue
+        if re.match(r'^[\d\-]+$', t_stripped):
+            continue
+        if re.search(r'grupo|grupo:', t_stripped, re.IGNORECASE):
+            continue
+        if re.match(r'^(Br\.|Ing\.|Dr\.|Lic\.|M\.Sc\.)', t_stripped, re.IGNORECASE):
+            continue
+        filtered.append((i, t))
+
+    if filtered:
         # Elegir el texto mas largo (tipicamente el titulo es lo mas extenso)
-        unassigned.sort(key=lambda x: len(x[1]), reverse=True)
-        fields["title"] = unassigned[0][1]
-        # El resto de textos no asignados los concatenamos al title
-        # como subtitulo si hay mas de 1
-        # No asignamos — se pierden si no se detectaron como otros campos
+        filtered.sort(key=lambda x: len(x[1]), reverse=True)
+        fields["title"] = filtered[0][1]
+    # Si no hay candidatos validos, NO asignar title (permitir fallback a parrafos)
+    # El parse_docx_bytes hara el merge con _infer_portada_from_paragraphs
 
     return fields
 
 
-def _get_numbering_type_map(docx_bytes: bytes) -> dict[str, str]:
+def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: list[str] | None = None) -> dict[str, str]:
     """
-    Lee numbering.xml del zip para obtener un mapping numId -> numFmt.
-    Retorna dict donde key=numId, value=numFmt (decimal, bullet, upperLetter, etc.)
+    Inferir titulo, autor, institucion y tutor desde los parrafos iniciales o textboxes.
+    Si hay textbox_texts disponibles, los usa prioritariamente para autores y tutor
+    (ya que los parrafos pueden tener texto concatenado de shapes).
     """
-    import zipfile
-    from xml.etree import ElementTree as ET
+    import re
 
-    W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-    result: dict[str, str] = {}
+    fields: dict[str, str] = {}
 
-    try:
-        with zipfile.ZipFile(io.BytesIO(docx_bytes), 'r') as z:
-            if 'word/numbering.xml' not in z.namelist():
-                return result
+    # PRIORIDAD 1: Usar textboxes si existen (tienen datos limpios de autores/tutor)
+    if textbox_texts:
+        deduplicated = _deduplicate_textbox_texts(textbox_texts)
+        member_pairs = extract_unique_textbox_pairs(deduplicated)
 
-            num_xml = z.read('word/numbering.xml')
-            root = ET.fromstring(num_xml)
+        if member_pairs:
+            student_members = []
+            tutor_members = []
+            for m in member_pairs:
+                if m.get('role') == 'tutor':
+                    tutor_members.append(m)
+                elif m.get('name') and m['role'] == 'br.':
+                    student_members.append(m)
+                elif m.get('name') and not m.get('role'):
+                    student_members.append(m)
 
-            # Paso 1: numId -> abstractNumId
-            num_to_ab: dict[str, str] = {}
-            for num_elem in root.findall(f'.//{{{W_NS}}}num'):
-                num_id = num_elem.attrib.get(f'{{{W_NS}}}numId')
-                ab_ref = num_elem.find(f'{{{W_NS}}}abstractNumId')
-                if num_id and ab_ref is not None:
-                    ab_id = ab_ref.attrib.get(f'{{{W_NS}}}val')
-                    if ab_id:
-                        num_to_ab[num_id] = ab_id
+            if student_members:
+                author_parts = []
+                for m in student_members:
+                    part = m['name']
+                    if m.get('id'):
+                        part += f" | Carnet: {m['id']}"
+                    author_parts.append(part)
+                fields["author"] = "\n".join(author_parts)
 
-            # Paso 2: abstractNumId -> numFmt (nivel 0)
-            ab_to_fmt: dict[str, str] = {}
-            for ab_elem in root.findall(f'.//{{{W_NS}}}abstractNum'):
-                ab_id = ab_elem.attrib.get(f'{{{W_NS}}}abstractNumId')
-                # Buscar formato del nivel 0 (ilvl=0)
-                for lvl in ab_elem.findall(f'.//{{{W_NS}}}lvl'):
-                    ilvl = lvl.attrib.get(f'{{{W_NS}}}ilvl', '0')
-                    if ilvl == '0':
-                        numFmt = lvl.find(f'{{{W_NS}}}numFmt')
-                        if numFmt is not None:
-                            ab_to_fmt[ab_id] = numFmt.attrib.get(f'{{{W_NS}}}val', 'bullet')
-                        break
+            if tutor_members:
+                tutor_names = [m['name'] for m in tutor_members if m.get('name')]
+                if tutor_names:
+                    fields["instructor"] = "\n".join(tutor_names)
 
-            # Paso 3: numId -> numFmt
-            for num_id, ab_id in num_to_ab.items():
-                result[num_id] = ab_to_fmt.get(ab_id, 'bullet')
+            # Si ya tenemos autores, no necesitamos procesar parrafos
+            if fields.get("author"):
+                # Aun buscar titulo e institution en parrafos
+                cover_elems = [e for e in elements[:15] if e.text and e.text.strip()]
+                for e in cover_elems:
+                    txt = e.text.strip()
+                    txt_lower = txt.lower()
+                    if any(kw in txt_lower for kw in ["universidad", "facultad", "escuela", "instituto"]):
+                        fields["institution"] = txt
+                    elif (len(txt.split()) <= 15
+                          and not any(kw in txt_lower for kw in ["universidad", "facultad", "elaborado por", "tutor", "carnet", "br."])
+                          and not txt_lower.startswith("area de")):
+                        if e.alignment == "center" or e.is_bold or (e.font_size and e.font_size >= 14):
+                            if not fields.get("title") or len(txt) > len(fields["title"]):
+                                fields["title"] = txt
+                return fields
 
-    except Exception as e:
-        print(f"[WARN] Error leyendo numbering.xml: {e}")
+    # PRIORIDAD 2: No hay textboxes, inferir desde parrafos
+    cover_elems = [e for e in elements[:20] if e.text and e.text.strip()]
+    if not cover_elems:
+        return fields
 
-    return result
+    # --- Institucion ---
+    for e in cover_elems:
+        txt = e.text.strip()
+        if any(kw in txt.lower() for kw in ["universidad", "facultad", "escuela", "instituto"]):
+            fields["institution"] = txt
+            break
+
+    # --- Titulo ---
+    title_candidates = []
+    for e in cover_elems:
+        txt = e.text.strip()
+        txt_lower = txt.lower()
+        if (2 <= len(txt.split()) <= 20
+                and not any(kw in txt_lower for kw in ["universidad", "facultad", "elaborado por", "tutor", "carnet", "br.", "ing.", "grupo:", "proyecto de", "area de"])
+                and not txt_lower.startswith(("managua", "nicaragua"))):
+            if e.alignment == "center" or (e.font_size and e.font_size >= 14):
+                title_candidates.append((len(txt), txt))
+    if title_candidates:
+        # Elegir el mas largo (tipicamente el titulo real)
+        title_candidates.sort(key=lambda x: x[0], reverse=True)
+        fields["title"] = title_candidates[0][1]
+
+    # --- Autor/es y Tutor (desde parrafos, con manejo de texto concatenado) ---
+    # Los parrafos pueden tener texto concatenado porque python-docx incluye
+    # texto de shapes/textboxes dentro del parrafo.
+    # Estrategia: buscar patrones "Br." y "Carnet:" para dividir.
+    autores = []
+    tutor = ""
+    for e in cover_elems:
+        txt = e.text.strip()
+        txt_lower = txt.lower()
+
+        # Detectar si el texto contiene multiple "Br." -> dividir
+        br_matches = list(re.finditer(r'\bBr\.\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+', txt))
+        if len(br_matches) >= 1:
+            for m in br_matches:
+                member_text = m.group(0).strip()
+                # Buscar carnet cercano
+                carnet_match = re.search(r'Carnet:\s*(\S+)', txt[m.end():m.end()+100])
+                if carnet_match:
+                    member_text += f" | Carnet: {carnet_match.group(1)}"
+                autores.append(member_text)
+        elif "elaborado por" in txt_lower:
+            pass  # No extraer como autor (es cabecera)
+        elif "br." in txt_lower or "carnet:" in txt_lower:
+            autores.append(txt)
+        elif "tutor" in txt_lower or "docente" in txt_lower or "profesor" in txt_lower or "ing." in txt_lower or "dr." in txt_lower:
+            tutor = txt
+
+    if autores:
+        fields["author"] = "\n".join(autores)
+    if tutor:
+        fields["instructor"] = tutor
+
+    # --- Date ---
+    date_patterns = [
+        re.compile(r'\b(20\d{2})\b'),
+        re.compile(r'\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(de\s+)?(20\d{2})\b', re.IGNORECASE),
+    ]
+    for e in cover_elems:
+        txt = e.text.strip()
+        for pat in date_patterns:
+            m = pat.search(txt)
+            if m:
+                fields["date"] = txt
+                break
+        if fields.get("date"):
+            break
+
+    return fields
+
+
+# Removido: _get_numbering_type_map (ahora en xml_deep_parser.process_numbering_single_pass)
 
 
 # Mapping de numFmt OOXML a estilos APA
@@ -242,11 +472,46 @@ OOXML_NUMFMT_TO_NUMBER_STYLE: dict[str, NumberStyle] = {
 }
 
 
+def _find_body_start_from_elements(elements: List[ElementModel]) -> int:
+    """
+    Encuentra el indice del primer elemento que marca el inicio del cuerpo
+    (no portada) usando los elementos ya parseados. Evita re-abrir el ZIP.
+    """
+    body_keywords = [
+        "introduccion", "introducción", "resumen", "abstract",
+        "metodologia", "metodología", "resultados", "discusion",
+        "discusión", "conclusion", "conclusión", "conclusiones",
+        "referencias", "bibliografia", "bibliografía", "anexo",
+        "capitulo", "capítulo", "marco teorico", "marco teórico",
+        "antecedentes", "planteamiento", "justificacion", "justificación",
+    ]
+    for i, elem in enumerate(elements):
+        text = (elem.text or "").strip()
+        if not text:
+            continue
+        text_lower = text.lower()
+        for kw in body_keywords:
+            if kw in text_lower:
+                return i
+        # Parrafos largos (+35 palabras) son cuerpo
+        if len(text.split()) > 35:
+            return i
+        # Heading numerado (1., 1.1., I.)
+        if re.match(r'^(?:\d+\.){1,4}\d*\s', text_lower) and len(text.split()) <= 15:
+            return i
+    # Fallback: primer elemento con texto sustancial
+    for i, elem in enumerate(elements):
+        if (elem.text or "").strip() and len((elem.text or "").split()) >= 3:
+            return i
+    return 0
+
+
 def parse_docx_bytes(
     file_bytes: bytes,
     file_name: str,
     session_id: str,
     storage_dir: Path,
+    skip_page_layout: bool = False,
 ) -> DocumentModel:
     """
     Parsea los bytes de un DOCX en un DocumentModel.
@@ -260,17 +525,47 @@ def parse_docx_bytes(
     # Calcular hash para idempotencia
     source_hash: str = hashlib.sha256(file_bytes).hexdigest()
 
-    sanitized_bytes = sanitize_numbering_xml(file_bytes)
-
-    # Obtener el mapping de numbering: numId -> (numFmt, abstractNumId)
-    numbering_type_map: dict[str, str] = _get_numbering_type_map(sanitized_bytes)
+    sanitized_bytes, numbering_type_map = process_numbering_single_pass(file_bytes)
 
     # Crear directorio de imagenes de sesion
     session_img_dir = storage_dir / "sessions" / session_id / "images"
     session_img_dir.mkdir(parents=True, exist_ok=True)
 
     # Cargar documento docx desde bytes
-    doc = docx.Document(io.BytesIO(sanitized_bytes))
+    import zipfile
+    from fastapi import HTTPException
+    try:
+        doc = docx.Document(io.BytesIO(sanitized_bytes))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="El documento está corrupto o protegido con contraseña. Por favor, asegúrate de que sea un archivo .docx válido y no requiera contraseña.")
+
+    # Extraer forensic metadata directamente de los bytes (zip)
+    forensic_metadata = {}
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            try:
+                app_xml = z.read('docProps/app.xml').decode('utf-8')
+                total_time = re.search(r'<TotalTime>(\d+)</TotalTime>', app_xml)
+                words = re.search(r'<Words>(\d+)</Words>', app_xml)
+                if total_time:
+                    forensic_metadata["total_editing_time_minutes"] = int(total_time.group(1))
+                if words:
+                    forensic_metadata["words"] = int(words.group(1))
+            except Exception:
+                pass
+                
+            try:
+                core_xml = z.read('docProps/core.xml').decode('utf-8')
+                revision = re.search(r'<cp:revision>(\d+)</cp:revision>', core_xml)
+                if revision:
+                    forensic_metadata["revision_count"] = int(revision.group(1))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Extracción recursiva de imágenes (Fase 4)
+    extracted_images_meta = extract_all_images_recursive(doc, session_img_dir)
 
     elements: List[ElementModel] = []
     element_counter: int = 0
@@ -282,14 +577,22 @@ def parse_docx_bytes(
     sections_info = get_section_orientation_info(doc)
     has_landscape: bool = any(s.get("is_landscape", False) for s in sections_info)
 
-    # Detectar OMML (ecuaciones) y OLE (objetos Excel)
+    # Detectar OMML (ecuaciones), OLE (objetos Excel), bookmarks e hyperlinks.
+    # Los bookmarks/hyperlinks no se modelan como elementos propios, pero se
+    # registran como flags en el meta para que el generador y la UI puedan
+    # advertir al usuario que esos anclajes/enlaces existen y pueden requerir
+    # revisión manual tras la conversión APA.
     has_equations: bool = False
     has_ole: bool = False
+    has_bookmarks: bool = False
+    has_hyperlinks: bool = False
+    hyperlink_count: int = 0
     try:
         root = doc._element
         nsmap = {
             'm': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
             'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+            'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
         }
         omath_elems = root.findall('.//m:oMath', nsmap)
         if omath_elems:
@@ -297,6 +600,16 @@ def parse_docx_bytes(
         ole_elems = root.findall('.//w:object', nsmap)
         if ole_elems:
             has_ole = True
+        # Bookmarks: w:bookmarkStart delimita un anclaje referenciable
+        # (p. ej. usado por PAGEREF / referencias cruzadas).
+        bookmark_elems = root.findall('.//w:bookmarkStart', nsmap)
+        if bookmark_elems:
+            has_bookmarks = True
+        # Hyperlinks: w:hyperlink puede ser interno (anchor) o externo (r:id).
+        hyperlink_elems = root.findall('.//w:hyperlink', nsmap)
+        if hyperlink_elems:
+            has_hyperlinks = True
+            hyperlink_count = len(hyperlink_elems)
     except Exception:
         pass
 
@@ -305,65 +618,225 @@ def parse_docx_bytes(
     textbox_texts = extract_textbox_paragraphs(doc)
     textbox_has_content = any(t.strip() for t in textbox_texts)
 
-    # Recorrer parrafos y elementos del cuerpo principal
-    for p in doc.paragraphs:
-        element_counter += 1
-        text: str = p.text.strip() if p.text else ""
+    # PRIMERO: Pre-deteccion de parrafos TOC para marcar todo el rango del campo
+    # (desde w:fldChar begin hasta w:fldChar end, incluyendo el texto generado)
+    toc_paragraph_indices = _detect_toc_paragraph_indices(doc._element.body)
 
-        # Contar palabras
-        if text:
-            total_words += len(text.split())
+    # Recorrer los elementos del cuerpo en orden secuencial exacto (parrafos y tablas intercalados)
+    # Límite configurable de elementos para evitar que documentos gigantes (p. ej. 500+ págs)
+    # agoten memoria o cuelguen la petición HTTP indefinidamente.
+    MAX_ELEMENTS = int(os.environ.get("WORDAPA7_MAX_ELEMENTS", "3000"))
+    # Guard de tiempo de pared (wall-clock) para evitar que un documento patológico
+    # (tablas/paragraphs extremadamente pesados) cuelgue la petición HTTP indefinidamente.
+    PARSE_TIMEOUT_SECONDS = float(os.environ.get("WORDAPA7_PARSE_TIMEOUT_SECONDS", "120"))
+    _parse_start_time = time.monotonic()
+    elements_truncated = False
+    for child_idx, child in enumerate(doc._element.body):
+        # Truncar al llegar al límite: dejamos de añadir elementos pero
+        # conservamos los ya parseados y marcamos el flag para advertir al usuario.
+        if element_counter >= MAX_ELEMENTS:
+            elements_truncated = True
+            break
+        # Truncar si se excede el timeout de parseo (P3.30).
+        if (child_idx % 100 == 0) and (time.monotonic() - _parse_start_time) > PARSE_TIMEOUT_SECONDS:
+            elements_truncated = True
+            print(f"[WARN] Timeout de parseo ({PARSE_TIMEOUT_SECONDS}s) alcanzado en elemento {element_counter}; truncando.")
+            break
+        tag = child.tag if isinstance(child.tag, str) else ""
 
-        # Detectar formato directo
-        is_bold: bool = False
-        is_italic: bool = False
-        font_size: float = 12.0
-        font_name: str = "Times New Roman"
+        # --- CASO A: PARRAFO (<w:p>) ---
+        if tag.endswith("p"):
+            element_counter += 1
+            p = docx.text.paragraph.Paragraph(child, doc)
+            text: str = p.text.strip() if p.text else ""
 
-        for r in p.runs:
-            if r.bold:
-                is_bold = True
-            if r.italic:
-                is_italic = True
-            if r.font.size and r.font.size.pt:
-                font_size = float(r.font.size.pt)
-            if r.font.name:
-                font_name = r.font.name
+            # Check for math (OMML), fields, and shading
+            p_has_math = False
+            p_has_fields = False
+            p_has_shading = False
+            try:
+                # Math
+                if p._element.findall('.//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMath') or p._element.findall('.//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMathPara'):
+                    p_has_math = True
+                # Fields
+                if p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldSimple') or p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}instrText'):
+                    p_has_fields = True
+                # Shading (Background color)
+                if p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}shd'):
+                    p_has_shading = True
+            except Exception:
+                pass
 
-        # Determinar alineacion
-        align_str: str = "left"
-        if p.alignment is not None:
-            raw_align = str(p.alignment)
-            if "CENTER" in raw_align.upper():
-                align_str = "center"
-            elif "RIGHT" in raw_align.upper():
-                align_str = "right"
-            elif "JUSTIFY" in raw_align.upper():
-                align_str = "justify"
+            # Contar palabras
+            if text:
+                total_words += len(text.split())
 
-        # Obtener indentacion
-        left_indent_cm: float = 0.0
-        try:
-            pf = p.paragraph_format
-            if pf.left_indent:
-                left_indent_cm = pf.left_indent.cm if pf.left_indent.cm else 0.0
-        except Exception:
-            pass
+            # Detectar formato directo
+            is_bold: bool = False
+            is_italic: bool = False
+            font_size: float = 12.0
+            font_name: str = "Times New Roman"
 
-        # Deteccion de imagenes inline en el parrafo
-        # IMPORTANTE: Saltar imagenes dentro de cuadros de texto o shapes (decoracion de portada)
-        images_in_p: List[ImageModel] = []
-        for r in p.runs:
-            drawing_elems = r._element.findall(
-                './/{http://schemas.openxmlformats.org/drawingml/2006/main}blip'
-            )
-            for blip in drawing_elems:
-                # Si esta dentro de un textbox/shape de portada, extraer igualmente como elemento de portada
+            for r in p.runs:
+                if r.bold:
+                    is_bold = True
+                if r.italic:
+                    is_italic = True
+                if r.font.size and r.font.size.pt:
+                    font_size = float(r.font.size.pt)
+                if r.font.name:
+                    font_name = r.font.name
 
-                r_id = blip.attrib.get(
-                    '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed'
+            # Determinar alineacion
+            align_str: str = "left"
+            if p.alignment is not None:
+                raw_align = str(p.alignment)
+                if "CENTER" in raw_align.upper():
+                    align_str = "center"
+                elif "RIGHT" in raw_align.upper():
+                    align_str = "right"
+                elif "JUSTIFY" in raw_align.upper():
+                    align_str = "justify"
+
+            # Obtener indentacion
+            left_indent_cm: float = 0.0
+            try:
+                pf = p.paragraph_format
+                if pf.left_indent:
+                    left_indent_cm = pf.left_indent.cm if pf.left_indent.cm else 0.0
+            except Exception:
+                pass
+
+            # 🔥 Detectar parrafos dentro del rango de un campo TOC de Word
+            # (detectado por _detect_toc_paragraph_indices en el pre-scan)
+            is_toc_paragraph: bool = child_idx in toc_paragraph_indices
+
+            if is_toc_paragraph:
+                style_name_toc: str = p.style.name if p.style else "Normal"
+                # Determinar si es el parrafo de definicion del campo (contiene instrText con TOC)
+                # o un parrafo de contenido generado por Word
+                try:
+                    instr_texts = p._element.findall(
+                        f'.//{{{W_NS}}}instrText'
+                    )
+                    has_toc_instr = any(
+                        it.text and 'TOC' in it.text.upper()
+                        for it in instr_texts
+                    )
+                except Exception:
+                    has_toc_instr = False
+
+                # Si el texto del TOC generado parece vacio o solo tiene el TAG,
+                # usar un placeholder amigable para la UI
+                display_text = text if text else "[Tabla de Contenidos]"
+
+                # El parrafo con la definicion del campo (instrText) se preserva
+                # como marcador; los parrafos de contenido generado conservan su texto original
+                elem = ElementModel(
+                    id=f"elem_{element_counter}",
+                    type=ElementType.TOC,
+                    text=display_text,
+                    original_text=text if text else "[TOC Field]",
+                    style_name=style_name_toc,
+                    alignment=align_str,
+                    font_name=font_name,
+                    font_size=font_size,
+                    is_bold=is_bold,
+                    is_italic=is_italic,
+                    left_indent_cm=left_indent_cm,
+                    confidence=1.0,
+                    heading_level=None,
                 )
-                if r_id and r_id in doc.part.rels:
+                elements.append(elem)
+
+            if is_toc_paragraph:
+                # Saltar deteccion de imagenes y procesamiento normal de estilo/lista.
+                # Los parrafos TOC son puramente texto generado por Word y se preservan
+                # tal cual hasta que el generador decida regenerarlos desde headings.
+                continue
+
+            # Deteccion de imagenes (drawingml blip y vml imagedata)
+            images_in_p: List[ImageModel] = []
+            A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+            V_NS = 'urn:schemas-microsoft-com:vml'
+            R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+            WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+            WPG_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup'
+            WPS_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape'
+
+            # Guardar (r_id, anchor_info, width_cm, height_cm)
+            blip_info = []
+
+            def _process_drawing(drawing_elem):
+                anchor_elem = drawing_elem.find(f'.//{{{WP_NS}}}anchor')
+                extent_elem = drawing_elem.find(f'.//{{{WP_NS}}}extent')
+                width_cm = 12.0
+                height_cm = 8.0
+                if extent_elem is not None:
+                    try:
+                        width_cm = int(extent_elem.get('cx', 0)) / 360000.0
+                        height_cm = int(extent_elem.get('cy', 0)) / 360000.0
+                    except (ValueError, TypeError):
+                        pass
+
+                anchor_data = None
+                if anchor_elem is not None:
+                    # Capturar atributos del anchor
+                    pos_h_elem = anchor_elem.find(f'.//{{{WP_NS}}}positionH')
+                    pos_v_elem = anchor_elem.find(f'.//{{{WP_NS}}}positionV')
+                    pos_h = pos_h_elem.find(f'.//{{{WP_NS}}}posOffset').text if pos_h_elem is not None and pos_h_elem.find(f'.//{{{WP_NS}}}posOffset') is not None else None
+                    pos_v = pos_v_elem.find(f'.//{{{WP_NS}}}posOffset').text if pos_v_elem is not None and pos_v_elem.find(f'.//{{{WP_NS}}}posOffset') is not None else None
+                    
+                    wrap_style = "square"
+                    if anchor_elem.find(f'.//{{{WP_NS}}}wrapTight') is not None:
+                        wrap_style = "tight"
+                    elif anchor_elem.find(f'.//{{{WP_NS}}}wrapTopAndBottom') is not None:
+                        wrap_style = "top_and_bottom"
+                    elif anchor_elem.find(f'.//{{{WP_NS}}}wrapThrough') is not None:
+                        wrap_style = "through"
+                        
+                    anchor_data = {
+                        "is_anchor": True,
+                        "anchor_pos_h": pos_h,
+                        "anchor_pos_v": pos_v,
+                        "wrap_style": wrap_style
+                    }
+
+                # Buscar blips en este drawing
+                for b in drawing_elem.findall(f'.//{{{A_NS}}}blip'):
+                    r_id = b.attrib.get(f'{{{R_NS}}}embed')
+                    if r_id:
+                        blip_info.append((r_id, anchor_data, width_cm, height_cm))
+
+            # 1. Procesar todos los drawings directos
+            for drawing in p._element.findall(f'.//{{{WP_NS}}}inline') + p._element.findall(f'.//{{{WP_NS}}}anchor'):
+                _process_drawing(drawing)
+
+            # 2. Procesar shapes agrupados recursivamente (wpg:wgp -> wsp:wsp)
+            for wgp in p._element.findall(f'.//{{{WPG_NS}}}wgp'):
+                for wsp in wgp.findall(f'.//{{{WPS_NS}}}wsp'):
+                    for b in wsp.findall(f'.//{{{A_NS}}}blip'):
+                        r_id = b.attrib.get(f'{{{R_NS}}}embed')
+                        if r_id:
+                            # Los shapes anidados asumen formato inline relativo a su grupo
+                            ext = wsp.find(f'.//{{{A_NS}}}ext')
+                            w_cm, h_cm = 12.0, 8.0
+                            if ext is not None:
+                                try:
+                                    w_cm = int(ext.get('cx', 0)) / 360000.0
+                                    h_cm = int(ext.get('cy', 0)) / 360000.0
+                                except (ValueError, TypeError): pass
+                            blip_info.append((r_id, None, w_cm, h_cm))
+
+            # 3. Legacy VML
+            vml_elems = p._element.findall(f'.//{{{V_NS}}}imagedata')
+            for v in vml_elems:
+                r_id = v.attrib.get(f'{{{R_NS}}}embed') or v.attrib.get(f'{{{R_NS}}}href')
+                if r_id:
+                    blip_info.append((r_id, None, 12.0, 8.0))
+
+            for r_id, anchor_data, w_cm, h_cm in blip_info:
+                if r_id in doc.part.rels:
                     rel = doc.part.rels[r_id]
                     if "image" in rel.target_ref:
                         try:
@@ -374,18 +847,7 @@ def parse_docx_bytes(
                             with open(img_path, "wb") as f_img:
                                 f_img.write(image_part.blob)
 
-                            # Determinar si es linea vertical u objeto por proporcion de aspecto real
                             img_note = None
-                            try:
-                                from PIL import Image as PILImage
-                                with PILImage.open(img_path) as pimg:
-                                    pw, ph = pimg.size
-                                    if ph > 2.0 * pw:
-                                        img_note = "vertical_line"
-                                    else:
-                                        img_note = "author_card"
-                            except Exception:
-                                pass
 
                             has_images = True
                             img_model = ImageModel(
@@ -393,135 +855,196 @@ def parse_docx_bytes(
                                 file_path=str(img_path),
                                 filename=img_filename,
                                 relative_url=f"/api/images/{session_id}/{img_filename}",
-                                width_cm=12.0,
-                                height_cm=8.0,
+                                width_cm=round(w_cm, 2),
+                                height_cm=round(h_cm, 2),
                                 caption="",
-                                figure_number=0,  # Se asigna en pre_classifier
+                                figure_number=0,
                                 note=img_note,
                             )
+                            
+                            if anchor_data:
+                                img_model.is_anchor = anchor_data.get("is_anchor", False)
+                                img_model.anchor_pos_h = anchor_data.get("anchor_pos_h")
+                                img_model.anchor_pos_v = anchor_data.get("anchor_pos_v")
+                                img_model.wrap_style = anchor_data.get("wrap_style", "inline")
+                                
                             images_in_p.append(img_model)
                         except Exception as img_err:
                             print(f"[WARN] Error extrayendo imagen: {img_err}")
 
-        # Si el parrafo solo contiene una imagen sin texto
-        if images_in_p and not text:
-            for img in images_in_p:
+            # Si hay imagenes en el parrafo, agregar elementos IMAGE
+            if images_in_p:
+                for img in images_in_p:
+                    elem_img = ElementModel(
+                        id=f"elem_{element_counter}",
+                        type=ElementType.IMAGE,
+                        text="",
+                        confidence=1.0,
+                        image_info=img,
+                    )
+                    elements.append(elem_img)
+
+            # Si ademas hay texto en el parrafo (o si no habia imagen), agregar elemento de texto/parrafo
+            if text or not images_in_p:
+                style_name: str = p.style.name if p.style else "Normal"
+                bullet_source: Optional[str] = None
+                num_level: Optional[int] = None
+                detected_number_style: Optional[NumberStyle] = None
+                detected_bullet_style: Optional[BulletStyle] = None
+                detected_element_type = ElementType.PARAGRAPH
+                try:
+                    pPr_ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+                    num_pr = p._element.find(f'{pPr_ns}pPr/{pPr_ns}numPr')
+                    if num_pr is not None:
+                        bullet_source = "ooxml_list"
+                        ilvl_el = num_pr.find(f'{pPr_ns}ilvl')
+                        if ilvl_el is not None:
+                            num_level = int(ilvl_el.attrib.get(f'{pPr_ns}val', '0'))
+
+                        numId_el = num_pr.find(f'{pPr_ns}numId')
+                        if numId_el is not None:
+                            num_id_val = numId_el.attrib.get(f'{pPr_ns}val', '')
+                            numfmt = numbering_type_map.get(num_id_val, 'bullet')
+
+                            if numfmt == 'bullet':
+                                detected_element_type = ElementType.BULLET
+                                detected_bullet_style = BulletStyle.DISC
+                            else:
+                                detected_element_type = ElementType.NUMBERED_LIST
+                                detected_number_style = OOXML_NUMFMT_TO_NUMBER_STYLE.get(
+                                    numfmt, NumberStyle.DECIMAL
+                                )
+                except Exception:
+                    pass
+
+                initial_type = detected_element_type if bullet_source == "ooxml_list" else ElementType.PARAGRAPH
+
                 elem = ElementModel(
                     id=f"elem_{element_counter}",
-                    type=ElementType.IMAGE,
-                    text="",
-                    confidence=1.0,
-                    image_info=img,
+                    type=initial_type,
+                    text=text,
+                    original_text=text,
+                    style_name=style_name,
+                    alignment=align_str,
+                    font_name=font_name,
+                    font_size=font_size,
+                    is_bold=is_bold,
+                    is_italic=is_italic,
+                    left_indent_cm=left_indent_cm,
+                    confidence=0.95 if bullet_source == "ooxml_list" else 0.5,
+                    bullet_source=bullet_source,
+                    bullet_style=detected_bullet_style,
+                    number_style=detected_number_style,
+                    list_level=(num_level + 1) if num_level is not None else 1,
+                    heading_level=None,
+                    has_math=p_has_math,
+                    has_fields=p_has_fields,
+                    has_shading_residue=p_has_shading,
                 )
                 elements.append(elem)
-            continue
 
-        # Construir elemento de texto normal
-        style_name: str = p.style.name if p.style else "Normal"
+        # --- CASO B: TABLA (<w:tbl>) ---
+        elif tag.endswith("tbl"):
+            element_counter += 1
+            has_tables_detected = True
+            
+            # --- NUEVO: Extraer imagenes embebidas en la tabla ---
+            tbl_blips = []
+            A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+            R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+            WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+            V_NS = 'urn:schemas-microsoft-com:vml'
 
-        # Detectar numeracion OOXML (w:numPr) para preservar listas existentes
-        bullet_source: Optional[str] = None
-        num_level: Optional[int] = None
-        detected_number_style: Optional[NumberStyle] = None
-        detected_bullet_style: Optional[BulletStyle] = None
-        detected_element_type = ElementType.PARAGRAPH
-        try:
-            pPr_ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-            num_pr = p._element.find(f'{pPr_ns}pPr/{pPr_ns}numPr')
-            if num_pr is not None:
-                bullet_source = "ooxml_list"
-                ilvl_el = num_pr.find(f'{pPr_ns}ilvl')
-                if ilvl_el is not None:
-                    num_level = int(ilvl_el.attrib.get(f'{pPr_ns}val', '0'))
+            for drawing in child.findall(f'.//{{{WP_NS}}}inline') + child.findall(f'.//{{{WP_NS}}}anchor'):
+                extent_elem = drawing.find(f'.//{{{WP_NS}}}extent')
+                w_cm, h_cm = 12.0, 8.0
+                if extent_elem is not None:
+                    try:
+                        w_cm = int(extent_elem.get('cx', 0)) / 360000.0
+                        h_cm = int(extent_elem.get('cy', 0)) / 360000.0
+                    except (ValueError, TypeError): pass
+                for b in drawing.findall(f'.//{{{A_NS}}}blip'):
+                    r_id = b.attrib.get(f'{{{R_NS}}}embed')
+                    if r_id: tbl_blips.append((r_id, w_cm, h_cm))
+            
+            for v in child.findall(f'.//{{{V_NS}}}imagedata'):
+                r_id = v.attrib.get(f'{{{R_NS}}}embed') or v.attrib.get(f'{{{R_NS}}}href')
+                if r_id: tbl_blips.append((r_id, 12.0, 8.0))
 
-                # Obtener numId y consultar el tipo de numeracion
-                numId_el = num_pr.find(f'{pPr_ns}numId')
-                if numId_el is not None:
-                    num_id_val = numId_el.attrib.get(f'{pPr_ns}val', '')
-                    numfmt = numbering_type_map.get(num_id_val, 'bullet')
+            for r_id, w_cm, h_cm in tbl_blips:
+                if r_id in doc.part.rels:
+                    rel = doc.part.rels[r_id]
+                    if "image" in rel.target_ref:
+                        try:
+                            image_part = rel.target_part
+                            img_filename = f"img_{uuid.uuid4().hex[:8]}.png"
+                            img_path = session_img_dir / img_filename
+                            with open(img_path, "wb") as f_img:
+                                f_img.write(image_part.blob)
+                            
+                            has_images = True
+                            img_model = ImageModel(
+                                element_id=f"elem_{element_counter}",
+                                file_path=str(img_path),
+                                filename=img_filename,
+                                relative_url=f"/api/images/{session_id}/{img_filename}",
+                                width_cm=round(w_cm, 2),
+                                height_cm=round(h_cm, 2),
+                                caption="",
+                                figure_number=0,
+                            )
+                            elem_img = ElementModel(
+                                id=f"elem_{element_counter}",
+                                type=ElementType.IMAGE,
+                                text="",
+                                confidence=1.0,
+                                image_info=img_model,
+                            )
+                            elements.append(elem_img)
+                            element_counter += 1
+                        except Exception as e:
+                            print(f"[WARN] Error tbl image: {e}")
+            # --- FIN EXTRACCION IMAGENES TABLA ---
 
-                    if numfmt == 'bullet':
-                        detected_element_type = ElementType.BULLET
-                        detected_bullet_style = BulletStyle.DISC
-                    else:
-                        detected_element_type = ElementType.NUMBERED_LIST
-                        detected_number_style = OOXML_NUMFMT_TO_NUMBER_STYLE.get(
-                            numfmt, NumberStyle.DECIMAL
-                        )
-        except Exception:
-            pass
+            t = docx.table.Table(child, doc)
+            headers: List[str] = []
+            rows_data: List[List[str]] = []
 
-        # Si no se detecto OOXML, mantener PARAGRAPH (el pre_classifier decide)
-        initial_type = detected_element_type if bullet_source == "ooxml_list" else ElementType.PARAGRAPH
+            num_cols: int = len(t.columns) if t.columns else 0
+            try:
+                tbl_grid = t._tbl.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tblGrid')
+                if tbl_grid is not None:
+                    grid_cols = tbl_grid.findall('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}gridCol')
+                    if grid_cols:
+                        num_cols = len(grid_cols)
+            except Exception:
+                pass
 
-        elem = ElementModel(
-            id=f"elem_{element_counter}",
-            type=initial_type,
-            text=text,
-            original_text=text,
-            style_name=style_name,
-            alignment=align_str,
-            font_name=font_name,
-            font_size=font_size,
-            is_bold=is_bold,
-            is_italic=is_italic,
-            left_indent_cm=left_indent_cm,
-            confidence=0.95 if bullet_source == "ooxml_list" else 0.5,
-            bullet_source=bullet_source,
-            bullet_style=detected_bullet_style,
-            number_style=detected_number_style,
-            heading_level=(num_level + 1) if num_level is not None else None,
-        )
-        elements.append(elem)
+            for row_idx, row in enumerate(t.rows):
+                row_cells = [cell.text.strip() for cell in row.cells]
+                while len(row_cells) < num_cols:
+                    row_cells.append("")
+                if row_idx == 0:
+                    headers = row_cells
+                else:
+                    rows_data.append(row_cells)
 
-    # Recorrer Tablas
-    for t in doc.tables:
-        element_counter += 1
-        has_tables_detected = True
-        headers: List[str] = []
-        rows_data: List[List[str]] = []
-
-        # Obtener numero real de columnas desde tblGrid (mas fiable que rows)
-        num_cols: int = len(t.columns) if t.columns else 0
-        try:
-            tbl_grid = t._tbl.find(
-                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tblGrid'
+            tbl_model = TableModel(
+                element_id=f"elem_{element_counter}",
+                headers=headers,
+                rows=rows_data,
+                caption="",
+                table_number=0,
             )
-            if tbl_grid is not None:
-                grid_cols = tbl_grid.findall(
-                    '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}gridCol'
-                )
-                if grid_cols:
-                    num_cols = len(grid_cols)
-        except Exception:
-            pass
 
-        for row_idx, row in enumerate(t.rows):
-            row_cells = [cell.text.strip() for cell in row.cells]
-            # Asegurar que la fila tenga el numero correcto de columnas
-            while len(row_cells) < num_cols:
-                row_cells.append("")
-            if row_idx == 0:
-                headers = row_cells
-            else:
-                rows_data.append(row_cells)
-
-        tbl_model = TableModel(
-            element_id=f"elem_{element_counter}",
-            headers=headers,
-            rows=rows_data,
-            caption="",
-            table_number=0,  # Se asigna en pre_classifier
-        )
-
-        elem = ElementModel(
-            id=f"elem_{element_counter}",
-            type=ElementType.TABLE,
-            text=f"Tabla con {len(headers)} columnas",
-            confidence=1.0,
-            table_info=tbl_model,
-        )
-        elements.append(elem)
+            elem = ElementModel(
+                id=f"elem_{element_counter}",
+                type=ElementType.TABLE,
+                text=f"Tabla con {len(headers)} columnas",
+                confidence=1.0,
+                table_info=tbl_model,
+            )
+            elements.append(elem)
 
     # Fallback: agregar texto de cuadros de texto/shapes si el doc parece vacio de parrafos
     if not elements or all(
@@ -559,8 +1082,47 @@ def parse_docx_bytes(
             portada_detected = True
             break
 
-    # Pre-clasificar con 3 pasadas
+    # Deduplicar IDs de elementos para garantizar unicidad absoluta
+    seen_ids = set()
+    for e_idx, elem in enumerate(elements):
+        while not elem.id or elem.id in seen_ids:
+            element_counter += 1
+            elem.id = f"elem_{element_counter}"
+        seen_ids.add(elem.id)
+
+    # ── PAGINACION EXACTA VIA COM/LIBREOFFICE ────────────────────────────
+    from parsing.page_layout_provider import get_page_layout_provider
+    session_docx_path = storage_dir / "sessions" / session_id / "original.docx"
+    layout_result = None
+    if not skip_page_layout:
+        try:
+            session_docx_path.parent.mkdir(parents=True, exist_ok=True)
+            session_docx_path.write_bytes(file_bytes)
+            provider = get_page_layout_provider()
+            layout_result = provider.paginate(session_docx_path, timeout_seconds=30)
+        except Exception as e:
+            print(f"[WARN] Page layout provider falló: {e}")
+
+    body_start_idx_from_layout = None
+    if layout_result and layout_result.paragraph_pages:
+        for i, elem in enumerate(elements):
+            if i < len(layout_result.paragraph_pages):
+                elem.page_number = layout_result.paragraph_pages[i]
+        
+        last_page1_idx = max(
+            (i for i, pg in enumerate(layout_result.paragraph_pages) if pg == 1),
+            default=-1
+        )
+        if last_page1_idx != -1:
+            body_start_idx_from_layout = last_page1_idx + 1
+
+    # ── PASO 4: Asociación de Leyendas por Proximidad (Fase 4) ─────────────
+    elements = associate_captions_by_proximity(elements)
+
+    # ── PASO 5: Pre-clasificación ──────────────────────────────────────────
     elements = pre_classify_elements(elements)
+
+    # ── LA DETECCION DE IA AHORA SE HACE EN BACKGROUND ───────────────
 
     # Construir metadatos
     meta = DocumentMeta(
@@ -569,21 +1131,37 @@ def parse_docx_bytes(
         wordapa7_version="1.0.0",
         previously_processed=False,
         parsed_at=datetime.now(timezone.utc).isoformat(),
-        page_count=max(1, total_words // 250),  # Estimacion aproximada
+        page_count=layout_result.total_pages if layout_result else max(1, total_words // 250),
+        page_count_exact=bool(layout_result and layout_result.provider_used != "heuristic"),
+        forensic_metadata=forensic_metadata,
+        paragraph_pages=layout_result.paragraph_pages if layout_result else [],
+        page_layout_provider=layout_result.provider_used if layout_result else "",
+        page_layout_confidence=layout_result.confidence if layout_result else 0.0,
         word_count=total_words,
         has_images=has_images,
         has_tables=has_tables_detected,
         has_equations=has_equations,
         has_ole_objects=has_ole,
+        has_bookmarks=has_bookmarks,
+        has_hyperlinks=has_hyperlinks,
+        hyperlink_count=hyperlink_count,
         portada_detected=portada_detected,
         apa_format=APAFormat.STUDENT,
         work_mode=WorkMode.REVIEW,
     )
 
-    # Inferir campos de portada desde el texto de cuadros de texto/shapes
+    # Inferir campos de portada desde el texto de cuadros de texto/shapes o parrafos iniciales
     inferred_portada_fields: dict[str, str] = {}
     if textbox_has_content:
         inferred_portada_fields = _infer_portada_from_textboxes(textbox_texts)
+
+    if not inferred_portada_fields or not inferred_portada_fields.get("title"):
+        para_fields = _infer_portada_from_paragraphs(elements, textbox_texts if textbox_has_content else None)
+        inferred_portada_fields = {**para_fields, **inferred_portada_fields}
+
+    # Detectar inicio del cuerpo usando el parser ultra-rápido en memoria C-binding
+    # (evita recorrer todos los elementos extraídos y regex lento)
+    body_start_paragraph_idx = fast_parse_body_start(sanitized_bytes)
 
     doc_model = DocumentModel(
         session_id=session_id,
@@ -597,9 +1175,9 @@ def parse_docx_bytes(
     # Guardar texto de textboxes y campos inferidos en el modelo
     # para que el frontend pueda pre-llenar el formulario de portada
     # y el generador pueda preservar el contenido original
-    if textbox_has_content:
+    if textbox_has_content or inferred_portada_fields:
         doc_model.portada = {
-            "detected": portada_detected or textbox_has_content,
+            "detected": portada_detected or textbox_has_content or bool(inferred_portada_fields),
             "element_ids": [
                 e.id for e in elements
                 if e.type == ElementType.PORTADA_BLOCK
@@ -607,6 +1185,27 @@ def parse_docx_bytes(
             "textbox_texts": textbox_texts,
             "fields": inferred_portada_fields,
             "profile_name": None,
+            "body_start_paragraph_idx": body_start_paragraph_idx,
         }
+    else:
+        # Asegurar que body_start_paragraph_idx se guarda incluso sin portada
+        doc_model.portada["body_start_paragraph_idx"] = body_start_paragraph_idx
+
+    # Sobreescribir body_start_paragraph_idx si el layout lo calculó
+    if body_start_idx_from_layout is not None:
+        doc_model.portada["body_start_paragraph_idx"] = body_start_idx_from_layout
+        doc_model.portada["body_start_source"] = "page_layout"
+
+    # Marcar truncamiento preventivo si se excedió el límite de elementos.
+    # Se informa al usuario vía content_warning y los flags explícitos del meta.
+    if elements_truncated:
+        doc_model.meta.elements_truncated = True
+        doc_model.meta.elements_truncated_at = len(elements)
+        doc_model.meta.content_warning = (
+            f"El documento excede el límite de {MAX_ELEMENTS} elementos y fue "
+            f"truncado. Importa solo los primeros {len(elements)} elementos. "
+            f"Para procesar documentos más grandes, ajusta la variable de "
+            f"entorno WORDAPA7_MAX_ELEMENTS."
+        )
 
     return doc_model

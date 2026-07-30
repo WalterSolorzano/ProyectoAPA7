@@ -95,6 +95,11 @@ def format_bullet_item(
     apply_bullet_from_template(p._element, num_id=1, level=level)
 
     p.text = ""
+    # ponytail: clear inherited style to prevent double indentation
+    try:
+        p.style = None
+    except Exception:
+        pass
     p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.left_indent = Inches(left_indent)
     p.paragraph_format.first_line_indent = Inches(first_line)
@@ -132,6 +137,11 @@ def format_numbered_item(
     apply_bullet_from_template(p._element, num_id=2, level=level)
 
     p.text = ""
+    # ponytail: clear inherited style to prevent double indentation
+    try:
+        p.style = None
+    except Exception:
+        pass
     p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p.paragraph_format.left_indent = Inches(left_indent)
     p.paragraph_format.first_line_indent = Inches(first_line)

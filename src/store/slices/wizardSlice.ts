@@ -1,0 +1,1 @@
+export interface WizardSlice { wizardStep: number; }

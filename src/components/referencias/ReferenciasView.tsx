@@ -65,9 +65,27 @@ export const ReferenciasView: React.FC = () => {
         </div>
       </div>
 
-      <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
-        Lista de Referencias Bibliográficas ({references.length})
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>
+          Lista de Referencias Bibliográficas ({references.length})
+        </h3>
+        {references.length > 0 && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              if (confirm('¿Resolver automáticamente todos los DOIs y formatos pendientes en las referencias actuales?')) {
+                useDocStore.getState().showToast('Resolviendo DOIs en lote...', 'info');
+                fetch('/api/references/resolve-batch', { method: 'POST', body: JSON.stringify({ refs: references }) });
+              }
+            }}
+            disabled={isLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#10b981', borderColor: '#059669', color: 'white' }}
+          >
+            <Search size={14} />
+            Resolver DOIs automáticamente
+          </button>
+        )}
+      </div>
 
       {references.length === 0 ? (
         <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>No hay referencias agregadas aún.</p>

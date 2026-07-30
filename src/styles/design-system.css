@@ -1,0 +1,218 @@
+/* design-system.css – New Dark UI Design System */
+/* Loaded AFTER fluent.css in main.tsx — provides dark theme overrides */
+
+:root {
+  /* Dark background palette */
+  --app-bg: #0f0f11;
+  --sidebar-bg: #18181c;
+  --canvas-bg: #1e1e24;
+  --paper-bg: #ffffff; /* keep paper white */
+  --statusbar-bg: #0f0f11;
+  --titlebar-bg: #18181c;
+  --text-main: #f2f2f5;
+  --text-secondary: #8b8b9e;
+  --text-muted: #6b6b78;
+
+  /* Accent colors */
+  --accent-primary: #7c5cfc; /* violet */
+  --accent-primary-hover: #9b79ff;
+  --accent-secondary: #06d6a0; /* teal */
+  --accent-success: #52c41a; /* green */
+  --accent-warning: #faad14; /* amber */
+  --accent-danger: #ff4d4f; /* red */
+
+  /* Shadows & radius */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 16px rgba(0,0,0,0.6);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+/* Global resets */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--app-bg);
+  color: var(--text-main);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+/* Sidebar */
+.sidebar {
+  background-color: var(--sidebar-bg);
+  color: var(--text-secondary);
+}
+
+/* Canvas backdrop */
+.canvas-backdrop {
+  background-color: var(--canvas-bg);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 20px;
+  height: 100%;
+}
+
+/* Paper */
+.paper {
+  background-color: var(--paper-bg);
+  width: 210mm; /* A4 width */
+  min-height: 297mm; /* A4 height */
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-sm);
+}
+
+/* Titlebar */
+.titlebar {
+  height: 32px;
+  background-color: var(--titlebar-bg);
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+/* Status bar */
+.statusbar {
+  height: 24px;
+  background-color: var(--statusbar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Buttons – primary accent */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+/* Wizard step pills */
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wizard-step .step-pill {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background-color: rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+.wizard-step .step-pill.active {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.wizard-step .step-pill.completed {
+  background: var(--accent-success);
+  color: #fff;
+}
+.wizard-step .connector {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+}
+
+/* Search input */
+.search-input {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--text-main);
+  width: 100%;
+}
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Tree items */
+.tree-item {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.tree-item:hover {
+  background: rgba(124,92,252,0.1);
+}
+.tree-item.active {
+  background: rgba(124,92,252,0.2);
+}
+
+/* Modal */
+.modal {
+  background: var(--sidebar-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  color: var(--text-main);
+}
+
+/* Card */
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  transition: background 0.2s ease;
+}
+.card:hover {
+  background: rgba(124,92,252,0.06);
+}
+.card.selected {
+  border-color: var(--accent-primary);
+  background: rgba(124,92,252,0.1);
+}
+
+/* Tooltip */
+.tooltip {
+  background: var(--sidebar-bg);
+  color: var(--text-main);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+/* fluent.css is imported first in main.tsx — no @import needed here */

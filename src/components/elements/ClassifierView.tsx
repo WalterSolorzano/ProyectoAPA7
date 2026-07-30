@@ -75,7 +75,7 @@ const SortableElementCard: React.FC<SortableElementCardProps> = ({ element }) =>
 };
 
 export const ClassifierView: React.FC = () => {
-  const { doc, workMode, reorderElements } = useDocStore();
+  const { doc, workMode, reorderElements, validationIssues } = useDocStore();
   const [filter, setFilter] = useState<'all' | 'doubtful' | 'headings' | 'media'>('all');
 
   const sensors = useSensors(
@@ -166,22 +166,22 @@ export const ClassifierView: React.FC = () => {
             }} />
             {highConfCount} automaticos
           </span>
-          {doubtfulCount > 0 && (
+          {(doubtfulCount > 0 || unclassifiedCount > 0) && (
             <span style={{ fontSize: '12px', color: 'var(--status-yellow)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{
                 width: '8px', height: '8px', borderRadius: '50%',
                 backgroundColor: 'var(--status-yellow)', display: 'inline-block',
               }} />
-              {doubtfulCount} para revisar
+              Problemas de Clasificación (LLM): {doubtfulCount + unclassifiedCount}
             </span>
           )}
-          {unclassifiedCount > 0 && (
-            <span style={{ fontSize: '12px', color: 'var(--status-red)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {validationIssues && validationIssues.length > 0 && (
+            <span style={{ fontSize: '12px', color: 'var(--status-red)', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
               <span style={{
                 width: '8px', height: '8px', borderRadius: '50%',
                 backgroundColor: 'var(--status-red)', display: 'inline-block',
               }} />
-              {unclassifiedCount} sin clasificar
+              Problemas de Estilo (APA): {validationIssues.length}
             </span>
           )}
         </div>

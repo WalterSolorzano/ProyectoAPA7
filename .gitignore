@@ -17,6 +17,7 @@ env/
 
 # Environment files (MUST NOT BE UPLOADED)
 .env
+.md
 .env*.local
 
 # Application local storage & session files
@@ -63,3 +64,17 @@ treat
 {,
 {,+
 {,-
+
+# Build and Electron outputs
+dist-electron/
+dist-electron-builder/
+dist-python/
+build/
+*.exe
+
+# Agents and reports
+.agents/
+report-*.md
+qa_ui_audit_report.md
+app_logs.txt
+asar_contents.txt

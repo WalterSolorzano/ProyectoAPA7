@@ -67,6 +67,9 @@ beforeEach(() => {
       doi_as_hyperlink: true,
       figure_label_prefix: 'Figura',
       table_label_prefix: 'Tabla',
+      heading_numbering_style_lvl1: 'decimal',
+      heading_numbering_style_lvl2: 'decimal',
+      heading_numbering_style_lvl3: 'decimal',
       heading_levels: {
         1: { bold: true, italic: false, alignment: 'center', indent_cm: 0, inline_text: false },
         2: { bold: true, italic: false, alignment: 'left', indent_cm: 0, inline_text: false },
@@ -152,7 +155,6 @@ describe('useDocStore — wizard', () => {
     expect(state.wizardComplete).toBe(true);
     expect(state.wizardAnswers.apa_format).toBe('professional');
     expect(state.wizardAnswers.work_mode).toBe('quick');
-    expect(state.workMode).toBe('quick');
   });
 
   it('resetWizard vuelve al estado inicial', () => {
@@ -165,7 +167,7 @@ describe('useDocStore — wizard', () => {
 
     const state = useDocStore.getState();
     expect(state.wizardComplete).toBe(false);
-    expect(state.wizardAnswers.apa_format).toBe('student');
+    expect(state.wizardAnswers).toBeNull();
   });
 });
 

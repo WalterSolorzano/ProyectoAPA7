@@ -10,10 +10,12 @@ Meta: >85% de elementos clasificados sin LLM.
 """
 
 import re
+import math
 import unicodedata
 from typing import List, Optional
 
 from models import ElementModel, ElementType
+from parsing.clustering_classifier import ClusteringHeadingClassifier
 
 
 def _normalize_accent(text: str) -> str:
@@ -77,6 +79,52 @@ BODY_KEYWORDS: set[str] = {
     "referencias", "bibliografia", "anexo", "apendice",
     "capitulo", "seccion", "marco teorico", "antecedentes",
     "objetivo", "hipotesis", "justificacion", "planteamiento",
+}
+
+# Palabras clave que, cuando aparecen SOLAS o como titulo principal
+# de un parrafo con formato de heading, deben clasificarse como HEADING 1
+HEADING1_KEYWORDS: set[str] = {
+    "introduccion", "introduccion",
+    "indice", "indice",
+    "conclusion", "conclusion",
+    "conclusiones",
+    "desarrollo",
+    "antecedentes",
+    "resultados",
+    "objetivos",
+    "objetivo general", "objetivos especificos",
+    "marco teorico", "marco teorico",
+    "metodologia", "metodologia",
+    "metodo", "metodo",
+    "recomendaciones",
+    "referencias",
+    "bibliografia", "bibliografia",
+    "anexos", "anexo",
+    "apendice", "apendice",
+    "resumen",
+    "abstract",
+    "dedicatoria",
+    "agradecimientos",
+    "epigrafe", "epigrafe",
+    "glosario",
+    "planteamiento del problema",
+    "justificacion", "justificacion",
+    "hipotesis", "hipotesis",
+    "alcance",
+    "limitaciones",
+    "capitulo I", "capitulo ii", "capitulo iii", "capitulo iv", "capitulo v",
+    "capitulo vi", "capitulo vii", "capitulo viii", "capitulo ix", "capitulo x",
+    "capitulo i", "capitulo ii", "capitulo iii", "capitulo iv", "capitulo v",
+    "capitulo vi", "capitulo vii", "capitulo viii", "capitulo ix", "capitulo x",
+    "diagnostico", "diagnostico",
+    "estado del arte",
+    "fundamentacion teorica",
+    "base teorica", "bases teoricas",
+    "analisis de resultados",
+    "discusion de resultados",
+    "propuesta",
+    "cronograma",
+    "presupuesto",
 }
 
 
@@ -155,8 +203,10 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             ElementType.PAGE_BREAK,
             ElementType.SECTION_BREAK,
             ElementType.PORTADA_BLOCK,
+            ElementType.TOC,  # TOC nativo se preserva tal cual
         ):
             elem.confidence = 1.0
+            elem.needs_review = False
             continue
 
         # CRITICO: Parrafo vacio — debe ir ANTES de cualquier otra deteccion
@@ -172,8 +222,23 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         font_size: float = elem.font_size
         alignment: str = elem.alignment
         left_indent: float = elem.left_indent_cm
+        # Variables de formato (definidas temprano para que esten disponibles en toda la pasada)
+        is_centered: bool = alignment == "center"
+        all_bold: bool = is_bold
+        all_caps: bool = _is_all_caps(text)
+        has_period_end: bool = text.rstrip().endswith(".")
+        has_indent: bool = left_indent >= 0.5
+        is_short: bool = word_count <= 12
+        is_medium: bool = word_count <= 20
 
-        # --- CERTEZA 0.95: Lista con numeracion OOXML nativa (ANTES que heading) ---
+        # Guard: Elementos sin texto que no son imagen ni tabla siempre son EMPTY
+        if not text and not elem.image_info and not elem.table_info and elem.type not in (ElementType.IMAGE, ElementType.TABLE):
+            elem.type = ElementType.EMPTY
+            elem.heading_level = None
+            elem.confidence = 1.0
+            continue
+
+        # --- CERTEZA 0.95: Lista con numeración OOXML nativa (ANTES que heading) ---
         if elem.bullet_source == "ooxml_list":
             if elem.type not in (ElementType.BULLET, ElementType.NUMBERED_LIST):
                 has_auto_number = bool(REGEX_BULLET_NUMBERED.match(text)) or bool(REGEX_NUMBERED_HEADING.match(text))
@@ -213,6 +278,36 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         if "block text" in style_name or "quote" in style_name:
             elem.type = ElementType.BLOCK_QUOTE
             elem.confidence = 0.95
+            continue
+
+        # --- CERTEZA 0.95: Palabras clave como Heading 1 (introduccion, conclusion, etc.) ---
+        # Si el parrafo tiene formato de heading (centrado, bold, tamano grande) y su texto
+        # normalizado coincide EXACTAMENTE con una keyword de HEADING1_KEYWORDS (o es solo eso)
+        text_clean = text.rstrip(".:;,").strip().lower()
+        text_normalized = _normalize_accent(text_clean)
+        # Tambien verificar si la palabra esta sola o es el unico contenido significativo
+        is_keyword_only = text_normalized in HEADING1_KEYWORDS
+        # O si comienza con la palabra clave y es corto (max 5 palabras)
+        words_in_text = text_clean.split()
+        first_words_normalized = _normalize_accent(" ".join(words_in_text[:3]))
+        is_keyword_heading = (
+            is_keyword_only
+            or (len(words_in_text) <= 5 and any(
+                text_normalized.startswith(kw) or text_normalized == kw
+                for kw in HEADING1_KEYWORDS
+            ))
+        )
+        if is_keyword_heading and (is_centered or all_bold or font_size >= 14):
+            elem.type = ElementType.HEADING
+            elem.heading_level = 1
+            # Si el texto es exactamente la keyword, confianza maxima
+            if is_keyword_only:
+                elem.confidence = 0.97
+            else:
+                elem.confidence = 0.90
+            elem.pre_classifier_rule = "heading1_keyword"
+            if first_heading_idx == -1:
+                first_heading_idx = idx
             continue
 
         # --- CERTEZA 0.91: Heading numerado por patron (1.1, 2.3.1, I., A.) ---
@@ -265,14 +360,6 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # --- CERTEZA variable: Heading por formato directo ---
-        is_centered = alignment == "center"
-        all_bold = is_bold
-        all_caps = _is_all_caps(text)
-        has_period_end = text.rstrip().endswith(".")
-        has_indent = left_indent >= 0.5
-        is_short = word_count <= 12
-        is_medium = word_count <= 20
-
         # Heading 1: centrado + negrita + corto + posible MAYUSCULAS
         if is_centered and all_bold and is_short and not is_italic:
             if all_caps:
@@ -314,11 +401,13 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 first_heading_idx = idx
             continue
 
-        # Heading 2: izquierda + negrita + sin cursiva + corto
-        if not is_centered and all_bold and not is_italic and is_short:
+        # Heading 2: izquierda + negrita + sin cursiva + corto + fuente >= 13pt
+        # ponytail: font_size >= 13 gate prevents bold phrases in body text
+        # from being falsely classified as Heading 2 (confidence raised from 0.74)
+        if not is_centered and all_bold and not is_italic and is_short and font_size >= 13:
             elem.type = ElementType.HEADING
             elem.heading_level = 2
-            elem.confidence = 0.74
+            elem.confidence = 0.80
             if first_heading_idx == -1:
                 first_heading_idx = idx
             continue
@@ -341,7 +430,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # --- CERTEZA 0.80: Titulo principal (centrado, tamano grande) ---
-        if is_centered and font_size >= 14 and is_short:
+        if is_centered and font_size >= 14:
             elem.type = ElementType.HEADING
             elem.heading_level = 1
             elem.confidence = 0.80
@@ -355,46 +444,97 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         if first_body_text_idx == -1 and first_heading_idx != -1:
             first_body_text_idx = idx
 
-    # ── PASADA 2: Numeracion Secuencial de Figuras y Tablas + Portada ───────
+    # ── PASADA 2: Portada inteligente + Numeración secuencial ───────
     figure_counter: int = 0
     table_counter: int = 0
 
+    # --- Señales múltiples para detección robusta de portada ---
+
+    portada_boundary = None
+    if elements and getattr(elements[0], "page_number", None) is not None:
+        portada_boundary = 0
+        for idx, elem in enumerate(elements):
+            if getattr(elem, "page_number", None) == 1:
+                portada_boundary = idx + 1
+            else:
+                break
+
+    # Señal A: Palabras clave de cuerpo (body_start)
     body_start_idx = -1
     for idx, elem in enumerate(elements):
         txt_norm = _normalize_accent((elem.text or "").lower())
-        if "introducc" in txt_norm or "resumen" in txt_norm or "abstract" in txt_norm or "capitulo" in txt_norm or "contenido" in txt_norm:
+        if any(kw in txt_norm for kw in [
+            "introducc", "resumen", "abstract", "marco teorico",
+            "antecedentes", "metodologia", "resultado", "discusion",
+            "conclusion", "referencias", "bibliografia", "anexo",
+            "planteamiento del problema", "justificacion"
+        ]):
             body_start_idx = idx
             break
 
+    # Señal B: Palabras clave explícitas de portada
+    cover_kw_list = [
+        "universidad", "facultad", "carrera", "elaborado por", "tutor", "carnet",
+        "managua", "nicaragua", "proyecto de estudio", "area de conocimiento",
+        "área de conocimiento", "presentado por", "docente",
+        "monografia", "monografía", "tesis", "seminario de", "catedratico",
+        "catedrático", "licenciatura", "maestria", "maestría", "doctorado",
+        "trabajo de investigacion", "trabajo de investigación",
+        "departamento de", "escuela de", "instituto de", "plan de estudio",
+        "asignatura", "materia", "curso de", "dirigido por", "revisado por",
+        "miembro del tribunal", "tribunal examinador", "carnet universitario",
+        "numero de carnet", "presentada por", "presentado por", "para optar",
+    ]
+
     has_explicit_cover_keywords = False
-    for idx, elem in enumerate(elements[:6]):
-        txt_norm = _normalize_accent((elem.text or "").lower())
-        if any(k in txt_norm for k in ["universidad nacional", "facultad de", "carrera de", "elaborado por:", "tutor:", "carnet:"]):
-            has_explicit_cover_keywords = True
-            break
+    cover_keyword_count = 0
+    for e in elements[:40]:
+        text_norm = _normalize_accent((e.text or "").lower())
+        for kw in cover_kw_list:
+            if kw in text_norm:
+                has_explicit_cover_keywords = True
+                cover_keyword_count += 1
+                break
 
-    if body_start_idx == -1:
-        if first_heading_idx != -1 and first_heading_idx > 0:
-            body_start_idx = first_heading_idx
+    # Señal C: Imágenes en primeros elementos (logotipos de portada)
+    images_in_first_page = sum(
+        1 for e in elements[:25] if e.image_info is not None
+    )
+
+    # Señal D: Bloques de texto centrado y corto en los primeros elementos (portada)
+    # NOTA: Solo contar elementos que NO son headings (los headings son centrados y cortos por diseño)
+    centered_short_blocks = 0
+    for e in elements[:20]:
+        if e.text and e.text.strip():
+            words = len(e.text.split())
+            is_heading_style = (e.style_name or "").lower().startswith("heading")
+            if e.alignment == "center" and words <= 10 and not is_heading_style:
+                centered_short_blocks += 1
+
+    # Señal E: Densidad de palabras clave de portada en primeros 15 elementos
+    strong_keyword_density = cover_keyword_count >= 3
+
+    # Decisión combinada: portada_boundary
+    if portada_boundary is None:
+        if has_explicit_cover_keywords and body_start_idx != -1:
+            portada_boundary = body_start_idx
         elif has_explicit_cover_keywords:
-            last_cover = 0
-            for i, e in enumerate(elements[:10]):
-                txt_norm = _normalize_accent((e.text or "").lower())
-                if any(k in txt_norm for k in ["universidad nacional", "facultad de", "carrera de", "elaborado por:", "tutor:", "carnet:", "managua, nicaragua"]):
-                    last_cover = i
-            body_start_idx = last_cover + 1
+            portada_boundary = min(len(elements), 40)
+        elif images_in_first_page >= 1 and centered_short_blocks >= 2:
+            portada_boundary = 15
+        elif centered_short_blocks >= 3:
+            portada_boundary = 15
+        elif strong_keyword_density:
+            portada_boundary = min(len(elements), 40)
         else:
-            body_start_idx = 0
-
-    portada_boundary: int = body_start_idx
+            portada_boundary = 0
 
     for idx, elem in enumerate(elements):
-        # Si el elemento esta antes del cuerpo, pertenece a la sección de portada
         if idx < portada_boundary:
             elem.is_cover_section = True
-            elem.type = ElementType.PORTADA_BLOCK
-            elem.heading_level = None
-            elem.confidence = 0.95
+            if elem.type == ElementType.PARAGRAPH:
+                elem.type = ElementType.PORTADA_BLOCK
+                elem.confidence = 0.95
             if elem.image_info:
                 elem.image_info.figure_number = 0
         else:
@@ -402,6 +542,20 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             if elem.type == ElementType.IMAGE and elem.image_info:
                 figure_counter += 1
                 elem.image_info.figure_number = figure_counter
+                
+                # Buscar caption arriba (idx-1) o abajo (idx+1)
+                for offset in [-1, 1, -2, 2]:
+                    neighbor_idx = idx + offset
+                    if 0 <= neighbor_idx < len(elements):
+                        neighbor = elements[neighbor_idx]
+                        if neighbor.text and REGEX_FIGURE_CAPTION.match(neighbor.text):
+                            # Extraer número de figura del caption
+                            caption_num_match = re.search(r'\d+', neighbor.text)
+                            if caption_num_match and int(caption_num_match.group()) == figure_counter:
+                                elem.image_info.caption = neighbor.text
+                                neighbor.type = ElementType.EMPTY  # Consumido como caption
+                                break
+
             elif elem.type == ElementType.TABLE and elem.table_info:
                 table_counter += 1
                 elem.table_info.table_number = table_counter
@@ -422,6 +576,12 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         style_lower = (elem.style_name or "").lower()
         txt = (elem.text or "").strip()
         words = txt.split()
+
+        if not txt and not elem.image_info and not elem.table_info and elem.type not in (ElementType.IMAGE, ElementType.TABLE):
+            elem.type = ElementType.EMPTY
+            elem.heading_level = None
+            elem.needs_review = False
+            continue
 
         # 1. Caso A: Estilos Nativos de Word (Confianza Máxima 0.99)
         if "heading 1" in style_lower or "título 1" in style_lower or "titulo 1" in style_lower:
@@ -460,8 +620,13 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             highest_level_seen = max(highest_level_seen, 5)
             continue
 
+        # Preservar elementos clasificados con alta confianza en Pasada 1 (bullets, tablas, etc.)
+        if elem.confidence >= 0.85 and elem.type not in (ElementType.PARAGRAPH, ElementType.HEADING):
+            elem.needs_review = False
+            continue
+
         # Skip non-textual or special elements
-        if elem.type in (ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK):
+        if elem.type in (ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK, ElementType.TOC):
             elem.needs_review = False
             continue
 
@@ -482,19 +647,23 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             score -= 0.5
 
         # Decisiones por Umbral de Score
+        # Heuristically-detected headings always need review so the user
+        # can confirm or correct; only native Word styles skip the review gate.
         if score >= 0.7:
             elem.type = ElementType.HEADING
             elem.confidence = min(0.95, 0.70 + (score * 0.25))
-            elem.needs_review = False
+            elem.needs_review = True
         elif 0.4 <= score < 0.7:
             elem.type = ElementType.HEADING
-            elem.confidence = 0.60
+            elem.confidence = 0.65
             elem.needs_review = True
         else:
             if elem.type == ElementType.HEADING and not elem.style_name:
                 elem.type = ElementType.PARAGRAPH
-            elem.confidence = max(elem.confidence, 0.90)
-            elem.needs_review = False
+                elem.confidence = 0.75
+                elem.needs_review = True
+            else:
+                elem.needs_review = elem.confidence < 0.80
 
         # Inferencia de Jerarquía Incremental
         if elem.type == ElementType.HEADING:
@@ -503,6 +672,8 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elif re.match(r'^\d+\.\d+\s', txt):
                 target_lvl = 2
             elif re.match(r'^\d+\.\s', txt):
+                target_lvl = 1
+            elif re.match(r'^(?:X{0,3})(?:I[XV]|V?I{1,3})\.\s', txt):
                 target_lvl = 1
             elif elem.alignment == "center" or elem.font_size > median_size:
                 target_lvl = 1
@@ -517,5 +688,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
 
             elem.heading_level = target_lvl
             highest_level_seen = max(highest_level_seen, target_lvl)
+
+    # ── PASADA 4: Clustering Global (Huella de Estilo) ─────────────────────────
+    # Agrupa los elementos según su huella visual y les asigna nivel,
+    # sobreescribiendo inferencias débiles anteriores.
+    classifier = ClusteringHeadingClassifier()
+    elements = classifier.classify(elements)
 
     return elements
