@@ -103,45 +103,46 @@ export const HomeHero: React.FC = () => {
         flexWrap: 'wrap',
       }}
     >
-      {/* Mascota grande */}
-      <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* Mascota con tamaño responsive (no se come el texto) */}
+      <div style={{ position: 'relative', flexShrink: 0, maxWidth: '140px' }}>
         <div className="hero-mascot-breathe" style={{ lineHeight: 0 }}>
-          <DocumentMascot size={132} expression={expression} />
+          <DocumentMascot size={116} expression={expression} />
         </div>
         <div
           style={{
             position: 'absolute',
-            bottom: '-14px',
+            bottom: '-8px',
             left: '50%',
             transform: 'translateX(-50%)',
-            display: 'flex', alignItems: 'center', gap: '6px',
+            display: 'flex', alignItems: 'center', gap: '5px',
             backgroundColor: 'var(--surface-elevated)',
             border: '1px solid var(--border-subtle)',
             borderRadius: '999px',
-            padding: '4px 10px',
+            padding: '3px 10px',
             whiteSpace: 'nowrap',
             boxShadow: 'var(--shadow-md)',
+            animation: 'hero-badge-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
           }}
         >
           <img
             src="/logo.jpg"
             alt="WordAPA7"
-            style={{ height: '16px', width: 'auto', borderRadius: '4px', display: 'block' }}
+            style={{ height: '14px', width: 'auto', borderRadius: '3px', display: 'block' }}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
-          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--text-main)' }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--text-main)' }}>
             {timeLabel}
           </span>
         </div>
       </div>
 
-      {/* Barra de frase animada */}
-      <div style={{ flex: 1, minWidth: '260px' }}>
+      {/* Barra de frase animada (más espacio para frases largas) */}
+      <div style={{ flex: 1, minWidth: '320px' }}>
         <div
           key={fadeKey}
           className="hero-phrase-in"
           style={{
-            fontSize: '24px',
+            fontSize: '22px',
             fontWeight: 800,
             color: 'var(--text-main)',
             lineHeight: 1.35,

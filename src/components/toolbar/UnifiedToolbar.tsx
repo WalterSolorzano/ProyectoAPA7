@@ -215,7 +215,7 @@ export function UnifiedToolbar() {
 
       {/* Right: action buttons when doc is loaded */}
       {doc && (
-        <div ref={aiMenuRef} style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
+        <div ref={aiMenuRef} style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
           <button type="button"
             onClick={() => goHome()}
             title="Volver al inicio (sin salir)"
@@ -223,7 +223,7 @@ export function UnifiedToolbar() {
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
-            <Home size={11} /> Inicio
+            <Home size={11} /> <span className="toolbar-btn-label">Inicio</span>
           </button>
           <button type="button"
             onClick={() => saveSnapshot()}
@@ -232,7 +232,7 @@ export function UnifiedToolbar() {
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
-            <Save size={11} /> Guardar
+            <Save size={11} /> <span className="toolbar-btn-label">Guardar</span>
           </button>
           <div style={toolbarDivider} />
           <button type="button"
@@ -243,7 +243,7 @@ export function UnifiedToolbar() {
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
-            <Command size={11} /> Cmd
+            <Command size={11} /> <span className="toolbar-btn-label">Ctrl+K</span>
           </button>
           <div style={toolbarDivider} />
           <button type="button"
@@ -274,7 +274,7 @@ export function UnifiedToolbar() {
             }}
           >
             <Download size={12} />
-            Descargar
+            <span className="toolbar-btn-label">Descargar</span>
           </button>
           <div style={toolbarDivider} />
           <button type="button"

@@ -416,6 +416,19 @@ export const Step1PortadaWizard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Barra colapsada: siempre accesible para reabrir el editor */}
+      {!showLateral && (
+        <div style={{
+          width: 40, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)', paddingTop: 8,
+        }}>
+          <button type="button" onClick={() => setShowLateral(true)}
+            title="Mostrar editor de portada" aria-label="Mostrar editor de portada"
+            style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'rgba(79,124,255,0.10)', border: '1px solid rgba(79,124,255,0.2)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Layout size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── ÁREA PRINCIPAL: lienzo ── */}
       <div style={{ flex: 1, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

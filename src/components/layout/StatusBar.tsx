@@ -66,12 +66,12 @@ export const StatusBar: React.FC = () => {
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Pag: {estimatedPages}</span>
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{totalWords} pal.</span>
 
-          {/* Iconos de elementos */}
-          {headingsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>H{headingsCount}</span>}
-          {paragraphsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>P{paragraphsCount}</span>}
-          {figuresCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>F{figuresCount}</span>}
-          {tablesCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>T{tablesCount}</span>}
-          {bulletsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>L{bulletsCount}</span>}
+          {/* Iconos de elementos con tooltips descriptivos */}
+          {headingsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }} title={`${headingsCount} títulos`}>T{headingsCount}</span>}
+          {paragraphsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }} title={`${paragraphsCount} párrafos`}>P{paragraphsCount}</span>}
+          {figuresCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }} title={`${figuresCount} figuras`}>F{figuresCount}</span>}
+          {tablesCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }} title={`${tablesCount} tablas`}>Tb{tablesCount}</span>}
+          {bulletsCount > 0 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }} title={`${bulletsCount} listas`}>L{bulletsCount}</span>}
 
           {/* Warnings */}
           {warnings.length > 0 && (
@@ -126,9 +126,9 @@ export const StatusBar: React.FC = () => {
               fontWeight: 600,
               transition: 'all 0.2s ease',
             }}
-            title="Alternar panel contextual (cambia según lo que selecciones)"
+            title="Alternar panel derecho contextual (cambia según lo que selecciones)"
           >
-            Panel {forceRightPanelOpen ? 'On' : 'Off'}
+            P. derecho {forceRightPanelOpen ? 'On' : 'Off'}
             {activityUnseen > 0 && (
               <span style={{
                 minWidth: '15px', height: '15px', borderRadius: '999px',

@@ -1,6 +1,6 @@
 /* WordAPA7 — Paso 5: Body Formatting Wizard (Sangría, Interlineado y Listas) */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { AlignLeft, Lock, CheckCircle2, SpellCheck } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
@@ -14,6 +14,7 @@ const SPACING_OPTIONS = [
 
 export const Step5BodyWizard: React.FC = () => {
   const { rules, setRules, doc, runAIReview, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
+  const [showPanel, setShowPanel] = useState(true);
 
   if (!doc) return null;
 
@@ -23,7 +24,8 @@ export const Step5BodyWizard: React.FC = () => {
   return (
     <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-      {/* Panel Izquierdo: Reglas APA aplicadas */}
+      {showPanel ? (
+      /* Panel Izquierdo: Reglas APA aplicadas */
       <div style={{
         width: '320px',
         backgroundColor: 'var(--sidebar-bg)',
@@ -37,6 +39,8 @@ export const Step5BodyWizard: React.FC = () => {
             <AlignLeft size={16} /> Cuerpo del documento
           </h3>
           <Badge tone="accent">Párrafos, listas y sangrías</Badge>
+          <button type="button" onClick={() => setShowPanel(false)} title="Colapsar panel de reglas"
+            style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}>✕</button>
         </div>
 
         <div style={{ padding: '16px', flex: 1, overflowY: 'auto', display: 'grid', gap: '14px' }}>
@@ -154,6 +158,18 @@ export const Step5BodyWizard: React.FC = () => {
           </div>
         </div>
       </div>
+      ) : (
+        <div style={{
+          width: 40, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)', paddingTop: 8,
+        }}>
+          <button type="button" onClick={() => setShowPanel(true)}
+            title="Mostrar panel de reglas del cuerpo"
+            style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'rgba(79,124,255,0.10)', border: '1px solid rgba(79,124,255,0.2)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AlignLeft size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Panel Derecho: Lienzo Sincronizado */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>

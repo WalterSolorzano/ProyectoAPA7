@@ -290,15 +290,15 @@ export const Step0QuickStart: React.FC = () => {
             {/* Hero: mascota + barra de frases animadas (reemplaza el texto estático) */}
             <HomeHero />
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '24px', marginBottom: '28px', flexWrap: 'wrap' }}>
-              <div style={{ maxWidth: '640px' }}>
-                <h1 style={{ fontSize: '34px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '12px', marginTop: '12px' }}>
-                  {greeting}
-                </h1>
-                <p style={{ fontSize: '15px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                  Elegí un archivo y dejá que WordAPA7 lo deje listo en APA 7.
-                </p>
-              </div>
+            {/* Etiqueta de bienvenida animada (complementa el hero, no duplica el greeting) */}
+            <div style={{ marginBottom: '28px' }}>
+              <span style={{
+                display: 'inline-block',
+                fontSize: '15px', fontWeight: 700, color: 'var(--text-secondary)',
+                animation: 'hero-phrase-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+              }}>
+                Elegí un archivo y dejá que WordAPA7 lo deje listo en APA 7.
+              </span>
             </div>
 
             {/* ── ACCIÓN PRIMARIA (A): Convertir documento ── */}

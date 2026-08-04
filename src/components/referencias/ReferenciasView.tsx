@@ -125,22 +125,41 @@ export const ReferenciasView: React.FC = () => {
           <div style={{ textAlign: 'center', fontWeight: 700, marginBottom: '28px' }}>Referencias</div>
 
           {sorted.length === 0 ? (
-            /* Estado vacío: plantilla visual + invitación a la acción */
+            /* Estado vacío: plantilla visual + input de acción integrado en el lienzo */
             <div style={{ textAlign: 'center', paddingTop: '30px' }}>
               <div style={{ fontStyle: 'italic', color: '#9ca3af', marginBottom: '26px' }}>
                 La bibliografía aparecerá aquí, ordenada alfabéticamente y con sangría francesa.
               </div>
               <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: '10px',
-                border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '14px 18px',
-                backgroundColor: '#f8fafc', cursor: 'pointer',
+                display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '12px',
+                border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '18px 24px',
+                backgroundColor: '#f8fafc', maxWidth: '420px', width: '100%',
               }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: 'rgba(79,124,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Search size={17} color="#4f7cff" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', backgroundColor: 'rgba(79,124,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Search size={17} color="#4f7cff" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                    <input
+                      type="text"
+                      value={rawInput}
+                      onChange={(e) => setRawInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleResolveDoi(); }}
+                      placeholder="Pegá tu primer DOI o cita cruda aquí..."
+                      style={{
+                        width: '100%', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 8px',
+                        fontSize: '11pt', fontFamily: 'inherit', outline: 'none',
+                      }}
+                    />
+                  </div>
                 </div>
-                <div style={{ textAlign: 'left', color: '#334155', fontSize: '11pt' }}>
-                  Pegá tu primer DOI o cita cruda arriba<br />
-                  para empezar tu lista.
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button type="button" onClick={handleResolveDoi} disabled={isLoading || !rawInput.trim()} className="btn btn-primary" style={{ fontSize: '12px', padding: '5px 14px' }}>
+                    <Search size={13} /> Resolver DOI
+                  </button>
+                  <button type="button" onClick={handleAddManual} disabled={!rawInput.trim()} className="btn btn-secondary" style={{ fontSize: '12px', padding: '5px 14px' }}>
+                    <Plus size={13} /> Manual
+                  </button>
                 </div>
               </div>
               {detectedCount > 0 && (
@@ -168,6 +187,8 @@ export const ReferenciasView: React.FC = () => {
                       backgroundColor: selected ? 'rgba(79,124,255,0.12)' : 'transparent',
                       outline: selected ? '1px solid #4f7cff' : 'none',
                       boxSizing: 'border-box',
+                      overflowWrap: 'break-word',
+                      wordBreak: 'break-word',
                     }}
                     title="Clic para editar en el panel derecho"
                   >

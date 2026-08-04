@@ -257,27 +257,27 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                     <img
                       src={thumbUrl}
                       alt={label}
-                      style={{ width: '34px', height: '34px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
+                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                     />
                   ) : (
                     <div style={{
-                      width: '34px', height: '34px', borderRadius: '6px', flexShrink: 0,
+                      width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
                       color: 'var(--text-muted)',
                     }}>
-                      <Image size={14} />
+                      <Image size={18} />
                     </div>
                   )
                 ) : (
                   <div style={{
-                    width: '34px', height: '34px', borderRadius: '6px', flexShrink: 0,
+                    width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
                     color: 'var(--text-muted)',
                   }}>
-                    <Table size={14} />
+                    <Table size={18} />
                   </div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
