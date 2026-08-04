@@ -24,7 +24,7 @@ import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
-import { EditorSectionTabs } from './components/wizard/EditorSectionTabs';
+import { EditorRail } from './components/wizard/EditorRail';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { ResizablePanel } from './components/shared/ResizablePanel';
@@ -340,32 +340,21 @@ export const App: React.FC = () => {
         ) : (
           <>
             {/* ETAPA 2 — EDITOR UNIFICADO:
-                las sub-secciones del editor (portada, estructura, figuras,
-                cuerpo, referencias) viven dentro de esta etapa. */}
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
-              <div style={{
-                height: '40px', flexShrink: 0,
-                borderBottom: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--sidebar-bg)',
-                display: 'flex', alignItems: 'center',
-                padding: '0 8px',
-              }}>
-                <EditorSectionTabs />
+                rail lateral izquierdo de secciones + contenido del editor. */}
+            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
+              <EditorRail />
+              <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
+                {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
+                {wizardStep === 1 && <Step1PortadaWizard />}
+                {wizardStep === 2 && <Step2HeadingsWizard />}
+                {wizardStep === 3 && <Step3FiguresTablesWizard />}
+                {wizardStep === 4 && <Step5BodyWizard />}
+                {wizardStep === 5 && <Step5ReferencesWizard />}
               </div>
-              <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, minWidth: 0 }}>
-                <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
-                  {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
-                  {wizardStep === 1 && <Step1PortadaWizard />}
-                  {wizardStep === 2 && <Step2HeadingsWizard />}
-                  {wizardStep === 3 && <Step3FiguresTablesWizard />}
-                  {wizardStep === 4 && <Step5BodyWizard />}
-                  {wizardStep === 5 && <Step5ReferencesWizard />}
-                </div>
 
-                {/* Panel Derecho unificado (Layer 4): pestañas Actividad | Inspector.
-                    Solo visible cuando el usuario lo activa manualmente */}
-                <RightSidePanel />
-              </div>
+              {/* Panel Derecho unificado (Layer 4): pestañas Actividad | Inspector.
+                  Solo visible cuando el usuario lo activa manualmente */}
+              <RightSidePanel />
             </div>
           </>
         )}
