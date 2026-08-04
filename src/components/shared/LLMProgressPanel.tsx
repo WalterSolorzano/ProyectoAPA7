@@ -1,6 +1,6 @@
 /* WordAPA7 — LLM Classification Progress Panel */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Cpu,
   Zap,
@@ -20,6 +20,8 @@ interface LLMProgressPanelProps {
   onToggle: () => void;
   onClose: () => void;
   onOpenDiagnostics: () => void;
+  /** Modo embebido (Layer 4): vive dentro del panel Actividad, sin posicionamiento fijo */
+  embedded?: boolean;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -54,10 +56,16 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
   onToggle,
   onClose,
   onOpenDiagnostics,
+  embedded = false,
 }) => {
   const isProcessing = progress.status === 'processing';
   const isComplete = progress.status === 'complete';
   const isError = progress.status === 'error';
+
+  // En modo embebido el estado expandido es interno (no lo controla el padre)
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = embedded ? localExpanded : isExpanded;
+  const toggle = () => (embedded ? setLocalExpanded(!localExpanded) : onToggle());
 
   // Modo heurístico = sin proveedor LLM activo (no se usó IA real)
   const isHeuristic = isComplete && !progress.current_provider;
@@ -67,9 +75,16 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
       ? Math.round((progress.elements_processed / progress.elements_total) * 100)
       : 0;
 
-  return (
-    <div
-      style={{
+  const rootStyle: React.CSSProperties = embedded
+    ? {
+        backgroundColor: 'var(--surface-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+        overflow: 'hidden',
+        marginBottom: '12px',
+      }
+    : {
         position: 'fixed',
         bottom: '34px',
         right: '16px',
@@ -83,8 +98,10 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
           : '0 8px 24px rgba(0,0,0,0.5)',
         transition: 'box-shadow 0.3s ease',
         overflow: 'hidden',
-      }}
-    >
+      };
+
+  return (
+    <div style={rootStyle}>
       {/* Compact bar (always visible) */}
       <div
         style={{
@@ -94,7 +111,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
           padding: '8px 16px',
           cursor: 'pointer',
         }}
-        onClick={onToggle}
+        onClick={toggle}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
           {/* Status indicator */}

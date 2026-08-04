@@ -14,7 +14,6 @@ import { StatusBar } from './components/layout/StatusBar';
 import { Step0QuickStart } from './components/wizard/Step0QuickStart';
 import { SettingsPreviewStudio } from './components/settings/SettingsPreviewStudio';
 import { DownloadModal } from './components/wizard/DownloadModal';
-import { DocumentMascot, getMascotExpression } from './components/layout/DocumentMascot';
 import { LoadingTips } from './components/layout/LoadingTips';
 import { DownloadSuccessOverlay } from './components/layout/DownloadSuccessOverlay';
 import { CommandPalette } from './components/CommandPalette';
@@ -26,17 +25,13 @@ import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTables
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
 
-import { LLMProgressPanel } from './components/shared/LLMProgressPanel';
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { ResizablePanel } from './components/shared/ResizablePanel';
-import { Toast } from './components/shared/Toast';
 import { OnboardingTour } from './components/shared/OnboardingTour';
 import * as api from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
-import { ReviewPanel } from './components/reviewer/ReviewPanel';
-import { ContentReviewPanel } from './components/reviewer/ContentReviewPanel';
-import { AIStudioPanel } from './components/shared/AIStudioPanel';
 import { DesignAuditor } from './components/auditor/DesignAuditor';
+import { RightSidePanel } from './components/activity/RightSidePanel';
 import { syncAllProviderKeys } from './api/backend';
 
 const pendingCountForPhase = (phaseId: number) => {
@@ -63,46 +58,16 @@ export const App: React.FC = () => {
     redo,
     wizardStep,
     setWizardStep,
-    llmProgress,
     setIsNIMDiagnosticsOpen,
     viewMode,
-    forceRightPanelOpen,
     settingsStudioOpen,
     commandPaletteOpen,
     atHome,
     goHome,
     tabs,
-    isReviewOpen,
-    isContentReviewOpen,
-    aiStudioOpen,
     auditorMode,
     setAuditorMode,
   } = useDocStore();
-
-  const [llmProgressExpanded, setLlmProgressExpanded] = useState(false);
-
-  // Auto-oculta el panel de progreso unos segundos después de completar o fallar,
-  // para que no quede cubriendo la sección (el usuario pidió que se empequeñezca/solo)
-  useEffect(() => {
-    if (llmProgress.status !== 'complete' && llmProgress.status !== 'error') return;
-    const t = setTimeout(() => {
-      useDocStore.setState({
-        llmProgress: {
-          status: 'idle',
-          total_batches: 0,
-          completed_batches: 0,
-          current_provider: '',
-          current_provider_id: '',
-          elements_processed: 0,
-          elements_total: 0,
-          estimated_time_remaining_seconds: 0,
-          provider_fallbacks: [],
-          last_error: null,
-        },
-      });
-    }, 9000);
-    return () => clearTimeout(t);
-  }, [llmProgress.status, llmProgress.elements_total]);
 
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
   // This prevents the app from auto-loading the last document on startup (Word behavior)
@@ -202,10 +167,7 @@ export const App: React.FC = () => {
       // Escape cierra las UIs superpuestas de mayor a menor prioridad
       if (e.key === 'Escape') {
         const s = useDocStore.getState();
-        if (s.isReviewOpen) { s.setReviewOpen(false); return; }
-        if (s.isContentReviewOpen) { s.setContentReviewOpen(false); return; }
         if (s.isNIMDiagnosticsOpen) { s.setIsNIMDiagnosticsOpen(false); return; }
-        if (s.aiStudioOpen) { s.setAiStudioOpen(false); return; }
         if (s.commandPaletteOpen) { s.setCommandPaletteOpen(false); return; }
         if (s.showFileMenu) { s.setShowFileMenu(false); return; }
         if (s.isDownloadModalOpen) { s.setDownloadModalOpen(false); return; }
@@ -322,7 +284,6 @@ export const App: React.FC = () => {
           onClose={() => useDocStore.setState({ settingsStudioOpen: false })}
         />
         <LoadingTips />
-        <Toast />
       </>
     );
   }
@@ -340,11 +301,7 @@ export const App: React.FC = () => {
         <Step0QuickStart />
         {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
         <LoadingTips />
-        {isReviewOpen && <ReviewPanel />}
-        {aiStudioOpen && <AIStudioPanel />}
-        <ContentReviewPanel />
         <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
-        <Toast />
       </>
     );
   }
@@ -358,7 +315,6 @@ export const App: React.FC = () => {
           <StatusBar />
         </div>
         <LoadingTips />
-        <Toast />
       </>
     );
   }
@@ -407,51 +363,17 @@ export const App: React.FC = () => {
               {wizardStep === 5 && <Step5ReferencesWizard />}
             </div>
 
-            {/* Panel Derecho: solo visible cuando el usuario lo activa manualmente */}
-            {forceRightPanelOpen && (
-              <ResizablePanel side="right" defaultWidth={320} minWidth={250} maxWidth={600} localStorageKey="wordapa7-inspector-width">
-                <div className="inspector-pane" style={{
-                  flexShrink: 0, display: 'flex', flexDirection: 'column',
-                  height: '100%', overflow: 'hidden',
-                  background: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
-                }}>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <ElementInspector />
-                  </div>
-                </div>
-              </ResizablePanel>
-            )}
+            {/* Panel Derecho unificado (Layer 4): pestañas Actividad | Inspector.
+                Solo visible cuando el usuario lo activa manualmente */}
+            <RightSidePanel />
           </>
         )}
       </div>
 
-      {/* LLM Progress Panel — shows during/after classification */}
-      {(llmProgress.status === 'processing' ||
-        llmProgress.status === 'complete' ||
-        llmProgress.status === 'error') && (
-        <LLMProgressPanel
-          progress={llmProgress}
-          isExpanded={llmProgressExpanded}
-          onToggle={() => setLlmProgressExpanded(!llmProgressExpanded)}
-          onClose={() => useDocStore.setState({ llmProgress: {
-            status: 'idle',
-            total_batches: 0,
-            completed_batches: 0,
-            current_provider: '',
-            current_provider_id: '',
-            elements_processed: 0,
-            elements_total: 0,
-            estimated_time_remaining_seconds: 0,
-            provider_fallbacks: [],
-            last_error: null,
-          }})}
-          onOpenDiagnostics={() => setIsNIMDiagnosticsOpen(true)}
-        />
-      )}
-
       {/* Template Dialog */}
       <TemplateDialog />
 
+      {/* Onboarding como tooltips (primera vez) */}
       <OnboardingTour />
 
       <DownloadModal />
@@ -459,49 +381,6 @@ export const App: React.FC = () => {
       <LLMConsentDialog />
 
       {doc && commandPaletteOpen && <CommandPalette />}
-
-      <Toast />
-
-      {/* Mascota fija en la esquina — clickable con burbuja "Tocame" */}
-      {doc && (
-        <div
-          className="doc-mascot-corner"
-          onClick={() => {
-            const s = useDocStore.getState();
-            const ex = getMascotExpression();
-            if (ex === 'worried' || ex === 'curious') {
-              s.setContentReviewOpen(true);
-            } else {
-              s.setReviewOpen(true);
-            }
-          }}
-          style={{ cursor: 'pointer' }}
-          role="button"
-          aria-label="Abrir revisión"
-        >
-          {(() => {
-            const ex = getMascotExpression();
-            if (ex === 'worried' || ex === 'curious') {
-              return (
-                <div className="doc-mascot-bubble">
-                  {ex === 'worried' ? '¡Tocame! Hay cosas que revisar' : 'Oye, tocame un segundo'}
-                </div>
-              );
-            }
-            return null;
-          })()}
-          <DocumentMascot size={48} />
-          <span className="doc-mascot-label">
-            {(() => {
-              const ex = getMascotExpression();
-              if (ex === 'worried') return 'hay cosas por revisar';
-              if (ex === 'curious') return 'con un par de cositas';
-              if (ex === 'excited') return 'todo limpio';
-              return 'todo tranqui';
-            })()}
-          </span>
-        </div>
-      )}
 
       {/* Pantalla de carga estilo juego (mascota + tips) */}
       <LoadingTips />
@@ -512,12 +391,7 @@ export const App: React.FC = () => {
       <StatusBar />
       <AIBatteryIndicator />
 
-      {isReviewOpen && <ReviewPanel />}
-
-      {isContentReviewOpen && <ContentReviewPanel />}
-
-      {aiStudioOpen && <AIStudioPanel />}
-        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
+      <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
     </div>
   );
 };

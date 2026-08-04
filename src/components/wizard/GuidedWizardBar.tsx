@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, AlignLeft, BookOpen, ShieldCheck, ClipboardCheck } from 'lucide-react';
+import { Layout, Type, Image, AlignLeft, BookOpen, ShieldCheck } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
 
 export const WIZARD_STEPS = [
@@ -26,13 +26,15 @@ const getPendingCount = (stepId: number) => {
 };
 
 export const GuidedWizardBar: React.FC = () => {
-  const { doc, wizardStep, setWizardStep, runAIReview, isReviewOpen, setReviewOpen, reviewResult } = useDocStore();
+  const { doc, wizardStep, setWizardStep, runAIReview, isReviewLoading, reviewResult, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
 
   const openReviewer = () => {
-    if (!isReviewOpen && !reviewResult) {
+    // Layer 4: el resultado de la revisión IA vive en la pestaña Actividad
+    if (!isReviewLoading && !reviewResult) {
       runAIReview();
     }
-    setReviewOpen(true);
+    setForceRightPanelOpen(true);
+    setRightPanelTab('activity');
   };
 
   return (
@@ -79,38 +81,18 @@ export const GuidedWizardBar: React.FC = () => {
       {/* Separador */}
       <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--color-border-subtle)', margin: '0 6px', flexShrink: 0 }} />
 
-      {/* Tab Revisión de contenido — separada del formato */}
+      {/* Tab Revisor IA — el resultado se muestra en el panel Actividad */}
       <button
         type="button"
-        onClick={() => useDocStore.getState().setContentReviewOpen(true)}
-        disabled={!doc}
-        title="Revisión de contenido: objetivos (Bloom), introducción, hipótesis, metodología, resumen y conclusiones"
+        onClick={openReviewer}
+        disabled={!doc || isReviewLoading}
+        title="Revisor IA + Ortografía por párrafo (resultado en el panel Actividad)"
         style={{
           display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
           padding: '0 12px', cursor: 'pointer',
           border: 'none', background: 'transparent',
           color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 600,
           height: '100%', whiteSpace: 'nowrap', opacity: doc ? 1 : 0.5,
-        }}
-      >
-        <ClipboardCheck size={14} style={{ color: 'var(--color-accent)' }} />
-        <span className="wizard-tab-label">Contenido</span>
-      </button>
-
-      {/* Tab Revisor IA — primer nivel */}
-      <button
-        type="button"
-        onClick={openReviewer}
-        disabled={!doc}
-        title="Revisor IA + Ortografía por párrafo"
-        style={{
-          display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
-          padding: '0 12px', cursor: 'pointer',
-          border: 'none', background: 'transparent',
-          color: isReviewOpen ? 'var(--color-accent)' : 'var(--color-text-primary)',
-          fontSize: '12px', fontWeight: 600, height: '100%', whiteSpace: 'nowrap',
-          borderBottom: isReviewOpen ? '2px solid var(--color-accent)' : '2px solid transparent',
-          opacity: doc ? 1 : 0.5,
         }}
       >
         <ShieldCheck size={14} style={{ color: 'var(--color-accent)' }} />

@@ -18,6 +18,8 @@ export const StatusBar: React.FC = () => {
     lastRequestId,
     forceRightPanelOpen,
     setForceRightPanelOpen,
+    activityUnseen,
+    setRightPanelTab,
   } = useDocStore();
 
   if (!doc) return null;
@@ -105,9 +107,14 @@ export const StatusBar: React.FC = () => {
             </span>
           )}
 
-          {/* Preview Toggle */}
+          {/* Panel derecho unificado: Actividad | Inspector */}
           <button
-            onClick={() => setForceRightPanelOpen(!forceRightPanelOpen)}
+            onClick={() => {
+              const willOpen = !forceRightPanelOpen;
+              setForceRightPanelOpen(willOpen);
+              // Si hay actividad nueva sin ver, abrir directamente en Actividad
+              if (willOpen && activityUnseen > 0) setRightPanelTab('activity');
+            }}
             style={{
               background: forceRightPanelOpen ? 'rgba(79,124,255,0.15)' : 'transparent',
               border: forceRightPanelOpen ? '1px solid var(--accent-primary)' : '1px solid transparent',
@@ -118,12 +125,23 @@ export const StatusBar: React.FC = () => {
               fontSize: '10px',
               display: 'flex',
               alignItems: 'center',
+              gap: '5px',
               fontWeight: 600,
               transition: 'all 0.2s ease',
             }}
-            title="Alternar panel derecho (Inspector/Vista Previa)"
+            title="Alternar panel Actividad / Inspector"
           >
-            Vista Previa {forceRightPanelOpen ? 'On' : 'Off'}
+            Actividad {forceRightPanelOpen ? 'On' : 'Off'}
+            {activityUnseen > 0 && (
+              <span style={{
+                minWidth: '15px', height: '15px', borderRadius: '999px',
+                backgroundColor: 'var(--accent-primary)', color: '#fff',
+                fontSize: '9px', fontWeight: 800,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+              }}>
+                {activityUnseen > 99 ? '99+' : activityUnseen}
+              </span>
+            )}
           </button>
 
           {/* Zoom Slider */}

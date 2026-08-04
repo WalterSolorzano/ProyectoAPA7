@@ -9,7 +9,7 @@ const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
 const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { llmProgress, runLLMClassify, setIsNIMDiagnosticsOpen, isLoading, isBackendReady, doc, setAiStudioOpen } = useDocStore();
+  const { llmProgress, runLLMClassify, setIsNIMDiagnosticsOpen, isLoading, isBackendReady, doc } = useDocStore();
 
   const busy = isLoading || llmProgress.status === 'processing';
   const disabled = !isBackendReady || !doc || busy;
@@ -86,18 +86,6 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-        <button
-          type="button"
-          onClick={() => { setAiStudioOpen(true); onClose(); }}
-          style={{
-            flex: 1, padding: '7px 10px', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
-            background: 'rgba(79,124,255,0.10)', color: 'var(--accent-primary)',
-            border: '1px solid rgba(79,124,255,0.3)', fontSize: '12px', fontWeight: 600,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-          }}
-        >
-          <Cpu size={13} /> IA Studio
-        </button>
         <button
           type="button"
           onClick={() => { useDocStore.getState().setAuditorMode(true); onClose(); }}

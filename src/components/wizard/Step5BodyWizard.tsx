@@ -13,7 +13,7 @@ const SPACING_OPTIONS = [
 ];
 
 export const Step5BodyWizard: React.FC = () => {
-  const { rules, setRules, doc, runAIReview, setReviewOpen } = useDocStore();
+  const { rules, setRules, doc, runAIReview, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
 
   if (!doc) return null;
 
@@ -131,13 +131,14 @@ export const Step5BodyWizard: React.FC = () => {
                 <Badge tone="success">Disponible</Badge>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 8px' }}>
-                Revisa ortografía, gramática y detección de texto generado por IA directamente en el panel del Revisor.
+                Revisa ortografía, gramática y detección de texto generado por IA. El resultado aparece en el panel Actividad.
               </p>
               <button
                 type="button"
                 onClick={async () => {
                   await runAIReview();
-                  setReviewOpen(true);
+                  setForceRightPanelOpen(true);
+                  setRightPanelTab('activity');
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px',

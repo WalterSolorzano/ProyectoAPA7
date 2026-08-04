@@ -8,6 +8,15 @@ import * as api from '../api/backend';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult } from '../api/backend';
 import { setRequestIdListener } from '../api/http';
 
+/** Un evento del feed de actividad del panel derecho unificado (Layer 4). */
+export interface ActivityEvent {
+  id: string;
+  kind: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  detail?: string;
+  time: number;
+}
+
 const idbStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     return (await get(name)) || null;
@@ -94,6 +103,15 @@ interface DocState {
   showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', action?: { label: string; onClick: () => void }) => void;
   toasts: { id: string; message: string; type: 'success' | 'error' | 'info' | 'warning'; action?: { label: string; onClick: () => void } }[];
   removeToast: (id: string) => void;
+
+  // Panel derecho unificado (Layer 4): pestañas Actividad | Inspector
+  rightPanelTab: 'activity' | 'inspector';
+  setRightPanelTab: (tab: 'activity' | 'inspector') => void;
+  /** Cantidad de eventos de actividad aún no vistos (badge en la barra de estado) */
+  activityUnseen: number;
+  /** Feed de actividad (notificaciones, clasificación, validación, revisiones) */
+  activityEvents: ActivityEvent[];
+  pushActivityEvent: (kind: ActivityEvent['kind'], title: string, detail?: string) => void;
 
   // Debug request tracing
   lastRequestId: string | null;
@@ -392,6 +410,27 @@ export const useDocStore = create<DocState>()(
   viewMode: 'edit',
   forceRightPanelOpen: false,
   setForceRightPanelOpen: (open: boolean) => set({ forceRightPanelOpen: open }),
+  rightPanelTab: 'inspector',
+  setRightPanelTab: (tab) => set((state) => ({
+    rightPanelTab: tab,
+    // Abrir la pestaña Actividad marca todos los eventos como vistos
+    activityUnseen: tab === 'activity' ? 0 : state.activityUnseen,
+  })),
+  activityUnseen: 0,
+  activityEvents: [],
+  pushActivityEvent: (kind, title, detail) => set((state) => ({
+    activityEvents: [
+      {
+        id: `act_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        kind,
+        title,
+        detail,
+        time: Date.now(),
+      },
+      ...state.activityEvents,
+    ].slice(0, 60),
+    activityUnseen: state.activityUnseen + 1,
+  })),
   imagePanelOpen: false,
   setImagePanelOpen: (open: boolean) => set({ imagePanelOpen: open }),
   tabs: [],
@@ -461,6 +500,17 @@ export const useDocStore = create<DocState>()(
     set((state) => ({
       toastMessage: message,
       toasts: [...state.toasts.slice(-2), { id, message, type, action }],
+      // Layer 4: los toasts también viven en el feed de actividad del panel
+      activityEvents: [
+        {
+          id: `act_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          kind: type,
+          title: message,
+          time: Date.now(),
+        },
+        ...state.activityEvents,
+      ].slice(0, 60),
+      activityUnseen: state.activityUnseen + 1,
     }));
     setTimeout(() => {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
@@ -627,10 +677,16 @@ export const useDocStore = create<DocState>()(
   runAIReview: async () => {
     const { doc } = get();
     if (!doc) return;
-    set({ isReviewLoading: true, isReviewOpen: true });
+    set({ isReviewLoading: true });
+    get().pushActivityEvent('info', 'Iniciando revisión IA del documento…');
     try {
       const result = await api.runAIReview(doc.session_id);
       set({ reviewResult: result, isReviewLoading: false });
+      get().pushActivityEvent(
+        'success',
+        `Revisión IA completada: ${result.total_paragraphs} párrafos`,
+        result.flagged_count > 0 ? `${result.flagged_count} con señales de IA u ortografía. Resultados en la pestaña Actividad.` : 'Sin señales relevantes.',
+      );
       // Preflight report derivado del review (propuesta 3)
       const high = result.paragraphs.filter(p => p.ai_category === 'HIGH').length;
       const medium = result.paragraphs.filter(p => p.ai_category === 'MEDIUM').length;
@@ -646,7 +702,7 @@ export const useDocStore = create<DocState>()(
         },
       });
     } catch (err: any) {
-      set({ isReviewLoading: false, isReviewOpen: false });
+      set({ isReviewLoading: false });
       get().showToast(err.message || 'Error en el revisor IA', 'error');
     }
   },
@@ -741,6 +797,7 @@ export const useDocStore = create<DocState>()(
     } catch { /* no crítico */ }
 
     set({ isLoading: true, error: null });
+    get().pushActivityEvent('info', `Procesando ${file.name}…`);
     try {
       let doc = await api.uploadDocxFile(file, { profileId: opts?.profileId, mode: opts?.mode });
       doc = migrateDocument(doc);
@@ -781,6 +838,7 @@ export const useDocStore = create<DocState>()(
           wizardStep: 0,
         };
       });
+      get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
       if (opts?.mode === 'quick') {
         // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
         // se aceptan los elementos de alta confianza y se valida al vuelo.
@@ -803,6 +861,7 @@ export const useDocStore = create<DocState>()(
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al procesar archivo', isLoading: false });
+      get().pushActivityEvent('error', 'Error al procesar el archivo', err.message || 'Intenta de nuevo.');
     }
   },
 
@@ -959,7 +1018,14 @@ export const useDocStore = create<DocState>()(
       useDocStore.getState().showToast(
         `Clasificación completada: ${heads} títulos, ${figs} figuras, ${tabs} tablas. Abrir Revisor IA →`,
         'success',
-        { label: 'Abrir Revisor', onClick: () => useDocStore.getState().runAIReview() }
+        {
+          label: 'Abrir Revisor',
+          onClick: () => {
+            useDocStore.getState().runAIReview();
+            useDocStore.getState().setForceRightPanelOpen(true);
+            useDocStore.getState().setRightPanelTab('activity');
+          },
+        }
       );
     } catch (err: any) {
       if (pollInterval) clearInterval(pollInterval);
@@ -1091,7 +1157,10 @@ export const useDocStore = create<DocState>()(
     try {
       const data = await api.listProfiles();
       set({ profiles: data.profiles || [] });
-    } catch { /* el fallback a APA7 por defecto no bloquea el arranque */ }
+    } catch {
+      // Sin red/backend: quedan los perfiles persistidos en IndexedDB (partialize).
+      // El fallback a APA7 por defecto no bloquea el arranque.
+    }
   },
 
   setActiveProfile: async (profileId) => {
@@ -1167,6 +1236,11 @@ export const useDocStore = create<DocState>()(
       const issues = await api.validateDocument(doc.session_id, references);
 
       set({ validationIssues: issues });
+      get().pushActivityEvent(
+        'info',
+        `Validación APA: ${issues.length} hallazgo(s)`,
+        issues.length > 0 ? 'Revisá la pestaña Referencias → Validación para corregirlos.' : 'El documento cumple las reglas verificadas.',
+      );
     } catch (err: any) {
       console.error('Error validating document:', err);
     }
@@ -1179,6 +1253,11 @@ export const useDocStore = create<DocState>()(
     try {
       const result = await api.validateCitations(doc.session_id);
       set({ citationAuditResult: result });
+      get().pushActivityEvent(
+        'success',
+        'Auditoría de citas completada',
+        `${result.ghost_citations?.length ?? 0} cita(s) sin referencia, ${result.orphan_references?.length ?? 0} referencia(s) sin cita.`,
+      );
     } catch (err: any) {
       set({ error: err.message || 'Error al validar citas' });
       get().showToast(err.message, 'error');
@@ -1257,6 +1336,9 @@ export const useDocStore = create<DocState>()(
         portadaProfiles: state.portadaProfiles,
         aiProviderConfig: state.aiProviderConfig,
         activeProfileId: state.activeProfileId,
+        // Caché offline en IndexedDB: si /api/profiles falla (sin red), el
+        // selector de perfil sigue mostrando la última lista conocida.
+        profiles: state.profiles,
         // NOTE: doc, tabs, tabDocs, history intentionally NOT persisted
         // so the app always starts fresh (like Word opening without any file)
         hasSeenTour: state.hasSeenTour,
