@@ -153,6 +153,31 @@ NVIDIA_NIM_MODEL=meta/llama-3.1-70b-instruct
   local, como es típico en apps de escritorio. No compartas la carpeta del
   proyecto ni hagas backups que la incluyan.
 
+### Claves embebidas en el instalador (ofuscadas)
+
+Para que la IA funcione **sin configuración** en el instalador, las claves de
+los 10 proveedores se empaquetan dentro del instalador de forma **ofuscada**
+(XOR + base64 con semilla compartida), generadas por `python/embed_payload.py`
+desde tu `.env` local en cada `npm run build:backend`:
+
+1. El build lee tu `.env` (local, gitignoreado) y escribe
+   `python/_embedded_payload.json` (gitignoreado, nunca se sube a git).
+2. PyInstaller lo incluye como data en `_internal/_embedded_payload.json`.
+3. En runtime, `python/embedded_secrets.py` lo decodifica y lo inyecta en
+   `os.environ` **solo si la variable aún no está definida** (prioridad:
+   entorno del launcher > claves del usuario en `ai_keys.json` > embebidas).
+
+**Verificado**: ningún fragmento de 10+ caracteres de las claves reales aparece
+en el instalador (`WordAPA7 Setup *.exe`), `app.asar` ni el backend empaquetado.
+
+> ⚠️ **Límite honesto**: esto es *ofuscación*, no cifrado real. Cualquier
+> proceso que pueda *usar* la clave también puede *extraerla* (depurar la app o
+> volcar su memoria/entorno). Solo eleva la barrera contra extracción casual
+> (strings, grep, escaneo binario). **No distribuyas este instalador
+> públicamente**: todos los usuarios compartirían las mismas claves y cuota, y
+> los proveedores pueden bloquearlas. Para distribución pública, la solución
+> real es un proxy server-side (las claves nunca tocan el cliente).
+
 ---
 
 ## 🧪 Pruebas Automatizadas

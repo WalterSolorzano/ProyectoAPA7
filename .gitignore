@@ -26,6 +26,9 @@ sessions/
 *.docx
 !apa7_template.docx
 
+# Generated obfuscated key payload for the installer (never commit user keys)
+python/_embedded_payload.json
+
 # Editor files & OS metadata
 .vscode/
 .idea/

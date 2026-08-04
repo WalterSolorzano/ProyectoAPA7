@@ -29,6 +29,17 @@ try:
 except Exception as _e:
     print(f"[WARN] No se pudieron restaurar claves persistidas de IA: {_e}")
 
+# Fallback: claves de IA embebidas (ofuscadas) que viajan en el instalador,
+# para que funcione sin que el usuario configure nada. Prioridad menor a las
+# anteriores (solo se usan las que ya no esten definidas en os.environ).
+try:
+    from embedded_secrets import load_embedded_into_env
+    _emb = load_embedded_into_env()
+    if _emb:
+        print(f"[AI] {_emb} claves de IA cargadas desde paquete embebido (ofuscadas)")
+except Exception as _e2:
+    print(f"[WARN] No se pudieron cargar las claves embebidas de IA: {_e2}")
+
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError

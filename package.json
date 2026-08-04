@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "electron:dev": "vite",
     "electron:build": "npm run build:backend && npm run build && electron-builder",
-    "build:backend": "pyinstaller build/pyinstaller.spec --distpath dist-python --workpath build/pyinstaller-build -y"
+    "build:backend": "python python/embed_payload.py && pyinstaller build/pyinstaller.spec --distpath dist-python --workpath build/pyinstaller-build -y"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
