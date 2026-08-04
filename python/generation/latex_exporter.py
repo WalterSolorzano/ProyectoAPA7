@@ -3,17 +3,21 @@ WordAPA7 - LaTeX Exporter
 Generates semantic LaTeX code from the DocumentModel (Phase 8).
 """
 
-from typing import List
+from typing import List, Optional
 from models import DocumentModel, ElementType
+from profiles import get_profile
 
-def export_to_latex(doc: DocumentModel) -> str:
+def export_to_latex(doc: DocumentModel, profile_id: Optional[str] = None) -> str:
     """
-    Convierte el DocumentModel en un archivo LaTeX compilable (formato APA7).
+    Convierte el DocumentModel en un archivo LaTeX compilable, siguiendo la
+    clase y opciones del perfil de formato activo (APA7 usa la clase `apa7`,
+    revista científica la clase `article`).
     """
+    profile = get_profile(profile_id)
     lines = []
     
     # Preámbulo
-    lines.append(r"\documentclass[stu, 12pt]{apa7}")
+    lines.append(rf"\documentclass[{profile.latex_options}]{{{profile.latex_documentclass}}}")
     lines.append(r"\usepackage[utf8]{inputenc}")
     lines.append(r"\usepackage[spanish]{babel}")
     lines.append(r"\usepackage{csquotes}")
@@ -74,11 +78,12 @@ def export_to_latex(doc: DocumentModel) -> str:
             lines.append(r"")
             
     # Referencias (Simplified)
-    if doc.references:
+    if doc.referencias:
         lines.append(r"\section{Referencias}")
         lines.append(r"\begin{itemize}")
-        for ref in doc.references:
-            rt = ref.text.replace("&", r"\&").replace("%", r"\%").replace("$", r"\$") if ref.text else ""
+        for ref in doc.referencias:
+            raw = ref.formatted_apa or ref.raw_text or ""
+            rt = raw.replace("&", r"\&").replace("%", r"\%").replace("$", r"\$")
             lines.append(rf"\item {rt}")
         lines.append(r"\end{itemize}")
         

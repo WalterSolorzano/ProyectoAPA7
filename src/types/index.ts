@@ -227,11 +227,27 @@ export interface APARuleSet {
   // Figures and tables
   figure_label_prefix: string;
   table_label_prefix: string;
+  table_border_style?: 'apa' | 'grid';
 
   // Visual preview studio (optional, defaults applied in UI)
   image_alignment?: 'left' | 'center' | 'right';
   image_style?: 'plain' | 'journal';
   toc_style?: 'apa' | 'dotted' | 'plain';
+}
+
+// ── PERFILES DE FORMATO (config swappable, no código por perfil) ──────────────
+
+export interface FormatProfile {
+  profile_id: string;
+  display_name: string;
+  description: string;
+  rules: APARuleSet;
+  /** Campos de portada que el Health Check exige completos antes de descargar */
+  cover_required_fields: string[];
+  latex_documentclass: string;
+  latex_options: string;
+  /** "student" | "professional" — formato de portada por defecto del perfil */
+  cover_apa_format: string;
 }
 
 // ── PORTADA ───────────────────────────────────────────────────────────────────
@@ -382,6 +398,7 @@ export interface DocumentModel {
   session_id: string;
   file_name: string;
   apa_format: APAFormat;
+  profile_id?: string;
   elements: ElementModel[];
   has_landscape_sections: boolean;
   meta: DocumentMeta;

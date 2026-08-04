@@ -138,6 +138,8 @@ export const App: React.FC = () => {
           // para que "Refinar con IA", "Revisor" y "Generar 3 versiones" funcionen
           // sin tener que abrir antes el panel de Ajustes.
           syncAllProviderKeys().catch(() => {});
+          // Perfiles de formato disponibles (APA7, Revista Científica, ...)
+          useDocStore.getState().fetchProfiles().catch(() => {});
         }
       } catch (_) {}
     };
@@ -151,6 +153,7 @@ export const App: React.FC = () => {
         // El backend se reinició (watchdog) y perdió las claves de os.environ:
         // re-sincronizarlas para que la IA siga funcionando.
         syncAllProviderKeys().catch(() => {});
+        useDocStore.getState().fetchProfiles().catch(() => {});
         useDocStore.getState().showToast('Motor de procesamiento listo', 'success');
       });
 

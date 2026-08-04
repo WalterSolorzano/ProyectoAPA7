@@ -31,7 +31,7 @@ from generation.style_engine import (
     format_block_quote,
     normalize_global_body_spacing,
 )
-from generation.table_engine import set_table_apa7_borders, format_apa_table
+from generation.table_engine import set_table_borders, format_apa_table
 from generation.image_handler import format_apa_figure
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header

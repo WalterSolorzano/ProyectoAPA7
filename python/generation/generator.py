@@ -33,7 +33,7 @@ from generation.style_engine import (
     format_block_quote,
     set_run_font,
 )
-from generation.table_engine import set_table_apa7_borders, format_apa_table, fit_table_to_page, validate_table_widths
+from generation.table_engine import set_table_apa7_borders, set_table_borders, format_apa_table, fit_table_to_page, validate_table_widths
 from generation.image_handler import format_apa_figure
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
@@ -857,7 +857,8 @@ def generate_apa7_docx(
         else:
             paragraphs_before_body = format_apa_portada(doc, portada, rules)
     for table in doc.tables:
-        set_table_apa7_borders(table)
+        _tbl_style = getattr(rules, 'table_border_style', None)
+        set_table_borders(table, _tbl_style.value if _tbl_style else "apa")
 
     # 6. Mapear y aplicar estilos sobre los párrafos existentes del documento
     elem_map: dict[str, ElementModel] = {}
@@ -1116,7 +1117,8 @@ def generate_apa7_docx(
                 curr_tbl = existing_tables[matched_tbl_idx]
                 table_count_processed += 1
                 used_table_indices.add(matched_tbl_idx)
-                set_table_apa7_borders(curr_tbl)
+                _tbl_style = getattr(rules, 'table_border_style', None)
+                set_table_borders(curr_tbl, _tbl_style.value if _tbl_style else "apa")
                 fit_table_to_page(curr_tbl, rules, landscape=table_needs_landscape)
 
                 tbl_num = elem.table_info.table_number if (elem.table_info and elem.table_info.table_number > 0) else table_count_processed

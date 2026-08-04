@@ -1,4 +1,4 @@
-"""
+﻿"""
 WordAPA7 — Servidor Principal FastAPI
 
 Servidor Web unificado que expone los endpoints REST para la manipulacion de documentos
@@ -68,6 +68,7 @@ from persistence.idempotency import check_idempotency, init_sqlite_db
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
 from modules.referencias_module import resolve_doi
 from create_template import create_apa7_template
+from profiles import get_profile, list_profiles, FormatProfile
 
 
 # ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
@@ -113,6 +114,14 @@ _DEFAULT_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8742",
     "app://-",
 ]
+
+
+def _session_rules(doc: DocumentModel, req_rules: Optional[APARuleSet] = None) -> APARuleSet:
+    """Reglas de formato: las del request (perfil elegido en el cliente) o, si
+    no vienen, las persistidas en la sesión (perfil del documento)."""
+    if req_rules is not None:
+        return req_rules
+    return doc.apa_rules if doc.apa_rules else APARuleSet()
 _env_origins = os.environ.get("WORDAPA7_ALLOWED_ORIGINS", "").strip()
 _allowed_origins = (
     [o.strip() for o in _env_origins.split(",") if o.strip()]
@@ -577,6 +586,58 @@ async def start_blank_document(background_tasks: BackgroundTasks) -> DocumentMod
     return doc
 
 
+@app.get("/api/profiles")
+async def get_profiles_endpoint() -> dict:
+    """
+    Lista los perfiles de formato disponibles (config, no código).
+    El frontend construye selectores y labels a partir de esta lista.
+    """
+    profiles = list_profiles()
+    return {
+        "profiles": [
+            {
+                "profile_id": p.profile_id,
+                "display_name": p.display_name,
+                "description": p.description,
+                "rules": p.rules,
+                "cover_required_fields": p.cover_required_fields,
+                "latex_documentclass": p.latex_documentclass,
+                "latex_options": p.latex_options,
+                "cover_apa_format": p.cover_apa_format,
+            }
+            for p in profiles
+        ]
+    }
+
+
+class SetProfileRequest(BaseModel):
+    profile_id: str
+
+
+@app.post("/api/profile/{session_id}")
+async def set_session_profile(session_id: str, req: SetProfileRequest) -> DocumentModel:
+    """
+    Aplica un perfil de formato a la sesión: persiste profile_id + apa_rules
+    en el modelo, de modo que cualquier generación sin rules explícitas
+    (o una sesión recargada) use el perfil elegido.
+    """
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+
+    profile = get_profile(req.profile_id)
+    doc.profile_id = profile.profile_id
+    doc.apa_rules = profile.rules.model_copy(deep=True)
+    # El perfil define el formato de portada por defecto (student | professional)
+    fmt = profile.cover_apa_format
+    doc.apa_format = APAFormat.PROFESSIONAL if fmt == "professional" else APAFormat.STUDENT
+    if doc.meta:
+        doc.meta.apa_format = doc.apa_format
+
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
 @app.post("/api/upload")
 async def upload_docx(
     background_tasks: BackgroundTasks,
@@ -584,6 +645,7 @@ async def upload_docx(
     apa_format: Optional[str] = Form(None),
     work_mode: Optional[str] = Form(None),
     cover_page: Optional[str] = Form(None),
+    profile_id: Optional[str] = Form(None),
 ) -> DocumentModel:
     """
     Sube un documento .docx, lo parsea, extrae imagenes y genera la sesion inicial.
@@ -707,6 +769,14 @@ async def upload_docx(
 
         # Apply wizard settings to model
         doc_model.apa_format = fmt
+
+        # Aplicar perfil de formato si el cliente lo indica (Modo Rápido / selector de perfil)
+        if profile_id:
+            profile = get_profile(profile_id)
+            doc_model.profile_id = profile.profile_id
+            doc_model.apa_rules = profile.rules.model_copy(deep=True)
+            pfmt = profile.cover_apa_format
+            doc_model.apa_format = APAFormat.PROFESSIONAL if pfmt == "professional" else APAFormat.STUDENT
         if doc_model.meta:
             doc_model.meta.apa_format = fmt
             doc_model.meta.work_mode = mode
@@ -1565,7 +1635,7 @@ async def generate_preview(req: PreviewRequest) -> dict:
             detail="Sesion no encontrada.",
         )
 
-    rules: APARuleSet = req.rules if req.rules else APARuleSet()
+    rules: APARuleSet = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file: Path = out_dir / f"Preview_{doc.file_name}"
@@ -1613,7 +1683,7 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
     pdf_name = docx_name.rsplit(".", 1)[0] + ".pdf"
     pdf_path = out_dir / pdf_name
 
-    rules = req.rules or APARuleSet()
+    rules = _session_rules(doc, req.rules)
     portada = req.portada or PortadaData()
     references = req.references or []
 
@@ -1739,7 +1809,7 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
     if not doc:
         raise HTTPException(status_code=404, detail="Sesion no encontrada.")
 
-    rules = req.rules or APARuleSet()
+    rules = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / session_id / "preview_pages"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1818,7 +1888,7 @@ async def export_latex_endpoint(session_id: str):
         
     from generation.latex_exporter import export_to_latex
     try:
-        latex_code = export_to_latex(doc)
+        latex_code = export_to_latex(doc, profile_id=doc.profile_id)
         return {"latex": latex_code}
     except Exception as e:
         import traceback
@@ -1843,7 +1913,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
             detail="El documento no tiene elementos para generar. Sube un documento primero."
         )
 
-    rules: APARuleSet = req.rules if req.rules else APARuleSet()
+    rules: APARuleSet = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
     out_file: Path = out_dir / f"APA7_{doc.file_name}"
 
@@ -1933,7 +2003,7 @@ async def generate_tracked_docx_endpoint(req: GenerateRequest) -> dict:
             detail="Sesion no encontrada.",
         )
 
-    rules: APARuleSet = req.rules if req.rules else APARuleSet()
+    rules: APARuleSet = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
     out_file: Path = out_dir / f"Tracked_{doc.file_name}"
 

@@ -167,14 +167,13 @@ def validate_table_widths(doc: docx.Document, rules: APARuleSet) -> list[str]:
     return warnings
 
 
-def set_table_apa7_borders(table) -> None:
+def set_table_borders(table, style: str = "apa") -> None:
     """
-    Modifica el XML de la tabla para establecer bordes APA 7:
-    - Borde superior: simple (0.75 pt) en toda la tabla
-    - Borde inferior bajo el encabezado: simple (0.75 pt) SOLO en celdas de primera fila
-    - Borde inferior de tabla: simple (0.75 pt)
-    - Sin bordes verticales (left, right, insideV = none)
-    - Sin bordes horizontales internos (insideH = none, excepto bajo header)
+    Modifica el XML de la tabla para establecer bordes según el estilo del perfil:
+    - "apa": APA 7 — borde superior e inferior simples (0.75 pt), línea bajo el
+      encabezado, cero bordes verticales e internos.
+    - "grid": cuadrícula completa — todos los bordes simples (0.5 pt), típico
+      de revistas científicas y manuales.
     """
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -186,6 +185,36 @@ def set_table_apa7_borders(table) -> None:
     existing = tblPr.find(qn("w:tblBorders"))
     if existing is not None:
         tblPr.remove(existing)
+
+    if style == "grid":
+        borders_xml = parse_xml(
+            f'<w:tblBorders {nsdecls("w")}>'
+            f'  <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'  <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'  <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'  <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+            f'</w:tblBorders>'
+        )
+        tblPr.append(borders_xml)
+
+        # Evitar division de filas entre paginas (w:cantSplit)
+        for row in table.rows:
+            try:
+                trPr = row._tr.get_or_add_trPr()
+                trPr.append(parse_xml(f'<w:cantSplit {nsdecls("w")}/>'))
+            except Exception:
+                pass
+
+        # Marcar primera fila como encabezado repetible (w:tblHeader)
+        if len(table.rows) > 0:
+            try:
+                hdr_trPr = table.rows[0]._tr.get_or_add_trPr()
+                hdr_trPr.append(parse_xml(f'<w:tblHeader {nsdecls("w")}/>'))
+            except Exception:
+                pass
+        return
 
     borders_xml = parse_xml(
         f'<w:tblBorders {nsdecls("w")}>'
@@ -282,13 +311,18 @@ def set_table_apa7_borders(table) -> None:
                 pass
 
 
+def set_table_apa7_borders(table) -> None:
+    """Alias de compatibilidad: bordes APA 7 (solo horizontales)."""
+    set_table_borders(table, "apa")
+
+
 def format_apa_table(
     doc: docx.Document,
     table_data: TableModel,
     rules: APARuleSet,
 ) -> None:
     """
-    Inserta y formatea una tabla completa siguiendo las normas APA 7.
+    Inserta y formatea una tabla completa siguiendo las normas del perfil activo.
     """
     font_name: str = rules.font_family
     font_size: Pt = Pt(rules.font_size_pt)
@@ -327,7 +361,7 @@ def format_apa_table(
     )
 
     table = doc.add_table(rows=num_rows, cols=num_cols)
-    set_table_apa7_borders(table)
+    set_table_borders(table, rules.table_border_style.value)
     fit_table_to_page(table, rules, landscape=False)
 
     current_row_idx: int = 0

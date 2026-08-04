@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
-import { DocumentModel, ElementType, APARuleSet, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../types';
+import { DocumentModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../types';
 import * as api from '../api/backend';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult } from '../api/backend';
 import { setRequestIdListener } from '../api/http';
@@ -139,6 +139,9 @@ interface DocState {
   setSettingsStudioOpen: (open: boolean) => void;
   isDownloadModalOpen: boolean;
   setDownloadModalOpen: (open: boolean) => void;
+  /** True si el modal de descarga se abrió desde Modo Rápido (bloqueadores duros deshabilitan Descargar) */
+  pendingQuickExport: boolean;
+  clearQuickExport: () => void;
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
   hasSeenTour: boolean;
@@ -204,6 +207,11 @@ interface DocState {
 
   rules: APARuleSet;
   ruleProfiles: APARuleSet[];
+  /** Perfiles de formato disponibles (config servido por /api/profiles) */
+  profiles: FormatProfile[];
+  activeProfileId: string;
+  fetchProfiles: () => Promise<void>;
+  setActiveProfile: (profileId: string) => Promise<void>;
   portada: PortadaData;
   portadaProfiles: PortadaProfile[];
   references: ReferenciaModel[];
@@ -230,7 +238,7 @@ interface DocState {
   setHasUnsavedChanges: (val: boolean) => void;
 
   // Acciones Principales
-  uploadFile: (file: File) => Promise<void>;
+  uploadFile: (file: File, opts?: { profileId?: string; mode?: 'quick' | 'review' }) => Promise<void>;
   startBlankDocument: () => Promise<void>;
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
@@ -372,6 +380,8 @@ export const useDocStore = create<DocState>()(
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setDownloadModalOpen: (open: boolean) => set({ isDownloadModalOpen: open }),
+  pendingQuickExport: false,
+  clearQuickExport: () => set({ pendingQuickExport: false }),
   hasSeenTour: false,
   coverSetupDone: false,
   viewMode: 'edit',
@@ -422,6 +432,8 @@ export const useDocStore = create<DocState>()(
 
   rules: defaultRules,
   ruleProfiles: [defaultRules],
+  profiles: [],
+  activeProfileId: 'apa7',
   portada: defaultPortada,
   portadaProfiles: [{ profile_name: 'Portada Estándar', created_at: new Date().toISOString(), data: defaultPortada }],
   references: [],
@@ -715,7 +727,7 @@ export const useDocStore = create<DocState>()(
     }
   },
 
-  uploadFile: async (file) => {
+  uploadFile: async (file, opts) => {
     // Chistes contextuales: nombre de archivo tipo "final_v3" y reincidencia
     try {
       const { getFilenameComment, getRepeatComment } = await import('../lib/studentJokes');
@@ -725,8 +737,10 @@ export const useDocStore = create<DocState>()(
 
     set({ isLoading: true, error: null });
     try {
-      let doc = await api.uploadDocxFile(file);
+      let doc = await api.uploadDocxFile(file, { profileId: opts?.profileId, mode: opts?.mode });
       doc = migrateDocument(doc);
+      // Sincronizar reglas con el perfil elegido en la subida (si el backend lo aplicó)
+      const uploadedProfile = get().profiles.find((p) => p.profile_id === (opts?.profileId || doc.profile_id || 'apa7'));
       set((state) => {
         const newTab = { session_id: doc.session_id, file_name: doc.file_name };
         const newTabs = [...state.tabs, newTab];
@@ -749,6 +763,8 @@ export const useDocStore = create<DocState>()(
         return {
           doc,
           portada: updatedPortada,
+          rules: uploadedProfile ? uploadedProfile.rules : state.rules,
+          activeProfileId: uploadedProfile ? uploadedProfile.profile_id : state.activeProfileId,
           isLoading: true, // mantener loading hasta que clasificación termine
           tabs: newTabs,
           activeTabIndex: newTabs.length - 1,
@@ -760,6 +776,15 @@ export const useDocStore = create<DocState>()(
           wizardStep: 0,
         };
       });
+      if (opts?.mode === 'quick') {
+        // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
+        // se aceptan los elementos de alta confianza y se valida al vuelo.
+        set({ isLoading: false });
+        await get().acceptHighConfidenceElements().catch(() => {});
+        await get().runValidation().catch(() => {});
+        set({ isDownloadModalOpen: true, pendingQuickExport: true });
+        return;
+      }
       // Auto-disparar clasificación LLM en background
       const uncertainCount = doc.elements.filter(
         (e: any) => e.needs_review || (e.confidence < 0.85 && e.type !== 'empty' && e.type !== 'image' && e.type !== 'table')
@@ -1056,6 +1081,32 @@ export const useDocStore = create<DocState>()(
 
   setRules: (newRules) => set((state) => ({ rules: { ...state.rules, ...newRules } })),
 
+  fetchProfiles: async () => {
+    try {
+      const data = await api.listProfiles();
+      set({ profiles: data.profiles || [] });
+    } catch { /* el fallback a APA7 por defecto no bloquea el arranque */ }
+  },
+
+  setActiveProfile: async (profileId) => {
+    const profile = get().profiles.find((p) => p.profile_id === profileId);
+    if (!profile) return;
+    set({ activeProfileId: profileId, rules: profile.rules });
+    const doc = get().doc;
+    if (doc) {
+      try {
+        const updated = await api.setSessionProfile(doc.session_id, profileId);
+        const migrated = migrateDocument(updated);
+        set((state) => ({
+          doc: migrated,
+          tabDocs: { ...state.tabDocs, [doc.session_id]: migrated },
+        }));
+      } catch (err: any) {
+        useDocStore.getState().showToast(err.message || 'Error al aplicar el perfil', 'error');
+      }
+    }
+  },
+
   saveRuleProfile: (name) => set((state) => {
     const profile = { ...state.rules, profile_name: name, is_default: false };
     return { ruleProfiles: [...state.ruleProfiles, profile] };
@@ -1199,6 +1250,7 @@ export const useDocStore = create<DocState>()(
         ruleProfiles: state.ruleProfiles,
         portadaProfiles: state.portadaProfiles,
         aiProviderConfig: state.aiProviderConfig,
+        activeProfileId: state.activeProfileId,
         // NOTE: doc, tabs, tabDocs, history intentionally NOT persisted
         // so the app always starts fresh (like Word opening without any file)
         hasSeenTour: state.hasSeenTour,

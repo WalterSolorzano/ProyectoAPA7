@@ -16,9 +16,14 @@ import { getApiBase, fetchWithTrace } from './http';
 
 export { getApiBase, resolveAssetUrl } from './http';
 
-export async function uploadDocxFile(file: File): Promise<DocumentModel> {
+export async function uploadDocxFile(
+  file: File,
+  opts?: { profileId?: string; mode?: 'quick' | 'review' }
+): Promise<DocumentModel> {
   const formData = new FormData();
   formData.append('file', file);
+  if (opts?.profileId) formData.append('profile_id', opts.profileId);
+  if (opts?.mode) formData.append('work_mode', opts.mode);
 
   const res = await fetchWithTrace(`${getApiBase()}/upload`, {
     method: 'POST',
@@ -30,6 +35,33 @@ export async function uploadDocxFile(file: File): Promise<DocumentModel> {
     throw new Error(err.detail || 'Error al subir el archivo');
   }
 
+  return res.json();
+}
+
+export async function listProfiles(): Promise<{
+  profiles: import('../types').FormatProfile[];
+}> {
+  const res = await fetchWithTrace(`${getApiBase()}/profiles`, { method: 'GET' });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al listar perfiles');
+  }
+  return res.json();
+}
+
+export async function setSessionProfile(
+  sessionId: string,
+  profileId: string
+): Promise<DocumentModel> {
+  const res = await fetchWithTrace(`${getApiBase()}/profile/${sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al aplicar perfil');
+  }
   return res.json();
 }
 

@@ -54,6 +54,11 @@ class APAFormat(str, Enum):
     PROFESSIONAL = "professional"
 
 
+class TableBorderStyle(str, Enum):
+    APA  = "apa"    # solo bordes horizontales (estilo APA 7)
+    GRID = "grid"   # cuadrícula completa (revistas científicas / manuales)
+
+
 class CitationType(str, Enum):
     PARENTETICA = "parentetica"    # (García, 2023)
     NARRATIVA   = "narrativa"      # García (2023)
@@ -131,6 +136,7 @@ class APARuleSet(BaseModel):
     # Figuras y tablas
     figure_label_prefix: str = "Figura"
     table_label_prefix: str = "Tabla"
+    table_border_style: TableBorderStyle = TableBorderStyle.APA
 
 
 # ── SECCIONES ────────────────────────────────────────────────────────────────
@@ -253,6 +259,7 @@ class DocumentModel(BaseModel):
     session_id: str = ""
     file_name: str = ""
     apa_format: APAFormat = APAFormat.STUDENT
+    profile_id: str = "apa7"
     elements: list[ElementModel] = Field(default_factory=list)
     has_landscape_sections: bool = False
     meta: DocumentMeta = Field(default_factory=DocumentMeta)
