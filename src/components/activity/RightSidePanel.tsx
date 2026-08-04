@@ -10,7 +10,8 @@ import React, { useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ResizablePanel } from '../shared/ResizablePanel';
 import { ElementInspector } from '../inspector/ElementInspector';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2, RotateCw, Activity, ShieldAlert, FileText, Download, ListChecks, Sparkles, X } from 'lucide-react';
+import { ReferenceForm } from '../referencias/ReferenceForm';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2, RotateCw, Activity, ShieldAlert, FileText, Download, ListChecks, Sparkles, X, BookOpen } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   success: <CheckCircle2 size={15} color="var(--color-success)" />,
@@ -33,17 +34,23 @@ function timeAgo(t: number): string {
 export const RightSidePanel: React.FC = () => {
   const {
     forceRightPanelOpen, setForceRightPanelOpen,
-    selectedElementId, doc,
+    selectedElementId, selectedReferenceId, doc, wizardStep,
   } = useDocStore();
 
-  // Se abre automáticamente al seleccionar un elemento
+  // Se abre automáticamente al seleccionar un elemento o una referencia
   useEffect(() => {
-    if (selectedElementId && doc) setForceRightPanelOpen(true);
-  }, [selectedElementId, doc, setForceRightPanelOpen]);
+    if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
+  }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
 
   if (!forceRightPanelOpen) return null;
 
   const hasSelection = !!selectedElementId && !!doc;
+  const hasReference = !hasSelection && !!selectedReferenceId;
+
+  const sectionNames: Record<number, string> = {
+    1: 'Portada', 2: 'Estructura', 3: 'Figuras y tablas', 4: 'Cuerpo', 5: 'Referencias',
+  };
+  const currentSection = sectionNames[wizardStep] || '';
 
   return (
     <ResizablePanel side="right" defaultWidth={300} minWidth={260} maxWidth={620} localStorageKey="wordapa7-inspector-width">
@@ -60,11 +67,13 @@ export const RightSidePanel: React.FC = () => {
         }}>
           {hasSelection ? (
             <ListChecks size={14} color="var(--accent-primary)" />
+          ) : hasReference ? (
+            <BookOpen size={14} color="var(--accent-primary)" />
           ) : (
             <FileText size={14} color="var(--accent-primary)" />
           )}
           <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-            {hasSelection ? 'Inspector de elemento' : 'Documento'}
+            {hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` · ${currentSection}` : ''}`}
           </span>
           <div style={{ flex: 1 }} />
           <button
@@ -79,7 +88,13 @@ export const RightSidePanel: React.FC = () => {
         </div>
 
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          {hasSelection ? <ElementInspector /> : <DocumentPanel />}
+          {hasSelection ? (
+            <ElementInspector />
+          ) : hasReference ? (
+            <ReferenceForm key={selectedReferenceId} />
+          ) : (
+            <DocumentPanel />
+          )}
         </div>
       </div>
     </ResizablePanel>

@@ -91,6 +91,8 @@ interface DocState {
   isBackendReady: boolean;  // true cuando el motor Python ha confirmado que está listo
   error: string | null;
   selectedElementId: string | null;
+  /** Referencia seleccionada en el Editor Unificado (sección Referencias). */
+  selectedReferenceId: string | null;
   zoomLevel: number;
   /** Estilo de tabla APA por elemento (solo preview; no afecta la generación del .docx) */
   tableStyles: Record<string, 'standard' | 'compact' | 'expanded'>;
@@ -239,6 +241,7 @@ interface DocState {
   setAiProviderConfig: (config: Partial<{ nimUrl: string, useLocal: boolean, providerId: string }>) => void;
   setWizardStep: (step: number) => void;
   setSelectedElementId: (id: string | null) => void;
+  setSelectedReferenceId: (id: string | null) => void;
   setShowTemplateDialog: (show: boolean) => void;
   fetchTemplates: () => Promise<void>;
   applyTemplate: (templateName: string) => Promise<void>;
@@ -365,6 +368,7 @@ export const useDocStore = create<DocState>()(
   isBackendReady: false,
   error: null,
   selectedElementId: null,
+  selectedReferenceId: null,
   zoomLevel: 100,
   tableStyles: {},
   llmProgress: defaultLLMProgress,
@@ -512,6 +516,7 @@ export const useDocStore = create<DocState>()(
   setLastRequestId: (id) => set({ lastRequestId: id }),
   setWizardStep: (step) => set({ wizardStep: step }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),
+  setSelectedReferenceId: (id) => set((state) => ({ selectedReferenceId: id })),
   setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
   setTableStyle: (elementId, style) => set((state) => ({ tableStyles: { ...state.tableStyles, [elementId]: style } })),
   setShowFileMenu: (show) => set({ showFileMenu: show }),

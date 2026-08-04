@@ -7,29 +7,19 @@ export const Step5ReferencesWizard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Selector de modo (compacto) */}
       <div style={{
-        padding: '12px 20px', flexShrink: 0,
+        padding: '6px 12px', flexShrink: 0,
         backgroundColor: 'var(--sidebar-bg)',
         borderBottom: '1px solid var(--border-subtle)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', gap: '8px',
       }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            Referencias y validación APA 7
-          </h2>
-          <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-            Gestioná las referencias y validá citas cruzadas con el texto
-          </p>
-        </div>
-
-        {/* Mode toggle */}
         <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
           <button
             type="button"
             onClick={() => setMode('list')}
             style={{
-              padding: '5px 12px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none',
+              padding: '4px 12px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: 'none',
               backgroundColor: mode === 'list' ? 'var(--color-accent-soft)' : 'transparent',
               color: mode === 'list' ? 'var(--accent-primary)' : 'var(--color-text-secondary)',
             }}
@@ -40,7 +30,7 @@ export const Step5ReferencesWizard: React.FC = () => {
             type="button"
             onClick={() => setMode('crosscheck')}
             style={{
-              padding: '5px 12px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none',
+              padding: '4px 12px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: 'none',
               borderLeft: '1px solid var(--border-subtle)',
               backgroundColor: mode === 'crosscheck' ? 'var(--color-accent-soft)' : 'transparent',
               color: mode === 'crosscheck' ? 'var(--accent-primary)' : 'var(--color-text-secondary)',

@@ -31,7 +31,14 @@ const getPendingCount = (stepId: number) => {
 };
 
 export const EditorRail: React.FC = () => {
-  const { wizardStep, setWizardStep } = useDocStore();
+  const { wizardStep, setWizardStep, setSelectedReferenceId } = useDocStore();
+
+  const goToSection = (id: number) => {
+    // Al cambiar de sección se limpia la referencia seleccionada para que el
+    // panel derecho cambie de contexto (no queda "estático" con el anterior).
+    setSelectedReferenceId(null);
+    setWizardStep(id);
+  };
 
   return (
     <div
@@ -51,7 +58,7 @@ export const EditorRail: React.FC = () => {
           <button
             key={section.id}
             type="button"
-            onClick={() => setWizardStep(section.id)}
+            onClick={() => goToSection(section.id)}
             title={`${section.title} — ${section.hint}`}
             aria-label={section.title}
             aria-current={isActive ? 'page' : undefined}
