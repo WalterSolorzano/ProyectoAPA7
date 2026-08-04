@@ -33,10 +33,11 @@ describe('Layer 4 — panel de actividad unificado', () => {
     expect(s.activityEvents.length).toBe(2);
   });
 
-  it('showToast también registra el evento en el feed de actividad', () => {
+  it('showToast NO ensucia el feed de actividad (solo el toast flotante)', () => {
     useDocStore.getState().showToast('Referencia agregada', 'success');
     const s = useDocStore.getState();
-    expect(s.activityEvents.some((e) => e.title === 'Referencia agregada' && e.kind === 'success')).toBe(true);
+    // Capa 2: los toasts son UI transitoria, no entran al panel de trabajo
+    expect(s.activityEvents.some((e) => e.title === 'Referencia agregada' && e.kind === 'success')).toBe(false);
     expect(s.toasts.length).toBe(1);
   });
 

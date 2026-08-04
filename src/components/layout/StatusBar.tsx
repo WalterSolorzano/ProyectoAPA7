@@ -19,7 +19,6 @@ export const StatusBar: React.FC = () => {
     forceRightPanelOpen,
     setForceRightPanelOpen,
     activityUnseen,
-    setRightPanelTab,
   } = useDocStore();
 
   if (!doc) return null;
@@ -107,13 +106,11 @@ export const StatusBar: React.FC = () => {
             </span>
           )}
 
-          {/* Panel derecho unificado: Actividad | Inspector */}
+          {/* Panel derecho contextual */}
           <button
             onClick={() => {
               const willOpen = !forceRightPanelOpen;
               setForceRightPanelOpen(willOpen);
-              // Si hay actividad nueva sin ver, abrir directamente en Actividad
-              if (willOpen && activityUnseen > 0) setRightPanelTab('activity');
             }}
             style={{
               background: forceRightPanelOpen ? 'rgba(79,124,255,0.15)' : 'transparent',
@@ -129,9 +126,9 @@ export const StatusBar: React.FC = () => {
               fontWeight: 600,
               transition: 'all 0.2s ease',
             }}
-            title="Alternar panel Actividad / Inspector"
+            title="Alternar panel contextual (cambia según lo que selecciones)"
           >
-            Actividad {forceRightPanelOpen ? 'On' : 'Off'}
+            Panel {forceRightPanelOpen ? 'On' : 'Off'}
             {activityUnseen > 0 && (
               <span style={{
                 minWidth: '15px', height: '15px', borderRadius: '999px',
