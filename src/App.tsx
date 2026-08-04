@@ -73,21 +73,6 @@ export const App: React.FC = () => {
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
   // This prevents the app from auto-loading the last document on startup (Word behavior)
 
-  // Saludo de bienvenida según la hora, una sola vez al abrir la app
-  useEffect(() => {
-    if (sessionStorage.getItem('wordapa7-greeting-shown')) return;
-    sessionStorage.setItem('wordapa7-greeting-shown', '1');
-    const hour = new Date().getHours();
-    const late = hour >= 1 && hour < 5;
-    const morning = hour >= 5 && hour < 12;
-    const afternoon = hour >= 12 && hour < 20;
-    let msg = 'buenas noches';
-    if (late) msg = 'buenas noches, vamos a formatear esto';
-    else if (morning) msg = 'buenos días';
-    else if (afternoon) msg = 'buenas tardes';
-    useDocStore.getState().showToast(msg, 'info');
-  }, []);
-
   // Global backend readiness: listen for the IPC event from Electron PythonManager
   // This is the SINGLE source of truth for isBackendReady across the entire app
   useEffect(() => {

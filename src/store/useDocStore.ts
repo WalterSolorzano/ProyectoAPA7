@@ -500,17 +500,9 @@ export const useDocStore = create<DocState>()(
     set((state) => ({
       toastMessage: message,
       toasts: [...state.toasts.slice(-2), { id, message, type, action }],
-      // Layer 4: los toasts también viven en el feed de actividad del panel
-      activityEvents: [
-        {
-          id: `act_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-          kind: type,
-          title: message,
-          time: Date.now(),
-        },
-        ...state.activityEvents,
-      ].slice(0, 60),
-      activityUnseen: state.activityUnseen + 1,
+      // NOTA (Layer 4, ruido): los toasts NO se empujan al feed de actividad.
+      // El panel de trabajo solo muestra eventos útiles (clasificación,
+      // validación, revisiones), no mensajes sociales ni de sistema.
     }));
     setTimeout(() => {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
