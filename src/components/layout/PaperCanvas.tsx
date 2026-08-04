@@ -171,7 +171,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       });
     }
 
-    // Resaltador del comentario estilo WhatsApp (lo que señala la burbuja)
+    // Resaltador del comentario estilo WhatsApp (lo que señala la burbuja).
+    // Si el comentario no trae un fragmento específico (match), se marca el
+    // texto completo del elemento para que el comentario SIEMPRE ancle a algo.
     if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
       const s = useDocStore.getState();
       const cmtCtx = {
@@ -181,12 +183,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       };
       const comment = getWhatsAppComment(elem, cmtCtx, 0);
       const m = comment?.match;
-      if (comment && m) {
-        // Búsqueda insensible a acentos/case para que el "tachado" aparezca
-        // siempre que la burbuja esté señalando un fragmento real del texto.
-        const found = findAccentAgnostic(plain, m);
-        if (found) {
-          marks.push({ start: found.start, end: found.end, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
+      if (comment) {
+        if (m) {
+          // Búsqueda insensible a acentos/case para que el "tachado" aparezca
+          // siempre que la burbuja esté señalando un fragmento real del texto.
+          const found = findAccentAgnostic(plain, m);
+          if (found) {
+            marks.push({ start: found.start, end: found.end, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
+          } else if (plain.trim()) {
+            // Fragmento no localizable → marcamos el párrafo completo.
+            marks.push({ start: 0, end: plain.length, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
+          }
+        } else if (plain.trim()) {
+          marks.push({ start: 0, end: plain.length, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
         }
       }
     }
@@ -228,7 +237,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       out.push(
         <mark key={`${m.start}-${i}`} title={m.title} style={{
           color, backgroundColor: bg,
-          textDecoration: isComment ? 'none' : isCitation ? 'none' : isSpell ? 'underline wavy #d4382e' : `underline dotted ${color}`,
+          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy #d4382e' : `underline dotted ${color}`,
           padding: '0 1px', borderRadius: 2,
         }}>
           {frag}
@@ -1315,18 +1324,24 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 </div>
               )}
             </div>
-            {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word) */}
+            {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word).
+                Muestra TODOS los comentarios de la página sin límite. Si la medida
+                offsetTop aún no está lista (primer paint) se distribuye por índice. */}
             {pageElements.filter((e) => positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null).length > 0 && (
-              <div style={{ position: 'relative', width: '250px', minHeight: '880px', flexShrink: 0 }}>
-                {pageElements.map((elem) => {
+              <div style={{ position: 'relative', width: '250px', flexShrink: 0 }}>
+                {pageElements.map((elem, idx) => {
                   const positive = !!positiveMap.get(elem.id);
                   const hasComment = positive || getWhatsAppComment(elem, commentCtx, 0) !== null;
                   if (!hasComment) return null;
+                  const measured = gutterOffsets[elem.id];
+                  const top = typeof measured === 'number' && measured > 0
+                    ? measured
+                    : Math.min(idx * 96, 880 - 84);
                   return (
                     <div
                       key={elem.id}
                       className="wa-gutter"
-                      style={{ position: 'absolute', top: `${gutterOffsets[elem.id] ?? 0}px`, left: 0, width: '100%' }}
+                      style={{ position: 'absolute', top: `${top}px`, left: 0, width: '100%' }}
                     >
                       <WhatsAppComment elem={elem} positive={positive} />
                     </div>

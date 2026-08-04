@@ -20,7 +20,7 @@ import { DocumentMascot } from './DocumentMascot';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
 
-const PROCESS_VERBS: string[] = [
+export const PROCESS_VERBS: string[] = [
   // Base
   'domesticando tablas…',
   'poniéndole orden a las comas…',
@@ -59,7 +59,7 @@ const PROCESS_VERBS: string[] = [
   'calibrando el interlineado al milímetro…',
 ];
 
-const JOKES: string[] = [
+export const JOKES: string[] = [
   // Base
   'leyendo tu bibliografía… ojalá no sea todo Wikipedia.',
   'verificando que "en conclusión" no se repita 47 veces…',
@@ -98,7 +98,7 @@ const JOKES: string[] = [
   'esto no lo escribió un robot… o sí. Nadie sabe.',
 ];
 
-const APA_FACTS: string[] = [
+export const APA_FACTS: string[] = [
   // Base
   'el error más común en trabajos de estudiante: olvidar el DOI. ¿vos lo tenés?',
   'APA 7: la sangría de párrafo va a 0.5 pulgadas. Ni más, ni menos.',

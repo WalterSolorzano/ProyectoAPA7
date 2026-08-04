@@ -1,113 +1,92 @@
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, AlignLeft, BookOpen, ShieldCheck } from 'lucide-react';
-import { needsReview } from '../../lib/portadaAuthors';
+import { UploadCloud, PenLine, Download, Check } from 'lucide-react';
 
-export const WIZARD_STEPS = [
-  { id: 1, title: 'Portada', icon: Layout, desc: 'Plantilla y metadatos' },
-  { id: 2, title: 'Estructura', icon: Type, desc: 'Jerarquía 1, 2, 3' },
-  { id: 3, title: 'Figuras y tablas', icon: Image, desc: 'Rotulación APA' },
-  { id: 4, title: 'Cuerpo', icon: AlignLeft, desc: 'Sangría y Listas' },
-  { id: 5, title: 'Referencias', icon: BookOpen, desc: 'Citas y bibliografía' },
+/* WordAPA7 — Barra de ETAPAS (3, no más).
+   1. INICIO / CARGAR  → 2. EDITOR UNIFICADO  → 3. DESCARGA & REPORTE
+   Los sub-pasos internos del editor (portada, estructura, figuras, cuerpo,
+   referencias) viven DENTRO de la etapa 2, nunca en la barra superior. */
+
+type Stage = 1 | 2 | 3;
+
+const STAGES: { id: Stage; title: string; icon: React.ReactNode; hint: string }[] = [
+  { id: 1, title: 'Inicio / Cargar', icon: <UploadCloud size={14} />, hint: 'Subí tu .docx' },
+  { id: 2, title: 'Editor unificado', icon: <PenLine size={14} />, hint: 'Revisá y corregí' },
+  { id: 3, title: 'Descarga & Reporte', icon: <Download size={14} />, hint: 'Exportá el resultado' },
 ];
 
-const getPendingCount = (stepId: number) => {
-  const doc = useDocStore.getState().doc;
-  if (!doc) return 0;
-  if (stepId === 2) {
-    return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
-  }
-  if (stepId === 3) {
-    const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
-    const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
-    return figures + tables;
-  }
-  return 0;
-};
-
 export const GuidedWizardBar: React.FC = () => {
-  const { doc, wizardStep, setWizardStep, runAIReview, isReviewLoading, reviewResult, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
+  const {
+    doc, atHome, goHome, isDownloadModalOpen, setDownloadModalOpen,
+    tabs, activeTabIndex, switchToTab, setShowFileMenu,
+  } = useDocStore();
 
-  const openReviewer = () => {
-    // Layer 4: el resultado de la revisión IA vive en la pestaña Actividad
-    if (!isReviewLoading && !reviewResult) {
-      runAIReview();
+  const activeStage: Stage = (!doc || atHome) ? 1 : (isDownloadModalOpen ? 3 : 2);
+
+  const goToStage = (stage: Stage) => {
+    if (stage === 1) {
+      setShowFileMenu(false);
+      setDownloadModalOpen(false);
+      goHome();
+      return;
     }
-    setForceRightPanelOpen(true);
-    setRightPanelTab('activity');
+    if (stage === 2) {
+      setDownloadModalOpen(false);
+      if (atHome && tabs.length > 0) {
+        switchToTab(activeTabIndex || 0);
+      }
+      return;
+    }
+    if (stage === 3 && doc) {
+      setDownloadModalOpen(true);
+      return;
+    }
   };
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '2px', height: '100%',
-      overflowX: 'auto', scrollbarWidth: 'thin',
-    }}>
-      {WIZARD_STEPS.map((step) => {
-        const Icon = step.icon;
-        const isActive = step.id === wizardStep;
-        const pendingCount = getPendingCount(step.id);
-
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '4px',
+        height: '100%',
+        overflowX: 'auto',
+        scrollbarWidth: 'thin',
+      }}
+    >
+      {STAGES.map((stage, i) => {
+        const isActive = stage.id === activeStage;
+        const disabled = stage.id === 3 && !doc;
         return (
-          <button
-            key={step.id}
-            type="button"
-            onClick={() => setWizardStep(step.id)}
-            title={`${step.title} — ${step.desc}`}
-            aria-current={isActive ? 'page' : undefined}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
-              padding: '0 12px', cursor: 'pointer',
-              border: 'none',
-              background: 'transparent',
-              color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-              fontSize: '12px', fontWeight: isActive ? 600 : 500,
-              height: '100%',
-              whiteSpace: 'nowrap', transition: 'color 0.15s ease',
-            }}
-          >
-            <Icon size={14} style={{ flexShrink: 0, color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }} />
-            <span className="wizard-tab-label">{step.title}</span>
-            {pendingCount > 0 && (
-              <span style={{
-                width: 4, height: 4, borderRadius: '50%',
-                backgroundColor: 'var(--color-warning)',
-                flexShrink: 0, marginLeft: -2,
-              }} />
+          <React.Fragment key={stage.id}>
+            {i > 0 && (
+              <Check size={12} style={{ flexShrink: 0, color: 'var(--text-muted)', margin: '0 2px' }} />
             )}
-          </button>
+            <button
+              type="button"
+              onClick={() => goToStage(stage.id)}
+              disabled={disabled}
+              title={`${stage.title} — ${stage.hint}`}
+              aria-current={isActive ? 'step' : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+                padding: '0 12px', cursor: disabled ? 'not-allowed' : 'pointer',
+                border: 'none', background: 'transparent',
+                height: '100%', whiteSpace: 'nowrap',
+                color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontSize: '12px', fontWeight: isActive ? 800 : 600,
+                opacity: disabled ? 0.45 : 1,
+                borderBottom: isActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                transition: 'color 0.15s ease',
+              }}
+            >
+              {stage.icon}
+              <span className="wizard-tab-label">{stage.title}</span>
+            </button>
+          </React.Fragment>
         );
       })}
-
-      {/* Separador */}
-      <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--color-border-subtle)', margin: '0 6px', flexShrink: 0 }} />
-
-      {/* Tab Revisor IA — el resultado se muestra en el panel Actividad */}
-      <button
-        type="button"
-        onClick={openReviewer}
-        disabled={!doc || isReviewLoading}
-        title="Revisor IA + Ortografía por párrafo (resultado en el panel Actividad)"
-        style={{
-          display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
-          padding: '0 12px', cursor: 'pointer',
-          border: 'none', background: 'transparent',
-          color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 600,
-          height: '100%', whiteSpace: 'nowrap', opacity: doc ? 1 : 0.5,
-        }}
-      >
-        <ShieldCheck size={14} style={{ color: 'var(--color-accent)' }} />
-        <span className="wizard-tab-label">Revisor IA</span>
-        {reviewResult && reviewResult.flagged_count > 0 && (
-          <span style={{
-            minWidth: '16px', height: '16px', borderRadius: '999px',
-            backgroundColor: reviewResult.flagged_count > 10 ? 'var(--color-danger)' : 'var(--color-warning)',
-            color: '#fff', fontSize: '9px', fontWeight: 800,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
-          }}>
-            {reviewResult.flagged_count}
-          </span>
-        )}
-      </button>
     </div>
   );
 };

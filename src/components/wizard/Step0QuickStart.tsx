@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
+import { HomeHero } from '../layout/HomeHero';
+import { SettingsMenu } from '../layout/SettingsMenu';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
@@ -96,6 +98,7 @@ export const Step0QuickStart: React.FC = () => {
   const [recentSessions, setRecentSessions] = useState<SessionRecovery[]>([]);
   const [loadingRecents, setLoadingRecents] = useState(false);
   const [recoveringId, setRecoveringId] = useState<string | null>(null);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -158,13 +161,12 @@ export const Step0QuickStart: React.FC = () => {
         ...dragRegion,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <div style={{
-            width: '22px', height: '22px', borderRadius: '6px',
-            background: 'var(--accent-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <FileText size={12} color="white" strokeWidth={2.5} />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="WordAPA7"
+            style={{ height: '24px', width: 'auto', borderRadius: '6px', display: 'block' }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
           <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
 
@@ -235,20 +237,27 @@ export const Step0QuickStart: React.FC = () => {
         <div style={{ marginTop: 'auto', paddingBottom: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
           <button
             type="button"
-            onClick={() => window.open('mailto:wordapa7@example.com?subject=Reporte%20de%20problema%20WordAPA7', '_blank')}
-            title="Reportar un problema"
+            onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
+            aria-expanded={settingsMenuOpen}
+            title="Configuraciones"
             style={{
-              background: 'none', border: '1px solid var(--border-subtle)', borderRadius: '8px',
-              color: 'var(--text-secondary)', cursor: 'pointer', padding: '7px', display: 'flex',
+              background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'none',
+              border: '1px solid ' + (settingsMenuOpen ? 'rgba(79,124,255,0.5)' : 'var(--border-subtle)'),
+              borderRadius: '8px',
+              color: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              cursor: 'pointer', padding: '7px', display: 'flex',
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <Settings2 size={18} />
           </button>
-          <span style={{ fontSize: '8px', color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3 }}>
-            Ayuda a formatear,<br />no garantiza aprobación
+          <span style={{ fontSize: '8px', color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3, fontWeight: 600 }}>
+            Configuraciones
           </span>
         </div>
       </div>
+
+      {/* Menú "Configuraciones" estilo Notion */}
+      {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
 
       {/* ── ÁREA PRINCIPAL ─── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '28px 60px 56px' }}>
@@ -278,13 +287,16 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            {/* Hero: mascota + barra de frases animadas (reemplaza el texto estático) */}
+            <HomeHero />
+
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '24px', marginBottom: '28px', flexWrap: 'wrap' }}>
               <div style={{ maxWidth: '640px' }}>
                 <h1 style={{ fontSize: '34px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '12px', marginTop: '12px' }}>
                   {greeting}
                 </h1>
                 <p style={{ fontSize: '15px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                  Convertí un documento .docx a formato APA 7, descargá una plantilla ya formateada o recuperá sesiones recientes.
+                  Elegí un archivo y dejá que WordAPA7 lo deje listo en APA 7.
                 </p>
               </div>
             </div>

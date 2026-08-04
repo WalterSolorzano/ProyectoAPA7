@@ -38,7 +38,7 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       </div>
 
       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-        Refina la clasificaciÃ³n de los elementos del documento con un modelo de lenguaje. Si no configuras una API key, se usa la clasificaciÃ³n heurÃ­stica.
+        Refina la clasificación de los elementos del documento con un modelo de lenguaje. Si no configuras una API key, se usa la clasificación heurística.
       </p>
 
       {llmProgress.status === 'processing' && (
@@ -70,7 +70,7 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             opacity: disabled ? 0.5 : 1,
           }}
         >
-          <Wand2 size={13} /> {busy ? 'Clasificandoâ€¦' : 'Refinar con IA'}
+          <Wand2 size={13} /> {busy ? 'Clasificando…' : 'Refinar con IA'}
         </button>
         <button
           type="button"
@@ -81,7 +81,7 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             border: '1px solid var(--border-subtle)', fontSize: '12px',
           }}
         >
-          DiagnÃ³stico
+          Diagnóstico
         </button>
       </div>
 
@@ -102,7 +102,7 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       {!isBackendReady && (
         <div style={{ fontSize: '10px', color: 'var(--accent-warning)' }}>
-          El backend no estÃ¡ listo todavÃ­a.
+          El backend no está listo todavía.
         </div>
       )}
       {!doc && (
@@ -176,13 +176,12 @@ export function UnifiedToolbar() {
     }}>
       {/* Left: Logo + Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-        <div style={{
-          width: '24px', height: '24px', borderRadius: '6px',
-          background: 'var(--accent-primary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <FileUp size={13} color="white" />
-        </div>
+        <img
+          src="/logo.jpg"
+          alt="WordAPA7"
+          style={{ height: '24px', width: 'auto', borderRadius: '6px', display: 'block' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
         <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
          <span style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '1px 5px', backgroundColor: 'var(--surface-subtle)', borderRadius: '3px', marginLeft: '2px' }}>APA 7</span>
       </div>
@@ -209,7 +208,7 @@ export function UnifiedToolbar() {
         onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
       >Archivo</button>
 
-      {/* Center: GuidedWizardBar â€” grows to fill space */}
+      {/* Center: GuidedWizardBar — grows to fill space */}
       <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', ...noDragRegion }}>
         <GuidedWizardBar />
       </div>
@@ -228,7 +227,7 @@ export function UnifiedToolbar() {
           </button>
           <button type="button"
             onClick={() => saveSnapshot()}
-            title="Guardar progreso de la sesiÃ³n (snapshot)"
+            title="Guardar progreso de la sesión (snapshot)"
             style={ghostBtn}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}

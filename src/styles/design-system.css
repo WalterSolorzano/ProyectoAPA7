@@ -1014,4 +1014,53 @@ html, body {
   .wizard-tab-label { display: inline; }
 }
 
+/* ════════════ HERO DE LA PANTALLA DE INICIO ════════════ */
+.hero-mascot-breathe {
+  animation: mascot-breathe 3s ease-in-out infinite;
+}
+.hero-phrase-in {
+  animation: hero-phrase-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes hero-phrase-in {
+  from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* ════════════ MENÚ "CONFIGURACIONES" (estilo Notion) ════════════ */
+.settings-menu-pop {
+  animation: settings-menu-pop 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes settings-menu-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.settings-menu-item:hover {
+  background: var(--surface-subtle);
+}
+.settings-menu-item:hover .settings-menu-chevron {
+  opacity: 1;
+}
+.settings-menu-chevron {
+  opacity: 0;
+  margin-left: auto;
+  transition: opacity 0.12s ease;
+}
+
 
