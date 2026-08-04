@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
-import { SessionRecovery } from '../../types';
+import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
-  FileText, BookOpen, GraduationCap, Upload, X, Loader2, Clock, FolderOpen, Settings2, ArrowLeft
+  FileText, BookOpen, GraduationCap, Upload, X, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
+  Zap, ListChecks, Download, FileUp
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -12,36 +13,57 @@ type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' 
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
-// ── PLANTILLAS APA 7 DISPONIBLES ────────────────────────────────────────────
+// ── PLANTILLAS DE ESTRUCTURA DESCARGABLES (variantes dentro del perfil) ──────
 const TEMPLATES = [
   {
     id: 'essay',
-    apaFormat: 'student' as const,
-    name: 'Ensayo APA 7',
-    description: 'Estructura clásica para ensayos académicos bajo normas APA 7ma edición. Incluye introducción, desarrollo, conclusión y sección de referencias. Ideal para trabajos universitarios de pregrado y posgrado.',
-    icon: <FileText size={48} color="var(--accent-success)" />,
+    name: 'Ensayo',
+    description: 'Introducción, desarrollo, conclusiones y referencias',
+    icon: <FileText size={28} color="var(--accent-success)" />,
     gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
-    size: '~155 KB',
   },
   {
     id: 'report',
-    apaFormat: 'professional' as const,
     name: 'Informe Técnico',
-    description: 'Formato profesional para informes técnicos y reportes organizacionales. Incluye secciones predefinidas para resumen ejecutivo, metodología, resultados y anexos, todo bajo los estándares APA 7.',
-    icon: <BookOpen size={48} color="var(--accent-primary)" />,
+    description: 'Resumen ejecutivo, metodología, resultados y anexos',
+    icon: <BookOpen size={28} color="var(--accent-primary)" />,
     gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
-    size: '~210 KB',
   },
   {
     id: 'thesis',
-    apaFormat: 'student' as const,
     name: 'Tesis / Monografía',
-    description: 'Estructura completa para trabajos de grado: marco teórico, metodología, análisis de resultados y conclusiones. Configura automáticamente los niveles de título APA 7 para máxima fidelidad académica.',
-    icon: <GraduationCap size={48} color="var(--accent-primary)" />,
+    description: 'Marco teórico, metodología, resultados y conclusiones',
+    icon: <GraduationCap size={28} color="var(--accent-primary)" />,
     gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
-    size: '~340 KB',
   },
 ];
+
+const MODES = [
+  {
+    id: 'quick' as const,
+    title: 'Modo Rápido',
+    description: 'Conversión automática: clasifica, valida y abre el Health Check para revisar y descargar.',
+    icon: <Zap size={22} color="var(--accent-primary)" />,
+  },
+  {
+    id: 'review' as const,
+    title: 'Modo Guiado',
+    description: 'Revisión paso a paso: portada, títulos, figuras, cuerpo y referencias.',
+    icon: <ListChecks size={22} color="var(--accent-secondary)" />,
+  },
+];
+
+// Fallback mientras /api/profiles aún no respondió (el campo rules nunca se usa acá)
+const FALLBACK_PROFILES: FormatProfile[] = [{
+  profile_id: 'apa7',
+  display_name: 'APA 7ª edición',
+  description: 'Norma APA 7 por defecto',
+  cover_required_fields: ['title', 'author', 'institution'],
+  latex_documentclass: 'apa7',
+  latex_options: 'stu, 12pt',
+  cover_apa_format: 'student',
+  rules: {} as APARuleSet,
+}];
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -62,10 +84,15 @@ function timeAgo(dateStr: string): string {
 }
 
 export const Step0QuickStart: React.FC = () => {
-  const { uploadFile, setPortada, isLoading, isBackendReady, error, openSession } = useDocStore();
+  const {
+    uploadFile, setActiveProfile, isLoading, isBackendReady, error, openSession,
+    profiles, activeProfileId,
+  } = useDocStore();
   const [activeTab, setActiveTab] = useState<'inicio' | 'abrir' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
-  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedMode, setSelectedMode] = useState<'quick' | 'review'>('quick');
+  const [dragging, setDragging] = useState(false);
   const [recentSessions, setRecentSessions] = useState<SessionRecovery[]>([]);
   const [loadingRecents, setLoadingRecents] = useState(false);
   const [recoveringId, setRecoveringId] = useState<string | null>(null);
@@ -83,10 +110,25 @@ export const Step0QuickStart: React.FC = () => {
   }, [isBackendReady]);
 
   const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      uploadFile(e.target.files[0]);
-      setPendingTemplate(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setSelectedFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    if (isLoading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.name.toLowerCase().endsWith('.docx')) {
+      setSelectedFile(file);
     }
+  };
+
+  const handleConvert = () => {
+    if (!selectedFile) return;
+    uploadFile(selectedFile, { profileId: activeProfileId, mode: selectedMode });
   };
 
   const handleRecoverSession = async (sessionId: string, fileName: string) => {
@@ -99,19 +141,6 @@ export const Step0QuickStart: React.FC = () => {
       setRecoveringId(null);
     }
   };
-  const confirmTemplateAndUpload = async () => {
-    if (!pendingTemplate) return;
-    const tpl = TEMPLATES.find(t => t.id === pendingTemplate);
-    if (tpl) {
-      setPortada({ apa_format: tpl.apaFormat });
-    }
-    // Set pendingTemplate to null to close any overlays
-    setPendingTemplate(null);
-    // Start blank document
-    useDocStore.getState().startBlankDocument();
-  };
-
-  const activeTemplateObj = TEMPLATES.find(t => t.id === pendingTemplate);
 
   return (
     <div style={{
@@ -246,88 +275,6 @@ export const Step0QuickStart: React.FC = () => {
           </div>
         )}
 
-        {/* ── MODAL DE PLANTILLA (estilo Office) ── */}
-        {pendingTemplate && activeTemplateObj && (
-          <div style={{
-            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', zIndex: 9999
-          }}>
-            <div style={{
-              backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)', borderRadius: '8px',
-              width: '900px', maxWidth: '95vw', height: '600px', maxHeight: '90vh',
-              display: 'flex', gap: '0', position: 'relative',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.4)', overflow: 'hidden'
-            }}>
-              {/* Botón cerrar */}
-              <button onClick={() => setPendingTemplate(null)} style={{
-                position: 'absolute', top: '16px', right: '16px', background: 'none',
-                border: 'none', color: 'var(--color-text-primary)', cursor: 'pointer', zIndex: 10, padding: '4px', borderRadius: 'var(--radius-sm)',
-              }}><X size={24} /></button>
-
-              {/* Previsualización izquierda */}
-              <div style={{
-                width: '40%', background: 'var(--color-bg-surface-alt)', borderRight: '1px solid var(--border-subtle)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-              }}>
-                <div style={{
-                  width: '75%', height: '75%', backgroundColor: 'var(--canvas-bg)', borderRadius: '8px', border: '1px solid var(--border-subtle)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexDirection: 'column', gap: '16px'
-                }}>
-                  {activeTemplateObj.icon}
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Vista Previa</span>
-                </div>
-              </div>
-
-              {/* Información derecha */}
-              <div style={{ flex: 1, padding: '40px', display: 'flex', flexDirection: 'column', paddingTop: '32px' }}>
-                <h1 style={{ fontSize: '28px', fontWeight: 300, margin: '0 0 12px', color: 'var(--text-main)' }}>
-                  {activeTemplateObj.name}
-                </h1>
-                <p style={{ fontSize: '13px', color: 'var(--accent-secondary)', margin: '0 0 20px' }}>
-                  Proporcionado por: WordAPA7 Framework
-                </p>
-                <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0 0 auto' }}>
-                  {activeTemplateObj.description}
-                </p>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '24px 0 24px' }}>
-                  Tamaño estimado: <span style={{ color: 'var(--text-main)' }}>{activeTemplateObj.size}</span>
-                </p>
-
-                {!isBackendReady ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-primary)' }}>
-                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-                    Cargando motor de IA...
-                    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                  </div>
-                ) : (
-                  <button
-                    onClick={confirmTemplateAndUpload}
-                    disabled={isLoading}
-                    style={{
-                      width: '120px', height: '120px', background: 'var(--accent-primary)',
-                      border: 'none', borderRadius: '12px', color: 'white',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      justifyContent: 'center', gap: '10px', cursor: isLoading ? 'not-allowed' : 'pointer',
-                      opacity: isLoading ? 0.7 : 1, transition: 'transform 0.2s',
-                    }}
-                    onMouseEnter={e => { if (!isLoading) { (e.target as HTMLElement).closest('button')!.style.transform = 'scale(1.05)'; (e.target as HTMLElement).closest('button')!.style.backgroundColor = 'var(--accent-primary-hover)'; } }}
-                    onMouseLeave={e => { if (!isLoading) { (e.target as HTMLElement).closest('button')!.style.transform = 'scale(1)'; (e.target as HTMLElement).closest('button')!.style.backgroundColor = 'var(--accent-primary)'; } }}
-                  >
-                    <Upload size={36} />
-                    <span style={{ fontSize: '16px' }}>{isLoading ? 'Cargando...' : 'Crear'}</span>
-                  </button>
-                )}
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                  {isBackendReady ? 'Selecciona el documento .docx que deseas formatear con esta plantilla.' : 'Espera a que el motor de procesamiento termine de iniciar.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -337,36 +284,229 @@ export const Step0QuickStart: React.FC = () => {
                   {greeting}
                 </h1>
                 <p style={{ fontSize: '15px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                  Empieza con una plantilla, abre un documento existente o recupera sesiones recientes desde un solo lugar.
+                  Convertí un documento .docx a formato APA 7, descargá una plantilla ya formateada o recuperá sesiones recientes.
                 </p>
               </div>
             </div>
 
-            {/* Plantillas */}
-            <div style={{ marginBottom: '40px' }}>
+            {/* ── ACCIÓN PRIMARIA (A): Convertir documento ── */}
+            <div style={{ marginBottom: '36px' }}>
               <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px' }}>
-                Nuevo formato APA 7
+                Convertir documento
               </h2>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                {TEMPLATES.map(tpl => (
-                  <TemplateCard key={tpl.id} tpl={tpl} onClick={() => setPendingTemplate(tpl.id)} />
-                ))}
-              </div>
-            </div>
 
-            {/* Dropzone de Carga Rápida */}
-            <div style={{ marginBottom: '40px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px' }}>
-                O abrir documento existente
-              </h2>
               {!isBackendReady ? (
                 <Card style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px', color: 'var(--text-secondary)', fontSize: '16px' }}>
                   <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
+                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                   Cargando motor de procesamiento...
                 </Card>
               ) : (
-                <UploadDropzone onFileSelected={(file) => uploadFile(file)} isLoading={isLoading} />
+                <div style={{
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '16px',
+                  background: 'var(--surface-subtle)',
+                  padding: '28px',
+                }}>
+                  {/* Paso 1: archivo */}
+                  {!selectedFile ? (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); if (!isLoading) setDragging(true); }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={handleDrop}
+                      onClick={() => !isLoading && fileInputRef.current?.click()}
+                      role="button"
+                      aria-label="Seleccionar documento .docx"
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        minHeight: '220px', cursor: isLoading ? 'wait' : 'pointer',
+                        border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-subtle)',
+                        borderRadius: '12px', transition: 'all 0.2s ease',
+                        backgroundColor: dragging ? 'rgba(79,124,255,0.08)' : 'transparent',
+                        transform: dragging ? 'scale(1.01)' : 'scale(1)',
+                        pointerEvents: isLoading ? 'none' : 'auto',
+                      }}
+                    >
+                      <FileUp size={56} color={dragging ? 'var(--accent-primary)' : 'var(--text-muted)'} style={{ marginBottom: '16px', transition: 'color 0.2s ease' }} />
+                      <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
+                        Arrastrá tu documento .docx aquí
+                      </span>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        o hacé clic para seleccionar un archivo
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '14px 16px', borderRadius: '12px',
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--canvas-bg)',
+                    }}>
+                      <FileText size={22} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selectedFile.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          {(selectedFile.size / 1024).toFixed(0)} KB · listo para convertir
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFile(null)}
+                        title="Cambiar archivo"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          padding: '6px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                          background: 'none', border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '12px', fontWeight: 600,
+                        }}
+                      >
+                        <X size={13} /> Cambiar
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Paso 2 y 3: perfil + modo + convertir (solo con archivo) */}
+                  {selectedFile && (
+                    <>
+                      <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
+                            Perfil de formato
+                          </label>
+                          <select
+                            value={activeProfileId}
+                            onChange={(e) => setActiveProfile(e.target.value)}
+                            style={{
+                              width: '100%', padding: '10px 12px', borderRadius: '8px',
+                              border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)',
+                              color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '13px',
+                            }}
+                          >
+                            {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
+                              <option key={p.profile_id} value={p.profile_id}>
+                                {p.display_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ flex: '2 1 380px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
+                            Modo de conversión
+                          </label>
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            {MODES.map((mode) => (
+                              <button
+                                key={mode.id}
+                                type="button"
+                                onClick={() => setSelectedMode(mode.id)}
+                                aria-pressed={selectedMode === mode.id}
+                                style={{
+                                  flex: 1, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                                  padding: '12px 14px', borderRadius: '10px',
+                                  border: selectedMode === mode.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                  backgroundColor: selectedMode === mode.id ? 'rgba(79,124,255,0.08)' : 'var(--canvas-bg)',
+                                  transition: 'border-color 0.15s, background 0.15s',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                  {mode.icon}
+                                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>{mode.title}</span>
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                  {mode.description}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleConvert}
+                        disabled={isLoading}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                          width: '100%', marginTop: '20px', padding: '13px 20px',
+                          borderRadius: '10px', border: 'none', cursor: isLoading ? 'wait' : 'pointer',
+                          backgroundColor: 'var(--accent-primary)', color: '#fff',
+                          fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
+                          opacity: isLoading ? 0.75 : 1,
+                        }}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                            Convirtiendo...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={18} />
+                            Convertir documento
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
+            </div>
+
+            {/* ── ACCIÓN SECUNDARIA (B): Plantillas descargables ── */}
+            <div style={{ marginBottom: '40px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
+                ¿Todavía no escribiste nada? Descargá una plantilla ya formateada
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+                Un .docx con portada y secciones listas: lo abrís en Word y solo completás el contenido.
+              </p>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                {TEMPLATES.map(tpl => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => api.downloadTemplate(activeProfileId, tpl.id)}
+                    title={`Descargar plantilla ${tpl.name}`}
+                    aria-label={`Descargar plantilla ${tpl.name}`}
+                    style={{
+                      flex: '1 1 240px', maxWidth: '320px', cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left',
+                      padding: '14px 16px', borderRadius: '12px',
+                      background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                      transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                      (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 14px rgba(0,0,0,0.10)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.transform = 'none';
+                      (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+                    }}
+                  >
+                    <div style={{
+                      width: '52px', height: '52px', borderRadius: '10px', flexShrink: 0,
+                      background: tpl.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {tpl.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '3px' }}>
+                        {tpl.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                        {tpl.description}
+                      </div>
+                    </div>
+                    <Download size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Recientes (preview) */}
@@ -460,30 +600,6 @@ const NavItem: React.FC<{
     <span style={{ color: active ? 'var(--accent-primary)' : 'var(--color-text-tertiary)', fontSize: '9px', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
       {label}
     </span>
-  </button>
-);
-
-const TemplateCard: React.FC<{ tpl: typeof TEMPLATES[0]; onClick: () => void }> = ({ tpl, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={`Crear ${tpl.name}`}
-    aria-label={`Crear ${tpl.name}`}
-    style={{ width: '160px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
-  >
-    <div
-      style={{
-        height: '220px', borderRadius: '8px', background: 'var(--color-bg-surface-alt)',
-        border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', transition: 'transform 0.2s, box-shadow 0.2s',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-      }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 16px rgba(0,0,0,0.12)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'; }}
-    >
-      {tpl.icon}
-    </div>
-    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', lineHeight: 1.3, textAlign: 'center' }}>{tpl.name}</span>
   </button>
 );
 

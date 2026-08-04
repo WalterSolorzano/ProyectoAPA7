@@ -56,6 +56,8 @@ from models import (
 from parsing.docx_parser import parse_docx_bytes
 from classification.llm_classifier import classify_document_with_llm, get_classify_progress
 from generation.generator import generate_apa7_docx
+from generation.layered_generator import generate_apa7_from_scratch
+from generation.templates import TEMPLATE_ENSAYO, TEMPLATE_INFORME, TEMPLATE_TESINA, DocumentTemplate
 from generation.track_changes_engine import create_tracked_changes_docx
 from persistence.session_manager import (
     save_session_state,
@@ -636,6 +638,104 @@ async def set_session_profile(session_id: str, req: SetProfileRequest) -> Docume
 
     save_session_state(doc, STORAGE_DIR)
     return doc
+
+
+# Estructuras internas disponibles para generar plantillas descargables.
+# Son variantes de estructura (secciones) dentro del perfil de formato:
+# "essay" -> Ensayo Académico, "report" -> Informe Técnico, "thesis" -> Tesina.
+_TEMPLATE_ID_MAP: dict[str, DocumentTemplate] = {
+    "essay": TEMPLATE_ENSAYO,
+    "report": TEMPLATE_INFORME,
+    "thesis": TEMPLATE_TESINA,
+}
+
+
+@app.get("/api/template-docx")
+async def download_template_docx(
+    profile_id: str = "apa7",
+    template_id: str = "essay",
+) -> FileResponse:
+    """
+    Genera y descarga una plantilla .docx ya formateada: portada del perfil
+    (con marcadores de posición) + títulos de las secciones de la estructura
+    elegida. No abre ninguna sesión ni UI de edición: el usuario la descarga
+    y escribe en su Word.
+    """
+    profile = get_profile(profile_id)
+    template = _TEMPLATE_ID_MAP.get(template_id)
+    if template is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plantilla desconocida: {template_id}. Usa essay, report o thesis.",
+        )
+
+    elements: list[ElementModel] = []
+
+    def _add_sections(sections) -> None:
+        for section in sections:
+            elements.append(
+                ElementModel(
+                    id=f"tpl-{template_id}-{len(elements)}",
+                    type=ElementType.HEADING,
+                    heading_level=section.heading_level,
+                    text=section.suggested_text,
+                    is_cover_section=False,
+                )
+            )
+            _add_sections(section.sub_sections)
+
+    _add_sections(template.sections)
+
+    fmt = profile.cover_apa_format
+    apa_format = APAFormat.PROFESSIONAL if fmt == "professional" else APAFormat.STUDENT
+
+    doc_model = DocumentModel(
+        session_id=f"tpl-{template_id}",
+        file_name=f"WordAPA7_{profile.profile_id}_{template_id}.docx",
+        apa_format=apa_format,
+        profile_id=profile.profile_id,
+        elements=elements,
+        apa_rules=profile.rules.model_copy(deep=True),
+    )
+
+    portada = PortadaData(
+        apa_format=apa_format,
+        use_original_cover=False,
+        force_skip_cover=False,
+        title="Título del Trabajo",
+        author="Nombre del Autor o Autora",
+        institution="Nombre de la Institución",
+        course="Nombre del Curso",
+        instructor="Nombre del Docente",
+        date="Fecha",
+        running_head=None,
+    )
+
+    out_dir: Path = STORAGE_DIR / "exports"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path: Path = out_dir / doc_model.file_name
+
+    try:
+        await asyncio.to_thread(
+            generate_apa7_from_scratch,
+            doc_model,
+            out_path,
+            rules=profile.rules,
+            portada=portada,
+            references=[],
+        )
+    except Exception as e:
+        print(f"[ERROR] Error generando plantilla .docx: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generando la plantilla: {str(e)}",
+        )
+
+    return FileResponse(
+        out_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=out_path.name,
+    )
 
 
 @app.post("/api/upload")

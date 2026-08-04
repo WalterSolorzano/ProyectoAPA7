@@ -78,6 +78,14 @@ export async function startBlankDocument(): Promise<DocumentModel> {
   return res.json();
 }
 
+export function downloadTemplate(
+  profileId: string,
+  templateId: string
+): void {
+  // Descarga directa vía navegación: el backend responde FileResponse (attachment)
+  window.location.href = `${getApiBase()}/template-docx?profile_id=${encodeURIComponent(profileId)}&template_id=${encodeURIComponent(templateId)}`;
+}
+
 export async function bulkAcceptElements(
   sessionId: string,
   elementIds: string[]
