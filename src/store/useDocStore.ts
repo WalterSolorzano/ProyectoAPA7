@@ -3,8 +3,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
-import { DocumentModel, ElementType, APARuleSet, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, WorkMode, LLMProgressState, ImageModel } from '../types';
+import { DocumentModel, ElementType, APARuleSet, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../types';
 import * as api from '../api/backend';
+import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult } from '../api/backend';
+import { setRequestIdListener } from '../api/http';
 
 const idbStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
@@ -67,21 +69,31 @@ export function migrateDocument(doc: any): DocumentModel {
 
 interface DocState {
   doc: DocumentModel | null;
-  activeTab: 'classifier' | 'portada' | 'referencias' | 'rules' | 'validator';
   apiKey: string;
+  /** Consentimiento explícito del usuario para enviar contenido a un LLM en la nube */
+  llmCloudConsent: boolean;
+  setLlmCloudConsent: (v: boolean) => void;
+  /** Si hay una acción LLM pendiente que requiere consentimiento (modal propio) */
+  llmConsentPending: boolean;
+  setLlmConsentPending: (v: boolean) => void;
   isLoading: boolean;
+  /** Timestamp del último export con éxito (para la micro-animación de cierre) */
+  exportSuccessAt: number | null;
   isBackendReady: boolean;  // true cuando el motor Python ha confirmado que está listo
   error: string | null;
   selectedElementId: string | null;
   zoomLevel: number;
+  /** Estilo de tabla APA por elemento (solo preview; no afecta la generación del .docx) */
+  tableStyles: Record<string, 'standard' | 'compact' | 'expanded'>;
+  setTableStyle: (elementId: string, style: 'standard' | 'compact' | 'expanded') => void;
   nimLogs: any[];
   isNIMDiagnosticsOpen: boolean;
 
   // Toast notifications
   toastMessage: string | null;
-  toastType: 'success' | 'error' | 'info';
-  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
-  clearToast: () => void;
+  showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', action?: { label: string; onClick: () => void }) => void;
+  toasts: { id: string; message: string; type: 'success' | 'error' | 'info' | 'warning'; action?: { label: string; onClick: () => void } }[];
+  removeToast: (id: string) => void;
 
   // Debug request tracing
   lastRequestId: string | null;
@@ -89,7 +101,6 @@ interface DocState {
 
   // LLM Progress tracking
   llmProgress: LLMProgressState;
-  aiCitationValidation: boolean;
   aiProviderConfig: {
     nimUrl: string;
     useLocal: boolean;
@@ -103,7 +114,6 @@ interface DocState {
 
   // Template system
   showTemplateDialog: boolean;
-  appliedTemplate: string | null;
   availableTemplates: Array<{
     name: string;
     description: string;
@@ -125,21 +135,68 @@ interface DocState {
 
   wizardStep: number;
   showFileMenu: boolean;
-  wizardComplete: boolean;
-  wizardAnswers: any;
+  settingsStudioOpen: boolean;
+  setSettingsStudioOpen: (open: boolean) => void;
+  isDownloadModalOpen: boolean;
+  setDownloadModalOpen: (open: boolean) => void;
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
   hasSeenTour: boolean;
-  workMode: WorkMode;
+  coverSetupDone: boolean;
+  setCoverSetupDone: (done: boolean) => void;
   viewMode: 'edit' | 'result' | 'native-pdf' | 'split';
   forceRightPanelOpen: boolean;
   setForceRightPanelOpen: (open: boolean) => void;
-  recoverySession: any;
-  recoveryDismissed: boolean;
-  previewHtml: string;
-  isPreviewLoading: boolean;
+  imagePanelOpen: boolean;
+  setImagePanelOpen: (open: boolean) => void;
   tabs: { session_id: string; file_name: string }[];
   activeTabIndex: number;
   tabDocs: Record<string, DocumentModel>;
   pdfPreviewCache: { hash: string; url: string } | null;
+
+  // Home / multi-doc (Fase E)
+  atHome: boolean;
+  goHome: () => void;
+  openSession: (sessionId: string) => Promise<void>;
+  saveSnapshot: () => Promise<void>;
+
+  // Revisor IA + Ortografía (Fase F)
+  reviewResult: AIReviewResult | null;
+  isReviewOpen: boolean;
+  isReviewLoading: boolean;
+  setReviewOpen: (open: boolean) => void;
+  runAIReview: () => Promise<void>;
+
+  // Revisión de contenido (Bloom + secciones) — separada del formato
+  isContentReviewOpen: boolean;
+  setContentReviewOpen: (open: boolean) => void;
+
+  // IA Studio unificado + preflight (propuestas 1 y 3)
+  aiStudioOpen: boolean;
+  setAiStudioOpen: (open: boolean) => void;
+  auditorMode: boolean;
+  setAuditorMode: (open: boolean) => void;
+  theme: 'dark' | 'light';
+  setTheme: (t: 'dark' | 'light') => void;
+  providerStatus: ProviderStatusResult | null;
+  fetchProviderStatus: () => Promise<void>;
+  applyRewriteVariation: (elementId: string, text: string, asTracked: boolean) => Promise<void>;
+  preflightReport: {
+    headings: number;
+    figures: number;
+    tables: number;
+    paragraphs: number;
+    flaggedHigh: number;
+    flaggedMedium: number;
+    reviewed: number;
+  } | null;
+  setPreflightReport: (r: any) => void;
+
+  // Citas IA consejero (propuesta 6)
+  suggestCitationFix: (citationText: string, referenceId: string | undefined, problem: string) => Promise<CitationFixResult | null>;
+
+  // Export LaTeX (funcionalidad x)
+  exportLatex: () => Promise<void>;
 
   // Undo/Redo
   history: DocumentModel[];
@@ -151,32 +208,19 @@ interface DocState {
   portadaProfiles: PortadaProfile[];
   references: ReferenciaModel[];
   validationIssues: ValidationIssue[];
-  validateCitationsOnGenerate: boolean;
 
   setApiKey: (key: string) => void;
-  setAiCitationValidation: (enabled: boolean) => void;
   setAiProviderConfig: (config: Partial<{ nimUrl: string, useLocal: boolean, providerId: string }>) => void;
-  setValidateCitationsOnGenerate: (enabled: boolean) => void;
   setWizardStep: (step: number) => void;
-  setActiveTab: (tab: 'classifier' | 'portada' | 'referencias' | 'rules' | 'validator') => void;
   setSelectedElementId: (id: string | null) => void;
   setShowTemplateDialog: (show: boolean) => void;
-  setAppliedTemplate: (name: string | null) => void;
   fetchTemplates: () => Promise<void>;
   applyTemplate: (templateName: string) => Promise<void>;
   renumberHeadings: (style: 'roman' | 'decimal') => void;
   setZoomLevel: (zoom: number) => void;
   setShowFileMenu: (show: boolean) => void;
-  setWizardComplete: (answers?: any) => void;
   setHasSeenTour: (seen: boolean) => void;
-  resetWizard: () => void;
-  setWorkMode: (mode: WorkMode) => void;
   setViewMode: (mode: 'edit' | 'result' | 'native-pdf' | 'split') => void;
-  setRecoverySession: (session: any) => void;
-  dismissRecovery: () => void;
-  setPreviewHtml: (html: string) => void;
-  setPreviewLoading: (loading: boolean) => void;
-  generatePreview: () => Promise<void>;
   setPdfPreviewCache: (cache: { hash: string; url: string } | null) => void;
 
   switchToTab: (index: number) => void;
@@ -191,8 +235,10 @@ interface DocState {
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
+  replaceImage: (elementId: string, file: File) => Promise<void>;
   reorderElements: (elementIds: string[]) => Promise<void>;
   acceptHighConfidenceElements: () => Promise<void>;
+  insertTocElement: () => void;
 
   // Undo/Redo
   undo: () => void;
@@ -200,15 +246,11 @@ interface DocState {
   pushHistory: (doc: DocumentModel) => void;
 
   setRules: (rules: Partial<APARuleSet>) => void;
-  setRulesFull: (rules: APARuleSet) => void;
   saveRuleProfile: (name: string) => void;
-  loadRuleProfile: (name: string) => void;
   resetRulesToDefault: () => void;
 
   setPortada: (portada: Partial<PortadaData>) => void;
-  setPortadaFull: (portada: PortadaData) => void;
   savePortadaProfile: (name: string) => void;
-  loadPortadaProfile: (name: string) => void;
 
   updateReferences: (refs: ReferenciaModel[]) => void;
   addReference: (ref: ReferenciaModel) => void;
@@ -245,6 +287,9 @@ const defaultRules: APARuleSet = {
   doi_as_hyperlink: true,
   figure_label_prefix: 'Figura',
   table_label_prefix: 'Tabla',
+  image_alignment: 'center',
+  image_style: 'plain',
+  toc_style: 'apa',
 };
 
 const defaultPortada: PortadaData = {
@@ -254,6 +299,7 @@ const defaultPortada: PortadaData = {
   author: '',
   institution: '',
   course: '',
+  grupo: '',
   instructor: '',
   date: '',
   running_head: '',
@@ -274,23 +320,29 @@ const defaultLLMProgress: LLMProgressState = {
 };
 
 // Helper function to build correct API URL for both Electron and web
-const getApiBase = () => (window as any).electronAPI ? 'http://127.0.0.1:8742/api' : '/api';
+// (delegado a backend.ts para no duplicar la lógica del puerto).
+const getApiBase = () => api.getApiBase();
 
 export const useDocStore = create<DocState>()(
   persist(
     (set, get) => ({
-      doc: null,
-      activeTab: 'classifier',
-      apiKey: '',
+  doc: null,
+  apiKey: (() => {
+    try { return localStorage.getItem('wordapa7-provider-key:NVIDIA_API_KEY') || ''; } catch { return ''; }
+  })(),
+  // Consentimiento explícito para enviar contenido a un LLM en la nube.
+  llmCloudConsent: false,
+  llmConsentPending: false,
+  setLlmConsentPending: (v) => set({ llmConsentPending: v }),
   isLoading: false,
+  exportSuccessAt: null,
   isBackendReady: false,
   error: null,
   selectedElementId: null,
   zoomLevel: 100,
+  tableStyles: {},
   llmProgress: defaultLLMProgress,
-  aiCitationValidation: false,
   showTemplateDialog: false,
-  appliedTemplate: null,
   availableTemplates: [],
   llmUsageStats: {
     total_tokens: 0,
@@ -301,7 +353,8 @@ export const useDocStore = create<DocState>()(
   },
 
   toastMessage: null,
-  toastType: 'info',
+  toasts: [],
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
   lastRequestId: null,
 
   aiProviderConfig: {
@@ -313,24 +366,54 @@ export const useDocStore = create<DocState>()(
 
   wizardStep: 2,
   showFileMenu: false,
-  wizardComplete: true,
-  wizardAnswers: null,
+  settingsStudioOpen: false,
+  setSettingsStudioOpen: (open: boolean) => set({ settingsStudioOpen: open }),
+  isDownloadModalOpen: false,
+  commandPaletteOpen: false,
+  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  setDownloadModalOpen: (open: boolean) => set({ isDownloadModalOpen: open }),
   hasSeenTour: false,
-  workMode: 'review',
+  coverSetupDone: false,
   viewMode: 'edit',
   forceRightPanelOpen: false,
   setForceRightPanelOpen: (open: boolean) => set({ forceRightPanelOpen: open }),
-  recoverySession: null,
-  recoveryDismissed: false,
-  previewHtml: '',
-  isPreviewLoading: false,
+  imagePanelOpen: false,
+  setImagePanelOpen: (open: boolean) => set({ imagePanelOpen: open }),
   tabs: [],
   activeTabIndex: 0,
   tabDocs: {},
   pdfPreviewCache: null,
   nimLogs: [],
   isNIMDiagnosticsOpen: false,
-  validateCitationsOnGenerate: true,
+
+  atHome: false,
+  reviewResult: null,
+  isReviewOpen: false,
+  isReviewLoading: false,
+  setReviewOpen: (open) => set({ isReviewOpen: open }),
+
+  isContentReviewOpen: false,
+  setContentReviewOpen: (open) => set({ isContentReviewOpen: open }),
+
+  aiStudioOpen: false,
+  setAiStudioOpen: (open) => set({ aiStudioOpen: open }),
+  auditorMode: false,
+  setAuditorMode: (open) => set({ auditorMode: open }),
+  theme: 'light',
+  setTheme: (t) => {
+    document.documentElement.setAttribute('data-theme', t);
+    try {
+      localStorage.setItem('wordapa7-theme', t);
+    } catch { /* noop */ }
+    const ew = window as any;
+    if (ew.electronAPI?.setTheme) {
+      try { ew.electronAPI.setTheme(t); } catch { /* noop */ }
+    }
+    set({ theme: t });
+  },
+  providerStatus: null,
+  preflightReport: null,
+  setPreflightReport: (r) => set({ preflightReport: r }),
 
   setIsNIMDiagnosticsOpen: (open) => set({ isNIMDiagnosticsOpen: open }),
 
@@ -347,113 +430,42 @@ export const useDocStore = create<DocState>()(
   hasUnsavedChanges: false,
   setHasUnsavedChanges: (val) => set({ hasUnsavedChanges: val }),
 
-  setApiKey: (key) => set({ apiKey: key }),
-  setAiCitationValidation: (enabled) => set({ aiCitationValidation: enabled }),
+  setApiKey: (key) => {
+    try { localStorage.setItem('wordapa7-provider-key:NVIDIA_API_KEY', key); } catch { /* noop */ }
+    set({ apiKey: key });
+  },
+  setLlmCloudConsent: (v) => set({ llmCloudConsent: v }),
   setAiProviderConfig: (config) => set((state) => ({ 
     aiProviderConfig: { ...state.aiProviderConfig, ...config } 
   })),
-  setValidateCitationsOnGenerate: (enabled: boolean) => set({ validateCitationsOnGenerate: enabled }),
-  showToast: (message, type = 'info') => {
-    set({ toastMessage: message, toastType: type });
+  showToast: (message, type = 'info', action) => {
+    const DURATIONS: Record<string, number> = { info: 4000, success: 5000, warning: 6000, error: 8000 };
+    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    set((state) => ({
+      toastMessage: message,
+      toasts: [...state.toasts.slice(-2), { id, message, type, action }],
+    }));
     setTimeout(() => {
-      set({ toastMessage: null });
-    }, 4000);
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+      set((state) => ({ toastMessage: state.toasts.length > 0 ? state.toasts[state.toasts.length - 1].message : null }));
+    }, DURATIONS[type]);
   },
-  clearToast: () => set({ toastMessage: null }),
   setLastRequestId: (id) => set({ lastRequestId: id }),
   setWizardStep: (step) => set({ wizardStep: step }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),
-  setZoomLevel: (zoom) => set({ zoomLevel: Math.min(200, Math.max(50, zoom)) }),
+  setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
+  setTableStyle: (elementId, style) => set((state) => ({ tableStyles: { ...state.tableStyles, [elementId]: style } })),
   setShowFileMenu: (show) => set({ showFileMenu: show }),
-  setWizardComplete: (answers) => set({ wizardComplete: true, wizardAnswers: answers }),
   setHasSeenTour: (seen) => set({ hasSeenTour: seen }),
-  resetWizard: () => set({ wizardStep: 0, wizardComplete: false, wizardAnswers: null }),
-  setWorkMode: (mode) => set({ workMode: mode }),
+  setCoverSetupDone: (done) => set({ coverSetupDone: done }),
   setViewMode: (mode) => set({ viewMode: mode }),
-  setRecoverySession: (session) => set({ recoverySession: session }),
-  dismissRecovery: () => set({ recoveryDismissed: true, recoverySession: null }),
-  setPreviewHtml: (html) => set({ previewHtml: html }),
-  setPreviewLoading: (loading) => set({ isPreviewLoading: loading }),
   setPdfPreviewCache: (cache) => set({ pdfPreviewCache: cache }),
 
-  generatePreview: async () => {
-    const { doc, rules, portada, references } = get();
-    if (!doc) return;
-    set({ isPreviewLoading: true, previewHtml: '' });
-    try {
-      // Reload session first to get latest state (cover_template_id, etc.)
-      const sessionRes = await fetch(`/api/session/${doc.session_id}`);
-      if (sessionRes.ok) {
-        const freshDoc = await sessionRes.json();
-        set({ doc: freshDoc });
-      }
-
-      // Generate the preview DOCX via backend
-      const previewRes = await fetch('/api/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: doc.session_id, rules, portada, references }),
-      });
-      if (!previewRes.ok) throw new Error('Preview generation failed');
-
-      // Download the generated DOCX
-      const blobRes = await fetch(`/api/download-preview/${doc.session_id}`);
-      if (!blobRes.ok) throw new Error('Preview download failed');
-      const blob = await blobRes.blob();
-
-      // Convert to HTML using mammoth
-      const mammoth = await import('mammoth');
-      const result = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() });
-
-      // Inject page-break markers: add visual separators before H1 headings
-      // mammoth outputs <h1> for Heading 1, so we wrap them with a page separator
-      let html = result.value;
-      // Add page-break simulation: wrap content in pages with visible separators
-      // Split on H1 headings to create visual pages
-      const h1Pattern = /<h1(\s[^>]*)?>/gi;
-      const parts = html.split(h1Pattern);
-      if (parts.length > 1) {
-        // Reconstruct with page separators before each H1
-        html = parts[0]; // Content before first H1 (cover page area)
-        for (let i = 1; i < parts.length; i += 2) {
-          const attrs = parts[i] || '';
-          const content = parts[i + 1] || '';
-          html += `
-            <div style="border-top:2px dashed #d0d0d0;margin:16px 0 8px;text-align:center;
-                        font-size:10px;color:#a0a0a0;font-family:system-ui;padding-top:6px;">
-              — Nueva Página —
-            </div>
-            <h1${attrs}>${content.split('</h1>')[0]}</h1>
-            ${content.split('</h1>').slice(1).join('</h1>')}
-          `;
-        }
-      }
-
-      // Wrap in page containers with APA dimensions
-      const pageHtml = `
-        <style>
-          .preview-page h1 { page-break-before: always; }
-          @media print { .preview-page h1 { break-before: page; } }
-        </style>
-        <div class="preview-page" style="max-width:816px;margin:0 auto;background:white;padding:96px;
-                    box-shadow:0 2px 12px rgba(0,0,0,0.15);font-family:'Times New Roman',serif;
-                    min-height:1056px;line-height:2;font-size:12pt;">
-          ${html}
-        </div>`;
-
-      set({ previewHtml: pageHtml, isPreviewLoading: false });
-    } catch (err) {
-      console.error('Preview error:', err);
-      set({ isPreviewLoading: false });
-    }
-  },
   setShowTemplateDialog: (show) => set({ showTemplateDialog: show }),
-  setAppliedTemplate: (name) => set({ appliedTemplate: name }),
 
   fetchTemplates: async () => {
     try {
-      const res = await fetch('/api/templates');
+      const res = await fetch(`${getApiBase()}/templates`);
       if (res.ok) {
         const data = await res.json();
         set({ availableTemplates: data.templates || [] });
@@ -468,7 +480,7 @@ export const useDocStore = create<DocState>()(
     if (!doc) return;
     set({ isLoading: true });
     try {
-      const res = await fetch('/api/apply-template', {
+      const res = await fetch(`${getApiBase()}/apply-template`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -480,11 +492,11 @@ export const useDocStore = create<DocState>()(
       if (!res.ok) throw new Error('Error al aplicar plantilla');
       const result = await res.json();
       // Reload document to get updated elements
-      const updatedRes = await fetch(`/api/session/${doc.session_id}`);
+      const updatedRes = await fetch(`${getApiBase()}/session/${doc.session_id}`);
       if (updatedRes.ok) {
         const updatedDoc = await updatedRes.json();
         pushHistory(updatedDoc);
-        set({ doc: updatedDoc, appliedTemplate: templateName, isLoading: false });
+        set({ doc: updatedDoc, isLoading: false });
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al aplicar plantilla', isLoading: false });
@@ -519,9 +531,9 @@ export const useDocStore = create<DocState>()(
     const tab = state.tabs[index];
     const tabDoc = state.tabDocs[tab.session_id];
     if (tabDoc) {
-      return { activeTabIndex: index, doc: tabDoc };
+      return { activeTabIndex: index, doc: tabDoc, atHome: false };
     }
-    return { activeTabIndex: index };
+    return { activeTabIndex: index, atHome: false };
   }),
   removeTab: (index) => set((state) => {
     const tab = state.tabs[index];
@@ -538,10 +550,179 @@ export const useDocStore = create<DocState>()(
       tabDocs: newTabDocs,
       activeTabIndex: Math.max(0, newIndex),
       doc: newDoc,
+      atHome: newDoc ? false : state.atHome,
     };
   }),
 
+  goHome: () => set({ atHome: true }),
+
+  openSession: async (sessionId) => {
+    set({ isLoading: true, error: null });
+    try {
+      let recovered = await api.recoverSession(sessionId);
+      recovered = migrateDocument(recovered);
+      set((state) => {
+        const existing = state.tabs.findIndex((t) => t.session_id === sessionId);
+        if (existing >= 0) {
+          const newTabDocs = { ...state.tabDocs, [sessionId]: recovered };
+          return {
+            doc: recovered,
+            tabDocs: newTabDocs,
+            activeTabIndex: existing,
+            atHome: false,
+            isLoading: false,
+            wizardStep: state.wizardStep === 0 ? 1 : state.wizardStep,
+          };
+        }
+        const newTab = { session_id: recovered.session_id, file_name: recovered.file_name };
+        const newTabs = [...state.tabs, newTab];
+        const newTabDocs = { ...state.tabDocs, [recovered.session_id]: recovered };
+        return {
+          doc: recovered,
+          tabs: newTabs,
+          activeTabIndex: newTabs.length - 1,
+          tabDocs: newTabDocs,
+          atHome: false,
+          isLoading: false,
+          history: [recovered],
+          historyIndex: 0,
+          wizardStep: 1,
+        };
+      });
+    } catch (err: any) {
+      set({ error: err.message || 'Error al abrir la sesión', isLoading: false });
+      get().showToast(err.message || 'Error al abrir la sesión', 'error');
+    }
+  },
+
+  saveSnapshot: async () => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      await api.saveSessionSnapshot(doc.session_id);
+      set({ hasUnsavedChanges: false });
+      get().showToast('Progreso guardado', 'success');
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al guardar', 'error');
+    }
+  },
+
+  runAIReview: async () => {
+    const { doc } = get();
+    if (!doc) return;
+    set({ isReviewLoading: true, isReviewOpen: true });
+    try {
+      const result = await api.runAIReview(doc.session_id);
+      set({ reviewResult: result, isReviewLoading: false });
+      // Preflight report derivado del review (propuesta 3)
+      const high = result.paragraphs.filter(p => p.ai_category === 'HIGH').length;
+      const medium = result.paragraphs.filter(p => p.ai_category === 'MEDIUM').length;
+      set({
+        preflightReport: {
+          headings: doc.elements.filter(e => e.type === 'heading').length,
+          figures: doc.elements.filter(e => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length,
+          tables: doc.elements.filter(e => e.type === 'table' && e.table_info).length,
+          paragraphs: result.total_paragraphs,
+          flaggedHigh: high,
+          flaggedMedium: medium,
+          reviewed: doc.elements.filter(e => !e.needs_review).length,
+        },
+      });
+    } catch (err: any) {
+      set({ isReviewLoading: false, isReviewOpen: false });
+      get().showToast(err.message || 'Error en el revisor IA', 'error');
+    }
+  },
+
+  fetchProviderStatus: async () => {
+    try {
+      // Asegura que las claves guardadas en localStorage lleguen al backend
+      // (os.environ) antes de consultar el estado de proveedores. Sin esto,
+      // tras un reinicio del watchdog las claves se pierden y la IA "no trabaja".
+      await api.syncAllProviderKeys();
+      const status = await api.getProviderStatus();
+      set({ providerStatus: status });
+    } catch (err: any) {
+      // silencioso
+    }
+  },
+
+  applyRewriteVariation: async (elementId, text, asTracked) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    try {
+      // Conservar tipo/heading_level para updateElementType
+      const elem = doc.elements.find(e => e.id === elementId);
+      if (!elem) return;
+      // Si es tracked, el backend generará Track Changes vs el texto original
+      if (asTracked) {
+        // Generamos docx con Track Changes marcando el cambio IA (propuesta track changes IA)
+        const base = getApiBase();
+        await fetch(`${base}/update-element`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: doc.session_id,
+            element_id: elementId,
+            type: elem.type,
+            heading_level: elem.heading_level,
+            text,
+            author: 'IA WordAPA7',
+          }),
+        });
+      } else {
+        const updated = await api.updateElement(doc.session_id, elementId, elem.type, elem.heading_level, text);
+        pushHistory(updated);
+        set({ doc: updated });
+      }
+      get().showToast(asTracked ? 'Reescritura aplicada como cambio IA (Track Changes)' : 'Párrafo reescrito por IA', 'success');
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al aplicar reescritura', 'error');
+    }
+  },
+
+  suggestCitationFix: async (citationText, referenceId, problem) => {
+    const { doc, apiKey } = get();
+    if (!doc) return null;
+    try {
+      const result = await api.citationFix(doc.session_id, citationText, referenceId, problem, apiKey);
+      return result;
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al sugerir corrección', 'error');
+      return null;
+    }
+  },
+
+  exportLatex: async () => {
+    const { doc } = get();
+    if (!doc) return;
+    set({ isLoading: true });
+    try {
+      const latex = await api.exportLatex(doc.session_id);
+      // Descargar como .tex
+      const blob = new Blob([latex], { type: 'application/x-tex' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (doc.file_name || 'documento').replace(/\.[^.]+$/, '') + '.tex';
+      a.click();
+      URL.revokeObjectURL(url);
+      get().showToast('LaTeX exportado', 'success');
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al exportar LaTeX', 'error');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   uploadFile: async (file) => {
+    // Chistes contextuales: nombre de archivo tipo "final_v3" y reincidencia
+    try {
+      const { getFilenameComment, getRepeatComment } = await import('../lib/studentJokes');
+      const joke = getFilenameComment(file.name) || getRepeatComment();
+      if (joke) useDocStore.getState().showToast(joke, 'info');
+    } catch { /* no crítico */ }
+
     set({ isLoading: true, error: null });
     try {
       let doc = await api.uploadDocxFile(file);
@@ -568,24 +749,26 @@ export const useDocStore = create<DocState>()(
         return {
           doc,
           portada: updatedPortada,
-          isLoading: false,
+          isLoading: true, // mantener loading hasta que clasificación termine
           tabs: newTabs,
           activeTabIndex: newTabs.length - 1,
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
-          // Tras importar, aterrizar en el Paso 0 (Preferencias)
-          // para que el usuario configure las reglas base antes de la revisión guiada.
+          coverSetupDone: false,
+          atHome: false,
           wizardStep: 0,
         };
       });
-      // Auto-disparar clasificación LLM en background después del upload
+      // Auto-disparar clasificación LLM en background
       const uncertainCount = doc.elements.filter(
         (e: any) => e.needs_review || (e.confidence < 0.85 && e.type !== 'empty' && e.type !== 'image' && e.type !== 'table')
       ).length;
       if (uncertainCount > 0) {
-        // Disparar en background sin bloquear la UI
         get().runLLMClassify().catch(() => {});
+      } else {
+        // Sin elementos inciertos: loading termina acá
+        set({ isLoading: false });
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al procesar archivo', isLoading: false });
@@ -609,6 +792,8 @@ export const useDocStore = create<DocState>()(
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
+          coverSetupDone: false,
+          atHome: false,
           wizardStep: 0,
         };
       });
@@ -642,8 +827,19 @@ export const useDocStore = create<DocState>()(
   }),
 
   runLLMClassify: async () => {
-    const { doc, apiKey, aiProviderConfig } = get();
+    const { doc, apiKey, aiProviderConfig, llmCloudConsent } = get();
     if (!doc) return;
+
+    // Consentimiento informado: si hay API key de un proveedor en la nube,
+    // el contenido del documento sale de la computadora. Se pide una sola vez
+    // mediante un modal propio (App.tsx renderiza el diálogo cuando
+    // llmConsentPending === true).
+    if (apiKey && !llmCloudConsent && !aiProviderConfig.useLocal) {
+      set({ llmConsentPending: true });
+      return;
+    }
+    set({ llmConsentPending: false });
+
     set({ isLoading: true, error: null, llmProgress: { ...defaultLLMProgress, status: 'processing' } });
 
     const startTime = Date.now();
@@ -712,6 +908,28 @@ export const useDocStore = create<DocState>()(
           api_calls: finalProgress.total_batches || 1,
         },
       }));
+
+      // Preflight accionable tras clasificar (propuesta 3)
+      const d = useDocStore.getState().doc || updated;
+      const heads = d.elements.filter((e: any) => e.type === 'heading').length;
+      const figs = d.elements.filter((e: any) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
+      const tabs = d.elements.filter((e: any) => e.type === 'table' && e.table_info).length;
+      set({
+        preflightReport: {
+          headings: heads,
+          figures: figs,
+          tables: tabs,
+          paragraphs: d.elements.filter((e: any) => e.type === 'paragraph').length,
+          flaggedHigh: 0,
+          flaggedMedium: 0,
+          reviewed: d.elements.filter((e: any) => !e.needs_review).length,
+        },
+      });
+      useDocStore.getState().showToast(
+        `Clasificación completada: ${heads} títulos, ${figs} figuras, ${tabs} tablas. Abrir Revisor IA →`,
+        'success',
+        { label: 'Abrir Revisor', onClick: () => useDocStore.getState().runAIReview() }
+      );
     } catch (err: any) {
       if (pollInterval) clearInterval(pollInterval);
       const durationMs = Date.now() - startTime;
@@ -730,8 +948,8 @@ export const useDocStore = create<DocState>()(
         isLoading: false,
         llmProgress: { ...defaultLLMProgress, status: 'error', last_error: err.message },
         nimLogs: [logItem, ...(state.nimLogs || [])],
-        isNIMDiagnosticsOpen: true,
       }));
+      get().showToast(err.message || 'Error en clasificación LLM', 'error');
     }
   },
 
@@ -739,7 +957,9 @@ export const useDocStore = create<DocState>()(
     const { doc, pushHistory } = get();
     if (!doc) return;
     try {
-      const updated = await api.updateElement(doc.session_id, elementId, type, headingLevel, text);
+      const localElem = doc.elements.find((e) => e.id === elementId);
+      const equation = localElem?.type === 'equation' ? localElem.equation : undefined;
+      const updated = await api.updateElement(doc.session_id, elementId, type, headingLevel, text, equation);
       pushHistory(updated);
       set({ doc: updated });
     } catch (err: any) {
@@ -757,6 +977,14 @@ export const useDocStore = create<DocState>()(
     } catch (err: any) {
       console.error('Error updating image:', err);
     }
+  },
+
+  replaceImage: async (elementId, file) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    const updated = await api.replaceImageFile(doc.session_id, elementId, file);
+    pushHistory(updated);
+    set({ doc: updated });
   },
 
   reorderElements: async (elementIds) => {
@@ -785,33 +1013,61 @@ export const useDocStore = create<DocState>()(
     }
   },
 
+  insertTocElement: () => {
+    const { doc } = get();
+    if (!doc) return;
+    // No duplicar si ya hay un TOC
+    if (doc.elements.some((e) => e.type === 'toc')) {
+      get().showToast('Ya existe un índice en el documento.', 'warning');
+      return;
+    }
+    const tocElem: any = {
+      id: `toc_${Date.now()}`,
+      type: 'toc',
+      heading_level: 1,
+      text: 'Índice / Tabla de Contenidos',
+      style_name: 'Normal',
+      alignment: 'left',
+      font_name: doc.elements[0]?.font_name || 'Times New Roman',
+      font_size: doc.elements[0]?.font_size || 12,
+      is_bold: false,
+      is_italic: false,
+      is_bullet: false,
+      left_indent_cm: 0,
+      confidence: 1.0,
+      is_user_modified: true,
+      needs_review: false,
+      auto_applied: false,
+      cita_ids: [],
+      toc_style: 'dotted',
+    };
+    // Insertar después de la portada (tras los elementos de portada / portada_block)
+    let insertIdx = 0;
+    for (let i = 0; i < doc.elements.length; i++) {
+      const e = doc.elements[i];
+      if (e.is_cover_section || e.type === 'portada_block' || e.type === 'page_break') insertIdx = i + 1;
+    }
+    const next = [...doc.elements];
+    next.splice(insertIdx, 0, tocElem);
+    get().pushHistory(doc);
+    set({ doc: { ...doc, elements: next } });
+    get().showToast('Índice insertado tras la portada. Se generará como Tabla de Contenidos de Word.', 'success');
+  },
+
   setRules: (newRules) => set((state) => ({ rules: { ...state.rules, ...newRules } })),
-  setRulesFull: (newRules) => set({ rules: newRules }),
 
   saveRuleProfile: (name) => set((state) => {
     const profile = { ...state.rules, profile_name: name, is_default: false };
     return { ruleProfiles: [...state.ruleProfiles, profile] };
   }),
 
-  loadRuleProfile: (name) => set((state) => {
-    if (name === 'APA 7 Estándar') return { rules: defaultRules };
-    const profile = state.ruleProfiles.find((p) => p.profile_name === name);
-    return profile ? { rules: profile } : {};
-  }),
-
   resetRulesToDefault: () => set({ rules: defaultRules }),
 
   setPortada: (newPortada) => set((state) => ({ portada: { ...state.portada, ...newPortada } })),
-  setPortadaFull: (newPortada) => set({ portada: newPortada }),
 
   savePortadaProfile: (name) => set((state) => {
     const profile = { profile_name: name, created_at: new Date().toISOString(), data: state.portada };
     return { portadaProfiles: [...state.portadaProfiles, profile as any] };
-  }),
-
-  loadPortadaProfile: (name) => set((state) => {
-    const profile = state.portadaProfiles.find((p: any) => p.profile_name === name);
-    return profile ? { portada: profile.data } : {};
   }),
 
   updateReferences: (refs: ReferenciaModel[]) => set({ references: refs }),
@@ -848,20 +1104,10 @@ export const useDocStore = create<DocState>()(
   },
 
   runValidation: async () => {
-    const { doc, references, aiCitationValidation, apiKey, aiProviderConfig } = get();
+    const { doc, references } = get();
     if (!doc) return;
     try {
       const issues = await api.validateDocument(doc.session_id, references);
-
-      // If AI citation validation is enabled, run LLM pass (requires apiKey or local NIM URL)
-      if (aiCitationValidation && (apiKey || aiProviderConfig.useLocal)) {
-        try {
-          const aiIssues = await api.validateCitationsWithAI(doc.session_id, references, apiKey, aiProviderConfig);
-          issues.push(...aiIssues);
-        } catch (aiErr) {
-          console.warn('AI citation validation failed (non-fatal):', aiErr);
-        }
-      }
 
       set({ validationIssues: issues });
     } catch (err: any) {
@@ -901,9 +1147,9 @@ export const useDocStore = create<DocState>()(
       // En Electron, download_url es relativo (/api/download/...). Necesitamos la URL absoluta.
       const downloadUrl = data.download_url.startsWith('http')
         ? data.download_url
-        : `http://127.0.0.1:8742${data.download_url}`;
+        : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
       window.location.href = downloadUrl;
-      set({ hasUnsavedChanges: false });
+      set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar documento', isLoading: false });
     } finally {
@@ -932,9 +1178,9 @@ export const useDocStore = create<DocState>()(
       if (data.download_url) {
         const downloadUrl = data.download_url.startsWith('http')
           ? data.download_url
-          : `http://127.0.0.1:8742${data.download_url}`;
+          : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
         window.location.href = downloadUrl;
-        set({ hasUnsavedChanges: false });
+        set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar PDF', isLoading: false });
@@ -953,15 +1199,14 @@ export const useDocStore = create<DocState>()(
         ruleProfiles: state.ruleProfiles,
         portadaProfiles: state.portadaProfiles,
         aiProviderConfig: state.aiProviderConfig,
-        aiCitationValidation: state.aiCitationValidation,
-        validateCitationsOnGenerate: state.validateCitationsOnGenerate,
         // NOTE: doc, tabs, tabDocs, history intentionally NOT persisted
         // so the app always starts fresh (like Word opening without any file)
-        wizardComplete: false, // always reset to show QuickStart
-        wizardAnswers: state.wizardAnswers,
         hasSeenTour: state.hasSeenTour,
-        workMode: state.workMode,
       }),
     }
   )
 );
+
+// Rompe el ciclo de importación backend.ts ↔ store: el tracing de X-Request-ID
+// se registra como listener en http.ts en vez de importar el store desde la API.
+setRequestIdListener((id) => useDocStore.getState().setLastRequestId(id));

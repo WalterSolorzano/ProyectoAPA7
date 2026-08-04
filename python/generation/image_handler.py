@@ -25,6 +25,58 @@ from docx.oxml import parse_xml, OxmlElement
 from models import ImageModel, APARuleSet
 
 
+def _apply_image_rotation(run_element, rotation: int) -> None:
+    """
+    Aplica rotacion (en grados, multiplos de 90) a la imagen inline del run.
+    Escribe a:xfrm/a:rot (en 60000ths de grado) dentro del drawing.
+    """
+    try:
+        drawing = run_element.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        inline = drawing.find(qn('wp:inline'))
+        if inline is None:
+            anchor = drawing.find(qn('wp:anchor'))
+            if anchor is not None:
+                inline = anchor
+        if inline is None:
+            return
+        # El a:xfrm con rot esta en wp:extent -> a:graphic -> a:graphicData -> pic:pic -> pic:spPr -> a:xfrm
+        extent = inline.find(qn('wp:extent'))
+        if extent is None:
+            return
+        graphic = inline.find(qn('a:graphic'))
+        if graphic is None:
+            return
+        graphicData = graphic.find(qn('a:graphicData'))
+        if graphicData is None:
+            return
+        pic = graphicData.find(qn('pic:pic'))
+        if pic is None:
+            return
+        spPr = pic.find(qn('pic:spPr'))
+        if spPr is None:
+            return
+        xfrm = spPr.find(qn('a:xfrm'))
+        if xfrm is None:
+            xfrm = OxmlElement('a:xfrm')
+            spPr.insert(0, xfrm)
+        rot = xfrm.find(qn('a:rot'))
+        if rot is None:
+            rot = OxmlElement('a:rot')
+            xfrm.append(rot)
+        rot.set(qn('val'), str(int(rotation * 60000)))
+        # Si rotamos 90/270, intercambiamos cx/cy para mantener proporciones
+        if rotation % 180 != 0:
+            cx = extent.get('cx')
+            cy = extent.get('cy')
+            if cx and cy:
+                extent.set('cx', cy)
+                extent.set('cy', cx)
+    except Exception:
+        pass
+
+
 def _get_alignment(align_str: str):
     """Convierte string de alineacion a constante WD_ALIGN_PARAGRAPH."""
     mapping = {
@@ -34,40 +86,6 @@ def _get_alignment(align_str: str):
         "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
     }
     return mapping.get(align_str, WD_ALIGN_PARAGRAPH.CENTER)
-
-
-def _calc_image_width(img_data: ImageModel, original_width_emu: int | None = None) -> Inches | None:
-    """
-    Calcula el ancho de la imagen:
-    1. Si width_inches esta definido, usar ese.
-    2. Si width_cm > 0, convertir de cm a pulgadas.
-    3. Si hay tamano original EMU, preservarlo (None = sin escalar).
-    4. Default: 5 pulgadas (ancho razonable para APA 7).
-    """
-    if img_data.width_inches is not None and img_data.width_inches > 0:
-        return Inches(img_data.width_inches)
-    if img_data.width_cm and img_data.width_cm > 0:
-        return Inches(img_data.width_cm / 2.54)
-    if original_width_emu and original_width_emu > 0:
-        return None
-    return Inches(5.0)
-
-
-def _extract_original_image_width(picture_run) -> int | None:
-    """
-    Intenta extraer el ancho original EMU de un elemento de imagen en el XML.
-    """
-    try:
-        blip_fill = picture_run._element.findall('.//' + qn('a:xfrm'))
-        if not blip_fill:
-            blip_fill = picture_run._element.findall('.//' + qn('wp:extent'))
-        for xfrm in blip_fill:
-            cx = xfrm.get('cx')
-            if cx:
-                return int(cx)
-    except Exception:
-        pass
-    return None
 
 
 def _add_paragraph_border(p_element, size_pt: int = 1, color: str = "000000"):
@@ -207,6 +225,9 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
     p_img.paragraph_format.space_before = Pt(6)
     p_img.paragraph_format.space_after = Pt(6)
     p_img.paragraph_format.first_line_indent = Inches(0)
+    # Evitar que la imagen quede partida entre dos páginas
+    p_img.paragraph_format.keep_together = True
+    p_img.paragraph_format.widow_control = True
 
     if img_data.file_path and os.path.exists(img_data.file_path):
         run = p_img.add_run()
@@ -221,6 +242,29 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
             run.add_picture(img_data.file_path, width=width)
         else:
             run.add_picture(img_data.file_path)
+
+        # Aplicar rotacion (0, 90, 180, 270) via a:xfrm/a:rot dentro del drawing
+        rotation = int(getattr(img_data, "rotation", 0) or 0)
+        if rotation:
+            _apply_image_rotation(run_element, rotation)
+
+        # Texto alternativo (accesibilidad) — se escribe en el drawing y el docProps
+        alt_text = (getattr(img_data, "alt_text", "") or "").strip()
+        if alt_text:
+            try:
+                from docx.oxml.ns import nsmap
+                drawing = run_element.find(qn('w:drawing'))
+                if drawing is not None:
+                    wp_inline = drawing.find(qn('wp:inline'))
+                    target = wp_inline if wp_inline is not None else drawing.find(qn('wp:anchor'))
+                    if target is not None:
+                        descr = OxmlElement('wp:docPr')
+                        descr.set(qn('id'), '0')
+                        descr.set(qn('name'), 'Imagen')
+                        descr.set(qn('descr'), alt_text[:255])
+                        target.insert(0, descr)
+            except Exception:
+                pass
 
         # Aplicar estilos de diseno avanzados (floating, borders)
         if design in ("sidebar", "corner"):

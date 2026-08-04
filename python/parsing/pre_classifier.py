@@ -62,24 +62,28 @@ REGEX_TABLE_CAPTION = re.compile(r'^(?:Tabla|Table|Cuadro)\s+\d+\.?', re.IGNOREC
 # Caption de figura: "Figura 1", "Figura 1."
 REGEX_FIGURE_CAPTION = re.compile(r'^(?:Figura|Figure|Fig\.)\s+\d+\.?', re.IGNORECASE)
 
-# Patrones de texto que indican bloque de portada
-PORTADA_KEYWORDS: set[str] = {
-    "universidad", "facultad", "escuela", "departamento", "carrera",
-    "licenciatura", "maestria", "doctorado", "tesis", "monografia",
-    "profesor", "catedratico", "alumno", "estudiante", "autor",
-    "presentado por", "presentada por", "dirigido por", "tutor",
-    "asignatura", "materia", "curso", "semestre", "ciclo",
-    "ano academico", "periodo", "fecha", "ciudad", "pais",
-}
-
-# Palabras que sugieren que un parrafo es parte central del texto (no portada)
-BODY_KEYWORDS: set[str] = {
-    "introduccion", "resumen", "abstract", "metodologia", "metodo",
-    "resultados", "discusion", "conclusion", "conclusiones",
-    "referencias", "bibliografia", "anexo", "apendice",
-    "capitulo", "seccion", "marco teorico", "antecedentes",
-    "objetivo", "hipotesis", "justificacion", "planteamiento",
-}
+# Referencia APA: "Apellido, A. (2000)." / "Apellido, A. B., & Apellido, C. (2000)."
+# Soporta apellidos compuestos ("García López, H.") y organizaciones ("OIT", "(UNESCO)").
+_REF_APELLIDO = r"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’\-]+"
+_REF_INICIALES = r"(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]*\.?\s*)+"
+REFERENCE_PATTERN = re.compile(
+    r'^' + _REF_APELLIDO + r'(?:\s+' + _REF_APELLIDO + r')*,\s*'
+    + _REF_INICIALES
+    + r'(?:,\s*&\s*' + _REF_APELLIDO + r'(?:\s+' + _REF_APELLIDO + r')*,\s*'
+    + _REF_INICIALES + r')?'
+    +     r'\s*\((?:\d{4}|n\.d\.)\)\.',
+)
+# Organización como autor: "Organización Internacional del Trabajo (OIT). (2007)."
+REFERENCE_ORG_PATTERN = re.compile(
+    r'^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,8}\s*\((?:[A-ZÁÉÍÓÚÑ]{2,}|[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\)\.\s*\(\d{4}\)\.',
+)
+REFERENCE_URL_PATTERN = re.compile(
+    r'^(?:http|www\.|https://).{10,}\b|^[A-Z][^.]{5,}\.(?:Available from|Recuperado de|Disponible en|Tomado de)',
+)
+# Titulo de referencia que empieza por el nombre del trabajo (no por autor)
+REFERENCE_TITLE_PATTERN = re.compile(
+    r'^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ\s\'’\-]{8,}\b.{0,200}?(?:\(?\d{4}\)?|Available from|Recuperado de|researchgate|doi\.org|dx\.doi\.org)',
+)
 
 # Palabras clave que, cuando aparecen SOLAS o como titulo principal
 # de un parrafo con formato de heading, deben clasificarse como HEADING 1
@@ -143,28 +147,6 @@ def _is_all_caps(text: str) -> bool:
     return all(c.isupper() or c in "ÁÉÍÓÚÑ" for c in letters)
 
 
-def _is_title_case(text: str) -> bool:
-    """Verifica si un texto tiene formato Titulo Case aproximado."""
-    words = text.split()
-    if len(words) < 2:
-        return False
-    # Al menos 60% de palabras empiezan con mayuscula
-    capital_count = sum(1 for w in words if w and w[0].isupper())
-    return capital_count / len(words) >= 0.6
-
-
-def _has_portada_keywords(text: str) -> bool:
-    """Verifica si el texto contiene palabras clave de portada (insensible a acentos)."""
-    text_normalized = _normalize_accent(text.lower())
-    return any(kw in text_normalized for kw in PORTADA_KEYWORDS)
-
-
-def _has_body_keywords(text: str) -> bool:
-    """Verifica si el texto contiene palabras clave de cuerpo academico (insensible a acentos)."""
-    text_normalized = _normalize_accent(text.lower())
-    return any(kw in text_normalized for kw in BODY_KEYWORDS)
-
-
 def _estimate_level_by_indent(left_indent_cm: float) -> int:
     """Estima nivel de bullet/list por su indentacion."""
     if left_indent_cm >= 2.0:
@@ -177,6 +159,123 @@ def _estimate_level_by_indent(left_indent_cm: float) -> int:
 def _is_empty_or_whitespace(text: str) -> bool:
     """Verifica si el texto esta vacio o solo tiene whitespace."""
     return not text or not text.strip()
+
+
+def _apply_native_heading_length_guard(elem: ElementModel, word_count: int) -> bool:
+    """
+    Los estilos nativos de Word ('Heading 1') se aceptaban con confianza 0.99
+    sin verificar longitud. Los usuarios aplican el estilo a parrafos largos
+    que NO son titulos. Guard:
+      - > 30 palabras  → degradar a parrafo (con revision pendiente).
+      - > 20 palabras  → mantener heading pero marcar para revision.
+    Retorna True si se mantiene como heading.
+    """
+    if word_count > 30:
+        elem.type = ElementType.PARAGRAPH
+        elem.heading_level = None
+        elem.confidence = 0.75
+        elem.needs_review = True
+        return False
+    if word_count > 20:
+        elem.confidence = 0.70
+        elem.needs_review = True
+    return True
+
+
+def _flag_numbering_skips(elements: List[ElementModel]) -> None:
+    """
+    Valida la cadena de numeracion decimal de headings (1, 1.1, 1.1.1).
+    Detecta niveles que aparecen SIN su padre (p.ej. "3.1" sin un "3." previo,
+    o "1.1" sin "1." antes) y los marca para revision del usuario.
+    Es una advertencia, no una correccion automatica.
+    """
+    seen_prefixes: set[tuple] = set()
+    for elem in elements:
+        if elem.type != ElementType.HEADING or not elem.text:
+            continue
+        txt = elem.text.strip()
+        m = re.match(r'^(\d+(?:\.\d+)*)\.\s', txt)
+        if not m:
+            continue
+        nums = tuple(int(x) for x in m.group(1).split('.'))
+        parent = nums[:-1] if len(nums) > 1 else ()
+        if len(nums) > 1 and parent and parent not in seen_prefixes:
+            # Un heading 2+ cuyo padre no aparecio antes = salto en la cadena
+            if not elem.pre_classifier_rule:
+                elem.pre_classifier_rule = "numbering_skip"
+            elem.needs_review = True
+        seen_prefixes.add(nums)
+
+
+def _extract_toc_entries(elements: List[ElementModel]) -> List[tuple]:
+    """
+    Extrae (texto normalizado, nivel TOC) de los elementos TOC nativos de Word.
+    Las entradas del TOC son ground truth: si un heading aparece ahi, su nivel
+    es confiable. Retorna lista de tuplas (texto_norm, nivel_opt).
+    """
+    entries: List[tuple] = []
+    for e in elements:
+        if e.type != ElementType.TOC or not e.text:
+            continue
+        txt = e.text.strip()
+        if txt in ("[Tabla de Contenidos]", "[TOC Field]"):
+            continue
+        # Quitar el numero de pagina que Word agrega tras un tab
+        m = re.search(r'\t\d+\s*$', txt)
+        if m:
+            txt = txt[: m.start()].strip()
+        txt_norm = _normalize_accent(txt.lower()).strip()
+        if not txt_norm or len(txt_norm) < 4:
+            continue
+        level = None
+        style = (e.style_name or "").lower()
+        m2 = re.search(r'\btoc\s*(\d+)\b', style)
+        if m2:
+            level = int(m2.group(1))
+        entries.append((txt_norm, level))
+    return entries
+
+
+def _apply_toc_validation(elements: List[ElementModel], toc_entries: List[tuple]) -> None:
+    """
+    Si el documento tiene TOC nativo, los titulos que aparecen en el son
+    confiables: se confirman como HEADING con su nivel y needs_review=False.
+    """
+    if not toc_entries:
+        return
+    for elem in elements:
+        if not elem.text or not elem.text.strip():
+            continue
+        if elem.pre_classifier_rule in (
+            "exclude_table_caption", "exclude_table_legal",
+            "exclude_figure_caption_upper", "reference_item",
+        ):
+            continue
+        txt_norm = _normalize_accent(elem.text.strip().lower())
+        for toc_norm, toc_level in toc_entries:
+            if txt_norm == toc_norm:
+                match = True
+            else:
+                shorter, longer = (
+                    (txt_norm, toc_norm)
+                    if len(txt_norm) < len(toc_norm)
+                    else (toc_norm, txt_norm)
+                )
+                match = (
+                    len(shorter) >= 8
+                    and len(shorter) / len(longer) >= 0.8
+                    and longer.startswith(shorter)
+                )
+            if match:
+                elem.type = ElementType.HEADING
+                if toc_level and 1 <= toc_level <= 5:
+                    elem.heading_level = toc_level
+                elif not elem.heading_level:
+                    elem.heading_level = 1
+                elem.confidence = max(elem.confidence or 0, 0.97)
+                elem.needs_review = False
+                elem.pre_classifier_rule = "toc_validated"
+                break
 
 
 # ── Clasificacion principal ────────────────────────────────────────────────────
@@ -207,6 +306,17 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         ):
             elem.confidence = 1.0
             elem.needs_review = False
+            continue
+
+        # CRITICO: Ecuaciones OMML (Office Math). Si el parser detecto m:oMath,
+        # el parrafo ES una ecuacion: preservar el XML intacto y no tratarlo
+        # como parrafo normal (aunque tenga texto). Va ANTES del check de vacio
+        # porque una ecuacion puede consistir solo en simbolos matematicos.
+        if getattr(elem, 'has_math', False):
+            elem.type = ElementType.EQUATION
+            elem.confidence = 1.0
+            elem.needs_review = False
+            elem.pre_classifier_rule = "omml_equation"
             continue
 
         # CRITICO: Parrafo vacio — debe ir ANTES de cualquier otra deteccion
@@ -246,6 +356,51 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             if not elem.heading_level or elem.heading_level == 0:
                 elem.heading_level = _estimate_level_by_indent(left_indent)
             elem.confidence = 0.95
+            continue
+
+        # --- CERTEZA 0.93: EXCLUSION de captions/encabezados de tablas y textos legales ---
+        # "Tabla 1. Condiciones...", "Tabla Condiciones...", "Artículo 13. ...",
+        # "Figura 1", "Figura8" — NO deben clasificarse como Heading aunque tengan
+        # estilo Heading de Word (los usuarios abusan del estilo en anexos).
+        if REGEX_TABLE_CAPTION.match(text) or REGEX_FIGURE_CAPTION.match(text):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.90
+            elem.pre_classifier_rule = "exclude_table_caption"
+            continue
+
+        if re.match(r'^(?:tabla|cuadro|artículo|articulo|figura|fig)\b', text, re.IGNORECASE):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.85
+            elem.pre_classifier_rule = "exclude_table_legal"
+            continue
+
+        # Texto de evaluación de riesgo / conclusiones de tablas de anexos
+        if re.match(r'^(?:el riesgo es|es moderado|es alto|es bajo|el nivel de riesgo|el resultado es|se concluye que|en base a lo anterior|por lo tanto el|este peligro|este riesgo)', text, re.IGNORECASE):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.85
+            elem.pre_classifier_rule = "exclude_table_legal"
+            continue
+
+        # Caption de figura sin espacio: "Figura8", "Tabla2"
+        if re.match(r'^(?:figura|tabla)\s*\d+$', text, re.IGNORECASE):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.90
+            elem.pre_classifier_rule = "exclude_figure_caption_upper"
+            continue
+
+        # Figuras/tablas sin estilo de caption pero en mayusculas de encabezado
+        if re.match(r'^(?:FIGURA|TABLA)\s*\d*', text):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.80
+            elem.pre_classifier_rule = "exclude_figure_caption_upper"
+            continue
+
+        # Referencias APA: "Apellido, A. (2000)." o URLs de researchgate no son headings
+        if REFERENCE_PATTERN.match(text) or REFERENCE_URL_PATTERN.match(text) or REFERENCE_TITLE_PATTERN.match(text) or REFERENCE_ORG_PATTERN.match(text):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.92
+            elem.needs_review = False
+            elem.pre_classifier_rule = "reference_item"
             continue
 
         # --- CERTEZA 1.0: Estilo de Word explicito ---
@@ -311,16 +466,43 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # --- CERTEZA 0.91: Heading numerado por patron (1.1, 2.3.1, I., A.) ---
+        # Excepcion: "1. Seiri", "2. Cocineras" son ITEMS de lista, no headings.
+        # Si es numeracion simple (1.) con guion/2-puntos y pocas palabras, es lista.
         if REGEX_NUMBERED_HEADING.match(text) and word_count <= 20:
+            _is_simple_item = (
+                re.match(r'^\d+\.\s', text)
+                and re.match(r'^[^.]{1,3}\.\s', text)  # solo un segmento
+                and (re.search(r'[—–:]\s', text) or word_count <= 4)
+            )
+            if _is_simple_item:
+                elem.type = ElementType.NUMBERED_LIST
+                elem.heading_level = 1
+                elem.confidence = 0.90
+                elem.needs_review = False
+                continue
+
             elem.type = ElementType.HEADING
             parts = text.split()
             prefix = parts[0] if parts else ""
             if prefix.endswith('.'):
-                segments = prefix.rstrip('.').split('.')
-                elem.heading_level = min(max(len(segments), 1), 5)
+                core = prefix.rstrip('.')
+                if re.match(r'^(?:X{0,3})(?:I[XV]|V?I{0,3})$', core):
+                    elem.heading_level = 1
+                    elem.confidence = 0.78
+                    elem.needs_review = True
+                elif re.match(r'^[A-Z]$', core):
+                    elem.heading_level = 1
+                    elem.confidence = 0.80
+                    elem.needs_review = True
+                else:
+                    segments = core.split('.')
+                    elem.heading_level = min(max(len(segments), 1), 5)
+                    elem.confidence = 0.91
+                    # Si viene de estilo Heading de Word, marcar para revision IA
+                    if "heading" in style_name:
+                        elem.needs_review = True
             else:
                 elem.heading_level = 1
-            elem.confidence = 0.91
             if first_heading_idx == -1:
                 first_heading_idx = idx
             continue
@@ -412,6 +594,19 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 first_heading_idx = idx
             continue
 
+        # Heading 4/5 inline: "Titulo del heading. El parrafo continua..." en el
+        # MISMO parrafo (negrita + punto + texto normal). Patron definido pero
+        # nunca activado antes. Solo si el inicio es negrita y es corto.
+        inline_match = REGEX_INLINE_HEADING.match(text)
+        if inline_match and is_bold and word_count <= 20 and not is_centered:
+            elem.type = ElementType.HEADING
+            elem.heading_level = 4
+            elem.confidence = 0.80
+            elem.needs_review = True
+            if first_heading_idx == -1:
+                first_heading_idx = idx
+            continue
+
         # --- CERTEZA 0.85: Caption de tabla/figura ---
         if REGEX_TABLE_CAPTION.match(text):
             elem.type = ElementType.PARAGRAPH
@@ -451,13 +646,20 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # --- Señales múltiples para detección robusta de portada ---
 
     portada_boundary = None
+    # El boundary por página solo es autoritativo si el documento es MULTIPÁGINA.
+    # Si todo cabe en la página 1, un doc corto no debe tratarse como portada
+    # completa — se cae a las señales de keywords.
     if elements and getattr(elements[0], "page_number", None) is not None:
-        portada_boundary = 0
-        for idx, elem in enumerate(elements):
-            if getattr(elem, "page_number", None) == 1:
-                portada_boundary = idx + 1
-            else:
-                break
+        any_after_page1 = any(
+            (getattr(e, "page_number", 1) or 1) > 1 for e in elements
+        )
+        if any_after_page1:
+            portada_boundary = 0
+            for idx, elem in enumerate(elements):
+                if getattr(elem, "page_number", None) == 1:
+                    portada_boundary = idx + 1
+                else:
+                    break
 
     # Señal A: Palabras clave de cuerpo (body_start)
     body_start_idx = -1
@@ -491,7 +693,13 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     for e in elements[:40]:
         text_norm = _normalize_accent((e.text or "").lower())
         for kw in cover_kw_list:
-            if kw in text_norm:
+            # Las palabras sueltas ("tutor", "materia") deben matchear como palabra
+            # completa, no como subcadena ("tutoría", "material" dan falsos positivos).
+            if " " in kw:
+                matched = kw in text_norm
+            else:
+                matched = f" {kw} " in f" {text_norm} "
+            if matched:
                 has_explicit_cover_keywords = True
                 cover_keyword_count += 1
                 break
@@ -567,7 +775,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
 
     highest_level_seen = 0
 
-    for elem in elements:
+    for elem_idx, elem in enumerate(elements):
         if elem.is_cover_section or elem.type == ElementType.PORTADA_BLOCK:
             elem.heading_level = None
             elem.needs_review = False
@@ -577,47 +785,74 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         txt = (elem.text or "").strip()
         words = txt.split()
 
-        if not txt and not elem.image_info and not elem.table_info and elem.type not in (ElementType.IMAGE, ElementType.TABLE):
+        if not txt and not elem.image_info and not elem.table_info and elem.type not in (
+            ElementType.IMAGE,
+            ElementType.TABLE,
+            ElementType.SECTION_BREAK,
+            ElementType.PAGE_BREAK,
+            ElementType.TOC,
+            ElementType.EQUATION,
+        ):
             elem.type = ElementType.EMPTY
             elem.heading_level = None
             elem.needs_review = False
             continue
 
+        # 0.5. EXCLUSIONES de Pasada 1 tienen prioridad TOTAL sobre el estilo de Word.
+        # Captions de figura/tabla, textos legales, referencias APA y listas numeradas
+        # NO deben ser headings aunque el usuario haya usado estilo "Heading 1".
+        if elem.pre_classifier_rule in (
+            "exclude_table_caption", "exclude_table_legal",
+            "exclude_figure_caption_upper", "reference_item",
+        ):
+            elem.needs_review = elem.confidence < 0.85
+            if elem.type == ElementType.HEADING:
+                elem.type = ElementType.PARAGRAPH
+                elem.confidence = max(elem.confidence, 0.85)
+            continue
+
         # 1. Caso A: Estilos Nativos de Word (Confianza Máxima 0.99)
+        # Guard de longitud: los usuarios abusan del estilo Heading en párrafos
+        # largos que no son títulos → degradar o marcar revisión.
         if "heading 1" in style_lower or "título 1" in style_lower or "titulo 1" in style_lower:
             elem.type = ElementType.HEADING
             elem.heading_level = 1
             elem.confidence = 0.99
             elem.needs_review = False
-            highest_level_seen = max(highest_level_seen, 1)
+            if _apply_native_heading_length_guard(elem, len(words)):
+                highest_level_seen = max(highest_level_seen, 1)
             continue
         elif "heading 2" in style_lower or "título 2" in style_lower or "titulo 2" in style_lower:
             elem.type = ElementType.HEADING
             elem.heading_level = 2
             elem.confidence = 0.99
             elem.needs_review = False
-            highest_level_seen = max(highest_level_seen, 2)
+            if _apply_native_heading_length_guard(elem, len(words)):
+                highest_level_seen = max(highest_level_seen, 2)
             continue
         elif "heading 3" in style_lower or "título 3" in style_lower or "titulo 3" in style_lower:
             elem.type = ElementType.HEADING
             elem.heading_level = 3
             elem.confidence = 0.99
             elem.needs_review = False
-            highest_level_seen = max(highest_level_seen, 3)
+            if _apply_native_heading_length_guard(elem, len(words)):
+                highest_level_seen = max(highest_level_seen, 3)
             continue
         elif "heading 4" in style_lower or "título 4" in style_lower:
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.99
             elem.needs_review = False
-            highest_level_seen = max(highest_level_seen, 4)
+            if _apply_native_heading_length_guard(elem, len(words)):
+                highest_level_seen = max(highest_level_seen, 4)
             continue
         elif "heading 5" in style_lower or "título 5" in style_lower:
             elem.type = ElementType.HEADING
             elem.heading_level = 5
             elem.confidence = 0.99
             elem.needs_review = False
-            highest_level_seen = max(highest_level_seen, 5)
+            if _apply_native_heading_length_guard(elem, len(words)):
+                highest_level_seen = max(highest_level_seen, 5)
             continue
 
         # Preservar elementos clasificados con alta confianza en Pasada 1 (bullets, tablas, etc.)
@@ -626,8 +861,17 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # Skip non-textual or special elements
-        if elem.type in (ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK, ElementType.TOC):
+        if elem.type in (ElementType.EMPTY, ElementType.IMAGE, ElementType.TABLE, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK, ElementType.TOC, ElementType.EQUATION):
             elem.needs_review = False
+            continue
+
+        # 1.5. EXCLUSION de referencias bibliograficas APA
+        # Patron "Autor, A. (2000)." o "Autor, A. B., & Autor, C. (2000)." o URLs de researchgate
+        if REFERENCE_PATTERN.match(txt) or REFERENCE_URL_PATTERN.match(txt) or REFERENCE_TITLE_PATTERN.match(txt) or REFERENCE_ORG_PATTERN.match(txt):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.92
+            elem.needs_review = False
+            elem.pre_classifier_rule = "reference_item"
             continue
 
         # 2. Caso B: Algoritmo de Scoring Heurístico Multi-Criterio
@@ -643,8 +887,21 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             score += 0.2
         if elem.alignment == "center":
             score += 0.15
-        if len(words) > 25 or (txt and txt.count(".") > 1):
+        # Penalizar solo si hay MULTIPLES ORACIONES reales (punto + espacio +
+        # mayuscula). Las abreviaturas tipo "S.C.E.M." tienen varios puntos
+        # pero NO son multiples oraciones — antes esto degradaba titulos con
+        # acronimos (p.ej. "Aplicación del Método S.C.E.M.").
+        multi_sentence = bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', txt)) if txt else False
+        if len(words) > 25 or multi_sentence:
             score -= 0.5
+
+        # Salto de fuente relativo al PÁRRAFO SIGUIENTE: si este párrafo corto
+        # es >= 2pt más grande que el que le sigue, es candidato a heading
+        # (los títulos suelen ir seguidos de texto de cuerpo más pequeño).
+        if len(words) < 20 and (elem_idx + 1) < len(elements):
+            next_font = getattr(elements[elem_idx + 1], "font_size", None)
+            if next_font and elem.font_size and (elem.font_size - next_font) >= 2:
+                score += 0.15
 
         # Decisiones por Umbral de Score
         # Heuristically-detected headings always need review so the user
@@ -675,6 +932,9 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 target_lvl = 1
             elif re.match(r'^(?:X{0,3})(?:I[XV]|V?I{1,3})\.\s', txt):
                 target_lvl = 1
+                if elem.confidence > 0.80:
+                    elem.confidence = 0.78
+                    elem.needs_review = True
             elif elem.alignment == "center" or elem.font_size > median_size:
                 target_lvl = 1
             elif elem.is_bold and elem.is_italic:
@@ -694,5 +954,16 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # sobreescribiendo inferencias débiles anteriores.
     classifier = ClusteringHeadingClassifier()
     elements = classifier.classify(elements)
+
+    # ── PASADA 5: Validación con Tabla de Contenidos nativa ───────────────────
+    # Si el documento tiene TOC de Word, sus entradas son ground truth:
+    # confirmar esos títulos con su nivel y quitar la marca de revisión.
+    toc_entries = _extract_toc_entries(elements)
+    _apply_toc_validation(elements, toc_entries)
+
+    # ── PASADA 6: Validación de cadena de numeración ──────────────────────────
+    # Marcar para revisión los headings numerados que saltan niveles o
+    # aparecen sin su padre (p.ej. "3.1" sin un "3." previo).
+    _flag_numbering_skips(elements)
 
     return elements

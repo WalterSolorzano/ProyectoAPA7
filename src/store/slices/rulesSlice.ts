@@ -1,1 +1,0 @@
-export interface RulesSlice { rules: any; }

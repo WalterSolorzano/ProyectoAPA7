@@ -6,10 +6,10 @@ import { useDocStore } from '../../store/useDocStore';
 import { fetchTemplates, applyTemplate, TemplateInfo } from '../../api/backend';
 
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
-  'Tesina / Monografía Académica': <BookOpen size={20} color="#1a73e8" />,
-  'Informe Técnico / Laboratorio': <Beaker size={20} color="#0d9488" />,
-  'Artículo IMRyD (Investigación)': <FileSignature size={20} color="#7c3aed" />,
-  'Ensayo Académico': <FileText size={20} color="#d97706" />,
+  'Tesina / Monografía Académica': <BookOpen size={20} color="var(--accent-primary)" />,
+  'Informe Técnico / Laboratorio': <Beaker size={20} color="var(--accent-success)" />,
+  'Artículo IMRyD (Investigación)': <FileSignature size={20} color="var(--color-info)" />,
+  'Ensayo Académico': <FileText size={20} color="var(--color-warning)" />,
 };
 
 export const TemplateDialog: React.FC = () => {
@@ -61,28 +61,29 @@ export const TemplateDialog: React.FC = () => {
       zIndex: 10000,
     }}>
       <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '12px',
+        backgroundColor: 'var(--surface-elevated)',
+        borderRadius: '16px',
         width: '520px',
         maxHeight: '80vh',
         overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        border: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0f172a' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text-main)' }}>
               Aplicar Plantilla de Estructura
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
               Selecciona una plantilla para organizar la estructura del documento
             </p>
           </div>
@@ -96,7 +97,7 @@ export const TemplateDialog: React.FC = () => {
               borderRadius: '6px',
               display: 'flex',
               alignItems: 'center',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}
           >
             <X size={20} />
@@ -107,15 +108,15 @@ export const TemplateDialog: React.FC = () => {
         {result && (
           <div style={{
             padding: '10px 24px',
-            backgroundColor: result.success ? '#f0fdf4' : '#fef2f2',
-            borderBottom: `1px solid ${result.success ? '#bbf7d0' : '#fecaca'}`,
+            backgroundColor: result.success ? 'rgba(82,196,26,0.12)' : 'rgba(255,77,79,0.12)',
+            borderBottom: `1px solid ${result.success ? 'rgba(82,196,26,0.35)' : 'rgba(255,77,79,0.35)'}`,
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             fontSize: '13px',
-            color: result.success ? '#166534' : '#991b1b',
+            color: result.success ? 'var(--accent-success)' : 'var(--accent-danger)',
           }}>
-            {result.success ? <CheckCircle2 size={16} color="#16a34a" /> : <AlertCircle size={16} color="#dc2626" />}
+            {result.success ? <CheckCircle2 size={16} color="var(--accent-success)" /> : <AlertCircle size={16} color="var(--accent-danger)" />}
             {result.message}
           </div>
         )}
@@ -123,7 +124,7 @@ export const TemplateDialog: React.FC = () => {
         {/* Template list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
           {availableTemplates.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px', color: '#94a3b8', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '13px' }}>
               Cargando plantillas...
             </div>
           ) : (
@@ -131,42 +132,42 @@ export const TemplateDialog: React.FC = () => {
               <div
                 key={template.name}
                 style={{
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '10px',
                   padding: '16px',
                   marginBottom: '12px',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'var(--surface-subtle)',
                   display: 'flex',
                   gap: '14px',
                   alignItems: 'flex-start',
                 }}
-                onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#1a73e8'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2px rgba(26,115,232,0.12)'; }}
-                onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2px rgba(79,124,255,0.15)'; }}
+                onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
               >
                 <div style={{ flexShrink: 0, marginTop: '2px' }}>
-                  {TEMPLATE_ICONS[template.name] || <FileText size={20} color="#64748b" />}
+                  {TEMPLATE_ICONS[template.name] || <FileText size={20} color="var(--text-muted)" />}
                 </div>
 
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a', marginBottom: '4px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-main)', marginBottom: '4px' }}>
                     {template.name}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                     {template.description}
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: '#f1f5f9', borderRadius: '12px', color: '#475569' }}>
+                    <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', color: 'var(--text-secondary)' }}>
                       {template.section_count} secciones
                     </span>
                     {template.has_toc && (
-                      <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: '#eff6ff', borderRadius: '12px', color: '#1d4ed8' }}>
+                      <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: 'rgba(79,124,255,0.15)', borderRadius: '12px', color: 'var(--accent-primary)' }}>
                         Con índice
                       </span>
                     )}
                     {template.has_references && (
-                      <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: '#f0fdf4', borderRadius: '12px', color: '#15803d' }}>
+                      <span style={{ fontSize: '11px', padding: '2px 8px', backgroundColor: 'rgba(6,214,160,0.12)', borderRadius: '12px', color: 'var(--accent-secondary)' }}>
                         Con referencias
                       </span>
                     )}
@@ -178,10 +179,10 @@ export const TemplateDialog: React.FC = () => {
                   disabled={applying === template.name}
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: applying === template.name ? '#e2e8f0' : '#1a73e8',
-                    color: applying === template.name ? '#64748b' : '#ffffff',
+                    backgroundColor: applying === template.name ? 'var(--text-muted)' : 'var(--accent-primary)',
+                    color: applying === template.name ? 'var(--text-secondary)' : '#ffffff',
                     border: 'none',
-                    borderRadius: '6px',
+                    borderRadius: 'var(--radius-md)',
                     fontSize: '12px',
                     fontWeight: 600,
                     cursor: applying === template.name ? 'not-allowed' : 'pointer',
@@ -200,9 +201,9 @@ export const TemplateDialog: React.FC = () => {
         {/* Footer */}
         <div style={{
           padding: '12px 24px',
-          borderTop: '1px solid #e2e8f0',
+          borderTop: '1px solid var(--border-subtle)',
           fontSize: '12px',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           textAlign: 'center',
         }}>
           Las plantillas insertan secciones faltantes sin eliminar las existentes

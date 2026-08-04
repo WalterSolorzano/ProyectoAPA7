@@ -12,7 +12,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             "/api/health",
             "/api/version",
             "/api/provider-status",
-            "/api/license/validate",
+            "/api/ai/health",
         ]
 
     async def dispatch(self, request: Request, call_next):

@@ -48,7 +48,7 @@ export const ProjectTabs: React.FC = () => {
                   }}
                   title="Cerrar pestana"
                 >
-                  <X size={10} strokeWidth={2.5} />
+                  <X size={10} />
                 </span>
               )}
             </button>
@@ -62,7 +62,7 @@ export const ProjectTabs: React.FC = () => {
         disabled={isLoading}
         title="Nueva pestana"
       >
-        <Plus size={14} strokeWidth={2} />
+        <Plus size={14} />
       </button>
 
       <input

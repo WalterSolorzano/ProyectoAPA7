@@ -20,6 +20,15 @@ from typing import List, Optional
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
+# Restaurar claves de IA guardadas por el usuario (sobreviven a reinicios del backend)
+try:
+    from persistence.ai_keys import load_provider_keys_into_env
+    _restored = load_provider_keys_into_env()
+    if _restored:
+        print(f"[AI] {_restored} claves de IA restauradas desde almacenamiento persistente")
+except Exception as _e:
+    print(f"[WARN] No se pudieron restaurar claves persistidas de IA: {_e}")
+
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
@@ -59,12 +68,11 @@ from persistence.idempotency import check_idempotency, init_sqlite_db
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
 from modules.referencias_module import resolve_doi
 from create_template import create_apa7_template
-from security.license import check_license_middleware, is_license_valid
 
 
 # ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
 
-from config import BASE_DIR, STORAGE_DIR, DIST_DIR
+from config import BASE_DIR, STORAGE_DIR, DIST_DIR, get_apa7_template_path
 STORAGE_DIR.mkdir(exist_ok=True)
 
 
@@ -183,6 +191,7 @@ async def provider_status_endpoint() -> dict:
         {"id": "opencodezen", "name": "OpenCodeZen", "env_var": "OPENCODEZEN_API_KEY"},
         {"id": "zenmux", "name": "ZenMux", "env_var": "ZENMUX_API_KEY"},
         {"id": "gemini", "name": "Gemini", "env_var": "GEMINI_API_KEY"},
+        {"id": "cloudflare", "name": "Cloudflare Workers AI", "env_var": "CLOUDFLARE_API_TOKEN"},
     ]
 
     active_providers = _get_active_providers()
@@ -202,12 +211,31 @@ async def provider_status_endpoint() -> dict:
             } if p["id"] in active_ids else None,
         })
 
+    configured_env_vars = [
+        "NVIDIA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY",
+        "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY", "ZENMUX_API_KEY", "GEMINI_API_KEY",
+        "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
+    ]
+    total_configured = sum(1 for v in configured_env_vars if os.getenv(v, "").strip())
+
     return {
         "providers": providers_status,
         "total_active": len(active_providers),
-        "total_configured": len(all_providers),
+        "total_configured": total_configured,
         "classification_available": len(active_providers) > 0,
     }
+
+
+@app.get("/api/ai/health")
+async def ai_health_endpoint() -> dict:
+    """
+    Estado de salud de los proveedores de IA por especialidad (FAST / HEAVY / REASONING).
+
+    Formato consumido por src/components/AIBatteryIndicator.tsx:
+      { [specialty]: { provider: str, percentage: int, status: 'good'|'warning'|'critical' } }
+    """
+    from modules.ai_client import get_ai_system_health
+    return get_ai_system_health()
 
 
 # Global dict to store progress for WebSockets
@@ -280,7 +308,6 @@ async def collab_ws(websocket: WebSocket, session_id: str):
 def run_background_analysis(session_id: str, storage_dir: Path):
     """Ejecuta la deteccion de IA y el layout COM en background y actualiza la sesion."""
     try:
-        from classification.ai_detector import analyze_ai_risk
         from persistence.session_manager import load_session_state, save_session_state
         from parsing.page_layout_provider import get_page_layout_provider
         
@@ -307,13 +334,56 @@ def run_background_analysis(session_id: str, storage_dir: Path):
         except Exception as e:
             print(f"[WARN] Background Page layout provider fallo: {e}")
 
-        # 2. Deteccion IA
-        for elem in doc.elements:
+        # 2. Deteccion IA (pipeline unificado: párrafos + metadatos + tablas)
+        from classification.ai_detector import analyze_document_ai, analyze_table_cells
+
+        paras = []
+        para_indices = []
+        para_shadings = []
+        para_web_shadings = []
+        for idx, elem in enumerate(doc.elements):
             if elem.text and len(elem.text.strip()) >= 15:
-                ai_result = analyze_ai_risk(elem.text)
-                elem.ai_score = ai_result.get("score", 0.0)
-                elem.ai_findings = ai_result.get("findings", [])
+                paras.append(elem.text)
+                para_indices.append(idx)
+                para_shadings.append(elem.has_shading_residue)
+                para_web_shadings.append(elem.has_web_shading_residue)
+
+        if paras:
+            try:
+                from parsing.pre_classifier import (
+                    REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA,
+                )
+                forensic_meta = doc.meta.forensic_metadata if doc.meta else None
+                if forensic_meta is None:
+                    forensic_meta = {}
+                body_text = " ".join(paras)
+                in_text = len(REGEX_CITATION_NARRATIVA.findall(body_text)) + \
+                          len(REGEX_CITATION_PARENTETICA.findall(body_text))
+                refs_count = len(doc.referencias) if doc.referencias else 0
+                forensic_meta["in_text_citations"] = in_text
+                forensic_meta["references_count"] = refs_count
+
+                ai_results = analyze_document_ai(
+                    paras, forensic_meta, para_shadings, para_web_shadings
+                )
+                for res, el_idx in zip(ai_results, para_indices):
+                    elem = doc.elements[el_idx]
+                    elem.ai_score = res.get("score", 0.0)
+                    elem.ai_findings = res.get("findings", [])
                 modified = True
+            except Exception as e:
+                print(f"[WARN] AI document analysis fallo: {e}")
+
+        # Análisis IA en celdas de tablas (emojis de checklist de matrices copiadas)
+        for elem in doc.elements:
+            if elem.table_info and (elem.table_info.headers or elem.table_info.rows):
+                t_score, t_findings = analyze_table_cells(
+                    elem.table_info.headers, elem.table_info.rows
+                )
+                if t_score > 0:
+                    elem.ai_score = t_score
+                    elem.ai_findings = t_findings
+                    modified = True
         
         if modified:
             save_session_state(doc, storage_dir)
@@ -327,10 +397,17 @@ def run_background_analysis(session_id: str, storage_dir: Path):
 class UpdateElementRequest(BaseModel):
     session_id: str
     element_id: str
-    type: ElementType
-    heading_level: Optional[int] = 1
+    type: str
+    heading_level: Optional[int] = None
     text: Optional[str] = None
-    image_info: Optional[dict] = None  # Campos de ImageModel para actualizar
+    image_info: Optional[dict] = None
+    equation: Optional[dict] = None
+
+
+class DetectSimilarRequest(BaseModel):
+    session_id: str
+    element_id: str
+    new_type: str
 
 
 class ReorderElementsRequest(BaseModel):
@@ -367,10 +444,10 @@ class SuggestCaptionRequest(BaseModel):
     api_key: Optional[str] = None
 
 class ExplainElementRequest(BaseModel):
-    element_type: str
-    text: str
-    rules_applied: str
-    confidence: float
+    element_type: str = ""
+    text: str = ""
+    rules_applied: str = ""
+    confidence: float = 0.0
     api_key: Optional[str] = None
 
 
@@ -382,19 +459,46 @@ class RewriteTextRequest(BaseModel):
     api_key: Optional[str] = None
 
 
-# ── LICENCIAS / SEGURIDAD (PIN PC-LOCKED) ────────────────────────────────────
+class RewriteVariationsRequest(BaseModel):
+    """Genera N variaciones de reescritura de un párrafo (Fase F/propuesta 2)."""
+    session_id: str
+    element_id: str
+    text: str
+    instruction: str = "Reescribe en estilo académico APA 7, eliminando muletillas de IA."
+    n: int = 3
+    api_key: Optional[str] = None
 
-class LicenseRequest(BaseModel):
-    pin: str
 
-@app.post("/api/license/validate")
-async def validate_license(req: LicenseRequest):
-    """Valida y guarda el PIN para esta PC."""
-    is_valid = check_license_middleware(req.pin)
-    if is_valid:
-        return {"status": "ok", "message": "Licencia validada correctamente para este hardware."}
-    else:
-        raise HTTPException(status_code=403, detail="PIN inválido para este hardware.")
+class ChatCommentRequest(BaseModel):
+    """Genera un comentario humorístico estilo WhatsApp sobre un elemento."""
+    session_id: str
+    element_id: str
+    kind: str            # emoji | ghost_citation | validation_* | shouting | spanglish | ...
+    element_text: str    # el texto del elemento (contexto)
+    examples: list = []  # ejemplos del tono buscado
+    api_key: Optional[str] = None
+    nim_url: Optional[str] = None
+    use_local: bool = False
+    provider_id: Optional[str] = None
+
+
+class LoadingTipRequest(BaseModel):
+    """Genera un tip de carga (pantalla de progreso) con IA."""
+    category: Optional[str] = None  # process | jokes | apa | honest
+    phase: Optional[str] = None     # upload | classify | export
+    api_key: Optional[str] = None
+    nim_url: Optional[str] = None
+    use_local: bool = False
+    provider_id: Optional[str] = None
+
+
+class CitationFixRequest(BaseModel):
+    """Sugiere la corrección APA de una cita (propuesta 6)."""
+    session_id: str
+    citation_text: str
+    reference_id: Optional[str] = None
+    problem: str = ""
+    api_key: Optional[str] = None
 
 
 # ── ENDPOINTS DE LA API REST ──────────────────────────────────────────────────
@@ -443,24 +547,33 @@ async def check_idempotency_endpoint(file: UploadFile = File(...)) -> dict:
 @app.post("/api/start-blank")
 async def start_blank_document(background_tasks: BackgroundTasks) -> DocumentModel:
     """Inicia una nueva sesion usando la plantilla en blanco."""
-    template_path = BASE_DIR / "apa7_template.docx"
+    template_path = get_apa7_template_path()
     if not template_path.exists():
-        raise HTTPException(status_code=500, detail="Plantilla no encontrada en el servidor.")
-    
+        # Auto-generar la plantilla si no existe (nunca debe fallar por esto)
+        try:
+            create_apa7_template(template_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"No se pudo generar la plantilla base: {e}")
+
     session_id: str = uuid.uuid4().hex[:12]
     content: bytes = template_path.read_bytes()
-    
-    from core.parser import parse_docx
-    
-    doc_json, elements = parse_docx(content, session_id, BASE_DIR)
-    doc_json["file_name"] = "Nuevo_Documento_APA7.docx"
-    
-    doc = DocumentModel(**doc_json)
-    doc.elements = elements
+
+    session_dir = STORAGE_DIR / "sessions" / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "original.docx").write_bytes(content)
+
+    try:
+        doc: DocumentModel = await asyncio.to_thread(
+            parse_docx_bytes, content, "Nuevo_Documento_APA7.docx", session_id, STORAGE_DIR, skip_page_layout=True
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo procesar la plantilla base: {e}")
+
+    doc.file_name = "Nuevo_Documento_APA7.docx"
     doc.session_id = session_id
-    
+
     save_session_state(doc, STORAGE_DIR)
-    
+
     return doc
 
 
@@ -534,22 +647,58 @@ async def upload_docx(
 
         # Run AI text detector (Library patterns)
         try:
+            from classification.ai_detector import analyze_table_cells
             from modules.ai_text_detector import get_ai_text_detector
             detector = get_ai_text_detector()
             # Prepare paragraphs to analyze
             paras = []
             para_indices = []
             para_shadings = []
+            para_web_shadings = []
             for idx, el in enumerate(doc_model.elements):
                 # Analyze only PARAGRAPH or UNKNOWN (body text candidate)
                 if el.type.value in ("PARAGRAPH", "UNKNOWN", "paragraph", "unknown") and el.text.strip():
                     paras.append(el.text)
                     para_indices.append(idx)
                     para_shadings.append(el.has_shading_residue)
-                    
+                    para_web_shadings.append(el.has_web_shading_residue)
+
+            # Análisis IA en celdas de tablas (emojis de checklist, etc.)
+            table_flag_count = 0
+            for el in doc_model.elements:
+                if el.table_info and (el.table_info.headers or el.table_info.rows):
+                    t_score, t_findings = analyze_table_cells(
+                        el.table_info.headers, el.table_info.rows
+                    )
+                    if t_score > 0:
+                        el.ai_score = t_score
+                        el.ai_findings = t_findings
+                        table_flag_count += len(t_findings)
+
             if paras:
                 forensic_meta = doc_model.meta.forensic_metadata if doc_model.meta else None
-                results = detector.analyze_document(paras, forensic_meta, para_shadings)
+                if forensic_meta is None:
+                    forensic_meta = {}
+                    if doc_model.meta:
+                        doc_model.meta.forensic_metadata = forensic_meta
+
+                # Señal de cruce citas ↔ referencias (contenido pegado con biblioteca decorativa)
+                try:
+                    from parsing.pre_classifier import (
+                        REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA,
+                    )
+                    body_text = " ".join(paras)
+                    in_text = len(REGEX_CITATION_NARRATIVA.findall(body_text)) + \
+                              len(REGEX_CITATION_PARENTETICA.findall(body_text))
+                    refs_count = len(doc_model.referencias) if doc_model.referencias else 0
+                    forensic_meta["in_text_citations"] = in_text
+                    forensic_meta["references_count"] = refs_count
+                except Exception:
+                    pass
+
+                results = detector.analyze_document(
+                    paras, forensic_meta, para_shadings, para_web_shadings
+                )
                 for res, el_idx in zip(results, para_indices):
                     doc_model.elements[el_idx].ai_score = res["score"]
                     doc_model.elements[el_idx].ai_matches = res["matches"]
@@ -708,6 +857,19 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
                             setattr(img, k, v)
                     elem.image_info = img
 
+            # Actualizar configuración de ecuación (presentación, no el XML OMML)
+            if req.equation is not None:
+                from models import EquationConfig
+                if hasattr(elem, 'equation') and isinstance(elem.equation, EquationConfig):
+                    for k, v in req.equation.items():
+                        if hasattr(elem.equation, k):
+                            setattr(elem.equation, k, v)
+                else:
+                    elem.equation = EquationConfig(**{
+                        k: v for k, v in req.equation.items()
+                        if k in EquationConfig.model_fields
+                    })
+
             found = True
             break
 
@@ -720,6 +882,49 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
 
     save_session_state(doc, STORAGE_DIR)
     return doc
+
+
+@app.post("/api/detect-similar")
+async def detect_similar_headings(req: DetectSimilarRequest) -> dict:
+    """
+    Después de que el usuario corrige un heading manualmente, buscar otros headings
+    con el mismo estilo Word original y longitud similar para ofrecer aplicar
+    el mismo cambio en lote.
+    """
+    doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada.")
+
+    source_elem = None
+    for e in doc.elements:
+        eid = e.id if hasattr(e, 'id') else e.get('id', '')
+        if eid == req.element_id:
+            source_elem = e
+            break
+
+    if not source_elem:
+        return {"similar_ids": [], "count": 0}
+
+    source_style = getattr(source_elem, 'original_word_style', None) or ''
+    source_text = getattr(source_elem, 'text', '') or ''
+    source_len = len(source_text)
+
+    similar_ids = []
+    for e in doc.elements:
+        eid = e.id if hasattr(e, 'id') else e.get('id', '')
+        if eid == req.element_id:
+            continue
+        etype = e.type if hasattr(e, 'type') else e.get('type', '')
+        if etype != 'heading':
+            continue
+
+        estilo = getattr(e, 'original_word_style', None) or ''
+        texto = getattr(e, 'text', '') or ''
+        # Match: same original style AND similar length (±40%)
+        if estilo and estilo == source_style and abs(len(texto) - source_len) / max(source_len, 1) < 0.4:
+            similar_ids.append(eid)
+
+    return {"similar_ids": similar_ids, "count": len(similar_ids)}
 
 
 @app.post("/api/ai/suggest-caption")
@@ -748,6 +953,412 @@ async def api_rewrite_text(req: RewriteTextRequest) -> dict:
         return {"rewritten": rewritten}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/rewrite-variations")
+async def api_rewrite_variations(req: RewriteVariationsRequest) -> dict:
+    """
+    Genera N (1-3) variaciones de reescritura de un párrafo usando LLM.
+    Cada variación conserva el significado y cita las mismas fuentes, pero
+    reduce las señales de IA detectadas. Devuelve proveedor usad para logs.
+    """
+    from modules.ai_client import execute_with_specialty
+    n = max(1, min(3, req.n))
+    system_prompt = (
+        "Eres un editor académico experto en APA 7ma edición. "
+        "Reescribes párrafos en español universitario natural, eliminando "
+        "muletillas de IA (en conclusión, es importante destacar, no obstante, "
+        "vale la pena, resulta fundamental) y variando la estructura de las "
+        "oraciones. Devuelves EXCLUSIVAMENTE un JSON válido: un array de "
+        "strings, cada uno es una versión reescrita. Sin comillas extra."
+    )
+    user_prompt = (
+        f"Instrucción: {req.instruction}\n"
+        f"Texto original:\n{req.text}\n\n"
+        f"Genera {n} versiones distintas. Devuelve JSON (array de strings)."
+    )
+    try:
+        content = await execute_with_specialty(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            specialty="FAST",
+            api_key=req.api_key,
+            temperature=0.6,
+            max_tokens=1400,
+            use_cache=False,
+            return_provider_info=True,
+        )
+        if isinstance(content, tuple) and len(content) == 3:
+            raw, provider_name, provider_id = content
+        else:
+            raw, provider_name, provider_id = content, "unknown", "unknown"
+        text = raw.strip()
+        if text.startswith("```json"):
+            text = text[7:-3]
+        elif text.startswith("```"):
+            text = text[3:-3]
+        import json as _json
+        try:
+            variations = _json.loads(text.strip())
+            if not isinstance(variations, list):
+                variations = [str(variations)]
+        except Exception:
+            variations = [text]
+        variations = [v for v in variations if isinstance(v, str) and v.strip()]
+        variations = variations[:n]
+        return {
+            "variations": variations,
+            "provider": provider_name,
+            "provider_id": provider_id,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/chat-comment")
+async def api_chat_comment(req: ChatCommentRequest) -> dict:
+    """
+    Genera un comentario humorístico estilo WhatsApp sobre un elemento del
+    documento (emojis, citas fantasma, muletillas IA, formato APA...).
+
+    Se usa el LLM con contexto + ejemplos para que el tono sea el del "bro"
+    que comenta el trabajo. Es un toque de personalidad; si falla o no hay
+    API key, el frontend cae al comentario de la biblioteca (plantillas).
+    """
+    from modules.ai_client import execute_with_specialty
+
+    # Guarda de seguridad: recortar el texto para no saturar tokens
+    element_text = (req.element_text or "")[:800]
+
+    system_prompt = (
+        "Sos un amigo universitario que comenta el trabajo de un compañero por "
+        "WhatsApp: con humor, jerga argentina/universitaria, frases CORTAS "
+        "(máximo 18 palabras) y sin ser pesado. El texto va dentro de una burbuja "
+        "de chat. Usás emojis. Nunca corregís el contenido de verdad: solo "
+        "comentás con onda. Respondés EXCLUSIVAMENTE con el comentario, sin "
+        "comillas, sin explicaciones ni intro."
+    )
+
+    # Mapear la categoría a una instrucción clara para el LLM
+    kind_hint = {
+        "ghost_citation": "una cita que aparece en el texto pero NO está en la bibliografía",
+        "orphan_references": "referencias que están en la bibliografía pero nunca se citaron",
+        "shouting": "un párrafo escrito TODO en MAYÚSCULAS",
+        "spanglish": "una frase que mezcla inglés y español",
+        "duplicate": "una palabra repetida seguida (error de tipeo/pegado)",
+        "long_paragraph": "un párrafo larguísimo de una sola tirada",
+        "first_person": "uso de primera persona (yo/nosotros) en un trabajo académico",
+        "acronym": "una sigla o abreviatura sin definir",
+        "excess_punctuation": "signos de exclamación/interrogación exagerados (!!/??)",
+        "validation_figuras": "un problema con el formato APA de una figura",
+        "validation_tablas": "un problema con el formato APA de una tabla",
+        "validation_headings": "un problema con la jerarquía o formato de un título",
+        "validation_formato": "un problema general de formato APA",
+        "validation_citas": "un problema con una cita",
+        "validation_referencias": "un problema con la bibliografía",
+        "validation_consistencia": "una inconsistencia detectada en el documento",
+        "conclusion": "una muletilla típica de IA ('en conclusión', 'en resumen')",
+        "ai": "una muletilla típica de IA",
+        "emoji": "un emoji o símbolo de checklist que se coló en el texto",
+        "table_emoji": "una tabla con emojis de checklist pegados de un chat",
+        "image_no_caption": "una imagen sin leyenda",
+    }.get(req.kind, "algo sospechoso en el trabajo académico")
+
+    examples = req.examples or [
+        "¿por qué gritás? 😂",
+        "¿spanglish? 😅",
+        "esta cita es de pablito? 🫣",
+        "bro, los emojis quedaron pegados del chat 💀",
+        "respirá, bro, es un párrafo larguísimo 😮‍💨",
+        "ese cierre lo escribió el robot, se nota 🤖",
+    ]
+
+    examples_str = "\n".join(f"- {ex}" for ex in examples[:6])
+    user_prompt = (
+        f"Comentá esto: {kind_hint}.\n\n"
+        f"Texto del elemento:\n\"{element_text}\"\n\n"
+        f"Ejemplos del tono que quiero:\n{examples_str}\n\n"
+        "Escribí SOLO el comentario (una frase corta con emoji)."
+    )
+
+    try:
+        content = await execute_with_specialty(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            specialty="FAST",
+            api_key=req.api_key,
+            nim_url=req.nim_url,
+            use_local=req.use_local,
+            temperature=0.85,
+            max_tokens=90,
+            use_cache=False,
+        )
+        comment = (content or "").strip()
+        # Limpiar comillas/backticks que el LLM pueda meter
+        comment = comment.strip('"\'`')
+        if not comment:
+            raise ValueError("Respuesta vacía")
+        return {"comment": comment[:140]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/loading-tip")
+async def api_loading_tip(req: LoadingTipRequest) -> dict:
+    """
+    Genera un tip de carga (pantalla de progreso) con el LLM: verbos de
+    proceso, chistes internos o curiosidades APA. El frontend rota por
+    categoría; si esto falla o no hay API key, usa la biblioteca local.
+    """
+    from modules.ai_client import execute_with_specialty
+
+    category = req.category or "process"
+    phase = req.phase or ""
+
+    phase_hint = {
+        "upload": "subiendo un documento",
+        "classify": "clasificando elementos con IA",
+        "export": "generando el archivo formateado",
+    }.get(phase, "procesando un documento")
+
+    category_hint = {
+        "process": "un verbo de proceso humorístico (lo que está haciendo la app)",
+        "jokes": "un chiste interno sobre la app o el proceso",
+        "apa": "una curiosidad o error común de APA 7",
+        "honest": "un mensaje honesto y tranquilo porque el proceso tarda",
+    }.get(category, "un verbo de proceso humorístico")
+
+    examples = {
+        "process": [
+            "domesticando tablas…",
+            "poniéndole orden a las comas…",
+            "negociando con las sangrías…",
+            "midiendo márgenes con precisión quirúrgica…",
+            "reconciliando a Times New Roman con el resto del mundo…",
+            "convirtiendo tus 'Enter, Enter, Enter' en sangría de verdad…",
+            "desenredando el nudo de las notas al pie…",
+        ],
+        "jokes": [
+            "leyendo tu bibliografía… ojalá no sea todo Wikipedia.",
+            "ese título en mayúsculas sostenidas no engaña a nadie.",
+            "alguien tradujo esto con IA y se nota el 'asimismo'.",
+            "ese gráfico de Excel pegado se ve como se ve.",
+            "la conclusión que dice lo mismo que la introducción, otra vez.",
+            "si esto tarda, no es la app, es que tu profe pidió demasiadas fuentes.",
+        ],
+        "apa": [
+            "el error más común en trabajos de estudiante: olvidar el DOI. ¿vos lo tenés?",
+            "las tablas no llevan líneas verticales en APA 7.",
+            "si son 3 o más autores, va 'et al.' desde la primera cita.",
+            "las citas de más de 40 palabras van en bloque, sin comillas.",
+            "el DOI empieza con 'https://doi.org/', no con el número pelado.",
+        ],
+        "honest": [
+            "esto está tardando más de lo normal — tu doc es grande, tranquilo, seguimos.",
+            "no se colgó, solo está siendo minucioso.",
+            "último tramo, ya casi.",
+        ],
+    }.get(category, [])
+
+    examples_str = "\n".join(f"- {ex}" for ex in examples[:5])
+
+    system_prompt = (
+        "Sos el 'bro' de una app que formatea trabajos académicos a APA 7. "
+        "Escribís tips cortos para la pantalla de carga: con humor, jerga "
+        "universitaria, máximo 60 caracteres, SIN emojis (debe verse sobrio, "
+        "no como texto de IA). Respondés SOLO el tip, sin comillas ni intro."
+    )
+    user_prompt = (
+        f"Generá un tip de carga de categoría: {category_hint}.\n"
+        f"Contexto: la app está {phase_hint}.\n\n"
+        f"Ejemplos del tono:\n{examples_str}\n\nEscribí SOLO el tip."
+    )
+
+    try:
+        content = await execute_with_specialty(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            specialty="FAST",
+            api_key=req.api_key,
+            nim_url=req.nim_url,
+            use_local=req.use_local,
+            temperature=0.9,
+            max_tokens=70,
+            use_cache=True,
+        )
+        text = (content or "").strip().strip('"\'`')
+        if not text:
+            raise ValueError("Respuesta vacía")
+        return {"category": category, "text": text[:110]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+async def api_citation_fix(req: CitationFixRequest) -> dict:
+    """
+    Sugiere la corrección APA 7 de una cita problemática (propuesta 6).
+    Devuelve la forma corregida, el motivo y la acción sugerida.
+    """
+    from modules.ai_client import execute_with_specialty
+    from persistence.session_manager import load_session_state
+    doc = load_session_state(req.session_id, STORAGE_DIR)
+    ref_hint = ""
+    if doc and req.reference_id:
+        for r in doc.referencias or []:
+            if r.id == req.reference_id:
+                ref_hint = f"\nReferencia encontrada: {r.formatted_apa or r.raw_text or r.title}"
+                break
+    system_prompt = (
+        "Eres un experto en normas APA 7ma edición. Para una cita problemática, "
+        "propones la forma corregida exacta. Devuelves SOLO un JSON válido: "
+        '{"corrected": "(Apellido, 2023, p. 45)", "reason": "Falta el número de página", "action": "reemplazar"}.'
+    )
+    user_prompt = (
+        f"Cita actual: {req.citation_text}\n"
+        f"Problema: {req.problem or 'formato APA 7 incorrecto'}"
+        f"{ref_hint}\n\n"
+        "Propón la corrección exacta."
+    )
+    try:
+        content = await execute_with_specialty(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            specialty="FAST",
+            api_key=req.api_key,
+            temperature=0.2,
+            max_tokens=300,
+            use_cache=True,
+        )
+        text = content.strip()
+        if text.startswith("```json"):
+            text = text[7:-3]
+        elif text.startswith("```"):
+            text = text[3:-3]
+        import json as _json
+        try:
+            data = _json.loads(text.strip())
+        except Exception:
+            data = {"corrected": "", "reason": content, "action": "reviewar"}
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sync-provider-keys")
+async def sync_provider_keys_endpoint(request: Request) -> dict:
+    """
+    Recibe las claves de API guardadas por el usuario en la UI (localStorage)
+    y las inyecta en os.environ para que _get_active_providers() las use
+    sin necesidad de reiniciar el backend ni editar .env.
+    Solo inyecta si el valor no está vacío; nunca sobrescribe una existente
+    salvo que se envíe un valor nuevo.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    keys = body.get("keys", {}) or {}
+    if not isinstance(keys, dict):
+        keys = {}
+
+    # Mapa de variable de entorno -> clave del cuerpo
+    allowed = {
+        "NVIDIA_API_KEY": "NVIDIA_API_KEY",
+        "GROQ_API_KEY": "GROQ_API_KEY",
+        "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
+        "CEREBRAS_API_KEY": "CEREBRAS_API_KEY",
+        "MISTRAL_API_KEY": "MISTRAL_API_KEY",
+        "OPENCODEZEN_API_KEY": "OPENCODEZEN_API_KEY",
+        "ZENMUX_API_KEY": "ZENMUX_API_KEY",
+        "GEMINI_API_KEY": "GEMINI_API_KEY",
+        "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
+    }
+
+    applied = []
+    for env_var, key_name in allowed.items():
+        val = str(keys.get(key_name, "") or "").strip()
+        if val:
+            os.environ[env_var] = val
+            applied.append(env_var)
+
+    # Persistir en disco para que las claves sobrevivan a un reinicio del backend
+    try:
+        from persistence.ai_keys import save_provider_keys
+        save_provider_keys(keys)
+    except Exception as e:
+        print(f"[WARN] No se pudo persistir claves de IA: {e}")
+
+    return {"applied": applied, "count": len(applied)}
+
+
+@app.post("/api/replace-image/{session_id}/{element_id}")
+async def replace_image_endpoint(
+    session_id: str,
+    element_id: str,
+    file: UploadFile = File(...),
+) -> DocumentModel:
+    """
+    Reemplaza la imagen de un elemento IMAGE por un archivo nuevo (multipart).
+    Guarda el blob en storage/sessions/{session_id}/images/ y actualiza
+    file_path / relative_url / filename en el ImageModel.
+    """
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+
+    session_dir = STORAGE_DIR / "sessions" / session_id
+    img_dir = session_dir / "images"
+    img_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(file.filename or "imagen.png").suffix or ".png"
+    if ext.lower() not in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".emf", ".wmf", ".tif", ".tiff"):
+        ext = ".png"
+    img_filename = f"img_{uuid.uuid4().hex[:8]}{ext}"
+    img_path = img_dir / img_filename
+
+    try:
+        content = await file.read()
+        with open(img_path, "wb") as f_img:
+            f_img.write(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar imagen: {e}")
+
+    # Buscar el elemento y actualizar su ImageModel
+    from models import ImageModel
+    found = False
+    for elem in doc.elements:
+        if elem.id == element_id and elem.image_info is not None:
+            elem.image_info.file_path = str(img_path)
+            elem.image_info.filename = img_filename
+            elem.image_info.relative_url = f"/api/images/{session_id}/{img_filename}"
+            elem.is_user_modified = True
+            found = True
+            break
+
+    if not found:
+        # Puede no existir image_info; intentar crearlo sobre el elemento
+        for elem in doc.elements:
+            if elem.id == element_id:
+                if elem.image_info is None:
+                    elem.image_info = ImageModel(
+                        element_id=element_id,
+                        file_path=str(img_path),
+                        filename=img_filename,
+                        relative_url=f"/api/images/{session_id}/{img_filename}",
+                        width_cm=12, height_cm=8,
+                        caption="", figure_number=0,
+                        alignment="center", wrap_style="inline",
+                        caption_position="above", constrain_proportions=True,
+                        design_style="standard",
+                    )
+                elem.is_user_modified = True
+                found = True
+                break
+
+    if not found:
+        raise HTTPException(status_code=404, detail="Elemento no encontrado.")
+
+    save_session_state(doc, STORAGE_DIR)
+    return doc
 
 
 @app.post("/api/reorder-elements")
@@ -827,40 +1438,6 @@ async def delete_session_endpoint(session_id: str) -> dict:
     return {"status": "ok", "message": f"Sesion {session_id} eliminada correctamente."}
 
 
-
-@app.post("/api/rollback/{session_id}")
-async def rollback_session(session_id: str) -> dict:
-    """
-    Rollback to the previous saved state of a session.
-    Allows recovery after a failed operation leaves the session in a bad state.
-    """
-    from persistence.session_manager import list_session_snapshots, restore_session_snapshot
-
-    # Check if snapshots exist
-    snapshots = list_session_snapshots(session_id, STORAGE_DIR)
-
-    if not snapshots:
-        raise HTTPException(
-            status_code=404,
-            detail="No hay snapshots disponibles para restauracion. La sesion solo tiene el estado actual."
-        )
-
-    # Restore the most recent snapshot
-    restored_doc = restore_session_snapshot(session_id, STORAGE_DIR)
-    if not restored_doc:
-        raise HTTPException(
-            status_code=500,
-            detail="Error al restaurar el snapshot de la sesion."
-        )
-
-    return {
-        "status": "ok",
-        "message": "Sesion restaurada al estado anterior correctamente.",
-        "session_id": session_id,
-        "document": restored_doc.model_dump() if hasattr(restored_doc, 'model_dump') else None,
-    }
-
-
 @app.get("/api/images/{session_id}/{filename}")
 async def get_session_image(session_id: str, filename: str) -> FileResponse:
     """
@@ -873,6 +1450,18 @@ async def get_session_image(session_id: str, filename: str) -> FileResponse:
             detail="Imagen no encontrada. Es posible que la sesion haya expirado.",
         )
     return FileResponse(img_path)
+
+
+@app.get("/api/assets/logo_uni.png")
+async def get_uni_logo() -> FileResponse:
+    """
+    Sirve el logo institucional UNI para la portada universitaria
+    (preview en el lienzo y generacion).
+    """
+    logo_path: Path = Path(__file__).parent / "assets" / "logo_uni.png"
+    if not logo_path.exists():
+        raise HTTPException(status_code=404, detail="Logo UNI no encontrado.")
+    return FileResponse(logo_path)
 
 
 @app.post("/api/resolve-doi")
@@ -919,7 +1508,9 @@ async def resolve_batch_endpoint(req: ResolveBatchRequest) -> dict:
 @app.post("/api/validate")
 async def validate_document(req: GenerateRequest) -> dict:
     """
-    Ejecuta la validacion cruzada entre citas y referencias.
+    Ejecuta la validacion cruzada entre citas y referencias, más las
+    verificaciones científicas APA 7 (resumen, palabras clave, notación
+    estadística, figuras/tablas, running head, niveles y formato de refs).
     """
     doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
@@ -928,7 +1519,8 @@ async def validate_document(req: GenerateRequest) -> dict:
             detail="Sesion no encontrada.",
         )
 
-    issues = validate_apa_integrity(doc, req.references or [])
+    references = req.references if req.references is not None else (doc.referencias or [])
+    issues = validate_apa_integrity(doc, references)
     return {"issues": [i.model_dump() for i in issues]}
 
 
@@ -956,38 +1548,6 @@ async def validate_document_with_ai(
     issues = await validate_citations_with_llm(doc, ref_models, api_key, nim_url, use_local == 'true')
     return {"issues": [i.model_dump() for i in issues]}
 
-
-@app.post("/api/validate-layout/{session_id}")
-async def validate_layout_endpoint(session_id: str) -> dict:
-    """
-    Realiza una auditoría estructural del layout post-generación usando COM.
-    Busca tablas huérfanas o que abarcan múltiples páginas, y verifica que
-    la sección de Referencias inicie en una nueva página.
-    """
-    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
-        
-    out_dir = STORAGE_DIR / "sessions" / session_id
-    files = list(out_dir.glob("APA7_*.docx"))
-    
-    if not files:
-        raise HTTPException(status_code=404, detail="No se encontró el documento generado.")
-        
-    target_docx = files[0]
-    
-    from generation.post_processor import get_com_post_processor
-    post_processor = get_com_post_processor()
-    
-    if not post_processor.is_available():
-        return {
-            "status": "warning", 
-            "message": "COM no está disponible en este sistema. La validación visual de layout (Fase 7+) requiere Windows y MS Word instalado.",
-            "issues": []
-        }
-        
-    result = post_processor.audit_layout(target_docx)
-    return result
 
 @app.post("/api/preview")
 async def generate_preview(req: PreviewRequest) -> dict:
@@ -1033,31 +1593,6 @@ async def generate_preview(req: PreviewRequest) -> dict:
             detail=f"Error generando vista previa: {str(e)}",
         )
 
-
-@app.post("/api/generate-preview-pdf")
-async def generate_preview_pdf_endpoint(req: GenerateRequest) -> dict:
-    """
-    Genera un PDF rápido para previsualización usando SOLO LibreOffice.
-    No ejecuta el motor COM para preservar portadas exactas, priorizando velocidad.
-    """
-    from services.doc_converter import get_doc_converter
-    session_dir = STORAGE_DIR / "sessions" / req.session_id
-    if not session_dir.exists():
-        raise HTTPException(status_code=404, detail="Sesion no encontrada")
-
-    generated_path = session_dir / "generated.docx"
-    preview_pdf_path = session_dir / "preview.pdf"
-
-    if not generated_path.exists():
-        # Si aún no existe generated.docx, generar uno base
-        await generate_pdf_endpoint(req)
-
-    success = get_doc_converter().convert_docx_to_pdf_lo_only(generated_path, preview_pdf_path)
-    if success and preview_pdf_path.exists():
-        relative_url = f"/api/sessions/{req.session_id}/preview.pdf"
-        return {"status": "ok", "download_url": relative_url}
-    else:
-        raise HTTPException(status_code=500, detail="Error generando PDF de vista previa")
 
 @app.post("/api/generate-pdf")
 async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
@@ -1386,16 +1921,6 @@ async def download_generated_docx(session_id: str) -> FileResponse:
     )
 
 
-@app.post("/api/toggle-layered-gen")
-async def toggle_layered_gen(mode: str = Form("auto")) -> dict:
-    """Toggle between layered (from-scratch) and modify-in-place generation."""
-    if mode == "layered":
-        os.environ["WORDAPA7_LAYERED_GEN"] = "1"
-    else:
-        os.environ["WORDAPA7_LAYERED_GEN"] = "0"
-    return {"mode": mode, "layered_gen": os.getenv("WORDAPA7_LAYERED_GEN", "0") == "1"}
-
-
 @app.post("/api/generate-tracked")
 async def generate_tracked_docx_endpoint(req: GenerateRequest) -> dict:
     """
@@ -1448,9 +1973,6 @@ async def download_tracked_docx(session_id: str) -> FileResponse:
 
 # ── ENDPOINTS DE FUNCIONALIDADES AVANZADAS (CITAS, REFERENCIAS, ESTRUCTURA) ──
 
-class GenerateReferenceRequest(BaseModel):
-    raw_text: str
-
 
 @app.post("/api/validate-citations/{session_id}")
 async def validate_citations_endpoint(session_id: str) -> dict:
@@ -1495,65 +2017,6 @@ async def validate_citations_endpoint(session_id: str) -> dict:
     save_session_state(doc, STORAGE_DIR)
     
     return result
-
-@app.post("/api/detect-citations/{session_id}")
-async def detect_citations_endpoint(session_id: str, api_key: Optional[str] = Form(None)) -> dict:
-    """
-    Detecta citas in-text en los párrafos del documento usando la IA.
-    """
-    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Sesión no encontrada.")
-
-    from classification.citation_detector import detect_citations_in_text
-
-    citations = []
-    paras = [e for e in doc.elements if e.type == ElementType.PARAGRAPH and e.text and len(e.text.strip()) > 20]
-
-    for p in paras[:15]:
-        detected = await detect_citations_in_text(p.text, p.id, api_key)
-        citations.extend([c.model_dump() for c in detected])
-        if detected:
-            await asyncio.sleep(1.0)
-
-    return {
-        "status": "ok",
-        "session_id": session_id,
-        "total_citations_found": len(citations),
-        "citations": citations,
-    }
-
-
-@app.post("/api/generate-reference")
-async def generate_reference_endpoint(req: GenerateReferenceRequest) -> dict:
-    """
-    Formatea una referencia bibliográfica a partir de texto libre o DOI.
-    """
-    raw = req.raw_text.strip()
-    if not raw:
-        raise HTTPException(status_code=400, detail="El texto de la referencia no puede estar vacío.")
-
-    import re
-    doi_match = re.search(r'10\.\d{4,9}/[-._;()/:A-Z0-9]+', raw, re.IGNORECASE)
-    if doi_match:
-        doi_str = doi_match.group(0)
-        formatted = await resolve_doi(doi_str)
-        if formatted:
-            return {
-                "status": "ok",
-                "source": "crossref",
-                "formatted_apa": formatted,
-                "raw_text": raw,
-            }
-
-    title_est = raw.split('.')[0] if '.' in raw else raw
-    return {
-        "status": "ok",
-        "source": "rule_engine",
-        "formatted_apa": f"{raw.rstrip('.')}.",
-        "title": title_est,
-        "raw_text": raw,
-    }
 
 
 @app.get("/api/templates")
@@ -1672,55 +2135,6 @@ async def apply_template_endpoint(req: ApplyTemplateRequest) -> dict:
         "template_applied": req.template_name,
         "sections_created": sections_created,
         "changes_made": changes_made,
-    }
-
-
-@app.post("/api/analyze-structure/{session_id}")
-async def analyze_structure_endpoint(session_id: str) -> dict:
-    """
-    Analiza la estructura APA 7 del documento e identifica secciones faltantes.
-    """
-    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Sesión no encontrada.")
-
-    headings_text = [e.text.lower() for e in doc.elements if e.type == ElementType.HEADING and e.text]
-    full_headings_str = " ".join(headings_text)
-
-    expected_sections = [
-        ("Introducción", ["introduc", "introducción", "introduccion"]),
-        ("Métodos / Metodología", ["metodolog", "método", "metodo"]),
-        ("Resultados", ["resultado", "hallazgo"]),
-        ("Discusión y Conclusiones", ["discusión", "discusion", "conclusi"]),
-        ("Referencias Bibliográficas", ["referencia", "bibliograf"]),
-    ]
-
-    found_sections = []
-    missing_sections = []
-
-    for name, keywords in expected_sections:
-        if any(kw in full_headings_str for kw in keywords):
-            found_sections.append(name)
-        else:
-            missing_sections.append(name)
-
-    suggestions = []
-    if "Introducción" in missing_sections:
-        suggestions.append("Se recomienda añadir una sección 'Introducción' clara después de la portada.")
-    if "Métodos / Metodología" in missing_sections:
-        suggestions.append("Falta la sección 'Metodología' para detallar el procedimiento del estudio.")
-    if "Resultados" in missing_sections:
-        suggestions.append("No se detectó un encabezado de 'Resultados'.")
-    if "Referencias Bibliográficas" in missing_sections:
-        suggestions.append("Se recomienda añadir la lista de 'Referencias Bibliográficas' al final del documento.")
-
-    return {
-        "status": "ok",
-        "session_id": session_id,
-        "found_sections": found_sections,
-        "missing_sections": missing_sections,
-        "suggestions": suggestions,
-        "completeness_score": int((len(found_sections) / len(expected_sections)) * 100),
     }
 
 
@@ -2045,62 +2459,175 @@ async def debug_logging_middleware(request: Request, call_next):
 
 
 
-@app.get("/api/debug-log/{lines}")
-async def get_debug_log(lines: int = 50) -> dict:
-    """Returns the last N lines of the debug log for review."""
-    log_file = STORAGE_DIR / 'debug.log'
-    if not log_file.exists():
-        return {"lines": [], "total": 0}
-
-    with open(log_file, 'r', encoding='utf-8') as f:
-        all_lines = f.readlines()
-
-    recent = all_lines[-lines:] if len(all_lines) > lines else all_lines
-    return {
-        "lines": [l.strip() for l in recent],
-        "total": len(all_lines),
-    }
-
-
 # ── SERVIR FRONTEND ESTATICO ──────────────────────────────────────────────────
 
-@app.get("/api/word/recent-files")
-async def get_recent_files():
-    try:
-        from services.word_com_service import get_word_com_service
-        word_service = get_word_com_service()
-        word = word_service.word
-        if not word:
-            return {"files": [], "error": "Word COM Service no disponible"}
-            
-        recent = []
-        for i in range(1, min(6, word.RecentFiles.Count + 1)):
-            recent.append({
-                "name": word.RecentFiles.Item(i).Name,
-                "path": word.RecentFiles.Item(i).Path
-            })
-        return {"files": recent}
-    except Exception as e:
-        return {"files": [], "error": str(e)}
-
-@app.get("/api/spelling/{session_id}")
-async def check_spelling(session_id: str, api_key: Optional[str] = None):
+@app.post("/api/sessions/{session_id}/snapshot")
+async def save_session_snapshot_endpoint(session_id: str) -> dict:
+    """
+    Guarda un snapshot intermedio del progreso del usuario (sesión propia).
+    Permite volver a un punto guardado explícitamente (E.2).
+    """
+    from persistence.session_manager import save_session_snapshot
     doc_model = load_session_state(session_id, STORAGE_DIR)
     if not doc_model:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
-    
-    session_dir = STORAGE_DIR / "sessions" / session_id
-    docx_path = session_dir / "original.docx"
-    if not docx_path.exists():
-        raise HTTPException(status_code=404, detail="Archivo original no encontrado")
-        
-    from modules.spelling_validator import validate_spelling_and_grammar, check_spelling_with_ia
-    
-    result = await validate_spelling_and_grammar(str(docx_path))
-    if result.get("status") == "ok" and api_key and result.get("spelling_errors"):
-        result["spelling_errors"] = await check_spelling_with_ia(result["spelling_errors"], api_key)
-        
-    return result
+    save_session_snapshot(doc_model, STORAGE_DIR)
+    return {"status": "ok", "message": "Progreso guardado", "session_id": session_id}
+
+
+@app.post("/api/ai-review/{session_id}")
+async def ai_review_endpoint(session_id: str, request: Request) -> dict:
+    """
+    Revisor unificado: por cada párrafo devuelve
+      - índice de IA (% 0-100), categoría (LOW/MEDIUM/HIGH) y hallazgos
+        con la frase exacta que lo disparó + el motivo.
+      - errores ortográficos mapeados al párrafo (con sugerencias) usando
+        Word COM (Windows) vía el validador existente.
+
+    Es la etapa opcional "Revisor IA + Ortografía" (Fase F).
+    """
+    import re as _re
+    from classification.ai_detector import analyze_ai_risk, analyze_table_cells
+    from modules.spelling_validator import validate_spelling_and_grammar
+
+    doc_model = load_session_state(session_id, STORAGE_DIR)
+    if not doc_model:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    text_types = {
+        ElementType.HEADING, ElementType.PARAGRAPH, ElementType.BULLET,
+        ElementType.NUMBERED_LIST, ElementType.BLOCK_QUOTE, ElementType.EQUATION,
+    }
+
+    paragraphs: list[dict] = []
+    flagged = 0
+    score_sum = 0
+    score_n = 0
+
+    # 1) Análisis de IA por párrafo
+    for idx, e in enumerate(doc_model.elements):
+        if e.type not in text_types:
+            continue
+        text = (e.text or e.original_text or "").strip()
+        if not text or len(text) < 15:
+            continue
+        risk = analyze_ai_risk(text)
+        ai_score = int(round(risk.get("score", 0.0) * 100))
+        category = risk.get("category", "LOW")
+        findings = []
+        for f in risk.get("findings", []):
+            pattern = f.get("pattern", "")
+            detail = f.get("detail", "")
+            # Localizar la frase exacta en el texto (búsqueda insensible)
+            phrase = f.get("phrase", "") or ""
+            # Lista de frases para resaltado inline (sentence_structure ahora la provee)
+            phrases = f.get("phrases") or []
+            # Limpiar artefactos: nunca mostrar corchetes regex ni backslashes
+            phrase = _re.sub(r'[\[\]\\]', '', phrase).strip()
+            phrases = [_re.sub(r'[\[\]\\]', '', p).strip() for p in phrases if p and p.strip()]
+            if not phrase:
+                if pattern == "phrase":
+                    # Extraer la primera palabra clave del detail entre comillas
+                    m = _re.search(r"'([^']+)'", detail)
+                    phrase = m.group(1) if m else ""
+                    phrase = _re.sub(r'[\[\]\\]', '', phrase).strip()
+                elif pattern == "sentence_structure":
+                    phrase = phrases[0] if phrases else "(oraciones homogéneas)"
+                elif pattern == "semicolon_overuse":
+                    phrase = ";"
+                elif pattern == "generic_conclusion":
+                    phrase = "(cierre genérico)"
+            findings.append({
+                "phrase": phrase,
+                "phrases": phrases,
+                "detail": _re.sub(r'[\[\]\\]', '', detail),
+                "severity": f.get("severity", "LOW"),
+            })
+        paragraphs.append({
+            "element_id": e.id,
+            "index": idx,
+            "type": e.type.value if hasattr(e.type, "value") else str(e.type),
+            "text": text,
+            "ai_score": ai_score,
+            "ai_category": category,
+            "findings": findings,
+            "spelling": [],
+        })
+        if ai_score >= 40:
+            flagged += 1
+        score_sum += ai_score
+        score_n += 1
+
+    # 2) Ortografía sobre el .docx original (Word COM)
+    spelling_status = "not_run"
+    spelling_count = 0
+    try:
+        session_dir = STORAGE_DIR / "sessions" / session_id
+        docx_path = session_dir / "original.docx"
+        if docx_path.exists():
+            spell = await validate_spelling_and_grammar(str(docx_path))
+            spelling_status = spell.get("status", "error")
+            if spelling_status == "ok":
+                raw_errors = spell.get("spelling_errors", [])
+                spelling_count = len(raw_errors)
+                # Mapear cada error al párrafo que contiene la palabra
+                for err in raw_errors:
+                    w = (err.get("word") or "").strip()
+                    if not w:
+                        continue
+                    sugs = err.get("suggestions", [])
+                    pattern_w = r"\b" + _re.escape(w.lower()) + r"\b"
+                    for p in paragraphs:
+                        if _re.search(pattern_w, p["text"].lower()):
+                            p["spelling"].append({"word": w, "suggestions": sugs})
+        else:
+            spelling_status = "no_original"
+    except Exception as ex:
+        spelling_status = "error"
+
+    ai_avg = round(score_sum / score_n, 1) if score_n > 0 else 0.0
+
+    # 3) Señales a nivel documento: celdas de tabla + metadatos forenses
+    table_signals: list[dict] = []
+    try:
+        for e in doc_model.elements:
+            if e.table_info and (e.table_info.headers or e.table_info.rows):
+                t_score, t_findings = analyze_table_cells(e.table_info.headers, e.table_info.rows)
+                for tf in t_findings:
+                    table_signals.append({
+                        "element_id": e.id,
+                        "type": "table",
+                        "pattern": tf.get("pattern", ""),
+                        "detail": tf.get("detail", ""),
+                        "severity": tf.get("severity", "LOW"),
+                        "count": tf.get("count", 0),
+                        "phrase": tf.get("phrase", ""),
+                    })
+    except Exception as ex:
+        logger.warning(f"Error analizando tablas en ai-review: {ex}")
+
+    doc_signals: list[str] = []
+    try:
+        from classification.ai_detector import _metadata_document_signals
+        meta_boost, meta_sigs = _metadata_document_signals(
+            doc_model.meta.forensic_metadata if doc_model.meta else None
+        )
+        doc_signals = meta_sigs
+    except Exception:
+        pass
+
+    return {
+        "session_id": session_id,
+        "total_paragraphs": len(paragraphs),
+        "ai_avg_score": ai_avg,
+        "flagged_count": flagged,
+        "spelling_count": spelling_count,
+        "spelling_status": spelling_status,
+        "paragraphs": paragraphs,
+        "table_signals": table_signals,
+        "document_signals": doc_signals,
+    }
+
 
 # ── MONTAJE DEL FRONTEND (SPA) ───────────────────────────────────────────────
 
@@ -2244,6 +2771,16 @@ if __name__ == "__main__":
     import uvicorn
     import argparse
 
+    # En builds empaquetados (PyInstaller, console=False) los streams pueden ser
+    # None y uvicorn crashea al configurar logging (sys.stderr.isatty()).
+    import os
+    if sys.stdout is None or sys.stderr is None:
+        devnull = open(os.devnull, "w")
+        if sys.stdout is None:
+            sys.stdout = devnull
+        if sys.stderr is None:
+            sys.stderr = devnull
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8742, help='Port to run the server on')
     args, unknown = parser.parse_known_args()
@@ -2252,7 +2789,7 @@ if __name__ == "__main__":
     check_and_auto_build_frontend()
 
     # 2. Crear plantilla inicial si no existe
-    template_path: Path = BASE_DIR / "apa7_template.docx"
+    template_path: Path = get_apa7_template_path()
     if not template_path.exists():
         try:
             create_apa7_template(template_path)

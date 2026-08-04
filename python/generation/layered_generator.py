@@ -240,6 +240,18 @@ def generate_apa7_from_scratch(
             p = doc.add_paragraph()
             p.paragraph_format.first_line_indent = Inches(0)
             p.paragraph_format.line_spacing = rules.line_spacing
+            eq_cfg = getattr(elem, 'equation', None)
+            if eq_cfg is not None:
+                align_map = {
+                    "left": WD_ALIGN_PARAGRAPH.LEFT,
+                    "center": WD_ALIGN_PARAGRAPH.CENTER,
+                    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+                }
+                p.paragraph_format.alignment = align_map.get(eq_cfg.alignment or "center", WD_ALIGN_PARAGRAPH.CENTER)
+            if elem.text:
+                r = p.add_run(elem.text)
+                r.font.name = rules.font_family
+                r.font.size = Pt(rules.font_size_pt)
 
         elif elem_type == ElementType.TOC:
             p = doc.add_paragraph()

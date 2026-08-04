@@ -1,135 +1,133 @@
-/* WordAPA7 — Guided Wizard Bar Component (Barra de Navegación por Pasos con Acompañamiento) */
-
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { CheckCircle2, ChevronRight, ChevronLeft, Sparkles, Download, Layout, Type, Image, Table, AlignLeft, BookOpen } from 'lucide-react';
+import { Layout, Type, Image, AlignLeft, BookOpen, ShieldCheck, ClipboardCheck } from 'lucide-react';
+import { needsReview } from '../../lib/portadaAuthors';
 
 export const WIZARD_STEPS = [
-  { id: 0, title: 'Preferencias', icon: Type, desc: 'Fuente y Estilo' },
-  { id: 1, title: '1. Portada', icon: Layout, desc: 'Antes vs Arreglado' },
-  { id: 2, title: '2. Títulos', icon: Type, desc: 'Jerarquía 1, 2, 3' },
-  { id: 3, title: '3. Figuras', icon: Image, desc: 'Etiquetas APA' },
-  { id: 4, title: '4. Tablas', icon: Table, desc: 'Bordes APA' },
-  { id: 5, title: '5. Cuerpo', icon: AlignLeft, desc: 'Sangría y Listas' },
-  { id: 6, title: '6. Descarga', icon: Download, desc: 'Exportar DOCX' },
+  { id: 1, title: 'Portada', icon: Layout, desc: 'Plantilla y metadatos' },
+  { id: 2, title: 'Estructura', icon: Type, desc: 'Jerarquía 1, 2, 3' },
+  { id: 3, title: 'Figuras y tablas', icon: Image, desc: 'Rotulación APA' },
+  { id: 4, title: 'Cuerpo', icon: AlignLeft, desc: 'Sangría y Listas' },
+  { id: 5, title: 'Referencias', icon: BookOpen, desc: 'Citas y bibliografía' },
 ];
 
+const getPendingCount = (stepId: number) => {
+  const doc = useDocStore.getState().doc;
+  if (!doc) return 0;
+  if (stepId === 2) {
+    return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
+  }
+  if (stepId === 3) {
+    const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
+    const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
+    return figures + tables;
+  }
+  return 0;
+};
+
 export const GuidedWizardBar: React.FC = () => {
-  const { wizardStep, setWizardStep, exportDocx, isLoading } = useDocStore();
+  const { doc, wizardStep, setWizardStep, runAIReview, isReviewOpen, setReviewOpen, reviewResult } = useDocStore();
 
-  const currentStepObj = WIZARD_STEPS.find(s => s.id === wizardStep) || WIZARD_STEPS[0];
-  const progressPct = Math.round(((wizardStep + 1) / WIZARD_STEPS.length) * 100);
-
-  const handleNext = () => {
-    if (wizardStep < WIZARD_STEPS.length - 1) {
-      setWizardStep(wizardStep + 1);
+  const openReviewer = () => {
+    if (!isReviewOpen && !reviewResult) {
+      runAIReview();
     }
-  };
-
-  const handlePrev = () => {
-    if (wizardStep > 0) {
-      setWizardStep(wizardStep - 1);
-    }
+    setReviewOpen(true);
   };
 
   return (
-    <div className="guided-wizard-bar" style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      width: '100%',
-      padding: '4px 8px'
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '2px', height: '100%',
+      overflowX: 'auto', scrollbarWidth: 'thin',
     }}>
-      <div className="guided-wizard-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-primary)' }}>
-                {currentStepObj.title}
-              </span>
-              <span style={{ fontSize: '11px', color: '#64748b', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
-                {currentStepObj.desc}
-              </span>
-            </div>
-            <span style={{ fontSize: '11px', color: '#64748b' }}>
-              Paso {wizardStep + 1} de {WIZARD_STEPS.length}
-            </span>
-          </div>
-        </div>
+      {WIZARD_STEPS.map((step) => {
+        const Icon = step.icon;
+        const isActive = step.id === wizardStep;
+        const pendingCount = getPendingCount(step.id);
 
-        {/* Acciones del Asistente */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {wizardStep > 0 && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handlePrev}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', fontSize: '12px' }}
-            >
-              <ChevronLeft size={14} /> Anterior
-            </button>
-          )}
-
-          {wizardStep < WIZARD_STEPS.length - 1 ? (
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={handleNext}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', fontSize: '12px' }}
-            >
-              Siguiente <ChevronRight size={14} />
-            </button>
-          ) : (
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a', padding: '4px 10px', backgroundColor: '#f0fdf4', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
-              Paso Final de Exportacion
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Fila 2: Indicador Visual de Pasos (Timeline / Wizard Steps) */}
-      <div className="guided-wizard-steps" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px' }}>
-        {WIZARD_STEPS.map((step) => {
-          const isActive = step.id === wizardStep;
-          const isDone = step.id < wizardStep;
-
-          return (
-            <div
-              key={step.id}
-              className={`guided-wizard-step${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
-              onClick={() => setWizardStep(step.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '4px 10px',
-                borderRadius: '12px',
-                backgroundColor: isDone ? 'var(--accent-secondary)' : isActive ? 'var(--accent-primary)' : 'transparent',
-                boxShadow: isActive ? '0 0 8px rgba(124,92,252,0.6)' : 'none',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
+        return (
+          <button
+            key={step.id}
+            type="button"
+            onClick={() => setWizardStep(step.id)}
+            title={`${step.title} — ${step.desc}`}
+            aria-current={isActive ? 'page' : undefined}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+              padding: '0 12px', cursor: 'pointer',
+              border: 'none',
+              background: 'transparent',
+              color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              fontSize: '12px', fontWeight: isActive ? 600 : 500,
+              height: '100%',
+              whiteSpace: 'nowrap', transition: 'color 0.15s ease',
+            }}
+          >
+            <Icon size={14} style={{ flexShrink: 0, color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }} />
+            <span className="wizard-tab-label">{step.title}</span>
+            {pendingCount > 0 && (
               <span style={{
-                fontSize: '13px',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive || isDone ? '#ffffff' : 'var(--text-muted)',
-                whiteSpace: 'nowrap'
-              }}>
-                {step.title}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+                width: 4, height: 4, borderRadius: '50%',
+                backgroundColor: 'var(--color-warning)',
+                flexShrink: 0, marginLeft: -2,
+              }} />
+            )}
+          </button>
+        );
+      })}
 
-      {/* Barra de Progreso General */}
-      <div style={{ width: '100%', height: '3px', backgroundColor: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
-        <div style={{
-          width: `${progressPct}%`,
-          height: '100%',
-          background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))',
-          transition: 'width 0.25s ease'
-        }} />
-      </div>
+      {/* Separador */}
+      <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--color-border-subtle)', margin: '0 6px', flexShrink: 0 }} />
 
+      {/* Tab Revisión de contenido — separada del formato */}
+      <button
+        type="button"
+        onClick={() => useDocStore.getState().setContentReviewOpen(true)}
+        disabled={!doc}
+        title="Revisión de contenido: objetivos (Bloom), introducción, hipótesis, metodología, resumen y conclusiones"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+          padding: '0 12px', cursor: 'pointer',
+          border: 'none', background: 'transparent',
+          color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 600,
+          height: '100%', whiteSpace: 'nowrap', opacity: doc ? 1 : 0.5,
+        }}
+      >
+        <ClipboardCheck size={14} style={{ color: 'var(--color-accent)' }} />
+        <span className="wizard-tab-label">Contenido</span>
+      </button>
+
+      {/* Tab Revisor IA — primer nivel */}
+      <button
+        type="button"
+        onClick={openReviewer}
+        disabled={!doc}
+        title="Revisor IA + Ortografía por párrafo"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
+          padding: '0 12px', cursor: 'pointer',
+          border: 'none', background: 'transparent',
+          color: isReviewOpen ? 'var(--color-accent)' : 'var(--color-text-primary)',
+          fontSize: '12px', fontWeight: 600, height: '100%', whiteSpace: 'nowrap',
+          borderBottom: isReviewOpen ? '2px solid var(--color-accent)' : '2px solid transparent',
+          opacity: doc ? 1 : 0.5,
+        }}
+      >
+        <ShieldCheck size={14} style={{ color: 'var(--color-accent)' }} />
+        <span className="wizard-tab-label">Revisor IA</span>
+        {reviewResult && reviewResult.flagged_count > 0 && (
+          <span style={{
+            minWidth: '16px', height: '16px', borderRadius: '999px',
+            backgroundColor: reviewResult.flagged_count > 10 ? 'var(--color-danger)' : 'var(--color-warning)',
+            color: '#fff', fontSize: '9px', fontWeight: 800,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+          }}>
+            {reviewResult.flagged_count}
+          </span>
+        )}
+      </button>
     </div>
   );
 };
+
+export default GuidedWizardBar;

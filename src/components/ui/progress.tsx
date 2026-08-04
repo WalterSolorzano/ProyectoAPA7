@@ -15,7 +15,7 @@ const Progress = React.forwardRef<
       position: 'relative',
       overflow: 'hidden',
       borderRadius: '9999px',
-      backgroundColor: '#e2e8f0', // slate-200
+      backgroundColor: 'rgba(255,255,255,0.1)',
       ...style,
     }}
     {...props}
@@ -25,7 +25,7 @@ const Progress = React.forwardRef<
         height: '100%',
         width: '100%',
         flex: '1 1 0%',
-        backgroundColor: '#3b82f6', // blue-500
+        backgroundColor: 'var(--accent-primary)',
         transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
         transform: `translateX(-${100 - (value || 0)}%)`
       }}

@@ -31,7 +31,7 @@ npm run dev
 npm run build
 ```
 
-There are no linters or test runners configured yet. `test_flow.py` is a standalone integration smoke test that hits the running API.
+Test runners: `npm test` (Vitest, tests in `src/__tests__/`) and `pytest` (Python, `pytest.ini` → `python/tests/`). `test_flow.py` is a standalone integration smoke test that hits the running API.
 
 ## Architecture
 
@@ -58,14 +58,16 @@ The FastAPI server (`main.py`) is the integration hub. It exposes REST endpoints
 - **API**: `api/backend.ts` — thin `fetch` wrappers for all `/api/` endpoints
 - **Types**: `types/index.ts` mirrors the Python `models.py` enums and interfaces (TypeScript side)
 
-**Tabs** (controlled by `activeTab` in the store):
-1. **Classifier** (`PaperCanvas`) — drag-and-drop list of classified elements; each rendered by `ElementCard`, editable via `ElementInspector`
-2. **Portada** — cover page form (student/professional)
-3. **Referencias** — reference list builder
-4. **Rules** — APA rule overrides (margins, fonts, spacing, heading styles)
-5. **Validator** — citation–reference cross-check results
+**Wizard steps** (controlled by `wizardStep` in the store, navigable via `GuidedWizardBar` in the top bar):
+1. **Portada** (`Step1PortadaWizard`) — cover page setup/verify (student/professional)
+2. **Títulos** (`Step2HeadingsWizard`) — heading hierarchy review
+3. **Figuras** (`Step3FiguresTablesWizard`) — figure/table labels and APA table styles
+4. **Cuerpo** (`Step5BodyWizard`) — paragraph spacing/indentation rules
+5. **Referencias** (`Step5ReferencesWizard`) — reference list builder + citation–reference validator (`ReferenciasView`/`ValidatorView`)
 
-**Layout components** (single-instance): `WindowTitlebar`, `RibbonToolbar`, `DocumentOutlinePane` (left sidebar navigation), `StatusBar`
+**Descarga** is the terminal action, not a step: the toolbar "Descargar" button opens `DownloadModal` (docx/pdf/tracked + PDF preview via `viewMode`). `Step0QuickStart` shows when no doc is loaded; `SettingsPreviewStudio` is step 0 (preferences).
+
+**Layout** (single-instance chrome): `UnifiedToolbar` (48px, fixed) + `GuidedWizardBar` (5 tabs) + `StatusBar`. Two-zone layout (no permanent left sidebar): step content left + right `ResizablePanel` inspector. `DownloadModal`, `Toast` (bottom-right), `TemplateDialog` (opened from FileMenu), `OnboardingTour` are global overlays.
 
 ### Frontend ↔ Backend flow
 
@@ -75,6 +77,7 @@ The FastAPI server (`main.py`) is the integration hub. It exposes REST endpoints
 4. `POST /api/validate` → citation–reference cross-check
 5. `POST /api/generate` → produces formatted `.docx`, returns download URL
 6. `POST /api/generate-tracked` → produces Track Changes comparison `.docx`
+7. `POST /api/generate-pdf` → produces PDF via LibreOffice headless from the formatted `.docx`
 
 ## Configuration
 
@@ -97,4 +100,13 @@ Copy `.env.example` to `.env`. Key variables:
 | `src/App.tsx` | Main app layout assembly with tab routing |
 | `src/api/backend.ts` | API client functions |
 | `src/types/index.ts` | TypeScript type definitions |
+| `src/components/ui/wordapa7.tsx` | Design system components (Card, Panel, Badge, Modal, StepperItem, InputField) |
+| `src/styles/design-tokens.md` | **Design contract**: tokens, closed components, button/state checklists — read before any UI change |
 | `vite.config.ts` | Vite config with `@/` path alias and `/api` proxy to `:8742` |
+
+## UI Rules (contract, enforced)
+
+- Use design tokens (`var(--...)`) — no hardcoded hex in wizard/pages (exceptions documented in `design-tokens.md`)
+- Use `<button type="button">` with handlers — never clickable `<div>`s without real behavior
+- One implementation per screen: remove legacy duplicates instead of leaving them alongside
+- Single top chrome strip: `UnifiedToolbar` only (no stacked titlebars)

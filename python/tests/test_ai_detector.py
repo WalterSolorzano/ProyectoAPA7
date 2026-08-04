@@ -1,20 +1,5 @@
 import pytest
-from classification.ai_detector import detect_ai_generated_patterns, analyze_ai_risk
-
-
-def test_ai_detector_finds_patterns():
-    text = "En conclusión, es importante destacar que los datos demuestran el avance del sistema."
-    matches = detect_ai_generated_patterns(text)
-    assert len(matches) >= 2
-    phrases = [m["phrase"] for m in matches]
-    assert any("conclusión" in p or "conclusion" in p for p in phrases)
-    assert any("importante destacar" in p for p in phrases)
-
-
-def test_ai_detector_clean_text():
-    text = "El análisis estadístico mostró una diferencia significativa entre ambos grupos de prueba."
-    matches = detect_ai_generated_patterns(text)
-    assert len(matches) == 0
+from classification.ai_detector import analyze_ai_risk
 
 
 def test_analyze_ai_risk_detects_patterns():
@@ -90,3 +75,99 @@ def test_analyze_ai_risk_empty_text():
     result = analyze_ai_risk("")
     assert result["score"] == 0
     assert len(result["findings"]) == 0
+
+
+def test_analyze_ai_risk_connector_density():
+    """Densidad alta de conectores formales debe detectarse (acumulación)."""
+    text = (
+        "Sin embargo, los resultados indican una mejora; no obstante, existen "
+        "limitaciones; por lo tanto, se requiere mas investigacion; ademas, el "
+        "tamano de la muestra fue reducido; por consiguiente, no se pueden "
+        "generalizar los hallazgos; asimismo, la metodologia presento desafios; "
+        "en consecuencia, se recomienda replicar el estudio; cabe destacar que "
+        "el analisis estadistico fue robusto; en definitiva, los objetivos se "
+        "cumplieron parcialmente y por otro lado se identificaron nuevas "
+        "variables a considerar en futuras investigaciones que profundicen el tema."
+    )
+    result = analyze_ai_risk(text)
+    conn = [f for f in result["findings"] if f["pattern"] == "connector_density"]
+    assert len(conn) > 0
+
+
+def test_analyze_ai_risk_repeated_openers():
+    """Aperturas de oración repetidas (anáfora) deben detectarse."""
+    text = (
+        "Se puede observar que los datos son consistentes. "
+        "Se puede observar que la muestra fue adecuada. "
+        "Se puede observar que el error fue controlado. "
+        "Se puede observar que el metodo funciono correctamente en todos los casos evaluados."
+    )
+    result = analyze_ai_risk(text)
+    openers = [f for f in result["findings"] if f["pattern"] == "repeated_openers"]
+    assert len(openers) > 0
+
+
+def test_analyze_ai_risk_mixed_typography():
+    """Comillas rectas y curvas mezcladas deben detectarse."""
+    text = 'El estudio concluyo que "los resultados fueron positivos\u201d y que el modelo \u201ces robusto\u201d en la mayoria de los escenarios.'
+    result = analyze_ai_risk(text)
+    typo = [f for f in result["findings"] if f["pattern"] == "mixed_typography"]
+    assert len(typo) > 0
+
+
+def test_analyze_ai_risk_clean_stays_zero():
+    """Texto académico limpio no debe generar señales (regresión del fix de promedio)."""
+    text = (
+        "La investigacion educativa en America Latina ha experimentado un crecimiento "
+        "significativo durante las ultimas dos decadas, particularmente en lo referente "
+        "a la integracion de tecnologias digitales en los procesos de ensenanza-aprendizaje."
+    )
+    result = analyze_ai_risk(text)
+    assert result["score"] == 0
+    assert len(result["findings"]) == 0
+
+
+def test_analyze_table_cells_emojis():
+    """Celdas de tabla con emojis de checklist deben detectarse."""
+    from classification.ai_detector import analyze_table_cells
+
+    score, findings = analyze_table_cells(
+        ["Criterio", "Cumple"],
+        [["A", "\u2705"], ["B", "\u274C"], ["C", "\u2705"]],
+    )
+    assert score > 0
+    emoji = [f for f in findings if f["pattern"] == "table_emoji"]
+    assert len(emoji) > 0
+    assert emoji[0]["count"] == 3
+
+
+def test_analyze_table_cells_clean():
+    """Tabla limpia sin símbolos no debe generar señales."""
+    from classification.ai_detector import analyze_table_cells
+
+    score, findings = analyze_table_cells(
+        ["Criterio", "Cumple"], [["A", "ok"], ["B", "no"]]
+    )
+    assert score == 0
+    assert len(findings) == 0
+
+
+def test_analyze_document_ai_metadata_cap():
+    """El boost de metadatos debe estar captado para no saturar párrafos limpios."""
+    from classification.ai_detector import analyze_document_ai
+
+    clean = (
+        "La investigacion educativa en America Latina ha experimentado un crecimiento "
+        "significativo durante las ultimas dos decadas, particularmente en lo referente "
+        "a la integracion de tecnologias digitales en los procesos de ensenanza-aprendizaje."
+    )
+    meta = {
+        "total_editing_time_minutes": 0,
+        "words": 5000,
+        "revision_count": 1,
+        "in_text_citations": 0,
+        "references_count": 6,
+    }
+    results = analyze_document_ai([clean, clean], meta)
+    for r in results:
+        assert r["score"] <= 0.2, f"Boost de metadatos no debe saturar: {r['score']}"

@@ -45,7 +45,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
 };
 
 function getProviderColor(providerId: string): string {
-  return PROVIDER_COLORS[providerId] || '#64748b';
+  return PROVIDER_COLORS[providerId] || 'var(--text-tertiary)';
 }
 
 export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
@@ -59,6 +59,9 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
   const isComplete = progress.status === 'complete';
   const isError = progress.status === 'error';
 
+  // Modo heurístico = sin proveedor LLM activo (no se usó IA real)
+  const isHeuristic = isComplete && !progress.current_provider;
+
   const percentComplete =
     progress.elements_total > 0
       ? Math.round((progress.elements_processed / progress.elements_total) * 100)
@@ -68,16 +71,18 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
     <div
       style={{
         position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: '34px',
+        right: '16px',
+        width: 'min(480px, calc(100vw - 32px))',
         zIndex: 9998,
-        backgroundColor: '#ffffff',
-        borderTop: '1px solid #e2e8f0',
+        backgroundColor: 'var(--surface-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
         boxShadow: isProcessing
-          ? '0 -4px 24px rgba(0,0,0,0.1)'
-          : '0 -2px 12px rgba(0,0,0,0.06)',
+          ? '0 12px 32px rgba(0,0,0,0.6)'
+          : '0 8px 24px rgba(0,0,0,0.5)',
         transition: 'box-shadow 0.3s ease',
+        overflow: 'hidden',
       }}
     >
       {/* Compact bar (always visible) */}
@@ -104,9 +109,10 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
               }}
             />
           )}
-          {isComplete && <CheckCircle size={16} color="#16a34a" />}
-          {isError && <AlertTriangle size={16} color="#dc2626" />}
-          {progress.status === 'idle' && <Cpu size={16} color="#94a3b8" />}
+          {isHeuristic && <AlertTriangle size={16} color="var(--accent-warning)" />}
+          {isComplete && !isHeuristic && <CheckCircle size={16} color="var(--accent-primary)" />}
+          {isError && <AlertTriangle size={16} color="var(--color-danger)" />}
+          {progress.status === 'idle' && <Cpu size={16} color="var(--text-tertiary)" />}
 
           {/* Provider badge */}
           {progress.current_provider && (
@@ -130,14 +136,19 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
           )}
 
           {/* Status text */}
-          <span style={{ fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
             {isProcessing && (
               <>
                 Clasificando: {progress.completed_batches}/{progress.total_batches} lotes
                 {' '}({progress.elements_processed}/{progress.elements_total} elementos)
               </>
             )}
-            {isComplete && (
+            {isHeuristic && (
+              <span style={{ color: 'var(--accent-warning)' }}>
+                ⚠ Clasificado con <strong>reglas heurísticas</strong> (sin IA) — revisa los elementos marcados.
+              </span>
+            )}
+            {isComplete && !isHeuristic && (
               <>
                 Clasificacion completada con{' '}
                 <strong>{progress.current_provider || 'reglas heuristicas'}</strong>
@@ -145,7 +156,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
               </>
             )}
             {isError && (
-              <span style={{ color: '#dc2626' }}>
+              <span style={{ color: 'var(--color-danger)' }}>
                 Error en clasificacion: {progress.last_error || 'Error desconocido'}
               </span>
             )}
@@ -160,7 +171,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
               style={{
                 width: '80px',
                 height: '6px',
-                backgroundColor: '#e2e8f0',
+                backgroundColor: 'rgba(255,255,255,0.08)',
                 borderRadius: '3px',
                 overflow: 'hidden',
               }}
@@ -177,8 +188,14 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             </div>
           )}
 
-          <span style={{ fontSize: '11px', color: '#94a3b8', minWidth: '32px', textAlign: 'right' }}>
-            {percentComplete}%
+          <span style={{
+            fontSize: '11px',
+            color: isHeuristic ? 'var(--accent-warning)' : 'var(--text-muted)',
+            minWidth: isHeuristic ? 'auto' : '32px',
+            textAlign: 'right',
+            fontWeight: isHeuristic ? 700 : 400,
+          }}>
+            {isHeuristic ? 'Sin IA' : `${percentComplete}%`}
           </span>
 
           {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
@@ -192,7 +209,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
               border: 'none',
               cursor: 'pointer',
               padding: '2px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}
           >
             <X size={14} />
@@ -205,7 +222,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
         <div
           style={{
             padding: '12px 16px 16px',
-            borderTop: '1px solid #f1f5f9',
+            borderTop: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
             gap: '10px',
@@ -218,7 +235,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
                 display: 'flex',
                 justifyContent: 'space-between',
                 fontSize: '11px',
-                color: '#64748b',
+                color: 'var(--text-secondary)',
                 marginBottom: '4px',
               }}
             >
@@ -231,7 +248,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
               style={{
                 width: '100%',
                 height: '10px',
-                backgroundColor: '#e2e8f0',
+                backgroundColor: 'rgba(255,255,255,0.08)',
                 borderRadius: '5px',
                 overflow: 'hidden',
               }}
@@ -259,15 +276,15 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'rgba(255,255,255,0.04)',
                 borderRadius: '6px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                 LOTES COMPLETADOS
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>
                 {progress.completed_batches}/{progress.total_batches}
               </div>
             </div>
@@ -275,12 +292,12 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'rgba(255,255,255,0.04)',
                 borderRadius: '6px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                 PROVEEDOR ACTUAL
               </div>
               <div
@@ -301,15 +318,15 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'rgba(255,255,255,0.04)',
                 borderRadius: '6px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                 TIEMPO ESTIMADO
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
                 {isProcessing && progress.estimated_time_remaining_seconds > 0
                   ? `~${progress.estimated_time_remaining_seconds}s`
                   : isComplete
@@ -321,18 +338,18 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'rgba(255,255,255,0.04)',
                 borderRadius: '6px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>
                 ELEMENTOS
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
                 {progress.elements_processed}
                 {progress.elements_total > 0 && (
-                  <span style={{ color: '#94a3b8', fontWeight: 400 }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
                     /{progress.elements_total}
                   </span>
                 )}
@@ -345,15 +362,15 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#fffbeb',
+                backgroundColor: 'rgba(250,173,20,0.1)',
                 borderRadius: '6px',
-                border: '1px solid #fde68a',
+                border: '1px solid rgba(250,173,20,0.35)',
               }}
             >
               <div
                 style={{
                   fontSize: '10px',
-                  color: '#d97706',
+                  color: 'var(--accent-warning)',
                   fontWeight: 600,
                   marginBottom: '4px',
                   display: 'flex',
@@ -364,7 +381,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
                 <Route size={12} />
                 CADENA DE FALLBACK
               </div>
-              <div style={{ fontSize: '12px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 {progress.provider_fallbacks.map((fb, idx) => (
                   <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={{
@@ -377,7 +394,7 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
                     }}>
                       {PROVIDER_LOGOS[fb.from] || fb.from}
                     </span>
-                    <span style={{ color: '#d97706' }}>&rarr;</span>
+                    <span style={{ color: 'var(--color-warning)' }}>&rarr;</span>
                     <span style={{
                       backgroundColor: getProviderColor(fb.to),
                       color: '#fff',
@@ -399,11 +416,11 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#fef2f2',
+                backgroundColor: 'rgba(255,77,79,0.12)',
                 borderRadius: '6px',
-                border: '1px solid #fecaca',
+                border: '1px solid rgba(255,77,79,0.35)',
                 fontSize: '11px',
-                color: '#dc2626',
+                color: 'var(--color-danger)',
               }}
             >
               <strong>Error:</strong> {progress.last_error}
@@ -415,26 +432,37 @@ export const LLMProgressPanel: React.FC<LLMProgressPanelProps> = ({
             <div
               style={{
                 padding: '8px 10px',
-                backgroundColor: '#f0fdf4',
+                backgroundColor: isHeuristic ? 'rgba(250,173,20,0.12)' : 'rgba(79,124,255,0.12)',
                 borderRadius: '6px',
-                border: '1px solid #bbf7d0',
+                border: `1px solid ${isHeuristic ? 'rgba(250,173,20,0.4)' : 'rgba(79,124,255,0.35)'}`,
                 fontSize: '12px',
-                color: '#166534',
+                color: isHeuristic ? 'var(--accent-warning)' : 'var(--accent-primary)',
               }}
             >
-              <CheckCircle size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Clasificacion completada con{' '}
-              <strong>{progress.current_provider || 'reglas heuristicas'}</strong>.
-              {progress.provider_fallbacks.length > 0
-                ? ` Se usaron ${progress.provider_fallbacks.length + 1} proveedores en la cadena de fallback.`
-                : ''}
+              {isHeuristic ? (
+                <>
+                  <AlertTriangle size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                  <strong>No se usó IA.</strong> La clasificación se hizo con reglas heurísticas locales
+                  porque no hay API Key configurada. Los elementos con confianza baja quedaron marcados
+                  para revisión manual.
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                  Clasificacion completada con{' '}
+                  <strong>{progress.current_provider || 'reglas heuristicas'}</strong>.
+                  {progress.provider_fallbacks.length > 0
+                    ? ` Se usaron ${progress.provider_fallbacks.length + 1} proveedores en la cadena de fallback.`
+                    : ''}
+                </>
+              )}
               {' '}
               <button
                 onClick={onOpenDiagnostics}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#16a34a',
+                  color: isHeuristic ? 'var(--accent-warning)' : 'var(--accent-primary)',
                   textDecoration: 'underline',
                   cursor: 'pointer',
                   fontSize: '12px',

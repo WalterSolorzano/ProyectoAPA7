@@ -44,7 +44,11 @@ def enable_word_update_fields(docx_path: Path | str) -> bool:
                             data = etree.tostring(tree, xml_declaration=True, encoding="UTF-8")
                         except Exception as e:
                             print(f"[WARN] Error actualizando settings.xml: {e}")
-                    xout.writestr(item, data)
+                    # Timestamp fijo para salida determinística (idempotencia de hash)
+                    zi = zipfile.ZipInfo(item.filename, date_time=(1980, 1, 1, 0, 0, 0))
+                    zi.compress_type = zipfile.ZIP_DEFLATED
+                    zi.external_attr = item.external_attr
+                    xout.writestr(zi, data)
 
         temp_zip_path.replace(docx_path)
         return True
@@ -54,16 +58,3 @@ def enable_word_update_fields(docx_path: Path | str) -> bool:
         if temp_zip_path.exists():
             temp_zip_path.unlink()
         return False
-
-
-def is_protected_field_node(element: etree._Element) -> bool:
-    """
-    Verifica si un elemento XML pertenece a un campo nativo protegido (TOC, PAGEREF, CITATION).
-    """
-    parent = element.getparent()
-    while parent is not None:
-        tag = str(parent.tag)
-        if tag.endswith("instrText") or tag.endswith("fldSimple"):
-            return True
-        parent = parent.getparent()
-    return False

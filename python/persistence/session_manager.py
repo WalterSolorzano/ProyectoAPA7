@@ -135,14 +135,6 @@ def load_session_state(session_id: str, storage_dir: Path) -> Optional[DocumentM
         print(f"Error loading session {session_id}: {e}")
         return None
 
-def session_exists(session_id: str, storage_dir: Path) -> bool:
-    if DB_PATH is None:
-        init_db(storage_dir)
-    conn = sqlite3.connect(str(DB_PATH))
-    row = conn.execute("SELECT 1 FROM session_data WHERE session_id = ?", (session_id,)).fetchone()
-    conn.close()
-    return row is not None
-
 def list_recent_sessions(storage_dir: Path, limit: int = 10) -> list[dict]:
     if DB_PATH is None:
         init_db(storage_dir)
@@ -198,18 +190,6 @@ def delete_session(session_id: str, storage_dir: Path) -> bool:
         print(f"[ERROR] Error eliminando sesion {session_id}: {e}")
         return False
 
-def list_session_snapshots(session_id: str, storage_dir: Path) -> list:
-    if DB_PATH is None:
-        init_db(storage_dir)
-    try:
-        conn = sqlite3.connect(str(DB_PATH))
-        rows = conn.execute("SELECT created_at FROM session_snapshots WHERE session_id = ? ORDER BY id DESC", (session_id,)).fetchall()
-        conn.close()
-        
-        return [{"filename": f"snapshot_{r[0]}", "timestamp": r[0]} for r in rows]
-    except Exception:
-        return []
-
 def save_session_snapshot(doc_model, storage_dir: Path):
     if DB_PATH is None:
         init_db(storage_dir)
@@ -234,24 +214,6 @@ def save_session_snapshot(doc_model, storage_dir: Path):
     except Exception as e:
         print(f"[WARN] Error saving snapshot SQLite: {e}")
         return None
-
-def restore_session_snapshot(session_id: str, storage_dir: Path):
-    if DB_PATH is None:
-        init_db(storage_dir)
-    try:
-        conn = sqlite3.connect(str(DB_PATH))
-        row = conn.execute("SELECT data FROM session_snapshots WHERE session_id = ? ORDER BY id DESC LIMIT 1", (session_id,)).fetchone()
-        conn.close()
-
-        if row:
-            data = json.loads(row[0])
-            doc_model = DocumentModel.model_validate(data)
-            save_session_state(doc_model, storage_dir)
-            return doc_model
-    except Exception as e:
-        print(f"[ERROR] Error restoring snapshot SQLite: {e}")
-
-    return None
 
 
 def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = None) -> int:

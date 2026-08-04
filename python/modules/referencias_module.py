@@ -18,8 +18,20 @@ import httpx
 import docx
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from models import ReferenciaModel, APARuleSet
+from generation.style_engine import set_run_font
+
+
+_REF_PREFIX_RE = re.compile(
+    r'^(?:[•○▪–\-\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
+)
+
+
+def _strip_ref_prefix(text: str) -> str:
+    return _REF_PREFIX_RE.sub('', text.strip())
 
 
 # ── DOI Content Negotiation ────────────────────────────────────────────────────
@@ -70,15 +82,6 @@ async def resolve_doi(doi_input: str) -> Optional[str]:
         print(f"[WARN] Error consultando DOI {doi_clean}: {err}")
         return None
 
-
-async def resolve_multiple_dois(doi_list: List[str]) -> List[Optional[str]]:
-    """
-    Resuelve multiples DOIs en paralelo.
-    Retorna una lista de strings APA 7 formateados (o None para cada fallo).
-    """
-    import asyncio
-    tasks = [resolve_doi(doi) for doi in doi_list]
-    return await asyncio.gather(*tasks)
 
 import re
 
@@ -206,48 +209,6 @@ async def resolve_dois_batch(raw_references: List[str]) -> List[dict]:
     return list(results)
 
 
-
-async def format_with_llm(raw_reference: str, api_key: Optional[str] = None) -> str:
-    """
-    Fallback para referencias sin DOI o URLs: usa NVIDIA NIM para formatear.
-    Si no hay API key, retorna el texto crudo con un prefijo de advertencia.
-    """
-    if not api_key:
-        return f"[Revisar formato APA] {raw_reference}"
-
-    system_prompt: str = (
-        "Eres un experto en formato APA 7ma edicion. "
-        "Convierte la siguiente referencia bibliografica al formato APA 7 correcto. "
-        "Responde UNICAMENTE con la referencia formateada, sin explicaciones adicionales."
-    )
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                "https://integrate.api.nvidia.com/v1/chat/completions",
-                json={
-                    "model": "meta/llama-3.1-70b-instruct",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": raw_reference},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 500,
-                },
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            if resp.status_code == 200:
-                content = resp.json()["choices"][0]["message"]["content"]
-                return content.strip()
-    except Exception as err:
-        print(f"[WARN] Error formateando referencia con LLM: {err}")
-
-    return f"[Revisar formato APA] {raw_reference}"
-
-
 # ── Seccion de Referencias ─────────────────────────────────────────────────────
 
 def sort_referencias_alphabetically(references: List[ReferenciaModel]) -> List[ReferenciaModel]:
@@ -289,8 +250,7 @@ def format_apa_referencias_section(
 
     r_hdr = p_hdr.add_run("Referencias")
     r_hdr.bold = True
-    r_hdr.font.name = rules.font_family
-    r_hdr.font.size = Pt(rules.font_size_pt)
+    set_run_font(r_hdr, rules.font_family, rules.font_size_pt)
     r_hdr.font.color.rgb = RGBColor(0, 0, 0)
 
     # Ordenar referencias
@@ -298,8 +258,18 @@ def format_apa_referencias_section(
 
     for ref in sorted_refs:
         p_ref = doc.add_paragraph()
+        try:
+            p_ref.style = None
+        except Exception:
+            pass
         p_ref.alignment = WD_ALIGN_PARAGRAPH.LEFT
         p_ref.paragraph_format.line_spacing = rules.line_spacing
+
+        pPr = p_ref._element.find(qn('w:pPr'))
+        if pPr is not None:
+            numPr = pPr.find(qn('w:numPr'))
+            if numPr is not None:
+                pPr.remove(numPr)
 
         # Sangria Francesa (Hanging Indent) 1.27 cm
         p_ref.paragraph_format.left_indent = Inches(0.5)
@@ -316,9 +286,9 @@ def format_apa_referencias_section(
         if not text or not text.strip():
             continue
 
-        # Resaltar cursivas basicas si contienen journal/book
+        text = _strip_ref_prefix(text)
+
         run = p_ref.add_run(text)
-        run.bold = False  # Limpiar negritas residuales del documento Word original
-        run.font.name = rules.font_family
-        run.font.size = Pt(rules.font_size_pt)
+        run.bold = False
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)

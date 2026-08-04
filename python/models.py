@@ -140,6 +140,9 @@ class SectionInfo(BaseModel):
     orientation: str          # "portrait" | "landscape"
     margins_original: dict[str, float]
     preserve_margins: bool    # True si landscape
+    # Columnas múltiples (w:cols dentro de w:sectPr)
+    columns: Optional[int] = None
+    columns_space: Optional[int] = None
 
 
 # ── ORIGINAL METADATA (no modificar) ─────────────────────────────────────────
@@ -230,6 +233,18 @@ class DocumentMeta(BaseModel):
     elements_truncated: bool = False
     elements_truncated_at: int = 0
     forensic_metadata: Dict[str, Any] = Field(default_factory=dict)
+    # Notas al pie / notas finales (lista de {id, text, is_endnote})
+    footnotes: list[dict] = Field(default_factory=list)
+    # Comentarios de Word (lista de {id, author, text})
+    comments: list[dict] = Field(default_factory=list)
+    comment_count: int = 0
+    # Track Changes entrantes (w:ins/w:del detectados)
+    has_track_changes: bool = False
+    # Diseños multicolumna (w:cols con num > 1)
+    has_multicolumn: bool = False
+    # SmartArt y gráficos (gráficas de datos)
+    has_smartart: bool = False
+    has_charts: bool = False
 
 
 # ── MODELO RAÍZ ───────────────────────────────────────────────────────────────
@@ -307,6 +322,7 @@ class ImageModel(BaseModel):
     file_path: str
     filename: str
     relative_url: str = ""
+    render_error: Optional[str] = None
     width_cm: float = 12.0
     height_cm: float = 8.0
     caption: str = ""
@@ -320,6 +336,8 @@ class ImageModel(BaseModel):
     caption_position: str = "above"           # "above" | "below"
     constrain_proportions: bool = True        # Mantener proporcion al cambiar ancho
     design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width"
+    rotation: int = 0                          # grados de rotacion (0, 90, 180, 270)
+    alt_text: str = ""                         # texto alternativo / accesibilidad
     
     # Nuevos atributos flotantes (anchor)
     is_anchor: bool = False
@@ -387,6 +405,33 @@ class ElementModel(BaseModel):
     ai_score: float = 0.0
     ai_findings: list[dict] = Field(default_factory=list)
     has_shading_residue: bool = False
+    # Sombreado con colores web típicos de tablas copiadas (F4CCCC, FFE599, D9EAD3)
+    has_web_shading_residue: bool = False
+
+    # Notas al pie / notas finales referenciadas en este párrafo
+    footnote_ids: list[int] = Field(default_factory=list)
+    # Hipervínculos preservados: [{text, url}]
+    hyperlinks: list[dict] = Field(default_factory=list)
+    # Marcadores preservados: [{name, id}]
+    bookmarks: list[dict] = Field(default_factory=list)
+
+    # Configuración de ecuación (solo relevante si type == EQUATION)
+    equation: Optional[EquationConfig] = None
+
+
+class EquationConfig(BaseModel):
+    """Configuración de presentación para una ecuación OMML.
+
+    La ecuación en sí (el XML m:oMath) se preserva intacto desde el documento
+    original; aquí solo se controla cómo se presenta alrededor de ella:
+    alineación, número de ecuación y fuente tipográfica de apoyo.
+    """
+    show_number: bool = False
+    number_format: str = "(1)"        # "(1)" | "[1]" | "1." | "(1.1)" | "Ecuación 1"
+    number: Optional[str] = None      # número explícito (se auto-asigna si vacío)
+    alignment: str = "center"         # "left" | "center" | "right"
+    font_name: str = "Times New Roman"  # fuente de apoyo (número y etiqueta)
+    font_size_pt: float = 12.0
 
 
 class PortadaData(BaseModel):
@@ -397,6 +442,7 @@ class PortadaData(BaseModel):
     author: str = ""
     institution: str = ""
     course: Optional[str] = None
+    grupo: Optional[str] = None
     instructor: Optional[str] = None
     date: Optional[str] = None
     running_head: Optional[str] = None

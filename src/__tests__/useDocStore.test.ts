@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useDocStore } from '../store/useDocStore';
-import { APAFormat, BulletStyle, NumberStyle, WizardAnswers, WorkMode } from '../types';
+import { APAFormat, BulletStyle, NumberStyle } from '../types';
 
 // Mock del modulo API
 vi.mock('../api/backend', () => ({
@@ -21,31 +21,15 @@ vi.mock('../api/backend', () => ({
   updateElement: vi.fn(),
   reorderElements: vi.fn(),
   validateDocument: vi.fn(),
-  generateDocx: vi.fn(),
   generatePreview: vi.fn(),
-  checkIdempotency: vi.fn(),
   listSessions: vi.fn(),
   recoverSession: vi.fn(),
-  resolveDoi: vi.fn(),
-  deleteSession: vi.fn(),
-  uploadDocxWithWizard: vi.fn(),
 }));
 
 // Resetear el store antes de cada test
 beforeEach(() => {
-  const { resetWizard, setRulesFull, setPortadaFull } = useDocStore.getState();
   useDocStore.setState({
     doc: null,
-    activeTab: 'classifier',
-    wizardComplete: false,
-    wizardAnswers: {
-      apa_format: 'student',
-      cover_page: 'use_existing',
-      work_mode: 'review',
-    },
-    recoverySession: null,
-    recoveryDismissed: false,
-    workMode: 'review',
     rules: {
       profile_name: 'APA 7 Estandar',
       is_default: true,
@@ -93,8 +77,6 @@ beforeEach(() => {
     portadaProfiles: [],
     references: [],
     validationIssues: [],
-    previewHtml: '',
-    isPreviewLoading: false,
   });
 });
 
@@ -104,16 +86,6 @@ describe('useDocStore — estado inicial', () => {
   it('inicia con doc en null', () => {
     const { doc } = useDocStore.getState();
     expect(doc).toBeNull();
-  });
-
-  it('inicia con wizardComplete en false', () => {
-    const { wizardComplete } = useDocStore.getState();
-    expect(wizardComplete).toBe(false);
-  });
-
-  it('inicia con activeTab en classifier', () => {
-    const { activeTab } = useDocStore.getState();
-    expect(activeTab).toBe('classifier');
   });
 
   it('inicia con el ruleset APA por defecto', () => {
@@ -139,38 +111,6 @@ describe('useDocStore — estado inicial', () => {
   });
 });
 
-// ── WIZARD ────────────────────────────────────────────────────────────────
-
-describe('useDocStore — wizard', () => {
-  it('setWizardComplete guarda las respuestas y marca complete', () => {
-    const answers: WizardAnswers = {
-      apa_format: 'professional',
-      cover_page: 'none',
-      work_mode: 'quick',
-    };
-
-    useDocStore.getState().setWizardComplete(answers);
-
-    const state = useDocStore.getState();
-    expect(state.wizardComplete).toBe(true);
-    expect(state.wizardAnswers.apa_format).toBe('professional');
-    expect(state.wizardAnswers.work_mode).toBe('quick');
-  });
-
-  it('resetWizard vuelve al estado inicial', () => {
-    useDocStore.getState().setWizardComplete({
-      apa_format: 'professional',
-      cover_page: 'import_saved',
-      work_mode: 'review',
-    });
-    useDocStore.getState().resetWizard();
-
-    const state = useDocStore.getState();
-    expect(state.wizardComplete).toBe(false);
-    expect(state.wizardAnswers).toBeNull();
-  });
-});
-
 // ── REGLAS ────────────────────────────────────────────────────────────────
 
 describe('useDocStore — reglas', () => {
@@ -190,28 +130,6 @@ describe('useDocStore — reglas', () => {
     expect(ruleProfiles).toHaveLength(1);
     expect(ruleProfiles[0].profile_name).toBe('Prof. Martinez');
     expect(ruleProfiles[0].is_default).toBe(false);
-  });
-
-  it('loadRuleProfile carga un perfil guardado', () => {
-    // Primero modificar reglas y guardar
-    useDocStore.getState().setRules({ font_family: 'Calibri', paragraph_indent_cm: 0 });
-    useDocStore.getState().saveRuleProfile('Sin Sangria');
-
-    // Luego restaurar defaults y cargar perfil
-    useDocStore.getState().resetRulesToDefault();
-    useDocStore.getState().loadRuleProfile('Sin Sangria');
-
-    const { rules } = useDocStore.getState();
-    expect(rules.font_family).toBe('Calibri');
-    expect(rules.paragraph_indent_cm).toBe(0);
-  });
-
-  it('loadRuleProfile con "APA 7 Estandar" restaura defaults', () => {
-    useDocStore.getState().setRules({ font_family: 'Arial' });
-    useDocStore.getState().loadRuleProfile('APA 7 Estándar');
-
-    const { rules } = useDocStore.getState();
-    expect(rules.font_family).toBe('Times New Roman');
   });
 
   it('resetRulesToDefault restaura todos los valores', () => {
@@ -241,7 +159,7 @@ describe('useDocStore — portada', () => {
     expect(portada.institution).toBe(''); // no cambia
   });
 
-  it('savePortadaProfile guarda y loadPortadaProfile recupera', () => {
+  it('savePortadaProfile guarda un perfil nuevo', () => {
     useDocStore.getState().setPortada({
       title: 'Tesis de Maestria',
       author: 'Maria Garcia',
@@ -250,14 +168,9 @@ describe('useDocStore — portada', () => {
     });
     useDocStore.getState().savePortadaProfile('Tesis UNAM');
 
-    // Limpiar
-    useDocStore.getState().setPortada({ title: '', author: '' });
-    useDocStore.getState().loadPortadaProfile('Tesis UNAM');
-
-    const { portada } = useDocStore.getState();
-    expect(portada.title).toBe('Tesis de Maestria');
-    expect(portada.author).toBe('Maria Garcia');
-    expect(portada.apa_format).toBe('professional');
+    const { portadaProfiles } = useDocStore.getState();
+    expect(portadaProfiles).toHaveLength(1);
+    expect(portadaProfiles[0].profile_name).toBe('Tesis UNAM');
   });
 
   it('portada cambia entre student y professional', () => {
@@ -316,54 +229,5 @@ describe('useDocStore — referencias', () => {
   it('removeReference con id inexistente no falla', () => {
     expect(() => useDocStore.getState().removeReference('no_existe')).not.toThrow();
     expect(useDocStore.getState().references).toHaveLength(0);
-  });
-});
-
-// ── WORK MODE / QUICK FILTER LOGIC ────────────────────────────────────────
-
-describe('useDocStore — modo de trabajo', () => {
-  it('setWorkMode cambia el modo', () => {
-    useDocStore.getState().setWorkMode('quick');
-    expect(useDocStore.getState().workMode).toBe('quick');
-
-    useDocStore.getState().setWorkMode('review');
-    expect(useDocStore.getState().workMode).toBe('review');
-  });
-});
-
-// ── RECOVERY ──────────────────────────────────────────────────────────────
-
-describe('useDocStore — recovery', () => {
-  it('setRecoverySession y dismissRecovery funcionan', () => {
-    const session = {
-      session: {
-        session_id: 'abc123',
-        file_name: 'test.docx',
-        element_count: 10,
-        pending_count: 3,
-        apa_format: 'student' as APAFormat,
-        parsed_at: '2026-07-22',
-        last_saved: '2026-07-22',
-      },
-      available: true,
-    };
-
-    useDocStore.getState().setRecoverySession(session);
-    expect(useDocStore.getState().recoverySession?.session.session_id).toBe('abc123');
-    expect(useDocStore.getState().recoveryDismissed).toBe(false);
-
-    useDocStore.getState().dismissRecovery();
-    expect(useDocStore.getState().recoveryDismissed).toBe(true);
-  });
-
-  it('preview state se maneja correctamente', () => {
-    useDocStore.getState().setPreviewHtml('<p>Test preview</p>');
-    expect(useDocStore.getState().previewHtml).toBe('<p>Test preview</p>');
-
-    useDocStore.getState().setPreviewLoading(true);
-    expect(useDocStore.getState().isPreviewLoading).toBe(true);
-
-    useDocStore.getState().setPreviewLoading(false);
-    expect(useDocStore.getState().isPreviewLoading).toBe(false);
   });
 });

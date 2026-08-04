@@ -211,15 +211,6 @@ def _check_wordapa7_marker(content: bytes) -> bool:
     return False
 
 
-def save_source_hash(session_dir: Path, source_hash: str) -> None:
-    """
-    Guarda el hash SHA-256 del archivo fuente en el directorio de la sesion.
-    """
-    session_dir.mkdir(parents=True, exist_ok=True)
-    hash_file = session_dir / "source_hash.txt"
-    hash_file.write_text(source_hash)
-
-
 def add_marker_to_docx(docx_bytes: bytes, version: str = "1.0.0") -> bytes:
     """
     Agrega un marcador invisible de WordAPA7 al DOCX para deteccion futura.
@@ -246,82 +237,3 @@ def add_marker_to_docx(docx_bytes: bytes, version: str = "1.0.0") -> bytes:
             return output.getvalue()
     except (zipfile.BadZipFile, KeyError):
         return docx_bytes
-
-
-def register_processed_document(
-    session_id: str,
-    file_name: str,
-    source_hash: str,
-    element_count: int = 0,
-) -> None:
-    """
-    Registra un documento procesado en SQLite para futuras comprobaciones.
-    """
-    if not DB_PATH:
-        return
-
-    try:
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.execute(
-            "INSERT OR REPLACE INTO hash_registry (source_hash, session_id, file_name) "
-            "VALUES (?, ?, ?)",
-            (source_hash, session_id, file_name),
-        )
-        conn.execute(
-            "INSERT OR REPLACE INTO sessions (id, filename, source_hash, status, element_count) "
-            "VALUES (?, ?, ?, 'completed', ?)",
-            (session_id, file_name, source_hash, element_count),
-        )
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"[WARN] Error registrando documento en BD: {e}")
-
-
-def list_available_sessions(storage_dir: Path) -> list[dict]:
-    """
-    Lista todas las sesiones disponibles con su metadata basica.
-    """
-    sessions = []
-    sessions_dir = storage_dir / "sessions"
-    if not sessions_dir.exists():
-        return sessions
-
-    for session_dir in sorted(sessions_dir.iterdir(), reverse=True):
-        if not session_dir.is_dir():
-            continue
-
-        state_file = session_dir / "session_state.json"
-        if not state_file.exists():
-            continue
-
-        try:
-            with open(state_file, "r", encoding="utf-8") as f:
-                state = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            continue
-
-        meta = state.get("meta", {})
-        elements = state.get("elements", [])
-
-        session_info = {
-            "session_id": state.get("session_id", session_dir.name),
-            "file_name": state.get("file_name", "Desconocido"),
-            "element_count": len(elements),
-            "apa_format": meta.get("apa_format", "student"),
-            "work_mode": meta.get("work_mode", "review"),
-            "parsed_at": meta.get("parsed_at", ""),
-            "autosave_at": meta.get("autosave_at"),
-            "reviewed_count": sum(
-                1 for e in elements
-                if e.get("is_user_modified") or e.get("confidence", 0) >= 0.85
-            ),
-            "pending_count": sum(
-                1 for e in elements
-                if not e.get("is_user_modified") and e.get("confidence", 0) < 0.85
-            ),
-            "last_saved": meta.get("autosave_at") or meta.get("parsed_at", ""),
-        }
-        sessions.append(session_info)
-
-    return sessions

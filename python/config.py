@@ -24,3 +24,14 @@ else:
     DIST_DIR = BASE_DIR / 'dist'
 
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_apa7_template_path() -> Path:
+    """Ruta del documento base APA 7 (apa7_template.docx).
+
+    En desarrollo vive en la raíz del proyecto; en producción (PyInstaller)
+    se regenera bajo AppData para evitar tocar el directorio de la app.
+    """
+    if getattr(sys, 'frozen', False):
+        return STORAGE_DIR / 'apa7_template.docx'
+    return BASE_DIR / 'apa7_template.docx'

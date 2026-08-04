@@ -56,16 +56,27 @@ class COMPageLayoutProvider(PageLayoutProvider):
             self._kill_orphan_winword_processes()
 
     def _paginate_with_timeout(self, docx_path, timeout):
-        # Usar concurrent.futures con timeout
+        # Usar concurrent.futures con timeout.
+        # IMPORTANTE: no usar `with ThreadPoolExecutor` — su shutdown(wait=True)
+        # se bloquearía esperando un hilo colgado en COM. Usamos wait=False y
+        # matamos el proceso de Word para que el hilo termine solo.
         import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(self._do_paginate, docx_path)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self._do_paginate, docx_path)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            # Matar la instancia de Word que no respondió para liberar el hilo
             try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                raise TimeoutError(
-                    f"Word no respondió en {timeout}s — matando proceso"
-                )
+                from services.word_com_service import get_word_com_service
+                get_word_com_service().kill_created_word()
+            except Exception:
+                pass
+            raise TimeoutError(
+                f"Word no respondió en {timeout}s — matando proceso"
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _do_paginate(self, docx_path) -> PageLayoutResult:
         import pythoncom

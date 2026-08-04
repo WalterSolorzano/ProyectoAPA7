@@ -10,13 +10,14 @@ export const AppTitlebar: React.FC = () => {
   return (
     <div
       style={{
-        height: '32px',
+        height: '34px',
         width: '100%',
-        backgroundColor: 'transparent', // The background color is handled by App.tsx or titleBarOverlay
+        backgroundColor: 'rgba(15, 23, 42, 0.18)',
         WebkitAppRegion: 'drag', // This is what allows the window to be moved!
         display: 'flex',
         alignItems: 'center',
-        paddingLeft: '16px',
+        paddingLeft: '18px',
+        paddingRight: '180px',
         userSelect: 'none',
         position: 'absolute',
         top: 0,
@@ -25,8 +26,7 @@ export const AppTitlebar: React.FC = () => {
         pointerEvents: 'none' // Don't block clicks to things underneath unless we specifically need it
       } as React.CSSProperties}
     >
-      {/* Opcional: Podemos poner un texto de título si queremos */}
-      <span style={{ fontSize: '12px', color: '#605e5c', fontWeight: 600 }}>WordAPA7</span>
+      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.02em' }}>WordAPA7</span>
     </div>
   );
 };

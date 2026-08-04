@@ -7,29 +7,14 @@ import {
   PortadaData,
   ReferenciaModel,
   ValidationIssue,
-  WizardAnswers,
   SessionRecovery,
-  IdempotencyResult,
-  GenerateResponse,
   PreviewResponse,
   LLMProgressState,
   ImageModel,
 } from '../types';
-import { useDocStore } from '../store/useDocStore';
+import { getApiBase, fetchWithTrace } from './http';
 
-const getApiBase = () => {
-  if (!(window as any).electronAPI) return '/api';
-  const port = (window as any).electronAPI.getBackendPort();
-  return `http://127.0.0.1:${port}/api`;
-};
-
-/** Wrapper that extracts X-Request-ID into the store for debug tracing. */
-async function fetchWithTrace(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  const res = await fetch(input, init);
-  const rid = res.headers.get('X-Request-ID');
-  if (rid) useDocStore.getState().setLastRequestId(rid);
-  return res;
-}
+export { getApiBase, resolveAssetUrl } from './http';
 
 export async function uploadDocxFile(file: File): Promise<DocumentModel> {
   const formData = new FormData();
@@ -56,29 +41,6 @@ export async function startBlankDocument(): Promise<DocumentModel> {
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.detail || 'Error al iniciar documento en blanco');
-  }
-
-  return res.json();
-}
-
-export async function uploadDocxWithWizard(
-  file: File,
-  wizard: WizardAnswers
-): Promise<DocumentModel> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('apa_format', wizard.apa_format);
-  formData.append('work_mode', wizard.work_mode);
-  formData.append('cover_page', wizard.cover_page);
-
-  const res = await fetchWithTrace(`${getApiBase()}/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al subir el archivo');
   }
 
   return res.json();
@@ -132,7 +94,8 @@ export async function updateElement(
   elementId: string,
   type: ElementType,
   headingLevel?: number,
-  text?: string
+  text?: string,
+  equation?: Record<string, any>
 ): Promise<DocumentModel> {
   const res = await fetchWithTrace(`${getApiBase()}/update-element`, {
     method: 'POST',
@@ -143,6 +106,7 @@ export async function updateElement(
       type,
       heading_level: headingLevel ?? 1,
       text,
+      ...(equation ? { equation } : {}),
     }),
   });
 
@@ -169,6 +133,70 @@ export async function updateElementImage(
 
   if (!res.ok) throw new Error('Error al actualizar imagen');
   return res.json();
+}
+
+export async function replaceImageFile(
+  sessionId: string,
+  elementId: string,
+  file: File
+): Promise<DocumentModel> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetchWithTrace(`${getApiBase()}/replace-image/${sessionId}/${elementId}`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al reemplazar la imagen');
+  }
+  return res.json();
+}
+
+export interface SpellingFinding {
+  word: string;
+  suggestions: string[];
+  ai_is_error?: boolean;
+}
+
+const PROVIDER_KEY_ENV_MAP: Record<string, string> = {
+  'NVIDIA_API_KEY': 'NVIDIA_API_KEY',
+  'GROQ_API_KEY': 'GROQ_API_KEY',
+  'OPENROUTER_API_KEY': 'OPENROUTER_API_KEY',
+  'CEREBRAS_API_KEY': 'CEREBRAS_API_KEY',
+  'MISTRAL_API_KEY': 'MISTRAL_API_KEY',
+  'OPENCODEZEN_API_KEY': 'OPENCODEZEN_API_KEY',
+  'ZENMUX_API_KEY': 'ZENMUX_API_KEY',
+  'GEMINI_API_KEY': 'GEMINI_API_KEY',
+  'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_API_TOKEN',
+  'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID',
+};
+
+/** Sincroniza las claves guardadas en localStorage con el backend (os.environ). */
+export async function syncAllProviderKeys(): Promise<{ ok: boolean; applied: string[]; error?: string }> {
+  const keys: Record<string, string> = {};
+  try {
+    for (const envVar of Object.keys(PROVIDER_KEY_ENV_MAP)) {
+      const stored = localStorage.getItem(`wordapa7-provider-key:${envVar}`) || '';
+      if (stored.trim()) keys[envVar] = stored.trim();
+    }
+  } catch { /* noop */ }
+  if (Object.keys(keys).length === 0) return { ok: true, applied: [] };
+  try {
+    const res = await fetchWithTrace(`${getApiBase()}/sync-provider-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      return { ok: false, applied: [], error: err?.detail || `HTTP ${res.status}` };
+    }
+    const data = await res.json();
+    return { ok: true, applied: data?.applied || Object.keys(keys) };
+  } catch (e: any) {
+    return { ok: false, applied: [], error: e?.message || String(e) };
+  }
 }
 
 export async function reorderElements(
@@ -217,27 +245,6 @@ export async function validateCitations(
   return res.json();
 }
 
-export async function generateDocx(
-  sessionId: string,
-  rules: APARuleSet,
-  portada: PortadaData,
-  references: ReferenciaModel[]
-): Promise<GenerateResponse> {
-  const res = await fetchWithTrace(`${getApiBase()}/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: sessionId,
-      rules,
-      portada,
-      references,
-    }),
-  });
-
-  if (!res.ok) throw new Error('Error al generar el archivo .docx');
-  return res.json();
-}
-
 export async function generatePreview(
   sessionId: string,
   rules: APARuleSet,
@@ -256,27 +263,6 @@ export async function generatePreview(
   });
 
   if (!res.ok) throw new Error('Error al generar vista previa');
-  return res.json();
-}
-
-export async function generatePdf(
-  sessionId: string,
-  rules: APARuleSet,
-  portada: PortadaData,
-  references: ReferenciaModel[]
-): Promise<any> {
-  const res = await fetchWithTrace(`${getApiBase()}/generate-pdf`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: sessionId,
-      rules,
-      portada,
-      references,
-    }),
-  });
-
-  if (!res.ok) throw new Error('Error al generar PDF');
   return res.json();
 }
 
@@ -304,25 +290,6 @@ export async function generatePreviewPdf(
      };
   }
   return data;
-}
-
-export async function checkIdempotency(
-  file: File
-): Promise<IdempotencyResult> {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const res = await fetchWithTrace(`${getApiBase()}/check-idempotency`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al verificar idempotencia');
-  }
-
-  return res.json();
 }
 
 export async function suggestCaption(
@@ -377,6 +344,154 @@ export async function rewriteText(
   return data.rewritten;
 }
 
+export interface RewriteVariationsResult {
+  variations: string[];
+  provider: string;
+  provider_id: string;
+}
+
+export async function rewriteVariations(
+  sessionId: string,
+  elementId: string,
+  text: string,
+  instruction: string,
+  n = 3,
+  apiKey?: string
+): Promise<RewriteVariationsResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/rewrite-variations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId, element_id: elementId, text,
+      instruction, n, api_key: apiKey,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al generar variaciones');
+  }
+  return res.json();
+}
+
+export interface AIProviderConfigShape {
+  nimUrl?: string;
+  useLocal?: boolean;
+  providerId?: string;
+}
+
+/** Genera un comentario humorístico estilo WhatsApp con el LLM (opcional). */
+export async function generateChatComment(
+  sessionId: string,
+  elementId: string,
+  kind: string,
+  elementText: string,
+  apiKey?: string,
+  aiProviderConfig?: AIProviderConfigShape
+): Promise<string> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/chat-comment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      element_id: elementId,
+      kind,
+      element_text: elementText,
+      api_key: apiKey,
+      nim_url: aiProviderConfig?.nimUrl,
+      use_local: aiProviderConfig?.useLocal,
+      provider_id: aiProviderConfig?.providerId,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al generar comentario');
+  }
+  const data = await res.json();
+  return data.comment;
+}
+
+/** Genera un tip de carga (pantalla de progreso) con el LLM (opcional). */
+export async function generateLoadingTip(
+  category: 'process' | 'jokes' | 'apa' | 'honest',
+  phase: string,
+  apiKey?: string,
+  aiProviderConfig?: AIProviderConfigShape
+): Promise<{ category: string; text: string }> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/loading-tip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      category,
+      phase,
+      api_key: apiKey,
+      nim_url: aiProviderConfig?.nimUrl,
+      use_local: aiProviderConfig?.useLocal,
+      provider_id: aiProviderConfig?.providerId,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al generar tip');
+  }
+  return res.json();
+}
+
+export interface CitationFixResult {
+  corrected: string;
+  reason: string;
+  action: string;
+}
+
+export async function citationFix(
+  sessionId: string,
+  citationText: string,
+  referenceId?: string,
+  problem?: string,
+  apiKey?: string
+): Promise<CitationFixResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/citation-fix`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId, citation_text: citationText,
+      reference_id: referenceId, problem: problem, api_key: apiKey,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Error al sugerir corrección de cita');
+  }
+  return res.json();
+}
+
+export interface ProviderStatus {
+  id: string;
+  name: string;
+  active: boolean;
+  capacity: { timeout_s: number; typical_latency_s: number; max_tokens: number } | null;
+}
+export interface ProviderStatusResult {
+  providers: ProviderStatus[];
+  total_active: number;
+  total_configured: number;
+  classification_available: boolean;
+}
+
+export async function getProviderStatus(): Promise<ProviderStatusResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/provider-status`);
+  if (!res.ok) throw new Error('Error al obtener estado de proveedores IA');
+  return res.json();
+}
+
+export async function exportLatex(sessionId: string): Promise<string> {
+  const res = await fetchWithTrace(`${getApiBase()}/export-latex/${sessionId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Error al exportar a LaTeX');
+  const data = await res.json();
+  return data.latex;
+}
+
 export async function listSessions(): Promise<SessionRecovery[]> {
   const res = await fetchWithTrace(`${getApiBase()}/sessions`);
 
@@ -398,41 +513,72 @@ export async function recoverSession(sessionId: string): Promise<DocumentModel> 
   return res.json();
 }
 
-export async function resolveDoi(doi: string): Promise<string | null> {
-  const res = await fetchWithTrace(`${getApiBase()}/resolve-doi`, {
+export async function saveSessionSnapshot(sessionId: string): Promise<void> {
+  const res = await fetchWithTrace(`${getApiBase()}/sessions/${sessionId}/snapshot`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error('Error al guardar el progreso');
+  }
+}
+
+export interface AIReviewFinding {
+  phrase: string;
+  detail: string;
+  severity: string;
+}
+export interface AIReviewParagraph {
+  element_id: string;
+  index: number;
+  type: string;
+  text: string;
+  ai_score: number;
+  ai_category: 'LOW' | 'MEDIUM' | 'HIGH';
+  findings: AIReviewFinding[];
+  spelling: { word: string; suggestions: string[] }[];
+}
+export interface AIReviewTableSignal {
+  element_id: string;
+  type: string;
+  pattern: string;
+  detail: string;
+  severity: string;
+  count: number;
+  phrase: string;
+}
+export interface AIReviewResult {
+  session_id: string;
+  total_paragraphs: number;
+  ai_avg_score: number;
+  flagged_count: number;
+  spelling_count: number;
+  spelling_status: string;
+  paragraphs: AIReviewParagraph[];
+  table_signals: AIReviewTableSignal[];
+  document_signals: string[];
+}
+
+export async function runAIReview(sessionId: string): Promise<AIReviewResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai-review/${sessionId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error('Error al ejecutar el revisor IA');
+  }
+  return res.json();
+}
+
+export async function detectSimilarHeadings(
+  sessionId: string,
+  elementId: string,
+  newType: string,
+): Promise<{ similar_ids: string[]; count: number }> {
+  const res = await fetch(`${getApiBase()}/detect-similar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ doi }),
+    body: JSON.stringify({ session_id: sessionId, element_id: elementId, new_type: newType }),
   });
-
-  if (!res.ok) {
-    return null;
-  }
-
-  const data = await res.json();
-  return data.formatted || null;
-}
-
-export async function healthCheck(): Promise<boolean> {
-  try {
-    const res = await fetchWithTrace(`${getApiBase()}/health`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(3000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-export async function deleteSession(sessionId: string): Promise<void> {
-  const res = await fetchWithTrace(`${getApiBase()}/session/${sessionId}`, {
-    method: 'DELETE',
-  });
-
-  if (!res.ok) {
-    throw new Error('Error al eliminar sesión');
-  }
+  return await res.json();
 }
 
 export async function getClassifyProgress(sessionId: string): Promise<LLMProgressState> {
@@ -503,24 +649,6 @@ export async function applyTemplate(
   return res.json();
 }
 
-// ── VERSION CHECK ────────────────────────────────────────────────────────────
-
-export interface VersionInfo {
-  version: string;
-  build_hash: string;
-  build_time: string | null;
-  stale: boolean;
-}
-
-export async function fetchVersion(): Promise<VersionInfo> {
-  const res = await fetchWithTrace(`${getApiBase()}/version`, {
-    method: 'GET',
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) throw new Error('Error al obtener versión');
-  return res.json();
-}
-
 // ── COVER DESIGNER API ──────────────────────────────────────────────────────
 
 export interface CoverTemplateInfo {
@@ -551,60 +679,6 @@ export async function fetchCoverTemplates(): Promise<CoverTemplateInfo[]> {
   return data.templates || [];
 }
 
-export async function uploadCoverImage(
-  file: File,
-  name: string,
-  description: string = ''
-): Promise<{ template: CoverTemplateInfo }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('name', name);
-  formData.append('description', description);
-
-  const res = await fetchWithTrace(`${getApiBase()}/cover-templates/upload-image`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al subir imagen de portada');
-  }
-  return res.json();
-}
-
-export async function uploadCoverDocx(
-  file: File,
-  name: string,
-  description: string = ''
-): Promise<{ template: CoverTemplateInfo }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('name', name);
-  formData.append('description', description);
-
-  const res = await fetchWithTrace(`${getApiBase()}/cover-templates/upload-docx`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al subir documento de portada');
-  }
-  return res.json();
-}
-
-export async function deleteCoverTemplate(name: string): Promise<void> {
-  const res = await fetchWithTrace(`${getApiBase()}/cover-templates/${encodeURIComponent(name)}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al eliminar plantilla');
-  }
-}
-
 export async function applyCover(req: ApplyCoverRequest): Promise<{ status: string; message: string; cover_template_name: string; document?: any }> {
   const res = await fetchWithTrace(`${getApiBase()}/apply-cover`, {
     method: 'POST',
@@ -629,4 +703,35 @@ export async function applyCover(req: ApplyCoverRequest): Promise<{ status: stri
 
 export function getCoverPreviewUrl(name: string): string {
   return `${getApiBase()}/cover-templates/preview/${encodeURIComponent(name)}`;
+}
+
+export async function resolveReferencesBatch(
+  references: any[],
+): Promise<{ resolved?: any[]; results?: any[] }> {
+  const res = await fetchWithTrace(`${getApiBase()}/references/resolve-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ references }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al resolver referencias en lote');
+  }
+  return res.json();
+}
+
+export async function explainElement(
+  elementId: string,
+  question: string,
+): Promise<{ explanation?: string }> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/explain-element`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: elementId, question }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al solicitar explicación IA');
+  }
+  return res.json();
 }

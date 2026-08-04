@@ -6,7 +6,7 @@ import { listSessions, recoverSession } from '../../api/backend';
 import { SessionRecovery } from '../../types';
 import {
   FileText, FilePlus, FolderOpen, Save, Download, X, ArrowLeft,
-  Upload, File, Clock, Plus, HardDrive, RefreshCw,
+  Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate,
 } from 'lucide-react';
 
 type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export';
@@ -85,8 +85,6 @@ export const FileMenu: React.FC = () => {
       useDocStore.setState({
         doc: recovered,
         showFileMenu: false,
-        activeTab: 'classifier',
-        wizardComplete: true,
         wizardStep: 1,
       });
       setPage('home');
@@ -103,28 +101,60 @@ export const FileMenu: React.FC = () => {
           <div className="filemenu-content">
             <h2 className="filemenu-heading">Informacion</h2>
             {doc ? (
-              <div className="filemenu-info-card">
-                <div className="filemenu-info-row">
-                  <span className="filemenu-info-label">Documento:</span>
-                  <span className="filemenu-info-value">{doc.file_name}</span>
+              <>
+                <div className="filemenu-info-card">
+                  <div className="filemenu-info-row">
+                    <span className="filemenu-info-label">Documento:</span>
+                    <span className="filemenu-info-value">{doc.file_name}</span>
+                  </div>
+                  <div className="filemenu-info-row">
+                    <span className="filemenu-info-label">Sesion:</span>
+                    <span className="filemenu-info-value filemenu-mono">{doc.session_id.slice(0, 8)}...</span>
+                  </div>
+                  <div className="filemenu-info-row">
+                    <span className="filemenu-info-label">Formato:</span>
+                    <span className="filemenu-info-value">APA 7 ({doc.apa_format === 'student' ? 'Estudiante' : 'Profesional'})</span>
+                  </div>
+                  <div className="filemenu-info-row">
+                    <span className="filemenu-info-label">Elementos:</span>
+                    <span className="filemenu-info-value">{doc.elements.length}</span>
+                  </div>
+                  <div className="filemenu-info-row">
+                    <span className="filemenu-info-label">Pestanas abiertas:</span>
+                    <span className="filemenu-info-value">{tabs.length}</span>
+                  </div>
                 </div>
-                <div className="filemenu-info-row">
-                  <span className="filemenu-info-label">Sesion:</span>
-                  <span className="filemenu-info-value filemenu-mono">{doc.session_id.slice(0, 8)}...</span>
+
+                {/* Resumen de estructura del documento */}
+                <h3 className="filemenu-section-title">Estructura del documento</h3>
+                <div className="filemenu-stats-grid">
+                  {[
+                    { label: 'Titulos', value: doc.elements.filter(e => e.type === 'heading').length, icon: 'T' },
+                    { label: 'Parrafos', value: doc.elements.filter(e => e.type === 'paragraph').length, icon: 'P' },
+                    { label: 'Figuras', value: doc.elements.filter(e => e.type === 'image' && e.image_info).length, icon: 'F' },
+                    { label: 'Tablas', value: doc.elements.filter(e => e.type === 'table' && e.table_info).length, icon: 'Tb' },
+                    { label: 'Listas', value: doc.elements.filter(e => e.type === 'bullet' || e.type === 'numbered_list').length, icon: 'L' },
+                    { label: 'Citas', value: doc.elements.filter(e => e.cita_ids && e.cita_ids.length).length, icon: 'C' },
+                  ].map(stat => (
+                    <div key={stat.label} className="filemenu-stat">
+                      <div className="filemenu-stat-icon">{stat.icon}</div>
+                      <div className="filemenu-stat-value">{stat.value}</div>
+                      <div className="filemenu-stat-label">{stat.label}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="filemenu-info-row">
-                  <span className="filemenu-info-label">Formato:</span>
-                  <span className="filemenu-info-value">APA 7 ({doc.apa_format === 'student' ? 'Estudiante' : 'Profesional'})</span>
+
+                {/* Acciones rapidas */}
+                <h3 className="filemenu-section-title">Acciones rapidas</h3>
+                <div className="filemenu-actions-row">
+                  <button className="btn btn-primary" onClick={handleExportStandard} disabled={isLoading}>
+                    <Download size={16} /> Exportar .DOCX
+                  </button>
+                  <button className="btn btn-secondary" onClick={handleExportTracked} disabled={isLoading}>
+                    <FileText size={16} /> Control de cambios
+                  </button>
                 </div>
-                <div className="filemenu-info-row">
-                  <span className="filemenu-info-label">Elementos:</span>
-                  <span className="filemenu-info-value">{doc.elements.length}</span>
-                </div>
-                <div className="filemenu-info-row">
-                  <span className="filemenu-info-label">Pestanas abiertas:</span>
-                  <span className="filemenu-info-value">{tabs.length}</span>
-                </div>
-              </div>
+              </>
             ) : (
               <p className="filemenu-empty-text">No hay ningun documento abierto.</p>
             )}
@@ -144,13 +174,10 @@ export const FileMenu: React.FC = () => {
                     if (!confirmDiscard) return;
                   }
                   
-                  // Reset to wizard so user picks format before returning to Welcome
+                  // Reset to wizard so user picks format before returning to Home
                   useDocStore.setState({
                     doc: null,
                     showFileMenu: false,
-                    wizardComplete: false,
-                    wizardAnswers: null,
-                    activeTab: 'classifier',
                     selectedElementId: null,
                     tabs: [],
                     activeTabIndex: 0,
@@ -169,6 +196,21 @@ export const FileMenu: React.FC = () => {
                 </div>
                 <div className="filemenu-new-card-title">Documento en blanco</div>
                 <div className="filemenu-new-card-desc">Comienza con un documento vacio con formato APA 7</div>
+              </button>
+
+              <button
+                className="filemenu-new-card"
+                onClick={() => {
+                  useDocStore.setState({ showTemplateDialog: true, showFileMenu: false });
+                  setPage('home');
+                }}
+                title="Abrir el selector de plantillas de estructura"
+              >
+                <div className="filemenu-new-card-icon">
+                  <LayoutTemplate size={28} />
+                </div>
+                <div className="filemenu-new-card-title">Abrir plantilla</div>
+                <div className="filemenu-new-card-desc">Elige una plantilla de estructura pre-diseñada</div>
               </button>
 
               <div
@@ -209,17 +251,17 @@ export const FileMenu: React.FC = () => {
             <div
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '16px 20px', borderRadius: '10px',
-                border: '2px dashed #185ABD', backgroundColor: '#eff6ff',
+                padding: '16px 20px', borderRadius: '12px',
+                border: '2px dashed rgba(79,124,255,0.5)', backgroundColor: 'rgba(79,124,255,0.08)',
                 cursor: 'pointer', marginBottom: '24px',
                 transition: 'background 0.2s',
               }}
               onClick={() => openFileInputRef.current?.click()}
             >
-              <HardDrive size={28} color="#185ABD" />
+              <HardDrive size={28} color="var(--accent-primary)" />
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: '#185ABD' }}>Abrir archivo desde tu computadora</div>
-                <div style={{ fontSize: '12px', color: '#475569' }}>Selecciona un .docx para cargarlo y formatearlo en APA 7</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent-primary)' }}>Abrir archivo desde tu computadora</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selecciona un .docx para cargarlo y formatearlo en APA 7</div>
               </div>
               <input
                 ref={openFileInputRef}
@@ -234,7 +276,7 @@ export const FileMenu: React.FC = () => {
             </div>
 
             {/* ── Sessions from server (recent docs) ── */}
-            <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sesiones recientes</h3>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sesiones recientes</h3>
             {sessionsLoading ? (
               <div className="filemenu-loading">
                 <div className="loading-spinner" />

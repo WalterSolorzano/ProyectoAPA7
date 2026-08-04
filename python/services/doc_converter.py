@@ -80,19 +80,6 @@ class DocConverterService:
                 shutil.copy(generated_path, final_path)
                 return False, None
 
-    def convert_docx_to_pdf_lo_only(self, input_docx: Path, output_pdf: Path) -> bool:
-        """Fuerza la conversión a PDF usando SOLO LibreOffice (más rápido para vistas previas)."""
-        with self._lock:
-            if not self._lo_service.is_available():
-                logger.warning("[DocConverter] LibreOffice no está disponible para previsualización rápida.")
-                return False
-            success = self._lo_service.convert(input_docx, "pdf", output_pdf.parent)
-            if success and input_docx.with_suffix(".pdf").exists():
-                if input_docx.with_suffix(".pdf") != output_pdf:
-                    shutil.move(input_docx.with_suffix(".pdf"), output_pdf)
-                return True
-            return False
-
 # Singleton
 _doc_converter = DocConverterService()
 

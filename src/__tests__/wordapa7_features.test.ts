@@ -203,8 +203,8 @@ describe('R3: Structural Revision Panel (Step2HeadingsWizard)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const mockElements: ElementModel[] = [
-      makeDocElement({ id: 'h_lvl2', type: 'heading', heading_level: 2, text: 'Título Nivel 2' }),
-      makeDocElement({ id: 'h_lvl1', type: 'heading', heading_level: 1, text: 'Título Nivel 1' }),
+      makeDocElement({ id: 'h_lvl2', type: 'heading', heading_level: 2, text: 'Título Nivel 2', confidence: 0.6, needs_review: true }),
+      makeDocElement({ id: 'h_lvl1', type: 'heading', heading_level: 1, text: 'Título Nivel 1', confidence: 0.7, needs_review: true }),
     ];
 
     const doc = {
@@ -226,46 +226,77 @@ describe('R3: Structural Revision Panel (Step2HeadingsWizard)', () => {
     });
   });
 
-  it('promotes Level 2 heading to Level 1 when "Subir Nivel" is clicked', () => {
+  it('renders headings in document view and shows filter toggles', () => {
     render(React.createElement(Step2HeadingsWizard));
 
-    const subirBtns = screen.getAllByTitle('Subir Nivel');
-    expect(subirBtns.length).toBeGreaterThan(0);
+    // The document title is visible
+    expect(screen.getByText('Estructura (2 títulos)')).toBeDefined();
 
-    const btnLvl2 = subirBtns[0];
-    expect(btnLvl2.getAttribute('disabled')).toBeNull();
+    // Filter toggles exist
+    expect(screen.getByRole('button', { name: 'Revisar (2)' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Ver todos (2)' })).toBeDefined();
 
-    fireEvent.click(btnLvl2);
-
-    expect(mockUpdateElementType).toHaveBeenCalledWith(
-      'h_lvl2',
-      'heading',
-      1,
-      'Título Nivel 2'
-    );
+    // Headings appear: the current reviewer heading (first dubious) is shown
+    expect(screen.getAllByText('Título Nivel 2').length).toBeGreaterThan(0);
   });
 
-  it('disables "Subir Nivel" button when heading is already Level 1', () => {
+  it('shows the left-side heading map by default; sequential reviewer appears in Revisar mode', () => {
     render(React.createElement(Step2HeadingsWizard));
 
-    const subirBtns = screen.getAllByTitle('Subir Nivel');
-    const btnLvl1 = subirBtns[1];
-    expect(btnLvl1.getAttribute('disabled')).not.toBeNull();
+    // "Ver todos" is the default: the left-side heading map is visible
+    const todosBtn = screen.getByRole('button', { name: 'Ver todos (2)' });
+    expect(todosBtn).toBeDefined();
+    expect(screen.getByText('Mapa de títulos')).toBeDefined();
+
+    // The reviewer header should NOT be visible yet
+    expect(screen.queryByText('Revisor de títulos')).toBeNull();
+
+    // Switch to "Revisar": sequential reviewer panel appears
+    const revisarBtn = screen.getByRole('button', { name: 'Revisar (2)' });
+    fireEvent.click(revisarBtn);
+    expect(screen.getByText('Revisor de títulos')).toBeDefined();
+    expect(screen.getByText('1 / 2')).toBeDefined();
   });
 
-  it('degrades heading to paragraph when "Degradar a Párrafo" is clicked', () => {
-    render(React.createElement(Step2HeadingsWizard));
+  it('renders headings with border-left styling in the document', () => {
+    const { container } = render(React.createElement(Step2HeadingsWizard));
 
-    const degradaBtns = screen.getAllByTitle('Degradar a Párrafo');
-    expect(degradaBtns.length).toBeGreaterThan(0);
+    // The heading elements are rendered as styled paragraphs in the PaperCanvas
+    const headingElems = container.querySelectorAll('[id^="paper-elem-h_lvl"]');
+    expect(headingElems.length).toBeGreaterThan(0);
+  });
+});
 
-    fireEvent.click(degradaBtns[0]);
+// ─── R4: Fase E (Home) / Fase F (Revisor IA) — store actions ─────────────────
+describe('R4: Fase E/F — Home + AI Review store actions', () => {
+  beforeEach(() => {
+    useDocStore.setState({
+      atHome: false,
+      reviewResult: null,
+      isReviewOpen: false,
+      isReviewLoading: false,
+      doc: null,
+    });
+  });
 
-    expect(mockUpdateElementType).toHaveBeenCalledWith(
-      'h_lvl2',
-      'paragraph',
-      1,
-      'Título Nivel 2'
-    );
+  it('goHome() toggles the atHome flag so App renders the backstage', () => {
+    useDocStore.getState().goHome();
+    expect(useDocStore.getState().atHome).toBe(true);
+  });
+
+  it('setReviewOpen() toggles the reviewer modal visibility', () => {
+    useDocStore.getState().setReviewOpen(true);
+    expect(useDocStore.getState().isReviewOpen).toBe(true);
+    useDocStore.getState().setReviewOpen(false);
+    expect(useDocStore.getState().isReviewOpen).toBe(false);
+  });
+
+  it('runAIReview() no-ops when there is no document without crashing', async () => {
+    await expect(useDocStore.getState().runAIReview()).resolves.toBeUndefined();
+    expect(useDocStore.getState().reviewResult).toBeNull();
+  });
+
+  it('saveSnapshot() no-ops gracefully when there is no document', async () => {
+    await expect(useDocStore.getState().saveSnapshot()).resolves.toBeUndefined();
   });
 });

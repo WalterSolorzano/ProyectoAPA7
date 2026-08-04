@@ -1,11 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, Server } from 'lucide-react';
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { getApiBase } from '../api/backend';
 
 type AIHealthStatus = 'good' | 'warning' | 'critical';
 
@@ -19,27 +14,30 @@ interface AIHealthResponse {
   [specialty: string]: SpecialtyHealth;
 }
 
-const SignalBars = ({ percentage, status, className }: { percentage: number, status: AIHealthStatus, className?: string }) => {
+const SignalBars = ({ percentage, status }: { percentage: number, status: AIHealthStatus }) => {
   // Calculamos cuantas barras encender (0 a 4)
   const activeBars = Math.ceil((percentage / 100) * 4);
-  
-  const getColor = (isActive: boolean, stat: AIHealthStatus) => {
-    if (!isActive) return 'bg-slate-700/50'; // Barra apagada
-    if (stat === 'critical') return 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]';
-    if (stat === 'warning') return 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]';
-    return 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
+
+  const getColor = (isActive: boolean, stat: AIHealthStatus): string => {
+    if (!isActive) return 'var(--color-border-strong)';
+    if (stat === 'critical') return 'var(--color-danger)';
+    if (stat === 'warning') return 'var(--color-warning)';
+    return 'var(--accent-primary)';
   };
 
   return (
-    <div className={cn("flex items-end gap-[2px] h-4", className)}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '16px' }}>
       {[1, 2, 3, 4].map((bar) => (
         <div
           key={bar}
-          className={cn(
-            "w-1.5 rounded-sm transition-all duration-500",
-            getColor(bar <= activeBars, status),
-            bar === 1 ? 'h-1.5' : bar === 2 ? 'h-2.5' : bar === 3 ? 'h-3.5' : 'h-full'
-          )}
+          style={{
+            width: '6px',
+            borderRadius: '2px',
+            backgroundColor: getColor(bar <= activeBars, status),
+            height: bar === 1 ? '6px' : bar === 2 ? '10px' : bar === 3 ? '14px' : '16px',
+            transition: 'background-color 500ms ease',
+            ...(bar <= activeBars && status === 'critical' ? { animation: 'pulse 1.5s ease-in-out infinite' } : {}),
+          }}
         />
       ))}
     </div>
@@ -53,7 +51,7 @@ export const AIBatteryIndicator: React.FC = () => {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/ai/health');
+        const res = await fetch(`${getApiBase()}/ai/health`);
         if (res.ok) {
           const data = await res.json();
           setHealth(data);
@@ -74,35 +72,64 @@ export const AIBatteryIndicator: React.FC = () => {
   const specialties = Object.values(health);
   const isCritical = specialties.some(s => s.status === 'critical');
   const isWarning = specialties.some(s => s.status === 'warning');
-  
+
   const globalStatus = isCritical ? 'critical' : (isWarning ? 'warning' : 'good');
+  const statusColor =
+    globalStatus === 'critical' ? 'var(--color-danger)' :
+    globalStatus === 'warning' ? 'var(--color-warning)' : 'var(--accent-primary)';
+  const glowShadow =
+    globalStatus === 'critical'
+      ? '0 0 16px color-mix(in srgb, var(--color-danger) 40%, transparent)'
+      : globalStatus === 'warning'
+      ? '0 0 16px color-mix(in srgb, var(--color-warning) 30%, transparent)'
+      : 'var(--shadow-md)';
 
   return (
-    <div 
-      className="fixed bottom-4 left-4 z-[9999] flex items-end"
+    <div
+      style={{ position: 'fixed', bottom: '16px', left: '16px', zIndex: 9999, display: 'flex', alignItems: 'flex-end' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      <style>{`@keyframes ai-battery-ping { 0% { transform: scale(1); opacity: 0.6; } 75%, 100% { transform: scale(1.8); opacity: 0; } }`}</style>
+
       {/* Panel Detallado (Hover) */}
-      <div 
-        className={cn(
-          "absolute bottom-full left-0 mb-3 w-64 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3 shadow-2xl shadow-black/50 transition-all duration-300 origin-bottom-left",
-          isHovered ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-2 pointer-events-none"
-        )}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: 0,
+          marginBottom: '12px',
+          width: '256px',
+          backgroundColor: 'var(--surface-elevated)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '12px',
+          boxShadow: 'var(--shadow-card)',
+          color: 'var(--text-main)',
+          transition: 'opacity 300ms ease, transform 300ms ease',
+          transformOrigin: 'bottom left',
+          opacity: isHovered ? 1 : 0,
+          transform: isHovered ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
+          pointerEvents: isHovered ? 'auto' : 'none',
+        }}
       >
-        <div className="flex items-center gap-2 mb-3 border-b border-slate-700/50 pb-2">
-          <Server className="w-4 h-4 text-slate-400" />
-          <h4 className="text-xs font-semibold text-slate-200 tracking-wider uppercase">Estado de Red IA</h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
+          <Server size={16} color="var(--text-secondary)" />
+          <h4 style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Estado de Red IA
+          </h4>
         </div>
-        
-        <div className="space-y-3">
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {Object.entries(health).map(([specialty, data]) => (
-            <div key={specialty} className="flex items-center justify-between">
+            <div key={specialty} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <p className="text-xs font-medium text-slate-300">
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: 500, color: 'var(--text-main)' }}>
                   {specialty === 'FAST' ? 'Corrector Rapido' : specialty === 'HEAVY' ? 'Analizador Profundo' : 'Motor Lógico'}
                 </p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest">{data.provider}</p>
+                <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                  {data.provider}
+                </p>
               </div>
               <SignalBars percentage={data.percentage} status={data.status} />
             </div>
@@ -111,23 +138,36 @@ export const AIBatteryIndicator: React.FC = () => {
       </div>
 
       {/* Ícono Principal */}
-      <div 
-        className={cn(
-          "relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 border border-slate-700 shadow-lg cursor-pointer transition-transform hover:scale-105",
-          globalStatus === 'critical' ? 'shadow-[0_0_15px_rgba(239,68,68,0.3)] border-red-900/50' : 
-          globalStatus === 'warning' ? 'shadow-[0_0_15px_rgba(251,191,36,0.2)]' : 'shadow-black/20'
-        )}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '40px',
+          height: '40px',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--surface-elevated)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: glowShadow,
+          cursor: 'pointer',
+          transition: 'transform 200ms ease',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)'; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
       >
         {globalStatus === 'critical' && (
-          <div className="absolute inset-0 rounded-full animate-ping bg-red-500/20" style={{ animationDuration: '3s' }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'color-mix(in srgb, var(--color-danger) 20%, transparent)',
+              animation: 'ai-battery-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+            }}
+          />
         )}
-        <Activity 
-          className={cn(
-            "w-5 h-5 transition-colors duration-500",
-            globalStatus === 'critical' ? 'text-red-500 animate-pulse' : 
-            globalStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'
-          )} 
-        />
+        <Activity size={20} style={{ color: statusColor, transition: 'color 500ms ease' }} />
       </div>
     </div>
   );

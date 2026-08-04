@@ -24,10 +24,12 @@ from models import (
     ElementType,
     ImageModel,
     TableModel,
+    SectionInfo,
     APAFormat,
     WorkMode,
     NumberStyle,
     BulletStyle,
+    EquationConfig,
 )
 from parsing.xml_deep_parser import (
     process_numbering_single_pass,
@@ -44,6 +46,195 @@ from parsing.fast_mmap_parser import fast_parse_body_start
 
 # Namespace OOXML para constantes
 W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+
+
+def _extract_footnotes_and_endnotes(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
+    """
+    Extrae las notas al pie (word/footnotes.xml) y notas finales (word/endnotes.xml)
+    de un DOCX leyendo directamente el zip. Ignora separadores y referencias
+    (w:separator, w:continuationSeparator, w:footnoteRef, w:footnoteReference).
+
+    Retorna (footnotes, endnotes), cada una como lista de dicts {id, text}.
+    """
+    footnotes: list[dict] = []
+    endnotes: list[dict] = []
+    import zipfile
+    from xml.etree import ElementTree as ET
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            names = z.namelist()
+            for entry, is_endnote in (('word/footnotes.xml', False), ('word/endnotes.xml', True)):
+                if entry not in names:
+                    continue
+                try:
+                    root = ET.fromstring(z.read(entry))
+                    node_tag = f'{{{W_NS}}}endnote' if is_endnote else f'{{{W_NS}}}footnote'
+                    for node in root.findall(f'.//{node_tag}'):
+                        id_raw = node.attrib.get(f'{{{W_NS}}}id')
+                        if id_raw is None:
+                            continue
+                        try:
+                            fid = int(id_raw)
+                        except (ValueError, TypeError):
+                            continue
+                        # Los ids 0/-1 son separadores internos de Word, no notas reales.
+                        if fid < 1:
+                            continue
+                        parts: list[str] = []
+                        for el in node.iter():
+                            try:
+                                local = el.tag.split('}')[-1] if '}' in str(el.tag) else str(el.tag)
+                            except AttributeError:
+                                continue
+                            if local == 't' and el.text:
+                                parts.append(el.text)
+                            elif local == 'tab':
+                                parts.append('\t')
+                            elif local in ('br', 'cr'):
+                                parts.append('\n')
+                        text = ''.join(parts).strip()
+                        record = {'id': fid, 'text': text}
+                        if is_endnote:
+                            endnotes.append(record)
+                        else:
+                            footnotes.append(record)
+                except Exception as e:
+                    print(f"[WARN] Error extrayendo {entry}: {e}")
+    except Exception as e:
+        print(f"[WARN] Error abriendo zip para notas al pie: {e}")
+    return footnotes, endnotes
+
+
+def _extract_comments(file_bytes: bytes) -> list[dict]:
+    """
+    Extrae los comentarios (word/comments.xml) de un DOCX.
+    Retorna lista de dicts {id, author, text}.
+    """
+    comments: list[dict] = []
+    import zipfile
+    from xml.etree import ElementTree as ET
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            if 'word/comments.xml' not in z.namelist():
+                return comments
+            root = ET.fromstring(z.read('word/comments.xml'))
+            for node in root.findall(f'.//{{{W_NS}}}comment'):
+                cid = node.attrib.get(f'{{{W_NS}}}id', '')
+                author = node.attrib.get(f'{{{W_NS}}}author', '')
+                parts: list[str] = []
+                for el in node.iter():
+                    try:
+                        local = el.tag.split('}')[-1] if '}' in str(el.tag) else str(el.tag)
+                    except AttributeError:
+                        continue
+                    if local == 't' and el.text:
+                        parts.append(el.text)
+                    elif local == 'tab':
+                        parts.append('\t')
+                comments.append({
+                    'id': cid,
+                    'author': author,
+                    'text': ''.join(parts).strip(),
+                })
+    except Exception as e:
+        print(f"[WARN] Error extrayendo comentarios: {e}")
+    return comments
+
+
+def _extract_paragraph_text_with_footnotes(p_element) -> tuple[str, list[int]]:
+    """
+    Extrae el texto plano de un w:p recorriendo su XML en orden.
+
+    - Incluye texto dentro de w:ins (insertiones de Track Changes).
+    - EXCLUYE completamente la rama w:del (eliminaciones de Track Changes),
+      evitando duplicados cuando un párrafo contiene inserciones Y eliminaciones.
+    - Preserva el texto de los hipervínculos (w:hyperlink).
+    - Inserta un marcador inline "(nota N)" en la posición exacta de cada
+      w:footnoteReference / w:endnoteReference para que la referencia no se pierda.
+
+    Retorna (texto, ids_de_notas_en_orden).
+    """
+    out: list[str] = []
+    footnote_ids: list[int] = []
+
+    def _walk(el):
+        try:
+            local = el.tag.split('}')[-1] if '}' in str(el.tag) else str(el.tag)
+        except AttributeError:
+            return
+        # Omitir eliminaciones de Track Changes (y su w:delText asociado)
+        if local in ('del', 'delText'):
+            return
+        if local == 't' and el.text:
+            out.append(el.text)
+        elif local == 'tab':
+            out.append('\t')
+        elif local in ('br', 'cr'):
+            out.append('\n')
+        elif local in ('footnoteReference', 'endnoteReference'):
+            id_raw = el.attrib.get(f'{{{W_NS}}}id')
+            if id_raw:
+                try:
+                    fid = int(id_raw)
+                except (ValueError, TypeError):
+                    fid = None
+                if fid is not None and fid not in footnote_ids:
+                    footnote_ids.append(fid)
+                if fid is not None:
+                    out.append(f'(nota {fid})')
+        for child in el:
+            _walk(child)
+
+    _walk(p_element)
+    return ''.join(out), footnote_ids
+
+
+def _extract_hyperlinks(p_element, doc) -> list[dict]:
+    """
+    Extrae los hipervínculos (w:hyperlink) de un párrafo junto con su destino.
+    Retorna lista de dicts {text, url}.
+    """
+    hyperlinks: list[dict] = []
+    try:
+        for hl in p_element.iter(f'{{{W_NS}}}hyperlink'):
+            r_id = hl.attrib.get(f'{{{R_NS}}}id')
+            text = ''.join(
+                n.text for n in hl.iter()
+                if str(n.tag).endswith('}t') and n.text
+            ).strip()
+            url = ''
+            anchor = hl.attrib.get(f'{{{W_NS}}}anchor', '')
+            if anchor:
+                url = '#' + anchor
+            elif r_id:
+                try:
+                    if r_id in doc.part.rels:
+                        rel = doc.part.rels[r_id]
+                        url = getattr(rel, 'target_ref', '') or ''
+                except Exception:
+                    url = ''
+            if text:
+                hyperlinks.append({'text': text, 'url': url})
+    except Exception:
+        pass
+    return hyperlinks
+
+
+def _extract_bookmarks(p_element) -> list[dict]:
+    """
+    Extrae los marcadores (w:bookmarkStart) de un párrafo.
+    Retorna lista de dicts {name, id}.
+    """
+    bookmarks: list[dict] = []
+    try:
+        for bm in p_element.iter(f'{{{W_NS}}}bookmarkStart'):
+            name = bm.attrib.get(f'{{{W_NS}}}name', '')
+            bid = bm.attrib.get(f'{{{W_NS}}}id', '')
+            bookmarks.append({'name': name, 'id': bid})
+    except Exception:
+        pass
+    return bookmarks
 
 
 def _detect_toc_paragraph_indices(body) -> set[int]:
@@ -125,6 +316,20 @@ def _detect_toc_paragraph_indices(body) -> set[int]:
     return toc_indices
 
 
+def _normalize_multiline_field(value: str) -> str:
+    lines = [line.strip() for line in value.replace('\r', '\n').split('\n') if line.strip()]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        normalized = re.sub(r'\s+', ' ', line).strip()
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return '\n'.join(deduped)
+
+
 def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     """
     Analiza el texto extraido de cuadros de texto/shapes de Word e infiere
@@ -177,17 +382,23 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
         if student_members:
             # Construir author string: "Br. Nombre Apellido | Carnet: 2023-XXXX"
             author_parts = []
+            seen_parts: set[str] = set()
             for m in student_members:
                 part = m['name']
                 if m.get('id'):
                     part += f" | Carnet: {m['id']}"
-                author_parts.append(part)
-            fields["author"] = "\n".join(author_parts)
+                normalized_part = re.sub(r'\s+', ' ', part).strip()
+                key = normalized_part.lower()
+                if key in seen_parts:
+                    continue
+                seen_parts.add(key)
+                author_parts.append(normalized_part)
+            fields["author"] = _normalize_multiline_field("\n".join(author_parts))
 
         if tutor_members:
             tutor_names = [m['name'] for m in tutor_members if m.get('name')]
             if tutor_names:
-                fields["instructor"] = "\n".join(tutor_names)
+                fields["instructor"] = _normalize_multiline_field("\n".join(tutor_names))
 
         # Si ya tenemos miembros, quitar esos textos de 'cleaned' para no re-asignarlos
         used_texts = set()
@@ -353,17 +564,23 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
 
             if student_members:
                 author_parts = []
+                seen_parts: set[str] = set()
                 for m in student_members:
                     part = m['name']
                     if m.get('id'):
                         part += f" | Carnet: {m['id']}"
-                    author_parts.append(part)
-                fields["author"] = "\n".join(author_parts)
+                    normalized_part = re.sub(r'\s+', ' ', part).strip()
+                    key = normalized_part.lower()
+                    if key in seen_parts:
+                        continue
+                    seen_parts.add(key)
+                    author_parts.append(normalized_part)
+                fields["author"] = _normalize_multiline_field("\n".join(author_parts))
 
             if tutor_members:
                 tutor_names = [m['name'] for m in tutor_members if m.get('name')]
                 if tutor_names:
-                    fields["instructor"] = "\n".join(tutor_names)
+                    fields["instructor"] = _normalize_multiline_field("\n".join(tutor_names))
 
             # Si ya tenemos autores, no necesitamos procesar parrafos
             if fields.get("author"):
@@ -437,9 +654,9 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
             tutor = txt
 
     if autores:
-        fields["author"] = "\n".join(autores)
+        fields["author"] = _normalize_multiline_field("\n".join(autores))
     if tutor:
-        fields["instructor"] = tutor
+        fields["instructor"] = _normalize_multiline_field(tutor)
 
     # --- Date ---
     date_patterns = [
@@ -470,40 +687,6 @@ OOXML_NUMFMT_TO_NUMBER_STYLE: dict[str, NumberStyle] = {
     'upperRoman': NumberStyle.UPPER_ROMAN,
     'lowerRoman': NumberStyle.LOWER_ROMAN,
 }
-
-
-def _find_body_start_from_elements(elements: List[ElementModel]) -> int:
-    """
-    Encuentra el indice del primer elemento que marca el inicio del cuerpo
-    (no portada) usando los elementos ya parseados. Evita re-abrir el ZIP.
-    """
-    body_keywords = [
-        "introduccion", "introducción", "resumen", "abstract",
-        "metodologia", "metodología", "resultados", "discusion",
-        "discusión", "conclusion", "conclusión", "conclusiones",
-        "referencias", "bibliografia", "bibliografía", "anexo",
-        "capitulo", "capítulo", "marco teorico", "marco teórico",
-        "antecedentes", "planteamiento", "justificacion", "justificación",
-    ]
-    for i, elem in enumerate(elements):
-        text = (elem.text or "").strip()
-        if not text:
-            continue
-        text_lower = text.lower()
-        for kw in body_keywords:
-            if kw in text_lower:
-                return i
-        # Parrafos largos (+35 palabras) son cuerpo
-        if len(text.split()) > 35:
-            return i
-        # Heading numerado (1., 1.1., I.)
-        if re.match(r'^(?:\d+\.){1,4}\d*\s', text_lower) and len(text.split()) <= 15:
-            return i
-    # Fallback: primer elemento con texto sustancial
-    for i, elem in enumerate(elements):
-        if (elem.text or "").strip() and len((elem.text or "").split()) >= 3:
-            return i
-    return 0
 
 
 def parse_docx_bytes(
@@ -559,10 +742,37 @@ def parse_docx_bytes(
                 revision = re.search(r'<cp:revision>(\d+)</cp:revision>', core_xml)
                 if revision:
                     forensic_metadata["revision_count"] = int(revision.group(1))
+                # Senales de metadatos para el detector de IA: quien creo el
+                # documento, quien lo modifico por ultima vez, y fechas.
+                creator = re.search(r'<dc:creator>(.*?)</dc:creator>', core_xml)
+                if creator:
+                    forensic_metadata["creator"] = creator.group(1).strip()
+                last_mod = re.search(r'<cp:lastModifiedBy>(.*?)</cp:lastModifiedBy>', core_xml)
+                if last_mod:
+                    forensic_metadata["last_modified_by"] = last_mod.group(1).strip()
+                created = re.search(
+                    r'<dcterms:created[^>]*>(.*?)</dcterms:created>', core_xml)
+                if created:
+                    forensic_metadata["created_iso"] = created.group(1).strip()
+                modified = re.search(
+                    r'<dcterms:modified[^>]*>(.*?)</dcterms:modified>', core_xml)
+                if modified:
+                    forensic_metadata["modified_iso"] = modified.group(1).strip()
             except Exception:
                 pass
     except Exception:
         pass
+
+    # Notas al pie / notas finales y comentarios (lectura directa del zip)
+    footnotes_parsed, endnotes_parsed = _extract_footnotes_and_endnotes(file_bytes)
+    all_footnotes: list[dict] = [
+        {**fn, 'is_endnote': False} for fn in footnotes_parsed
+    ] + [
+        {**en, 'is_endnote': True} for en in endnotes_parsed
+    ]
+    comments_parsed = _extract_comments(file_bytes)
+    comment_count: int = len(comments_parsed)
+    has_comment_anchors: bool = False
 
     # Extracción recursiva de imágenes (Fase 4)
     extracted_images_meta = extract_all_images_recursive(doc, session_img_dir)
@@ -576,6 +786,25 @@ def parse_docx_bytes(
     # Extraer info de secciones
     sections_info = get_section_orientation_info(doc)
     has_landscape: bool = any(s.get("is_landscape", False) for s in sections_info)
+    has_multicolumn: bool = any((s.get("columns") or 0) > 1 for s in sections_info)
+    sections_models: list[SectionInfo] = []
+    for _si in sections_info:
+        try:
+            sections_models.append(SectionInfo(
+                section_index=_si.get("index", 0),
+                orientation="landscape" if _si.get("is_landscape") else "portrait",
+                margins_original={
+                    "top": _si.get("top_margin", 2.54),
+                    "bottom": _si.get("bottom_margin", 2.54),
+                    "left": _si.get("left_margin", 2.54),
+                    "right": _si.get("right_margin", 2.54),
+                },
+                preserve_margins=bool(_si.get("is_landscape")),
+                columns=_si.get("columns"),
+                columns_space=_si.get("columns_space"),
+            ))
+        except Exception:
+            pass
 
     # Detectar OMML (ecuaciones), OLE (objetos Excel), bookmarks e hyperlinks.
     # Los bookmarks/hyperlinks no se modelan como elementos propios, pero se
@@ -587,12 +816,17 @@ def parse_docx_bytes(
     has_bookmarks: bool = False
     has_hyperlinks: bool = False
     hyperlink_count: int = 0
+    has_track_changes: bool = False
+    has_smartart: bool = False
+    has_charts: bool = False
     try:
         root = doc._element
         nsmap = {
             'm': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
             'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
             'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+            'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+            'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart',
         }
         omath_elems = root.findall('.//m:oMath', nsmap)
         if omath_elems:
@@ -610,6 +844,17 @@ def parse_docx_bytes(
         if hyperlink_elems:
             has_hyperlinks = True
             hyperlink_count = len(hyperlink_elems)
+        # Track Changes: w:ins (insertiones) / w:del (eliminaciones).
+        track_change_elems = root.findall('.//w:ins', nsmap) + root.findall('.//w:del', nsmap)
+        if track_change_elems:
+            has_track_changes = True
+        # SmartArt: namespace dgm (relIds/dataModel dentro de a:graphicData).
+        if root.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/diagram}relIds') \
+                or root.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/diagram}dataModel'):
+            has_smartart = True
+        # Charts: namespace c (gráficas de datos).
+        if root.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/chart}chart'):
+            has_charts = True
     except Exception:
         pass
 
@@ -648,12 +893,22 @@ def parse_docx_bytes(
         if tag.endswith("p"):
             element_counter += 1
             p = docx.text.paragraph.Paragraph(child, doc)
-            text: str = p.text.strip() if p.text else ""
+            # Extracción de texto propia que respeta Track Changes (omite w:del,
+            # incluye w:ins) y preserva la posición de las notas al pie.
+            raw_text, footnote_ids = _extract_paragraph_text_with_footnotes(child)
+            text: str = raw_text.strip() if raw_text else ""
+
+            # Detectar anclas de comentarios (w:commentRangeStart) en el párrafo.
+            if child.findall(f'.//{{{W_NS}}}commentRangeStart'):
+                has_comment_anchors = True
+            hyperlinks = _extract_hyperlinks(child, doc)
+            bookmarks = _extract_bookmarks(child)
 
             # Check for math (OMML), fields, and shading
             p_has_math = False
             p_has_fields = False
             p_has_shading = False
+            p_has_web_shading = False
             try:
                 # Math
                 if p._element.findall('.//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMath') or p._element.findall('.//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMathPara'):
@@ -661,9 +916,21 @@ def parse_docx_bytes(
                 # Fields
                 if p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fldSimple') or p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}instrText'):
                     p_has_fields = True
-                # Shading (Background color)
-                if p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}shd'):
+                # Shading (Background color). Los colores web típicos de tablas
+                # copiadas (F4CCCC/FFE599/D9EAD3, etc.) se marcan aparte como
+                # señal fuerte de contenido pegado desde la web/chat.
+                shd_nodes = p._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}shd')
+                if shd_nodes:
                     p_has_shading = True
+                    for shd in shd_nodes:
+                        fill = shd.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fill')
+                        if fill and fill.upper() in {
+                            "F4CCCC", "FFE599", "D9EAD3", "FFF2CC", "D9D2E9",
+                            "FCE5CD", "CFE2F3", "EAD1DC", "FFFF00", "FF9900",
+                            "FF0000", "00B050",
+                        }:
+                            p_has_web_shading = True
+                            break
             except Exception:
                 pass
 
@@ -746,6 +1013,9 @@ def parse_docx_bytes(
                     left_indent_cm=left_indent_cm,
                     confidence=1.0,
                     heading_level=None,
+                    footnote_ids=footnote_ids,
+                    hyperlinks=hyperlinks,
+                    bookmarks=bookmarks,
                 )
                 elements.append(elem)
 
@@ -848,15 +1118,35 @@ def parse_docx_bytes(
                                 f_img.write(image_part.blob)
 
                             img_note = None
+                            render_error = None
+
+                            content_type = (getattr(image_part, 'content_type', '') or '').lower()
+                            if any(token in content_type for token in ('image/x-emf', 'image/emf', 'image/x-wmf', 'image/wmf')):
+                                render_error = 'Formato vectorial EMF/WMF no renderizable directamente en el navegador.'
+                            else:
+                                try:
+                                    from PIL import Image as PILImage
+                                    with PILImage.open(img_path) as test_img:
+                                        test_img.verify()
+                                except ModuleNotFoundError:
+                                    # Pillow no instalado (p.ej. bundle sin PIL): no marcar la imagen como
+                                    # no renderizable — el archivo se sirve igual por /api/images/{file}.
+                                    render_error = None
+                                except Exception as verify_err:
+                                    render_error = f'La imagen no pudo verificarse para previsualización: {verify_err.__class__.__name__}'
 
                             has_images = True
+                            # Clamp image width to APA usable page width (16 cm max), preserving natural size
+                            clamped_w = min(round(w_cm, 2), 16.0)
+                            clamped_h = round(h_cm * (clamped_w / w_cm), 2) if w_cm > 0 else round(h_cm, 2)
                             img_model = ImageModel(
                                 element_id=f"elem_{element_counter}",
                                 file_path=str(img_path),
                                 filename=img_filename,
                                 relative_url=f"/api/images/{session_id}/{img_filename}",
-                                width_cm=round(w_cm, 2),
-                                height_cm=round(h_cm, 2),
+                                render_error=render_error,
+                                width_cm=clamped_w,
+                                height_cm=clamped_h,
                                 caption="",
                                 figure_number=0,
                                 note=img_note,
@@ -940,8 +1230,34 @@ def parse_docx_bytes(
                     has_math=p_has_math,
                     has_fields=p_has_fields,
                     has_shading_residue=p_has_shading,
+                    has_web_shading_residue=p_has_web_shading,
+                    footnote_ids=footnote_ids,
+                    hyperlinks=hyperlinks,
+                    bookmarks=bookmarks,
+                    equation=EquationConfig() if p_has_math else None,
                 )
                 elements.append(elem)
+
+            # Si el párrafo contiene un w:sectPr en su pPr, es un corte de sección:
+            # emitir un elemento SECTION_BREAK inmediatamente después.
+            if child.find(f'{{{W_NS}}}pPr/{{{W_NS}}}sectPr') is not None:
+                element_counter += 1
+                elements.append(ElementModel(
+                    id=f"elem_{element_counter}",
+                    type=ElementType.SECTION_BREAK,
+                    text="",
+                    confidence=1.0,
+                ))
+
+        # --- CASO B1: SECTPR DIRECTO DEL BODY (sectPr final de la última sección) ---
+        elif tag.endswith("sectPr"):
+            element_counter += 1
+            elements.append(ElementModel(
+                id=f"elem_{element_counter}",
+                type=ElementType.SECTION_BREAK,
+                text="",
+                confidence=1.0,
+            ))
 
         # --- CASO B: TABLA (<w:tbl>) ---
         elif tag.endswith("tbl"):
@@ -983,13 +1299,15 @@ def parse_docx_bytes(
                                 f_img.write(image_part.blob)
                             
                             has_images = True
+                            clamped_w = min(round(w_cm, 2), 16.0)
+                            clamped_h = round(h_cm * (clamped_w / w_cm), 2) if w_cm > 0 else round(h_cm, 2)
                             img_model = ImageModel(
                                 element_id=f"elem_{element_counter}",
                                 file_path=str(img_path),
                                 filename=img_filename,
                                 relative_url=f"/api/images/{session_id}/{img_filename}",
-                                width_cm=round(w_cm, 2),
-                                height_cm=round(h_cm, 2),
+                                width_cm=clamped_w,
+                                height_cm=clamped_h,
                                 caption="",
                                 figure_number=0,
                             )
@@ -1122,6 +1440,12 @@ def parse_docx_bytes(
     # ── PASO 5: Pre-clasificación ──────────────────────────────────────────
     elements = pre_classify_elements(elements)
 
+    # ── PASO 5b: Extracción de la sección "Referencias" ────────────────────
+    # Antes no se poblabA doc.referencias: el usuario tenía que ingresarlas
+    # a mano. Ahora localizamos la sección y la chupamos automáticamente.
+    from parsing.references_extractor import extract_references as _extract_refs
+    extracted_references = _extract_refs(elements)
+
     # ── LA DETECCION DE IA AHORA SE HACE EN BACKGROUND ───────────────
 
     # Construir metadatos
@@ -1148,6 +1472,14 @@ def parse_docx_bytes(
         portada_detected=portada_detected,
         apa_format=APAFormat.STUDENT,
         work_mode=WorkMode.REVIEW,
+        sections=sections_models,
+        footnotes=all_footnotes,
+        comments=comments_parsed,
+        comment_count=comment_count,
+        has_track_changes=has_track_changes,
+        has_multicolumn=has_multicolumn,
+        has_smartart=has_smartart,
+        has_charts=has_charts,
     )
 
     # Inferir campos de portada desde el texto de cuadros de texto/shapes o parrafos iniciales
@@ -1172,10 +1504,18 @@ def parse_docx_bytes(
         meta=meta,
     )
 
+    # Poblar referencias extraídas del documento (si se encontró la sección)
+    if extracted_references:
+        doc_model.referencias = extracted_references
+
     # Guardar texto de textboxes y campos inferidos en el modelo
     # para que el frontend pueda pre-llenar el formulario de portada
     # y el generador pueda preservar el contenido original
     if textbox_has_content or inferred_portada_fields:
+        cleaned_portada_fields = {
+            key: (value.strip() if isinstance(value, str) else value)
+            for key, value in inferred_portada_fields.items()
+        }
         doc_model.portada = {
             "detected": portada_detected or textbox_has_content or bool(inferred_portada_fields),
             "element_ids": [
@@ -1183,7 +1523,7 @@ def parse_docx_bytes(
                 if e.type == ElementType.PORTADA_BLOCK
             ],
             "textbox_texts": textbox_texts,
-            "fields": inferred_portada_fields,
+            "fields": cleaned_portada_fields,
             "profile_name": None,
             "body_start_paragraph_idx": body_start_paragraph_idx,
         }
@@ -1206,6 +1546,28 @@ def parse_docx_bytes(
             f"truncado. Importa solo los primeros {len(elements)} elementos. "
             f"Para procesar documentos más grandes, ajusta la variable de "
             f"entorno WORDAPA7_MAX_ELEMENTS."
+        )
+
+    # Avisos no fatales de contenido preservado (notas, comentarios, Track Changes).
+    extra_warnings: list[str] = []
+    if comment_count or has_comment_anchors:
+        extra_warnings.append(
+            f"El documento contiene {comment_count} comentario(s) de Word que no se importan al formato APA."
+        )
+    if has_track_changes:
+        extra_warnings.append(
+            "El documento contiene cambios controlados (Track Changes); el texto eliminado se omitió."
+        )
+    if all_footnotes:
+        extra_warnings.append(
+            f"Se detectaron {len(all_footnotes)} nota(s) al pie/final que se conservan al final de cada párrafo."
+        )
+    if extra_warnings:
+        existing_warning = doc_model.meta.content_warning
+        doc_model.meta.content_warning = (
+            (existing_warning + " | " + " ".join(extra_warnings))
+            if existing_warning
+            else " ".join(extra_warnings)
         )
 
     return doc_model

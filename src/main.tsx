@@ -3,8 +3,29 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import '@fontsource/baloo-2/700.css';
+import '@fontsource/baloo-2/800.css';
 import './styles/fluent.css';        // base styles + Tailwind directives
 import './styles/design-system.css'; // dark theme tokens override on top
+
+// ── TEMA PERSISTIDO ─────────────────────────────────────────────────────────
+// Restaura el tema (claro/oscuro) guardado antes de pintar para evitar un flash.
+// Por defecto la app arranca en CLARO; el toggle en la toolbar cambia a oscuro.
+try {
+  const saved = localStorage.getItem('wordapa7-theme');
+  const theme = saved === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  const ew = window as any;
+  if (ew.electronAPI?.setTheme) {
+    try { ew.electronAPI.setTheme(theme); } catch { /* noop */ }
+  }
+} catch {
+  document.documentElement.setAttribute('data-theme', 'light');
+}
 
 // ── SERVICE WORKER CLEANUP ──────────────────────────────────────────────────
 
@@ -68,15 +89,16 @@ function showReloadToast(): void {
     'position:fixed',
     'bottom:24px',
     'right:24px',
-    'background:#185ABD',
-    'color:#fff',
+    'background:var(--color-bg-surface-hover, #23232b)',
+    'color:var(--color-text-primary, #f2f2f5)',
+    'border:1px solid var(--color-border-strong, rgba(255,255,255,0.16))',
     'padding:12px 20px',
     'border-radius:8px',
-    'font-family:-apple-system,BlinkMacSystemFont,sans-serif',
+    'font-family:var(--font-sans, Inter, system-ui, sans-serif)',
     'font-size:14px',
     'font-weight:600',
     'z-index:99999',
-    'box-shadow:0 4px 16px rgba(0,0,0,0.25)',
+    'box-shadow:var(--shadow-lg, 0 8px 16px rgba(0,0,0,0.6))',
     'animation:wordapa7-slide-up 0.3s ease-out',
     'display:flex',
     'align-items:center',
@@ -85,7 +107,7 @@ function showReloadToast(): void {
     'user-select:none',
   ].join(';');
 
-  toast.textContent = '🔄 Nueva versión disponible — Click para recargar';
+  toast.textContent = 'Nueva versión disponible — Click para recargar';
 
   const style = document.createElement('style');
   style.textContent = `

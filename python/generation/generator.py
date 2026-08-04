@@ -7,12 +7,16 @@ sin destruir imágenes, tablas, shapes, logos, cuadros de texto o fórmulas.
 
 from pathlib import Path
 from typing import List, Optional
+from copy import deepcopy
 
 import docx
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
 from models import (
     DocumentModel,
@@ -27,8 +31,9 @@ from generation.style_engine import (
     format_heading_paragraph,
     format_normal_paragraph,
     format_block_quote,
+    set_run_font,
 )
-from generation.table_engine import set_table_apa7_borders, format_apa_table
+from generation.table_engine import set_table_apa7_borders, format_apa_table, fit_table_to_page, validate_table_widths
 from generation.image_handler import format_apa_figure
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
@@ -50,6 +55,14 @@ def _to_roman(num: int) -> str:
             roman += syms[i]
             n -= v
     return roman
+
+
+def _strip_inline_footnote_markers(text: str) -> str:
+    """Elimina los marcadores inline '(nota N)' que el parser inserta en el texto."""
+    import re
+    if not text:
+        return text or ""
+    return re.sub(r'\s*\(nota\s+\d+\)', '', text).strip()
 
 
 def _detect_heading_numbering_style(heading_text: str) -> str:
@@ -90,6 +103,56 @@ def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style:
     if parts:
         return ".".join(parts) + ". "
     return ""
+
+
+def _render_equation_number(number: str, number_format: str) -> str:
+    """Renderiza el número de ecuación según el formato elegido.
+
+    Formatos soportados (el token {n} se reemplaza por el número):
+      "(1)"      → (1)
+      "[1]"      → [1]
+      "1."       → 1.
+      "(1.1)"    → (1.1)
+      "Ecuación {n}" → Ecuación 1
+    Si el formato contiene "{n}", se usa como plantilla; si no, se
+    asume el número envuelto en paréntesis (convención APA/tesis).
+    """
+    number = str(number or "1").strip()
+    if "{n}" in number_format:
+        return number_format.replace("{n}", number)
+    # Formatos envolventes sin token: insertar el número en el lugar de los dígitos
+    low = number_format.lower()
+    if low in ("(1)", "[1]", "1.", "(1.1)"):
+        template = {
+            "(1)": "({})",
+            "[1]": "[{}]",
+            "1.": "{}.",
+            "(1.1)": "({})",
+        }[number_format]
+        return template.format(number)
+    return f"({number})"
+
+
+def _apply_equation_number(p, display: str, eq_cfg) -> None:
+    """Agrega el número de ecuación al párrafo con un tab stop derecho.
+
+    - Inserta un carácter tab antes del número para que quede alineado al
+      margen derecho.
+    - El run del número usa la fuente configurada (sin tocar el XML OMML).
+    """
+    from docx.enum.text import WD_TAB_ALIGNMENT
+
+    # Tab stop derecho a 6.3" (margen derecho APA, dentro de márgenes de 1")
+    tabs = p.paragraph_format.tab_stops
+    try:
+        tabs.add_tab_stop(Inches(6.3), WD_TAB_ALIGNMENT.RIGHT)
+    except Exception:
+        pass
+    try:
+        r = p.add_run("\t" + display)
+        set_run_font(r, eq_cfg.font_name or "Times New Roman", eq_cfg.font_size_pt or 12.0)
+    except Exception:
+        pass
 
 
 def _generate_toc_from_headings(
@@ -416,6 +479,189 @@ def _apply_image_design_style(
     p.paragraph_format.first_line_indent = Inches(0)
 
 
+# ─── REHIDRATACIÓN DE ANCLAS / ENLACES / NOTAS (POST-PROCESO) ────────────────
+
+def rehydrate_hyperlinks(p, element, doc) -> None:
+    """Best-effort: re-emite hyperlinks reales (`w:hyperlink` + relación externa).
+
+    Tras formatear el párrafo, busca en sus runs el texto de cada hyperlink
+    almacenado en `element.hyperlinks` ([{"text", "url"}]) y envuelve la porción
+    coincidente en un `w:hyperlink` con rId externo. Divide el run en
+    (antes, enlace, después) cuando el enlace aparece dentro de un run mayor.
+    Si el texto ya vive dentro de un `w:hyperlink` preservado del original, no lo toca.
+    """
+    try:
+        hyperlinks = getattr(element, 'hyperlinks', None) or []
+        if not hyperlinks:
+            return
+        for hl in hyperlinks:
+            if not isinstance(hl, dict):
+                continue
+            hl_text = str(hl.get('text') or '').strip()
+            url = str(hl.get('url') or '')
+            if not hl_text or not url:
+                continue
+            try:
+                r_id = doc.part.relate_to(url, RT.HYPERLINK, is_external=True)
+            except Exception:
+                continue
+            for run in list(p.runs):
+                try:
+                    run_text = ''.join(t.text or '' for t in run._r.findall(qn('w:t')))
+                except Exception:
+                    continue
+                if not run_text or hl_text not in run_text:
+                    continue
+                # Evitar re-envolver si ya es un hyperlink (preservado del original)
+                if run._r.getparent() is not None and run._r.getparent().tag == qn('w:hyperlink'):
+                    continue
+                try:
+                    before, sep, after = run_text.partition(hl_text)
+                    if not sep:
+                        continue
+                    parent = run._r.getparent()
+                    if parent is None:
+                        continue
+                    idx = list(parent).index(run._r)
+
+                    def _clone_run(part_text: str):
+                        new_r = OxmlElement('w:r')
+                        for child in list(run._r):
+                            try:
+                                local = child.tag.split('}')[-1] if '}' in str(child.tag) else str(child.tag)
+                            except AttributeError:
+                                continue
+                            if local in ('t', 'tab', 'br', 'cr', 'noBreakHyphen'):
+                                continue
+                            new_r.append(deepcopy(child))
+                        t = OxmlElement('w:t')
+                        t.set(qn('xml:space'), 'preserve')
+                        t.text = part_text
+                        new_r.append(t)
+                        return new_r
+
+                    if before:
+                        parent.insert(idx, _clone_run(before))
+                        idx += 1
+                    link_run = _clone_run(sep)
+                    # Estilo de enlace típico de Word (subrayado + azul)
+                    try:
+                        link_rPr = link_run.find(qn('w:rPr'))
+                        if link_rPr is None:
+                            link_rPr = OxmlElement('w:rPr')
+                            link_run.insert(0, link_rPr)
+                        if link_rPr.find(qn('w:u')) is None:
+                            u = OxmlElement('w:u')
+                            u.set(qn('w:val'), 'single')
+                            link_rPr.append(u)
+                        color = link_rPr.find(qn('w:color'))
+                        if color is None:
+                            color = OxmlElement('w:color')
+                            link_rPr.append(color)
+                        color.set(qn('w:val'), '0563C1')
+                    except Exception:
+                        pass
+                    h = OxmlElement('w:hyperlink')
+                    h.set(qn('r:id'), r_id)
+                    h.append(link_run)
+                    parent.insert(idx, h)
+                    idx += 1
+                    if after:
+                        parent.insert(idx, _clone_run(after))
+                    parent.remove(run._r)
+                except Exception:
+                    continue
+                break
+    except Exception:
+        pass
+
+
+def rehydrate_bookmarks(p, element) -> None:
+    """Best-effort: inserta `w:bookmarkStart`/`w:bookmarkEnd` alrededor del
+    primer run del párrafo usando los nombres/ids de `element.bookmarks`."""
+    try:
+        bookmarks = getattr(element, 'bookmarks', None) or []
+        if not bookmarks:
+            return
+        runs = list(p.runs)
+        if not runs:
+            return
+        anchor_run = runs[0]._r
+        parent = anchor_run.getparent()
+        if parent is None:
+            return
+        for bm in bookmarks:
+            try:
+                if not isinstance(bm, dict):
+                    continue
+                name = str(bm.get('name') or '')
+                if not name:
+                    continue
+                try:
+                    bm_id = int(bm.get('id', 0))
+                except (TypeError, ValueError):
+                    bm_id = 0
+                idx = list(parent).index(anchor_run)
+                start = OxmlElement('w:bookmarkStart')
+                start.set(qn('w:id'), str(bm_id))
+                start.set(qn('w:name'), name)
+                parent.insert(idx, start)
+                end = OxmlElement('w:bookmarkEnd')
+                end.set(qn('w:id'), str(bm_id))
+                parent.insert(idx + 1, end)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+
+def rehydrate_footnotes(p, element, footnotes) -> None:
+    """Best-effort: notas al pie como endnotes simples.
+
+    Si `element.footnote_ids` referencia notas en `footnotes` ([{"id", "text"}]),
+    agrega un marcador superíndice "[N]" al párrafo y, después de él, un párrafo
+    de fuente pequeña "N <texto>".
+    """
+    try:
+        footnote_ids = getattr(element, 'footnote_ids', None) or []
+        if not footnote_ids:
+            return
+        id_to_text: dict = {}
+        for fn in (footnotes or []):
+            if isinstance(fn, dict):
+                try:
+                    id_to_text[str(fn.get('id'))] = str(fn.get('text') or '')
+                except Exception:
+                    continue
+        anchor = p._element
+        for fn_id in footnote_ids:
+            try:
+                fid = int(fn_id)
+            except (TypeError, ValueError):
+                continue
+            try:
+                marker = p.add_run(f"[{fid}]")
+                marker.font.superscript = True
+                marker.font.size = Pt(10)
+            except Exception:
+                pass
+            text = id_to_text.get(str(fid), "")
+            if not text:
+                continue
+            try:
+                new_p_xml = OxmlElement('w:p')
+                anchor.addnext(new_p_xml)
+                anchor = new_p_xml
+                para = Paragraph(new_p_xml, p._parent)
+                r = para.add_run(f"{fid} {text}")
+                r.font.size = Pt(10)
+                r.font.name = p.runs[0].font.name if p.runs and p.runs[0].font.name else None
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def generate_apa7_docx(
     doc_model: DocumentModel,
     output_filepath: Path | str,
@@ -552,23 +798,49 @@ def generate_apa7_docx(
             try:
                 from modules.portada_uni import generate_uni_cover
 
+                import re as _re
                 autores_parsed = []
                 if portada.author:
+                    # Formato del frontend: "Br. Nombre Apellido | Carnet: 2023-XXXX"
+                    # o dos lineas "Br. Nombre" + "Carnet: 2023-XXXX".
                     author_lines = [l.strip() for l in portada.author.split('\n') if l.strip()]
-                    cur_nombre = ""
+                    pending_nombre = ""
                     for l in author_lines:
-                        if l.lower().startswith("carnet:") or ("202" in l and len(l) < 18):
-                            if cur_nombre:
-                                autores_parsed.append({"nombre": cur_nombre, "carnet": l})
-                                cur_nombre = ""
+                        l_lower = l.lower()
+                        if l_lower.startswith("carnet:") or _re.match(r'^\d{4}-\d+', l):
+                            carnet_val = l.split(':', 1)[-1].strip() if ':' in l else l.strip()
+                            if pending_nombre:
+                                autores_parsed.append({"nombre": pending_nombre, "carnet": carnet_val})
+                                pending_nombre = ""
+                            elif autores_parsed:
+                                autores_parsed[-1]["carnet"] = carnet_val
                             else:
                                 autores_parsed.append({"nombre": l, "carnet": ""})
-                        else:
-                            if cur_nombre:
-                                autores_parsed.append({"nombre": cur_nombre, "carnet": ""})
-                            cur_nombre = l
-                    if cur_nombre:
-                        autores_parsed.append({"nombre": cur_nombre, "carnet": ""})
+                            continue
+                        if '|' in l:
+                            parts = [p.strip() for p in l.split('|')]
+                            nombre = parts[0]
+                            carnet = ""
+                            for part in parts[1:]:
+                                if part.lower().startswith('carnet:'):
+                                    carnet = part.split(':', 1)[-1].strip()
+                            autores_parsed.append({"nombre": nombre, "carnet": carnet})
+                            continue
+                        if pending_nombre:
+                            autores_parsed.append({"nombre": pending_nombre, "carnet": ""})
+                        pending_nombre = l
+                    if pending_nombre:
+                        autores_parsed.append({"nombre": pending_nombre, "carnet": ""})
+                    # Deduplicar por nombre (el parser de textboxes no debe repetirlos, pero por seguridad)
+                    seen_aut = set()
+                    uniq_aut = []
+                    for a in autores_parsed:
+                        key = _re.sub(r'\s+', ' ', a["nombre"]).strip().lower()
+                        if key in seen_aut:
+                            continue
+                        seen_aut.add(key)
+                        uniq_aut.append(a)
+                    autores_parsed = uniq_aut
 
                 paragraphs_before_body = generate_uni_cover(
                     doc,
@@ -576,18 +848,14 @@ def generate_apa7_docx(
                     asignatura=portada.course or "",
                     autores=autores_parsed,
                     tutor=portada.instructor or "",
-                    grupo="",
+                    grupo=getattr(portada, 'grupo', '') or "",
                     fecha=portada.date or "",
                 )
             except Exception as err:
                 print(f"[WARN] Error creando portada UNI: {err}")
-                format_apa_portada(doc, portada, rules)
-                paragraphs_before_body = len(doc.paragraphs)
+                paragraphs_before_body = format_apa_portada(doc, portada, rules)
         else:
-            format_apa_portada(doc, portada, rules)
-            paragraphs_before_body = len(doc.paragraphs)
-
-    # 5. Formatear tablas existentes con bordes APA 7
+            paragraphs_before_body = format_apa_portada(doc, portada, rules)
     for table in doc.tables:
         set_table_apa7_borders(table)
 
@@ -602,6 +870,8 @@ def generate_apa7_docx(
     last_numbered_level: int = 0
     # Contadores separados para auto-numeración de headings
     heading_counters: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    # Contador de ecuaciones (auto-numeración cuando show_number y sin número explícito)
+    _equation_counter: int = 0
     # Estilos de numeración por nivel configurables desde APARuleSet
     heading_numbering_styles: dict[int, str] = getattr(rules, 'heading_numbering_styles', {1: 'decimal', 2: 'decimal', 3: 'decimal', 4: 'decimal', 5: 'decimal'})
 
@@ -721,11 +991,48 @@ def generate_apa7_docx(
             new_p_xml = parse_xml(f'<w:p {nsdecls("w")}><w:r><w:br w:type="page"/></w:r></w:p>')
             oxml_element.addprevious(new_p_xml)
 
-    def _is_heading1_toc_heading(text: str) -> bool:
-        """Detecta si un heading es de índice/TOC (no debe tener page break ANTES, sino DESPUES)."""
-        import re
-        lower = text.strip().lower() if text else ""
-        return bool(re.match(r'^(índice|indice|tabla de contenido|toc|contenido)\s*', lower))
+    def _clone_current_section_settings(docx_doc):
+        """Clona la configuracion de la seccion actual (pgSz, pgMar, cols, docGrid)."""
+        try:
+            from copy import deepcopy
+            body = docx_doc._element.body
+            sect_prs = body.findall(qn('w:sectPr'))
+            if sect_prs:
+                return deepcopy(sect_prs[-1])
+        except Exception:
+            pass
+        return None
+
+    def insert_section_break_before(oxml_element, docx_doc):
+        """Insert a section break paragraph before the given element (robust version).
+
+        En OOXML, un `w:sectPr` dentro del `w:pPr` de un párrafo cierra la sección
+        actual e inicia una nueva con la misma configuración (equivalente a un salto
+        de sección "página siguiente" con herencia de página/márgenes).
+        """
+        new_p = None
+        try:
+            sect_pr = _clone_current_section_settings(docx_doc)
+            if sect_pr is None:
+                sect_pr = OxmlElement('w:sectPr')
+            new_p = OxmlElement('w:p')
+            p_pr = OxmlElement('w:pPr')
+            p_pr.append(sect_pr)
+            new_p.append(p_pr)
+            parent = oxml_element.getparent()
+            if parent is None:
+                return
+            parent_children = list(parent)
+            idx = parent_children.index(oxml_element)
+            parent.insert(idx, new_p)
+        except (ValueError, AttributeError):
+            try:
+                if new_p is not None:
+                    oxml_element.addprevious(new_p)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _has_force_page_break_marker(text: str) -> bool:
         """Verifica si el texto contiene el marcador [FORCE_PAGE_BREAK]."""
@@ -810,6 +1117,7 @@ def generate_apa7_docx(
                 table_count_processed += 1
                 used_table_indices.add(matched_tbl_idx)
                 set_table_apa7_borders(curr_tbl)
+                fit_table_to_page(curr_tbl, rules, landscape=table_needs_landscape)
 
                 tbl_num = elem.table_info.table_number if (elem.table_info and elem.table_info.table_number > 0) else table_count_processed
                 caption_text = elem.table_info.caption if elem.table_info else ""
@@ -946,6 +1254,11 @@ def generate_apa7_docx(
         if needs_break:
             insert_page_break_before(p._element)
 
+        # Limpiar marcadores inline de notas al pie del texto (el contenido
+        # real se anexa al final del párrafo tras formatearlo).
+        if elem.footnote_ids and elem.text:
+            elem.text = _strip_inline_footnote_markers(elem.text)
+
         if elem_type == ElementType.HEADING:
             lvl: int = elem.heading_level if elem.heading_level else 1
 
@@ -1000,8 +1313,7 @@ def generate_apa7_docx(
             if elem.text:
                 p.text = ""
                 r = p.add_run(elem.text)
-                r.font.name = rules.font_family
-                r.font.size = Pt(rules.font_size_pt)
+                set_run_font(r, rules.font_family, rules.font_size_pt)
                 r.bold = elem.is_bold
                 r.italic = elem.is_italic
                 r.font.color.rgb = RGBColor(0, 0, 0)
@@ -1034,15 +1346,75 @@ def generate_apa7_docx(
             _generate_toc_from_headings(doc, doc_model, rules, p)
 
         elif elem_type == ElementType.EQUATION:
-            # Ecuaciones OMML: preservar el XML intacto (no modificar ni reformatear)
+            # Ecuaciones OMML: preservar el XML intacto (no modificar ni reformatear).
             # Las ecuaciones de Word usan Office Math Markup Language (m:oMath)
-            # que es fragil y no debe ser tocado por el motor de estilos
+            # que es fragil y no debe ser tocado por el motor de estilos.
+            eq_cfg = getattr(elem, 'equation', None)
+            # Config por defecto si no se inicializo
+            if eq_cfg is None:
+                from models import EquationConfig
+                eq_cfg = EquationConfig()
+
+            # Alineación configurable (centro por defecto, segun APA/estilo tesis)
+            align_map = {
+                "left": WD_ALIGN_PARAGRAPH.LEFT,
+                "center": WD_ALIGN_PARAGRAPH.CENTER,
+                "right": WD_ALIGN_PARAGRAPH.RIGHT,
+            }
+            p.paragraph_format.alignment = align_map.get(
+                (eq_cfg.alignment or "center"), WD_ALIGN_PARAGRAPH.CENTER
+            )
             p.paragraph_format.first_line_indent = Inches(0)
             p.paragraph_format.line_spacing = rules.line_spacing
-            # No modificar runs ni texto — el XML OMML se preserva tal cual
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+
+            # Numeración de ecuación: tab stop derecho → el número pegado al
+            # margen derecho mientras la ecuación queda alineada segun `alignment`.
+            # Si la ecuación está centrada, el tab derecho empuja el número al borde.
+            if eq_cfg.show_number:
+                _equation_counter += 1
+                eq_number = eq_cfg.number or str(_equation_counter)
+                display = _render_equation_number(eq_number, eq_cfg.number_format or "(1)")
+                _apply_equation_number(p, display, eq_cfg)
+
+            # Fuente de apoyo: aplicar a los runs de texto plano (NO al XML OMML).
+            # set_run_font solo toca w:rPr de runs regulares; los m:oMath quedan intactos.
+            try:
+                for r in p.runs:
+                    set_run_font(r, eq_cfg.font_name or rules.font_family, eq_cfg.font_size_pt or rules.font_size_pt)
+            except Exception:
+                pass
 
         elif elem_type == ElementType.PAGE_BREAK:
             doc.add_page_break()
+
+        elif elem_type == ElementType.SECTION_BREAK:
+            # Salto de sección real (no solo de página): insertar un párrafo con
+            # w:sectPr que hereda la configuración de la sección actual.
+            try:
+                if p is not None and p._element is not None:
+                    insert_section_break_before(p._element, doc)
+            except Exception:
+                print("[WARN] No se pudo insertar salto de sección para el elemento "
+                      f"'{elem.id}'")
+
+        # ── POST-PROCESO: rehidratar hyperlinks, bookmarks y notas al pie ──────
+        if (
+            getattr(elem, 'hyperlinks', None)
+            or getattr(elem, 'bookmarks', None)
+            or getattr(elem, 'footnote_ids', None)
+        ):
+            try:
+                if getattr(elem, 'hyperlinks', None):
+                    rehydrate_hyperlinks(p, elem, doc)
+                if getattr(elem, 'bookmarks', None):
+                    rehydrate_bookmarks(p, elem)
+                if getattr(elem, 'footnote_ids', None):
+                    footnotes = doc_model.meta.footnotes if doc_model.meta else []
+                    rehydrate_footnotes(p, elem, footnotes)
+            except Exception:
+                print(f"[WARN] Post-proceso (hyperlinks/bookmarks/footnotes) falló en '{elem.id}'")
 
     # 7. Sección de Referencias Bibliográficas
     if references:
@@ -1051,6 +1423,17 @@ def generate_apa7_docx(
     from generation.style_engine import normalize_global_body_spacing
     normalize_global_body_spacing(doc, rules, cover_paragraph_count)
 
+    # 7.5 Normalización dura de fuentes en TODOS los runs (cuerpo, celdas,
+    # headers/footers) para eliminar mezclas heredadas de Word/internet.
+    from generation.style_engine import normalize_all_fonts
+    normalize_all_fonts(
+        doc,
+        rules,
+        target_font=rules.font_family,
+        target_size_pt=int(rules.font_size_pt),
+        skip_body_paragraphs=cover_paragraph_count,
+    )
+
     # 8.5 Remover párrafos de portada si el post-procesador COM se va a encargar
     if remove_cover_paragraphs and cover_paragraph_count > 0:
         for _ in range(cover_paragraph_count):
@@ -1058,17 +1441,27 @@ def generate_apa7_docx(
                 p = doc.paragraphs[0]
                 p._element.getparent().remove(p._element)
 
-    # 9. Guardar resultado final
+    # 9. Validar ancho de tablas antes de guardar
+    width_warnings = validate_table_widths(doc, rules)
+    if width_warnings:
+        for warning in width_warnings:
+            print(f"[WARN] {warning}")
+        if getattr(doc_model.meta, 'content_warning', None):
+            doc_model.meta.content_warning = f"{doc_model.meta.content_warning} | {'; '.join(width_warnings)}"
+        else:
+            doc_model.meta.content_warning = '; '.join(width_warnings)
+
+    # 10. Guardar resultado final
     doc.save(out_path)
 
-    # 9. Activar updateFields en settings.xml para que Word recalcule TOC/PAGEREF automáticamente
+    # 11. Activar updateFields en settings.xml para que Word recalcule TOC/PAGEREF automáticamente
     try:
         from parsing.field_guard import enable_word_update_fields
         enable_word_update_fields(out_path)
     except Exception as e:
         print(f"[WARN] Error activando updateFields: {e}")
 
-    # 10. Gate de Sanidad: verificar que no haya pérdida silenciosa de texto
+    # 12. Gate de Sanidad: verificar que no haya pérdida silenciosa de texto
     if original_file.exists():
         try:
             from parsing.sanity_check import verify_document_content_integrity

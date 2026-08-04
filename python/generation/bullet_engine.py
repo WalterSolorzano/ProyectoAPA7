@@ -16,6 +16,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 from models import BulletStyle, NumberStyle, APARuleSet
+from generation.style_engine import set_run_font
 
 
 APA_LIST_INDENT: dict[int, tuple[float, float]] = {
@@ -108,8 +109,7 @@ def format_bullet_item(
     p.paragraph_format.space_after = Pt(rules.space_after_pt)
 
     r_text = p.add_run(cleaned_text)
-    r_text.font.name = rules.font_family
-    r_text.font.size = Pt(rules.font_size_pt)
+    set_run_font(r_text, rules.font_family, rules.font_size_pt)
     r_text.bold = is_bold
     r_text.italic = is_italic
 
@@ -150,7 +150,6 @@ def format_numbered_item(
     p.paragraph_format.space_after = Pt(rules.space_after_pt)
 
     r_text = p.add_run(cleaned_text)
-    r_text.font.name = rules.font_family
-    r_text.font.size = Pt(rules.font_size_pt)
+    set_run_font(r_text, rules.font_family, rules.font_size_pt)
     r_text.bold = is_bold
     r_text.italic = is_italic

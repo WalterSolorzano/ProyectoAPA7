@@ -105,14 +105,14 @@ export const PDFPreview: React.FC = () => {
   }, [pdfDoc, currentPage]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px', backgroundColor: '#e5e5e5', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px', backgroundColor: 'var(--canvas-bg)', display: 'flex', flexDirection: 'column' }}>
       
       {/* Toolbar superior para controles de PDF.js */}
-      <div style={{ height: '40px', backgroundColor: '#333', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+      <div style={{ height: '40px', backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', borderBottom: '1px solid var(--border-subtle)' }}>
         <button 
           onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
           disabled={currentPage <= 1 || loading}
-          style={{ background: 'transparent', border: 'none', color: currentPage <= 1 ? '#666' : 'white', cursor: currentPage <= 1 ? 'not-allowed' : 'pointer' }}
+          style={{ background: 'transparent', border: 'none', color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-main)', cursor: currentPage <= 1 ? 'not-allowed' : 'pointer' }}
         >
           <ChevronLeft size={20} />
         </button>
@@ -122,7 +122,7 @@ export const PDFPreview: React.FC = () => {
         <button 
           onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
           disabled={currentPage >= totalPages || loading}
-          style={{ background: 'transparent', border: 'none', color: currentPage >= totalPages ? '#666' : 'white', cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer' }}
+          style={{ background: 'transparent', border: 'none', color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-main)', cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer' }}
         >
           <ChevronRight size={20} />
         </button>
@@ -137,15 +137,15 @@ export const PDFPreview: React.FC = () => {
           }}>
             <Loader2 className="animate-spin" size={32} style={{ marginBottom: '12px' }} />
             <span style={{ fontSize: '14px', fontWeight: 500 }}>Generando renderizado de alta fidelidad...</span>
-            <span style={{ fontSize: '12px', color: '#ccc', marginTop: '4px' }}>(Usando LibreOffice Daemon)</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>(Usando LibreOffice Daemon)</span>
           </div>
         )}
 
         {error && !loading && (
           <div style={{
             position: 'absolute', top: 40, left: 0, right: 0, bottom: 0,
-            backgroundColor: '#fee2e2', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', color: '#991b1b', zIndex: 10
+            backgroundColor: 'var(--app-bg)', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', color: 'var(--accent-danger)', zIndex: 10
           }}>
             <AlertCircle size={32} style={{ marginBottom: '12px' }} />
             <span style={{ fontSize: '14px', fontWeight: 500 }}>{error}</span>

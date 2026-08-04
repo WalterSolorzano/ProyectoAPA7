@@ -82,13 +82,13 @@ export function UploadDropzone({ onFileSelected, accept = '.docx', maxSize = 50 
         justifyContent: 'center',
         width: '100%',
         minHeight: '300px',
-        border: dragging ? '2px dashed #3b82f6' : '2px dashed #cbd5e1',
+        border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-subtle)',
         borderRadius: '16px',
         padding: '32px',
         transition: 'all 0.2s ease',
         cursor: isLoading ? 'wait' : 'pointer',
         overflow: 'hidden',
-        backgroundColor: dragging ? 'rgba(59, 130, 246, 0.05)' : 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: dragging ? 'rgba(79,124,255,0.08)' : 'var(--surface-subtle)',
         transform: dragging ? 'scale(1.02)' : 'scale(1)',
         opacity: isLoading ? 0.75 : 1,
         pointerEvents: isLoading ? 'none' : 'auto'
@@ -108,16 +108,16 @@ export function UploadDropzone({ onFileSelected, accept = '.docx', maxSize = 50 
         style={{ 
           marginBottom: '16px', 
           transition: 'color 0.2s ease', 
-          color: dragging ? '#3b82f6' : '#94a3b8' 
+          color: dragging ? 'var(--accent-primary)' : 'var(--text-muted)' 
         }} 
       />
       
-      <h3 style={{ fontSize: '20px', fontWeight: 600, color: '#334155', marginBottom: '8px', textAlign: 'center' }}>
+      <h3 style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px', textAlign: 'center' }}>
         {isLoading ? 'Procesando documento...' : 'Arrastra tu documento .docx aquí'}
       </h3>
       
       {!isLoading && (
-        <p style={{ fontSize: '14px', color: '#64748b', textAlign: 'center', marginBottom: '24px' }}>
+        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '24px' }}>
           o haz clic para seleccionar un archivo
         </p>
       )}
@@ -125,7 +125,7 @@ export function UploadDropzone({ onFileSelected, accept = '.docx', maxSize = 50 
       {(progress > 0 || isLoading) && (
         <div style={{ width: '100%', maxWidth: '28rem', marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <Progress value={isLoading && progress === 90 ? 100 : progress} style={{ height: '8px', width: '100%' }} />
-          <p style={{ fontSize: '12px', textAlign: 'center', color: '#64748b' }}>
+          <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-secondary)' }}>
             {isLoading ? 'Subiendo y analizando estructura...' : 'Preparando entorno...'}
           </p>
         </div>

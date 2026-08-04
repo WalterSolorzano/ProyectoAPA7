@@ -1,10 +1,15 @@
 /* WordAPA7 — Interactive Canvas with Faithful Original Document Layout */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useDocStore } from '../../store/useDocStore';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { ZoomIn, ZoomOut, Check, X, Flame, Sparkles, Loader2 } from 'lucide-react';
-import { suggestCaption, rewriteText } from '../../api/backend';
+import { ZoomIn, ZoomOut, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3 } from 'lucide-react';
+import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
+import { APACoverEditor } from './APACoverEditor';
+import { UNICoverPreview } from './UNICoverPreview';
+import { getWhatsAppComment, WhatsAppComment } from './WhatsAppComment';
+import { findCitationsInText } from '../../lib/citationHighlighter';
+import { findAccentAgnostic } from '../../lib/accentMatch';
 
 export const computePages = (elements: ElementModel[]): ElementModel[][] => {
   const pages: ElementModel[][] = [];
@@ -50,22 +55,198 @@ export const computePages = (elements: ElementModel[]): ElementModel[][] => {
   return pages;
 };
 
-export const PaperCanvas: React.FC = () => {
-  const { doc, rules, portada, selectedElementId, setSelectedElementId, updateElementType } = useDocStore();
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
+export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string> }> = ({ onElementClick, reviewHighlightIds }) => {
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, updateElementType, reviewResult, zoomLevel, setZoomLevel } = useDocStore();
+  const tableStyles = useDocStore((s) => s.tableStyles);
   const [contextMenuElemId, setContextMenuElemId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
-  const [showAIHeatmap, setShowAIHeatmap] = useState<boolean>(false);
+  const [showAIHeatmap, setShowAIHeatmap] = useState<boolean>(true);
+  const [showCitationMarks, setShowCitationMarks] = useState<boolean>(true);
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
+  const [brokenFigureIds, setBrokenFigureIds] = useState<Record<string, string>>({});
+  const [resizeState, setResizeState] = useState<{
+    id: string;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+    ratio: number;
+  } | null>(null);
+  const resizePendingRef = useRef<{ elemId: string; patch: any } | null>(null);
+  const resizeTimerRef = useRef<number | null>(null);
+
+  const flushResize = () => {
+    if (resizePendingRef.current) {
+      useDocStore.getState().updateElementImage(resizePendingRef.current.elemId, resizePendingRef.current.patch);
+      resizePendingRef.current = null;
+      resizeTimerRef.current = null;
+    }
+  };
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const startFigureResize = (e: React.PointerEvent, elem: ElementModel) => {
+    if (!elem.image_info) return;
+    const w = elem.image_info.width_cm || 12;
+    const h = elem.image_info.height_cm || 8;
+    setResizeState({
+      id: elem.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: w,
+      startH: h,
+      ratio: w / h,
+    });
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
+  const handleFigureResize = (e: React.PointerEvent) => {
+    if (!resizeState) return;
+    const dxPx = e.clientX - resizeState.startX;
+    const dyPx = e.clientY - resizeState.startY;
+    const dxCm = dxPx / 37.8;
+    const dyCm = dyPx / 37.8;
+    const lockRatio = !e.shiftKey;
+    const elem = doc?.elements.find((x) => x.id === resizeState.id);
+    if (!elem?.image_info) return;
+
+    let patch: any;
+    if (lockRatio) {
+      const newW = Math.max(3, Math.min(16, resizeState.startW + dxCm));
+      const newH = Math.round((newW / resizeState.ratio) * 10) / 10;
+      patch = { ...elem.image_info, width_cm: Math.round(newW * 10) / 10, height_cm: newH };
+    } else {
+      const newW = Math.max(3, Math.min(16, resizeState.startW + dxCm));
+      const newH = Math.max(3, Math.min(30, resizeState.startH + dyCm));
+      patch = { ...elem.image_info, width_cm: Math.round(newW * 10) / 10, height_cm: Math.round(newH * 10) / 10 };
+    }
+    // Debounce: acumula el último parche y lo aplica cada 100ms
+    resizePendingRef.current = { elemId: elem.id, patch };
+    if (!resizeTimerRef.current) {
+      resizeTimerRef.current = window.setTimeout(flushResize, 100);
+    }
+  };
+
+  const endFigureResize = () => {
+    flushResize();
+    setResizeState(null);
+  };
+
+  // Render de texto con resaltado inline de frases IA y errores de ortografía
+  // (marcas tipo Word: subrayado ondulado para ortografía, punteado para IA)
+  // + resaltador amarillo para lo que un comentario WhatsApp está señalando
+  // (solo preview; nunca llega al export).
+  const renderReviewedText = (elem: ElementModel, plain: string): React.ReactNode => {
+    const para = reviewResult?.paragraphs.find((p) => p.element_id === elem.id);
+    type Mark = { start: number; end: number; kind: 'ai' | 'spelling' | 'comment' | 'citation'; severity?: string; title: string };
+    const marks: Mark[] = [];
+    const lower = plain.toLowerCase();
+
+    if (para && (para.findings?.length || para.spelling?.length)) {
+      (para.findings || []).forEach((f) => {
+        const phraseList: string[] = (f as any).phrases?.length ? (f as any).phrases : [f.phrase || ''];
+        phraseList.forEach((rawPhrase) => {
+          const phrase = rawPhrase.toLowerCase();
+          if (!phrase || phrase.startsWith('(')) return;
+          let idx = lower.indexOf(phrase);
+          while (idx >= 0) {
+            marks.push({ start: idx, end: idx + phrase.length, kind: 'ai', severity: f.severity, title: f.detail });
+            idx = lower.indexOf(phrase, idx + phrase.length);
+          }
+        });
+      });
+
+      (para.spelling || []).forEach((s) => {
+        const word = (s.word || '').toLowerCase();
+        if (!word) return;
+        let idx = lower.indexOf(word);
+        while (idx >= 0) {
+          marks.push({
+            start: idx, end: idx + word.length, kind: 'spelling',
+            title: s.suggestions?.length ? `Sugerencias: ${s.suggestions.slice(0, 3).join(', ')}` : 'Posible error ortográfico',
+          });
+          idx = lower.indexOf(word, idx + word.length);
+        }
+      });
+    }
+
+    // Resaltador del comentario estilo WhatsApp (lo que señala la burbuja)
+    if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
+      const s = useDocStore.getState();
+      const cmtCtx = {
+        ghostCitations: (s.citationAuditResult?.ghost_citations || []) as any[],
+        orphanReferences: (s.citationAuditResult?.orphan_references || []) as any[],
+        validationIssues: (s.validationIssues || []) as any[],
+      };
+      const comment = getWhatsAppComment(elem, cmtCtx, 0);
+      const m = comment?.match;
+      if (comment && m) {
+        // Búsqueda insensible a acentos/case para que el "tachado" aparezca
+        // siempre que la burbuja esté señalando un fragmento real del texto.
+        const found = findAccentAgnostic(plain, m);
+        if (found) {
+          marks.push({ start: found.start, end: found.end, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
+        }
+      }
+    }
+
+    // Marcado de citas APA 7 detectadas en el texto (indicador visual al usuario)
+    if (showCitationMarks && (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote')) {
+      const citations = findCitationsInText(plain);
+      for (const c of citations) {
+        const hasIssue = !!c.error;
+        marks.push({
+          start: c.start,
+          end: c.end,
+          kind: 'citation',
+          severity: hasIssue ? 'HIGH' : 'OK',
+          title: hasIssue
+            ? `Cita detectada · ⚠ ${c.error}`
+            : `Cita detectada · ${c.authors.join(', ')} (${c.year}) — formato APA 7 correcto`,
+        });
+      }
+    }
+
+    if (marks.length === 0) return plain;
+
+    marks.sort((a, b) => a.start - b.start);
+    const out: React.ReactNode[] = [];
+    let cursor = 0;
+    marks.forEach((m, i) => {
+      if (m.start > cursor) out.push(plain.slice(cursor, m.start));
+      const frag = plain.slice(m.start, m.end);
+      const isSpell = m.kind === 'spelling';
+      const isComment = m.kind === 'comment';
+      const isCitation = m.kind === 'citation';
+      const color = isCitation
+        ? (m.severity === 'HIGH' ? '#8a4d00' : '#1a7f4e')
+        : isComment ? '#7c5e00' : isSpell ? '#d4382e' : m.severity === 'HIGH' ? '#d4382e' : m.severity === 'MEDIUM' ? '#b8860b' : '#1e6fd9';
+      const bg = isCitation
+        ? (m.severity === 'HIGH' ? 'rgba(214,137,16,0.22)' : 'rgba(26,127,78,0.15)')
+        : isComment ? 'rgba(255, 213, 0, 0.45)' : isSpell ? 'rgba(212,56,46,0.12)' : m.severity === 'HIGH' ? 'rgba(212,56,46,0.15)' : m.severity === 'MEDIUM' ? 'rgba(184,134,11,0.15)' : 'rgba(30,111,217,0.12)';
+      out.push(
+        <mark key={`${m.start}-${i}`} title={m.title} style={{
+          color, backgroundColor: bg,
+          textDecoration: isComment ? 'none' : isCitation ? 'none' : isSpell ? 'underline wavy #d4382e' : `underline dotted ${color}`,
+          padding: '0 1px', borderRadius: 2,
+        }}>
+          {frag}
+        </mark>
+      );
+      cursor = m.end;
+    });
+    if (cursor < plain.length) out.push(plain.slice(cursor));
+    return out;
+  };
 
   const handleSuggestCaption = async (elem: ElementModel) => {
     if (!doc) return;
     setAiLoadingId(elem.id);
     try {
       const contextText = elem.text || "";
-      const suggestion = await suggestCaption(doc.session_id, elem.id, contextText);
+      const apiKey = useDocStore.getState().apiKey;
+      const suggestion = await suggestCaption(doc.session_id, elem.id, contextText, apiKey);
       const newImageInfo = { ...elem.image_info, caption: suggestion };
       useDocStore.getState().updateElementImage(elem.id, newImageInfo);
       useDocStore.getState().showToast('Leyenda sugerida aplicada', 'success');
@@ -84,7 +265,8 @@ export const PaperCanvas: React.FC = () => {
     
     setAiLoadingId(elem.id);
     try {
-      const rewritten = await rewriteText(doc.session_id, elem.id, elem.text, instruction);
+      const apiKey = useDocStore.getState().apiKey;
+      const rewritten = await rewriteText(doc.session_id, elem.id, elem.text, instruction, apiKey);
       useDocStore.getState().updateElementType(elem.id, elem.type, elem.heading_level, rewritten);
       useDocStore.getState().showToast('Texto reescrito aplicado', 'success');
     } catch (err: any) {
@@ -101,7 +283,8 @@ export const PaperCanvas: React.FC = () => {
       if (e.ctrlKey) {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 10 : -10;
-        setZoomLevel(prev => Math.min(Math.max(prev + delta, 50), 200));
+        const s = useDocStore.getState();
+        s.setZoomLevel(s.zoomLevel + delta);
       }
     };
 
@@ -131,13 +314,100 @@ export const PaperCanvas: React.FC = () => {
   // Algoritmo de paginación virtual respetando salto de página del cuerpo
   const pages = computePages(doc.elements);
 
+  // ── Comentarios positivos: TODAS las páginas/secciones totalmente limpias ──
+  const citationAudit = useDocStore((s) => s.citationAuditResult);
+  const validationIssues = useDocStore((s) => s.validationIssues);
+  const commentCtx = {
+    ghostCitations: (citationAudit?.ghost_citations || []) as any[],
+    orphanReferences: (citationAudit?.orphan_references || []) as any[],
+    validationIssues: (validationIssues || []) as any[],
+  };
+  const positiveMap = new Map<string, boolean>();
+  {
+    for (const pageElements of pages) {
+      const hasAny = pageElements.some((e) => getWhatsAppComment(e, commentCtx, 0) !== null);
+      if (!hasAny && pageElements.some((e) => e.type === 'heading' && !e.is_cover_section)) {
+        const h = pageElements.find((e) => e.type === 'heading' && !e.is_cover_section);
+        if (h) { positiveMap.set(h.id, true); }
+      }
+    }
+  }
+
+  // ── Gutter de comentarios (estilo Word): burbujas FUERA de la hoja, en una
+  // columna a la derecha de cada página, alineadas con el elemento que señalan.
+  // El offsetTop de cada elemento (medido tras pintar) define la posición.
+  const allGutterIds = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const page of pages) {
+      for (const e of page) {
+        if (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null) set.add(e.id);
+      }
+    }
+    return set;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, pages, positiveMap]);
+  const [gutterOffsets, setGutterOffsets] = useState<Record<string, number>>({});
+
+  useLayoutEffect(() => {
+    const next: Record<string, number> = {};
+    allGutterIds.forEach((id) => {
+      const el = document.getElementById(`paper-elem-${id}`);
+      if (el) next[id] = el.offsetTop;
+    });
+    setGutterOffsets((prev) => {
+      let changed = Object.keys(prev).length !== Object.keys(next).length;
+      if (!changed) {
+        for (const k of Object.keys(next)) {
+          if (prev[k] !== next[k]) { changed = true; break; }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [allGutterIds, doc, zoomLevel]);
+
   let globalListCounter = 0;
+
+  // Numeración JERÁRQUICA de títulos (1, 1.1, 1.1.1) aplicada SOLO en el preview.
+  // Filtra headings de portada/TOC y la sección de Referencias (que no se numera).
+  const isRefHeading = (txt: string): boolean => {
+    const n = (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return /^(referencias?|bibliografia|obras consultadas|works cited)\b/.test(n.trim());
+  };
+  const hCounters: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+  const headingDisplayText = new Map<string, string>();
+  for (const e of doc.elements) {
+    if (e.type !== 'heading') continue;
+    if (e.is_cover_section) continue;
+    if (isRefHeading(e.text || '')) continue;
+    const lvl = e.heading_level || 1;
+    if (lvl > 3) continue;
+    hCounters[lvl] = (hCounters[lvl] || 0) + 1;
+    // resetear contadores de niveles más profundos al subir de nivel
+    if (lvl === 1) { hCounters[2] = 0; hCounters[3] = 0; }
+    if (lvl === 2) { hCounters[3] = 0; }
+    const style = rules[`heading_numbering_style_lvl${lvl}` as keyof typeof rules] as string || 'decimal';
+    const base = cleanHeadingPrefix(e.text || '');
+    if (style === 'none') {
+      headingDisplayText.set(e.id, base);
+    } else {
+      let num: string;
+      if (lvl === 1) {
+        num = style === 'roman' ? `${toRoman(hCounters[1])}.` : `${hCounters[1]}.`;
+      } else if (lvl === 2) {
+        num = `${hCounters[1]}.${hCounters[2]}.`;
+      } else {
+        num = `${hCounters[1]}.${hCounters[2]}.${hCounters[3]}.`;
+      }
+      headingDisplayText.set(e.id, `${num} ${base}`);
+    }
+  }
 
   return (
     <div
       ref={wrapperRef}
       style={{
         flex: 1,
+        minHeight: 0,
         overflowY: 'auto',
         backgroundColor: 'var(--canvas-bg)',
         display: 'flex',
@@ -153,35 +423,49 @@ export const PaperCanvas: React.FC = () => {
         position: 'sticky',
         top: '0',
         zIndex: 100,
-        backgroundColor: '#ffffff',
-        border: '1px solid var(--border-color)',
-        borderRadius: '4px',
+        width: '100%',
+        backgroundColor: 'var(--surface-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-md)',
         marginBottom: '16px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '6px 12px',
         padding: '6px 16px',
         fontSize: '11px',
-        color: '#475569',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+        color: 'var(--text-secondary)',
+        boxShadow: 'var(--shadow-md)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontWeight: 600, color: 'var(--word-blue)' }}>Vista Previa del Documento</span>
-          <span style={{ color: '#cbd5e1' }}>|</span>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
-            Tipografía: <strong>{fontFamily}</strong> ({rules.font_size_pt}pt)
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
+          <span style={{ fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap' }}>Vista Previa del Documento</span>
+          <span style={{ color: 'var(--text-muted)' }}>|</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+            Tipografía: <strong style={{ color: 'var(--text-main)' }}>{fontFamily}</strong> ({rules.font_size_pt}pt)
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button
             className={`btn btn-xs ${showAIHeatmap ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setShowAIHeatmap(!showAIHeatmap)}
             title="Activar/Desactivar Mapa de Calor IA"
             style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
           >
-            <Flame size={12} color={showAIHeatmap ? '#fca5a5' : '#64748b'} />
+            <Flame size={12} color={showAIHeatmap ? 'var(--accent-danger)' : 'var(--text-muted)'} />
             Mapa IA
+          </button>
+
+          <button
+            type="button"
+            className={`btn btn-xs ${showCitationMarks ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setShowCitationMarks(!showCitationMarks)}
+            title="Mostrar citas APA 7 detectadas en el texto (verde = correcta, ámbar = revisar)"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
+          >
+            <Edit3 size={12} color={showCitationMarks ? '#1a7f4e' : 'var(--text-muted)'} />
+            Citas APA
           </button>
           
           {useDocStore.getState().citationAuditResult && (
@@ -190,9 +474,9 @@ export const PaperCanvas: React.FC = () => {
                 title="Citas fantasma: Existen en el texto pero no en la bibliografía"
                 style={{ 
                   display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                  backgroundColor: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#fef2f2' : '#f0fdf4',
-                  color: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#dc2626' : '#16a34a',
-                  border: `1px solid ${useDocStore.getState().citationAuditResult?.ghost_citations?.length ? '#fecaca' : '#bbf7d0'}`
+                  backgroundColor: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'rgba(255,77,79,0.12)' : 'rgba(82,196,26,0.12)',
+                  color: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'var(--accent-danger)' : 'var(--accent-success)',
+                  border: `1px solid ${useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'rgba(255,77,79,0.35)' : 'rgba(82,196,26,0.35)'}`
                 }}
               >
                 {useDocStore.getState().citationAuditResult?.ghost_citations?.length || 0} Citas Fantasma
@@ -201,9 +485,9 @@ export const PaperCanvas: React.FC = () => {
                 title="Referencias huérfanas: Existen en la bibliografía pero nunca se citaron"
                 style={{ 
                   display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                  backgroundColor: useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#fffbeb' : '#f0fdf4',
-                  color: useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#d97706' : '#16a34a',
-                  border: `1px solid ${useDocStore.getState().citationAuditResult?.orphan_references?.length ? '#fde68a' : '#bbf7d0'}`
+                  backgroundColor: useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'rgba(250,173,20,0.12)' : 'rgba(82,196,26,0.12)',
+                  color: useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'var(--accent-warning)' : 'var(--accent-success)',
+                  border: `1px solid ${useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'rgba(250,173,20,0.35)' : 'rgba(82,196,26,0.35)'}`
                 }}
               >
                 {useDocStore.getState().citationAuditResult?.orphan_references?.length || 0} Refs Huérfanas
@@ -213,7 +497,7 @@ export const PaperCanvas: React.FC = () => {
 
           <button
             className="btn btn-secondary btn-xs"
-            onClick={() => setZoomLevel(prev => Math.max(prev - 10, 50))}
+            onClick={() => setZoomLevel(zoomLevel - 10)}
             title="Reducir Zoom"
           >
             <ZoomOut size={12} />
@@ -221,13 +505,101 @@ export const PaperCanvas: React.FC = () => {
           <span style={{ fontWeight: 600, minWidth: '40px', textAlign: 'center' }}>{zoomLevel}%</span>
           <button
             className="btn btn-secondary btn-xs"
-            onClick={() => setZoomLevel(prev => Math.min(prev + 10, 200))}
+            onClick={() => setZoomLevel(zoomLevel + 10)}
             title="Aumentar Zoom"
           >
             <ZoomIn size={12} />
           </button>
+          <span style={{
+            fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px',
+            display: 'flex', alignItems: 'center', gap: '3px',
+          }} title="Ctrl + Scroll para hacer zoom con la rueda">
+            <ZoomIn size={10} /> Ctrl+Scroll
+          </span>
         </div>
       </div>
+
+      {/* Barra contextual de imagen (estilo Word: aparece al seleccionar una figura) */}
+      {doc && selectedElementId && (() => {
+        const selElem = doc.elements.find(e => e.id === selectedElementId);
+        if (!selElem || selElem.type !== 'image' || !selElem.image_info) return null;
+        const img = selElem.image_info;
+        const rot = img.rotation || 0;
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+            backgroundColor: 'var(--surface-elevated)',
+            border: '1px solid var(--accent-primary)',
+            borderRadius: 'var(--radius-md)', padding: '6px 12px', marginBottom: '12px',
+            fontSize: '11px', color: 'var(--text-secondary)', boxShadow: 'var(--shadow-md)',
+          }}>
+            <span style={{ fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ImageIcon size={13} /> Imagen seleccionada
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            {/* Rotación */}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Rotar:
+              {[0, 90, 180, 270].map((deg) => (
+                <button key={deg} type="button"
+                  onClick={() => useDocStore.getState().updateElementImage(selElem.id, { rotation: deg })}
+                  title={`Rotar ${deg}°`}
+                  style={{
+                    padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px',
+                    background: rot === deg ? 'var(--accent-primary)' : 'var(--surface-subtle)',
+                    color: rot === deg ? '#fff' : 'var(--text-secondary)',
+                    border: '1px solid var(--border-subtle)', fontWeight: 600,
+                  }}>
+                  {deg === 0 ? '0°' : `${deg}°`}
+                </button>
+              ))}
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            {/* Ancho */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Ancho
+              <input type="number" min={2} max={20} step={0.5}
+                value={img.width_cm || 12}
+                onChange={(e) => useDocStore.getState().updateElementImage(selElem.id, { width_cm: parseFloat(e.target.value) || 12 })}
+                style={{ width: '56px', padding: '2px 4px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
+              /> cm
+            </label>
+            {/* Leyenda */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: '120px' }}>
+              Leyenda
+              <input type="text"
+                value={img.caption || ''}
+                onChange={(e) => useDocStore.getState().updateElementImage(selElem.id, { caption: e.target.value })}
+                placeholder="Escribí la leyenda de la figura..."
+                style={{ flex: 1, padding: '3px 6px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
+              />
+            </label>
+            {/* Sugerir con IA */}
+            <button type="button"
+              onClick={() => handleSuggestCaption(selElem)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
+                background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer',
+              }}>
+              <Wand2 size={11} /> Sugerir IA
+            </button>
+            {/* Abrir/cerrar panel de edición completo */}
+            <button
+              type="button"
+              onClick={() => useDocStore.setState({ imagePanelOpen: !useDocStore.getState().imagePanelOpen })}
+              aria-pressed={useDocStore.getState().imagePanelOpen}
+              title="Mostrar u ocultar el panel de edición de la imagen"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
+                background: useDocStore.getState().imagePanelOpen ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                color: useDocStore.getState().imagePanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)', borderRadius: '4px', cursor: 'pointer',
+              }}>
+              <PanelRight size={11} /> Editar panel
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Renderizado de Páginas */}
       <div style={{
@@ -265,8 +637,8 @@ export const PaperCanvas: React.FC = () => {
           }
 
           return (
+            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
             <div
-              key={pageIdx}
               style={{
                 width: '680px',
                 minHeight: '880px',
@@ -301,11 +673,15 @@ export const PaperCanvas: React.FC = () => {
               </div>
 
               {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
-              {isCoverPage && portada.use_original_cover && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
+              {isCoverPage && (portada.cover_mode === 'generate_uni_cover') && !portada.use_original_cover ? (
+                <UNICoverPreview />
+              ) : isCoverPage && !portada.use_original_cover ? (
+                <APACoverEditor />
+              ) : isCoverPage && portada.use_original_cover && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: '780px' }}>
                   <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '8px', maxWidth: '80%' }}>
-                    <p style={{ fontWeight: 'bold', color: '#475569', margin: 0, fontSize: '14pt' }}>[Portada Original Conservada]</p>
-                    <p style={{ fontSize: '11pt', color: '#64748b', marginTop: '12px' }}>El documento mantendrá la portada exacta del archivo original al generar el documento final.</p>
+                    <p style={{ fontWeight: 'bold', color: '#475569', margin: 0, fontSize: '14pt' }}>Portada original conservada</p>
+                    <p style={{ fontSize: '11pt', color: '#64748b', marginTop: '12px' }}>El documento mantendrá la portada exacta del archivo original al generar el documento final. Para cambiarla, usa el botón "Cambiar portada" arriba.</p>
                   </div>
                 </div>
               ) : isCoverPage && coverHeaderTexts.length > 0 && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
@@ -316,7 +692,7 @@ export const PaperCanvas: React.FC = () => {
                     {coverLogoImage?.image_info?.relative_url && (
                       <div style={{ textAlign: 'center', marginBottom: '12px' }}>
                         <img
-                          src={coverLogoImage.image_info.relative_url}
+                          src={resolveAssetUrl(coverLogoImage.image_info.relative_url)}
                           alt="Logo Universidad"
                           style={{ maxHeight: '110px', maxWidth: '320px', objectFit: 'contain' }}
                         />
@@ -326,7 +702,7 @@ export const PaperCanvas: React.FC = () => {
                       <p
                         key={elem.id}
                         id={`paper-elem-${elem.id}`}
-                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
                         style={{
                           margin: '2px 0',
                           textAlign: (elem.alignment as any) || 'center',
@@ -356,7 +732,7 @@ export const PaperCanvas: React.FC = () => {
                           <div
                             key={elem.id}
                             id={`paper-elem-${elem.id}`}
-                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
                             style={{
                               padding: '4px',
                               borderRadius: '4px',
@@ -385,7 +761,7 @@ export const PaperCanvas: React.FC = () => {
                       <p
                         key={elem.id}
                         id={`paper-elem-${elem.id}`}
-                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
                         style={{
                           margin: 0,
                           fontSize: '11pt',
@@ -407,6 +783,11 @@ export const PaperCanvas: React.FC = () => {
                     const isSelected = selectedElementId === elem.id;
                     const isContextMenuOpen = contextMenuElemId === elem.id;
                     const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0;
+                    const captionPosition = elem.image_info?.caption_position ?? 'below';
+                    const tableStyle = elem.type === 'table' ? (tableStyles[elem.id] || 'standard') : 'standard';
+                    const imgAlign = (elem.type === 'image' && elem.image_info?.alignment) || 'center';
+                    const imgOuterTextAlign = imgAlign === 'left' ? 'left' : imgAlign === 'right' ? 'right' : 'center';
+                    const imgInnerMargin = imgAlign === 'left' ? '8px auto 8px 0' : imgAlign === 'right' ? '8px 0 8px auto' : '8px auto';
 
                     if (elem.type === 'heading') {
                       globalListCounter = 0;
@@ -441,7 +822,7 @@ export const PaperCanvas: React.FC = () => {
                     // Detector IA Margen (Siempre activo si el score > 0.5)
                     const aiScore = elem.ai_score !== undefined ? elem.ai_score : 0;
                     const isAIGenerated = aiScore > 0.5;
-                    const aiMarginBorder = isAIGenerated ? '3px solid #f59e0b' : '3px solid transparent';
+                    const aiMarginBorder = isAIGenerated ? '2px solid rgba(250,173,20,0.4)' : '2px solid transparent';
                     const aiTooltip = isAIGenerated ? `Posible contenido IA (${Math.round(aiScore * 100)}%). Patrones detectados.` : undefined;
 
                     return (
@@ -449,13 +830,25 @@ export const PaperCanvas: React.FC = () => {
                         key={elem.id}
                         id={`paper-elem-${elem.id}`}
                         title={hasGhostCitation ? 'Este párrafo contiene una cita sin referencia bibliográfica.' : (tooltipText || aiTooltip)}
+                        onMouseEnter={(e) => {
+                          if (elem.type !== 'image' && elem.type !== 'table') {
+                            (e.currentTarget as HTMLElement).dataset.hover = 'true';
+                          }
+                        }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).dataset.hover = ''; }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedElementId(elem.id);
+                          onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
                         }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          if (elem.type !== 'image' && elem.type !== 'table') {
+                          e.preventDefault();
+                          (window.getSelection?.() ?? null)?.removeAllRanges?.();
+                          if (elem.type === 'image' && elem.image_info) {
+                            setEditingId(elem.id);
+                            setEditValue(elem.image_info.caption || '');
+                          } else if (elem.type !== 'image' && elem.type !== 'table') {
                             setEditingId(elem.id);
                             setEditValue(elem.text || '');
                           }
@@ -477,11 +870,12 @@ export const PaperCanvas: React.FC = () => {
                           cursor: 'text'
                         }}
                       >
-                        {/* Menú Contextual */}
+                        {/* Menú Contextual — debajo del elemento para que nunca
+                            se salga por arriba del viewport en el primer elemento */}
                         {isContextMenuOpen && (
                           <div style={{
                             position: 'absolute',
-                            top: '-36px',
+                            top: 'calc(100% + 4px)',
                             left: '0',
                             backgroundColor: '#ffffff',
                             border: '1px solid var(--border-color)',
@@ -490,7 +884,9 @@ export const PaperCanvas: React.FC = () => {
                             display: 'flex',
                             gap: '4px',
                             zIndex: 300,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                            flexWrap: 'wrap',
+                            maxWidth: '100%'
                           }}>
                             <button
                               className="btn btn-secondary btn-sm"
@@ -529,7 +925,20 @@ export const PaperCanvas: React.FC = () => {
                                 style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleSuggestCaption(elem)}
                               >
-                                <Sparkles size={10} /> Sugerir Leyenda
+                                <Wand2 size={10} /> Sugerir Leyenda
+                              </button>
+                            )}
+                            {elem.type === 'table' && (
+                              <button
+                                className="btn btn-sm"
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--color-accent-soft, rgba(79,124,255,0.10))', color: 'var(--accent-primary)', border: '1px solid rgba(79,124,255,0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => {
+                                  setSelectedElementId(elem.id);
+                                  useDocStore.getState().setForceRightPanelOpen(true);
+                                  setContextMenuElemId(null);
+                                }}
+                              >
+                                <Edit3 size={10} /> Editar celdas
                               </button>
                             )}
                             {(elem.type === 'paragraph' || elem.type === 'heading') && (
@@ -538,7 +947,7 @@ export const PaperCanvas: React.FC = () => {
                                 style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleRewriteText(elem)}
                               >
-                                <Sparkles size={10} /> Reescribir Texto
+                                <Wand2 size={10} /> Reescribir Texto
                               </button>
                             )}
                           </div>
@@ -553,7 +962,7 @@ export const PaperCanvas: React.FC = () => {
                           </div>
                         )}
 
-                        {editingId === elem.id ? (
+                        {editingId === elem.id && elem.type !== 'image' ? (
                           <div style={{ position: 'relative', margin: '4px 0' }}>
                             <textarea
                               value={editValue}
@@ -574,7 +983,20 @@ export const PaperCanvas: React.FC = () => {
                                 if (e.key === 'Escape') {
                                   setEditingId(null);
                                 } else if (e.key === 'Enter' && e.ctrlKey) {
-                                  if (editValue !== elem.text) {
+                                  if (elem.type === 'image') {
+                                    if (editValue !== (elem.image_info?.caption || '')) {
+                                      useDocStore.getState().updateElementImage(elem.id, { caption: editValue });
+                                    }
+                                  } else if (editValue !== elem.text) {
+                                    updateElementType(elem.id, elem.type, elem.heading_level, editValue);
+                                  }
+                                  setEditingId(null);
+                                } else if (e.key === 'Enter' && !e.shiftKey) {
+                                  if (elem.type === 'image') {
+                                    if (editValue !== (elem.image_info?.caption || '')) {
+                                      useDocStore.getState().updateElementImage(elem.id, { caption: editValue });
+                                    }
+                                  } else if (editValue !== elem.text) {
                                     updateElementType(elem.id, elem.type, elem.heading_level, editValue);
                                   }
                                   setEditingId(null);
@@ -603,19 +1025,67 @@ export const PaperCanvas: React.FC = () => {
                               </button>
                             </div>
                           </div>
-                        ) : (
+                        ) : elem.type !== 'image' ? (
                           <>
-                            {elem.type === 'heading' && (
-                              <p style={{
-                                fontWeight: 'bold',
-                                fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
-                                textAlign: elem.heading_level === 1 ? 'center' : 'left',
-                                marginTop: '12px',
-                                marginBottom: '6px'
-                              }}>
-                                {elem.text}
-                              </p>
-                            )}
+                            {elem.type === 'heading' && (() => {
+                              const isRef = isRefHeading(elem.text || '');
+                              if (isRef) {
+                                return (
+                                  <div style={{ marginTop: '20px', marginBottom: '8px' }}>
+                                    <p style={{
+                                      fontWeight: 'bold', textAlign: 'center', fontSize: '14pt',
+                                      margin: '0 0 12px 0',
+                                    }}>
+                                      {elem.text}
+                                    </p>
+                                    {/* Lista de referencias estructuradas */}
+                                    {doc.referencias && doc.referencias.length > 0 ? (
+                                      <div style={{ paddingLeft: '0.5in' }}>
+                                        {doc.referencias.map((ref, ri) => (
+                                          <p key={ref.id || ri} style={{
+                                            fontSize: '11pt', lineHeight: 2.0, textAlign: 'left',
+                                            textIndent: '-0.5in', marginLeft: '0.5in',
+                                            margin: '0 0 6px 0.5in', paddingLeft: 0,
+                                          }}>
+                                            {ref.formatted_apa || (
+                                              <>{[...(ref.authors || [])].join(', ')}{ref.year ? ` (${ref.year}).` : '.'} {ref.title}.{ref.source ? ` ${ref.source}.` : ''}{ref.doi_or_url ? ` ${ref.doi_or_url}` : ''}</>
+                                            )}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <p style={{
+                                  fontWeight: 'bold',
+                                  fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
+                                  textAlign: elem.heading_level === 1 ? 'center' : 'left',
+                                  marginTop: '12px',
+                                  marginBottom: '6px',
+                                  borderLeft: elem.heading_level === 1
+                                    ? '3px solid var(--color-text-primary)'
+                                    : elem.heading_level === 2
+                                      ? '2px solid var(--color-text-secondary)'
+                                      : elem.heading_level === 3
+                                        ? '2px solid var(--color-text-tertiary)'
+                                        : 'none',
+                                  paddingLeft: elem.heading_level ? '10px' : '0',
+                                  backgroundColor: reviewHighlightIds?.has(elem.id)
+                                    ? 'var(--color-accent-soft)'
+                                    : elem.heading_level === 1
+                                      ? 'rgba(255,255,255,0.02)'
+                                      : 'transparent',
+                                  borderLeftColor: reviewHighlightIds?.has(elem.id)
+                                    ? 'var(--color-warning)'
+                                    : undefined,
+                                  transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                                }}>
+                                  {headingDisplayText.get(elem.id) ?? elem.text}
+                                </p>
+                              );
+                            })()}
 
                             {elem.type === 'paragraph' && (
                               <p style={{
@@ -624,7 +1094,7 @@ export const PaperCanvas: React.FC = () => {
                                 textAlign: 'justify',
                                 margin: '0 0 6px 0'
                               }}>
-                                {elem.text}
+                                {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
@@ -635,77 +1105,185 @@ export const PaperCanvas: React.FC = () => {
                                 fontSize: `${rules.font_size_pt - 1}pt`,
                                 margin: '6px 0'
                               }}>
-                                {elem.text}
+                                {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'bullet' && (
                               <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                                • {elem.text}
+                                • {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
                               <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
-                                {currentItemNum}. {elem.text}
+                                {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
                           </>
-                        )}
+                        ) : null}
 
                         {(elem.type === 'image' || elem.image_info) && (
-                          <div style={{ margin: '16px 0', textAlign: 'center', width: '100%' }}>
+                          <div style={{
+                            margin: '16px auto', maxWidth: '95%',
+                            border: '1px solid #cbd5e1', borderRadius: '8px',
+                            backgroundColor: '#fafbfc', padding: '10px',
+                            position: 'relative',
+                            display: 'flex', flexDirection: 'column',
+                          }}>
+                            {/* Número de figura + caption (order: arriba=0, abajo=2) */}
                             {showFigureLabel && (
-                              <>
-                                <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0' }}>Figura {elem.image_info?.figure_number}</p>
-                                {elem.image_info?.caption && <p style={{ fontStyle: 'italic', textAlign: 'left', margin: '0 0 8px 0' }}>{elem.image_info.caption}</p>}
-                              </>
+                              <div style={{ marginBottom: '8px', order: captionPosition === 'above' ? 0 : 2 }}>
+                                <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0', fontSize: '11pt' }}>
+                                  Figura {elem.image_info?.figure_number}
+                                </p>
+                                {editingId === elem.id ? (
+                                  <textarea
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={(ke) => {
+                                      if (ke.key === 'Escape') setEditingId(null);
+                                      else if (ke.key === 'Enter' && !ke.shiftKey) {
+                                        if (editValue !== (elem.image_info?.caption || '')) {
+                                          useDocStore.getState().updateElementImage(elem.id, { caption: editValue });
+                                        }
+                                        setEditingId(null);
+                                      } else if (ke.key === 'Enter' && ke.ctrlKey) {
+                                        if (editValue !== (elem.image_info?.caption || '')) {
+                                          useDocStore.getState().updateElementImage(elem.id, { caption: editValue });
+                                        }
+                                        setEditingId(null);
+                                      }
+                                    }}
+                                    style={{
+                                      width: '100%', minHeight: '40px', fontSize: '11pt', fontStyle: 'italic',
+                                      border: '1px solid var(--accent-primary)', borderRadius: '4px', padding: '4px 8px',
+                                      outline: 'none',
+                                    }}
+                                  />
+                                ) : (
+                                  <p
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      (window.getSelection?.() ?? null)?.removeAllRanges?.();
+                                      setEditingId(elem.id);
+                                      setEditValue(elem.image_info?.caption || '');
+                                    }}
+                                    style={{ fontStyle: 'italic', textAlign: 'left', margin: 0, cursor: 'text', minHeight: '1em', userSelect: 'none', WebkitUserSelect: 'none' }}
+                                  >
+                                    {elem.image_info?.caption || <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Doble clic para editar leyenda</span>}
+                                  </p>
+                                )}
+                              </div>
                             )}
 
-                            <div style={{
-                              margin: '8px auto',
-                              maxWidth: '100%',
-                              height: '140px',
-                              backgroundColor: '#f8fafc',
-                              border: '1px dashed #cbd5e1',
-                              borderRadius: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#64748b',
-                              overflow: 'hidden'
-                            }}>
-                              {elem.image_info?.relative_url ? (
-                                <img src={elem.image_info.relative_url} alt="Figura" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+                            {/* Marco de la imagen — ancho según dimensiones, no 100% */}
+                            <div
+                              style={{
+                                order: 1,
+                                margin: '0 auto',
+                                maxWidth: '100%',
+                                width: elem.image_info?.width_cm ? `${elem.image_info.width_cm * 37.8}px` : 'auto',
+                                height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
+                                minWidth: '120px',
+                                minHeight: '120px',
+                                overflow: 'hidden',
+                                backgroundColor: '#f8fafc',
+                                border: selectedElementId === elem.id
+                                  ? '2px solid var(--accent-primary)'
+                                  : '1px solid #e2e8f0',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--text-secondary)',
+                                position: 'relative',
+                                cursor: 'grab',
+                                touchAction: 'none',
+                                transform: elem.image_info?.rotation ? `rotate(${elem.image_info.rotation}deg)` : undefined,
+                                transformOrigin: 'center center',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {elem.image_info?.relative_url && !elem.image_info?.render_error && !brokenFigureIds[elem.id] ? (
+                                <img
+                                  src={resolveAssetUrl(elem.image_info.relative_url)}
+                                  alt="Figura"
+                                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', pointerEvents: 'none' }}
+                                  onError={() => setBrokenFigureIds((prev) => ({
+                                    ...prev,
+                                    [elem.id]: 'La imagen no pudo cargarse en el navegador.',
+                                  }))}
+                                />
                               ) : (
-                                <span style={{ fontSize: '12px' }}>{elem.text || '[Gráfico]'}</span>
+                                <div style={{ padding: '12px', textAlign: 'left', maxWidth: '100%' }}>
+                                  <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--accent-warning)' }}>
+                                    Previsualización no disponible
+                                  </div>
+                                  <div style={{ fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
+                                    {brokenFigureIds[elem.id] || (elem.image_info as any)?.render_error || 'El formato original no puede renderizarse en este preview. Revisa el archivo original o exporta la figura a PNG/SVG.'}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Resize handle */}
+                              {selectedElementId === elem.id && (
+                                <div
+                                  onPointerDown={(e) => startFigureResize(e, elem)}
+                                  onPointerMove={resizeState?.id === elem.id ? handleFigureResize : undefined}
+                                  onPointerUp={endFigureResize}
+                                  onPointerLeave={resizeState?.id === elem.id ? endFigureResize : undefined}
+                                  title="Arrastrar para redimensionar · Shift para liberar proporción"
+                                  style={{
+                                    position: 'absolute', right: 0, bottom: 0,
+                                    width: '0', height: '0',
+                                    cursor: 'nwse-resize', touchAction: 'none',
+                                    borderBottom: '18px solid var(--accent-primary)',
+                                    borderLeft: '18px solid transparent',
+                                    borderBottomRightRadius: '10px',
+                                  }}
+                                />
                               )}
                             </div>
 
                             {elem.image_info?.note && (
-                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155', textAlign: 'left' }}>
+                              <p style={{ fontSize: '11px', marginTop: '8px', color: '#334155', textAlign: 'left', order: 3 }}>
                                 <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
                               </p>
                             )}
                           </div>
                         )}
 
-                        {elem.type === 'table' && elem.table_info && (
-                          <div style={{ margin: '16px 0', width: '100%' }}>
-                            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>Tabla {elem.table_info.table_number}</p>
+                        {elem.type === 'table' && elem.table_info && (() => {
+                          const isCompact = tableStyle === 'compact';
+                          const isExpanded = tableStyle === 'expanded';
+                          const borderW = isExpanded ? '2px' : '1px';
+                          const cellPad = isCompact ? '3px' : isExpanded ? '10px' : '6px';
+                          const cellFont = isCompact ? '9pt' : isExpanded ? '12pt' : '11pt';
+                          const styleLabel = tableStyle === 'compact' ? 'Compacto' : tableStyle === 'expanded' ? 'Expandido' : 'Estándar';
+                          return (
+                          <div style={{ margin: '16px 0', width: '100%', overflowX: 'auto' }}>
+                            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
+                              Tabla {elem.table_info.table_number}
+                              <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: '#475569', marginLeft: '8px' }}>
+                                · estilo {styleLabel}
+                              </span>
+                            </p>
                             {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
                             <table style={{
                               width: '100%',
                               borderCollapse: 'collapse',
-                              borderTop: '1px solid #000000',
-                              borderBottom: '1px solid #000000',
+                              borderTop: `${borderW} solid #000000`,
+                              borderBottom: `${borderW} solid #000000`,
                               margin: '8px 0'
                             }}>
                               {elem.table_info.headers && (
                                 <thead>
-                                  <tr style={{ borderBottom: '1px solid #000000' }}>
+                                  <tr style={{ borderBottom: `${borderW} solid #000000` }}>
                                     {elem.table_info.headers.map((h, i) => (
-                                      <th key={i} style={{ padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>{h}</th>
+                                      <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont }}>{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -714,7 +1292,7 @@ export const PaperCanvas: React.FC = () => {
                                 {elem.table_info.rows.map((row, rIdx) => (
                                   <tr key={rIdx}>
                                     {row.map((cell, cIdx) => (
-                                      <td key={cIdx} style={{ padding: '6px' }}>{cell}</td>
+                                      <td key={cIdx} style={{ padding: cellPad, fontSize: cellFont }}>{cell}</td>
                                     ))}
                                   </tr>
                                 ))}
@@ -726,12 +1304,36 @@ export const PaperCanvas: React.FC = () => {
                               </p>
                             )}
                           </div>
-                        )}
+                          );
+                        })()}
+
+                        {/* Comentarios estilo WhatsApp: ahora viven en el gutter
+                            lateral (columna derecha fuera de la hoja, como Word). */}
                       </div>
                     );
                   })}
                 </div>
               )}
+            </div>
+            {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word) */}
+            {pageElements.filter((e) => positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null).length > 0 && (
+              <div style={{ position: 'relative', width: '250px', minHeight: '880px', flexShrink: 0 }}>
+                {pageElements.map((elem) => {
+                  const positive = !!positiveMap.get(elem.id);
+                  const hasComment = positive || getWhatsAppComment(elem, commentCtx, 0) !== null;
+                  if (!hasComment) return null;
+                  return (
+                    <div
+                      key={elem.id}
+                      className="wa-gutter"
+                      style={{ position: 'absolute', top: `${gutterOffsets[elem.id] ?? 0}px`, left: 0, width: '100%' }}
+                    >
+                      <WhatsAppComment elem={elem} positive={positive} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             </div>
           );
         })}

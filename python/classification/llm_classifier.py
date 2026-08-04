@@ -19,10 +19,11 @@ import time
 from typing import Any, Dict, List, Optional
 
 from models import DocumentModel, ElementModel, ElementType
+from constants import NVIDIA_NIM_URL, DEFAULT_NIM_MODEL
 
 
-NVIDIA_NIM_URL: str = "https://integrate.api.nvidia.com/v1/chat/completions"
-DEFAULT_MODEL: str = "meta/llama-3.1-70b-instruct"
+NVIDIA_NIM_URL: str = NVIDIA_NIM_URL
+DEFAULT_MODEL: str = DEFAULT_NIM_MODEL
 
 # ── Provider capacity profiles ──────────────────────────────────────────────
 PROVIDER_CAPACITY = {
@@ -40,23 +41,6 @@ PROVIDER_CAPACITY = {
 
 # ── Progress tracking (in-memory, keyed by session_id) ──────────────────────
 _classify_progress: Dict[str, Dict[str, Any]] = {}
-_rate_limiters: Dict[str, Dict[str, Any]] = {}
-
-async def _acquire_rate_limit(provider_id: str):
-    if provider_id not in _rate_limiters:
-        rpm = PROVIDER_CAPACITY.get(provider_id, {}).get("requests_per_minute", 30)
-        _rate_limiters[provider_id] = {
-            "lock": asyncio.Lock(),
-            "interval": 60.0 / rpm,
-            "last_called": 0.0
-        }
-    rl = _rate_limiters[provider_id]
-    async with rl["lock"]:
-        now = time.time()
-        elapsed = now - rl["last_called"]
-        if elapsed < rl["interval"]:
-            await asyncio.sleep(rl["interval"] - elapsed)
-        rl["last_called"] = time.time()
 
 
 def get_classify_progress(session_id: str) -> Dict[str, Any]:
@@ -75,11 +59,6 @@ def get_classify_progress(session_id: str) -> Dict[str, Any]:
     })
 
 
-def reset_classify_progress(session_id: str) -> None:
-    """Remove progress state for a session."""
-    _classify_progress.pop(session_id, None)
-
-
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 def _get_smart_batch_size(element_count: int) -> int:
@@ -89,11 +68,6 @@ def _get_smart_batch_size(element_count: int) -> int:
     if element_count <= 30:
         return 15
     return 10
-
-
-def _estimate_tokens(text: str) -> int:
-    words = len(text.split())
-    return max(1, int(words * 1.3) + 10)
 
 
 def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Optional[str] = None, use_local: bool = False) -> List[Dict[str, Any]]:
@@ -273,8 +247,13 @@ async def classify_document_with_llm(
     providers = _get_active_providers(api_key, nim_url, use_local)
     if not providers:
         print("[WARN] No AI providers available (Local or Cloud). Usando fallback heuristico...")
+        total = len(doc.elements)
         _classify_progress[session_id]["status"] = "complete"
-        _classify_progress[session_id]["elements_total"] = 0
+        _classify_progress[session_id]["current_provider"] = "reglas heuristicas"
+        _classify_progress[session_id]["elements_total"] = total
+        _classify_progress[session_id]["elements_processed"] = total
+        _classify_progress[session_id]["completed_batches"] = 1
+        _classify_progress[session_id]["total_batches"] = 1
         return doc
 
     # Collect uncertain elements
@@ -289,8 +268,13 @@ async def classify_document_with_llm(
 
     if not uncertain_elements:
         print("[INFO] No hay elementos inciertos que clasificar.")
+        total = len(doc.elements)
         _classify_progress[session_id]["status"] = "complete"
-        _classify_progress[session_id]["elements_total"] = 0
+        _classify_progress[session_id]["current_provider"] = "reglas heuristicas"
+        _classify_progress[session_id]["elements_total"] = total
+        _classify_progress[session_id]["elements_processed"] = total
+        _classify_progress[session_id]["completed_batches"] = 1
+        _classify_progress[session_id]["total_batches"] = 1
         return doc
 
     # Build heading map for structural context
@@ -420,7 +404,7 @@ async def classify_document_with_llm(
                                 elem.heading_level = min(max(int(new_level), 1), 5)
 
                         llm_confidence = float(res.get("confidence", 0.90))
-                        elem.confidence = max(elem.confidence, llm_confidence)
+                        elem.confidence = llm_confidence
 
                         reasoning = res.get("reasoning", "")
                         if reasoning:

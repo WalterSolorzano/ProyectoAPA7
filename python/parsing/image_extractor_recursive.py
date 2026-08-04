@@ -50,6 +50,7 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
             extracted_images.append({
                 'id': embed_id,
                 'path': str(filepath),
+                'src': f"file://{filepath.absolute().as_posix()}",
                 'is_floating': is_floating,
                 'filename': filename,
                 'xml_element': xml_element

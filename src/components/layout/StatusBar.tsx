@@ -45,9 +45,6 @@ export const StatusBar: React.FC = () => {
   const autoAccepted = elements.filter((e) => e.auto_applied || (e.confidence >= 0.85 && !e.needs_review)).length;
   const userModified = elements.filter((e) => e.is_user_modified).length;
 
-  // Progreso
-  const processed = autoAccepted + userModified + (totalElements - needsReviewCount - emptyCount);
-  const progressPct = totalElements > 0 ? Math.round((processed / Math.max(1, totalElements - emptyCount)) * 100) : 0;
   const estimatedPages = Math.max(1, Math.ceil(totalElements / 14));
 
   // Warnings
@@ -60,40 +57,11 @@ export const StatusBar: React.FC = () => {
     warnings.push('Citas detectadas sin referencias');
   }
 
-  // AI Detector Info
-  const aiScoreAvg = totalElements > 0 ? elements.reduce((acc, el) => acc + (el.ai_score || 0), 0) / totalElements : 0;
-  const aiPct = Math.round(aiScoreAvg * 100) || 32; // Default to 32% if no scores yet as per placeholder requirement
-  const aiColor = aiPct > 70 ? 'var(--accent-danger)' : aiPct > 40 ? 'var(--accent-warning)' : 'var(--text-muted)';
-  const aiBg = aiPct > 70 ? 'rgba(255,77,79,0.1)' : aiPct > 40 ? 'rgba(250,173,20,0.1)' : 'transparent';
-  const aiBorder = aiPct > 70 ? 'rgba(255,77,79,0.2)' : aiPct > 40 ? 'rgba(250,173,20,0.2)' : 'rgba(255,255,255,0.08)';
-
   return (
     <>
       <footer className="app-statusbar" style={{ backgroundColor: 'var(--app-bg)', borderTop: '1px solid rgba(255,255,255,0.07)', color: 'var(--text-muted)' }}>
         {/* Left: Document stats */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', color: 'var(--text-main)', fontWeight: 500 }}>
-          {/* Progress bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{
-              width: '60px',
-              height: '6px',
-              borderRadius: '3px',
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: `${progressPct}%`,
-                height: '100%',
-                borderRadius: '3px',
-                backgroundColor: progressPct >= 100 ? 'var(--accent-secondary)' : 'var(--accent-primary)',
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-            <span style={{ fontSize: '10px', fontWeight: 700, color: progressPct >= 100 ? 'var(--accent-secondary)' : 'var(--accent-primary)' }}>
-              {progressPct}%
-            </span>
-          </div>
-
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Pag: {estimatedPages}</span>
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{totalWords} pal.</span>
 
@@ -111,29 +79,14 @@ export const StatusBar: React.FC = () => {
                 display: 'flex', alignItems: 'center', gap: '3px',
                 fontSize: '10px', fontWeight: 600,
                 color: needsReviewCount > 0 ? 'var(--accent-danger)' : 'var(--accent-warning)',
+                cursor: 'help',
               }}
-              title={warnings.join(' | ')}
+              title={'Avisos del documento:\n' + warnings.join('\n')}
             >
               <AlertTriangle size={12} />
-              {warnings.length}
+              {warnings.length} aviso{warnings.length > 1 ? 's' : ''}
             </span>
           )}
-
-          {/* AI Badge */}
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            color: aiColor,
-            backgroundColor: aiBg,
-            border: `1px solid ${aiBorder}`,
-            padding: '2px 6px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }} title="Probabilidad de texto generado por IA">
-            🤖 IA: ~{aiPct}%
-          </span>
         </div>
 
         {/* Right: Config and zoom */}
@@ -156,7 +109,7 @@ export const StatusBar: React.FC = () => {
           <button
             onClick={() => setForceRightPanelOpen(!forceRightPanelOpen)}
             style={{
-              background: forceRightPanelOpen ? 'rgba(124,92,252,0.15)' : 'transparent',
+              background: forceRightPanelOpen ? 'rgba(79,124,255,0.15)' : 'transparent',
               border: forceRightPanelOpen ? '1px solid var(--accent-primary)' : '1px solid transparent',
               borderRadius: '4px',
               padding: '2px 6px',
@@ -185,7 +138,7 @@ export const StatusBar: React.FC = () => {
             <input
               type="range"
               min={50}
-              max={200}
+              max={300}
               step={5}
               value={zoomLevel}
               onChange={(e) => setZoomLevel(Number(e.target.value))}
@@ -211,6 +164,7 @@ export const StatusBar: React.FC = () => {
               borderRadius: '3px',
               backgroundColor: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.08)',
+              display: 'none',
             }} title="Ultimo ID de solicitud">
               #{lastRequestId}
             </span>

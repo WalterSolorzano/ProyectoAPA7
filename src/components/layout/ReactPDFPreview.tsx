@@ -77,7 +77,7 @@ export const ReactPDFPreview: React.FC = () => {
   const [debouncedPortada] = useDebounce(portada, 500);
 
   if (!debouncedDoc) {
-    return <div className="text-center p-8 text-slate-500">No hay documento para previsualizar.</div>;
+    return <div className="text-center p-8" style={{ color: 'var(--text-tertiary)' }}>No hay documento para previsualizar.</div>;
   }
 
   // Generamos el documento dinámico

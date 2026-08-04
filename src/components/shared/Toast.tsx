@@ -1,82 +1,111 @@
-/* WordAPA7 — Toast Notification (Auto-fading) */
+/* WordAPA7 — Toast Container (4 tipos, bottom-right, nunca cortado)
+   Per plan §1.7: posición bottom-right con --space-4, stack vertical, máx 3 visibles. */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { CheckCircle, AlertTriangle, XCircle, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
 
-const TYPE_STYLES: Record<string, { bg: string; border: string; color: string; icon: React.ReactNode }> = {
-  success: {
-    bg: '#f0fdf4',
-    border: '#bbf7d0',
-    color: '#15803d',
-    icon: <CheckCircle size={16} />,
-  },
-  error: {
-    bg: '#fef2f2',
-    border: '#fecaca',
-    color: '#dc2626',
-    icon: <XCircle size={16} />,
-  },
-  info: {
-    bg: '#eff6ff',
-    border: '#bfdbfe',
-    color: '#1d4ed8',
-    icon: <AlertTriangle size={16} />,
-  },
+const ICONS = {
+  success: CheckCircle2,
+  error: AlertCircle,
+  info: Info,
+  warning: AlertTriangle,
+};
+
+const COLORS: Record<string, string> = {
+  success: 'var(--color-success)',
+  error: 'var(--color-danger)',
+  info: 'var(--color-info)',
+  warning: 'var(--color-warning)',
 };
 
 export const Toast: React.FC = () => {
-  const { toastMessage, toastType, clearToast } = useDocStore();
+  const { toasts, toastMessage, removeToast } = useDocStore();
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(clearToast, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage, clearToast]);
-
-  if (!toastMessage) return null;
-
-  const style = TYPE_STYLES[toastType] || TYPE_STYLES.info;
+  if (toasts.length === 0 && !toastMessage) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '48px',
-        right: '16px',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '10px 14px',
-        borderRadius: '8px',
-        backgroundColor: style.bg,
-        border: `1px solid ${style.border}`,
-        color: style.color,
-        fontSize: '13px',
-        fontWeight: 500,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-        maxWidth: '380px',
-        transition: 'opacity 0.2s ease',
-      }}
-    >
-      {style.icon}
-      <span style={{ flex: 1 }}>{toastMessage}</span>
-      <button
-        onClick={clearToast}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: style.color,
-          opacity: 0.6,
-          padding: '2px',
-          display: 'flex',
-        }}
-      >
-        <X size={14} />
-      </button>
+    <div style={{
+      position: 'fixed',
+      bottom: 'calc(var(--space-4) + 32px)',
+      right: 'var(--space-4)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--space-2)',
+      zIndex: 'var(--z-toast)',
+      maxWidth: '360px',
+      width: 'min(360px, calc(100vw - var(--space-8)))',
+      pointerEvents: 'none',
+    }}>
+      {toasts.map((toast) => {
+        const Icon = ICONS[toast.type] || Info;
+        const color = COLORS[toast.type] || COLORS.info;
+        return (
+          <div
+            key={toast.id}
+            role="status"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'var(--space-3)',
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderLeft: `4px solid ${color}`,
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-3) var(--space-4)',
+              boxShadow: 'var(--shadow-lg)',
+              pointerEvents: 'auto',
+              animation: 'toast-in 200ms ease-out',
+            }}
+          >
+            <Icon size={16} strokeWidth={1.75} color={color} style={{ flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', lineHeight: 1.45 }}>
+              {toast.message}
+            </span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => { toast.action!.onClick(); removeToast(toast.id); }}
+                style={{
+                  background: 'var(--color-accent-soft)',
+                  border: '1px solid var(--accent-primary)',
+                  cursor: 'pointer',
+                  color: 'var(--accent-primary)',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              aria-label="Cerrar notificación"
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--color-text-tertiary)', padding: 'var(--space-1)',
+                borderRadius: 'var(--radius-sm)', flexShrink: 0,
+              }}
+            >
+              <X size={14} strokeWidth={1.75} />
+            </button>
+          </div>
+        );
+      })}
+
+      <style>{`
+        @keyframes toast-in {
+          from { opacity: 0; transform: translateX(100%); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 };
+
+export default Toast;

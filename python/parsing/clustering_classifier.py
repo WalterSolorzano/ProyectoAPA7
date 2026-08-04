@@ -199,12 +199,25 @@ class ClusteringHeadingClassifier:
             for i in indices:
                 real_idx = fp_to_elem_idx[i]
                 elem = elements[real_idx]
-                if elem.type == ElementType.PARAGRAPH or (
-                    elem.type == ElementType.HEADING and (elem.confidence or 0) < 0.85
+                # Respetar exclusiones de Pasada 1/3 (captions de figura/tabla,
+                # textos legales, referencias APA). Estas NUNCA son headings.
+                if elem.pre_classifier_rule in (
+                    "exclude_table_caption", "exclude_table_legal",
+                    "exclude_figure_caption_upper", "reference_item",
                 ):
+                    continue
+                if elem.type == ElementType.PARAGRAPH:
                     elem.type = ElementType.HEADING
                     elem.heading_level = level
                     elem.confidence = min(0.95, score + 0.3)
                     elem.needs_review = score < 0.7
+                elif elem.type == ElementType.HEADING:
+                    # YA es un heading con un nivel inferido por la Pasada 3
+                    # (scoring heurístico). El clustering NO debe sobreescribir
+                    # ese nivel con el nivel del cluster: solo reforzar la
+                    # confianza y mantener la revisión pendiente si era ambiguo.
+                    elem.confidence = max(elem.confidence or 0, min(0.95, score + 0.3))
+                    if (elem.confidence or 0) < 0.85:
+                        elem.needs_review = True
 
         return elements

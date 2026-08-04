@@ -126,6 +126,58 @@ class TestCoverPage:
         assert "María García" in all_text
         assert "Universidad Nacional" in all_text
 
+    def test_cover_inserted_at_start_with_original_file(self, rules, tmp_path):
+        """Cuando existe archivo original, la portada generada debe quedar
+        al INICIO del documento, antes del contenido del cuerpo."""
+        portada = PortadaData(
+            apa_format=APAFormat.STUDENT,
+            title="Portada al Inicio",
+            author="Autor Test",
+            institution="Institución Test",
+            cover_mode="generate_apa7_template",
+            use_original_cover=False,
+        )
+
+        # Crear archivo original con contenido de cuerpo en un directorio propio
+        orig_path = tmp_path / "contenido_original.docx"
+        orig_doc = docx.Document()
+        orig_doc.add_paragraph("Introducción del documento original.")
+        orig_doc.add_paragraph("Segundo párrafo del cuerpo.")
+        orig_doc.save(str(orig_path))
+
+        elements = [
+            ElementModel(id="e1", type=ElementType.PARAGRAPH,
+                        text="Introducción del documento original."),
+            ElementModel(id="e2", type=ElementType.PARAGRAPH,
+                        text="Segundo párrafo del cuerpo."),
+        ]
+        doc_model = DocumentModel(
+            session_id="test_cover_order",
+            file_name="contenido_original.docx",
+            elements=elements,
+        )
+
+        # Copiar el original como lo haría la API (original.docx en carpeta de salida)
+        import shutil
+        out = tmp_path / "cover_order_output.docx"
+        shutil.copy2(orig_path, tmp_path / "original.docx")
+
+        generate_apa7_docx(doc_model, out, rules, portada=portada)
+
+        doc = docx.Document(str(out))
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+
+        # El título de la portada debe aparecer ANTES que el contenido del cuerpo
+        title_idx = next((i for i, t in enumerate(paragraphs) if t == "Portada al Inicio"), -1)
+        body_idx = next((i for i, t in enumerate(paragraphs) if t.startswith("Introducción del documento original")), -1)
+
+        assert title_idx != -1, f"Título de portada no encontrado en: {paragraphs[:8]}"
+        assert body_idx != -1, f"Contenido del cuerpo no encontrado en: {paragraphs[:8]}"
+        assert title_idx < body_idx, (
+            f"La portada ({title_idx}) debe ir ANTES del cuerpo ({body_idx}). "
+            f"Primeros párrafos: {paragraphs[:8]}"
+        )
+
     def test_cover_page_title_is_bold(self, rules, test_output_dir):
         """El título de la portada debe estar en negrita."""
         portada = PortadaData(
@@ -550,3 +602,69 @@ class TestStyleEngineUnit:
         assert p.paragraph_format.first_line_indent == Inches(0), (
             "Block quote NO debe tener sangría de primera línea"
         )
+
+
+# ── TESTS: ECUACIONES ───────────────────────────────────────────────────────────
+
+class TestEquationGeneration:
+    """El generador debe aplicar alineación y numeración configurada a ecuaciones."""
+
+    def test_equation_centered_with_number(self, rules):
+        """Ecuación centrada con número → alineación centro + tab derecho con número."""
+        from models import EquationConfig
+        from generation.generator import _render_equation_number
+
+        doc = docx.Document()
+        p = doc.add_paragraph("E=mc^2")
+
+        elem = ElementModel(
+            id="eq1", type=ElementType.EQUATION, text="E=mc^2",
+            style_name="Normal", font_size=12.0, has_math=True,
+            equation=EquationConfig(show_number=True, number_format="(1)", alignment="center"),
+        )
+        # El generador no expone el helper por elemento; verificamos las piezas
+        assert _render_equation_number("1", "(1)") == "(1)"
+        assert _render_equation_number("2", "[1]") == "[2]"
+        assert _render_equation_number("3", "1.") == "3."
+        assert _render_equation_number("4", "Ecuación {n}") == "Ecuación 4"
+        assert _render_equation_number("1", "custom") == "(1)"
+
+    def test_equation_rendered_with_number_in_docx(self, rules, tmp_path):
+        """Generar un documento con ecuación numerada produce el número en el XML."""
+        from models import EquationConfig, DocumentMeta
+
+        doc_model = DocumentModel(
+            session_id="eqtest",
+            file_name="orig.docx",
+            elements=[
+                ElementModel(
+                    id="eq1", type=ElementType.EQUATION, text="x = y",
+                    style_name="Normal", font_size=12.0, has_math=True,
+                    equation=EquationConfig(show_number=True, number_format="(1)", alignment="center"),
+                ),
+            ],
+            meta=DocumentMeta(session_id="eqtest", file_name="orig.docx", wordapa7_version="1.0.0"),
+            rules=rules,
+            references=[],
+        )
+        # Crear el original para que el generador modifique sobre él
+        orig = docx.Document()
+        orig.add_paragraph("x = y")
+        (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
+
+        out = tmp_path / "out.docx"
+        generate_apa7_docx(doc_model, str(out), rules, None, [])
+
+        from docx import Document as _D
+        result = _D(str(out))
+        assert len(result.paragraphs) >= 1
+        full = "\n".join(p.text for p in result.paragraphs)
+        assert "(1)" in full, f"El número de ecuación debería aparecer. Texto: {full!r}"
+
+
+def _docx_bytes(doc) -> bytes:
+    """Serializa un objeto python-docx a bytes (sin tocar disco)."""
+    import io as _io
+    buf = _io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()

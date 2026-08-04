@@ -16,11 +16,48 @@ from docx.oxml.ns import nsdecls, qn
 from models import APARuleSet
 
 
+def set_run_font(run, font_family: str, font_size_pt: float) -> None:
+    """
+    Aplica fuente y tamaño de forma robusta a nivel de run, incluyendo
+    atributos rFonts (ascii, hAnsi, eastAsia, cs) que python-docx no setea
+    por defecto. Esto garantiza que Word no herede la fuente del estilo
+    de párrafo o del numbering definition.
+    """
+    run.font.name = font_family
+    run.font.size = Pt(font_size_pt)
+    rPr = run._element.find(qn('w:rPr'))
+    if rPr is None:
+        rPr = OxmlElement('w:rPr')
+        run._element.insert(0, rPr)
+    rFonts = rPr.find(qn('w:rFonts'))
+    if rFonts is None:
+        rFonts = OxmlElement('w:rFonts')
+        rPr.insert(0, rFonts)
+    for attr in ('w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs'):
+        rFonts.set(qn(attr), font_family)
+    sz = rPr.find(qn('w:sz'))
+    if sz is None:
+        sz = OxmlElement('w:sz')
+        rPr.append(sz)
+    sz.set(qn('w:val'), str(int(font_size_pt * 2)))
+    szCs = rPr.find(qn('w:szCs'))
+    if szCs is None:
+        szCs = OxmlElement('w:szCs')
+        rPr.append(szCs)
+    szCs.set(qn('w:val'), str(int(font_size_pt * 2)))
+
+
 def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: bool = True) -> None:
     """
     Aplica margenes APA 7 (2.54 cm / 1 in) respetando secciones en landscape si existen.
+
+    Tambien normaliza el tamaño de página a Carta (8.5 x 11 in, w=12240 h=15840 twips)
+    en secciones portrait — evita que documentos A4/Legal/tabloide salgan con hojas
+    demasiado anchas. Las secciones landscape conservan su orientación.
     """
     margin_inches = rules.margins_cm / 2.54
+    LETTER_W_TWIPS = "12240"
+    LETTER_H_TWIPS = "15840"
 
     for section in doc.sections:
         is_landscape: bool = False
@@ -33,6 +70,19 @@ def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: 
         except Exception:
             pass
 
+        # Normalizar tamaño de página a Carta en portrait
+        if not (preserve_landscape and is_landscape):
+            try:
+                pg_sz = section._sectPr.find(qn("w:pgSz"))
+                if pg_sz is None:
+                    pg_sz = OxmlElement('w:pgSz')
+                    section._sectPr.append(pg_sz)
+                pg_sz.set(qn("w:w"), LETTER_W_TWIPS)
+                pg_sz.set(qn("w:h"), LETTER_H_TWIPS)
+                pg_sz.attrib.pop(qn("w:orient"), None)
+            except Exception:
+                pass
+
         if not (preserve_landscape and is_landscape):
             section.top_margin = Inches(margin_inches)
             section.bottom_margin = Inches(margin_inches)
@@ -42,14 +92,16 @@ def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: 
 
 def normalize_all_fonts(
     doc: docx.Document,
-    target_font: str = "Times New Roman",
-    target_size_pt: int = 12,
+    rules: Optional[APARuleSet] = None,
+    target_font: Optional[str] = None,
+    target_size_pt: Optional[int] = None,
+    skip_body_paragraphs: int = 0,
 ) -> None:
     """
     Normaliza TODAS las fuentes en el documento a la fuente APA.
 
     REGLA DURA — se aplica a:
-    - Parrafos normales
+    - Parrafos normales (salvo los primeros `skip_body_paragraphs`, que son la portada)
     - Runs dentro de parrafos (fuentes mixtas pegadas de internet)
     - Texto dentro de celdas de tabla (ALL cells)
     - Encabezados y pies de pagina
@@ -59,8 +111,8 @@ def normalize_all_fonts(
     """
     target_font_pt = Pt(target_size_pt)
 
-    # Normalizar parrafos del cuerpo
-    for para in doc.paragraphs:
+    # Normalizar parrafos del cuerpo (saltando la portada si se indica)
+    for para in doc.paragraphs[skip_body_paragraphs:]:
         _normalize_paragraph_runs(para, target_font, target_font_pt)
 
     # Normalizar celdas de tabla
@@ -80,6 +132,8 @@ def normalize_all_fonts(
             _normalize_paragraph_runs(para, target_font, target_font_pt)
 
     # Normalizar estilos de la plantilla directamente en el XML de styles.xml
+    if rules is None:
+        rules = APARuleSet()
     update_docx_styles_xml(doc, rules)
 
 
@@ -221,36 +275,6 @@ def _normalize_paragraph_runs(para, target_font: str, target_size) -> None:
         run.font.size = target_size
 
 
-def _all_runs_bold(paragraph) -> bool:
-    """Verifica si todos los runs con texto tienen bold=True."""
-    text_runs = [r for r in paragraph.runs if r.text.strip()]
-    if not text_runs:
-        return False
-    return all(r.bold for r in text_runs)
-
-
-def apply_style_clean(
-    paragraph,
-    style_name: str,
-    preserve_inline_emphasis: bool = True,
-) -> None:
-    """
-    Aplica estilo APA limpiando formato directo conflictivo.
-
-    Preserva negrita parcial (enfasis intencional en una palabra).
-    Limpia negrita total (era un heading manual mal formateado).
-    """
-    all_bold = _all_runs_bold(paragraph)
-    paragraph.style = style_name
-
-    for run in paragraph.runs:
-        run.font.name = None   # Hereda del estilo
-        run.font.size = None   # Hereda del estilo
-        if all_bold and not preserve_inline_emphasis:
-            run.bold = None
-        # NO limpiar negrita parcial -> es enfasis intencional
-
-
 def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preserve_text: bool = False) -> None:
     """
     Formatea un titulo estrictamente segun los 5 niveles APA 7:
@@ -273,21 +297,15 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
 
     if preserve_text:
         for r in p.runs:
-            r.font.name = rules.font_family
-            if not r.font.size:
-                r.font.size = Pt(rules.font_size_pt)
+            set_run_font(r, rules.font_family, rules.font_size_pt)
         return
-
-    font_name: str = rules.font_family
-    font_size = Pt(rules.font_size_pt)
 
     if level == 1:
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.first_line_indent = Inches(0)
         run = p.add_run(text)
         run.bold = True
-        run.font.name = font_name
-        run.font.size = font_size
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
 
     elif level == 2:
@@ -295,8 +313,7 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
         p.paragraph_format.first_line_indent = Inches(0)
         run = p.add_run(text)
         run.bold = True
-        run.font.name = font_name
-        run.font.size = font_size
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
 
     elif level == 3:
@@ -305,8 +322,7 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
         run = p.add_run(text)
         run.bold = True
         run.italic = True
-        run.font.name = font_name
-        run.font.size = font_size
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
 
     elif level == 4:
@@ -315,8 +331,7 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
         formatted_text: str = text if text.endswith(".") else text + "."
         run = p.add_run(formatted_text + " ")
         run.bold = True
-        run.font.name = font_name
-        run.font.size = font_size
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
 
     elif level == 5:
@@ -326,8 +341,7 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
         run = p.add_run(formatted_text + " ")
         run.bold = True
         run.italic = True
-        run.font.name = font_name
-        run.font.size = font_size
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
 
 
@@ -356,15 +370,11 @@ def format_normal_paragraph(p, text: str, rules: APARuleSet, preserve_text: bool
 
     if not preserve_text:
         run = p.add_run(text)
-        run.font.name = rules.font_family
-        run.font.size = Pt(rules.font_size_pt)
+        set_run_font(run, rules.font_family, rules.font_size_pt)
         run.font.color.rgb = RGBColor(0, 0, 0)
     else:
-        # Solo aplicar fuente al parrafo si se puede, o iterar runs de manera segura
         for r in p.runs:
-            r.font.name = rules.font_family
-            if not r.font.size:
-                r.font.size = Pt(rules.font_size_pt)
+            set_run_font(r, rules.font_family, rules.font_size_pt)
 
 
 def format_block_quote(p, text: str, rules: APARuleSet) -> None:
@@ -388,8 +398,7 @@ def format_block_quote(p, text: str, rules: APARuleSet) -> None:
     p.paragraph_format.space_after = Pt(0)
 
     run = p.add_run(text)
-    run.font.name = rules.font_family
-    run.font.size = Pt(rules.font_size_pt)
+    set_run_font(run, rules.font_family, rules.font_size_pt)
     run.font.color.rgb = RGBColor(0, 0, 0)
 
 

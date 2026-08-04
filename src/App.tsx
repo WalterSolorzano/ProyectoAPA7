@@ -2,69 +2,125 @@
 
 import React, { useState, useEffect } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
-import { AppTitlebar } from './components/layout/AppTitlebar';
+import { needsReview } from './lib/portadaAuthors';
 import { UnifiedToolbar } from './components/toolbar/UnifiedToolbar';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
-import { DocumentOutlinePane } from './components/layout/DocumentOutlinePane';
-import { NavigationOutlinePane } from './components/layout/NavigationOutlinePane';
 import { TemplateDialog } from './components/shared/TemplateDialog';
-import { PaperCanvas } from './components/layout/PaperCanvas';
 import { ElementInspector } from './components/inspector/ElementInspector';
 import { PDFPreview } from './components/layout/PDFPreview';
 import { ReactPDFPreview } from './components/layout/ReactPDFPreview';
 import { StatusBar } from './components/layout/StatusBar';
-import { PortadaView } from './components/portada/PortadaView';
-import { ReferenciasView } from './components/referencias/ReferenciasView';
-import { RulesView } from './components/rules/RulesView';
-import { ValidatorView } from './components/validator/ValidatorView';
-import { Wizard } from './pages/Wizard';
 import { Step0QuickStart } from './components/wizard/Step0QuickStart';
-import { CoverDesignerPanel } from './components/wizard/CoverDesignerPanel';
+import { SettingsPreviewStudio } from './components/settings/SettingsPreviewStudio';
+import { DownloadModal } from './components/wizard/DownloadModal';
+import { DocumentMascot, getMascotExpression } from './components/layout/DocumentMascot';
+import { LoadingTips } from './components/layout/LoadingTips';
+import { DownloadSuccessOverlay } from './components/layout/DownloadSuccessOverlay';
+import { CommandPalette } from './components/CommandPalette';
 
 // Guided Wizard Components
-import { Step0PreferencesModal } from './components/wizard/Step0PreferencesModal';
 import { Step1PortadaWizard } from './components/wizard/Step1PortadaWizard';
 import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
-import { Step3FiguresWizard } from './components/wizard/Step3FiguresWizard';
-import { Step4TablesWizard } from './components/wizard/Step4TablesWizard';
+import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
-import { Step6ExportWizard } from './components/wizard/Step6ExportWizard';
+import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
 
-import { SessionRecoveryDialog } from './components/shared/SessionRecoveryDialog';
 import { LLMProgressPanel } from './components/shared/LLMProgressPanel';
+import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { ResizablePanel } from './components/shared/ResizablePanel';
 import { Toast } from './components/shared/Toast';
 import { OnboardingTour } from './components/shared/OnboardingTour';
-import { Eye, Settings, Sparkles, Palette } from 'lucide-react';
 import * as api from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
+import { ReviewPanel } from './components/reviewer/ReviewPanel';
+import { ContentReviewPanel } from './components/reviewer/ContentReviewPanel';
+import { AIStudioPanel } from './components/shared/AIStudioPanel';
+import { DesignAuditor } from './components/auditor/DesignAuditor';
+import { syncAllProviderKeys } from './api/backend';
+
+const pendingCountForPhase = (phaseId: number) => {
+  const doc = useDocStore.getState().doc;
+  if (!doc) return 0;
+  if (phaseId === 2) {
+    return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
+  }
+  if (phaseId === 3) {
+    const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
+    const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
+    return figures + tables;
+  }
+  return 0;
+};
 
 export const App: React.FC = () => {
   const {
     doc,
-    activeTab,
     showFileMenu,
-    wizardComplete,
-    recoverySession,
-    recoveryDismissed,
-    setRecoverySession,
-    dismissRecovery,
     exportDocx,
+    exportPdf,
     undo,
     redo,
     wizardStep,
+    setWizardStep,
     llmProgress,
     setIsNIMDiagnosticsOpen,
     viewMode,
     forceRightPanelOpen,
+    settingsStudioOpen,
+    commandPaletteOpen,
+    atHome,
+    goHome,
+    tabs,
+    isReviewOpen,
+    isContentReviewOpen,
+    aiStudioOpen,
+    auditorMode,
+    setAuditorMode,
   } = useDocStore();
 
-  const [rightPanel, setRightPanel] = useState<'inspector' | 'preview' | 'cover-designer'>('inspector');
   const [llmProgressExpanded, setLlmProgressExpanded] = useState(false);
+
+  // Auto-oculta el panel de progreso unos segundos después de completar o fallar,
+  // para que no quede cubriendo la sección (el usuario pidió que se empequeñezca/solo)
+  useEffect(() => {
+    if (llmProgress.status !== 'complete' && llmProgress.status !== 'error') return;
+    const t = setTimeout(() => {
+      useDocStore.setState({
+        llmProgress: {
+          status: 'idle',
+          total_batches: 0,
+          completed_batches: 0,
+          current_provider: '',
+          current_provider_id: '',
+          elements_processed: 0,
+          elements_total: 0,
+          estimated_time_remaining_seconds: 0,
+          provider_fallbacks: [],
+          last_error: null,
+        },
+      });
+    }, 9000);
+    return () => clearTimeout(t);
+  }, [llmProgress.status, llmProgress.elements_total]);
 
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
   // This prevents the app from auto-loading the last document on startup (Word behavior)
+
+  // Saludo de bienvenida según la hora, una sola vez al abrir la app
+  useEffect(() => {
+    if (sessionStorage.getItem('wordapa7-greeting-shown')) return;
+    sessionStorage.setItem('wordapa7-greeting-shown', '1');
+    const hour = new Date().getHours();
+    const late = hour >= 1 && hour < 5;
+    const morning = hour >= 5 && hour < 12;
+    const afternoon = hour >= 12 && hour < 20;
+    let msg = 'buenas noches';
+    if (late) msg = 'buenas noches, vamos a formatear esto';
+    else if (morning) msg = 'buenos días';
+    else if (afternoon) msg = 'buenas tardes';
+    useDocStore.getState().showToast(msg, 'info');
+  }, []);
 
   // Global backend readiness: listen for the IPC event from Electron PythonManager
   // This is the SINGLE source of truth for isBackendReady across the entire app
@@ -78,6 +134,10 @@ export const App: React.FC = () => {
         const res = await fetch(`http://127.0.0.1:${port}/api/version`);
         if (res.ok) {
           useDocStore.setState({ isBackendReady: true });
+          // Sincroniza las claves de IA guardadas (localStorage) con el backend
+          // para que "Refinar con IA", "Revisor" y "Generar 3 versiones" funcionen
+          // sin tener que abrir antes el panel de Ajustes.
+          syncAllProviderKeys().catch(() => {});
         }
       } catch (_) {}
     };
@@ -88,7 +148,26 @@ export const App: React.FC = () => {
       
       const cleanup = electronWindow.electronAPI.onPythonReady(() => {
         useDocStore.setState({ isBackendReady: true });
+        // El backend se reinició (watchdog) y perdió las claves de os.environ:
+        // re-sincronizarlas para que la IA siga funcionando.
+        syncAllProviderKeys().catch(() => {});
+        useDocStore.getState().showToast('Motor de procesamiento listo', 'success');
       });
+
+      // Watchdog: el backend crasheó o se está reiniciando
+      if (electronWindow.electronAPI.onPythonCrashed) {
+        electronWindow.electronAPI.onPythonCrashed(() => {
+          useDocStore.setState({ isBackendReady: false });
+          useDocStore.getState().showToast('El motor falló y no pudo reiniciarse. Reiniciá la app.', 'error');
+        });
+      }
+      if (electronWindow.electronAPI.onPythonRestarting) {
+        electronWindow.electronAPI.onPythonRestarting(() => {
+          useDocStore.setState({ isBackendReady: false });
+          useDocStore.getState().showToast('El motor se está reiniciando…', 'info');
+        });
+      }
+
       return () => { if (typeof cleanup === 'function') cleanup(); };
     } else {
       // Web/development mode: poll until backend responds
@@ -117,11 +196,54 @@ export const App: React.FC = () => {
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable;
       if (isInput) return;
 
+      // Escape cierra las UIs superpuestas de mayor a menor prioridad
+      if (e.key === 'Escape') {
+        const s = useDocStore.getState();
+        if (s.isReviewOpen) { s.setReviewOpen(false); return; }
+        if (s.isContentReviewOpen) { s.setContentReviewOpen(false); return; }
+        if (s.isNIMDiagnosticsOpen) { s.setIsNIMDiagnosticsOpen(false); return; }
+        if (s.aiStudioOpen) { s.setAiStudioOpen(false); return; }
+        if (s.commandPaletteOpen) { s.setCommandPaletteOpen(false); return; }
+        if (s.showFileMenu) { s.setShowFileMenu(false); return; }
+        if (s.isDownloadModalOpen) { s.setDownloadModalOpen(false); return; }
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey) {
+        if (e.shiftKey && (e.key === ']' || e.key === '}')) {
+          e.preventDefault();
+          if (!doc) return;
+          const step = useDocStore.getState().wizardStep;
+          if (step < 5) useDocStore.getState().setWizardStep(step + 1);
+          return;
+        }
+        if (e.shiftKey && (e.key === '[' || e.key === '{')) {
+          e.preventDefault();
+          if (!doc) return;
+          const step = useDocStore.getState().wizardStep;
+          if (step > 1) useDocStore.getState().setWizardStep(step - 1);
+          return;
+        }
+
         switch (e.key.toLowerCase()) {
+          case 'enter': {
+            e.preventDefault();
+            if (!doc) break;
+            const step = useDocStore.getState().wizardStep;
+            const nextWithPending = [1, 2, 3, 4, 5].find(s => s > step && pendingCountForPhase(s) > 0);
+            if (nextWithPending) {
+              useDocStore.getState().setWizardStep(nextWithPending);
+            } else if (step < 5) {
+              useDocStore.getState().setWizardStep(step + 1);
+            }
+            break;
+          }
           case 's':
             e.preventDefault();
-            if (doc) exportDocx(false);
+            if (doc) {
+              if (e.shiftKey) exportPdf();
+              else exportDocx(false);
+            }
             break;
           case 'z':
             e.preventDefault();
@@ -130,6 +252,24 @@ export const App: React.FC = () => {
           case 'y':
             e.preventDefault();
             redo();
+            break;
+          case 'k':
+            e.preventDefault();
+            useDocStore.setState({ commandPaletteOpen: true });
+            break;
+          case '1': case '2': case '3': case '4': case '5':
+            e.preventDefault();
+            if (doc) {
+              useDocStore.getState().setWizardStep(parseInt(e.key));
+            }
+            break;
+          case '6':
+            e.preventDefault();
+            if (doc) {
+              useDocStore.getState().setDownloadModalOpen(true);
+            }
+            break;
+          default:
             break;
         }
       }
@@ -152,46 +292,80 @@ export const App: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [doc, exportDocx, undo, redo]);
+  }, [doc, exportDocx, exportPdf, undo, redo]);
 
-  // Handle session recovery
-  const handleRecoverSession = async (sessionId: string) => {
-    try {
-      let recovered = await api.recoverSession(sessionId);
-      recovered = migrateDocument(recovered);
-      dismissRecovery();
-      useDocStore.setState({ doc: recovered, wizardComplete: true, wizardStep: 1 });
-    } catch {
-      dismissRecovery();
-    }
-  };
+  // Native menu events dispatched by the Electron handler above
+  // (trigger-upload, wordapa7-start-blank, trigger-preferences, wordapa7-start-template)
+  useEffect(() => {
+    const listeners: Array<[string, () => void]> = [
+      ['trigger-upload', () => useDocStore.getState().setShowFileMenu(true)],
+      ['wordapa7-start-blank', () => { useDocStore.getState().startBlankDocument(); }],
+      ['trigger-preferences', () => useDocStore.getState().setSettingsStudioOpen(true)],
+      ['wordapa7-start-template', () => useDocStore.getState().setShowTemplateDialog(true)],
+    ];
+    const cleanups = listeners.map(([action, handler]) => {
+      const fn = () => handler();
+      window.addEventListener(action, fn);
+      return () => window.removeEventListener(action, fn);
+    });
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, []);
 
-  const handleStartFresh = () => {
-    dismissRecovery();
-  };
+  // Settings Studio (previsualizador de ajustes) — full screen override
+  if (settingsStudioOpen) {
+    return (
+      <>
+        <SettingsPreviewStudio
+          onClose={() => useDocStore.setState({ settingsStudioOpen: false })}
+        />
+        <LoadingTips />
+        <Toast />
+      </>
+    );
+  }
 
-  // Welcome / Quick Start screen — always show when no doc is loaded
-  if (!doc) {
-    return <Step0QuickStart />;
+  // Quick Start screen — show when no doc OR when the user returned "home"
+  // (like Word's backstage). Open tabs remain accessible via ProjectTabs.
+  if (!doc || atHome) {
+    return (
+      <>
+        {tabs.length > 0 && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 15 }}>
+            <ProjectTabs />
+          </div>
+        )}
+        <Step0QuickStart />
+        {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
+        <LoadingTips />
+        {isReviewOpen && <ReviewPanel />}
+        {aiStudioOpen && <AIStudioPanel />}
+        <ContentReviewPanel />
+        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
+        <Toast />
+      </>
+    );
   }
 
   // File menu
   if (showFileMenu) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', borderRadius: '0', backgroundColor: 'var(--app-bg)' }}>
-        <FileMenu />
-        <StatusBar />
-      </div>
+      <>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', borderRadius: '0', backgroundColor: 'var(--app-bg)' }}>
+          <FileMenu />
+          <StatusBar />
+        </div>
+        <LoadingTips />
+        <Toast />
+      </>
     );
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', borderRadius: '0', overflow: 'hidden', backgroundColor: 'var(--app-bg)', position: 'relative' }}>
-      <AppTitlebar />
       <UnifiedToolbar />
       <ProjectTabs />
       
-      <div className="app-main" style={{ flex: 1, overflow: 'hidden', display: 'flex', backgroundColor: 'var(--app-bg)' }}>
+      <div className="app-main" style={{ flex: 1, overflow: 'hidden', display: 'flex', backgroundColor: 'var(--app-bg)', minWidth: 0 }}>
         {viewMode === 'result' ? (
           <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <PDFPreview />
@@ -201,20 +375,16 @@ export const App: React.FC = () => {
              <ReactPDFPreview />
           </div>
         ) : viewMode === 'split' ? (
-          <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
             {/* Editor Side */}
-            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden' }}>
-              <ResizablePanel side="left" defaultWidth={240} minWidth={140} maxWidth={400} localStorageKey="wordapa7-nav-width">
-                <NavigationOutlinePane />
-              </ResizablePanel>
-              <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden' }}>
-                {wizardStep === 0 && <Step0PreferencesModal />}
+            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
+              <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}`}>
+                {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
                 {wizardStep === 1 && <Step1PortadaWizard />}
                 {wizardStep === 2 && <Step2HeadingsWizard />}
-                {wizardStep === 3 && <Step3FiguresWizard />}
-                {wizardStep === 4 && <Step4TablesWizard />}
-                {wizardStep === 5 && <Step5BodyWizard />}
-                {wizardStep === 6 && <Step6ExportWizard />}
+                {wizardStep === 3 && <Step3FiguresTablesWizard />}
+                {wizardStep === 4 && <Step5BodyWizard />}
+                {wizardStep === 5 && <Step5ReferencesWizard />}
               </div>
             </div>
             {/* Preview Side */}
@@ -224,65 +394,26 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Panel de navegación jerárquico (reemplaza al DocumentOutlinePane) */}
-            <ResizablePanel side="left" defaultWidth={240} minWidth={140} maxWidth={400} localStorageKey="wordapa7-nav-width">
-              <NavigationOutlinePane />
-            </ResizablePanel>
-
             {/* Renderizado Guiado según el Paso Actual del Asistente */}
-            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden' }}>
-              {wizardStep === 0 && <Step0PreferencesModal />}
+            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minHeight: 0, minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
+              {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
               {wizardStep === 1 && <Step1PortadaWizard />}
               {wizardStep === 2 && <Step2HeadingsWizard />}
-              {wizardStep === 3 && <Step3FiguresWizard />}
-              {wizardStep === 4 && <Step4TablesWizard />}
-              {wizardStep === 5 && <Step5BodyWizard />}
-              {wizardStep === 6 && <Step6ExportWizard />}
+              {wizardStep === 3 && <Step3FiguresTablesWizard />}
+              {wizardStep === 4 && <Step5BodyWizard />}
+              {wizardStep === 5 && <Step5ReferencesWizard />}
             </div>
 
-            {/* Panel Derecho: Inspector / Preview / Cover Designer (pasos 1 a 5) */}
-            {(wizardStep >= 1 && wizardStep <= 5 || forceRightPanelOpen) && (
+            {/* Panel Derecho: solo visible cuando el usuario lo activa manualmente */}
+            {forceRightPanelOpen && (
               <ResizablePanel side="right" defaultWidth={320} minWidth={250} maxWidth={600} localStorageKey="wordapa7-inspector-width">
                 <div className="inspector-pane" style={{
                   flexShrink: 0, display: 'flex', flexDirection: 'column',
                   height: '100%', overflow: 'hidden',
                   background: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
                 }}>
-                  {(wizardStep >= 1 && wizardStep <= 5 || forceRightPanelOpen) && (
-                    <div style={{
-                      display: 'flex', borderBottom: '1px solid var(--border-subtle)',
-                      flexShrink: 0,
-                    }}>
-                      <button
-                        className={`ribbon-tab${rightPanel === 'inspector' ? ' active' : ''}`}
-                        onClick={() => setRightPanel('inspector')}
-                        style={{ flex: 1, justifyContent: 'center' }}
-                      >
-                        <Settings size={12} style={{ marginRight: '4px' }} />
-                        Inspector
-                      </button>
-                      <button
-                        className={`ribbon-tab${rightPanel === 'preview' ? ' active' : ''}`}
-                        onClick={() => setRightPanel('preview')}
-                        style={{ flex: 1, justifyContent: 'center' }}
-                      >
-                        <Eye size={12} style={{ marginRight: '4px' }} />
-                        Vista HTML
-                      </button>
-                      <button
-                        className={`ribbon-tab${rightPanel === 'cover-designer' ? ' active' : ''}`}
-                        onClick={() => setRightPanel('cover-designer')}
-                        style={{ flex: 1, justifyContent: 'center' }}
-                      >
-                        <Palette size={12} style={{ marginRight: '4px' }} />
-                        Portadas
-                      </button>
-                    </div>
-                  )}
                   <div style={{ flex: 1, overflow: 'hidden' }}>
-                    {rightPanel === 'inspector' && <ElementInspector />}
-                    {rightPanel === 'preview' && <PDFPreview />}
-                    {rightPanel === 'cover-designer' && <CoverDesignerPanel />}
+                    <ElementInspector />
                   </div>
                 </div>
               </ResizablePanel>
@@ -320,10 +451,70 @@ export const App: React.FC = () => {
 
       <OnboardingTour />
 
+      <DownloadModal />
+
+      <LLMConsentDialog />
+
+      {doc && commandPaletteOpen && <CommandPalette />}
+
       <Toast />
+
+      {/* Mascota fija en la esquina — clickable con burbuja "Tocame" */}
+      {doc && (
+        <div
+          className="doc-mascot-corner"
+          onClick={() => {
+            const s = useDocStore.getState();
+            const ex = getMascotExpression();
+            if (ex === 'worried' || ex === 'curious') {
+              s.setContentReviewOpen(true);
+            } else {
+              s.setReviewOpen(true);
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          aria-label="Abrir revisión"
+        >
+          {(() => {
+            const ex = getMascotExpression();
+            if (ex === 'worried' || ex === 'curious') {
+              return (
+                <div className="doc-mascot-bubble">
+                  {ex === 'worried' ? '¡Tocame! Hay cosas que revisar' : 'Oye, tocame un segundo'}
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <DocumentMascot size={48} />
+          <span className="doc-mascot-label">
+            {(() => {
+              const ex = getMascotExpression();
+              if (ex === 'worried') return 'hay cosas por revisar';
+              if (ex === 'curious') return 'con un par de cositas';
+              if (ex === 'excited') return 'todo limpio';
+              return 'todo tranqui';
+            })()}
+          </span>
+        </div>
+      )}
+
+      {/* Pantalla de carga estilo juego (mascota + tips) */}
+      <LoadingTips />
+
+      {/* Micro-animación de cierre cuando la descarga termina con éxito */}
+      <DownloadSuccessOverlay />
 
       <StatusBar />
       <AIBatteryIndicator />
+
+      {isReviewOpen && <ReviewPanel />}
+
+      {isContentReviewOpen && <ContentReviewPanel />}
+
+      {aiStudioOpen && <AIStudioPanel />}
+        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
     </div>
   );
 };

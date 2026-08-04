@@ -9,15 +9,16 @@ import { log } from './logger'
 let mainWindow: BrowserWindow | null = null
 
 async function createWindow() {
-  nativeTheme.themeSource = 'light' // Force native window elements to light theme
+  // El tema se sincroniza desde la UI vía IPC 'set-theme' (light por defecto).
+  nativeTheme.themeSource = 'light'
   
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 768,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#ffffff',
-      symbolColor: '#333333'
+      color: '#ffffff',        // --sidebar-bg claro (default de la app)
+      symbolColor: '#1a1a2e'   // --text-main oscuro para los símbolos nativos
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -43,6 +44,17 @@ async function createWindow() {
   }
 
   // DevTools debugging removed for production
+
+  // Zoom hardening (plan §3.2 fix #4): bloquear zoomLevel a 0 salvo acción explícita,
+  // y acotarlo entre 0.5 y 2.0 para evitar el bug de zoom atascado en 235%.
+  mainWindow.webContents.setZoomLevel(0);
+  mainWindow.webContents.on('zoom-changed', (_event, zoomDirection) => {
+    const current = mainWindow?.webContents.getZoomLevel() || 0;
+    const next = zoomDirection === 'in' ? current + 0.5 : current - 0.5;
+    if (next >= -0.5 && next <= 1.0) {
+      mainWindow?.webContents.setZoomLevel(next);
+    }
+  });
 
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
     // level: 0 = debug, 1 = info, 2 = warning, 3 = error
@@ -80,6 +92,16 @@ app.whenReady().then(() => {
   
   ipcMain.on('add-recent-document', (event, filePath) => {
     RecentProjects.add(filePath)
+  })
+
+  ipcMain.on('set-theme', (_event, theme: 'light' | 'dark') => {
+    nativeTheme.themeSource = theme === 'dark' ? 'dark' : 'light'
+    if (mainWindow) {
+      mainWindow.setTitleBarOverlay({
+        color: theme === 'dark' ? '#18181c' : '#ffffff',
+        symbolColor: theme === 'dark' ? '#e8e8ea' : '#1a1a2e',
+      })
+    }
   })
 
   ipcMain.on('get-backend-port', (event) => {

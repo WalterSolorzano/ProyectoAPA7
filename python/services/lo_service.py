@@ -52,8 +52,10 @@ class LibreOfficeService:
             return False
         with self._lock:
             try:
+                import uuid
+                env_arg = f"-env:UserInstallation=file:///{Path.home().as_posix()}/.lo_convert_{uuid.uuid4().hex}"
                 result = subprocess.run(
-                    [self._lo_path, '--headless', '--norestore',
+                    [self._lo_path, env_arg, '--headless', '--norestore',
                      '--convert-to', output_format,
                      '--outdir', str(output_dir.resolve()),
                      str(input_path.resolve())],

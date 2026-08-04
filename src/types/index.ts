@@ -14,6 +14,7 @@ export type ElementType =
   | 'portada_block'
   | 'equation'
   | 'toc'
+  | 'caption'
   | 'unknown';
 
 export type APAFormat = 'student' | 'professional';
@@ -51,6 +52,7 @@ export interface ImageModel {
   file_path: string;
   filename: string;
   relative_url: string;
+  render_error?: string | null;
   width_cm: number;
   height_cm: number;
   caption: string;
@@ -64,6 +66,12 @@ export interface ImageModel {
   caption_position: 'above' | 'below';
   constrain_proportions: boolean;
   design_style: DesignStyle;
+  rotation?: number;
+  alt_text?: string;
+  // Floating (anchor) attributes
+  is_anchor?: boolean;
+  anchor_pos_h?: string | null;
+  anchor_pos_v?: string | null;
 }
 
 export interface TableModel {
@@ -144,6 +152,30 @@ export interface ElementModel {
   // AI detection
   ai_score?: number;
   ai_findings?: AIFinding[];
+  has_shading_residue?: boolean;
+  has_web_shading_residue?: boolean;
+
+  // Math preservation
+  has_math?: boolean;
+  has_fields?: boolean;
+
+  // Equation presentation config
+  equation?: EquationConfig;
+
+  // Extra fields echoed from Python ElementModel
+  ai_matches?: string[] | null;
+  footnote_ids?: number[];
+  hyperlinks?: Array<Record<string, string>>;
+  bookmarks?: Array<Record<string, string>>;
+}
+
+export interface EquationConfig {
+  show_number: boolean;
+  number_format: string;   // "(1)" | "[1]" | "1." | "(1.1)" | "Ecuación 1"
+  number?: string;
+  alignment: string;       // "left" | "center" | "right"
+  font_name: string;
+  font_size_pt: number;
 }
 
 // ── APA RULES ─────────────────────────────────────────────────────────────────
@@ -195,6 +227,11 @@ export interface APARuleSet {
   // Figures and tables
   figure_label_prefix: string;
   table_label_prefix: string;
+
+  // Visual preview studio (optional, defaults applied in UI)
+  image_alignment?: 'left' | 'center' | 'right';
+  image_style?: 'plain' | 'journal';
+  toc_style?: 'apa' | 'dotted' | 'plain';
 }
 
 // ── PORTADA ───────────────────────────────────────────────────────────────────
@@ -203,10 +240,13 @@ export interface PortadaData {
   apa_format: APAFormat;
   use_original_cover?: boolean;
   force_skip_cover?: boolean;
+  cover_template_id?: string;
+  cover_mode?: string;
   title: string;
   author: string;
   institution: string;
   course?: string;
+  grupo?: string;
   instructor?: string;
   date?: string;
   running_head?: string;
@@ -216,7 +256,8 @@ export interface PortadaData {
 export interface PortadaProfile {
   profile_name: string;
   created_at: string;
-  data: PortadaData;
+  data?: PortadaData;
+  field_map?: Record<string, any>;
 }
 
 // ── REFERENCES ────────────────────────────────────────────────────────────────
@@ -230,6 +271,8 @@ export interface ReferenciaModel {
   doi_or_url?: string;
   raw_text: string;
   formatted_apa?: string;
+  cited_count?: number;
+  never_cited?: boolean;
 }
 
 // ── CITATIONS ─────────────────────────────────────────────────────────────────
@@ -254,10 +297,19 @@ export interface ValidationIssue {
   suggestion: string;
 }
 
+// Python ValidationItem — shape que llega en el JSON de sesión (doc.apa_validation)
+export interface ValidationItem {
+  category: string;
+  status: ValidationStatus;
+  message: string;
+  element_id?: string | null;
+  auto_fixable?: boolean;
+}
+
 export interface APAValidationResult {
   score: number;
   generated_at: string;
-  items: ValidationIssue[];
+  items: (ValidationIssue | ValidationItem)[];
 }
 
 // ── DOCUMENT METADATA ─────────────────────────────────────────────────────────
@@ -267,6 +319,8 @@ export interface SectionInfo {
   orientation: string;
   margins_original: Record<string, number>;
   preserve_margins: boolean;
+  columns?: number | null;
+  columns_space?: number | null;
 }
 
 export interface DocumentMeta {
@@ -288,10 +342,28 @@ export interface DocumentMeta {
   content_source: string;
   content_warning?: string;
   sections: SectionInfo[];
-  page_count_exact?: number;
+  page_count_exact?: boolean;
   paragraph_pages?: number[];
   page_layout_provider?: string;
   page_layout_confidence?: number;
+  // Bookmarks / hyperlinks
+  has_bookmarks?: boolean;
+  has_hyperlinks?: boolean;
+  hyperlink_count?: number;
+  // Preventive truncation (WORDAPA7_MAX_ELEMENTS)
+  elements_truncated?: boolean;
+  elements_truncated_at?: number;
+  forensic_metadata?: Record<string, any>;
+  // Footnotes / endnotes (lista de {id, text, is_endnote})
+  footnotes?: Array<Record<string, any>>;
+  // Word comments (lista de {id, author, text})
+  comments?: Array<Record<string, any>>;
+  comment_count?: number;
+  // Track changes / multicolumn / smartart / charts
+  has_track_changes?: boolean;
+  has_multicolumn?: boolean;
+  has_smartart?: boolean;
+  has_charts?: boolean;
 }
 
 // ── DOCUMENT MODEL (root) ─────────────────────────────────────────────────────

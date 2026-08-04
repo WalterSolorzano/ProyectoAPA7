@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 class WordCOMService:
     def __init__(self):
-        self._lock = threading.Lock()
+        # RLock: `word` adquiere el lock y llama a `start()`/`stop()` que
+        # re-adquieren el mismo lock. Con threading.Lock eso es un deadlock.
+        self._lock = threading.RLock()
         self.is_windows = sys.platform == "win32"
         self._word = None
         self._pid = None
@@ -18,9 +20,24 @@ class WordCOMService:
         if not self.is_windows:
             return False
         try:
-            import win32com.client
-            return True
+            import win32com.client  # noqa
         except ImportError:
+            return False
+        # Verificar que Word esté realmente instalado (WINWORD.EXE presente)
+        try:
+            import shutil
+            from pathlib import Path
+            winword = shutil.which("WINWORD.EXE") or Path(
+                r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE"
+            )
+            if winword and Path(winword).exists():
+                return True
+            for office in ["Office16", "Office15", "Office14"]:
+                for pf in [r"C:\Program Files\Microsoft Office", r"C:\Program Files (x86)\Microsoft Office"]:
+                    if (Path(pf) / "root" / office / "WINWORD.EXE").exists():
+                        return True
+            return False
+        except Exception:
             return False
 
     def start(self):
@@ -65,6 +82,20 @@ class WordCOMService:
                 except Exception:
                     pass
                 self._pid = None
+
+    def kill_created_word(self):
+        """Mata el proceso WINWORD.EXE creado por esta instancia (si está colgado)."""
+        with self._lock:
+            pid = self._pid
+        if pid:
+            try:
+                p = psutil.Process(pid)
+                if p.name() == 'WINWORD.EXE':
+                    p.kill()
+            except Exception:
+                pass
+            self._pid = None
+            self._word = None
 
     @property
     def word(self) -> Any:

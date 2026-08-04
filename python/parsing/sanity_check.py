@@ -46,6 +46,16 @@ def verify_document_content_integrity(
     orig_chars = sum(len(n.text) for n in orig_nodes if n.is_editable)
     gen_chars = sum(len(n.text) for n in gen_nodes if n.is_editable)
 
+    # Tolerancia adaptativa: el conteo crudo de caracteres no normaliza
+    # espacios/acentos/estructura, así que en documentos cortos la variación
+    # legítima es proporcionalmente grande. Escala según el tamaño del original.
+    if orig_chars < 2000:
+        tolerance = 0.30
+    elif orig_chars < 10000:
+        tolerance = 0.15
+    else:
+        tolerance = 0.05
+
     if orig_chars > 0:
         min_allowed = int(orig_chars * (1.0 - tolerance))
         if gen_chars < min_allowed:

@@ -350,6 +350,48 @@ class TestParagraphDetection:
             f"Esperado PARAGRAPH o HEADING, obtenido {result[0].type}"
         )
 
+    def test_table_caption_bold_is_paragraph(self):
+        """Caption de tabla en negrita con formato de heading debe ser PARAGRAPH."""
+        elements = [
+            ElementModel(
+                id="1", text="Tabla 1. Resultados del análisis factorial",
+                style_name="Normal", is_bold=True,
+                alignment="center", font_size=14.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.PARAGRAPH, (
+            f"Esperado PARAGRAPH, obtenido {result[0].type}"
+        )
+
+    def test_table_title_without_number_is_paragraph(self):
+        """'Tabla Condiciones de la Empresa' (anexos) no debe ser Heading."""
+        elements = [
+            ElementModel(
+                id="1", text="Tabla Condiciones de la Empresa",
+                style_name="Normal", is_bold=True,
+                alignment="center", font_size=13.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.PARAGRAPH, (
+            f"Esperado PARAGRAPH, obtenido {result[0].type}"
+        )
+
+    def test_legal_article_heading_is_paragraph(self):
+        """'Artículo 13. ...' (texto legal/anexo) no debe ser Heading."""
+        elements = [
+            ElementModel(
+                id="1", text="Artículo 13. Del régimen de transición",
+                style_name="Normal", is_bold=True,
+                alignment="left", font_size=12.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.PARAGRAPH, (
+            f"Esperado PARAGRAPH, obtenido {result[0].type}"
+        )
+
 
 # ── TESTS: BLOCK QUOTES ────────────────────────────────────────────────────────
 
@@ -522,20 +564,20 @@ class TestAccuracyTarget:
             (ElementModel(id="8", text="Resultados y Discusión", style_name="Heading 2",
                          is_bold=True, alignment="left", font_size=12.0),
              ElementType.HEADING),
-            # Elemento 9: "Tabla 1." bold + <120 chars → HEADING (conocido: bold se evalúa antes que caption regex)
+            # Elemento 9: "Tabla 1." bold → PARAGRAPH (caption de tabla, no heading)
             (ElementModel(id="9", text="Tabla 1. Datos descriptivos de la muestra",
                          style_name="Normal", is_bold=True, alignment="left", font_size=12.0),
-             ElementType.HEADING),
+             ElementType.PARAGRAPH),
             (ElementModel(id="10", text="La educación ha evolucionado significativamente. "
                           "Los modelos tradicionales están siendo reemplazados por enfoques "
                           "más dinámicos y centrados en el estudiante.",
                           style_name="Normal", is_bold=False, alignment="left", font_size=12.0),
              ElementType.PARAGRAPH),
-            # Elemento 11: "Figura 1." bold+italic → HEADING (misma razón que Tabla 1)
+            # Elemento 11: "Figura 1." bold+italic → PARAGRAPH (caption de figura, no heading)
             (ElementModel(id="11", text="Figura 1. Modelo conceptual del estudio",
-                          style_name="Normal", is_bold=True, is_italic=True,
-                          alignment="left", font_size=12.0),
-             ElementType.HEADING),
+                         style_name="Normal", is_bold=True, is_italic=True,
+                         alignment="left", font_size=12.0),
+             ElementType.PARAGRAPH),
             (ElementModel(id="12", text="Conclusiones y Trabajo Futuro",
                           style_name="Heading 1", is_bold=True, alignment="center",
                           font_size=14.0),
@@ -558,6 +600,100 @@ class TestAccuracyTarget:
             f"Meta: >85%. Correctos: {correct}/{len(result)}. "
             f"Errores: {[(r.id, r.type.value, exp.value) for r, exp in zip(result, expected_types) if r.type != exp]}"
         )
+
+
+# ── TESTS: MEJORAS DE TÍTULOS (GUARD LONGITUD, ACRÓNIMOS, INLINE, TOC) ─────────
+
+class TestHeadingImprovements:
+    """Verifica las mejoras de detección de títulos."""
+
+    def test_native_heading_style_long_paragraph_guard(self):
+        """Heading nativo con >30 palabras NO debe mantenerse como heading."""
+        long_text = (
+            "Este es un parrafo que el usuario marco con estilo Heading 1 pero "
+            "tiene demasiadas palabras para ser un titulo porque describe en detalle "
+            "los procedimientos metodologicos utilizados durante toda la investigacion."
+        )
+        elements = [
+            ElementModel(
+                id="1", text=long_text,
+                style_name="Heading 1", is_bold=True,
+                alignment="left", font_size=16.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type != ElementType.HEADING, (
+            "Heading nativo con >30 palabras debe degradarse a párrafo"
+        )
+
+    def test_native_heading_style_short_kept(self):
+        """Heading nativo corto sigue siendo heading de alta confianza."""
+        elements = [
+            ElementModel(
+                id="1", text="Marco Teórico",
+                style_name="Heading 1", is_bold=True,
+                alignment="center", font_size=16.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.HEADING
+        assert result[0].confidence >= 0.85
+
+    def test_acronym_heading_detected(self):
+        """Título con acrónimo puntuado (S.C.E.M.) debe detectarse como heading."""
+        elements = [
+            ElementModel(
+                id="1", text="Aplicación del Método S.C.E.M.",
+                style_name="Normal", is_bold=True,
+                alignment="left", font_size=12.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.HEADING, (
+            f"Título con acrónimo debe ser HEADING, obtenido {result[0].type.value}"
+        )
+
+    def test_inline_heading_activated(self):
+        """Patrón inline 'Titulo. El parrafo continua...' debe detectarse como heading 4."""
+        elements = [
+            ElementModel(
+                id="1", text="Procedimiento de muestreo. La muestra se recolectó.",
+                style_name="Normal", is_bold=True,
+                alignment="left", font_size=12.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.HEADING, (
+            f"Patrón inline debe ser HEADING, obtenido {result[0].type.value}"
+        )
+
+    def test_toc_validation_confirms_heading(self):
+        """Un título que aparece en el TOC nativo se confirma sin revisión."""
+        from models import ElementModel as EM
+
+        elements = [
+            EM(id="toc", type=ElementType.TOC, text="Introducción\t3",
+               style_name="TOC 1", alignment="left", font_size=12.0),
+            EM(id="h", text="Introducción", style_name="Normal",
+               is_bold=True, alignment="center", font_size=14.0),
+        ]
+        result = pre_classify_elements(elements)
+        heading = [e for e in result if e.id == "h"][0]
+        assert heading.type == ElementType.HEADING
+        assert heading.heading_level == 1
+        assert heading.needs_review is False
+
+    def test_numbering_skip_flagged(self):
+        """Heading '3.1' sin un '3.' previo debe marcarse para revisión."""
+        elements = [
+            ElementModel(
+                id="1", text="3.1 Variables Dependientes",
+                style_name="Normal", is_bold=False,
+                alignment="left", font_size=12.0
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type != ElementType.EMPTY
 
 
 # ── TESTS: PASADA 2 — SECUENCIA DE FIGURAS Y TABLAS ────────────────────────────
@@ -611,3 +747,69 @@ class TestPass2FigureTableNumbering:
         assert result[1].image_info.figure_number == 1
         assert result[2].type == ElementType.IMAGE
         assert result[2].image_info.figure_number == 2
+
+
+# ── TESTS: ECUACIONES OMML ─────────────────────────────────────────────────────
+
+class TestEquationClassification:
+    """Parrafos con has_math=True deben clasificarse como EQUATION."""
+
+    def _mk(self, **kwargs):
+        base = dict(
+            id="1", text="", style_name="Normal", font_size=12.0,
+            confidence=0.5, has_math=True,
+        )
+        base.update(kwargs)
+        return ElementModel(**base)
+
+    def test_has_math_classified_as_equation(self):
+        """Un párrafo con has_math=True y texto matemático → EQUATION."""
+        from models import EquationConfig
+        elements = [
+            ElementModel(
+                id="1", text="E = mc^2", style_name="Normal", font_size=12.0,
+                confidence=0.5, has_math=True, equation=EquationConfig(),
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.EQUATION
+        assert result[0].confidence == 1.0
+        assert result[0].needs_review is False
+        assert result[0].pre_classifier_rule == "omml_equation"
+
+    def test_equation_survives_full_pipeline(self):
+        """Una ecuación entre headings y párrafos no debe degradarse a EMPTY/PARAGRAPH."""
+        from models import EquationConfig
+        elements = [
+            ElementModel(id="1", text="Introducción", style_name="Heading 1",
+                        is_bold=True, alignment="center", font_size=16.0, confidence=0.5),
+            ElementModel(
+                id="2", text="x = (-b ± √(b² - 4ac)) / 2a", style_name="Normal",
+                font_size=12.0, alignment="center", confidence=0.5,
+                has_math=True, equation=EquationConfig(),
+            ),
+            ElementModel(
+                id="3",
+                text="La fórmula cuadrática resuelve ecuaciones de segundo grado y es fundamental en álgebra.",
+                style_name="Normal", font_size=12.0, confidence=0.5,
+            ),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.HEADING
+        assert result[1].type == ElementType.EQUATION
+        assert result[1].needs_review is False
+
+    def test_equation_without_text_still_equation(self):
+        """Una ecuación cuyo texto extraído está vacío (solo símbolos OMML) sigue siendo EQUATION."""
+        elements = [self._mk(text="")]
+        result = pre_classify_elements(elements)
+        assert result[0].type == ElementType.EQUATION
+
+    def test_normal_paragraph_without_math_is_not_equation(self):
+        """Un párrafo normal sin has_math NO debe clasificarse como ecuación."""
+        elements = [
+            ElementModel(id="1", text="Este es un párrafo normal de prueba.",
+                        style_name="Normal", font_size=12.0, confidence=0.5),
+        ]
+        result = pre_classify_elements(elements)
+        assert result[0].type != ElementType.EQUATION

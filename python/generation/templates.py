@@ -307,8 +307,3 @@ def get_template(name: str) -> Optional[DocumentTemplate]:
         if t.name == name:
             return t
     return None
-
-
-def get_template_names() -> list[str]:
-    """Retorna la lista de nombres de plantillas disponibles."""
-    return [t.name for t in AVAILABLE_TEMPLATES]

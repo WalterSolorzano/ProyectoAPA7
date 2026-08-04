@@ -7,7 +7,6 @@ import zipfile
 import io
 import mmap
 import time
-from typing import List, Dict, Any, Set
 from lxml import etree
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -77,19 +76,3 @@ def fast_parse_body_start(file_bytes: bytes) -> int:
                 paragraph_idx += 1
                 
     return 0
-
-def fast_extract_text_nodes(file_bytes: bytes) -> List[str]:
-    """
-    Ultra-fast extraction of all text nodes for AI validation, circumventing python-docx parsing completely.
-    """
-    texts = []
-    with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-        if "word/document.xml" not in zf.namelist():
-            return texts
-        with zf.open("word/document.xml") as xml_file:
-            context = etree.iterparse(xml_file, events=('end',), tag=f"{{{W_NS}}}t")
-            for event, elem in context:
-                if elem.text and elem.text.strip():
-                    texts.append(elem.text.strip())
-                elem.clear()
-    return texts

@@ -107,26 +107,62 @@ def process_numbering_single_pass(docx_bytes: bytes) -> Tuple[bytes, dict[str, s
 
 def extract_textbox_paragraphs(doc_element) -> List[str]:
     """
-    Extrae texto contenido dentro de cuadros de texto (w:txbxContent)
-    y formas de Word (wps:wsp) que contienen su propio txbxContent.
-    Usa iter() e itertext() para cubrir mc:AlternateContent y namespaces variados.
+    Extrae texto contenido dentro de cuadros de texto (w:txbxContent).
+
+    IMPORTANTE: usa SOLO la rama mc:Choice (DrawingML wps:txbx) y NUNCA la
+    rama mc:Fallback (VML legacy v:textbox), porque Word guarda el MISMO
+    contenido en ambas ramas y, ademas, dentro del Fallback anida textboxes
+    VML con gfxdata. Leer ambas ramas triplica el texto ("Br. Nombre" x3).
+
+    Para cada w:txbxContent toma unicamente los w:p hijos DIRECTOS y, dentro
+    de cada uno, extrae solo w:t que NO esten bajo un mc:Fallback ni dentro
+    de un w:txbxContent anidado. Convierte <w:br/> en salto de linea y
+    <w:tab/> en tabulador.
     Resultados deduplicados usando un conjunto de textos normalizados.
     """
     seen: set[str] = set()
     textbox_texts: List[str] = []
     W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
     try:
         if not hasattr(doc_element, '_element'):
             return textbox_texts
         root = doc_element._element
         for txbx in root.iter(f'{{{W}}}txbxContent'):
-            for p in txbx.findall(f'.//{{{W}}}p'):
-                text = ''.join(t for t in p.itertext() if t).strip()
+            # Saltar textboxes VML de la rama Fallback
+            parent = txbx.getparent()
+            in_fallback = False
+            while parent is not None:
+                if parent.tag == f'{{{MC}}}Fallback':
+                    in_fallback = True
+                    break
+                parent = parent.getparent()
+            if in_fallback:
+                continue
+
+            for p in txbx.findall(f'{{{W}}}p'):
+                parts: List[str] = []
+                for el in p.iter():
+                    tag = el.tag.split('}')[-1] if '}' in el.tag else el.tag
+                    # No bajar dentro de textboxes anidados ni ramas VML
+                    if tag in ('txbxContent', 'Fallback', 'pict'):
+                        continue
+                    if tag == 't' and el.text:
+                        parts.append(el.text)
+                    elif tag == 'br':
+                        parts.append('\n')
+                    elif tag == 'tab':
+                        parts.append('\t')
+                text = ''.join(parts).strip()
                 if text and len(text) > 1:
-                    norm = text.lower().replace('  ', ' ').strip()
-                    if norm not in seen:
-                        seen.add(norm)
-                        textbox_texts.append(text)
+                    # Dividir por <w:br/> para no mezclar nombre y carnet en una misma linea
+                    for line in text.split('\n'):
+                        line = line.strip().replace('\t', ' ')
+                        if len(line) > 1:
+                            norm = line.lower().replace('  ', ' ').strip()
+                            if norm not in seen:
+                                seen.add(norm)
+                                textbox_texts.append(line)
     except Exception as e:
         print(f"[WARN] Error en extract_textbox_paragraphs: {e}")
     return textbox_texts
@@ -152,6 +188,13 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             if current.get('name'):
                 members.append(current)
             current = {'name': t, 'id': '', 'role': 'br.', 'group': ''}
+            # Puede venir "Br. Nombre Carnet: XXXX" en la MISMA linea
+            if 'carnet:' in t_lower:
+                import re as _re
+                m_car = _re.search(r'carnet:\s*(\S+)', t, _re.IGNORECASE)
+                if m_car:
+                    current['id'] = m_car.group(1)
+                    current['name'] = _re.sub(r'carnet:\s*\S+', '', t, flags=_re.IGNORECASE).strip()
 
         # Detectar patrón "Ing. Nombre"
         elif t_lower.startswith('ing.') or t_lower.startswith('m.sc.') or t_lower.startswith('dr.'):
@@ -305,31 +348,6 @@ def _deduplicate_textbox_texts(textbox_texts: List[str]) -> List[str]:
     return result
 
 
-def _extract_paragraphs_from_element(parent_element, output_list: List[str]) -> None:
-    """Extrae texto de todos los w:p dentro de un elemento XML ignorando la rama mc:Fallback (VML legacy)."""
-    for p in parent_element.findall('.//w:p', NAMESPACES):
-        texts: List[str] = []
-        for elem in p.iter():
-            tag = str(elem.tag)
-            # Ignorar la rama mc:Fallback completa
-            if tag.endswith("Fallback"):
-                continue
-            if tag.endswith("t") and elem.text:
-                # Verificar que ningun ancestro sea Fallback
-                parent = elem.getparent()
-                in_fallback = False
-                while parent is not None and parent != p:
-                    if str(parent.tag).endswith("Fallback"):
-                        in_fallback = True
-                        break
-                    parent = parent.getparent()
-                if not in_fallback:
-                    texts.append(elem.text)
-        p_text = "".join(texts).strip()
-        if p_text:
-            output_list.append(p_text)
-
-
 def is_inside_textbox_or_shape(element) -> bool:
     """
     Verifica si un elemento XML esta dentro de un cuadro de texto (w:txbxContent)
@@ -355,10 +373,13 @@ def get_section_orientation_info(doc_element) -> List[Dict[str, Any]]:
     """
     Obtiene metadatos de las secciones del documento, identificando orientaciones
     landscape u orientaciones horizontales para evitar sobreescribir márgenes.
+    También detecta disposiciones multicolumna (w:cols dentro de w:sectPr).
     """
     sections_info = []
     for idx, section in enumerate(doc_element.sections):
         is_landscape = False
+        columns = None
+        columns_space = None
         try:
             sect_pr = section._sectPr
             pg_sz = sect_pr.find(f'{{{NAMESPACES["w"]}}}pgSz')
@@ -366,12 +387,29 @@ def get_section_orientation_info(doc_element) -> List[Dict[str, Any]]:
                 orient = pg_sz.attrib.get(f'{{{NAMESPACES["w"]}}}orient')
                 if orient == 'landscape':
                     is_landscape = True
+            # Detección multicolumna: <w:cols w:num="N" w:space="S"/>
+            cols = sect_pr.find(f'{{{NAMESPACES["w"]}}}cols')
+            if cols is not None:
+                num = cols.attrib.get(f'{{{NAMESPACES["w"]}}}num')
+                if num:
+                    try:
+                        columns = int(num)
+                    except (ValueError, TypeError):
+                        columns = None
+                spc = cols.attrib.get(f'{{{NAMESPACES["w"]}}}space')
+                if spc:
+                    try:
+                        columns_space = int(spc)
+                    except (ValueError, TypeError):
+                        columns_space = None
         except Exception:
             pass
 
         sections_info.append({
             "index": idx,
             "is_landscape": is_landscape,
+            "columns": columns,
+            "columns_space": columns_space,
             "top_margin": section.top_margin.cm if section.top_margin else 2.54,
             "bottom_margin": section.bottom_margin.cm if section.bottom_margin else 2.54,
             "left_margin": section.left_margin.cm if section.left_margin else 2.54,
