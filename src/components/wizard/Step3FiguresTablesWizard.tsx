@@ -11,6 +11,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
   const [subTab, setSubTab] = useState<'figures' | 'tables'>('figures');
   const [query, setQuery] = useState('');
   const [onlyReview, setOnlyReview] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
   const doc = useDocStore((s) => s.doc);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const updateElementImage = useDocStore((s) => s.updateElementImage);
@@ -77,8 +78,24 @@ export const Step3FiguresTablesWizard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden' }}>
+      {listCollapsed ? (
+        <div style={{
+          width: 40, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)', paddingTop: 8,
+        }}>
+          <button
+            type="button"
+            onClick={() => setListCollapsed(false)}
+            title="Mostrar lista de figuras y tablas"
+            aria-label="Mostrar lista de figuras y tablas"
+            style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Image size={16} />
+          </button>
+        </div>
+      ) : (
       <div style={{
-        width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
         backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
         overflow: 'hidden',
       }}>
@@ -88,6 +105,15 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text-primary)', flex: 1 }}>
               Figuras y tablas ({figures.length + tables.length})
             </span>
+            <button
+              type="button"
+              onClick={() => setListCollapsed(true)}
+              title="Colapsar lista y dejar más lugar al documento"
+              aria-label="Colapsar lista"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', cursor: 'pointer', background: 'transparent', border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)' }}
+            >
+              <PanelRight size={12} style={{ transform: 'rotate(180deg)' }} />
+            </button>
             {selectedImage && (
               <button
                 type="button"
@@ -270,6 +296,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
           })}
         </div>
       </div>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', backgroundColor: 'var(--canvas-bg)' }}>
         <PaperCanvas onElementClick={handleElementClick} />
@@ -278,7 +305,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
       {/* Panel modular de edición de imagen (tarjetas colapsables verticales) */}
       {selectedImage && imagePanelOpen && (
         <div style={{
-          width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
           backgroundColor: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
           overflow: 'hidden',
         }}>

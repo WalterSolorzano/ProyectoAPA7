@@ -46,7 +46,7 @@ export const RightSidePanel: React.FC = () => {
   const hasSelection = !!selectedElementId && !!doc;
 
   return (
-    <ResizablePanel side="right" defaultWidth={320} minWidth={260} maxWidth={620} localStorageKey="wordapa7-inspector-width">
+    <ResizablePanel side="right" defaultWidth={300} minWidth={260} maxWidth={620} localStorageKey="wordapa7-inspector-width">
       <div style={{
         flexShrink: 0, display: 'flex', flexDirection: 'column',
         height: '100%', overflow: 'hidden',

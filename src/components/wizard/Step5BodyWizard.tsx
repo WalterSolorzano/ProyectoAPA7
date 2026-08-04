@@ -25,7 +25,7 @@ export const Step5BodyWizard: React.FC = () => {
 
       {/* Panel Izquierdo: Reglas APA aplicadas */}
       <div style={{
-        width: '380px',
+        width: '320px',
         backgroundColor: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--border-subtle)',
         display: 'flex',
@@ -34,7 +34,7 @@ export const Step5BodyWizard: React.FC = () => {
       }}>
         <div style={{ padding: '18px', borderBottom: '1px solid var(--border-subtle)' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlignLeft size={16} /> Paso 5: Cuerpo del documento
+            <AlignLeft size={16} /> Cuerpo del documento
           </h3>
           <Badge tone="accent">Párrafos, listas y sangrías</Badge>
         </div>

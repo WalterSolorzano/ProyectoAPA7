@@ -107,7 +107,7 @@ export const Step1PortadaWizard: React.FC = () => {
       {/* ── PANEL LATERAL IZQUIERDO: editor de datos de la portada ── */}
       {showLateral && (
         <div style={{
-          width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
           backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
           overflow: 'hidden', zIndex: 10,
         }}>
@@ -425,7 +425,7 @@ export const Step1PortadaWizard: React.FC = () => {
           padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--sidebar-bg)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Badge tone="accent"><Layout size={13} /> Paso 1 de 7</Badge>
+            <Badge tone="accent"><Layout size={13} /> Portada</Badge>
             <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
               Verificación de la hoja de portada
             </span>
