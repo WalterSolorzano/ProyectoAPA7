@@ -379,7 +379,12 @@ export const useDocStore = create<DocState>()(
   isDownloadModalOpen: false,
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  setDownloadModalOpen: (open: boolean) => set({ isDownloadModalOpen: open }),
+  setDownloadModalOpen: (open: boolean) => set((state) => ({
+    isDownloadModalOpen: open,
+    // El modo rápido solo bloquea la descarga mientras su modal está abierto;
+    // si el usuario lo cierra, vuelve a un flujo normal (edición guiada).
+    pendingQuickExport: open ? state.pendingQuickExport : false,
+  })),
   pendingQuickExport: false,
   clearQuickExport: () => set({ pendingQuickExport: false }),
   hasSeenTour: false,
@@ -782,6 +787,7 @@ export const useDocStore = create<DocState>()(
         set({ isLoading: false });
         await get().acceptHighConfidenceElements().catch(() => {});
         await get().runValidation().catch(() => {});
+        await get().runCitationAudit().catch(() => {});
         set({ isDownloadModalOpen: true, pendingQuickExport: true });
         return;
       }
