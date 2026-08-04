@@ -79,8 +79,8 @@ export const EditorRail: React.FC = () => {
             <Icon size={17} />
             {pending > 0 && (
               <span style={{
-                position: 'absolute', top: '5px', right: '5px',
-                width: '6px', height: '6px', borderRadius: '50%',
+              position: 'absolute', top: '5px', right: '5px',
+              width: '8px', height: '8px', borderRadius: '50%',
                 backgroundColor: 'var(--accent-warning)',
               }} />
             )}

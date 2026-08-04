@@ -81,7 +81,7 @@ export const RightSidePanel: React.FC = () => {
             onClick={() => setForceRightPanelOpen(false)}
             aria-label="Cerrar panel"
             title="Cerrar panel"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
           >
             <X size={14} />
           </button>

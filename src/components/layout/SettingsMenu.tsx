@@ -31,7 +31,7 @@ const SECTIONS: Section[] = [
     items: [
       { id: 'about', icon: <Info size={15} color="var(--accent-success)" />, label: 'Acerca de WordAPA7', hint: 'Versión, equipo y agradecimientos' },
       { id: 'legal', icon: <Scale size={15} color="var(--text-secondary)" />, label: 'Cuestiones legales', hint: 'Términos de uso y avisos' },
-      { id: 'privacy', icon: <FileText size={15} color="var(--text-secondary)" />, label: 'Privacidad de datos', hint: 'Qué se sube y qué se guarda' },
+      { id: 'privacy', icon: <FileText size={15} color="var(--accent-primary)" />, label: 'Privacidad de datos', hint: 'Qué se sube y qué se guarda' },
     ],
   },
 ];

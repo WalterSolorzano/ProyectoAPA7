@@ -4,7 +4,7 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Upload, X, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Zap, ListChecks, Download, FileUp
+  Zap, ListChecks, Download, FileUp, Home
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -208,7 +208,7 @@ export const Step0QuickStart: React.FC = () => {
             backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-main)',
             border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'inherit',
             fontSize: '11px', fontWeight: 600,
-            marginRight: '140px', // reserva para botones nativos de la ventana
+            marginRight: ((window as any).electronAPI ? 140 : 0), // reserva para botones nativos de la ventana
             ...noDragRegion,
           }}
         >
@@ -229,7 +229,7 @@ export const Step0QuickStart: React.FC = () => {
         paddingTop: '24px', gap: '4px', zIndex: 10, flexShrink: 0,
         borderRight: '1px solid var(--border-subtle)'
       }}>
-        <NavItem icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>} label="Inicio" active={activeTab === 'inicio'} onClick={() => setActiveTab('inicio')} />
+        <NavItem icon={<Home size={22} />} label="Inicio" active={activeTab === 'inicio'} onClick={() => setActiveTab('inicio')} />
         <NavItem icon={<FolderOpen size={22} />} label="Abrir" active={activeTab === 'abrir'} onClick={() => setActiveTab('abrir')} />
         <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
 
@@ -456,7 +456,7 @@ export const Step0QuickStart: React.FC = () => {
                           </>
                         ) : (
                           <>
-                            <Upload size={18} />
+                            <FileUp size={18} />
                             Convertir documento
                           </>
                         )}
