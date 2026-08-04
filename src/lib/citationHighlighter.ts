@@ -18,12 +18,14 @@ export interface CitationMatch {
 
 // Patrón parentética: (García, 2023), (García & López, 2023, p. 45), (OIT, 2007),
 // apellido compuesto (Gutiérrez Pulido, 2012), (García et al., 2023)
+// organizaciones con sigla entre corchetes (Organización Internacional del Trabajo [OIT], 2007, p. 115)
 const REGEX_PAREN =
-  /\(\s*((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,6})(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:,\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*(?:\s+et\s+al\.?)?)\s*,\s*(\d{4}[a-z]?)(?:\s*,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\s*\)/gi;
+  /\(\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:[a-záéíóúñA-ZÁÉÍÓÚÑ]+|\[[A-ZÁÉÍÓÚÑ]{2,}\]))*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:,\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*(?:\s+et\s+al\.?)?)\s*,\s*(\d{4}[a-z]?)(?:\s*,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\s*\)/gi;
 
-// Patrón narrativa: García (2023), García y López (2023), OIT (2007)
+// Patrón narrativa: García (2023), García y López (2023), OIT (2007), La OIT (2007)
+// Acepta artículo "La"/"El"/"Los"/"Las" antepuesto a la sigla/autor.
 const REGEX_NARR =
-  /\b((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+(?:de|del|la|el|los|las|y|e|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*|[A-ZÁÉÍÓÚÑ]{2,6})(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\)/gi;
+  /\b(?:[Ll][oa]s?)?\s*((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+(?:de|del|la|el|los|las|y|e|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*|[A-ZÁÉÍÓÚÑ]{2,6})(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\)/gi;
 
 const EXCLUDED_TERMS = [
   'vease', 'ver', 'figura', 'tabla', 'cuadro', 'anexo', 'apendice',

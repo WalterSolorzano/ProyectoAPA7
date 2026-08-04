@@ -6,7 +6,7 @@ import React, { useState, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import { ElementType, APARuleSet } from '../../types';
-import { FileText, Info, Palette, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock } from 'lucide-react';
+import { FileText, Info, Palette, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { parseAuthorEntries, serializeAuthorEntries, requestAuthorHighlight, AuthorEntry } from '../../lib/portadaAuthors';
 import { explainElement } from '../../api/backend';
@@ -323,12 +323,33 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Image: editor de imagen embebido directamente en el panel contextual */}
-    {selectedElem.type === 'image' && (
-      <div className="inspector-section" style={{ paddingBottom: 0 }}>
-        <ImageEditPanel elem={selectedElem} />
-      </div>
-    )}
+    {/* Image: editor de imagen embebido directamente en el panel contextual.
+       Cuando el panel de edición ya está abierto en el paso Figuras (imagePanelOpen),
+       no duplicar la UI: solo indicamos que está activo en el panel izquierdo. */}
+    {selectedElem.type === 'image' && (() => {
+      const imagePanelOpen = useDocStore.getState().imagePanelOpen;
+      if (imagePanelOpen) {
+        return (
+          <div className="inspector-section" style={{ padding: '14px', textAlign: 'center' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '12px', borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
+            }}>
+              <ImageIcon size={16} color="var(--accent-primary)" />
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                La edición completa está abierta en el <strong>Panel de edición</strong> a la izquierda.
+              </span>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div className="inspector-section" style={{ paddingBottom: 0 }}>
+          <ImageEditPanel elem={selectedElem} />
+        </div>
+      );
+    })()}
 
     {/* Table info */}
     {selectedElem.type === 'table' && (

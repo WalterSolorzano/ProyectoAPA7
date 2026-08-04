@@ -31,12 +31,14 @@ const getPendingCount = (stepId: number) => {
 };
 
 export const EditorRail: React.FC = () => {
-  const { wizardStep, setWizardStep, setSelectedReferenceId } = useDocStore();
+  const { wizardStep, setWizardStep, setSelectedReferenceId, setSelectedElementId } = useDocStore();
 
   const goToSection = (id: number) => {
-    // Al cambiar de sección se limpia la referencia seleccionada para que el
-    // panel derecho cambie de contexto (no queda "estático" con el anterior).
+    // Al cambiar de sección se limpian las selecciones para que el panel
+    // derecho cambie de contexto (no queda "estático" mostrando el inspector
+    // de una imagen mientras el usuario está en Referencias, por ejemplo).
     setSelectedReferenceId(null);
+    setSelectedElementId(null);
     setWizardStep(id);
   };
 

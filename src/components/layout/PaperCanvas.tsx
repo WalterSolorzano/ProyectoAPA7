@@ -220,9 +220,41 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     if (marks.length === 0) return plain;
 
     marks.sort((a, b) => a.start - b.start);
+
+    // ── Consolidación de marcas solapadas ───────────────────────────────────
+    // Cuando dos marcas cubren el mismo rango (p.ej. comment + citation sobre
+    // "La OIT (2007)"), se renderizan dos <mark> y el texto se duplica.
+    // Prioridad: comment > citation > spelling > ai. La marca ganadora absorbe
+    // el rango extendido y la otra se descarta.
+    const KIND_PRIORITY: Record<Mark['kind'], number> = {
+      comment: 4, citation: 3, spelling: 2, ai: 1,
+    };
+    const merged: Mark[] = [];
+    for (const m of marks) {
+      const prev = merged[merged.length - 1];
+      if (prev && m.start <= prev.end) {
+        // Solapamiento: la de mayor prioridad absorbe; si empate, la primera.
+        if (KIND_PRIORITY[m.kind] > KIND_PRIORITY[prev.kind]) {
+          // m "gana": extendemos su start al inicio del solapamiento
+          const extendedStart = prev.start;
+          const extendedEnd = Math.max(prev.end, m.end);
+          prev.start = extendedStart;
+          prev.end = extendedEnd;
+          prev.kind = m.kind;
+          prev.severity = m.severity;
+          prev.title = m.title;
+        } else {
+          // prev "gana": extendemos su end si es necesario
+          prev.end = Math.max(prev.end, m.end);
+        }
+      } else {
+        merged.push({ ...m });
+      }
+    }
+
     const out: React.ReactNode[] = [];
     let cursor = 0;
-    marks.forEach((m, i) => {
+    merged.forEach((m, i) => {
       if (m.start > cursor) out.push(plain.slice(cursor, m.start));
       const frag = plain.slice(m.start, m.end);
       const isSpell = m.kind === 'spelling';
@@ -1194,7 +1226,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     }}
                                     style={{ fontStyle: 'italic', textAlign: 'left', margin: 0, cursor: 'text', minHeight: '1em', userSelect: 'none', WebkitUserSelect: 'none' }}
                                   >
-                                    {elem.image_info?.caption || <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Doble clic para editar leyenda</span>}
+                                    {/* Limpiar prefijo "Figura N:" redundante para no duplicar el contador */}
+                                    {(elem.image_info?.caption || '').replace(/^(figura|fig\.?)\s+\d+[:\.\s]*\s*/i, '') || (
+                                      <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Doble clic para editar leyenda</span>
+                                    )}
                                   </p>
                                 )}
                               </div>
