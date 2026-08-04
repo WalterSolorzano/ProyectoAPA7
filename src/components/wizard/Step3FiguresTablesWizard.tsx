@@ -4,10 +4,13 @@ import { needsReview } from '../../lib/portadaAuthors';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { ImageEditPanel } from '../inspector/ImageEditPanel';
-import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight } from 'lucide-react';
+import { resolveAssetUrl } from '../../api/backend';
+import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter } from 'lucide-react';
 
 export const Step3FiguresTablesWizard: React.FC = () => {
   const [subTab, setSubTab] = useState<'figures' | 'tables'>('figures');
+  const [query, setQuery] = useState('');
+  const [onlyReview, setOnlyReview] = useState(false);
   const doc = useDocStore((s) => s.doc);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const updateElementImage = useDocStore((s) => s.updateElementImage);
@@ -30,6 +33,20 @@ export const Step3FiguresTablesWizard: React.FC = () => {
 
   const currentItems = subTab === 'figures' ? figures : tables;
   const currentReview = subTab === 'figures' ? reviewFigures : reviewTables;
+
+  // Buscador + filtro de pendientes (Capa 5)
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return currentItems.filter((item) => {
+      if (onlyReview && !needsReview(item as any)) return false;
+      if (!q) return true;
+      const info = item.type === 'image' ? item.image_info : (item as any).table_info;
+      const number = info?.figure_number || info?.table_number || 0;
+      const label = item.type === 'image' ? `Figura ${number}` : `Tabla ${number}`;
+      const caption = (info as any)?.caption || '';
+      return label.toLowerCase().includes(q) || caption.toLowerCase().includes(q);
+    });
+  }, [currentItems, query, onlyReview]);
 
   const handleElementClick = useCallback((elementId: string, rect: DOMRect, element: any) => {
     if (subTab === 'figures' && element.type === 'image') {
@@ -121,6 +138,38 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             </div>
           )}
 
+          {/* Buscador + filtro de pendientes */}
+          <div style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '3px 6px', backgroundColor: 'var(--canvas-bg)' }}>
+              <Search size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Buscar ${subTab === 'figures' ? 'figura' : 'tabla'} por número o título…`}
+                style={{ border: 'none', outline: 'none', flex: 1, minWidth: 0, fontSize: '11px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit' }}
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery('')} aria-label="Limpiar búsqueda" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' }}>✕</button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setOnlyReview(!onlyReview)}
+              aria-pressed={onlyReview}
+              title="Mostrar solo elementos pendientes de revisión"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '10px', fontWeight: 600,
+                cursor: 'pointer', borderRadius: 'var(--radius-sm)', fontFamily: 'inherit',
+                backgroundColor: onlyReview ? 'rgba(250,173,20,0.14)' : 'transparent',
+                border: `1px solid ${onlyReview ? 'rgba(250,173,20,0.4)' : 'var(--border-subtle)'}`,
+                color: onlyReview ? 'var(--accent-warning)' : 'var(--text-secondary)',
+              }}
+            >
+              <Filter size={11} /> Pendientes
+            </button>
+          </div>
+
           {subTab === 'tables' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: 6 }}>
               <span>Estilo:</span>
@@ -153,34 +202,69 @@ export const Step3FiguresTablesWizard: React.FC = () => {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
-          {currentItems.length === 0 && (
+          {filteredItems.length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '12px' }}>
-              No se detectaron {subTab === 'figures' ? 'figuras' : 'tablas'}.
+              {currentItems.length === 0
+                ? `No se detectaron ${subTab === 'figures' ? 'figuras' : 'tablas'}.`
+                : 'Ningún elemento coincide con la búsqueda o el filtro.'}
             </div>
           )}
-          {currentItems.map((item) => {
+          {filteredItems.map((item) => {
             const isImage = item.type === 'image';
             const info = isImage ? item.image_info : (item as any).table_info;
             const number = info?.figure_number || info?.table_number || 0;
             const label = isImage ? `Figura ${number}` : `Tabla ${number}`;
             const needsAttn = needsReview(item as any);
+            const thumbUrl = isImage ? resolveAssetUrl(info?.relative_url) : null;
 
             return (
               <div key={item.id} onClick={() => setSelectedElementId(item.id)} style={{
-                padding: '7px 10px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 8px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
                 borderLeft: needsAttn ? '3px solid var(--color-warning)' : '3px solid transparent',
                 backgroundColor: selectedElementId === item.id ? 'var(--color-accent-soft)' : needsAttn ? 'rgba(250,173,20,0.06)' : 'transparent',
                 fontSize: '12px', color: 'var(--color-text-primary)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {isImage ? <Image size={12} /> : <Table size={12} />}
-                  <span style={{ fontWeight: 600 }}>{label}</span>
-                </div>
-                {(info as any)?.caption && (
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginLeft: 18, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {(info as any).caption}
+                {/* Miniatura (figuras) o ícono (tablas) */}
+                {isImage ? (
+                  thumbUrl ? (
+                    <img
+                      src={thumbUrl}
+                      alt={label}
+                      style={{ width: '34px', height: '34px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '34px', height: '34px', borderRadius: '6px', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                    }}>
+                      <Image size={14} />
+                    </div>
+                  )
+                ) : (
+                  <div style={{
+                    width: '34px', height: '34px', borderRadius: '6px', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-muted)',
+                  }}>
+                    <Table size={14} />
                   </div>
                 )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontWeight: 600 }}>{label}</span>
+                    {needsAttn && <span style={{ fontSize: '9px', color: 'var(--accent-warning)', fontWeight: 700 }}>revisar</span>}
+                  </div>
+                  {(info as any)?.caption && (
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {(info as any).caption}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
