@@ -112,6 +112,22 @@ def format_bullet_item(
     set_run_font(r_text, rules.font_family, rules.font_size_pt)
     r_text.bold = is_bold
     r_text.italic = is_italic
+    r_text.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Igualar las propiedades de la marca de párrafo (¶) a la fuente APA para
+    # que las viñetas no arrastren la fuente/propiedades del estilo original.
+    pPr = p._element.find(qn('w:pPr'))
+    if pPr is not None:
+        p_rPr = pPr.find(qn('w:rPr'))
+        if p_rPr is None:
+            p_rPr = OxmlElement('w:rPr')
+            pPr.append(p_rPr)
+        for old in p_rPr.findall(qn('w:rFonts')):
+            p_rPr.remove(old)
+        rFonts = OxmlElement('w:rFonts')
+        for attr in ('w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs'):
+            rFonts.set(qn(attr), rules.font_family)
+        p_rPr.append(rFonts)
 
 
 def format_numbered_item(
@@ -153,3 +169,18 @@ def format_numbered_item(
     set_run_font(r_text, rules.font_family, rules.font_size_pt)
     r_text.bold = is_bold
     r_text.italic = is_italic
+    r_text.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Marca de párrafo con la fuente APA (mismo criterio que las viñetas)
+    pPr = p._element.find(qn('w:pPr'))
+    if pPr is not None:
+        p_rPr = pPr.find(qn('w:rPr'))
+        if p_rPr is None:
+            p_rPr = OxmlElement('w:rPr')
+            pPr.append(p_rPr)
+        for old in p_rPr.findall(qn('w:rFonts')):
+            p_rPr.remove(old)
+        rFonts = OxmlElement('w:rFonts')
+        for attr in ('w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs'):
+            rFonts.set(qn(attr), rules.font_family)
+        p_rPr.append(rFonts)

@@ -17,10 +17,10 @@ interface Phrase {
 }
 
 const EXTRA_HERO: Phrase[] = [
-  { text: 'convertí tu .docx en APA 7 sin aprenderte la norma', tag: 'WordAPA7' },
-  { text: 'corregimos el formato, vos seguís escribiendo', tag: 'WordAPA7' },
-  { text: 'de "final_v3.docx" a entrega formal en minutos', tag: 'WordAPA7' },
-  { text: 'sangrías, portada, referencias y citas en orden', tag: 'APA 7' },
+  { text: 'convertí tu .docx en APA 7 sin aprenderte la norma', tag: 'inicio' },
+  { text: 'corregimos el formato, vos seguís escribiendo', tag: 'inicio' },
+  { text: 'de "final_v3.docx" a entrega formal en minutos', tag: 'inicio' },
+  { text: 'sangrías, portada, referencias y citas en orden', tag: 'inicio' },
 ];
 
 function buildPool(): Phrase[] {
@@ -43,12 +43,34 @@ function pickRandom<T>(arr: T[]): T {
 
 const TAG_COLOR: Record<string, string> = {
   contexto: 'var(--accent-warning)',
-  WordAPA7: 'var(--accent-primary)',
+  inicio: 'var(--accent-primary)',
   'APA 7': 'var(--accent-success)',
   procesando: 'var(--accent-primary)',
   chiste: 'var(--accent-secondary)',
   'dato APA': 'var(--accent-success)',
 };
+
+/** Fondo del hero según la hora del día. */
+function getTimeGradient(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) {
+    // Mañana: azul fresco y claro
+    return 'linear-gradient(135deg, rgba(79,124,255,0.16) 0%, rgba(79,124,255,0.04) 55%, var(--surface-elevated) 100%)';
+  }
+  if (h >= 12 && h < 20) {
+    // Tarde: cálido ambar/azul
+    return 'linear-gradient(135deg, rgba(250,173,20,0.14) 0%, rgba(79,124,255,0.08) 55%, var(--surface-elevated) 100%)';
+  }
+  // Noche / madrugada: azul profundo
+  return 'linear-gradient(135deg, rgba(20,24,60,0.9) 0%, rgba(79,124,255,0.18) 55%, var(--surface-elevated) 100%)';
+}
+
+function getTimeLabel(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'buenos días';
+  if (h >= 12 && h < 20) return 'buenas tardes';
+  return 'buenas noches';
+}
 
 export const HomeHero: React.FC = () => {
   const poolRef = useRef<Phrase[]>(buildPool());
@@ -59,11 +81,12 @@ export const HomeHero: React.FC = () => {
     const iv = setInterval(() => {
       setPhrase(pickRandom(poolRef.current));
       setFadeKey((k) => k + 1);
-    }, 2600);
+    }, 5200);
     return () => clearInterval(iv);
   }, []);
 
   const expression = getMascotExpression();
+  const timeLabel = getTimeLabel();
 
   return (
     <div
@@ -73,7 +96,7 @@ export const HomeHero: React.FC = () => {
         gap: '28px',
         padding: '28px 32px',
         borderRadius: 'var(--radius-xl)',
-        background: 'linear-gradient(135deg, var(--surface-elevated) 0%, rgba(79,124,255,0.08) 100%)',
+        background: getTimeGradient(),
         border: '1px solid var(--border-subtle)',
         boxShadow: 'var(--shadow-md)',
         marginBottom: '28px',
@@ -95,7 +118,7 @@ export const HomeHero: React.FC = () => {
             backgroundColor: 'var(--surface-elevated)',
             border: '1px solid var(--border-subtle)',
             borderRadius: '999px',
-            padding: '4px 12px',
+            padding: '4px 10px',
             whiteSpace: 'nowrap',
             boxShadow: 'var(--shadow-md)',
           }}
@@ -107,7 +130,7 @@ export const HomeHero: React.FC = () => {
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
           <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--text-main)' }}>
-            WordAPA7
+            {timeLabel}
           </span>
         </div>
       </div>
@@ -141,7 +164,7 @@ export const HomeHero: React.FC = () => {
               padding: '2px 10px',
             }}
           >
-            {phrase.tag}
+            {phrase.tag === 'inicio' ? timeLabel : phrase.tag}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
             la mascota te acompaña mientras cargás tu documento

@@ -1,25 +1,17 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, PDFViewer, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { useDocStore } from '../../store/useDocStore';
 import { useDebounce } from 'use-debounce';
-
-// Registramos fuentes base para PDF
-Font.register({
-  family: 'Times New Roman',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/timesnewroman/v11/q_mY7N_1pYf_bM2B_4BwK_q4I6M.ttf' } // Fallback a un font web si es necesario
-  ]
-});
 
 // Estilos base de APA 7
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 35,
-    paddingBottom: 65,
-    paddingHorizontal: 35,
-    fontFamily: 'Helvetica', // Fallback si no carga Times
+    paddingTop: 46,
+    paddingBottom: 60,
+    paddingHorizontal: 54,
     fontSize: 12,
     lineHeight: 2.0, // Doble espacio (APA)
+    color: '#000000',
   },
   title: {
     fontSize: 12,
@@ -46,6 +38,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
+  bullet: {
+    marginBottom: 8,
+    paddingLeft: 24,
+    textAlign: 'left',
+  },
   referenceItem: {
     marginLeft: 36, // Sangría francesa
     textIndent: -36,
@@ -68,8 +65,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
-  }
+  },
+  footer: {
+    position: 'absolute',
+    top: 46,
+    right: 54,
+    fontSize: 12,
+    color: '#000000',
+  },
 });
+
+// Pie de página: número de hoja empezando en 1 DESPUÉS de la portada.
+// La portada (página 1 del PDF) no lleva número.
+const PageNumber: React.FC<{ startAt?: number }> = ({ startAt = 1 }) => (
+  <View
+    fixed
+    render={({ pageNumber }) => (
+      <Text style={styles.footer}>{Math.max(startAt, pageNumber)}</Text>
+    )}
+  />
+);
 
 export const ReactPDFPreview: React.FC = () => {
   const { doc, portada } = useDocStore();
@@ -83,7 +98,7 @@ export const ReactPDFPreview: React.FC = () => {
   // Generamos el documento dinámico
   const PDFDoc = () => (
     <Document>
-      {/* Portada Estudiantil (Simplified) */}
+      {/* Portada Estudiantil (Simplified) — SIN número de página */}
       <Page size="LETTER" style={[styles.page, styles.coverPage]} wrap={false}>
         <Text style={styles.coverTitle}>{debouncedPortada.title || 'Título del Trabajo'}</Text>
         <Text style={styles.coverText}>{debouncedPortada.author || 'Autor(es)'}</Text>
@@ -93,8 +108,9 @@ export const ReactPDFPreview: React.FC = () => {
         <Text style={styles.coverText}>{debouncedPortada.date || 'Fecha'}</Text>
       </Page>
 
-      {/* Cuerpo del Documento */}
+      {/* Cuerpo del Documento — número de hoja desde 1 (sin contar portada) */}
       <Page size="LETTER" style={styles.page} wrap={true}>
+        <PageNumber startAt={1} />
         {debouncedDoc.elements.map((elem) => {
           if (elem.type === 'heading') {
             if (elem.heading_level === 1) {
@@ -102,26 +118,35 @@ export const ReactPDFPreview: React.FC = () => {
             }
             return <Text key={elem.id} style={styles.heading2}>{elem.text}</Text>;
           }
-          
+
           if (elem.type === 'paragraph') {
             return <Text key={elem.id} style={styles.paragraph}>{elem.text}</Text>;
           }
 
+          if (elem.type === 'bullet' || elem.type === 'numbered_list') {
+            return <Text key={elem.id} style={styles.bullet}>{elem.text}</Text>;
+          }
+
           if (elem.type === 'table' && elem.table_info) {
-             return <Text key={elem.id} style={styles.paragraph}>[Tabla {elem.table_info.table_number}: {elem.table_info.caption}]</Text>;
+            return <Text key={elem.id} style={styles.paragraph}>[Tabla {elem.table_info.table_number}: {elem.table_info.caption}]</Text>;
+          }
+
+          if (elem.type === 'page_break') {
+            return null;
           }
 
           return null;
         })}
       </Page>
 
-      {/* Referencias */}
+      {/* Referencias — nueva hoja, sin número repetido de portada */}
       {debouncedDoc.referencias && debouncedDoc.referencias.length > 0 && (
-        <Page size="LETTER" style={styles.page}>
-           <Text style={styles.heading1}>Referencias</Text>
-           {debouncedDoc.referencias.map((ref: any) => (
-             <Text key={ref.id} style={styles.referenceItem}>{ref.text}</Text>
-           ))}
+        <Page size="LETTER" style={styles.page} wrap={true}>
+          <PageNumber startAt={1} />
+          <Text style={styles.heading1}>Referencias</Text>
+          {debouncedDoc.referencias.map((ref: any) => (
+            <Text key={ref.id} style={styles.referenceItem}>{ref.text || ref.raw_text}</Text>
+          ))}
         </Page>
       )}
     </Document>

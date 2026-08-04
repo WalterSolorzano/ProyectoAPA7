@@ -6,10 +6,11 @@ import React, { useState, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import { ElementType, APARuleSet } from '../../types';
-import { FileText, Info, Palette, Settings, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock, BadgeCheck } from 'lucide-react';
+import { FileText, Info, Palette, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { parseAuthorEntries, serializeAuthorEntries, requestAuthorHighlight, AuthorEntry } from '../../lib/portadaAuthors';
 import { explainElement } from '../../api/backend';
+import { ImageEditPanel } from './ImageEditPanel';
 
 const APA_HEADING_RULES: Record<number, string> = {
   1: 'Nivel 1: Centrado, Negrita, Caso Título. El texto empieza en un nuevo párrafo.',
@@ -80,7 +81,6 @@ export const ElementInspector: React.FC = () => {
             {[
               { id: 'info', label: 'Info', icon: <Info size={13} /> },
               { id: 'style', label: 'Estilo', icon: <Palette size={13} /> },
-              { id: 'advanced', label: 'Avanzado', icon: <Settings size={13} /> },
               ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuación', icon: <Sigma size={13} /> }] : []),
             ].map((tab) => (
               <TabsTrigger
@@ -120,13 +120,6 @@ export const ElementInspector: React.FC = () => {
                 triggerUpdate={triggerUpdate}
                 rules={rules}
                 setRules={setRules}
-              />
-            </TabsContent>
-            <TabsContent value="advanced" className="mt-0 outline-none">
-              <AdvancedTab
-                selectedElem={selectedElem}
-                triggerUpdate={triggerUpdate}
-                rules={rules}
               />
             </TabsContent>
             {selectedElem?.type === 'equation' && (
@@ -256,7 +249,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
             padding: '4px 10px', borderRadius: '4px',
             border: '1px solid rgba(250,173,20,0.4)',
             display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>✏️ Editado manualmente</span>
+          }}>Editado manualmente</span>
         ) : selectedElem.needs_review || selectedElem.confidence < 0.85 ? (
           <span style={{
             fontSize: '11px', fontWeight: 600,
@@ -264,7 +257,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
             padding: '4px 10px', borderRadius: '4px',
             border: '1px solid rgba(255,77,79,0.4)',
             display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>⚠️ Requiere revisión</span>
+          }}>Requiere revisión</span>
         ) : (
           <span style={{
             fontSize: '11px', fontWeight: 600,
@@ -272,7 +265,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
             padding: '4px 10px', borderRadius: '4px',
             border: '1px solid rgba(82,196,26,0.35)',
             display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>✅ Clasificado</span>
+          }}>Clasificado</span>
         )}
       </div>
     </div>
@@ -330,14 +323,10 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Image info tab — ahora en el panel modular de edición (Step 3) */}
+    {/* Image: editor de imagen embebido directamente en el panel contextual */}
     {selectedElem.type === 'image' && (
-      <div className="inspector-section">
-        <label className="inspector-label">Edición de figura</label>
-        <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5, margin: '4px 0' }}>
-          La edición completa (tamaño, estilo, alineación, rotación, leyenda, nota, accesibilidad y reemplazo)
-          está disponible en el <strong>Panel de edición</strong> del paso Figuras y tablas.
-        </p>
+      <div className="inspector-section" style={{ paddingBottom: 0 }}>
+        <ImageEditPanel elem={selectedElem} />
       </div>
     )}
 
@@ -449,53 +438,6 @@ const StyleTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; rules: 
         </select>
       </div>
     )}
-
-    {/* Formato APA del elemento */}
-    <div className="inspector-section">
-      <label className="inspector-label">Formato Original</label>
-      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        <p>Estilo: {selectedElem.style_name || 'Normal'}</p>
-        <p>Alineacion: {selectedElem.alignment}</p>
-        <p>Fuente: {selectedElem.font_name} ({selectedElem.font_size}pt)</p>
-        <p>Negrita: {selectedElem.is_bold ? 'Si' : 'No'} | Cursiva: {selectedElem.is_italic ? 'Si' : 'No'}</p>
-        <p>Sangria: {selectedElem.left_indent_cm}cm</p>
-        {selectedElem.is_cover_section && <p style={{ color: 'var(--word-blue)', fontWeight: 600 }}>Seccion de Portada</p>}
-      </div>
-    </div>
-  </>
-);
-
-
-const AdvancedTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; rules: any }> = ({ selectedElem, triggerUpdate, rules }) => (
-  <>
-    <div className="inspector-section">
-      <label className="inspector-label">Configuracion Global APA</label>
-      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        <p>Perfil: {rules.profile_name}</p>
-        <p>Margenes: {rules.margins_cm}cm</p>
-        <p>Fuente: {rules.font_family} ({rules.font_size_pt}pt)</p>
-        <p>Interlineado: {rules.line_spacing}x</p>
-        <p>Sangria de parrafo: {rules.paragraph_indent_cm}cm</p>
-        <p>Alineacion: {rules.alignment}</p>
-        <p>Prefijo figuras: {rules.figure_label_prefix}</p>
-        <p>Prefijo tablas: {rules.table_label_prefix}</p>
-      </div>
-    </div>
-
-    {/* ID del elemento */}
-    <div className="inspector-section">
-      <label className="inspector-label">ID del Elemento</label>
-      <div style={{
-        fontSize: '10px',
-        fontFamily: 'monospace',
-        color: 'var(--text-muted)',
-        backgroundColor: 'var(--app-bg)',
-        padding: '4px 8px',
-        borderRadius: '4px',
-      }}>
-        {selectedElem.id}
-      </div>
-    </div>
   </>
 );
 

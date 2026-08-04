@@ -253,7 +253,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     if (!doc) return;
     setAiLoadingId(elem.id);
     try {
-      const contextText = elem.text || "";
+      // Contexto real: párrafos circundantes a la figura (el texto propio de
+      // una imagen suele estar vacío, por eso la IA respondía con el prompt).
+      const idx = doc.elements.findIndex((e) => e.id === elem.id);
+      const ctx: string[] = [];
+      for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+        const e = doc.elements[i];
+        if (e.id === elem.id) continue;
+        if (e.type === 'paragraph' || e.type === 'heading' || e.type === 'bullet' || e.type === 'numbered_list') {
+          const t = (e.text || '').trim();
+          if (t) ctx.push(t);
+        }
+      }
+      const contextText = ctx.join('\n') || elem.text || '';
       const apiKey = useDocStore.getState().apiKey;
       const suggestion = await suggestCaption(doc.session_id, elem.id, contextText, apiKey);
       const newImageInfo = { ...elem.image_info, caption: suggestion };
