@@ -18,7 +18,7 @@ const AIMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     <div
       onClick={(e) => e.stopPropagation()}
       style={{
-        position: 'absolute', top: '48px', right: '120px', width: '300px',
+        position: 'absolute', top: '48px', right: '20px', width: '300px', maxWidth: 'calc(100vw - 40px)',
         backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 300,
         padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',

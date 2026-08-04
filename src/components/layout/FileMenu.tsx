@@ -7,6 +7,7 @@ import { SessionRecovery } from '../../types';
 import {
   FileText, FilePlus, FolderOpen, Save, Download, X, ArrowLeft,
   Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate,
+  Type, Image, Table, ListOrdered, Quote,
 } from 'lucide-react';
 
 type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export';
@@ -129,12 +130,12 @@ export const FileMenu: React.FC = () => {
                 <h3 className="filemenu-section-title">Estructura del documento</h3>
                 <div className="filemenu-stats-grid">
                   {[
-                    { label: 'Titulos', value: doc.elements.filter(e => e.type === 'heading').length, icon: 'T' },
-                    { label: 'Parrafos', value: doc.elements.filter(e => e.type === 'paragraph').length, icon: 'P' },
-                    { label: 'Figuras', value: doc.elements.filter(e => e.type === 'image' && e.image_info).length, icon: 'F' },
-                    { label: 'Tablas', value: doc.elements.filter(e => e.type === 'table' && e.table_info).length, icon: 'Tb' },
-                    { label: 'Listas', value: doc.elements.filter(e => e.type === 'bullet' || e.type === 'numbered_list').length, icon: 'L' },
-                    { label: 'Citas', value: doc.elements.filter(e => e.cita_ids && e.cita_ids.length).length, icon: 'C' },
+                    { label: 'Titulos', value: doc.elements.filter(e => e.type === 'heading').length, icon: <Type size={14} /> },
+                    { label: 'Parrafos', value: doc.elements.filter(e => e.type === 'paragraph').length, icon: <FileText size={14} /> },
+                    { label: 'Figuras', value: doc.elements.filter(e => e.type === 'image' && e.image_info).length, icon: <Image size={14} /> },
+                    { label: 'Tablas', value: doc.elements.filter(e => e.type === 'table' && e.table_info).length, icon: <Table size={14} /> },
+                    { label: 'Listas', value: doc.elements.filter(e => e.type === 'bullet' || e.type === 'numbered_list').length, icon: <ListOrdered size={14} /> },
+                    { label: 'Citas', value: doc.elements.filter(e => e.cita_ids && e.cita_ids.length).length, icon: <Quote size={14} /> },
                   ].map(stat => (
                     <div key={stat.label} className="filemenu-stat">
                       <div className="filemenu-stat-icon">{stat.icon}</div>
@@ -258,7 +259,7 @@ export const FileMenu: React.FC = () => {
               }}
               onClick={() => openFileInputRef.current?.click()}
             >
-              <HardDrive size={28} color="var(--accent-primary)" />
+              <FolderOpen size={28} color="var(--accent-primary)" />
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent-primary)' }}>Abrir archivo desde tu computadora</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selecciona un .docx para cargarlo y formatearlo en APA 7</div>

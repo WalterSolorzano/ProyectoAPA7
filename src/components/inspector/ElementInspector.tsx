@@ -677,8 +677,8 @@ const PortadaEditor: React.FC<{ portada: any; setPortada: any }> = ({ portada, s
       {isLocked && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'rgba(82,196,26,0.1)', border: '1px solid rgba(82,196,26,0.3)',
-          borderRadius: '8px', padding: '8px 10px', fontSize: '11px', color: 'var(--accent-success)', fontWeight: 600,
+          background: 'rgba(79,124,255,0.1)', border: '1px solid rgba(79,124,255,0.25)',
+          borderRadius: '8px', padding: '8px 10px', fontSize: '11px', color: 'var(--accent-primary)', fontWeight: 600,
         }}>
           <Lock size={13} /> Portada protegida: el sistema no la modificará. Elegí otra estrategia para editar datos.
         </div>

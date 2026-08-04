@@ -176,7 +176,7 @@ export const DownloadModal: React.FC = () => {
             color: healthOk ? 'var(--color-success)' : 'var(--color-warning)',
             border: `1px solid ${healthOk ? 'rgba(45,106,79,0.3)' : 'rgba(183,121,31,0.35)'}`,
           }}>
-            {healthOk ? 'Good' : 'Needs review'}
+            {healthOk ? 'Correcto' : 'Pendiente'}
           </span>
         </div>
 

@@ -1235,13 +1235,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               </div>
                             )}
 
-                            {/* Marco de la imagen — ancho según dimensiones, no 100% */}
+                            {/* Marco de la imagen — ocupa el ancho de la página sin achicarse demasiado */}
                             <div
                               style={{
                                 order: 1,
                                 margin: '0 auto',
-                                maxWidth: '100%',
-                                width: elem.image_info?.width_cm ? `${elem.image_info.width_cm * 37.8}px` : 'auto',
+                                width: '100%', maxWidth: '100%',
                                 height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
                                 minWidth: '120px',
                                 minHeight: '120px',

@@ -143,9 +143,9 @@ const DocumentPanel: React.FC = () => {
             { label: 'Figuras', value: figures },
             { label: 'Tablas', value: tables },
             { label: 'Referencias', value: refs },
-            { label: 'Citas fantasma', value: citationAuditResult?.ghost_citations?.length || 0, danger: (citationAuditResult?.ghost_citations?.length || 0) > 0 },
+            { label: 'Citas fantasma', value: citationAuditResult?.ghost_citations?.length || 0, danger: (citationAuditResult?.ghost_citations?.length || 0) > 0, hint: 'Citas en el texto sin referencia en la bibliografía' },
           ].map((s) => (
-            <div key={s.label} style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            <div key={s.label} style={{ fontSize: '11px', color: 'var(--text-secondary)' }} title={(s as any).hint || s.label}>
               <span style={{ display: 'block', fontWeight: 800, color: s.danger ? 'var(--accent-danger)' : 'var(--text-main)', fontSize: '16px' }}>
                 {s.value}
               </span>
