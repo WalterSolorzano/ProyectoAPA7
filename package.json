@@ -3,7 +3,7 @@
   "productName": "WordAPA7",
   "description": "Herramienta inteligente para dar formato APA 7",
   "author": "Antigravity",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
