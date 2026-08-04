@@ -2892,18 +2892,22 @@ def check_and_auto_build_frontend() -> None:
         should_build = True
         reason = "dist/version.json no existe (build manifest)"
     else:
-        # Comparar hash de contenido, no mtime
+        # Comparar hash de contenido de src/ contra el src_hash guardado por
+        # build_manifest.py en el momento del build (mismo algoritmo, mismos archivos).
         src_hash = _compute_src_content_hash(src_dir)
         try:
             with open(version_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            stored_hash = data.get("build_hash", "")
+            stored_src_hash = data.get("src_hash", "")
         except Exception:
-            stored_hash = ""
+            stored_src_hash = ""
 
-        if src_hash != stored_hash:
+        if stored_src_hash == "":
             should_build = True
-            reason = f"src_hash={src_hash} != build_hash={stored_hash} (cambios detectados en código fuente)"
+            reason = "version.json sin src_hash (manifest de build anterior)"
+        elif src_hash != stored_src_hash:
+            should_build = True
+            reason = f"src_hash={src_hash} != src_hash={stored_src_hash} (cambios detectados en c\u00f3digo fuente)"
 
     if should_build:
         print(f"[AUTO-BUILD] {reason}. Recompilando con 'npm run build'...")
@@ -2911,7 +2915,7 @@ def check_and_auto_build_frontend() -> None:
             cmd = ["npm.cmd", "run", "build"] if os.name == 'nt' else ["npm", "run", "build"]
             res = subprocess.run(cmd, cwd=str(BASE_DIR), capture_output=True, text=True)
             if res.returncode == 0:
-                print("[AUTO-BUILD] ✅ Recompilación exitosa del frontend!")
+                print("[AUTO-BUILD] [OK] Recompilacion exitosa del frontend!")
                 # Invalidar caché de build_hash
                 global _build_hash_cache, _build_hash_cache_time
                 _build_hash_cache = None

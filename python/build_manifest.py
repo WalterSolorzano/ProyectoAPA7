@@ -37,6 +37,24 @@ def _compute_build_hash(dist_dir: Path) -> str:
     return h.hexdigest()[:12]
 
 
+def _compute_src_content_hash(src_dir: Path) -> str:
+    """Hash SHA-256 compuesto del contenido de src/ (mismo algoritmo que main.py)."""
+    if not src_dir.exists():
+        return "no-src"
+    h = hashlib.sha256()
+    for fp in sorted(src_dir.rglob("*")):
+        if fp.is_file() and "node_modules" not in fp.parts:
+            rel = fp.relative_to(src_dir).as_posix()
+            h.update(rel.encode())
+            try:
+                with open(fp, "rb") as f:
+                    while chunk := f.read(65536):
+                        h.update(chunk)
+            except Exception:
+                pass
+    return h.hexdigest()[:12]
+
+
 def generate_build_manifest(dist_dir: str | Path | None = None) -> Path:
     """
     Genera dist/version.json con hash de build individuales y compuesto.
@@ -56,10 +74,12 @@ def generate_build_manifest(dist_dir: str | Path | None = None) -> Path:
         files_meta[rel] = {"hash": h, "size": fp.stat().st_size}
 
     build_hash = _compute_build_hash(dist)
+    src_hash = _compute_src_content_hash(BASE_DIR / "src")
 
     manifest = {
         "version": "1.0.0",
         "build_hash": build_hash,
+        "src_hash": src_hash,
         "build_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_files": len(files_meta),
         "files": files_meta,

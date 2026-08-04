@@ -9,5 +9,9 @@ echo.
 echo Abre http://localhost:8742 en tu navegador.
 echo Cierra esta ventana para detener la aplicacion.
 echo.
-python python\main.py
+if exist "venv\Scripts\python.exe" (
+    "venv\Scripts\python" python\main.py
+) else (
+    python python\main.py
+)
 pause
