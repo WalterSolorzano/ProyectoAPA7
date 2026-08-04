@@ -96,25 +96,36 @@ git clone https://github.com/tu-usuario/wordapa7.git
 cd wordapa7
 ```
 
-### 2. Configurar Entorno Backend (Python + FastAPI)
+### 2. Setup Automático (recomendado)
 ```bash
-# Crear entorno virtual
+setup.bat
+```
+
+`setup.bat` hace todo en un solo paso:
+- Verifica Python 3.11+ y Node.js 18+ en el PATH.
+- Crea el entorno virtual `venv\` e instala `requirements.txt` en él.
+- Copia `.env.example` → `.env` (solo si no existe) y restringe su acceso al usuario actual.
+- `npm install` + genera la plantilla APA7 + `npm run build`.
+
+### 3. Iniciar la Aplicación
+```bash
+start.bat
+```
+(o `powershell -ExecutionPolicy Bypass -File start.ps1`). El arranque usa
+`venv\Scripts\python.exe` si existe. Abre en tu navegador: **`http://localhost:8742`**
+
+### 4. Setup Manual (alternativa)
+```bash
+# Entorno virtual + dependencias
 python -m venv venv
-
-# Activar entorno (Windows PowerShell)
-.\venv\Scripts\Activate.ps1
-
-# Instalar dependencias
-pip install -r python/requirements.txt
-```
-
-### 3. Configurar Frontend (React + TypeScript + Vite)
-```bash
+venv\Scripts\pip install -r requirements.txt
 npm install
+venv\Scripts\python python\create_template.py
+npm run build
 ```
 
-### 4. Configurar Variables de Entorno
-Copia el archivo `.env.example` a `.env`:
+### 5. Configurar Variables de Entorno
+Copia el archivo `.env.example` a `.env` si `setup.bat` no lo hizo:
 ```bash
 cp .env.example .env
 ```
@@ -124,12 +135,23 @@ NVIDIA_API_KEY=nvapi-TU_CLAVE_AQUI
 NVIDIA_NIM_MODEL=meta/llama-3.1-70b-instruct
 ```
 
-### 5. Iniciar la Aplicación
-```bash
-# Servidor Backend + Frontend en desarrollo
-python python/main.py
-```
-Abre en tu navegador: **`http://localhost:8742`**
+## 🔐 Seguridad de Claves de API
+
+- **No se empaquetan claves en el instalador.** `electron-builder.yml` usa
+  empaquetado *whitelist*: solo `dist/**`, `dist-electron/**` y
+  `dist-python/**` (bundle PyInstaller que incluye únicamente
+  `python/assets/`). `.env`, `.env.example`, `storage/` y `requirements.txt`
+  NUNCA se incluyen en `electron:build`.
+- **`.env.example` solo contiene placeholders.** `setup.bat` verifica que no
+  haya claves reales (patrón `nvapi-`/`sk-`/`gsk_`/`csk-`) y aborta si las
+  encuentra, para evitar distribuir una clave real por accidente.
+- **`.env` está en `.gitignore`** y `setup.bat` le aplica ACL de Windows para
+  restringirlo al usuario actual. Nunca lo subas a git ni lo compartas.
+- Las claves que escribes en la UI se conservan en `storage/ai_keys.json`
+  (carpeta local, también gitignore) y se restauran en `os.environ` al iniciar.
+  Es cifrado en reposo no aplicado: las claves están en texto plano en tu disco
+  local, como es típico en apps de escritorio. No compartas la carpeta del
+  proyecto ni hagas backups que la incluyan.
 
 ---
 

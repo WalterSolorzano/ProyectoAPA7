@@ -50,13 +50,32 @@ if errorlevel 1 (
 
 rem --- [3] Variables de entorno ---
 echo [3/5] Configurando variables de entorno...
+
+rem Guardia de seguridad: si .env.example contiene claves REALES (no placeholders),
+rem el setup se detiene - nunca se debe distribuir una clave de IA dentro del
+rem instalador ni copiarla al .env local.
+powershell -NoProfile -Command "$k = Get-Content '.env.example' -Raw; if ($k -match '(nvapi-[A-Za-z0-9]{25,}|sk-[A-Za-z0-9]{20,}|gsk_[A-Za-z0-9]{30,}|csk-[A-Za-z0-9]{20,})') { exit 1 } else { exit 0 }"
+if errorlevel 1 (
+    echo.
+    echo ERROR DE SEGURIDAD: .env.example contiene una clave de API real.
+    echo Reemplazala por un placeholder (ej. nvapi-TU_API_KEY_AQUI) antes de
+    echo ejecutar el setup. Las claves reales NO deben distribuirse ni empaquetarse.
+    pause
+    exit /b 1
+)
+
 if not exist ".env" (
     copy ".env.example" ".env" >nul
+    rem Restringir acceso al .env solo para el usuario actual (Windows ACL)
+    icacls ".env" /inheritance:r /grant:r "%USERNAME%:(F)" >nul 2>nul
     echo Creado .env a partir de .env.example.
     echo   - Opcional: agrega tu NVIDIA_API_KEY para la clasificacion con IA.
 ) else (
     echo .env ya existe - sin cambios.
 )
+echo IMPORTANTE: .env es PRIVADO (contiene tus claves). No lo subas a git
+echo ni lo compartas. Nunca se incluye en dist/, dist-electron/ ni en el
+echo instalador Electron (empaquetado whitelist).
 
 rem --- [4] Dependencias Node ---
 echo [4/5] Instalando dependencias Node...
