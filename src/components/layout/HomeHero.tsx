@@ -17,22 +17,35 @@ interface Phrase {
 }
 
 const EXTRA_HERO: Phrase[] = [
-  { text: 'convertí tu .docx en APA 7 sin aprenderte la norma', tag: 'inicio' },
-  { text: 'corregimos el formato, vos seguís escribiendo', tag: 'inicio' },
-  { text: 'de "final_v3.docx" a entrega formal en minutos', tag: 'inicio' },
-  { text: 'sangrías, portada, referencias y citas en orden', tag: 'inicio' },
+  { text: 'Convertí tu .docx en APA 7 sin aprenderte la norma', tag: 'inicio' },
+  { text: 'Corregimos el formato, vos seguís escribiendo', tag: 'inicio' },
+  { text: 'De "final_v3.docx" a entrega formal en minutos', tag: 'inicio' },
+  { text: 'Sangrías, portada, referencias y citas en orden', tag: 'inicio' },
 ];
+
+/**
+ * Capitaliza la primera letra de cada frase si empieza en minúscula
+ * (los pools de LoadingTips vienen todos en minúscula).
+ */
+function fmtPhrase(raw: string): string {
+  const t = raw.trim();
+  if (!t) return t;
+  if (t[0] >= 'a' && t[0] <= 'z') {
+    return t[0].toUpperCase() + t.slice(1);
+  }
+  return t;
+}
 
 function buildPool(): Phrase[] {
   const now = new Date();
   const timeComment = getTimeOfWeekComment(now);
   const contextual: Phrase[] = timeComment
-    ? [{ text: timeComment, tag: 'contexto' }]
+    ? [{ text: fmtPhrase(timeComment), tag: 'contexto' }]
     : [];
 
-  const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: t.replace(/…$/, ''), tag: 'procesando' }));
-  const jokes: Phrase[] = JOKES.map((t) => ({ text: t, tag: 'chiste' }));
-  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: t, tag: 'dato APA' }));
+  const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: fmtPhrase(t.replace(/…$/, '')), tag: 'procesando' }));
+  const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste' }));
+  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato APA' }));
 
   return [...contextual, ...EXTRA_HERO, ...process, ...jokes, ...facts];
 }
@@ -50,19 +63,17 @@ const TAG_COLOR: Record<string, string> = {
   'dato APA': 'var(--accent-success)',
 };
 
-/** Fondo del hero según la hora del día. */
+/** Fondo del hero según la hora. Más sutil para no competir con el texto. */
 function getTimeGradient(): string {
   const h = new Date().getHours();
   if (h >= 5 && h < 12) {
-    // Mañana: azul fresco y claro
-    return 'linear-gradient(135deg, rgba(79,124,255,0.16) 0%, rgba(79,124,255,0.04) 55%, var(--surface-elevated) 100%)';
+    return 'linear-gradient(135deg, rgba(79,124,255,0.10) 0%, rgba(79,124,255,0.03) 55%, var(--surface-elevated) 100%)';
   }
   if (h >= 12 && h < 20) {
-    // Tarde: cálido ambar/azul
-    return 'linear-gradient(135deg, rgba(250,173,20,0.14) 0%, rgba(79,124,255,0.08) 55%, var(--surface-elevated) 100%)';
+    return 'linear-gradient(135deg, rgba(250,173,20,0.10) 0%, rgba(79,124,255,0.05) 55%, var(--surface-elevated) 100%)';
   }
-  // Noche / madrugada: azul profundo
-  return 'linear-gradient(135deg, rgba(20,24,60,0.9) 0%, rgba(79,124,255,0.18) 55%, var(--surface-elevated) 100%)';
+  // Noche: azul profundo pero no opresivo
+  return 'linear-gradient(135deg, rgba(20,24,60,0.70) 0%, rgba(79,124,255,0.12) 55%, var(--surface-elevated) 100%)';
 }
 
 function getTimeLabel(): string {
@@ -142,12 +153,14 @@ export const HomeHero: React.FC = () => {
           key={fadeKey}
           className="hero-phrase-in"
           style={{
-            fontSize: '22px',
-            fontWeight: 800,
+            fontSize: '28px',
+            fontWeight: 900,
             color: 'var(--text-main)',
-            lineHeight: 1.35,
+            lineHeight: 1.2,
             letterSpacing: '-0.01em',
             margin: '0 0 10px',
+            textShadow: '0 1px 3px rgba(128,128,128,0.25)',
+            fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
           }}
         >
           {phrase.text}
@@ -155,19 +168,19 @@ export const HomeHero: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span
             style={{
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: 800,
               textTransform: 'uppercase',
               letterSpacing: '0.6px',
               color: '#fff',
               backgroundColor: TAG_COLOR[phrase.tag] || 'var(--accent-primary)',
               borderRadius: '999px',
-              padding: '2px 10px',
+              padding: '3px 12px',
             }}
           >
             {phrase.tag === 'inicio' ? timeLabel : phrase.tag}
           </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: 600 }}>
             la mascota te acompaña mientras cargás tu documento
           </span>
         </div>
