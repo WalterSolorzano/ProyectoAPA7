@@ -1427,7 +1427,11 @@ def generate_apa7_docx(
 
     # 7.5 Normalización dura de fuentes en TODOS los runs (cuerpo, celdas,
     # headers/footers) para eliminar mezclas heredadas de Word/internet.
-    from generation.style_engine import normalize_all_fonts
+    from generation.style_engine import normalize_all_fonts, normalize_cover_font_name
+    # Primero normalizar solo el nombre de fuente de la portada (respetando
+    # tamaños originales para mantener la jerarquía visual del diseño).
+    if cover_paragraph_count > 0 and not remove_cover_paragraphs:
+        normalize_cover_font_name(doc, rules.font_family, cover_paragraph_count)
     normalize_all_fonts(
         doc,
         rules,

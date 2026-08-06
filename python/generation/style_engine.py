@@ -137,6 +137,35 @@ def normalize_all_fonts(
     update_docx_styles_xml(doc, rules)
 
 
+def normalize_cover_font_name(
+    doc: docx.Document,
+    font_family: str,
+    paragraph_count: int,
+) -> None:
+    """
+    Cambia SOLO el nombre de la fuente en los párrafos de portada a la fuente
+    APA (Times New Roman) pero RESPETA el tamaño original de cada run.
+    Así la portada conserva su diseño y jerarquía visual, pero con la
+    tipografía correcta de la norma.
+    """
+    if paragraph_count <= 0:
+        return
+    for para in doc.paragraphs[:paragraph_count]:
+        for run in para.runs:
+            run.font.name = font_family
+            # rFonts OOXML para asegurar que Word no herede la fuente del estilo
+            rPr = run._element.find(qn("w:rPr"))
+            if rPr is None:
+                rPr = OxmlElement("w:rPr")
+                run._element.insert(0, rPr)
+            rFonts = rPr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = OxmlElement("w:rFonts")
+                rPr.insert(0, rFonts)
+            for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+                rFonts.set(qn(attr), font_family)
+
+
 def update_docx_styles_xml(doc: docx.Document, rules: APARuleSet) -> None:
     """
     Modifica directamente las definiciones XML en styles.xml de la plantilla/documento:

@@ -740,9 +740,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     for idx, elem in enumerate(elements):
         if idx < portada_boundary:
             elem.is_cover_section = True
-            if elem.type == ElementType.PARAGRAPH:
+            # Convertir tanto párrafos como headings a portada_block dentro
+            # de la portada (evita que "Docente:", "Grupo:", fecha y lugar
+            # queden como encabezados del cuerpo).
+            if elem.type in (ElementType.PARAGRAPH, ElementType.HEADING):
                 elem.type = ElementType.PORTADA_BLOCK
                 elem.confidence = 0.95
+                if elem.heading_level is None:
+                    elem.heading_level = 1
             if elem.image_info:
                 elem.image_info.figure_number = 0
         else:
@@ -965,5 +970,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # Marcar para revisión los headings numerados que saltan niveles o
     # aparecen sin su padre (p.ej. "3.1" sin un "3." previo).
     _flag_numbering_skips(elements)
+
+    # ── PASADA 7: Safety net — todo heading sin nivel asignado → nivel 1 ──────
+    for elem in elements:
+        if elem.type == ElementType.HEADING and elem.heading_level is None:
+            elem.heading_level = 1
+            elem.needs_review = True
 
     return elements

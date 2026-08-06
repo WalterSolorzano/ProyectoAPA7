@@ -1570,4 +1570,18 @@ def parse_docx_bytes(
             else " ".join(extra_warnings)
         )
 
+    # ── Filtro de ruido: eliminar elementos empty sin contenido real ────
+    original_count = len(doc_model.elements)
+    doc_model.elements = [
+        e for e in doc_model.elements
+        if not (
+            e.type == ElementType.EMPTY
+            and not (e.image_info and (e.image_info.width_cm or e.image_info.relative_url))
+            and not (e.text and e.text.strip())
+            and not e.table_info
+        )
+    ]
+    if original_count > len(doc_model.elements):
+        print(f"[docx_parser] Filtrados {original_count - len(doc_model.elements)} elementos vacíos sin contenido.")
+
     return doc_model
