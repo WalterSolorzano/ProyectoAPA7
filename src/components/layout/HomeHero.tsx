@@ -23,31 +23,51 @@ const EXTRA_HERO: Phrase[] = [
   { text: 'Sangrías, portada, referencias y citas en orden', tag: 'inicio' },
 ];
 
-/**
- * Capitaliza la primera letra de cada frase si empieza en minúscula
- * (los pools de LoadingTips vienen todos en minúscula).
- */
+/** Frases especiales de contexto horario (estilo "viernes en la noche…"). */
+function getTimePhrases(): Phrase[] {
+  const now = new Date();
+  const h = now.getHours();
+  const day = now.getDay(); // 0=dom, 6=sáb
+  const phrases: Phrase[] = [];
+
+  if (h >= 1 && h < 5) {
+    phrases.push({ text: 'Madrugada... el horario sagrado de las entregas.', tag: 'hora-especial' });
+    phrases.push({ text: 'Una entrega a las 3 AM: clásico de todo estudiante.', tag: 'hora-especial' });
+  }
+  if (day === 0 && h >= 17) {
+    phrases.push({ text: 'Domingo a la noche... el horario sagrado de las entregas.', tag: 'hora-especial' });
+  }
+  if (day === 5 && h >= 15) {
+    phrases.push({ text: '¿Viernes y con un Word abierto? Sos un guerrero.', tag: 'hora-especial' });
+  }
+  if (day === 1 && h < 9) {
+    phrases.push({ text: 'Lunes temprano y ya estás formateando... respeto.', tag: 'hora-especial' });
+  }
+  if (day >= 2 && day <= 4 && h >= 22) {
+    phrases.push({ text: 'Entre semana a esta hora... esa entrega no se va a formatear sola.', tag: 'hora-especial' });
+  }
+  // Siempre: la frase contextual genérica
+  const timeComment = getTimeOfWeekComment(now);
+  if (timeComment) {
+    phrases.push({ text: fmtPhrase(timeComment), tag: 'contexto' });
+  }
+  return phrases;
+}
+
 function fmtPhrase(raw: string): string {
   const t = raw.trim();
   if (!t) return t;
-  if (t[0] >= 'a' && t[0] <= 'z') {
-    return t[0].toUpperCase() + t.slice(1);
-  }
+  if (t[0] >= 'a' && t[0] <= 'z') return t[0].toUpperCase() + t.slice(1);
   return t;
 }
 
 function buildPool(): Phrase[] {
-  const now = new Date();
-  const timeComment = getTimeOfWeekComment(now);
-  const contextual: Phrase[] = timeComment
-    ? [{ text: fmtPhrase(timeComment), tag: 'contexto' }]
-    : [];
-
+  const timePhrases = getTimePhrases();
   const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: fmtPhrase(t.replace(/…$/, '')), tag: 'procesando' }));
   const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste' }));
   const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato APA' }));
 
-  return [...contextual, ...EXTRA_HERO, ...process, ...jokes, ...facts];
+  return [...timePhrases, ...EXTRA_HERO, ...process, ...jokes, ...facts];
 }
 
 function pickRandom<T>(arr: T[]): T {
@@ -56,6 +76,7 @@ function pickRandom<T>(arr: T[]): T {
 
 const TAG_COLOR: Record<string, string> = {
   contexto: 'var(--accent-warning)',
+  'hora-especial': '#e85d04',
   inicio: 'var(--accent-primary)',
   'APA 7': 'var(--accent-success)',
   procesando: 'var(--accent-primary)',
@@ -92,12 +113,13 @@ export const HomeHero: React.FC = () => {
     const iv = setInterval(() => {
       setPhrase(pickRandom(poolRef.current));
       setFadeKey((k) => k + 1);
-    }, 5200);
+    }, 7200);
     return () => clearInterval(iv);
   }, []);
 
   const expression = getMascotExpression();
   const timeLabel = getTimeLabel();
+  const isSpecial = phrase.tag === 'hora-especial' || phrase.tag === 'contexto';
 
   return (
     <div
@@ -107,11 +129,14 @@ export const HomeHero: React.FC = () => {
         gap: '28px',
         padding: '28px 32px',
         borderRadius: 'var(--radius-xl)',
-        background: getTimeGradient(),
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-md)',
+        background: isSpecial
+          ? 'linear-gradient(135deg, rgba(232,93,4,0.12) 0%, rgba(250,173,20,0.06) 55%, var(--surface-elevated) 100%)'
+          : getTimeGradient(),
+        border: isSpecial ? '2px solid rgba(232,93,4,0.35)' : '1px solid var(--border-subtle)',
+        boxShadow: isSpecial ? '0 4px 20px rgba(232,93,4,0.15)' : 'var(--shadow-md)',
         marginBottom: '28px',
         flexWrap: 'wrap',
+        transition: 'background 0.6s ease, border 0.6s ease, box-shadow 0.6s ease',
       }}
     >
       {/* Mascota con tamaño responsive (no se come el texto) */}
@@ -155,11 +180,11 @@ export const HomeHero: React.FC = () => {
           style={{
             fontSize: '28px',
             fontWeight: 900,
-            color: 'var(--text-main)',
+            color: isSpecial ? '#5c2d00' : 'var(--text-main)',
             lineHeight: 1.2,
             letterSpacing: '-0.01em',
             margin: '0 0 10px',
-            textShadow: '0 1px 3px rgba(128,128,128,0.25)',
+            textShadow: isSpecial ? 'none' : '0 1px 3px rgba(128,128,128,0.25)',
             fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
           }}
         >
@@ -178,7 +203,7 @@ export const HomeHero: React.FC = () => {
               padding: '3px 12px',
             }}
           >
-            {phrase.tag === 'inicio' ? timeLabel : phrase.tag}
+            {phrase.tag === 'inicio' ? timeLabel : phrase.tag === 'hora-especial' ? 'hora pico' : phrase.tag}
           </span>
           <span style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: 600 }}>
             la mascota te acompaña mientras cargás tu documento

@@ -206,6 +206,45 @@ const DocumentPanel: React.FC = () => {
         </button>
       </div>
 
+      {/* Progreso de clasificación LLM en tiempo real (visibilidad IA) */}
+      {llmActive && !reviewResult && !isReviewLoading && (
+        <div style={{
+          border: '1px solid rgba(79,124,255,0.3)', borderRadius: 'var(--radius-lg)',
+          backgroundColor: 'rgba(79,124,255,0.06)', overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <Sparkles size={15} color="var(--accent-primary)" />
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>IA clasificando</span>
+            <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
+              {llmProgress.elements_processed}/{llmProgress.elements_total}
+            </span>
+          </div>
+          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Barra de progreso */}
+            <div style={{ height: '4px', backgroundColor: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${llmProgress.elements_total > 0 ? Math.round((llmProgress.elements_processed / llmProgress.elements_total) * 100) : 0}%`,
+                height: '100%', backgroundColor: 'var(--accent-primary)', borderRadius: '2px',
+                transition: 'width 0.4s ease',
+              }} />
+            </div>
+            {/* Muestra textual de lo que se está analizando */}
+            {llmProgress.current_sample && (
+              <div style={{
+                fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic',
+                backgroundColor: 'var(--surface-subtle)', padding: '6px 8px',
+                borderRadius: 'var(--radius-sm)', lineHeight: 1.4,
+              }}>
+                "{llmProgress.current_sample.slice(0, 120)}{llmProgress.current_sample.length > 120 ? '…' : ''}"
+              </div>
+            )}
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Proveedor: {llmProgress.current_provider || 'conectando…'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resultado de revisión IA */}
       {(reviewResult || isReviewLoading) && (
         <div style={{
@@ -218,10 +257,23 @@ const DocumentPanel: React.FC = () => {
           </div>
           <div style={{ padding: '12px' }}>
             {isReviewLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                Analizando documento…
-                <style>{`@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }`}</style>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                  Analizando documento…
+                  <style>{`@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }`}</style>
+                </div>
+                {/* IA visibility: muestra qué texto se está clasificando en este momento */}
+                {llmProgress.status === 'processing' && llmProgress.current_sample && (
+                  <div style={{
+                    fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic',
+                    backgroundColor: 'rgba(79,124,255,0.06)', padding: '6px 8px',
+                    borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
+                    lineHeight: 1.4,
+                  }}>
+                    Clasificando: "{llmProgress.current_sample}…"
+                  </div>
+                )}
               </div>
             ) : reviewResult ? (
               <>

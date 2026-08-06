@@ -462,6 +462,7 @@ export interface LLMProgressState {
   elements_processed: number;
   elements_total: number;
   estimated_time_remaining_seconds: number;
+  current_sample: string;
   provider_fallbacks: Array<{ from: string; to: string }>;
   last_error: string | null;
 }

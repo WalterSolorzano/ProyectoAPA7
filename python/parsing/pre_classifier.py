@@ -207,6 +207,39 @@ def _flag_numbering_skips(elements: List[ElementModel]) -> None:
         seen_prefixes.add(nums)
 
 
+def _demote_numbered_headings(elements: List[ElementModel]) -> None:
+    """
+    Degrada headings numerados (p.ej. "3. ¿Cómo afecta...") que están
+    sobre-nivelados (Nivel 1 centrado) porque el usuario aplicó Heading 1
+    a todas las preguntas. Si el heading tiene prefijo numérico, busca el
+    heading padre más cercano y lo pone a nivel + 1 (mínimo nivel 2).
+    """
+    import re
+    # Primera pasada: recolectar los headings previos con su nivel
+    prev_headings: List[tuple[int, int]] = []  # (idx, level)
+    for idx, elem in enumerate(elements):
+        if elem.type != ElementType.HEADING or not elem.text or not elem.heading_level:
+            continue
+        txt = elem.text.strip()
+        # ¿Es un heading numerado? (ej. "3.", "3)", "3.1.")
+        num_match = re.match(r'^(\d+)(?:\.(?:\d+))*[.)]\s', txt)
+        if num_match and elem.heading_level <= 2:
+            # Buscar el heading padre más cercano
+            parent_level = 0
+            for pidx, plvl in prev_headings:
+                if plvl > parent_level:
+                    parent_level = plvl
+            # Si el padre es nivel 1, este debería ser al menos nivel 2
+            # Si el padre es nivel 2, este debería ser al menos nivel 3
+            target = max(elem.heading_level, parent_level + 1, 2)
+            if target != elem.heading_level:
+                elem.heading_level = min(target, 5)
+                elem.needs_review = True
+                if not elem.pre_classifier_rule:
+                    elem.pre_classifier_rule = "demo_numbered"
+        prev_headings.append((idx, elem.heading_level))
+
+
 def _extract_toc_entries(elements: List[ElementModel]) -> List[tuple]:
     """
     Extrae (texto normalizado, nivel TOC) de los elementos TOC nativos de Word.
@@ -970,6 +1003,13 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # Marcar para revisión los headings numerados que saltan niveles o
     # aparecen sin su padre (p.ej. "3.1" sin un "3." previo).
     _flag_numbering_skips(elements)
+
+    # ── PASADA 6a: Demotion de headings numerados sobre-nivelados ──────────────
+    # Los headings con prefijo numérico (ej. "3. ¿Cómo afecta...") que están
+    # mal clasificados como Nivel 1 (centrados) deben degradarse al nivel del
+    # heading padre + 1 (normalmente Nivel 2 o 3, alineados a la izquierda).
+    # Esto es común en exámenes/trabajos donde cada pregunta usa Heading 1.
+    _demote_numbered_headings(elements)
 
     # ── PASADA 7: Safety net — todo heading sin nivel asignado → nivel 1 ──────
     for elem in elements:

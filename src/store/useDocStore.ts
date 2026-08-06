@@ -344,6 +344,7 @@ const defaultLLMProgress: LLMProgressState = {
   elements_processed: 0,
   elements_total: 0,
   estimated_time_remaining_seconds: 0,
+  current_sample: '',
   provider_fallbacks: [],
   last_error: null,
 };

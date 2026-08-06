@@ -54,6 +54,7 @@ def get_classify_progress(session_id: str) -> Dict[str, Any]:
         "elements_processed": 0,
         "elements_total": 0,
         "estimated_time_remaining_seconds": 0,
+        "current_sample": "",
         "provider_fallbacks": [],
         "last_error": None,
     })
@@ -240,6 +241,7 @@ async def classify_document_with_llm(
         "elements_processed": 0,
         "elements_total": 0,
         "estimated_time_remaining_seconds": 0,
+        "current_sample": "",
         "provider_fallbacks": [],
         "last_error": None,
     }
@@ -330,6 +332,8 @@ async def classify_document_with_llm(
 
         elements_processed += len(batch) - len(need_api)
         _classify_progress[session_id]["elements_processed"] = elements_processed
+        if need_api:
+            _classify_progress[session_id]["current_sample"] = (need_api[0].text or "")[:100]
 
         if need_api:
             # Build payload once for all providers
