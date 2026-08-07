@@ -45,15 +45,13 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:latest
-            ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:cache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:cache,mode=max
 
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy Container App
         run: |
