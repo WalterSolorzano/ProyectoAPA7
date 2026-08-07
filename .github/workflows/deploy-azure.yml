@@ -1,16 +1,13 @@
 name: Deploy Azure
 
 on:
+  # Solo deploy EXPLICITO, nunca automatico por commit:
+  # 1) Boton/accion manual (workflow_dispatch), o
+  # 2) Tag reservado "web-*" (git tag web-v1 && git push origin web-v1)
   workflow_dispatch:
   push:
-    branches: [master]
-    paths:
-      - 'python/**'
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'deploy/azure/**'
+    tags:
+      - 'web-*'
 
 permissions:
   contents: read
