@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { AlignLeft, Lock, CheckCircle2, SpellCheck } from 'lucide-react';
+import { AlignLeft, CheckCircle2, SpellCheck } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { Badge } from '../ui/wordapa7';
 
@@ -11,6 +11,18 @@ const SPACING_OPTIONS = [
   { value: 1.5, label: '1.5 líneas' },
   { value: 1.0, label: 'Sencillo' },
 ];
+
+/** Fila compacta de una regla aplicada (resumen visual, sin párrafos largos). */
+const RuleRow: React.FC<{ icon: React.ReactNode; label: string; value: string; badge: React.ReactNode }> = ({ icon, label, value, badge }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', flexShrink: 0, color: 'var(--text-secondary)' }}>{icon}</span>
+    <span style={{ flex: 1, minWidth: 0 }}>
+      <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>{label}</span>
+      <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginTop: '1px' }}>{value}</span>
+    </span>
+    {badge}
+  </div>
+);
 
 export const Step5BodyWizard: React.FC = () => {
   const { rules, setRules, doc, runAIReview, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
@@ -43,118 +55,83 @@ export const Step5BodyWizard: React.FC = () => {
             style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}>✕</button>
         </div>
 
-        <div style={{ padding: '16px', flex: 1, overflowY: 'auto', display: 'grid', gap: '14px' }}>
+        <div style={{ padding: '14px', flex: 1, overflowY: 'auto', display: 'grid', gap: '12px' }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            {/* Regla 1: Sangría de Primera Línea */}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                  <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Sangría de primera línea</strong>
-                  <Lock size={12} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                </div>
-                <Badge tone="muted">Fijo (APA 7)</Badge>
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                Sangría francesa 1.27 cm aplicada automáticamente a los {totalParagraphs} párrafos del cuerpo. Es un valor fijo de la norma, no editable.
-              </p>
+          {/* Resumen compacto de reglas aplicadas */}
+          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <CheckCircle2 size={13} color="var(--color-success)" />
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Reglas aplicadas</span>
+              <div style={{ flex: 1 }} />
+              <Badge tone="success">Auto</Badge>
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <RuleRow icon={<AlignLeft size={13} />} label="Sangría primera línea" value={`1.27 cm · ${totalParagraphs} párrafos`} badge={<Badge tone="muted">Fijo</Badge>} />
+              <RuleRow icon={<AlignLeft size={13} />} label="Enumeración de listas" value={`${totalLists} listas secuenciales`} badge={<Badge tone="muted">Fijo</Badge>} />
+              <RuleRow icon={<AlignLeft size={13} />} label="Márgenes y tipografía" value={`2.54 cm · ${rules.font_family} ${rules.font_size_pt}pt`} badge={<Badge tone="muted">Fijo</Badge>} />
+            </div>
+          </div>
 
-            {/* Regla 2: Interlineado General */}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                  <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Interlineado general</strong>
-                </div>
-                <Badge tone="accent">Configurable</Badge>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                {SPACING_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className="ribbon-tab"
-                    style={{
-                      padding: '7px 6px', fontSize: '11px', borderRadius: '8px',
-                      border: rules.line_spacing === opt.value ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                      background: rules.line_spacing === opt.value ? 'rgba(79,124,255,0.12)' : 'rgba(255,255,255,0.03)',
-                      color: rules.line_spacing === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                      fontWeight: rules.line_spacing === opt.value ? 700 : 500,
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setRules({ line_spacing: opt.value })}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '8px 0 0' }}>
-                El interlineado doble (2.0) es el estándar APA 7, pero puedes ajustarlo si tu institución lo pide.
-              </p>
+          {/* Interlineado (configurable) */}
+          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Interlineado</span>
+              <Badge tone="accent">Configurable</Badge>
             </div>
+            <div style={{ padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+              {SPACING_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className="ribbon-tab"
+                  style={{
+                    padding: '7px 6px', fontSize: '11px', borderRadius: '8px',
+                    border: rules.line_spacing === opt.value ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                    background: rules.line_spacing === opt.value ? 'rgba(79,124,255,0.12)' : 'rgba(255,255,255,0.03)',
+                    color: rules.line_spacing === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    fontWeight: rules.line_spacing === opt.value ? 700 : 500,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setRules({ line_spacing: opt.value })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding: '0 12px 10px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              El doble (2.0) es el estándar APA 7, pero podés ajustarlo si tu institución lo pide.
+            </div>
+          </div>
 
-            {/* Regla 3: Enumeración de Listas */}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                  <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Enumeración de listas</strong>
-                  <Lock size={12} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                </div>
-                <Badge tone="muted">Fijo (APA 7)</Badge>
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                {totalLists} elementos de lista enumerados de forma secuencial (1., 2., 3.) sin reinicios falsos.
-              </p>
+          {/* Revisión ortográfica + IA */}
+          <div style={{
+            padding: '12px', border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'rgba(79,124,255,0.06)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+              <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Revisión ortográfica e IA</strong>
+              <Badge tone="success">Disponible</Badge>
             </div>
-
-            {/* Regla 4: Márgenes */}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                  <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Márgenes y tipografía</strong>
-                  <Lock size={12} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                </div>
-                <Badge tone="muted">Fijo (APA 7)</Badge>
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                Márgenes de 2.54 cm en los 4 lados y {rules.font_family} {rules.font_size_pt}pt en todo el cuerpo.
-              </p>
-            </div>
-
-            {/* Revisión ortográfica + IA */}
-            <div style={{
-              padding: '14px 16px', borderBottom: '1px solid var(--border-subtle)',
-              backgroundColor: 'rgba(79,124,255,0.06)', borderLeft: '3px solid var(--word-blue)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Revisión ortográfica e IA</strong>
-                <Badge tone="success">Disponible</Badge>
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 8px' }}>
-                Revisa ortografía, gramática y detección de texto generado por IA. El resultado aparece en el panel Actividad.
-              </p>
-              <button
-                type="button"
-                onClick={async () => {
-                  await runAIReview();
-                  setForceRightPanelOpen(true);
-                  setRightPanelTab('activity');
-                }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px',
-                  padding: '6px 12px', borderRadius: '6px', cursor: 'pointer',
-                  fontFamily: 'inherit', fontWeight: 600,
-                  background: 'var(--word-blue)', color: '#fff',
-                  border: 'none',
-                }}
-              >
-                <SpellCheck size={14} /> Abrir Revisor
-              </button>
-            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.5 }}>
+              Ortografía, gramática y detección de texto generado por IA. El resultado aparece en el panel Actividad.
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                await runAIReview();
+                setForceRightPanelOpen(true);
+                setRightPanelTab('activity');
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%',
+                justifyContent: 'center', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer',
+                fontFamily: 'inherit', fontWeight: 600,
+                background: 'var(--word-blue)', color: '#fff',
+                border: 'none',
+              }}
+            >
+              <SpellCheck size={14} /> Abrir Revisor
+            </button>
           </div>
         </div>
       </div>

@@ -53,6 +53,13 @@ export const RightSidePanel: React.FC = () => {
     if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
   }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
 
+  // En paso 5 (Referencias) el panel siempre se abre al entrar, porque ahi vive
+  // el editor principal de esa seccion.
+  useEffect(() => {
+    if (!doc) return;
+    if (wizardStep === 5) setForceRightPanelOpen(true);
+  }, [wizardStep, doc, setForceRightPanelOpen]);
+
   // Guardar ancho en localStorage
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, panelWidth.toString());

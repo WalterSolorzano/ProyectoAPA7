@@ -3,15 +3,32 @@
    logo centrado, area de conocimiento (20pt), titulo (Montserrat Black 20pt),
    asignatura (20pt), "Elaborado por", autores en 4 columnas con separadores
    verticales negros, docente + grupo, fecha y lugar. */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { parseAuthorEntries } from '../../lib/portadaAuthors';
+import { parseAuthorEntries, COVER_FIELD_HIGHLIGHT_EVENT } from '../../lib/portadaAuthors';
 import { resolveAssetUrl } from '../../api/backend';
 
 const BLACK = '#000000';
 
 export const UNICoverPreview: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
+  const [highlightField, setHighlightField] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const field = (e as CustomEvent).detail?.field as string | undefined;
+      if (!field) return;
+      setHighlightField(field);
+      window.setTimeout(() => setHighlightField(null), 1200);
+    };
+    window.addEventListener(COVER_FIELD_HIGHLIGHT_EVENT, handler);
+    return () => window.removeEventListener(COVER_FIELD_HIGHLIGHT_EVENT, handler);
+  }, []);
+
+  const hl = (field: string): React.CSSProperties =>
+    highlightField === field
+      ? { background: 'rgba(79,124,255,0.14)', boxShadow: '0 0 0 2px var(--accent-primary)', borderRadius: '4px' }
+      : {};
 
   const autores = parseAuthorEntries(portada.author);
   const tutores = autores.filter((a) => /^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
@@ -63,13 +80,13 @@ export const UNICoverPreview: React.FC = () => {
       </p>
 
       {/* Título — Montserrat Black 20pt */}
-      <p style={{ textAlign: 'center', fontSize: '20pt', fontWeight: 900, color: BLACK, margin: '0 0 24px', fontFamily: 'Montserrat, sans-serif' }}>
+      <p id="cover-field-title" style={{ textAlign: 'center', fontSize: '20pt', fontWeight: 900, color: BLACK, margin: '0 0 24px', fontFamily: 'Montserrat, sans-serif', ...hl('title') }}>
         {portada.title || 'Título del trabajo'}
       </p>
 
       {/* Asignatura — 20pt */}
       {portada.course && (
-        <p style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '0 0 40px' }}>
+        <p id="cover-field-course" style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '0 0 40px', ...hl('course') }}>
           {portada.course}
         </p>
       )}

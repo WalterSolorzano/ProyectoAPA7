@@ -314,21 +314,28 @@ export const ExportView: React.FC = () => {
           flexShrink: 0, padding: '14px 18px', borderTop: '1px solid var(--border-subtle)',
           backgroundColor: 'var(--sidebar-bg)',
         }}>
-          <button
-            type="button"
-            onClick={handleDownloadClick}
-            disabled={isLoading}
-            className="btn btn-primary"
-            style={{
-              width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-              fontSize: '13px', padding: '10px 14px',
-            }}
-          >
-            {isLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={15} />}
-            {isLoading ? 'Generando…' : format === 'pdf' ? 'Descargar PDF' : format === 'latex' ? 'Descargar LaTeX' : 'Descargar Word'}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={handleDownloadClick}
+              disabled={isLoading}
+              className="btn btn-primary"
+              style={{
+                width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                fontSize: '13px', padding: '10px 14px', cursor: isLoading ? 'wait' : 'pointer',
+              }}
+            >
+              {isLoading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={15} />}
+              {isLoading ? 'Generando…' : format === 'pdf' ? 'Descargar PDF' : format === 'latex' ? 'Descargar LaTeX' : 'Descargar Word'}
+            </button>
+            {isLoading && (
+              <span style={{ position: 'absolute', left: 10, right: 10, bottom: -2, height: 2, borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.2)' }}>
+                <span className="toolbar-btn-progress" style={{ position: 'absolute', top: 0, bottom: 0, width: '40%', background: '#fff' }} />
+              </span>
+            )}
+          </div>
           <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            {tracked ? 'Incluye cambios visibles vs el original' : `Formato APA 7 · ${profile?.display_name || 'APA 7ª edición'}`}
+            {isLoading ? 'Preparando el archivo… no cierres la ventana.' : tracked ? 'Incluye cambios visibles vs el original' : `Formato APA 7 · ${profile?.display_name || 'APA 7ª edición'}`}
           </div>
         </div>
       </aside>

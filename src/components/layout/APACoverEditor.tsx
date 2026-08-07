@@ -8,7 +8,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { parseAuthorEntries, COVER_AUTHOR_HIGHLIGHT_EVENT } from '../../lib/portadaAuthors';
+import {
+  parseAuthorEntries,
+  COVER_AUTHOR_HIGHLIGHT_EVENT,
+  COVER_FIELD_HIGHLIGHT_EVENT,
+} from '../../lib/portadaAuthors';
 
 interface InlineFieldProps {
   value: string;
@@ -110,6 +114,7 @@ export const APACoverEditor: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
   const setPortada = useDocStore((s) => s.setPortada);
   const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
+  const [highlightField, setHighlightField] = useState<string | null>(null);
 
   const authors = parseAuthorEntries(portada.author);
   const isProfessional = portada.apa_format === 'professional';
@@ -134,6 +139,27 @@ export const APACoverEditor: React.FC = () => {
     window.addEventListener(COVER_AUTHOR_HIGHLIGHT_EVENT, handler);
     return () => window.removeEventListener(COVER_AUTHOR_HIGHLIGHT_EVENT, handler);
   }, []);
+
+  // Highlight de campo (Título, Curso, Fecha, etc.): destello azul de 1s
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const field = (e as CustomEvent).detail?.field as string | undefined;
+      if (!field) return;
+      setHighlightField(field);
+      const el = document.getElementById(`cover-field-${field}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => setHighlightField(null), 1200);
+    };
+    window.addEventListener(COVER_FIELD_HIGHLIGHT_EVENT, handler);
+    return () => window.removeEventListener(COVER_FIELD_HIGHLIGHT_EVENT, handler);
+  }, []);
+
+  const fieldWrap = (field: string): React.CSSProperties => ({
+    background: highlightField === field ? 'rgba(79,124,255,0.14)' : 'transparent',
+    boxShadow: highlightField === field ? '0 0 0 2px var(--accent-primary)' : 'none',
+    borderRadius: '4px',
+    transition: 'background 0.25s ease, box-shadow 0.25s ease',
+  });
 
   const authorLineStyle: React.CSSProperties = {
     margin: '6px 0',
@@ -164,14 +190,16 @@ export const APACoverEditor: React.FC = () => {
 
       <div style={{ maxWidth: '90%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
         {/* Título */}
-        <InlineField
-          value={portada.title}
-          onCommit={commitField('title')}
-          placeholder="Título del trabajo — clic para escribir"
-          ariaLabel="Título del trabajo"
-          style={{ fontSize: '16pt', fontWeight: 700, margin: '12px 0 24px' }}
-          inputStyle={{ fontSize: '16pt', fontWeight: 700, textAlign: 'center' }}
-        />
+        <div id="cover-field-title" style={{ ...fieldWrap('title'), width: '100%' }}>
+          <InlineField
+            value={portada.title}
+            onCommit={commitField('title')}
+            placeholder="Título del trabajo — clic para escribir"
+            ariaLabel="Título del trabajo"
+            style={{ fontSize: '16pt', fontWeight: 700, margin: '12px 0 24px' }}
+            inputStyle={{ fontSize: '16pt', fontWeight: 700, textAlign: 'center' }}
+          />
+        </div>
 
         {/* Autores */}
         <div style={{ width: '100%', margin: '4px 0 20px' }}>
@@ -200,44 +228,52 @@ export const APACoverEditor: React.FC = () => {
         </div>
 
         {/* Institución */}
-        <InlineField
-          value={portada.institution}
-          onCommit={commitField('institution')}
-          placeholder="Institución / Universidad"
-          ariaLabel="Institución"
-          style={{ fontSize: '12pt', margin: '4px 0' }}
-          inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
-        />
+        <div id="cover-field-institution" style={{ ...fieldWrap('institution'), width: '100%' }}>
+          <InlineField
+            value={portada.institution}
+            onCommit={commitField('institution')}
+            placeholder="Institución / Universidad"
+            ariaLabel="Institución"
+            style={{ fontSize: '12pt', margin: '4px 0' }}
+            inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
+          />
+        </div>
 
         {/* Curso */}
-        <InlineField
-          value={portada.course || ''}
-          onCommit={commitField('course')}
-          placeholder="Curso / Asignatura / Grupo"
-          ariaLabel="Curso"
-          style={{ fontSize: '12pt', margin: '4px 0' }}
-          inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
-        />
+        <div id="cover-field-course" style={{ ...fieldWrap('course'), width: '100%' }}>
+          <InlineField
+            value={portada.course || ''}
+            onCommit={commitField('course')}
+            placeholder="Curso / Asignatura / Grupo"
+            ariaLabel="Curso"
+            style={{ fontSize: '12pt', margin: '4px 0' }}
+            inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
+          />
+        </div>
 
         {/* Docente / Tutor */}
-        <InlineField
-          value={portada.instructor || ''}
-          onCommit={commitField('instructor')}
-          placeholder="Docente / Tutor"
-          ariaLabel="Docente"
-          style={{ fontSize: '12pt', margin: '4px 0' }}
-          inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
-        />
+        <div id="cover-field-instructor" style={{ ...fieldWrap('instructor'), width: '100%' }}>
+          <InlineField
+            value={portada.instructor || ''}
+            onCommit={commitField('instructor')}
+            placeholder="Docente / Tutor"
+            ariaLabel="Docente"
+            style={{ fontSize: '12pt', margin: '4px 0' }}
+            inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
+          />
+        </div>
 
         {/* Fecha y Lugar */}
-        <InlineField
-          value={portada.date || ''}
-          onCommit={commitField('date')}
-          placeholder="Fecha y lugar"
-          ariaLabel="Fecha"
-          style={{ fontSize: '12pt', margin: '4px 0 0' }}
-          inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
-        />
+        <div id="cover-field-date" style={{ ...fieldWrap('date'), width: '100%' }}>
+          <InlineField
+            value={portada.date || ''}
+            onCommit={commitField('date')}
+            placeholder="Fecha y lugar"
+            ariaLabel="Fecha"
+            style={{ fontSize: '12pt', margin: '4px 0 0' }}
+            inputStyle={{ fontSize: '12pt', textAlign: 'center' }}
+          />
+        </div>
       </div>
     </div>
   );

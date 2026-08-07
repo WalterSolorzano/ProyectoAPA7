@@ -28,6 +28,7 @@ sessions/
 
 # Generated obfuscated key payload for the installer (never commit user keys)
 python/_embedded_payload.json
+**/_embedded_payload.json
 
 # Editor files & OS metadata
 .vscode/

@@ -9,6 +9,19 @@ import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronRight, ChevronLeft
 import { Badge } from '../ui/wordapa7';
 import * as api from '../../api/backend';
 
+const kbdStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '1px 5px',
+  borderRadius: '4px',
+  border: '1px solid var(--border-subtle)',
+  borderBottomWidth: 2,
+  backgroundColor: 'var(--surface-subtle)',
+  fontSize: '9px',
+  fontWeight: 700,
+  color: 'var(--color-text-secondary)',
+  fontFamily: 'inherit',
+};
+
 export const Step2HeadingsWizard: React.FC = () => {
   const { doc, updateElementType, setSelectedElementId, selectedElementId, showToast } = useDocStore();
   const [filterMode, setFilterMode] = useState<'revisar' | 'all'>('all');
@@ -63,11 +76,35 @@ export const Step2HeadingsWizard: React.FC = () => {
     };
   }, []);
 
+  // Atajos del Revisor: 1/2/3 aplican nivel y avanzan, P = párrafo, Espacio = omitir.
+  const applyAndNextRef = useRef<((level: number | 'paragraph') => void) | null>(null);
+  const advanceRef = useRef<(() => void) | null>(null);
+  const reviewCountRef = useRef(0);
+  const filterModeRef = useRef(filterMode);
+  filterModeRef.current = filterMode;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable) return;
+      if (filterModeRef.current !== 'revisar' || reviewCountRef.current === 0) return;
+      const fn = applyAndNextRef.current;
+      if (e.key === '1') { e.preventDefault(); fn?.(1); }
+      else if (e.key === '2') { e.preventDefault(); fn?.(2); }
+      else if (e.key === '3') { e.preventDefault(); fn?.(3); }
+      else if (e.key.toLowerCase() === 'p') { e.preventDefault(); fn?.('paragraph'); }
+      else if (e.key === ' ') { e.preventDefault(); advanceRef.current?.(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   if (!doc) return null;
 
   const headings = doc.elements.filter((e) => e.type === 'heading');
   const reviewHeadings = headings.filter((h) => needsReview(h as any));
   const reviewCount = reviewHeadings.length;
+  reviewCountRef.current = reviewCount;
 
   // Construir árbol jerárquico de títulos: hijos = headings con nivel > padre
   // que no hayan sido "cerrados" por un heading de nivel igual o menor.
@@ -400,7 +437,7 @@ export const Step2HeadingsWizard: React.FC = () => {
         const curLevel = cur.heading_level || 1;
         const advance = () => setReviewIdx((i) => Math.min(i + 1, reviewHeadings.length));
         const back = () => setReviewIdx((i) => Math.max(i - 1, 0));
-        const applyAndNext = (level: number | 'paragraph') => {
+        applyAndNextRef.current = (level) => {
           if (level === 'paragraph') {
             updateElementType(cur.id, 'paragraph', 1);
           } else {
@@ -409,6 +446,8 @@ export const Step2HeadingsWizard: React.FC = () => {
           // avanza al siguiente dudoso (lista se recalcifica tras el cambio)
           setTimeout(() => { document.getElementById(`paper-elem-${cur.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); setReviewIdx((i) => i + 1); }, 60);
         };
+        advanceRef.current = advance;
+        const applyAndNext = applyAndNextRef.current;
         // Muestra un preview del ESTILO del nivel (APA real) — sin repetir el texto candidato
         const levelBtn = (lvl: number, icon: any, label: string) => {
           const active = curLevel === lvl;
@@ -515,6 +554,11 @@ export const Step2HeadingsWizard: React.FC = () => {
 
               {/* BOTONES DE NIVEL — muestran el estilo, no el texto */}
               <div style={{ display: 'flex', gap: 6 }}>{levelBtn(1, Heading1, 'Título 1')}{levelBtn(2, Heading2, 'Título 2')}{levelBtn(3, Heading3, 'Título 3')}</div>
+
+              {/* ATAJOS */}
+              <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+                Atajos: <kbd style={kbdStyle}>1</kbd> <kbd style={kbdStyle}>2</kbd> <kbd style={kbdStyle}>3</kbd> nivel · <kbd style={kbdStyle}>P</kbd> párrafo · <kbd style={kbdStyle}>Espacio</kbd> omitir
+              </div>
 
               {/* SECUNDARIO: No es título */}
               <button

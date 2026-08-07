@@ -1,5 +1,5 @@
 ﻿import React, { useEffect } from 'react';
-import { Download, Sparkles, Undo, Redo, SlidersHorizontal, Home, Save, Command, Sun, Moon } from 'lucide-react';
+import { Download, Sparkles, Undo, Redo, SlidersHorizontal, Command, Sun, Moon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
 import { GuidedWizardBar } from '../wizard/GuidedWizardBar';
@@ -18,11 +18,10 @@ export function UnifiedToolbar() {
     isBackendReady,
     isLoading,
     setSettingsStudioOpen,
-    goHome,
-    saveSnapshot,
     setCommandPaletteOpen,
     theme,
     setTheme,
+    hasUnsavedChanges,
   } = useDocStore();
 
   // Estado del historial de undo/redo (para deshabilitar los botones)
@@ -109,24 +108,19 @@ export function UnifiedToolbar() {
       {/* Right: action buttons when doc is loaded */}
       {doc && (
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
-          <button type="button"
-            onClick={() => goHome()}
-            title="Volver al inicio (sin salir)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+          {/* Estado de guardado pasivo (reduce ansiedad, sin botón) */}
+          <span
+            title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              fontSize: '10px', fontWeight: 700, whiteSpace: 'nowrap',
+              color: hasUnsavedChanges ? 'var(--accent-warning)' : 'var(--accent-success)',
+            }}
           >
-            <Home size={11} /> <span className="toolbar-btn-label">Inicio</span>
-          </button>
-          <button type="button"
-            onClick={() => saveSnapshot()}
-            title="Guardar progreso de la sesión (snapshot)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Save size={11} /> <span className="toolbar-btn-label">Guardar</span>
-          </button>
+            {hasUnsavedChanges
+              ? <><AlertCircle size={11} /> Sin guardar</>
+              : <><CheckCircle2 size={11} /> Guardado</>}
+          </span>
           <div style={toolbarDivider} />
           <button type="button"
             onClick={() => setCommandPaletteOpen(true)}
@@ -167,27 +161,36 @@ export function UnifiedToolbar() {
           >
             <SlidersHorizontal size={11} />
           </button>
-          <button type="button"
-            onClick={() => useDocStore.getState().openExportTunnel()}
-            disabled={!isBackendReady || !doc || isLoading}
-            title="Túnel de exportación: elegí formato y descargá (Ctrl+6)"
-            style={{
-              background: 'var(--accent-primary)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              color: '#fff',
-              fontSize: '12px',
-              fontWeight: 600,
-              padding: '5px 12px',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'opacity 0.15s',
-              opacity: (!isBackendReady || !doc || isLoading) ? 0.5 : 1,
-            }}
-          >
-            <Download size={12} />
-            <span className="toolbar-btn-label">Descargar</span>
-          </button>
+          <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+            <button type="button"
+              onClick={() => useDocStore.getState().openExportTunnel()}
+              disabled={!isBackendReady || !doc || isLoading}
+              title="Túnel de exportación: elegí formato y descargá (Ctrl+6)"
+              style={{
+                background: 'var(--accent-primary)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: 600,
+                padding: '5px 12px',
+                cursor: isLoading ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px',
+                transition: 'opacity 0.15s',
+                opacity: (!isBackendReady || !doc || isLoading) ? 0.85 : 1,
+              }}
+            >
+              {isLoading
+                ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                : <Download size={12} />}
+              <span className="toolbar-btn-label">{isLoading ? 'Generando…' : 'Descargar'}</span>
+            </button>
+            {isLoading && (
+              <span style={{ position: 'absolute', left: 6, right: 6, bottom: -3, height: 2, borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.25)' }}>
+                <span className="toolbar-btn-progress" style={{ position: 'absolute', top: 0, bottom: 0, width: '40%', background: '#fff' }} />
+              </span>
+            )}
+          </div>
           <div style={toolbarDivider} />
           <button type="button"
             onClick={() => useDocStore.getState().setForceRightPanelOpen(true)}

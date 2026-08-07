@@ -53,6 +53,17 @@ export function requestAuthorHighlight(index: number): void {
   );
 }
 
+/* ── Highlight sync preview <-> portada field (Título, Curso, Fecha...) ──── */
+
+export const COVER_FIELD_HIGHLIGHT_EVENT = 'wordapa7:cover-highlight-field';
+
+/** Dispara el highlight azul de ~1s sobre un campo en la hoja de portada. */
+export function requestCoverFieldHighlight(field: string): void {
+  window.dispatchEvent(
+    new CustomEvent(COVER_FIELD_HIGHLIGHT_EVENT, { detail: { field } })
+  );
+}
+
 /* ── Classification confidence helper (Corrección 2) ─────────────────────── */
 
 export const CONFIDENCE_REVIEW_THRESHOLD = 0.85;

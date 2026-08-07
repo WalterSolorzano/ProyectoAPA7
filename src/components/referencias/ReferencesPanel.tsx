@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2 } from 'lucide-react';
+import { QuickReferenceSearch } from '../export/QuickReferenceSearch';
 
 export const ReferencesPanel: React.FC = () => {
   const {
@@ -154,6 +155,9 @@ export const ReferencesPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Búsqueda de citas faltantes en Crossref (temprano, sin esperar al túnel) */}
+      {ghosts.length > 0 && <QuickReferenceSearch />}
 
       {/* Lista de referencias */}
       <div style={{

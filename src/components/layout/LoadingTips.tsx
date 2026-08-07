@@ -17,7 +17,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
 import { getSizeComment, getTimeOfWeekComment, getFilenameComment } from '../../lib/studentJokes';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
-import { Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
 
@@ -257,6 +257,36 @@ const LoadingProgressBar: React.FC = () => (
   </div>
 );
 
+// Riel de etapas: Analizar → Clasificar → Aplicar. Muestra qué fase está
+// ocurriendo para que el usuario sepa que el sistema avanza (no está colgado).
+const StageRail: React.FC<{ llmStatus?: string }> = ({ llmStatus }) => {
+  const classifying = llmStatus === 'processing';
+  const steps = [
+    { label: 'Analizar', state: classifying ? 'done' : 'active' },
+    { label: 'Clasificar', state: classifying ? 'active' : 'pending' },
+    { label: 'Aplicar', state: 'pending' },
+  ];
+  return (
+    <div className="loading-stage-rail" role="status" aria-label="Progreso del procesamiento">
+      {steps.map((s, i) => (
+        <React.Fragment key={s.label}>
+          {i > 0 && <span className="loading-stage-line" />}
+          <span className={`loading-stage-item ${s.state}`}>
+            <span className="loading-stage-dot">
+              {s.state === 'done' ? (
+                <Check size={10} strokeWidth={3} />
+              ) : s.state === 'active' ? (
+                <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : null}
+            </span>
+            {s.label}
+          </span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 export const LoadingTips: React.FC = () => {
   const isLoading = useDocStore((s) => s.isLoading);
   const llmStatus = useDocStore((s) => s.llmProgress?.status);
@@ -460,6 +490,7 @@ export const LoadingTips: React.FC = () => {
               <DocumentMascot size={128} expression={mascotExpr} />
             </div>
             <div className="loading-tips-fullscreen-title">{message}</div>
+            <StageRail llmStatus={llmStatus} />
             {renderTipComment('lg')}
             <div className="loading-tips-dots"><span /><span /><span /></div>
 

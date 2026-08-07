@@ -25,6 +25,7 @@ import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTables
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
 import { EditorRail } from './components/wizard/EditorRail';
+import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
@@ -353,6 +354,19 @@ export const App: React.FC = () => {
               <ReactPDFPreview />
             </div>
           </div>
+        ) : wizardStep === 1 ? (
+          // Paso 1 (Portada): división del espacio 35% / 65%.
+          //   EditorRail (izquierda, nav) | CoverEditorPanel (35%, control)
+          //   | PaperCanvas (65%, hoja A4 centrada, flex-grow).
+          <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
+            <EditorRail />
+            <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
+              <CoverEditorPanel />
+            </div>
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
+              <Step1PortadaWizard />
+            </div>
+          </div>
         ) : (
           <>
             {/* ETAPA 2 — EDITOR UNIFICADO:
@@ -361,7 +375,6 @@ export const App: React.FC = () => {
               <EditorRail />
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
                 {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
-                {wizardStep === 1 && <Step1PortadaWizard />}
                 {wizardStep === 2 && <Step2HeadingsWizard />}
                 {wizardStep === 3 && <Step3FiguresTablesWizard />}
                 {wizardStep === 4 && <Step5BodyWizard />}

@@ -885,6 +885,9 @@ export const useDocStore = create<DocState>()(
           wizardStep: 0,
         };
       });
+      if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
+        get().showToast('Detectamos datos de tu portada y los precargamos', 'info');
+      }
       get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
       if (opts?.mode === 'quick') {
         // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
