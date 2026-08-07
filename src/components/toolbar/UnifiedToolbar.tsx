@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Download, Sparkles, Undo, Redo, SlidersHorizontal, Command, Sun, Moon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
@@ -22,6 +22,7 @@ export function UnifiedToolbar() {
     theme,
     setTheme,
     hasUnsavedChanges,
+    viewMode,
   } = useDocStore();
 
   // Estado del historial de undo/redo (para deshabilitar los botones)
@@ -161,36 +162,38 @@ export function UnifiedToolbar() {
           >
             <SlidersHorizontal size={11} />
           </button>
-          <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
-            <button type="button"
-              onClick={() => useDocStore.getState().openExportTunnel()}
-              disabled={!isBackendReady || !doc || isLoading}
-              title="Túnel de exportación: elegí formato y descargá (Ctrl+6)"
-              style={{
-                background: 'var(--accent-primary)',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                color: '#fff',
-                fontSize: '12px',
-                fontWeight: 600,
-                padding: '5px 12px',
-                cursor: isLoading ? 'wait' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: '5px',
-                transition: 'opacity 0.15s',
-                opacity: (!isBackendReady || !doc || isLoading) ? 0.85 : 1,
-              }}
-            >
-              {isLoading
-                ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                : <Download size={12} />}
-              <span className="toolbar-btn-label">{isLoading ? 'Generando…' : 'Descargar'}</span>
-            </button>
-            {isLoading && (
-              <span style={{ position: 'absolute', left: 6, right: 6, bottom: -3, height: 2, borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.25)' }}>
-                <span className="toolbar-btn-progress" style={{ position: 'absolute', top: 0, bottom: 0, width: '40%', background: '#fff' }} />
-              </span>
-            )}
-          </div>
+          {viewMode !== 'export' && (
+            <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+              <button type="button"
+                onClick={() => useDocStore.getState().openExportTunnel()}
+                disabled={!isBackendReady || !doc || isLoading}
+                title="Túnel de exportación: elegí formato y descargá (Ctrl+6)"
+                style={{
+                  background: 'var(--accent-primary)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  padding: '5px 12px',
+                  cursor: isLoading ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  transition: 'opacity 0.15s',
+                  opacity: (!isBackendReady || !doc || isLoading) ? 0.85 : 1,
+                }}
+              >
+                {isLoading
+                  ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                  : <Download size={12} />}
+                <span className="toolbar-btn-label">{isLoading ? 'Generando…' : 'Descargar'}</span>
+              </button>
+              {isLoading && (
+                <span style={{ position: 'absolute', left: 6, right: 6, bottom: -3, height: 2, borderRadius: 2, overflow: 'hidden', background: 'rgba(255,255,255,0.25)' }}>
+                  <span className="toolbar-btn-progress" style={{ position: 'absolute', top: 0, bottom: 0, width: '40%', background: '#fff' }} />
+                </span>
+              )}
+            </div>
+          )}
           <div style={toolbarDivider} />
           <button type="button"
             onClick={() => useDocStore.getState().setForceRightPanelOpen(true)}

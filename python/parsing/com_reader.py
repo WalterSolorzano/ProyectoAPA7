@@ -67,13 +67,14 @@ class COMReader:
             )
 
             result["cover"] = self._read_cover(doc)
-            result["headings"] = self._read_headings(doc)
-            result["lists"] = self._read_lists(doc)
-            result["fonts"] = self._read_fonts(doc)
+            para_data = self._read_all_paragraphs_data(doc)
+            result["headings"] = para_data["headings"]
+            result["lists"] = para_data["lists"]
+            result["fonts"] = para_data["fonts"]
+            result["paragraphs"] = para_data["paragraphs"]
             result["fields"] = self._read_fields(doc)
             result["shapes"] = self._read_shapes(doc)
             result["sections"] = self._read_sections(doc)
-            result["paragraphs"] = self._read_paragraphs(doc)
             result["ok"] = True
 
         except Exception as e:
@@ -118,8 +119,7 @@ class COMReader:
                     page2 = doc.GoTo(1, 1, 2)  # wdGoToPage=1, wdGoToAbsolute=1
                     if page2.Start > 0 and page2.Start < doc.Content.End - 1:
                         page2_ratio = page2.Start / max(1, doc.Content.End)
-                        detected = page2_ratio < 0.35
-                        if detected:
+                        if page2_ratio < 0.25:
                             end_para = self._count_paragraphs_before(doc, page2.Start)
                             return {
                                 "detected": True,
@@ -145,57 +145,47 @@ class COMReader:
             return {"detected": False, "error": str(e)}
 
     def _count_paragraphs_before(self, doc, char_pos: int) -> int:
-        """Cuenta cuántos párrafos hay antes de char_pos."""
+        """Cuenta cuántos párrafos hay antes de char_pos de forma secuencial rápida."""
         count = 0
-        for i in range(1, doc.Paragraphs.Count + 1):
-            p = doc.Paragraphs(i)
-            if p.Range.Start >= char_pos:
-                return count
-            count += 1
+        for p in doc.Paragraphs:
+            try:
+                if p.Range.Start >= char_pos:
+                    return count
+                count += 1
+            except Exception:
+                count += 1
         return count
 
-    # ── Headings ──────────────────────────────────────────────────────────
+    # ── Single-pass Paragraphs Collector (Headings, Lists, Fonts, Styles) ──
 
-    def _read_headings(self, doc) -> Dict[str, Any]:
-        """Lee la estructura real de headings usando OutlineLevel de Word."""
+    def _read_all_paragraphs_data(self, doc) -> Dict[str, Any]:
+        """Extrae headings, listas, fuentes y estilos en un único recorrido O(N)."""
         heading_list: List[Dict[str, Any]] = []
         level_counts: Dict[int, int] = {}
+        list_items: List[Dict[str, Any]] = []
+        font_counts: Dict[str, int] = {}
+        paragraph_styles: Dict[str, int] = {}
+        total = 0
 
-        for i in range(1, doc.Paragraphs.Count + 1):
+        for i, p in enumerate(doc.Paragraphs, start=1):
+            total += 1
             try:
-                p = doc.Paragraphs(i)
+                # 1. Headings / Outline level
                 outline = int(p.OutlineLevel)
                 if 1 <= outline <= 9:
                     text = (p.Range.Text or "").strip()
-                    if not text:
-                        continue
-                    lvl = outline
-                    heading_list.append({
-                        "index": i,
-                        "level": lvl,
-                        "text": text[:120],
-                        "char_start": p.Range.Start,
-                    })
-                    level_counts[lvl] = level_counts.get(lvl, 0) + 1
-            except Exception:
-                continue
+                    if text:
+                        heading_list.append({
+                            "index": i,
+                            "level": outline,
+                            "text": text[:120],
+                            "char_start": p.Range.Start,
+                        })
+                        level_counts[outline] = level_counts.get(outline, 0) + 1
 
-        return {
-            "headings": heading_list,
-            "total": len(heading_list),
-            "by_level": level_counts,
-        }
-
-    # ── Lists ─────────────────────────────────────────────────────────────
-
-    def _read_lists(self, doc) -> Dict[str, Any]:
-        """Lee la numeración real de listas usando ListFormat de Word."""
-        list_items: List[Dict[str, Any]] = []
-        for i in range(1, doc.Paragraphs.Count + 1):
-            try:
-                p = doc.Paragraphs(i)
+                # 2. Lists
                 lf = p.Range.ListFormat
-                if lf.ListType > 0:  # 0=not a list
+                if lf.ListType > 0:
                     list_items.append({
                         "index": i,
                         "list_string": str(lf.ListString or ""),
@@ -203,23 +193,11 @@ class COMReader:
                         "list_type": int(lf.ListType),
                         "text": (p.Range.Text or "").strip()[:80],
                     })
-            except Exception:
-                continue
-        return {"items": list_items, "total": len(list_items)}
 
-    # ── Fonts ─────────────────────────────────────────────────────────────
-
-    def _read_fonts(self, doc) -> Dict[str, Any]:
-        """Lee las fuentes usadas en el cuerpo del documento."""
-        font_counts: Dict[str, int] = {}
-        total = 0
-        for i in range(1, doc.Paragraphs.Count + 1):
-            try:
-                p = doc.Paragraphs(i)
+                # 3. Fonts
                 fn = str(p.Range.Font.Name or "").lower()
                 if fn:
                     font_counts[fn] = font_counts.get(fn, 0) + 1
-                    total += 1
             except Exception:
                 continue
         dominant = max(font_counts, key=font_counts.get) if font_counts else ""
