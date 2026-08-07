@@ -10,6 +10,7 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.json tsconfig.node.json vite.config.ts postcss.config.js tailwind.config.js index.html ./
 COPY public ./public
 COPY src ./src
+COPY electron ./electron
 COPY python/build_manifest.py python/build_manifest.py
 RUN npm run build
 
