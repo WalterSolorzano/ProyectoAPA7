@@ -4,7 +4,9 @@
 
 import React, { useEffect } from 'react';
 import { useUpdateStore, UpdateState } from '../../store/useUpdateStore';
-import { RefreshCw, Download, CheckCircle2, AlertTriangle, Loader2, MonitorUp } from 'lucide-react';
+import { RefreshCw, Download, CheckCircle2, AlertTriangle, Loader2, MonitorUp, ExternalLink } from 'lucide-react';
+
+const GITHUB_RELEASES_URL = 'https://github.com/WalterSolorzano/ProyectoAPA7/releases/latest';
 
 const STATUS_TEXT: Record<UpdateState, string> = {
   idle: 'Sin verificar',
@@ -87,7 +89,7 @@ export const UpdateCard: React.FC<{ compact?: boolean }> = ({ compact }) => {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={check}
@@ -110,6 +112,24 @@ export const UpdateCard: React.FC<{ compact?: boolean }> = ({ compact }) => {
               <Download size={12} /> Reiniciar y actualizar
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              const api = (window as any).electronAPI;
+              if (api?.openExternal) api.openExternal(GITHUB_RELEASES_URL);
+              else window.open(GITHUB_RELEASES_URL, '_blank');
+            }}
+            className="btn btn-ghost btn-sm"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: compact ? '11px' : '12px',
+              color: state === 'error' ? 'var(--accent-danger)' : 'var(--accent-primary)',
+              border: state === 'error' ? '1px solid rgba(220,38,38,0.35)' : 'none',
+            }}
+            title="Abrir la página de releases de GitHub"
+          >
+            <ExternalLink size={12} />
+            {state === 'error' ? 'Descargar manualmente desde GitHub' : 'Ver versiones en GitHub'}
+          </button>
         </div>
       </div>
     </div>

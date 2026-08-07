@@ -11,8 +11,12 @@ extraResources:
     to: python-backend/
     filter:
       - "**/*"
+compression: maximum
+electronLanguages:
+  - en-US
 win:
   target: nsis
+  icon: build/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -20,6 +24,13 @@ nsis:
   createStartMenuShortcut: true
   perMachine: true
   runAfterFinish: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerHeader: build/installerHeader.bmp
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  include: build/installer.nsh
 publish:
   provider: github
   owner: ${env.GITHUB_REPOSITORY_OWNER}

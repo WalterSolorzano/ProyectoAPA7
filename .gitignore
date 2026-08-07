@@ -74,6 +74,12 @@ dist-electron-builder/
 dist-python/
 build/*
 !build/pyinstaller.spec
+!build/installer.nsh
+!build/generate_installer_assets.py
+!build/icon.ico
+!build/installerHeader.bmp
+!build/installerSidebar.bmp
+!build/uninstallerSidebar.bmp
 *.exe
 
 # Agents and reports
@@ -82,6 +88,8 @@ report-*.md
 qa_ui_audit_report.md
 app_logs.txt
 asar_contents.txt
+server_log.txt
+USER_FLOWS.md
 
 # Entrenamiento del clasificador y artefactos de análisis (no son producto)
 ENTRENAR/

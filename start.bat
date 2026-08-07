@@ -3,8 +3,7 @@ chcp 65001 >nul
 echo ============================================================
 echo  Iniciando WordAPA7...
 echo ============================================================
-echo Verificando y compilando frontend...
-call npm run build
+echo El backend compila el frontend automaticamente si detecta cambios.
 echo.
 echo Abre http://localhost:8742 en tu navegador.
 echo Cierra esta ventana para detener la aplicacion.

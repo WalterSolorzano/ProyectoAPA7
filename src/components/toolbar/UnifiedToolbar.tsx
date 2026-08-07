@@ -25,6 +25,12 @@ export function UnifiedToolbar() {
     setTheme,
   } = useDocStore();
 
+  // Estado del historial de undo/redo (para deshabilitar los botones)
+  const historyIndex = useDocStore((s) => s.historyIndex);
+  const historyLen = useDocStore((s) => s.history.length);
+  const canUndo = !!doc && historyIndex > 0;
+  const canRedo = !!doc && historyIndex < historyLen - 1;
+
   // Chip de actualización: se muestra cuando la descarga terminó.
   const updateState = useUpdateStore((s) => s.state);
   const initUpdate = useUpdateStore((s) => s.init);
@@ -203,7 +209,7 @@ export function UnifiedToolbar() {
           </button>
           <button type="button"
             onClick={() => undo()}
-            disabled={!doc}
+            disabled={!canUndo}
             title="Deshacer (Ctrl+Z)"
             style={ghostBtn}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
@@ -213,7 +219,7 @@ export function UnifiedToolbar() {
           </button>
           <button type="button"
             onClick={() => redo()}
-            disabled={!doc}
+            disabled={!canRedo}
             title="Rehacer (Ctrl+Y)"
             style={ghostBtn}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}

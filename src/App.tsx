@@ -70,7 +70,6 @@ export const App: React.FC = () => {
     auditorMode,
     setAuditorMode,
     isBackendReady,
-    backendStalled,
   } = useDocStore();
 
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
@@ -79,7 +78,6 @@ export const App: React.FC = () => {
   // Global backend readiness: listen for the IPC event from Electron PythonManager
   // This is the SINGLE source of truth for isBackendReady across the entire app
   const backendCheckNonce = useDocStore((s) => s.backendCheckNonce);
-  const isBackendReadyState = useDocStore((s) => s.isBackendReady);
   useEffect(() => {
     const electronWindow = window as any;
     let cancelled = false;
@@ -90,7 +88,7 @@ export const App: React.FC = () => {
         const port = electronWindow.electronAPI ? electronWindow.electronAPI.getBackendPort() : 8742;
         const res = await fetch(`http://127.0.0.1:${port}/api/version`);
         if (res.ok) {
-          useDocStore.setState({ isBackendReady: true, backendStalled: false });
+          useDocStore.setState({ isBackendReady: true });
           // Sincroniza las claves de IA guardadas (localStorage) con el backend
           // para que "Refinar con IA", "Revisor" y "Generar 3 versiones" funcionen
           // sin tener que abrir antes el panel de Ajustes.
@@ -115,7 +113,7 @@ export const App: React.FC = () => {
     if (electronWindow.electronAPI?.onPythonReady) {
       // Electron environment: wait for the IPC event + poll como respaldo
       const cleanup = electronWindow.electronAPI.onPythonReady(() => {
-        useDocStore.setState({ isBackendReady: true, backendStalled: false });
+        useDocStore.setState({ isBackendReady: true });
         // El backend se reinició (watchdog) y perdió las claves de os.environ:
         // re-sincronizarlas para que la IA siga funcionando.
         syncAllProviderKeys().catch(() => {});
@@ -147,17 +145,11 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendCheckNonce]);
 
-  // Escape anti-carga-infinita: si a los 20s el motor aún no responde, mostrar
-  // el inicio igualmente (con reintento) en vez de una pantalla de carga eterna.
-  useEffect(() => {
-    if (isBackendReadyState) return;
-    const t = setTimeout(() => {
-      if (!useDocStore.getState().isBackendReady) {
-        useDocStore.getState().setBackendStalled(true);
-      }
-    }, 20000);
-    return () => clearTimeout(t);
-  }, [isBackendReadyState, backendCheckNonce]);
+  // Escape anti-carga-infinita eliminado: la pantalla de carga permanece hasta que
+  // el motor conecta (polling infinito cada 2s). No se ofrece "continuar de todos
+  // modos" porque llevar al usuario al inicio con el backend caído lo deja en un
+  // callejón sin salida (nada funcionaría). La única salida es "Reintentar conexión"
+  // dentro de la propia pantalla de carga, que fuerza un re-chequeo inmediato.
 
   // Keyboard shortcuts and Native Menu actions
   useEffect(() => {
@@ -320,7 +312,7 @@ export const App: React.FC = () => {
             <ProjectTabs />
           </div>
         )}
-        {isBackendReady || backendStalled ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
+        {isBackendReady ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
         {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
         <LoadingTips />
         <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />

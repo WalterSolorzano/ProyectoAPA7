@@ -977,7 +977,6 @@ html, body {
 }
 .loading-tips-mascot {
   position: relative;
-  animation: mascot-breathe 2.4s ease-in-out infinite;
   flex-shrink: 0;
 }
 .loading-tips-dots {
@@ -1009,8 +1008,9 @@ html, body {
   color: var(--text-main);
 }
 .loading-tips-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
   line-height: 1.4;
   animation: loading-tip-in 0.25s ease-out both;
 }
@@ -1031,22 +1031,24 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  max-width: 560px;
+  gap: 20px;
+  max-width: 640px;
   text-align: center;
   padding: 24px;
 }
 .loading-tips-fullscreen-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.01em;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 .loading-tips-fullscreen-tip {
-  font-size: 15px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  animation: loading-tip-in 0.25s ease-out both;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.35;
+  animation: loading-tip-in 0.3s ease-out both;
 }
 
 @keyframes loading-tip-side-in {
@@ -1057,6 +1059,61 @@ html, body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Barra de progreso indeterminada (techo visual superior) ──
+   Línea azul de 3px que viaja de izquierda a derecha en loop infinito:
+   da un "techo" a la pantalla y refuerza que el sistema está trabajando. */
+.loading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 300;
+  overflow: hidden;
+  pointer-events: none;
+}
+.loading-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 35%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 10px var(--accent-primary);
+  animation: loading-progress-indeterminate 1.3s ease-in-out infinite;
+}
+@keyframes loading-progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* ── Mascota: animaciones según la categoría de la frase ──
+   Cada tipo de mensaje tiene su propio movimiento, así la mascota
+   "reacciona" al contenido que está mostrando (ver ANIMATION_BY_CATEGORY). */
+.mascot-anim-process { animation: mascot-breathe 2.4s ease-in-out infinite; }
+@keyframes mascot-wiggle {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(-5deg) translateY(-2px); }
+  75% { transform: rotate(5deg) translateY(-2px); }
+}
+.mascot-anim-jokes { animation: mascot-wiggle 2s ease-in-out infinite; }
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.mascot-anim-apa { animation: mascot-bob 2.6s ease-in-out infinite; }
+@keyframes mascot-sway {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50% { transform: rotate(-5deg) translateY(-2px); }
+}
+.mascot-anim-honest { animation: mascot-sway 3.2s ease-in-out infinite; }
+@keyframes mascot-spark {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.1) rotate(-6deg); }
+  75% { transform: scale(0.94) rotate(6deg); }
+}
+.mascot-anim-llm { animation: mascot-spark 1.7s ease-in-out infinite; }
 
 /* ════════════ MICRO-ANIMACIÓN DE CIERRE (descarga exitosa) ════════════ */
 .download-success {

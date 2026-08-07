@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell } from 'electron'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import { PythonManager } from './python-manager'
@@ -107,6 +107,13 @@ app.whenReady().then(() => {
 
   ipcMain.on('get-backend-port', (event) => {
     event.returnValue = PythonManager.port
+  })
+
+  // Abrir URL externa en el navegador del sistema (ej. descarga manual del release).
+  ipcMain.on('open-external', (_event, url: string) => {
+    if (typeof url === 'string' && /^https:\/\//.test(url)) {
+      shell.openExternal(url).catch(() => {})
+    }
   })
 
   // ── Actualizaciones (menú de update) ─────────────────────────────────────

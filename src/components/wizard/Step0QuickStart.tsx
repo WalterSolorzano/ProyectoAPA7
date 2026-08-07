@@ -314,28 +314,6 @@ export const Step0QuickStart: React.FC = () => {
             {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
 
-            {/* Estado del motor: si aún no conectó, aviso + reintentar (escape anti-carga-infinita) */}
-            {!isBackendReady && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
-                marginBottom: '16px', padding: '8px 14px', borderRadius: '10px',
-                background: 'rgba(250,173,20,0.08)', border: '1px solid rgba(250,173,20,0.3)',
-                fontSize: '12px', color: 'var(--accent-warning)', fontWeight: 600,
-              }}>
-                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                <span>Conectando con el motor de procesamiento…</span>
-                <button
-                  type="button"
-                  onClick={() => useDocStore.getState().retryBackend()}
-                  className="btn btn-secondary btn-sm"
-                  style={{ marginLeft: 'auto', fontSize: '11px' }}
-                >
-                  Reintentar
-                </button>
-              </div>
-            )}
-
             {/* Mascota asomándose sobre el dropzone (hero) + globo */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '-14px', position: 'relative', zIndex: 5 }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
@@ -614,18 +592,6 @@ export const Step0QuickStart: React.FC = () => {
             <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Abrir Documento Existente
             </h1>
-            {!isBackendReady && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
-                padding: '8px 14px', borderRadius: '10px',
-                background: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
-                fontSize: '13px', color: 'var(--accent-primary)',
-              }}>
-                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                <span>Conectando con el motor de procesamiento...</span>
-              </div>
-            )}
             <UploadDropzone onFileSelected={(file) => uploadFile(file)} isLoading={isLoading || !isBackendReady} />
           </div>
         )}

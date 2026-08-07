@@ -91,9 +91,6 @@ interface DocState {
   /** Timestamp del último export con éxito (para la micro-animación de cierre) */
   exportSuccessAt: number | null;
   isBackendReady: boolean;  // true cuando el motor Python ha confirmado que está listo
-  /** True si el motor tardó demasiado: el usuario decidió continuar igual (no bloquear en pantalla de carga infinita). */
-  backendStalled: boolean;
-  setBackendStalled: (v: boolean) => void;
   /** Reintenta la conexión al backend (incrementa un nonce que App escucha). */
   retryBackend: () => void;
   backendCheckNonce: number;
@@ -401,8 +398,6 @@ export const useDocStore = create<DocState>()(
   isLoading: false,
   exportSuccessAt: null,
   isBackendReady: false,
-  backendStalled: false,
-  setBackendStalled: (v) => set({ backendStalled: v }),
   retryBackend: () => set((state) => ({ backendCheckNonce: state.backendCheckNonce + 1 })),
   backendCheckNonce: 0,
   error: null,
@@ -1151,13 +1146,14 @@ export const useDocStore = create<DocState>()(
   },
 
   acceptHighConfidenceElements: async () => {
-    const { doc } = get();
+    const { doc, pushHistory } = get();
     if (!doc) return;
     const highConf = doc.elements.filter((e) => e.confidence >= 0.85 && !e.is_user_modified && e.type !== 'empty');
     if (highConf.length === 0) return;
     set({ isLoading: true });
     try {
       const updated = await api.bulkAcceptElements(doc.session_id, highConf.map(e => e.id));
+      pushHistory(updated);
       set({ doc: updated, isLoading: false });
     } catch (e: any) {
       set({ error: e.message || 'Error al aprobar elementos', isLoading: false });

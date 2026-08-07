@@ -16,7 +16,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
 import { getSizeComment, getTimeOfWeekComment } from '../../lib/studentJokes';
-import { DocumentMascot } from './DocumentMascot';
+import { DocumentMascot, MascotExpression } from './DocumentMascot';
 import { Loader2 } from 'lucide-react';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
@@ -152,6 +152,25 @@ interface Tip {
   text: string;
 }
 
+// Expresión de la mascota según la categoría de la frase: cada tipo de mensaje
+// tiene su propia cara, así la mascota "reacciona" a lo que está contando.
+const EXPRESSION_BY_CATEGORY: Record<Tip['category'], MascotExpression> = {
+  process: 'happy',
+  jokes: 'excited',
+  apa: 'curious',
+  honest: 'neutral',
+  llm: 'excited',
+};
+
+// Animación de la mascota según la categoría (ver CSS: mascot-anim-*).
+const ANIMATION_BY_CATEGORY: Record<Tip['category'], string> = {
+  process: 'mascot-anim-process',
+  jokes: 'mascot-anim-jokes',
+  apa: 'mascot-anim-apa',
+  honest: 'mascot-anim-honest',
+  llm: 'mascot-anim-llm',
+};
+
 function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -169,6 +188,14 @@ function tipFor(category: Tip['category']): Tip {
 // Secuencia de categorías: nunca dos iguales seguidas
 const CATEGORY_SEQUENCE: Tip['category'][] = ['process', 'jokes', 'apa', 'jokes', 'apa', 'process'];
 
+// Barra de progreso indeterminada fija en el techo de la pantalla (3px azul).
+// Refuerza visualmente que el sistema está trabajando mientras se ve el inicio.
+const LoadingProgressBar: React.FC = () => (
+  <div className="loading-progress" role="presentation" aria-hidden="true">
+    <div className="loading-progress-bar" />
+  </div>
+);
+
 export const LoadingTips: React.FC = () => {
   const isLoading = useDocStore((s) => s.isLoading);
   const llmStatus = useDocStore((s) => s.llmProgress?.status);
@@ -176,7 +203,6 @@ export const LoadingTips: React.FC = () => {
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
   const doc = useDocStore((s) => s.doc);
   const isBackendReady = useDocStore((s) => s.isBackendReady);
-  const backendStalled = useDocStore((s) => s.backendStalled);
   const fileName = (doc as any)?.meta?.file_name || (doc as any)?.file_name || '';
 
   const [visible, setVisible] = useState(false);
@@ -239,8 +265,7 @@ export const LoadingTips: React.FC = () => {
 
   useEffect(() => {
     // Mostrar también durante arranque del backend (cuando !isBackendReady).
-    // Si el usuario ya eligió "continuar" (backendStalled), NO bloquear.
-    const shouldShow = isLoading || (!isBackendReady && !backendStalled);
+    const shouldShow = isLoading || !isBackendReady;
     if (!shouldShow) {
       if (connectingInterval.current) { clearInterval(connectingInterval.current); connectingInterval.current = null; }
       // Delay hide: mantener visible el tiempo mínimo
@@ -277,7 +302,7 @@ export const LoadingTips: React.FC = () => {
     }, 250);
     return () => { clearTimeout(t); if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isBackendReady, backendStalled]);
+  }, [isLoading, isBackendReady]);
 
   useEffect(() => {
     if (!visible) return;
@@ -333,20 +358,27 @@ export const LoadingTips: React.FC = () => {
       ? 'Clasificando con IA…'
       : 'Procesando documento…';
 
+  // La mascota reacciona a la frase actual: cara + animación por categoría
+  const mascotExpr = EXPRESSION_BY_CATEGORY[tip.category];
+  const mascotAnim = ANIMATION_BY_CATEGORY[tip.category];
+
   // ── PANTALLA COMPLETA (tipo juego) mientras arranca el motor ──
   // El usuario NO debe ver el inicio ni barras de "conectando": solo la
   // mascota viva + frases rotativas a pantalla completa. Si el motor tarda
-  // mucho (>12s) se ofrecen "Reintentar" y "Continuar de todos modos".
-  if (!isBackendReady && !backendStalled) {
+  // mucho (>12s) se ofrece "Reintentar conexión" (sin escape "continuar de
+  // todos modos": entrar al inicio con el backend caído no tiene salida).
+  if (!isBackendReady) {
     return (
-      <div className="loading-tips-fullscreen" role="status" aria-live="polite">
-        <div className="loading-tips-fullscreen-inner">
-          <div className="doc-mascot-alive" style={{ lineHeight: 0 }}>
-            <DocumentMascot size={128} expression="happy" />
-          </div>
-          <div className="loading-tips-fullscreen-title">{message}</div>
-          <div className="loading-tips-fullscreen-tip" key={tip.text}>{tip.text}</div>
-          <div className="loading-tips-dots"><span /><span /><span /></div>
+      <>
+        <LoadingProgressBar />
+        <div className="loading-tips-fullscreen" role="status" aria-live="polite">
+          <div className="loading-tips-fullscreen-inner">
+            <div className={mascotAnim} style={{ lineHeight: 0 }}>
+              <DocumentMascot size={128} expression={mascotExpr} />
+            </div>
+            <div className="loading-tips-fullscreen-title">{message}</div>
+            <div className="loading-tips-fullscreen-tip" key={tip.text}>{tip.text}</div>
+            <div className="loading-tips-dots"><span /><span /><span /></div>
 
           {connectingSecs >= 12 && (
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
@@ -362,35 +394,31 @@ export const LoadingTips: React.FC = () => {
                 >
                   <Loader2 size={13} /> Reintentar conexión
                 </button>
-                <button
-                  type="button"
-                  onClick={() => useDocStore.getState().setBackendStalled(true)}
-                  className="btn btn-ghost btn-sm"
-                  style={{ fontSize: '12px', color: 'var(--text-muted)' }}
-                >
-                  Continuar de todos modos
-                </button>
               </div>
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="loading-tips" role="status" aria-live="polite">
-      <div className="loading-tips-card">
-        <div className="loading-tips-mascot">
-          <DocumentMascot size={56} expression="happy" />
-          <div className="loading-tips-dots"><span /><span /><span /></div>
-        </div>
-        <div className="loading-tips-body">
-          <div className="loading-tips-title">{message}</div>
-          <div className="loading-tips-tip" key={tip.text}>{tip.text}</div>
+    <>
+      <LoadingProgressBar />
+      <div className="loading-tips" role="status" aria-live="polite">
+        <div className="loading-tips-card">
+          <div className={`loading-tips-mascot ${mascotAnim}`}>
+            <DocumentMascot size={56} expression={mascotExpr} />
+            <div className="loading-tips-dots"><span /><span /><span /></div>
+          </div>
+          <div className="loading-tips-body">
+            <div className="loading-tips-title">{message}</div>
+            <div className="loading-tips-tip" key={tip.text}>{tip.text}</div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

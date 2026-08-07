@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('python-restarting', callback)
   },
   getBackendPort: () => ipcRenderer.sendSync('get-backend-port'),
+  // Abre una URL externa en el navegador del sistema (fallback de descarga manual)
+  openExternal: (url: string) => ipcRenderer.send('open-external', url),
   // Actualizaciones: estado + acciones del menú de update
   getAppVersion: () => ipcRenderer.sendSync('get-app-version'),
   checkForUpdates: () => ipcRenderer.send('update:check'),
