@@ -794,6 +794,34 @@ def generate_apa7_docx(
         use_orig_cover = True
         force_skip_cover = True
 
+    # Al reemplazar la portada original por una sintética (APA/UNI), la portada
+    # original debe ELIMINARSE: de lo contrario sus párrafos quedan DESPUÉS de la
+    # nueva portada y se reformatean como cuerpo (el "me destrozó la portada").
+    if not use_orig_cover:
+        orig_cover_count = 0
+        if doc_model.portada:
+            raw_idx = doc_model.portada.get('body_start_paragraph_idx')
+            if raw_idx is not None:
+                try:
+                    orig_cover_count = int(raw_idx)
+                except (ValueError, TypeError):
+                    orig_cover_count = 0
+        if orig_cover_count <= 0:
+            orig_cover_count = 0
+            for item in doc_model.elements:
+                elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
+                if elem.is_cover_section or elem.type == ElementType.PORTADA_BLOCK:
+                    orig_cover_count += 1
+                elif elem.type != ElementType.IMAGE and elem.type != ElementType.TABLE:
+                    break
+        if orig_cover_count > 0:
+            cover_paras = doc.paragraphs[:min(orig_cover_count, len(doc.paragraphs))]
+            for p in cover_paras:
+                el = p._element
+                parent = el.getparent()
+                if parent is not None:
+                    parent.remove(el)
+
     paragraphs_before_body = 0
     if not use_orig_cover and portada:
         is_uni_profile = (cover_mode == 'generate_uni_cover')
@@ -854,6 +882,7 @@ def generate_apa7_docx(
                     tutor=portada.instructor or "",
                     grupo=getattr(portada, 'grupo', '') or "",
                     fecha=portada.date or "",
+                    departamento=getattr(portada, 'departamento', '') or "",
                 )
             except Exception as err:
                 print(f"[WARN] Error creando portada UNI: {err}")

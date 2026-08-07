@@ -37,10 +37,12 @@ export const UNICoverPreview: React.FC = () => {
   const tutorName = portada.instructor || (tutores.length > 0 ? tutores[0].nombre : '');
   const grupo = portada.grupo || '';
 
-  // 3 columnas de estudiantes (distribución vertical, como el DOCX real)
-  const studentCols: { nombre: string; carnet: string }[][] = [[], [], []];
+  // Columnas de estudiantes dinámicas: pocos estudiantes = pocas columnas,
+  // para no dejar columnas vacías con separadores (mismo criterio que el .docx).
+  const nStudentCols = Math.min(3, Math.max(1, estudiantes.length));
+  const studentCols: { nombre: string; carnet: string }[][] = Array.from({ length: nStudentCols }, () => []);
   estudiantes.forEach((a, i) => {
-    studentCols[i % 3].push(a);
+    studentCols[i % nStudentCols].push({ nombre: a.nombre, carnet: a.carnet });
   });
   const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: `Grupo: ${grupo}` }] : []].filter((c) => c.length > 0);
 
@@ -57,7 +59,7 @@ export const UNICoverPreview: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         flex: 1,
-        padding: '8px 12px 4px',
+        padding: '22px 16px 4px',
         minHeight: '780px',
         fontFamily: 'Times New Roman, serif',
       }}
@@ -74,9 +76,9 @@ export const UNICoverPreview: React.FC = () => {
         />
       </div>
 
-      {/* Área de conocimiento — 20pt, centrado */}
-      <p style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '4px 0 24px' }}>
-        Área de Conocimiento de Ingeniería y Afines
+      {/* Área de conocimiento — 20pt, centrado (editable desde el panel) */}
+      <p id="cover-field-departamento" style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '4px 0 24px', ...hl('departamento') }}>
+        {portada.departamento || 'Área de Conocimiento de Ingeniería y Afines'}
       </p>
 
       {/* Título — Montserrat Black 20pt */}

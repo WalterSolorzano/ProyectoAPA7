@@ -267,6 +267,8 @@ export interface PortadaData {
   date?: string;
   running_head?: string;
   author_note?: string;
+  /** Área de Conocimiento / Departamento (portada UNI) — editable por el usuario. */
+  departamento?: string;
 }
 
 export interface PortadaProfile {

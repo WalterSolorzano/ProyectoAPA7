@@ -13,7 +13,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   ShieldCheck, BookOpen, GraduationCap, Users, GripVertical, X,
-  Calendar, Building2, School, FileText, Plus, Check, ChevronDown,
+  Calendar, Building2, School, FileText, Plus, Check, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import {
   parseAuthorEntries, serializeAuthorEntries,
@@ -36,7 +36,7 @@ const baseInput: React.CSSProperties = {
 };
 
 export const CoverEditorPanel: React.FC = () => {
-  const { portada, setPortada, setCoverSetupDone } = useDocStore();
+  const { portada, setPortada, setCoverSetupDone, setWizardStep } = useDocStore();
   const { profesores, grupos, addIntegrante, addGrupo } = useRosterStore();
 
   const [draftAutor, setDraftAutor] = useState('');
@@ -400,6 +400,20 @@ export const CoverEditorPanel: React.FC = () => {
               </div>
             </div>
 
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Área de Conocimiento / Departamento</label>
+              <div style={{ position: 'relative' }}>
+                <School size={14} style={{ position: 'absolute', left: '11px', top: '10px', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  value={portada.departamento || ''}
+                  onChange={(e) => setPortada({ departamento: e.target.value })}
+                  placeholder="Ej: Área de Conocimiento de Ingeniería y Afines"
+                  style={{ ...baseInput, paddingLeft: '32px' }}
+                />
+              </div>
+            </div>
+
             <div style={{ position: 'relative' }}>
               <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Facultad / Grupo</label>
               <div style={{ position: 'relative' }}>
@@ -488,6 +502,18 @@ export const CoverEditorPanel: React.FC = () => {
           }}
         >
           <Check size={15} strokeWidth={3} /> Actualizar portada
+        </button>
+        <button
+          type="button"
+          onClick={() => { setCoverSetupDone(true); setWizardStep(2); }}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+            marginTop: '8px', padding: '10px 14px', fontSize: '12px', fontWeight: 700,
+            background: 'transparent', color: 'var(--accent-primary)',
+            border: '1px solid rgba(79,124,255,0.45)', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Continuar a Estructura <ChevronRight size={14} />
         </button>
       </div>
     </div>

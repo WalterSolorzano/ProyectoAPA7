@@ -453,6 +453,7 @@ class PortadaData(BaseModel):
     date: Optional[str] = None
     running_head: Optional[str] = None
     author_note: Optional[str] = None
+    departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
 
 
 class CitationModel(BaseModel):

@@ -119,7 +119,13 @@ class COMPostProcessor:
 
             except Exception as e:
                 logger.error(f"[COM PostProcessor] Error procesando: {e}")
-                return False, None
+                # Resiliencia: si el trasplante/PDF falló, al menos entregar el
+                # DOCX generado (degradado, sin portada transplantada exacta).
+                try:
+                    shutil.copy(generated_path, final_path)
+                except Exception:
+                    return False, None
+                return True, None
             finally:
                 if doc:
                     try:

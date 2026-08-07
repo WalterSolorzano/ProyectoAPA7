@@ -221,8 +221,10 @@ def generate_uni_cover(
     # ── 6. Autores en 4 columnas con separadores verticales negros ───────────
     estudiantes = [a for a in autores if not a.get("es_tutor", False)]
 
-    # Distribuir en 3 columnas de estudiantes (la 4ª columna es el docente)
-    n_student_cols = 3
+    # Distribuir en columnas de estudiantes (la última es el docente).
+    # Columnas dinámicas: pocos estudiantes = pocas columnas, para no dejar
+    # columnas vacías con separadores (portada rota con 1-2 integrantes).
+    n_student_cols = min(3, max(1, len(estudiantes)))
     cols_students: list[list[dict]] = [[] for _ in range(n_student_cols)]
     for i, est in enumerate(estudiantes):
         cols_students[i % n_student_cols].append(est)
@@ -238,8 +240,10 @@ def generate_uni_cover(
     max_rows = max(max_rows, 1)
 
     if n_cols > 0:
-        # Ancho total de la página ~16cm: 3 columnas de 3.6cm + 1 de 5.2cm
-        col_widths_cm = [3.6, 3.6, 3.6, 5.2][:n_cols]
+        # Ancho total de la página ~16cm: ancho de estudiante se adapta al
+        # número de columnas y la columna de docente siempre es la más ancha.
+        student_col_width = {3: 3.6, 2: 5.4, 1: 9.6}.get(n_student_cols, 3.6)
+        col_widths_cm = ([student_col_width] * n_student_cols) + ([5.2] if tutor_entry else [])
         authors_table = doc.add_table(rows=max_rows, cols=n_cols)
         authors_table.autofit = False
 
@@ -278,6 +282,21 @@ def generate_uni_cover(
                             _add_run_styled(p2, carnet, bold=False, size_pt=10, font=FONT_BODY)
 
         builder.insert_table(authors_table)
+
+    # ── 6.5 Espaciador dinámico: empuja fecha/lugar hacia abajo de la hoja ──
+    # Pocos autores = más espacio, para que la portada NO quede pegada arriba
+    # con todo el vacío abajo (replica el flex:1 del preview).
+    PAGE_USABLE_CM = 24.6    # A4 29.7cm - márgenes 2.54cm ×2
+    TOP_BLOCK_CM = 8.0       # logo + dept + título + asignatura + "Elaborado por"
+    AUTH_ROW_CM = 0.9        # altura por fila de autores (~10pt + aire)
+    DATE_BLOCK_CM = 1.4      # fecha + lugar
+    TARGET_FILL = 0.86       # la fecha queda cerca del 86% del alto de la hoja
+    used_cm = TOP_BLOCK_CM + max(1, max_rows) * AUTH_ROW_CM + DATE_BLOCK_CM
+    spacer_cm = max(0.0, PAGE_USABLE_CM * TARGET_FILL - used_cm)
+    empty_lines = int(spacer_cm / 0.5)
+    for _ in range(empty_lines):
+        sp = builder.add_paragraph()
+        _set_paragraph_spacing(sp, before=0, after=0, line_spacing=1.0)
 
     # ── 7. Fecha (izquierda) ─────────────────────────────────────────────────
     fecha_p = builder.add_paragraph()

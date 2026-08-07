@@ -651,7 +651,7 @@ export const useDocStore = create<DocState>()(
     const tab = state.tabs[index];
     const tabDoc = state.tabDocs[tab.session_id];
     if (tabDoc) {
-      return { activeTabIndex: index, doc: tabDoc, atHome: false };
+      return { activeTabIndex: index, doc: tabDoc, references: tabDoc.referencias || [], atHome: false };
     }
     return { activeTabIndex: index, atHome: false };
   }),
@@ -687,6 +687,7 @@ export const useDocStore = create<DocState>()(
           const newTabDocs = { ...state.tabDocs, [sessionId]: recovered };
           return {
             doc: recovered,
+            references: recovered.referencias || [],
             tabDocs: newTabDocs,
             activeTabIndex: existing,
             atHome: false,
@@ -699,6 +700,7 @@ export const useDocStore = create<DocState>()(
         const newTabDocs = { ...state.tabDocs, [recovered.session_id]: recovered };
         return {
           doc: recovered,
+          references: recovered.referencias || [],
           tabs: newTabs,
           activeTabIndex: newTabs.length - 1,
           tabDocs: newTabDocs,
@@ -877,6 +879,7 @@ export const useDocStore = create<DocState>()(
 
         return {
           doc,
+          references: doc.referencias || [],
           portada: updatedPortada,
           rules: uploadedProfile ? uploadedProfile.rules : state.rules,
           activeProfileId: uploadedProfile ? uploadedProfile.profile_id : state.activeProfileId,
@@ -1289,10 +1292,16 @@ export const useDocStore = create<DocState>()(
     return { portadaProfiles: [...state.portadaProfiles, profile as any] };
   }),
 
-  updateReferences: (refs: ReferenciaModel[]) => set({ references: refs }),
-  addReference: (ref) => set((state) => ({ references: [...state.references, ref] })),
+  updateReferences: (refs) => set((state) => ({ references: refs, doc: state.doc ? { ...state.doc, referencias: refs } : state.doc })),
+  addReference: (ref) => set((state) => {
+    const nextRefs = [...state.references, ref];
+    return { references: nextRefs, doc: state.doc ? { ...state.doc, referencias: nextRefs } : state.doc };
+  }),
   
-  removeReference: (id) => set((state) => ({ references: state.references.filter((r) => r.id !== id) })),
+  removeReference: (id) => set((state) => {
+    const nextRefs = state.references.filter((r) => r.id !== id);
+    return { references: nextRefs, doc: state.doc ? { ...state.doc, referencias: nextRefs } : state.doc };
+  }),
 
   resolveDoiReference: async (doi: string) => {
     set({ isLoading: true });
