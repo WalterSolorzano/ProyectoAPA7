@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.citation_engine import extract_citations_from_text
 
-
 # Cada caso: (texto, cantidad mínima de citas esperadas, substring del raw)
 PARITY_CASES = [
     ("Las 5S mejoran la moral del personal (Gutiérrez Pulido, 2012).", 1, "Gutiérrez"),

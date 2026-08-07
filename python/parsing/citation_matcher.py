@@ -1,9 +1,12 @@
 import re
-from typing import List, Dict, Any, Tuple
-from difflib import SequenceMatcher
 import unicodedata
-from models import DocumentModel, ElementType, CitationModel, CitationType
-from parsing.pre_classifier import REGEX_CITATION_PARENTETICA, REGEX_CITATION_NARRATIVA
+from difflib import SequenceMatcher
+from typing import Any, Dict, List, Tuple
+
+from models import CitationModel, CitationType, DocumentModel, ElementType
+
+from parsing.pre_classifier import REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA
+
 
 def _normalize_text(text: str) -> str:
     if not text:
@@ -15,12 +18,12 @@ def _extract_authors_and_year(match_text: str, is_narrativa: bool = False) -> Tu
     """Extrae autores y año de una cadena regex match."""
     # Remover paréntesis
     text = match_text.replace("(", "").replace(")", "").strip()
-    
+
     # Dividir por coma para sacar el año
     parts = text.split(",")
     if not parts:
         return [], ""
-        
+
     author_part = parts[0].strip()
     year = ""
     for p in parts[1:]:
@@ -34,29 +37,29 @@ def _extract_authors_and_year(match_text: str, is_narrativa: bool = False) -> Tu
             if m:
                 year = m.group(1)
                 break
-                
+
     if is_narrativa:
         # En narrativa a menudo viene "Garcia et al. (2020)" -> text era "Garcia et al. (2020)"
         pass # La regex devuelve 2 grupos: (Autores) y (Año)
-        
+
     # Limpiar autores (separar por "y", "&")
     author_part = author_part.replace(" et al.", "").replace(" et al", "")
     authors_raw = re.split(r'\s+(?:y|&)\s+', author_part)
     authors = [a.strip() for a in authors_raw if a.strip()]
-    
+
     return authors, year
 
 def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
     citations: List[CitationModel] = []
-    
+
     for elem in doc.elements:
         if elem.type not in (ElementType.PARAGRAPH, ElementType.HEADING, ElementType.BULLET, ElementType.NUMBERED_LIST, ElementType.BLOCK_QUOTE):
             continue
-            
+
         text = elem.text or ""
         if not text:
             continue
-            
+
         # Parentéticas
         for match in REGEX_CITATION_PARENTETICA.finditer(text):
             raw_text = match.group(0)
@@ -71,17 +74,17 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
                     start_offset=match.start(),
                     end_offset=match.end()
                 ))
-                
+
         # Narrativas
         for match in REGEX_CITATION_NARRATIVA.finditer(text):
             raw_text = match.group(0)
             authors_str = match.group(1)
             year_str = match.group(2)
-            
+
             authors_raw = re.split(r'\s+(?:y|&)\s+', authors_str.replace(" et al.", "").replace(" et al", ""))
             authors = [a.strip() for a in authors_raw if a.strip()]
             year = year_str.split(",")[0].strip() if "," in year_str else year_str.strip()
-            
+
             if authors and year:
                 citations.append(CitationModel(
                     raw_text=raw_text,
@@ -92,7 +95,7 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
                     start_offset=match.start(),
                     end_offset=match.end()
                 ))
-                
+
     return citations
 
 def cross_check_citations_and_references(doc: DocumentModel) -> Dict[str, Any]:

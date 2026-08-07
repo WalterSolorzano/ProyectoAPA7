@@ -1007,12 +1007,55 @@ html, body {
   font-weight: 700;
   color: var(--text-main);
 }
-.loading-tips-tip {
-  font-size: 13px;
-  font-weight: 600;
+
+/* ── Comentario en burbuja (las frases de la mascota, sin comillas) ──
+   Parece un comentario/nota: burbuja redondeada + 💬 + cursiva + badge de modo. */
+.tip-comment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 12px 18px;
+  box-shadow: var(--shadow-md);
+  animation: loading-tip-in 0.3s ease-out both;
+  max-width: 100%;
+}
+.tip-comment-sm {
+  align-items: flex-start;
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.tip-comment-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-primary);
+  letter-spacing: 0.01em;
+}
+.tip-comment-lg .tip-comment-badge {
+  font-size: 12px;
+  color: var(--accent-primary-hover);
+}
+.tip-comment-text {
+  font-style: italic;
   color: var(--text-main);
+  line-height: 1.45;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tip-comment-lg .tip-comment-text {
+  font-size: var(--text-xl);
+  font-weight: 600;
   line-height: 1.4;
-  animation: loading-tip-in 0.25s ease-out both;
+}
+.tip-comment-marker {
+  font-style: normal;
+  margin-right: 6px;
+  font-size: 0.9em;
+  opacity: 0.85;
 }
 
 /* ── Pantalla de carga FULLSCREEN (arranque del motor) ──
@@ -1043,12 +1086,8 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-.loading-tips-fullscreen-tip {
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  color: var(--text-main);
-  line-height: 1.35;
-  animation: loading-tip-in 0.3s ease-out both;
+.tip-comment-lg {
+  max-width: 560px;
 }
 
 @keyframes loading-tip-side-in {
@@ -1114,6 +1153,54 @@ html, body {
   75% { transform: scale(0.94) rotate(6deg); }
 }
 .mascot-anim-llm { animation: mascot-spark 1.7s ease-in-out infinite; }
+@keyframes mascot-scan {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-3px) rotate(-2deg); }
+  66% { transform: translateY(-1px) rotate(2deg); }
+}
+.mascot-anim-ai { animation: mascot-scan 2.2s ease-in-out infinite; }
+@keyframes mascot-fight {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25% { transform: translateX(-4px) rotate(-3deg); }
+  75% { transform: translateX(4px) rotate(3deg); }
+}
+.mascot-anim-wordhell { animation: mascot-fight 1.9s ease-in-out infinite; }
+@keyframes mascot-sleep {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(2px) scale(0.98); }
+}
+.mascot-anim-student { animation: mascot-sleep 2.8s ease-in-out infinite; }
+
+/* ════════════ COMENTARIO ROTATIVO (status bar y otros lugares) ════════════ */
+.rotating-comment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 3px 12px;
+  animation: loading-tip-in 0.4s ease-out both;
+}
+.rotating-comment-marker {
+  font-style: normal;
+  font-size: 11px;
+  opacity: 0.9;
+}
+.rotating-comment-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ════════════ MICRO-ANIMACIÓN DE CIERRE (descarga exitosa) ════════════ */
 .download-success {

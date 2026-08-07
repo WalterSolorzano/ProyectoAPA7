@@ -7,11 +7,11 @@ Genera y formatea la página de portada en sus dos modalidades APA 7:
 """
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.text.paragraph import Paragraph
 from docx.oxml import OxmlElement
-from models import PortadaData, APAFormat, APARuleSet
+from docx.shared import Inches, Pt, RGBColor
+from docx.text.paragraph import Paragraph
+from models import APAFormat, APARuleSet, PortadaData
 
 
 class _CoverBuilder:

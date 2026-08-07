@@ -17,13 +17,14 @@ tal como aparece en los trabajos reales de los estudiantes:
 La portada se INSERTA al inicio del documento (posición 0).
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 from docx import Document
-from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm, Pt, RGBColor
 from docx.text.paragraph import Paragraph
 
 

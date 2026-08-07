@@ -43,31 +43,6 @@ page2_screenshot.png
 page2_scroll_screenshot.png
 middle_scroll_screenshot.png
 
-# Random trash files found in workspace
-(numFmt
-0
-0.85
-1
-1,
-1000
-13
-1cm
-400
-400,
-85%
-List[Dict[str
-List[dict]
-body_start_idx
-min_size
-numFmt,+
-p.title
-set({
-state.history.length
-treat
-{,
-{,+
-{,-
-
 # Build and Electron outputs
 dist-electron/
 dist-electron-builder/

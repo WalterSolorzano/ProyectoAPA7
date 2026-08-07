@@ -27,7 +27,6 @@ import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard
 import { EditorRail } from './components/wizard/EditorRail';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
-import { ResizablePanel } from './components/shared/ResizablePanel';
 import { OnboardingTour } from './components/shared/OnboardingTour';
 import * as api from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
@@ -358,7 +357,7 @@ export const App: React.FC = () => {
           <>
             {/* ETAPA 2 — EDITOR UNIFICADO:
                 rail lateral izquierdo de secciones + contenido del editor. */}
-            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
               <EditorRail />
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
                 {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
@@ -369,8 +368,7 @@ export const App: React.FC = () => {
                 {wizardStep === 5 && <Step5ReferencesWizard />}
               </div>
 
-              {/* Panel Derecho unificado (Layer 4): pestañas Actividad | Inspector.
-                  Solo visible cuando el usuario lo activa manualmente */}
+              {/* Panel Derecho flotante: se monta sobre el canvas sin quitarle espacio */}
               <RightSidePanel />
             </div>
           </>

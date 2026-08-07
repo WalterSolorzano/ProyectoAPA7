@@ -7,11 +7,9 @@ Verifica:
 3. Celdas de la primera fila de tabla (encabezados) con negrita (bold = True).
 """
 
-from pathlib import Path
 import docx
-
-from models import DocumentModel, ElementModel, ElementType, APARuleSet, TableModel
 from generation.generator import generate_apa7_docx
+from models import APARuleSet, DocumentModel, ElementModel, ElementType, TableModel
 
 
 def test_apa7_strict_body_double_spacing_and_heading1(tmp_path):

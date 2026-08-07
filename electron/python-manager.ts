@@ -38,17 +38,26 @@ export class PythonManager {
       let args: string[] = []
 
       if (app.isPackaged) {
-        command = path.join(process.resourcesPath, 'python-backend', 'wordapa7-backend', 'wordapa7-backend.exe')
+        // El backend PyInstaller viaja en resources/python-backend/python-backend/
+        // (extraResources: dist-python/ -> python-backend/). Este path DEBE
+        // coincidir con el layout real del paquete, o el backend nunca arranca
+        // y la app queda en "Conectando con el motor de procesamiento..." para siempre.
+        command = path.join(process.resourcesPath, 'python-backend', 'python-backend', 'python-backend.exe')
         args = ['--port', String(this.port)]
       } else {
         const scriptPath = path.join(app.getAppPath(), 'python', 'main.py')
+        // En desarrollo preferir el venv del repo; si no existe, el python del PATH.
+        const venvPython = path.join(app.getAppPath(), 'venv', 'Scripts', 'python.exe')
+        if (require('fs').existsSync(venvPython)) {
+          command = venvPython
+        }
         args = [scriptPath, '--port', String(this.port)]
       }
 
       // Kill any zombie process from a previous installation before starting
       if (process.platform === 'win32') {
         try {
-          require('child_process').execSync('taskkill /F /IM wordapa7-backend.exe', { stdio: 'ignore' })
+          require('child_process').execSync('taskkill /F /IM python-backend.exe', { stdio: 'ignore' })
           log('info', 'python-manager', 'Zombies eliminados exitosamente')
         } catch (e) {
           // Normal if no zombie exists

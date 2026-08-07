@@ -5,11 +5,10 @@ import logging
 import time
 from asyncio import Lock
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import httpx
-
-from classification.llm_classifier import _get_active_providers, PROVIDER_CAPACITY
+from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +80,13 @@ def _save_cache(cache: Dict[str, str]) -> None:
         logger.warning(f"No se pudo guardar el cache de LLM: {e}")
 
 async def _try_provider(
-    provider: Dict[str, Any], 
-    payload: Dict[str, Any], 
+    provider: Dict[str, Any],
+    payload: Dict[str, Any],
     timeout: int,
     retries: int = 1 # Reducido porque preferimos enrutar al siguiente antes que esperar mucho
 ) -> Optional[Dict[str, Any]]:
     """Intenta llamar a un proveedor, manejando 429 con backoff rápido o fallando para el FIFO."""
-    
+
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -96,26 +95,26 @@ async def _try_provider(
                     json=payload,
                     headers=provider["headers"](provider["key"]),
                 )
-            
+
             if resp.status_code == 200:
                 return resp.json()
-                
+
             elif resp.status_code == 429:
                 wait_time = 1.5 ** attempt
                 logger.warning(f"[AI] {provider['name']} devolvió 429. Reintentando en {wait_time}s...")
                 await asyncio.sleep(wait_time)
                 continue
-                
+
             else:
                 logger.warning(f"[AI] {provider['name']} falló con status {resp.status_code}: {resp.text}")
                 return None
-                
+
         except (httpx.RequestError, asyncio.TimeoutError) as e:
             logger.warning(f"[AI] {provider['name']} error de red/timeout: {e}")
             if attempt == retries - 1:
                 return None
             await asyncio.sleep(0.5)
-            
+
     return None
 
 async def execute_with_specialty(
@@ -150,7 +149,7 @@ async def execute_with_specialty(
     specialty_ids = PROVIDER_SPECIALTIES.get(specialty, [])
     preferred_providers = [p for p in providers if p["id"] in specialty_ids]
     fallback_providers = [p for p in providers if p["id"] not in specialty_ids]
-    
+
     routing_queue = preferred_providers + fallback_providers
 
     # 3. Enrutamiento Predictivo
@@ -159,13 +158,13 @@ async def execute_with_specialty(
         capacity = PROVIDER_CAPACITY.get(p_id, {"timeout": 25, "requests_per_minute": 10})
         timeout = capacity.get("timeout", 25)
         rpm = capacity.get("requests_per_minute", 10)
-        
+
         # Verificar Rate Limiter predictivo
         bucket = _limiter_registry.get_bucket(p_id, rpm)
         if not await bucket.consume(1):
             logger.info(f"[Router] {p['name']} está predictivamente OCUPADO. Saltando en FIFO.")
             continue
-            
+
         payload = {
             "model": p["model"],
             "messages": [
@@ -175,17 +174,17 @@ async def execute_with_specialty(
             "temperature": temperature,
             "max_tokens": max_tokens
         }
-        
+
         logger.info(f"[Router] Asignando tarea {specialty} a {p['name']}")
         result = await _try_provider(p, payload, timeout)
-        
+
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
-            
+
             if use_cache:
                 cache[prompt_hash] = content
                 _save_cache(cache)
-                
+
             return (content, p["name"], p["id"]) if return_provider_info else content
 
     # Si todos están ocupados predictivamente o fallaron, forzamos un intento con el primero disponible
@@ -225,25 +224,25 @@ def get_ai_system_health() -> Dict[str, Any]:
     for specialty, provider_ids in PROVIDER_SPECIALTIES.items():
         if not provider_ids:
             continue
-            
+
         # Tomamos el proveedor principal (el primero) de la especialidad
         primary_id = provider_ids[0]
         capacity_rpm = PROVIDER_CAPACITY.get(primary_id, 30)
-        
+
         bucket = _limiter_registry.buckets.get(primary_id)
         if bucket:
             # Forzamos una actualizacion simulada (consume=0) para que tokens este up to date
             now = time.time()
             elapsed = now - bucket.last_update
             current_tokens = min(float(bucket.capacity), bucket.tokens + elapsed * bucket.fill_rate)
-            
+
             percentage = int((current_tokens / bucket.capacity) * 100)
             status = "good"
             if percentage < 20:
                 status = "critical"
             elif percentage < 60:
                 status = "warning"
-                
+
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": percentage,
@@ -255,5 +254,5 @@ def get_ai_system_health() -> Dict[str, Any]:
                 "percentage": 100, # Si nunca se usó, está lleno
                 "status": "good"
             }
-            
+
     return health_data

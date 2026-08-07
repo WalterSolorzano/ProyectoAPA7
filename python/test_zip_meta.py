@@ -1,5 +1,6 @@
-import zipfile
 import re
+import zipfile
+
 
 def extract_meta(path):
     with zipfile.ZipFile(path) as z:
@@ -12,7 +13,7 @@ def extract_meta(path):
             print(f"Words: {words.group(1) if words else 'N/A'}")
         except Exception as e:
             print("Error app.xml:", e)
-            
+
         try:
             core_xml = z.read('docProps/core.xml').decode('utf-8')
             revision = re.search(r'<cp:revision>(\d+)</cp:revision>', core_xml)

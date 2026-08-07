@@ -15,7 +15,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
-import { getSizeComment, getTimeOfWeekComment } from '../../lib/studentJokes';
+import { getSizeComment, getTimeOfWeekComment, getFilenameComment } from '../../lib/studentJokes';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
 import { Loader2 } from 'lucide-react';
 
@@ -71,24 +71,24 @@ export const JOKES: string[] = [
   'separando lo que escribiste de lo que copiaste…',
   // Primer lote nuevo
   'ese título en mayúsculas sostenidas no engaña a nadie.',
-  'alguien tradujo esto con IA y se nota el "asimismo".',
+  'la portada está más desnuda que un recién nacido. Vistiéndola…',
   'contando sinónimos de "importante" (van 9).',
   'la conclusión que dice lo mismo que la introducción, otra vez.',
-  'ese gráfico de Excel pegado se ve como se ve.',
+  'el Word original tenía más estilos que un desfile de moda. Simplificando…',
   'buscando el "bla bla bla" que seguro hay en algún lado.',
   'el resumen de 400 palabras que debía tener 150.',
-  'esa tabla tiene más colores que un semáforo.',
+  'buscando tabulaciones fantasmas que nadie puso…',
   '"según diversos autores" sin decir cuáles, un clásico.',
   'contando cuántas veces cambiaste de fuente sin querer.',
-  'alguien no le puso título a "Sin título 1" todavía.',
-  'esa imagen pixelada llegó directo de un grupo de WhatsApp.',
+  'revisando que cada punto y aparte tenga su sangría…',
+  'los márgenes estaban de vacaciones, ya los trajimos de vuelta.',
   'el párrafo que empieza igual que el anterior, casi calcado.',
   'buscando dónde quedó la coherencia entre página 3 y página 30.',
   'contando líneas en blanco de más, hay bastantes.',
   // Segundo lote nuevo
-  'contando cuántos "asimismo" hay en el documento (van 12).',
+  'nivelando la jerarquía de títulos como si fueran piezas de ajedrez…',
   'el corrector ortográfico está sudando.',
-  'alguien copió y pegó de PDF, se nota.',
+  'persiguiendo la última coma que se escapó al final del párrafo…',
   'revisando si el resumen resume algo.',
   '"citando" fuentes que ni el autor recuerda haber citado.',
   'detectando el momento exacto donde te quedaste sin ideas y pusiste relleno.',
@@ -131,6 +131,35 @@ export const APA_FACTS: string[] = [
   'máximo 20 palabras para citar textual sin sangría de bloque.',
 ];
 
+// ── MODO: "Te atrapé usando IA" (las delatoras) ─────────────────────────────
+export const AI_JOKES: string[] = [
+  "contando cuántos 'en conclusión' y 'en resumen' te dejó ChatGPT...",
+  "verificando que no hayas dejado un 'claro, aquí tienes tu ensayo' oculto en la página 12...",
+  "reescribiendo la frase 'sumérgete en el fascinante mundo' para que suenes como un ser humano...",
+  "calculando cuántas veces usaste 'crucial' y 'fundamental' en el mismo párrafo...",
+  'revisando que tu marco teórico no alucine autores que no existen...',
+];
+
+// ── MODO: El infierno de Word y APA 7 ───────────────────────────────────────
+export const WORD_HELL_JOKES: string[] = [
+  'peleando a muerte con Word para que la tabla no brinque a la siguiente página...',
+  'alineando márgenes con precisión de ingeniero. Ni un milímetro más, ni un milímetro menos.',
+  'convenciendo a tu documento de que la imagen va exactamente donde le dijiste que fuera...',
+  'buscando líneas viudas y huérfanas para devolverlas con su familia...',
+  'aplicando sangría francesa (tranquilo, es la de APA, no la bebida)...',
+  'eliminando los 45 espacios en blanco que usaste para centrar el título...',
+];
+
+// ── MODO: Agotamiento estudiantil y optimización ────────────────────────────
+export const STUDENT_JOKES: string[] = [
+  'optimizando tu bibliografía a velocidad récord para que por fin puedas ir a dormir...',
+  'preparando el documento... total, el profe solo va a leer la introducción y las conclusiones.',
+  "evaluando si esa cita de 'Rincón del Vago' realmente cuenta como fuente académica...",
+  'calculando la ruta más corta entre este borrador y tu título universitario...',
+  'cargando... más rápido de lo que tardaste en decidir entre Arial o Times New Roman.',
+  'procesando... porque tu salud mental vale más que pelear con las referencias cruzadas.',
+];
+
 const HONEST_MESSAGES: string[] = [
   // Base
   'esto está tardando más de lo normal — tu doc es grande, tranquilo, seguimos.',
@@ -148,7 +177,7 @@ const HONEST_MESSAGES: string[] = [
 ];
 
 interface Tip {
-  category: 'process' | 'jokes' | 'apa' | 'honest' | 'llm';
+  category: 'process' | 'jokes' | 'apa' | 'honest' | 'llm' | 'ai' | 'wordhell' | 'student';
   text: string;
 }
 
@@ -160,6 +189,9 @@ const EXPRESSION_BY_CATEGORY: Record<Tip['category'], MascotExpression> = {
   apa: 'curious',
   honest: 'neutral',
   llm: 'excited',
+  ai: 'curious',
+  wordhell: 'excited',
+  student: 'happy',
 };
 
 // Animación de la mascota según la categoría (ver CSS: mascot-anim-*).
@@ -169,6 +201,29 @@ const ANIMATION_BY_CATEGORY: Record<Tip['category'], string> = {
   apa: 'mascot-anim-apa',
   honest: 'mascot-anim-honest',
   llm: 'mascot-anim-llm',
+  ai: 'mascot-anim-ai',
+  wordhell: 'mascot-anim-wordhell',
+  student: 'mascot-anim-student',
+};
+
+// Etiqueta de "modo" para los sets temáticos (chiste -> comentario con badge).
+const MODE_LABEL: Partial<Record<Tip['category'], string>> = {
+  ai: "🤖 Modo: te atrapé usando IA",
+  wordhell: '📐 Modo: el infierno de Word y APA 7',
+  student: '☕ Modo: agotamiento estudiantil',
+};
+
+// Tiempo que cada frase permanece visible. Las de "arte" (honestidad de espera)
+// y las temáticas se dejan un poco más porque valen la pena leerlas.
+const CATEGORY_DURATION_MS: Record<Tip['category'], number> = {
+  process: 4500,
+  jokes: 3800,
+  apa: 4500,
+  honest: 9000,
+  llm: 4500,
+  ai: 5000,
+  wordhell: 4200,
+  student: 5000,
 };
 
 function pickRandom(arr: string[]): string {
@@ -181,12 +236,18 @@ function tipFor(category: Tip['category']): Tip {
     case 'jokes': return { category, text: pickRandom(JOKES) };
     case 'apa': return { category, text: pickRandom(APA_FACTS) };
     case 'honest': return { category, text: pickRandom(HONEST_MESSAGES) };
+    case 'ai': return { category, text: pickRandom(AI_JOKES) };
+    case 'wordhell': return { category, text: pickRandom(WORD_HELL_JOKES) };
+    case 'student': return { category, text: pickRandom(STUDENT_JOKES) };
     default: return { category: 'process', text: pickRandom(PROCESS_VERBS) };
   }
 }
 
-// Secuencia de categorías: nunca dos iguales seguidas
-const CATEGORY_SEQUENCE: Tip['category'][] = ['process', 'jokes', 'apa', 'jokes', 'apa', 'process'];
+// Secuencia de categorías: arranca seria (proceso), luego intercala los chistes
+// temáticos para no abrumar al inicio. Nunca dos iguales seguidas.
+const CATEGORY_SEQUENCE: Tip['category'][] = [
+  'process', 'jokes', 'apa', 'ai', 'jokes', 'wordhell', 'student', 'apa', 'ai',
+];
 
 // Barra de progreso indeterminada fija en el techo de la pantalla (3px azul).
 // Refuerza visualmente que el sistema está trabajando mientras se ve el inicio.
@@ -223,8 +284,12 @@ export const LoadingTips: React.FC = () => {
   const contextualInitialTip = (): Tip | null => {
     const now = new Date();
 
-    // 1. Por nombre de archivo
+    // 1. Por nombre de archivo (usamos la detección unificada de studentJokes)
     if (fileName) {
+      const filenameJoke = getFilenameComment(fileName);
+      if (filenameJoke) {
+        return { category: 'jokes', text: filenameJoke };
+      }
       const nameLower = fileName.toLowerCase();
       if (/final|tesis|monograf/i.test(nameLower)) {
         const phrases = [
@@ -306,25 +371,29 @@ export const LoadingTips: React.FC = () => {
 
   useEffect(() => {
     if (!visible) return;
-    const iv = setInterval(() => {
+    // Rotación con duración variable según la categoría de la frase actual
+    // (los "comentarios de arte" duran más). Primeros 3s queda la frase seria.
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
       const elapsed = Date.now() - startRef.current;
+      if (elapsed < 3000) { timer = setTimeout(tick, 400); return; }
 
-      // Escala con la duración: no rotar antes de 3s (un solo tip en docs chicos)
-      if (elapsed < 3000) return;
-
-      // Honestidad a los 15s: mensaje especial una sola vez
+      // Honestidad a los 15s: mensaje especial una sola vez (dura más)
       if (!honestyShownRef.current && elapsed >= 15000) {
         honestyShownRef.current = true;
-        setTip(tipFor('honest'));
+        const honest = tipFor('honest');
+        setTip(honest);
+        timer = setTimeout(tick, CATEGORY_DURATION_MS.honest);
         return;
       }
 
-      // Rotación por categoría
       seqIdxRef.current = (seqIdxRef.current + 1) % CATEGORY_SEQUENCE.length;
-      const nextCat = CATEGORY_SEQUENCE[seqIdxRef.current];
-      setTip(tipFor(nextCat));
-    }, 2800);
-    return () => clearInterval(iv);
+      const next = tipFor(CATEGORY_SEQUENCE[seqIdxRef.current]);
+      setTip(next);
+      timer = setTimeout(tick, CATEGORY_DURATION_MS[next.category]);
+    };
+    timer = setTimeout(tick, 400);
+    return () => clearTimeout(timer);
   }, [visible]);
 
   // La IA genera un tip fresco cuando la carga ya es larga (>8s), una vez
@@ -362,6 +431,20 @@ export const LoadingTips: React.FC = () => {
   const mascotExpr = EXPRESSION_BY_CATEGORY[tip.category];
   const mascotAnim = ANIMATION_BY_CATEGORY[tip.category];
 
+  // Comentario en burbuja (sin comillas): badge de modo + frase en cursiva.
+  const renderTipComment = (size: 'sm' | 'lg') => {
+    const label = MODE_LABEL[tip.category];
+    return (
+      <div className={`tip-comment tip-comment-${size}`} key={tip.text}>
+        {label && <span className="tip-comment-badge">{label}</span>}
+        <span className="tip-comment-text">
+          <span className="tip-comment-marker" aria-hidden="true">💬</span>
+          {tip.text}
+        </span>
+      </div>
+    );
+  };
+
   // ── PANTALLA COMPLETA (tipo juego) mientras arranca el motor ──
   // El usuario NO debe ver el inicio ni barras de "conectando": solo la
   // mascota viva + frases rotativas a pantalla completa. Si el motor tarda
@@ -377,7 +460,7 @@ export const LoadingTips: React.FC = () => {
               <DocumentMascot size={128} expression={mascotExpr} />
             </div>
             <div className="loading-tips-fullscreen-title">{message}</div>
-            <div className="loading-tips-fullscreen-tip" key={tip.text}>{tip.text}</div>
+            {renderTipComment('lg')}
             <div className="loading-tips-dots"><span /><span /><span /></div>
 
           {connectingSecs >= 12 && (
@@ -414,7 +497,7 @@ export const LoadingTips: React.FC = () => {
           </div>
           <div className="loading-tips-body">
             <div className="loading-tips-title">{message}</div>
-            <div className="loading-tips-tip" key={tip.text}>{tip.text}</div>
+            {renderTipComment('sm')}
           </div>
         </div>
       </div>

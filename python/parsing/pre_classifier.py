@@ -10,11 +10,11 @@ Meta: >85% de elementos clasificados sin LLM.
 """
 
 import re
-import math
 import unicodedata
-from typing import List, Optional
+from typing import List
 
 from models import ElementModel, ElementType
+
 from parsing.clustering_classifier import ClusteringHeadingClassifier
 
 
@@ -969,7 +969,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             if elem.type == ElementType.IMAGE and elem.image_info:
                 figure_counter += 1
                 elem.image_info.figure_number = figure_counter
-                
+
                 # Buscar caption arriba (idx-1) o abajo (idx+1)
                 for offset in [-1, 1, -2, 2]:
                     neighbor_idx = idx + offset

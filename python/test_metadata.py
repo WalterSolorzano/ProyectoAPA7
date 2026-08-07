@@ -1,5 +1,7 @@
 import os
+
 import win32com.client as win32
+
 
 def test_metadata():
     word = win32.Dispatch("Word.Application")
@@ -9,7 +11,7 @@ def test_metadata():
         doc = word.Documents.Add()
         doc.SaveAs(doc_path)
         doc.Close()
-    
+
     doc = word.Documents.Open(doc_path)
     try:
         edit_time = doc.BuiltInDocumentProperties("Total editing time").Value

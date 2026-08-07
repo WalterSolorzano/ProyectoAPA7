@@ -4,12 +4,12 @@ WordAPA7 — Gestor de Sesiones y Persistencia SQLite
 Sustituye a la anterior persistencia JSON para mejorar el rendimiento
 y escalabilidad.
 """
-import sqlite3
 import json
 import os
-import time
-import threading
 import shutil
+import sqlite3
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -31,7 +31,7 @@ def get_redis():
     global redis_client
     if redis_client is not None:
         return redis_client
-        
+
     redis_url = os.environ.get("REDIS_URL")
     if redis_url:
         try:
@@ -50,7 +50,7 @@ def init_db(storage_dir: Path):
     db_dir = storage_dir / "db"
     db_dir.mkdir(parents=True, exist_ok=True)
     DB_PATH = db_dir / "wordapa7_sessions.db"
-    
+
     conn = sqlite3.connect(str(DB_PATH))
     # Activar WAL para mejorar concurrencia (lecturas no bloquean escrituras)
     # y reducir errores "database is locked" en escenarios multi-worker.
@@ -81,12 +81,12 @@ def init_db(storage_dir: Path):
 def save_session_state(doc: DocumentModel, storage_dir: Path) -> Path:
     if DB_PATH is None:
         init_db(storage_dir)
-        
+
     if doc.meta:
         doc.meta.autosave_at = datetime.now(timezone.utc).isoformat()
-        
+
     json_data = doc.model_dump_json()
-    
+
     r = get_redis()
     if r:
         r.set(f"session:{doc.session_id}", json_data, ex=86400) # 24 hour expiry
@@ -98,36 +98,36 @@ def save_session_state(doc: DocumentModel, storage_dir: Path) -> Path:
         )
         conn.commit()
         conn.close()
-    
+
     # Fake file path to keep compatibility
     return storage_dir / "sessions" / doc.session_id / "session_state.json"
 
 def load_session_state(session_id: str, storage_dir: Path) -> Optional[DocumentModel]:
     r = get_redis()
     json_data = None
-    
+
     if r:
         json_data = r.get(f"session:{session_id}")
-        
+
     if not json_data:
         if DB_PATH is None:
             init_db(storage_dir)
-            
+
         conn = sqlite3.connect(str(DB_PATH))
         cursor = conn.cursor()
         cursor.execute("SELECT data FROM session_data WHERE session_id = ?", (session_id,))
         row = cursor.fetchone()
         conn.close()
-        
+
         if row:
             json_data = row[0]
             # Warm up redis cache if we fetched from sqlite
             if r:
                 r.set(f"session:{session_id}", json_data, ex=86400)
-                
+
     if not json_data:
         return None
-        
+
     try:
         data = json.loads(json_data)
         return DocumentModel.model_validate(data)
@@ -138,13 +138,13 @@ def load_session_state(session_id: str, storage_dir: Path) -> Optional[DocumentM
 def list_recent_sessions(storage_dir: Path, limit: int = 10) -> list[dict]:
     if DB_PATH is None:
         init_db(storage_dir)
-        
+
     sessions = []
     try:
         conn = sqlite3.connect(str(DB_PATH))
         rows = conn.execute("SELECT session_id, data FROM session_data ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
         conn.close()
-        
+
         for row in rows:
             try:
                 data = json.loads(row[1])
@@ -165,26 +165,26 @@ def list_recent_sessions(storage_dir: Path, limit: int = 10) -> list[dict]:
                 continue
     except Exception as e:
         print(f"[ERROR] Error al listar sesiones recientes SQLite: {e}")
-        
+
     return sessions
 
 def delete_session(session_id: str, storage_dir: Path) -> bool:
     if DB_PATH is None:
         init_db(storage_dir)
-        
+
     try:
         conn = sqlite3.connect(str(DB_PATH))
         conn.execute("DELETE FROM session_data WHERE session_id = ?", (session_id,))
         conn.execute("DELETE FROM session_snapshots WHERE session_id = ?", (session_id,))
         conn.commit()
         conn.close()
-        
+
         # Opcionalmente borrar la carpeta
         import shutil
         session_dir = storage_dir / "sessions" / session_id
         if session_dir.exists():
             shutil.rmtree(session_dir)
-            
+
         return True
     except Exception as e:
         print(f"[ERROR] Error eliminando sesion {session_id}: {e}")
@@ -196,20 +196,20 @@ def save_session_snapshot(doc_model, storage_dir: Path):
     try:
         json_data = doc_model.model_dump_json()
         conn = sqlite3.connect(str(DB_PATH))
-        
+
         # Keep only last 5 snapshots
         count = conn.execute("SELECT COUNT(*) FROM session_snapshots WHERE session_id = ?", (doc_model.session_id,)).fetchone()[0]
         if count >= 5:
             oldest_id = conn.execute("SELECT id FROM session_snapshots WHERE session_id = ? ORDER BY id ASC LIMIT 1", (doc_model.session_id,)).fetchone()[0]
             conn.execute("DELETE FROM session_snapshots WHERE id = ?", (oldest_id,))
-            
+
         conn.execute(
             "INSERT INTO session_snapshots (session_id, data) VALUES (?, ?)",
             (doc_model.session_id, json_data)
         )
         conn.commit()
         conn.close()
-        
+
         return "snapshot_saved_sqlite"
     except Exception as e:
         print(f"[WARN] Error saving snapshot SQLite: {e}")

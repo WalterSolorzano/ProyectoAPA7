@@ -1,7 +1,7 @@
-import logging
 import json
+import logging
 import os
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ async def validate_spelling_and_grammar(docx_path: str) -> Dict[str, Any]:
     """
     if os.name != 'nt':
         return {"spelling_errors": [], "grammar_errors_count": 0, "status": "not_supported"}
-        
+
     try:
         from services.word_com_service import get_word_com_service
         word_service = get_word_com_service()
@@ -43,15 +43,15 @@ async def validate_spelling_and_grammar(docx_path: str) -> Dict[str, Any]:
                 if suggestions_obj:
                     for i in range(1, min(4, suggestions_obj.Count + 1)):
                         sugs.append(suggestions_obj.Item(i).Name)
-                
+
                 spelling_errors.append({
                     "word": word_text,
                     "suggestions": sugs
                 })
                 count += 1
-                
+
             grammar_count = doc.GrammaticalErrors.Count
-            
+
             return {
                 "spelling_errors": spelling_errors,
                 "grammar_errors_count": grammar_count,
@@ -59,7 +59,7 @@ async def validate_spelling_and_grammar(docx_path: str) -> Dict[str, Any]:
             }
         finally:
             doc.Close(SaveChanges=False)
-            
+
     except Exception as e:
         logger.error(f"[SpellingValidator] Error COM: {e}")
         return {"spelling_errors": [], "grammar_errors_count": 0, "status": "error", "message": str(e)}
@@ -70,17 +70,16 @@ async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional
     """
     if not errors or not api_key:
         return errors
-        
-    from modules.ai_client import execute_with_fallback
+
     import asyncio
-    
+
     # Procesar en lotes (Chunking) para evitar limites de tokens
     CHUNK_SIZE = 25
     words = [e["word"] for e in errors]
     batches = [words[i:i + CHUNK_SIZE] for i in range(0, len(words), CHUNK_SIZE)]
-    
+
     ai_map = {}
-    
+
     for i, batch in enumerate(batches):
         words_str = ", ".join(batch)
         prompt = (
@@ -93,6 +92,7 @@ async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional
         system_prompt = "Responde únicamente con un JSON válido."
 
         try:
+            from modules.ai_client import execute_with_specialty
             content = await execute_with_specialty(
                 prompt=prompt,
                 system_prompt=system_prompt,
@@ -102,29 +102,29 @@ async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional
                 max_tokens=1000,
                 use_cache=True
             )
-            
+
             # Parse JSON
             if content.startswith("```json"):
                 content = content[7:-3]
             elif content.startswith("```"):
                 content = content[3:-3]
-                
+
             ai_results = json.loads(content.strip())
-            
+
             for item in ai_results:
                 if isinstance(item, dict):
                     ai_map[item.get("word")] = item.get("is_error", True)
-                    
+
         except Exception as e:
             logger.error(f"Error AI Spelling Check (Batch {i+1}): {e}")
-            
+
         # Pequeño delay entre batches para cuotas gratuitas (ej. Groq 30 requests/min)
         if i < len(batches) - 1:
             await asyncio.sleep(1.5)
-            
+
     # Merge with original errors
     for err in errors:
         # Por defecto True (es un error) si la IA falló o no lo incluyó
         err["ai_is_error"] = ai_map.get(err["word"], True)
-        
+
     return errors

@@ -329,7 +329,7 @@ html, body {
   max-width: 600px;
   flex-shrink: 0;
   background-color: var(--inspector-bg);
-  border-left: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -340,7 +340,7 @@ html, body {
   padding: 12px 16px;
   font-size: 12px;
   font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -1536,7 +1536,7 @@ html, body {
   padding: 10px 12px;
   background-color: var(--app-bg);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-subtle);
 }
 
 /* ── LIVE PREVIEW PANEL ──────────────────────────────────────────────────────── */

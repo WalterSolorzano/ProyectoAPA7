@@ -7,36 +7,34 @@ OOXML artifact preservation issues.
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
-
+from docx.shared import Inches, Pt
 from models import (
+    APARuleSet,
     DocumentModel,
     ElementModel,
     ElementType,
-    APARuleSet,
     PortadaData,
     ReferenciaModel,
 )
-from generation.style_engine import (
-    apply_page_setup,
-    update_docx_styles_xml,
-    format_heading_paragraph,
-    format_normal_paragraph,
-    format_block_quote,
-    normalize_global_body_spacing,
-)
-from generation.table_engine import set_table_borders, format_apa_table
-from generation.image_handler import format_apa_figure
-from generation.bullet_engine import format_bullet_item, format_numbered_item
-from generation.document_structure import setup_apa_header
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
+
+from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.document_structure import setup_apa_header
+from generation.image_handler import format_apa_figure
+from generation.style_engine import (
+    apply_page_setup,
+    format_block_quote,
+    format_heading_paragraph,
+    format_normal_paragraph,
+    normalize_global_body_spacing,
+    update_docx_styles_xml,
+)
+from generation.table_engine import format_apa_table
 
 
 def generate_apa7_from_scratch(
@@ -105,7 +103,7 @@ def generate_apa7_from_scratch(
 
         if cover_template_id:
             try:
-                from modules.cover_designer import list_cover_templates, apply_cover_to_document
+                from modules.cover_designer import apply_cover_to_document, list_cover_templates
                 base_dir = Path(__file__).resolve().parent.parent
                 templates = list_cover_templates(base_dir)
                 selected = None

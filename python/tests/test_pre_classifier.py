@@ -23,7 +23,6 @@ import pytest
 from models import ElementModel, ElementType
 from parsing.pre_classifier import pre_classify_elements
 
-
 # ── TESTS: HEADINGS POR ESTILO WORD ─────────────────────────────────────────────
 
 class TestHeadingByWordStyle:

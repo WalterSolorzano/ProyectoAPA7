@@ -8,10 +8,9 @@ como "(vease Figura 1)" o "(100 kg)".
 
 import re
 import unicodedata
-from typing import List, Optional
+from typing import List
 
 from models import CitationModel, CitationType
-
 
 # ── Terminos excluidos para evitar falsos positivos ────────────────────────────
 

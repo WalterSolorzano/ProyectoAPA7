@@ -13,12 +13,12 @@ Reglas de Deduplicación:
 - Nodos dentro de <w:instrText> son preservados como código de campo opaco de solo lectura.
 """
 
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
-import zipfile
-from lxml import etree
+from typing import List
 
+from lxml import etree
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -121,7 +121,7 @@ def extract_textbox_texts(docx_path: Path | str) -> List[str]:
     """
     nodes = scan_document_xml_nodes(docx_path)
     textbox_texts: List[str] = []
-    
+
     current_block: List[str] = []
     for n in nodes:
         if n.container_type in ("shape_textbox", "shape_group") and n.text.strip():

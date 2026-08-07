@@ -19,16 +19,18 @@ export const Step5ReferencesWizard: React.FC = () => {
   const validatorOpen = useDocStore((s) => s.validatorOpen);
   const setValidatorOpen = useDocStore((s) => s.setValidatorOpen);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
+  const setForceRightPanelOpen = useDocStore((s) => s.setForceRightPanelOpen);
 
-  // Al entrar, llevar el canvas hasta la hoja de Bibliografía (sin abrir inspector)
+  // Al entrar, llevar el canvas hasta la hoja de Bibliografia y abrir el panel derecho
   useEffect(() => {
+    setForceRightPanelOpen(true);
     const doc = useDocStore.getState().doc;
     if (!doc) return;
     const refEl = doc.elements.find((e) => e.type === 'heading' && isRefHeading(e.text || ''));
     const fallback = doc.elements[doc.elements.length - 1];
     const target = refEl?.id || fallback?.id || null;
     if (target) setScrollTargetId(target);
-  }, [setScrollTargetId]);
+  }, [setScrollTargetId, setForceRightPanelOpen]);
 
   return (
     <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>

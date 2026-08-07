@@ -4,6 +4,7 @@ WordAPA7 — Capture Page 1, Page 2, and Page 3 screenshots
 
 import time
 from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 doc_file = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad.docx")
@@ -14,23 +15,23 @@ def capture_pages():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 1200})
-        
+
         page.goto("http://localhost:8742", wait_until="networkidle")
         file_input = page.locator('input[type="file"]')
         if file_input.count() > 0:
             file_input.set_input_files(str(doc_file))
-        
+
         time.sleep(3)
         page.wait_for_timeout(3000)
-        
+
         # Captura de pantalla completa
         page.screenshot(path=str(out_img_page1))
-        
+
         # Scroll down
         page.evaluate("window.scrollBy(0, 800)")
         time.sleep(1)
         page.screenshot(path=str(out_img_page2))
-        
+
         browser.close()
         print("Capturas realizadas con exito!")
 

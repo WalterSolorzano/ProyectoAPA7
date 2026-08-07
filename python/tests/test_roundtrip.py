@@ -15,17 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import io
-import pytest
 import docx
-from docx.shared import Inches, Pt
-
-from models import (
-    DocumentModel, ElementModel, ElementType, APARuleSet,
-    TableModel, ImageModel
-)
+import pytest
 from generation.generator import generate_apa7_docx
-
+from models import APARuleSet, DocumentModel, ElementModel, ElementType, ImageModel, TableModel
 
 # ── FIXTURES ────────────────────────────────────────────────────────────────────
 

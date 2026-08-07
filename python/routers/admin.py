@@ -1,6 +1,6 @@
+from config import STORAGE_DIR
 from fastapi import APIRouter
 from persistence.session_manager import maybe_run_gc
-from config import STORAGE_DIR
 
 router = APIRouter(tags=["admin"])
 

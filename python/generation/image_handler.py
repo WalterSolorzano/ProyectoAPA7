@@ -17,12 +17,13 @@ SOPORTA ESTILOS DE DISENO:
 
 import os
 from copy import deepcopy
+
 import docx
-from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
-from docx.oxml import parse_xml, OxmlElement
-from models import ImageModel, APARuleSet
+from docx.shared import Inches, Pt
+from models import APARuleSet, ImageModel
 
 
 def _apply_image_rotation(run_element, rotation: int) -> None:
@@ -252,7 +253,6 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
         alt_text = (getattr(img_data, "alt_text", "") or "").strip()
         if alt_text:
             try:
-                from docx.oxml.ns import nsmap
                 drawing = run_element.find(qn('w:drawing'))
                 if drawing is not None:
                     wp_inline = drawing.find(qn('wp:inline'))

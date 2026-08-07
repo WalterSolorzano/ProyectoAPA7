@@ -1,6 +1,6 @@
-import docx
 from pathlib import Path
-from docx.oxml.ns import qn
+
+import docx
 
 doc_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad_APA7.docx")
 doc = docx.Document(str(doc_path))

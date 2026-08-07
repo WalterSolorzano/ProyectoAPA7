@@ -1,12 +1,13 @@
 import logging
 from typing import Optional
+
 from modules.ai_client import execute_with_specialty
 
 logger = logging.getLogger(__name__)
 
 async def generate_caption_suggestion(context_text: str, api_key: Optional[str] = None) -> str:
     """Generates a figure/table caption suggestion using an LLM provider."""
-    
+
     prompt = (
         "Eres un asistente experto en normas APA 7ma edicin. "
         "Se te proporcionar el texto que rodea a una figura o tabla en un documento acadmico. "
@@ -35,7 +36,7 @@ async def generate_caption_suggestion(context_text: str, api_key: Optional[str] 
 
 async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional[str] = None) -> str:
     """Rewrites a paragraph according to a specific instruction using an LLM provider."""
-    
+
     prompt = (
         "Eres un asistente experto en redaccin acadmica y normas APA 7ma edicin. "
         "Se te proporcionar un texto y una instruccin sobre cmo reescribirlo. "
@@ -62,10 +63,10 @@ async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional
     except Exception as e:
         logger.error(f"Error reescribiendo texto: {e}")
         raise
-        
+
 async def explain_element(element_type: str, text: str, rules_applied: str, confidence: float, api_key: Optional[str] = None) -> str:
     """Explains why an element was classified as such."""
-    
+
     prompt = (
         f"Eres un asistente experto en normas APA 7ma edicin. "
         f"El sistema ha clasificado el siguiente texto como '{element_type}' con una confianza del {confidence*100:.1f}%. "

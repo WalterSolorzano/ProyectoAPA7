@@ -17,6 +17,7 @@ import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
 import { PenLine, X, BookOpen, CheckCheck } from 'lucide-react';
+import { hashStr } from '../../lib/utils';
 
 // ── DETECCIÓN ────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,8 @@ const AI_COMMENTS: ChatLine[] = [
   { emoji: '😅', text: 'brou, esa frase es clásica de texto generado' },
   { emoji: '🤭', text: 'ese conectivo es muy de robot, otro sonaría más tuyo' },
   { emoji: '🙂', text: '¿lo redactaste vos o lo ayudó el robot? jaja, un toque más natural' },
+  { emoji: '🌐', text: 'alguien tradujo esto con IA y se nota el "asimismo".' },
+  { emoji: '🤖', text: 'contando cuántos "asimismo" hay en el documento (van 12).' },
 ];
 
 const GHOST_CITATION_COMMENTS: ChatLine[] = [
@@ -194,6 +197,26 @@ const EXCESS_PUNCT_COMMENTS: ChatLine[] = [
 const IMAGE_NO_CAPTION_COMMENTS: ChatLine[] = [
   { emoji: '👀', text: '¿y la leyenda de la figura?' },
   { emoji: '🖼️', text: 'figura sin nota, profe lo pide' },
+  { emoji: '🤷', text: 'alguien no le puso título a "Sin título 1" todavía.' },
+];
+
+const IMAGE_SOURCE_COMMENTS: ChatLine[] = [
+  { emoji: '📱', text: 'esa imagen pixelada llegó directo de un grupo de WhatsApp.' },
+  { emoji: '😅', text: 'ese gráfico de Excel pegado se ve como se ve, bro.' },
+  { emoji: '🙈', text: 'esto lo sacaste del grupo de la facu, ¿no?' },
+  { emoji: '💀', text: 'brou, este screenshot no engaña a nadie.' },
+];
+
+const TABLE_STYLE_COMMENTS: ChatLine[] = [
+  { emoji: '🎨', text: 'esa tabla tiene más colores que un semáforo.' },
+  { emoji: '😬', text: 'tabla arcoíris… la profe pidió APA, no una feria.' },
+  { emoji: '🙃', text: 'los colores de la tabla compiten con el texto, bro.' },
+];
+
+const COPYPASTE_COMMENTS: ChatLine[] = [
+  { emoji: '😅', text: 'alguien copió y pegó de PDF, se nota.' },
+  { emoji: '🤖', text: 'ctrl+c, ctrl+v, rezar... ese es tu flujo de trabajo, ¿no?' },
+  { emoji: '🫠', text: 'este texto tiene más saltos raros que un PDF mal exportado.' },
 ];
 
 const POSITIVE_COMMENTS: ChatLine[] = [
@@ -313,6 +336,29 @@ export function getWhatsAppComment(
     }
   }
 
+  // Checks por tipo de elemento (imagen, tabla, copypaste)
+  // van antes que triggers genéricos de texto para que el tipo de elemento pese más.
+  if (elem.type === 'image' && elem.image_info) {
+    if (!(elem.image_info.caption || '').trim()) {
+      const l = pickByElement(IMAGE_NO_CAPTION_COMMENTS, elem.id, nonce);
+      return { emoji: l.emoji, text: l.text, kind: 'image_no_caption' };
+    }
+    if (hashStr(elem.id) % 3 === 0) {
+      const l = pickByElement(IMAGE_SOURCE_COMMENTS, elem.id, nonce);
+      return { emoji: l.emoji, text: l.text, kind: 'image_source' };
+    }
+  }
+
+  if (elem.type === 'table' && hashStr(elem.id) % 4 === 0) {
+    const l = pickByElement(TABLE_STYLE_COMMENTS, elem.id, nonce);
+    return { emoji: l.emoji, text: l.text, kind: 'table_style' };
+  }
+
+  if ((elem.type === 'paragraph' || elem.type === 'bullet') && /(\n\s*\n){2,}/.test(text)) {
+    const l = pickByElement(COPYPASTE_COMMENTS, elem.id, nonce);
+    return { emoji: l.emoji, text: l.text, kind: 'copypaste' };
+  }
+
   if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
     const letters = text.replace(/[^a-zA-ZÁÉÍÓÚÑáéíóúñ]/g, '');
     if (letters.length >= 6 && letters.length / Math.max(1, text.length) > 0.75 && letters === letters.toUpperCase()) {
@@ -363,11 +409,6 @@ export function getWhatsAppComment(
   if (isRefsHeading && ctx.orphanReferences?.length) {
     const l = pickByElement(ORPHAN_COMMENTS, elem.id, nonce);
     return { emoji: l.emoji, text: l.fill ? l.fill(elem, ctx) : l.text, kind: 'orphan_references' };
-  }
-
-  if (elem.type === 'image' && elem.image_info && !(elem.image_info.caption || '').trim()) {
-    const l = pickByElement(IMAGE_NO_CAPTION_COMMENTS, elem.id, nonce);
-    return { emoji: l.emoji, text: l.text, kind: 'image_no_caption' };
   }
 
   return null;

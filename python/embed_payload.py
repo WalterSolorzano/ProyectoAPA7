@@ -14,7 +14,6 @@ suben a git: el payload generado esta en .gitignore.
 import base64
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

@@ -16,10 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
-from models import CitationModel, CitationType
+from models import CitationType
 from modules.citation_engine import extract_citations_from_text
-
 
 # ── CITAS PARENTÉTICAS ─────────────────────────────────────────────────────────
 

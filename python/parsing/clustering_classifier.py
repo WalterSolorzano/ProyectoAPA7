@@ -7,7 +7,8 @@ Elimina 400MB+ del build final (sklearn + scipy + numpy + torch indirecto).
 import collections
 import math
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import Dict, List
+
 from models import ElementModel, ElementType
 
 

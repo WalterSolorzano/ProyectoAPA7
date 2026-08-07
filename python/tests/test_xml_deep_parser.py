@@ -5,14 +5,13 @@ WordAPA7 — Tests para Arquitectura XML Profunda:
 - sanity_check.py (Gate de verificación de integridad de texto)
 """
 
-from pathlib import Path
 import zipfile
+
 import docx
 from lxml import etree
-
-from parsing.structure_scanner import scan_document_xml_nodes, extract_textbox_texts
 from parsing.field_guard import enable_word_update_fields
-from parsing.sanity_check import verify_document_content_integrity, ExportBlockedError
+from parsing.sanity_check import ExportBlockedError, verify_document_content_integrity
+from parsing.structure_scanner import extract_textbox_texts, scan_document_xml_nodes
 
 
 class TestStructureScanner:

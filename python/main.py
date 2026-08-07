@@ -5,6 +5,7 @@ Servidor Web unificado que expone los endpoints REST para la manipulacion de doc
 y sirve la interfaz estatica construida en React (dist/).
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -13,11 +14,11 @@ import subprocess
 import sys
 import time
 import uuid
-import asyncio
 from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Restaurar claves de IA guardadas por el usuario (sobreviven a reinicios del backend)
@@ -40,58 +41,71 @@ try:
 except Exception as _e2:
     print(f"[WARN] No se pudieron cargar las claves embebidas de IA: {_e2}")
 
-from pydantic import BaseModel
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 # Asegurar path de importacion
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from classification.llm_classifier import classify_document_with_llm, get_classify_progress
+
+# ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
+from config import BASE_DIR, DIST_DIR, STORAGE_DIR, get_apa7_template_path
+from create_template import create_apa7_template
+from generation.generator import generate_apa7_docx
+from generation.layered_generator import generate_apa7_from_scratch
+from generation.templates import (
+    TEMPLATE_ENSAYO,
+    TEMPLATE_INFORME,
+    TEMPLATE_TESINA,
+    DocumentTemplate,
+)
+from generation.track_changes_engine import create_tracked_changes_docx
 from models import (
+    APAFormat,
+    APARuleSet,
     DocumentModel,
     ElementModel,
     ElementType,
-    APARuleSet,
+    HealthResponse,
     PortadaData,
     ReferenciaModel,
-    APAFormat,
     WorkMode,
-    ParseRequest,
-    ClassifyRequest,
-    ApplyRequest,
-    HealthResponse,
 )
-from parsing.docx_parser import parse_docx_bytes
-from classification.llm_classifier import classify_document_with_llm, get_classify_progress
-from generation.generator import generate_apa7_docx
-from generation.layered_generator import generate_apa7_from_scratch
-from generation.templates import TEMPLATE_ENSAYO, TEMPLATE_INFORME, TEMPLATE_TESINA, DocumentTemplate
-from generation.track_changes_engine import create_tracked_changes_docx
-from persistence.session_manager import (
-    save_session_state,
-    load_session_state,
-    list_recent_sessions,
-    delete_session,
-    maybe_run_gc,
-)
-from persistence.idempotency import check_idempotency, init_sqlite_db
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
 from modules.referencias_module import resolve_doi
-from create_template import create_apa7_template
-from profiles import get_profile, list_profiles, FormatProfile
+from parsing.docx_parser import parse_docx_bytes
+from persistence.idempotency import check_idempotency, init_sqlite_db
+from persistence.session_manager import (
+    delete_session,
+    list_recent_sessions,
+    load_session_state,
+    maybe_run_gc,
+    save_session_state,
+)
+from profiles import get_profile, list_profiles
 
-
-# ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
-
-from config import BASE_DIR, STORAGE_DIR, DIST_DIR, get_apa7_template_path
 STORAGE_DIR.mkdir(exist_ok=True)
 
 
 from contextlib import asynccontextmanager
+
 from services.word_com_service import get_word_com_service
+
 
 @asynccontextmanager
 async def lifespan_app(app: FastAPI):
@@ -150,9 +164,11 @@ app.add_middleware(
 )
 
 from security.auth import APIKeyAuthMiddleware
+
 app.add_middleware(APIKeyAuthMiddleware)
 
 from routers import admin
+
 app.include_router(admin.router)
 
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
@@ -201,8 +217,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.get("/api/provider-status")
 async def provider_status_endpoint() -> dict:
     """Returns the status of all configured AI providers."""
-    from classification.llm_classifier import _get_active_providers, PROVIDER_CAPACITY
     import os
+
+    from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
 
     all_providers = [
         {"id": "nvidia_nim", "name": "NVIDIA NIM", "env_var": "NVIDIA_API_KEY"},
@@ -271,7 +288,7 @@ async def parse_progress_ws(websocket: WebSocket, session_id: str):
             progress = _parse_progress.get(session_id)
             if progress:
                 await websocket.send_json(progress)
-                if progress.get("status") == "complete": 
+                if progress.get("status") == "complete":
                     break
             await asyncio.sleep(0.5)
     except WebSocketDisconnect:
@@ -330,14 +347,14 @@ async def collab_ws(websocket: WebSocket, session_id: str):
 def run_background_analysis(session_id: str, storage_dir: Path):
     """Ejecuta la deteccion de IA y el layout COM en background y actualiza la sesion."""
     try:
-        from persistence.session_manager import load_session_state, save_session_state
         from parsing.page_layout_provider import get_page_layout_provider
-        
+        from persistence.session_manager import load_session_state, save_session_state
+
         doc = load_session_state(session_id, storage_dir)
         if not doc: return
-        
+
         modified = False
-        
+
         # 1. Paginacion COM
         session_docx_path = storage_dir / "sessions" / session_id / "original.docx"
         try:
@@ -347,7 +364,7 @@ def run_background_analysis(session_id: str, storage_dir: Path):
                 for i, elem in enumerate(doc.elements):
                     if i < len(layout_result.paragraph_pages):
                         elem.page_number = layout_result.paragraph_pages[i]
-                
+
                 doc.meta.page_count = layout_result.total_pages
                 doc.meta.page_layout_provider = layout_result.provider_used
                 doc.meta.page_layout_confidence = layout_result.confidence
@@ -373,7 +390,8 @@ def run_background_analysis(session_id: str, storage_dir: Path):
         if paras:
             try:
                 from parsing.pre_classifier import (
-                    REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA,
+                    REGEX_CITATION_NARRATIVA,
+                    REGEX_CITATION_PARENTETICA,
                 )
                 forensic_meta = doc.meta.forensic_metadata if doc.meta else None
                 if forensic_meta is None:
@@ -406,7 +424,7 @@ def run_background_analysis(session_id: str, storage_dir: Path):
                     elem.ai_score = t_score
                     elem.ai_findings = t_findings
                     modified = True
-        
+
         if modified:
             save_session_state(doc, storage_dir)
             print(f"[INFO] Background analysis finished and saved for {session_id}")
@@ -863,7 +881,8 @@ async def upload_docx(
                 # Señal de cruce citas ↔ referencias (contenido pegado con biblioteca decorativa)
                 try:
                     from parsing.pre_classifier import (
-                        REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA,
+                        REGEX_CITATION_NARRATIVA,
+                        REGEX_CITATION_PARENTETICA,
                     )
                     body_text = " ".join(paras)
                     in_text = len(REGEX_CITATION_NARRATIVA.findall(body_text)) + \
@@ -902,10 +921,10 @@ async def upload_docx(
 
         # Guardar sesion inicial
         save_session_state(doc_model, STORAGE_DIR)
-        
+
         # Encolar deteccion de IA en background
         background_tasks.add_task(run_background_analysis, session_id, STORAGE_DIR)
-        
+
         return doc_model
     except HTTPException:
         # Re-lanzar HTTPExceptions sin envolver (ej: archivo corrupto = 400, no 500)
@@ -936,7 +955,7 @@ async def bulk_accept_endpoint(req: BulkAcceptRequest) -> DocumentModel:
     doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesion no encontrada.")
-    
+
     target_ids = set(req.element_ids)
     for elem in doc.elements:
         if elem.id in target_ids:
@@ -1819,12 +1838,12 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     from services.doc_converter import get_doc_converter
     doc_converter = get_doc_converter()
-    
+
     preserve_cover = portada.use_original_cover and doc.portada.get("detected", False)
-    
+
     # Remove cover paragraphs only if we have COM active, because LO doesn't do transplant yet
     is_com = doc_converter.get_active_engine() == "COM"
-    
+
     generate_apa7_docx(
         doc, docx_path, rules=rules, portada=portada, references=references,
         remove_cover_paragraphs=preserve_cover and is_com
@@ -1834,7 +1853,7 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     # Inyectar Post-Processor Dual Engine para PDF
     final_path = out_dir / f"FinalPDFSource_{clean_file_name}"
-    
+
     success, pdf_out_path = doc_converter.process_and_convert(
         original_path=original_path,
         generated_path=docx_path,
@@ -1842,9 +1861,9 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
         preserve_cover=preserve_cover,
         generate_pdf=True
     )
-    
+
     pdf_generated = False
-    
+
     if success and pdf_out_path and pdf_out_path.exists():
         pdf_generated = True
         # Mover el PDF al path correcto
@@ -1925,6 +1944,7 @@ async def download_preview_docx(session_id: str) -> FileResponse:
 # ── PREVIEW VÍA LIBREOFFICE (PNG por página, fiel al DOCX real) ──────────────
 
 import shutil
+
 _LIBREOFFICE = shutil.which("libreoffice") or shutil.which("soffice")
 
 
@@ -1957,7 +1977,7 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
 
     from services.lo_service import get_libreoffice_service
     lo = get_libreoffice_service()
-    
+
     if not lo.is_available():
         return {
             "status": "fallback_html",
@@ -1974,11 +1994,11 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
         success = await asyncio.to_thread(lo.convert, preview_docx, "pdf", out_dir)
         if not success:
             raise Exception("LibreOffice Falló al generar el PDF")
-        
+
         pdf_file = out_dir / "preview.pdf"
         if not pdf_file.exists():
             raise Exception("PDF no fue creado.")
-            
+
         return {
             "status": "pdf",
             "pdf_url": f"/api/preview-pdf/{session_id}/preview.pdf",
@@ -2015,7 +2035,7 @@ async def export_latex_endpoint(session_id: str):
     doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesión no encontrada.")
-        
+
     from generation.latex_exporter import export_to_latex
     try:
         latex_code = export_to_latex(doc, profile_id=doc.profile_id)
@@ -2049,20 +2069,19 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
     try:
         from persistence.idempotency import add_marker_to_docx
-
         from services.doc_converter import get_doc_converter
         doc_converter = get_doc_converter()
         preserve_cover = (req.portada is not None) and req.portada.use_original_cover and doc.portada.get("detected", False)
-        
+
         is_com = doc_converter.get_active_engine() == "COM"
-        
+
         generated_path: Path = generate_apa7_docx(
             doc, out_file, rules, req.portada, req.references,
             remove_cover_paragraphs=preserve_cover and is_com
         )
-        
+
         original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
-        
+
         # Inyectar Post-Processor Dual Engine
         final_path = out_dir / f"Final_{doc.file_name}"
         success, pdf_path = doc_converter.process_and_convert(
@@ -2072,7 +2091,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
             preserve_cover=preserve_cover,
             generate_pdf=False # El endpoint de PDF se maneja en /api/generate-pdf
         )
-        
+
         if success and final_path.exists():
             # Si COM tuvo éxito, el archivo oficial es final_path
             # Lo renombramos a APA7_...
@@ -2184,38 +2203,38 @@ async def validate_citations_endpoint(session_id: str) -> dict:
     doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesión no encontrada.")
-        
+
     from parsing.citation_matcher import cross_check_citations_and_references
     from services.graph_rag import build_citation_graph, validate_citations_against_graph
-    
+
     # 1. Base validation
     result = cross_check_citations_and_references(doc)
-    
+
     # 2. Advanced Graph RAG validation
     if doc.references:
         references_text = [r.text for r in doc.references if r.text]
         graph = build_citation_graph(references_text)
-        
+
         graph_issues = []
         for elem in doc.elements:
             if elem.type == ElementType.PARAGRAPH and elem.text:
                 issues = validate_citations_against_graph(elem.text, graph)
                 if issues:
                     graph_issues.extend(issues)
-        
+
         if graph_issues:
             # We append Graph RAG advanced issues
             result['ghost_citations'].extend([iss["citation"] for iss in graph_issues if iss["type"] == "missing_reference"])
-            
+
             # For year mismatch, we can add a new field or just format it as ghost citation
             result['ghost_citations'].extend([iss["message"] for iss in graph_issues if iss["type"] == "year_mismatch"])
 
             # Deduplicate just in case
             result['ghost_citations'] = list(set(result['ghost_citations']))
-    
+
     # Save the doc since we mutated `doc.citas_intext`
     save_session_state(doc, STORAGE_DIR)
-    
+
     return result
 
 
@@ -2224,7 +2243,7 @@ async def list_templates_endpoint() -> dict:
     """
     Lista las plantillas de estructura de documento disponibles.
     """
-    from generation.templates import AVAILABLE_TEMPLATES, DocumentTemplate
+    from generation.templates import AVAILABLE_TEMPLATES
 
     result = []
     for t in AVAILABLE_TEMPLATES:
@@ -2253,7 +2272,7 @@ async def apply_template_endpoint(req: ApplyTemplateRequest) -> dict:
     - Reordena headings existentes
     - Retorna el resumen de cambios realizados
     """
-    from generation.templates import get_template, DocumentTemplate, TemplateSection
+    from generation.templates import TemplateSection, get_template
 
     doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
@@ -2345,7 +2364,7 @@ async def list_cover_templates_endpoint() -> dict:
     """
     Lista todas las plantillas de portada disponibles (integradas + del usuario).
     """
-    from modules.cover_designer import list_cover_templates, CoverTemplate
+    from modules.cover_designer import list_cover_templates
     templates = list_cover_templates(BASE_DIR)
     return {
         "templates": [
@@ -2505,7 +2524,7 @@ async def apply_cover_endpoint(req: ApplyCoverRequest) -> dict:
     Aplica una plantilla de portada al documento generado.
     La portada se antepone al inicio del documento sin ser modificada por APA 7.
     """
-    from modules.cover_designer import list_cover_templates, apply_cover_to_document, CoverTemplate
+    from modules.cover_designer import CoverTemplate, list_cover_templates
 
     doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
@@ -2606,6 +2625,7 @@ def _read_build_hash() -> str:
 # ── DEBUG LOGGING Y TRACING ───────────────────────────────────────────────────
 import datetime
 
+
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_record = {
@@ -2687,6 +2707,7 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
     Es la etapa opcional "Revisor IA + Ortografía" (Fase F).
     """
     import re as _re
+
     from classification.ai_detector import analyze_ai_risk, analyze_table_cells
     from modules.spelling_validator import validate_spelling_and_grammar
 
@@ -2782,7 +2803,7 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
                             p["spelling"].append({"word": w, "suggestions": sugs})
         else:
             spelling_status = "no_original"
-    except Exception as ex:
+    except Exception:
         spelling_status = "error"
 
     ai_avg = round(score_sum / score_n, 1) if score_n > 0 else 0.0
@@ -2972,12 +2993,13 @@ else:
 # ── INICIO DEL SERVIDOR ────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import uvicorn
     import argparse
 
     # En builds empaquetados (PyInstaller, console=False) los streams pueden ser
     # None y uvicorn crashea al configurar logging (sys.stderr.isatty()).
     import os
+
+    import uvicorn
     if sys.stdout is None or sys.stderr is None:
         devnull = open(os.devnull, "w")
         if sys.stdout is None:

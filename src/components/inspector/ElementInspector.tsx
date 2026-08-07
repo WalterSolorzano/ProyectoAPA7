@@ -6,7 +6,7 @@ import React, { useState, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import { ElementType, APARuleSet } from '../../types';
-import { FileText, Info, Palette, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock, Image as ImageIcon } from 'lucide-react';
+import { FileText, Info, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { parseAuthorEntries, serializeAuthorEntries, requestAuthorHighlight, AuthorEntry } from '../../lib/portadaAuthors';
 import { explainElement } from '../../api/backend';
@@ -35,7 +35,7 @@ const TYPE_OPTIONS: { value: ElementType; label: string }[] = [
 type TabId = 'info' | 'style' | 'advanced';
 
 export const ElementInspector: React.FC = () => {
-  const { doc, selectedElementId, updateElementType, portada, setPortada, rules, setRules } = useDocStore();
+  const { doc, selectedElementId, updateElementType, portada, setPortada } = useDocStore();
 
   if (!doc) return null;
 
@@ -49,7 +49,7 @@ export const ElementInspector: React.FC = () => {
   };
 
   return (
-    <div className="inspector-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)', borderLeft: '1px solid rgba(255,255,255,0.07)' }}>
+    <div className="inspector-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)', borderLeft: '1px solid var(--border-subtle)' }}>
       <style>{`
         .inspector-pane .form-control, .inspector-pane .form-select, .inspector-pane .form-textarea {
           background-color: rgba(255,255,255,0.05) !important;
@@ -69,20 +69,19 @@ export const ElementInspector: React.FC = () => {
       {/* Tabs internas del inspector (solo para elementos no-portada) */}
       {!isPortadaElem && (
         <Tabs defaultValue="info" className="flex flex-col" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <TabsList style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: 'rgba(255,255,255,0.03)',
-            borderRadius: 0,
-            padding: 0,
-            height: 'auto',
-            justifyContent: 'space-between'
-          }}>
-            {[
-              { id: 'info', label: 'Info', icon: <Info size={13} /> },
-              { id: 'style', label: 'Estilo', icon: <Palette size={13} /> },
-              ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuación', icon: <Sigma size={13} /> }] : []),
-            ].map((tab) => (
+      <TabsList style={{
+        display: 'flex',
+        borderBottom: '1px solid var(--border-subtle)',
+        backgroundColor: 'transparent',
+        borderRadius: 0,
+        padding: 0,
+        height: 'auto',
+        justifyContent: 'space-between'
+      }}>
+        {[
+          { id: 'info', label: 'Info', icon: <Info size={13} /> },
+          ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuación', icon: <Sigma size={13} /> }] : []),
+        ].map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
@@ -112,14 +111,6 @@ export const ElementInspector: React.FC = () => {
               <InfoTab
                 selectedElem={selectedElem}
                 triggerUpdate={triggerUpdate}
-              />
-            </TabsContent>
-            <TabsContent value="style" className="mt-0 outline-none">
-              <StyleTab
-                selectedElem={selectedElem}
-                triggerUpdate={triggerUpdate}
-                rules={rules}
-                setRules={setRules}
               />
             </TabsContent>
             {selectedElem?.type === 'equation' && (
@@ -155,8 +146,8 @@ export const ElementInspector: React.FC = () => {
             alignItems: 'center',
             gap: '6px',
             flex: 1,
-            backgroundColor: 'rgba(255,255,255,0.06)',
-            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--surface-subtle)',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '16px',
             padding: '4px 10px'
           }}>
@@ -400,63 +391,6 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
             />
           </div>
         </div>
-      </div>
-    )}
-  </>
-);
-
-
-const StyleTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; rules: any; setRules: any }> = ({ selectedElem, triggerUpdate, rules, setRules }) => (
-  <>
-      {/* Heading numbering style */}
-      {selectedElem.type === 'heading' && selectedElem.heading_level && selectedElem.heading_level <= 3 && (
-        <div className="inspector-section">
-          <label className="inspector-label">Numeracion de Titulos (Nivel {selectedElem.heading_level})</label>
-          <select
-            className="form-select"
-            value={rules[`heading_numbering_style_lvl${selectedElem.heading_level}` as keyof APARuleSet] as string || 'decimal'}
-            onChange={(e) => setRules({ [`heading_numbering_style_lvl${selectedElem.heading_level}`]: e.target.value })}
-          >
-            <option value="decimal">Numeros Arabigos (1, 2, 3)</option>
-            <option value="roman">Numeros Romanos (I, II, III)</option>
-            <option value="none">Sin numeracion</option>
-          </select>
-          <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Afecta como se numeran los titulos en el documento final.
-          </p>
-        </div>
-      )}
-
-    {selectedElem.type === 'numbered_list' && (
-      <div className="inspector-section">
-        <label className="inspector-label">Estilo de Lista Numerada</label>
-        <select
-          className="form-select"
-          value={rules.number_style_level1 || 'decimal'}
-          onChange={(e) => setRules({ number_style_level1: e.target.value })}
-        >
-          <option value="decimal">1., 2., 3.</option>
-          <option value="lowerRoman">i., ii., iii.</option>
-          <option value="upperRoman">I., II., III.</option>
-          <option value="lowerLetter">a., b., c.</option>
-          <option value="upperLetter">A., B., C.</option>
-        </select>
-      </div>
-    )}
-
-    {selectedElem.type === 'bullet' && (
-      <div className="inspector-section">
-        <label className="inspector-label">Estilo de Vineta</label>
-        <select
-          className="form-select"
-          value={rules.bullet_style_level1 || 'disc'}
-          onChange={(e) => setRules({ bullet_style_level1: e.target.value })}
-        >
-          <option value="disc">Circulo lleno (•)</option>
-          <option value="circle">Circulo vacio (○)</option>
-          <option value="square">Cuadrado (■)</option>
-          <option value="dash">Guion (–)</option>
-        </select>
       </div>
     )}
   </>

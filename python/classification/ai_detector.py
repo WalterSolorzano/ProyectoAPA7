@@ -10,10 +10,10 @@ Analiza párrafos del documento buscando:
 Retorna un puntaje de riesgo (0-1) y lista de hallazgos categorizados.
 """
 
-import re
 import math
+import re
 from datetime import datetime
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Emojis / símbolos de checklist (✅❌✔✘☑ etc.) que sobreviven al pegado de chat/IA
 EMOJI_CHECKLIST_RE = re.compile(

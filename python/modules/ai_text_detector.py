@@ -1,5 +1,4 @@
-import re
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class AITextDetector:

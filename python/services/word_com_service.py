@@ -1,9 +1,10 @@
-import sys
-import time
 import logging
+import sys
 import threading
-import psutil
+import time
 from typing import Any
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,14 @@ class WordCOMService:
                 import pythoncom
                 import win32com.client
                 pythoncom.CoInitialize()
-                
+
                 pids_before = set(p.pid for p in psutil.process_iter(['name']) if p.info['name'] == 'WINWORD.EXE')
                 self._word = win32com.client.DispatchEx("Word.Application")
                 pids_after = set(p.pid for p in psutil.process_iter(['name']) if p.info['name'] == 'WINWORD.EXE')
                 new_pids = pids_after - pids_before
                 if new_pids:
                     self._pid = new_pids.pop()
-                    
+
                 self._word.Visible = False
                 self._word.DisplayAlerts = 0
                 logger.info(f"[WordCOMService] Instancia compartida de Word iniciada (PID: {self._pid}).")
@@ -105,7 +106,7 @@ class WordCOMService:
             pythoncom.CoInitialize()
         except Exception:
             pass
-            
+
         with self._lock:
             if not self._word:
                 self.start()
@@ -116,8 +117,8 @@ class WordCOMService:
                     logger.warning("[WordCOMService] Instancia de Word muerta, reiniciando...")
                     self.stop()
                     self.start()
-            
-            # Para usar en el thread actual, obtenemos una referencia dinámica desde el ROT 
+
+            # Para usar en el thread actual, obtenemos una referencia dinámica desde el ROT
             # (Running Object Table) o pasamos el DispatchEx.
             # Pero pythoncom / win32com no permite compartir el mismo objeto _word entre hilos fácilmente
             # sin hacer un marshall. Para simplificar y cumplir con el plan, devolvemos un Dispatch al proceso actual.

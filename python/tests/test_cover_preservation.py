@@ -5,13 +5,10 @@ Verifica que al procesar un documento con portada, la portada completa
 (textos, imágenes, logos, cuadros de texto) permanezca 100% intacta en el XML de salida.
 """
 
-from pathlib import Path
 import docx
-from lxml import etree
-
-from parsing.docx_parser import parse_docx_bytes
 from generation.generator import generate_apa7_docx
-from models import PortadaData, APARuleSet
+from models import APARuleSet, PortadaData
+from parsing.docx_parser import parse_docx_bytes
 
 
 def test_cover_preservation_strict(tmp_path):

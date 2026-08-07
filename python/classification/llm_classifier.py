@@ -11,16 +11,12 @@ elementos con baja confianza (< 0.85). Incluye:
 """
 
 import asyncio
-import hashlib
 import json
 import os
-from pathlib import Path
-import time
 from typing import Any, Dict, List, Optional
 
+from constants import DEFAULT_NIM_MODEL, NVIDIA_NIM_URL
 from models import DocumentModel, ElementModel, ElementType
-from constants import NVIDIA_NIM_URL, DEFAULT_NIM_MODEL
-
 
 NVIDIA_NIM_URL: str = NVIDIA_NIM_URL
 DEFAULT_MODEL: str = DEFAULT_NIM_MODEL
@@ -80,7 +76,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
 
     # 1. NVIDIA NIM (Priority 1 — Default or Local)
     nv_key = custom_key or os.getenv("NVIDIA_API_KEY", "")
-    
+
     if use_local and custom_nim_url:
         providers.append({
             "name": "NVIDIA NIM (Local)",
@@ -305,13 +301,18 @@ async def classify_document_with_llm(
     _classify_progress[session_id]["estimated_time_remaining_seconds"] = est_time
 
     # Load cache (now imported from ai_client to share state)
-    from modules.ai_client import _load_cache, _save_cache, _compute_text_hash, execute_with_fallback
+    from modules.ai_client import (
+        _compute_text_hash,
+        _load_cache,
+        _save_cache,
+        execute_with_specialty,
+    )
     cache = _load_cache()
-    
+
     completed_batches = 0
     elements_processed = 0
     best_result = None
-    
+
     # Process each batch
     for i, batch in enumerate(batches):
 
@@ -372,7 +373,7 @@ async def classify_document_with_llm(
                     use_cache=False, # Cache is handled manually here to cache per-element!
                     return_provider_info=True
                 )
-                
+
                 json_start = content.find("[")
                 json_end = content.rfind("]") + 1
                 if json_start != -1 and json_end > json_start:

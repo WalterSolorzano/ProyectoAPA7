@@ -1,5 +1,5 @@
-import zipfile
 import re
+import zipfile
 from pathlib import Path
 
 doc_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad_APA7.docx")

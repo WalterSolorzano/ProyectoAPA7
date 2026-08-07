@@ -1,11 +1,11 @@
-import sys
-import shutil
-from abc import ABC, abstractmethod
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional, List
 import logging
+import shutil
+import sys
 import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,6 @@ class COMPageLayoutProvider(PageLayoutProvider):
 
     def _do_paginate(self, docx_path) -> PageLayoutResult:
         import pythoncom
-        import win32com.client
         pythoncom.CoInitialize()
         word = None
         doc = None
@@ -90,7 +89,7 @@ class COMPageLayoutProvider(PageLayoutProvider):
             word = word_service.word
             if not word:
                 raise Exception("Word COM Service failed to provide a valid Word instance")
-                
+
             word.Visible = False
             word.DisplayAlerts = 0
 
@@ -112,9 +111,9 @@ class COMPageLayoutProvider(PageLayoutProvider):
 
             total_pages = doc.ComputeStatistics(2)  # wdStatisticPages = 2
             t_total = time.time() - t0
-            
+
             logger.info(f"[COM Layout] docx={docx_path.name}, total_pages={total_pages}, paragraphs={len(paragraph_pages)}, time_repag={t_repag:.2f}s, time_total={t_total:.2f}s")
-            
+
             return PageLayoutResult(
                 paragraph_pages=paragraph_pages,
                 total_pages=total_pages,
@@ -128,10 +127,10 @@ class COMPageLayoutProvider(PageLayoutProvider):
                     doc.Close(SaveChanges=False)
             except Exception:
                 pass
-            
+
             doc = None
             word = None
-            
+
             try:
                 pythoncom.CoUninitialize()
             except Exception:
@@ -175,8 +174,8 @@ class LibreOfficePageLayoutProvider(PageLayoutProvider):
             return self._map_paragraphs_to_pages(docx_path, pdf_path)
 
     def _map_paragraphs_to_pages(self, docx_path, pdf_path):
-        import fitz  # PyMuPDF
         import docx
+        import fitz  # PyMuPDF
 
         # 1. Obtener lista de textos de párrafos del .docx (en orden)
         doc = docx.Document(str(docx_path))

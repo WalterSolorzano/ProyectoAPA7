@@ -8,23 +8,15 @@ Verifica que reprocesar un documento que ya pasó por WordAPA7:
 4. Documento ya procesado sea correctamente detectado
 """
 
-import sys
-import io
 import hashlib
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
 import docx
-from docx.shared import Inches
-
-from models import (
-    DocumentModel, ElementModel, ElementType, APARuleSet,
-    PortadaData, APAFormat
-)
 from generation.generator import generate_apa7_docx
-
+from models import APAFormat, DocumentModel, ElementModel, ElementType, PortadaData
 
 # ── HELPERS ─────────────────────────────────────────────────────────────────────
 

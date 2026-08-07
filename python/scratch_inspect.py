@@ -1,5 +1,6 @@
-import docx
 from pathlib import Path
+
+import docx
 
 doc_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad_APA7.docx")
 print("Cargando:", doc_path)

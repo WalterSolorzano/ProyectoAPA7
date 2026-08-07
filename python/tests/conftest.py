@@ -6,28 +6,28 @@ mock de respuestas de NVIDIA NIM, y configuración de sesión.
 """
 
 import io
-import sys
-import uuid
-import tempfile
 import shutil
+import sys
+import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import patch
 
-import pytest
 import docx
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+import pytest
+from docx.shared import Inches
 
 # Asegurar que el directorio python está en el path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import (
-    ElementModel, ElementType, DocumentModel, APARuleSet,
-    PortadaData, ReferenciaModel, APAFormat, WorkMode,
-    TableModel, ImageModel, BulletStyle, NumberStyle,
-    CitationModel, CitationType, CitaError, HeadingLevelConfig
+    APAFormat,
+    APARuleSet,
+    DocumentModel,
+    ElementModel,
+    ElementType,
+    PortadaData,
+    ReferenciaModel,
 )
-
 
 # ── FIXTURES DE SESIÓN ──────────────────────────────────────────────────────────
 

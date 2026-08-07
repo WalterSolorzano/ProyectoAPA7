@@ -16,11 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
-
+from docx.shared import Cm, Pt
 
 CORPUS_DIR = Path(__file__).parent.parent.parent / "corpus"
 
@@ -171,7 +168,7 @@ def build_doc_02_fuentes_mixtas():
 
     path = CORPUS_DIR / "doc_02_fuentes_mixtas.docx"
     doc.save(str(path))
-    print(f"  [OK] doc_02_fuentes_mixtas.docx — Calibri + Arial + Times mezclados")
+    print("  [OK] doc_02_fuentes_mixtas.docx — Calibri + Arial + Times mezclados")
     return path
 
 
@@ -206,7 +203,7 @@ def build_doc_03_bullets_manuales():
 
     path = CORPUS_DIR / "doc_03_bullets_manuales.docx"
     doc.save(str(path))
-    print(f"  [OK] doc_03_bullets_manuales.docx — •, -, – manuales + lista numerada")
+    print("  [OK] doc_03_bullets_manuales.docx — •, -, – manuales + lista numerada")
     return path
 
 
@@ -269,7 +266,7 @@ def build_doc_04_headings_sin_estilo():
 
     path = CORPUS_DIR / "doc_04_headings_sin_estilo.docx"
     doc.save(str(path))
-    print(f"  [OK] doc_04_headings_sin_estilo.docx — Headings con formato manual")
+    print("  [OK] doc_04_headings_sin_estilo.docx — Headings con formato manual")
     return path
 
 
@@ -324,7 +321,7 @@ def build_doc_11_citas_mal():
 
     path = CORPUS_DIR / "doc_11_citas_mal.docx"
     doc.save(str(path))
-    print(f"  [OK] doc_11_citas_mal.docx — Citas con errores comunes")
+    print("  [OK] doc_11_citas_mal.docx — Citas con errores comunes")
     return path
 
 

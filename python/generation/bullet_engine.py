@@ -9,15 +9,13 @@ las reconozca como listas reales anidables de 3 niveles.
 import re
 from typing import Optional
 
-import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
+from models import APARuleSet, BulletStyle, NumberStyle
 
-from models import BulletStyle, NumberStyle, APARuleSet
 from generation.style_engine import set_run_font
-
 
 APA_LIST_INDENT: dict[int, tuple[float, float]] = {
     1: (0.5, -0.25),    # Nivel 1: cuerpo 1.27cm (0.5 in)

@@ -6,10 +6,11 @@ para exportar o aplicar estilos APA 7.
 """
 
 from pathlib import Path
+
 import docx
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt, RGBColor
 
 
 def create_apa7_template(output_path: Path | str = "apa7_template.docx") -> Path:

@@ -7,11 +7,10 @@ No usar dicts crudos para pasar datos entre módulos — siempre usar estos mode
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
-from typing import Any, Optional, List, Dict
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 
 # ── ENUMERACIONES ────────────────────────────────────────────────────────────
 
@@ -345,7 +344,7 @@ class ImageModel(BaseModel):
     design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width"
     rotation: int = 0                          # grados de rotacion (0, 90, 180, 270)
     alt_text: str = ""                         # texto alternativo / accesibilidad
-    
+
     # Nuevos atributos flotantes (anchor)
     is_anchor: bool = False
     anchor_pos_h: Optional[str] = None

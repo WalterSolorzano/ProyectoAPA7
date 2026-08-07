@@ -10,8 +10,8 @@ Maneja:
 
 import io
 import zipfile
+from typing import Any, Dict, List, Tuple
 from xml.etree import ElementTree as ET
-from typing import List, Dict, Any, Tuple
 
 NAMESPACES = {
     'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
@@ -34,7 +34,7 @@ def process_numbering_single_pass(docx_bytes: bytes) -> Tuple[bytes, dict[str, s
     """
     W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     result_map: dict[str, str] = {}
-    
+
     try:
         in_stream = io.BytesIO(docx_bytes)
         out_stream = io.BytesIO()
@@ -256,8 +256,8 @@ def find_body_start_via_xml(docx_bytes: bytes) -> int:
 
     Retorna el índice del primer párrafo de cuerpo en la lista de párrafos del documento.
     """
-    import zipfile
     import io
+    import zipfile
     from xml.etree import ElementTree as ET
 
     W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'

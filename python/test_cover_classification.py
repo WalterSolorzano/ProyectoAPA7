@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from parsing.docx_parser import parse_docx_bytes
-from models import ElementType
 
 doc_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad.docx")
 with open(doc_path, "rb") as f:

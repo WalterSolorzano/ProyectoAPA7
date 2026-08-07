@@ -1,7 +1,7 @@
+import logging
+import shutil
 import subprocess
 import threading
-import shutil
-import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class LibreOfficeService:
     def __init__(self):
         self._lock = threading.Lock()
-        
+
         self._lo_path = shutil.which('libreoffice') or shutil.which('soffice')
         if not self._lo_path:
             # Check common Windows paths
@@ -21,7 +21,7 @@ class LibreOfficeService:
                 if Path(p).exists():
                     self._lo_path = p
                     break
-        
+
         self._daemon_process = None
         self._port = 2002
 
@@ -31,7 +31,7 @@ class LibreOfficeService:
     def start(self):
         if not self.is_available() or self._daemon_process is not None:
             return
-        
+
         try:
             logger.info(f"[LibreOffice Service] Iniciando daemon persistente en puerto {self._port}...")
             self._daemon_process = subprocess.Popen(

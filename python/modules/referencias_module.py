@@ -1,5 +1,5 @@
-"""
-WordAPA7 — Modulo de Referencias Bibliograficas APA 7
+﻿"""
+WordAPA7 â€” Modulo de Referencias Bibliograficas APA 7
 
 Genera y formatea la seccion de Referencias:
 1. Titulo "Referencias" centrado en negrita en pagina nueva.
@@ -14,20 +14,16 @@ import re
 from typing import List, Optional
 from urllib.parse import quote
 
-import httpx
-
 import docx
-from docx.shared import Inches, Pt, RGBColor
+import httpx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-
-from models import ReferenciaModel, APARuleSet
+from docx.shared import Inches, Pt, RGBColor
 from generation.style_engine import set_run_font
-
+from models import APARuleSet, ReferenciaModel
 
 _REF_PREFIX_RE = re.compile(
-    r'^(?:[•○▪–\-\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
+    r'^(?:[â€¢â—‹â–ªâ€“\-\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
 )
 
 
@@ -35,7 +31,7 @@ def _strip_ref_prefix(text: str) -> str:
     return _REF_PREFIX_RE.sub('', text.strip())
 
 
-# ── DOI Content Negotiation ────────────────────────────────────────────────────
+# â”€â”€ DOI Content Negotiation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 DOI_RESOLVER_URL: str = "https://doi.org/"
 CROSSREF_ACCEPT_HEADER: str = "text/x-bibliography; style=apa; locale=es-419"
@@ -43,7 +39,7 @@ CROSSREF_ACCEPT_HEADER: str = "text/x-bibliography; style=apa; locale=es-419"
 
 async def resolve_doi(doi_input: str) -> Optional[str]:
     """
-    Usa DOI content negotiation — GRATIS, sin API key.
+    Usa DOI content negotiation â€” GRATIS, sin API key.
 
     GET https://doi.org/{doi}
     Header: Accept: text/x-bibliography; style=apa; locale=es-419
@@ -86,11 +82,12 @@ async def resolve_doi(doi_input: str) -> Optional[str]:
 
 import re
 
+
 def extract_doi_or_isbn(text: str):
     doi_match = re.search(r'(10\.\d{4,9}/[-._;()/:A-Z0-9]+)', text, re.IGNORECASE)
     if doi_match:
         return {"type": "doi", "value": doi_match.group(1)}
-    
+
     isbn_match = re.search(r'(?:ISBN(?:-1[03])?:? )?(?=[-0-9 ]{13,17})(?:97[89][- ]?)?[0-9]{1,5}[- ]?[0-9]+[- ]?[0-9]+[- ]?[0-9X]', text, re.IGNORECASE)
     if isbn_match:
         isbn_clean = re.sub(r'[^0-9X]', '', isbn_match.group(0).upper())
@@ -111,19 +108,19 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                         authors.append(f"{author['family']}, {author['given'][0]}.")
                     elif "family" in author:
                         authors.append(author["family"])
-                
+
                 author_str = ", & ".join(authors) if authors else "Autor desconocido"
                 year = data.get("published-print", {}).get("date-parts", [[None]])[0][0]
                 if not year:
                     year = data.get("published-online", {}).get("date-parts", [[None]])[0][0]
                 year_str = str(year) if year else "s.f."
-                
+
                 title = data.get("title", [""])[0]
                 container_title = data.get("container-title", [""])[0]
                 volume = data.get("volume", "")
                 issue = data.get("issue", "")
                 page = data.get("page", "")
-                
+
                 formatted = f"{author_str} ({year_str}). {title}."
                 if container_title:
                     formatted += f" {container_title}"
@@ -135,7 +132,7 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                         formatted += f", {page}."
                     else:
                         formatted += "."
-                
+
                 return {
                     "author": author_str,
                     "year": year_str,
@@ -154,12 +151,12 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
 
 async def search_crossref_by_author_year(authors: list[str], year: str) -> Optional[dict]:
     """
-    Busca en Crossref API por apellido(s) de autor + año.
+    Busca en Crossref API por apellido(s) de autor + aÃ±o.
     API gratuita, no requiere key. Retorna el mejor match formateado en APA 7.
 
     Args:
         authors: lista de apellidos, ej: ["Garcia", "Lopez"]
-        year: año de publicación, ej: "2023"
+        year: aÃ±o de publicaciÃ³n, ej: "2023"
 
     Returns: dict con author, year, title, source, doi, formatted_apa, o None
     """
@@ -193,7 +190,7 @@ async def search_crossref_by_author_year(authors: list[str], year: str) -> Optio
                     ", ".join(apa_authors[:-1]) + ", & " + apa_authors[-1]
                 )
 
-                # Año
+                # AÃ±o
                 pub_year = item.get("published-print", {}).get("date-parts", [[None]])[0][0]
                 if not pub_year:
                     pub_year = item.get("published-online", {}).get("date-parts", [[None]])[0][0]
@@ -201,9 +198,9 @@ async def search_crossref_by_author_year(authors: list[str], year: str) -> Optio
                     pub_year = item.get("created", {}).get("date-parts", [[None]])[0][0]
                 year_str = str(pub_year) if pub_year else year
 
-                # Título
+                # TÃ­tulo
                 titles = item.get("title", [])
-                title_str = titles[0] if titles else "Sin título"
+                title_str = titles[0] if titles else "Sin tÃ­tulo"
 
                 # Source
                 container = item.get("container-title", [])
@@ -277,9 +274,9 @@ async def fetch_openlibrary_metadata(isbn: str) -> Optional[dict]:
                     year = book.get("publish_date", "s.f.")
                     title = book.get("title", "")
                     publisher = book.get("publishers", [{"name": ""}])[0].get("name", "")
-                    
+
                     formatted = f"{author_str} ({year}). {title}. {publisher}."
-                    
+
                     return {
                         "author": author_str,
                         "year": year,
@@ -294,17 +291,17 @@ async def fetch_openlibrary_metadata(isbn: str) -> Optional[dict]:
 
 async def resolve_dois_batch(raw_references: List[str]) -> List[dict]:
     """
-    Recibe una lista de referencias en texto libre. Extrae DOIs/ISBNs y 
+    Recibe una lista de referencias en texto libre. Extrae DOIs/ISBNs y
     resuelve los metadatos de forma concurrente usando Crossref u OpenLibrary.
-    Retorna lista de diccionarios con los resultados encontrados, manteniendo el índice.
+    Retorna lista de diccionarios con los resultados encontrados, manteniendo el Ã­ndice.
     """
     import asyncio
-    
+
     async def process_ref(idx, text):
         info = extract_doi_or_isbn(text)
         if not info:
             return {"index": idx, "original": text, "resolved": False}
-        
+
         if info["type"] == "doi":
             metadata = await fetch_crossref_metadata(info["value"])
             if metadata:
@@ -313,7 +310,7 @@ async def resolve_dois_batch(raw_references: List[str]) -> List[dict]:
             metadata = await fetch_openlibrary_metadata(info["value"])
             if metadata:
                 return {"index": idx, "original": text, "resolved": True, "type": "isbn", "metadata": metadata}
-                
+
         return {"index": idx, "original": text, "resolved": False}
 
     tasks = [process_ref(idx, text) for idx, text in enumerate(raw_references)]
@@ -321,7 +318,7 @@ async def resolve_dois_batch(raw_references: List[str]) -> List[dict]:
     return list(results)
 
 
-# ── Seccion de Referencias ─────────────────────────────────────────────────────
+# â”€â”€ Seccion de Referencias â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def sort_referencias_alphabetically(references: List[ReferenciaModel]) -> List[ReferenciaModel]:
     """

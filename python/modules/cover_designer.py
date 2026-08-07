@@ -8,15 +8,14 @@ La portada se guarda como plantilla reutilizable en storage/cover_templates/.
 
 import json
 import shutil
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-
+from docx.shared import Inches, Pt, RGBColor
 
 COVER_TEMPLATES_DIR = "cover_templates"
 

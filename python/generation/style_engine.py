@@ -8,11 +8,10 @@ Normaliza la fuente en todo el documento para evitar mezclas indeseadas.
 from typing import Optional
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import parse_xml, OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
-
+from docx.shared import Inches, Pt, RGBColor
 from models import APARuleSet
 
 
@@ -51,13 +50,12 @@ def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: 
     """
     Aplica margenes APA 7 (2.54 cm / 1 in) respetando secciones en landscape si existen.
 
-    Tambien normaliza el tamaño de página a Carta (8.5 x 11 in, w=12240 h=15840 twips)
-    en secciones portrait — evita que documentos A4/Legal/tabloide salgan con hojas
-    demasiado anchas. Las secciones landscape conservan su orientación.
+    IMPORTANTE: conserva el tamaño de página ORIGINAL del documento (Carta, A4, Legal...)
+    en las secciones portrait. Antes se forzaba Carta (8.5 x 11 in) en todas las
+    secciones portrait, lo que producía PDFs con formato de hoja ajeno al Word original.
+    Las secciones landscape conservan su orientación y márgenes originales.
     """
     margin_inches = rules.margins_cm / 2.54
-    LETTER_W_TWIPS = "12240"
-    LETTER_H_TWIPS = "15840"
 
     for section in doc.sections:
         is_landscape: bool = False
@@ -70,19 +68,7 @@ def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: 
         except Exception:
             pass
 
-        # Normalizar tamaño de página a Carta en portrait
-        if not (preserve_landscape and is_landscape):
-            try:
-                pg_sz = section._sectPr.find(qn("w:pgSz"))
-                if pg_sz is None:
-                    pg_sz = OxmlElement('w:pgSz')
-                    section._sectPr.append(pg_sz)
-                pg_sz.set(qn("w:w"), LETTER_W_TWIPS)
-                pg_sz.set(qn("w:h"), LETTER_H_TWIPS)
-                pg_sz.attrib.pop(qn("w:orient"), None)
-            except Exception:
-                pass
-
+        # En portrait: margenes APA 7. En landscape: conservar todo (orientacion y margenes).
         if not (preserve_landscape and is_landscape):
             section.top_margin = Inches(margin_inches)
             section.bottom_margin = Inches(margin_inches)

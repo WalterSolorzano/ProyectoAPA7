@@ -10,19 +10,15 @@ Ejecutar: cd python && python -m pytest tests/test_corpus.py -v
 """
 
 import sys
-import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-
-from models import DocumentModel, ElementModel, ElementType, APARuleSet, PortadaData
-from parsing.pre_classifier import pre_classify_elements
-from parsing.docx_parser import parse_docx_bytes
-from modules.citation_engine import extract_citations_from_text
 from generation.generator import generate_apa7_docx
-
+from models import APARuleSet, ElementType
+from modules.citation_engine import extract_citations_from_text
+from parsing.docx_parser import parse_docx_bytes
 
 CORPUS_DIR = Path(__file__).parent.parent.parent / "corpus"
 
@@ -54,7 +50,6 @@ class TestCorpusClassification:
         # Usar el parser completo que incluye pre-clasificación
         # Nota: parser_docx_bytes requiere storage_dir; usamos un directorio temporal
         import tempfile
-        from parsing.pre_classifier import pre_classify_elements
 
         with tempfile.TemporaryDirectory() as tmpdir:
             doc_model = parse_docx_bytes(

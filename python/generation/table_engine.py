@@ -9,15 +9,13 @@ Aplica el formato estricto de tablas APA 7:
 5. Nota de tabla al pie si existe.
 """
 
-from typing import Optional
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import parse_xml, OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
-
-from models import TableModel, APARuleSet
+from docx.shared import Inches, Pt, RGBColor
+from models import APARuleSet, TableModel
 
 
 def _tc_element_of(cell_or_tc):
@@ -101,9 +99,9 @@ def _available_page_width_inches(rules: APARuleSet, landscape: bool = False) -> 
 def fit_table_to_page(table, rules: APARuleSet, landscape: bool = False) -> None:
     """Force a table to stay within the available text width."""
     try:
-        from docx.shared import Inches
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
+        from docx.shared import Inches
     except Exception:
         return
 

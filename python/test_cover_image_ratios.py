@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from PIL import Image
 
 sys.path.append(str(Path(__file__).parent))

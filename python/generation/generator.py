@@ -5,41 +5,45 @@ Abre el archivo original.docx de la sesión y le aplica los estilos APA 7
 sin destruir imágenes, tablas, shapes, logos, cuadros de texto o fórmulas.
 """
 
-from pathlib import Path
-from typing import List, Optional
 from copy import deepcopy
+from pathlib import Path
+from typing import List
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.section import WD_ORIENT
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
-
 from models import (
+    APARuleSet,
     DocumentModel,
     ElementModel,
     ElementType,
-    APARuleSet,
     PortadaData,
     ReferenciaModel,
 )
-from generation.style_engine import (
-    apply_page_setup,
-    format_heading_paragraph,
-    format_normal_paragraph,
-    format_block_quote,
-    set_run_font,
-)
-from generation.table_engine import set_table_apa7_borders, set_table_borders, format_apa_table, fit_table_to_page, validate_table_widths
-from generation.image_handler import format_apa_figure
-from generation.bullet_engine import format_bullet_item, format_numbered_item
-from generation.document_structure import setup_apa_header
+from modules.cover_designer import CoverTemplate, apply_cover_to_document, list_cover_templates
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
-from modules.cover_designer import apply_cover_to_document, list_cover_templates, CoverTemplate
+
+from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.document_structure import setup_apa_header
+from generation.image_handler import format_apa_figure
+from generation.style_engine import (
+    apply_page_setup,
+    format_block_quote,
+    format_heading_paragraph,
+    format_normal_paragraph,
+    set_run_font,
+)
+from generation.table_engine import (
+    fit_table_to_page,
+    format_apa_table,
+    set_table_borders,
+    validate_table_widths,
+)
 
 
 def _to_roman(num: int) -> str:
@@ -174,10 +178,10 @@ def _generate_toc_from_headings(
     Si el documento tiene un TOC nativo (ElementType.TOC), se reemplaza
     por este contenido generado.
     """
-    from docx.shared import Pt, Inches, RGBColor
-    from docx.oxml import parse_xml, OxmlElement
-    from docx.oxml.ns import nsdecls, qn
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
 
     # Recolectar headings del modelo con sus niveles
     toc_headings: list[tuple[int, str]] = []
@@ -208,7 +212,7 @@ def _generate_toc_from_headings(
     r_title.bold = True
     r_title.font.name = rules.font_family
     r_title.font.size = Pt(rules.font_size_pt)
-    
+
     new_p = OxmlElement('w:p')
     toc_paragraph._element.addnext(new_p)
     toc_field_p = docx.text.paragraph.Paragraph(new_p, doc)
@@ -332,7 +336,7 @@ def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str 
 
 def _update_existing_caption_text(img_paragraph, new_caption: str, rules: APARuleSet) -> None:
     """Actualiza el texto del caption existente en el parrafo (sin duplicar el parrafo)."""
-    from docx.shared import Pt, RGBColor
+    from docx.shared import Pt
     # Buscar si el caption esta en el parrafo de la imagen o en el anterior
     for para in [img_paragraph]:
         text = para.text.strip()
@@ -439,7 +443,7 @@ def _apply_image_design_style(
         # Add thin black border via paragraph shading / border
         from docx.oxml import parse_xml
         from docx.oxml.ns import nsdecls
-        pPr = p._element.find(f'{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}pPr')
+        pPr = p._element.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
         if pPr is None:
             from docx.oxml import OxmlElement
             pPr = OxmlElement('w:pPr')
@@ -465,13 +469,13 @@ def _apply_image_design_style(
             for inline in drawing.findall(qn('wp:inline')):
                 # Convert inline to anchor (floating)
                 anchor_xml = (
-                    f'<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
-                    f'behindDoc="0" layoutInCell="1" allowOverlap="1" locked="0" '
-                    f'relativeHeight="251658240" simplePos="0">'
-                    f'<wp:simplePos x="0" y="0"/>'
-                    f'<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
-                    f'<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
-                    f'</wp:anchor>'
+                    '<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+                    'behindDoc="0" layoutInCell="1" allowOverlap="1" locked="0" '
+                    'relativeHeight="251658240" simplePos="0">'
+                    '<wp:simplePos x="0" y="0"/>'
+                    '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+                    '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+                    '</wp:anchor>'
                 )
                 # This is a simplified approach; full anchor conversion is complex
                 pass
@@ -793,12 +797,12 @@ def generate_apa7_docx(
     paragraphs_before_body = 0
     if not use_orig_cover and portada:
         is_uni_profile = (cover_mode == 'generate_uni_cover')
-        
+
         if is_uni_profile:
             try:
-                from modules.portada_uni import generate_uni_cover
-
                 import re as _re
+
+                from modules.portada_uni import generate_uni_cover
                 autores_parsed = []
                 if portada.author:
                     # Formato del frontend: "Br. Nombre Apellido | Carnet: 2023-XXXX"
@@ -973,7 +977,6 @@ def generate_apa7_docx(
 
     from docx.oxml import parse_xml
     from docx.oxml.ns import nsdecls, qn
-    from docx.shared import RGBColor
 
     in_cover = cover_paragraph_count > 0
     last_was_heading1 = False
@@ -1277,7 +1280,7 @@ def generate_apa7_docx(
 
             # Detectar estilo de numeracion especifico para este nivel
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
-            
+
             orig_text = elem.original_text or elem.text or ""
             if lvl == 1:
                 marker_style = _extract_numbering_style_marker(orig_text)

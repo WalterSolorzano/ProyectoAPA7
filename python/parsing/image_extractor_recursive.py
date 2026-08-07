@@ -1,8 +1,8 @@
-import os
 from pathlib import Path
-from lxml import etree
+from typing import Any, Dict, List
+
 import docx
-from typing import List, Dict, Any, Tuple
+
 
 def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[Dict[str, Any]]:
     """
@@ -12,7 +12,7 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     extracted_images = []
-    
+
     # We will iterate over all XML elements looking for blip/imagedata
     root = doc._element
     nsmap = {
@@ -27,26 +27,26 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
     blips = root.findall('.//a:blip', nsmap)
     # Find VML imagedata
     imagedatas = root.findall('.//v:imagedata', nsmap)
-    
+
     image_idx = 0
-    
+
     def process_embed(embed_id, xml_element, is_floating=False):
         nonlocal image_idx
         if not embed_id:
             return
-            
+
         try:
             part = doc.part.related_parts[embed_id]
             image_bytes = part.blob
             ext = part.content_type.split('/')[-1]
             if ext == 'jpeg': ext = 'jpg'
-            
+
             filename = f"image_{image_idx}.{ext}"
             filepath = output_dir / filename
-            
+
             with open(filepath, 'wb') as f:
                 f.write(image_bytes)
-                
+
             extracted_images.append({
                 'id': embed_id,
                 'path': str(filepath),
@@ -61,7 +61,7 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
 
     for blip in blips:
         embed_id = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
-        
+
         # Check if it's floating (has wp:anchor parent)
         is_floating = False
         parent = blip.getparent()
@@ -70,7 +70,7 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
                 is_floating = True
                 break
             parent = parent.getparent()
-            
+
         process_embed(embed_id, blip, is_floating)
 
     for imagedata in imagedatas:
@@ -82,7 +82,7 @@ def extract_all_images_recursive(doc: docx.Document, output_dir: Path) -> List[D
 def associate_captions_by_proximity(elements: List[Any]) -> List[Any]:
     import re
     caption_pattern = re.compile(r'^(figura|figure|tabla|table)\s*\d+.*', re.IGNORECASE)
-    
+
     for i, elem in enumerate(elements):
         if getattr(elem, 'type', None) == 'IMAGE' or getattr(elem, 'type', None) == 'TABLE':
             # Look ahead for caption
@@ -97,7 +97,7 @@ def associate_captions_by_proximity(elements: List[Any]) -> List[Any]:
                         elem.table_info.caption = next_elem.text
                     next_elem.type = 'CAPTION'
                     break
-                    
+
             # Look behind for caption
             for j in range(i-1, max(-1, i-3), -1):
                 prev_elem = elements[j]
@@ -110,5 +110,5 @@ def associate_captions_by_proximity(elements: List[Any]) -> List[Any]:
                         elem.table_info.caption = prev_elem.text
                     prev_elem.type = 'CAPTION'
                     break
-                    
+
     return elements

@@ -1,25 +1,22 @@
-/* WordAPA7 — Panel derecho CONTEXTUAL único.
-   - Sin selección  → "Documento": resumen, acciones rápidas, resultado de
-     revisión IA (con mensaje claro) y actividad útil.
-   - Elemento seleccionado → "Inspector": cambia según el tipo de elemento
-     (texto → formato + IA, imagen → edición de imagen, tabla → APA).
-   - Sin ruido: los toasts/saludos no viven acá (Capa 2).
-   - Se abre automáticamente al seleccionar un elemento. */
+/* WordAPA7 — Panel derecho flotante (overlay sobre el canvas).
+   No compite por espacio con el EditorRail: se monta con position: absolute
+   y box-shadow para no aplastar el documento central.
+   - ActionBar + Inspector según contexto.
+   - Sin bloques de "Resumen" ni "Revision IA" repetidos. */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { ResizablePanel } from '../shared/ResizablePanel';
 import { ElementInspector } from '../inspector/ElementInspector';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { ReferencesPanel } from '../referencias/ReferencesPanel';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2, RotateCw, Activity, ShieldAlert, FileText, ListChecks, Sparkles, X, BookOpen } from 'lucide-react';
+import { Activity, X, FileText, ListChecks, BookOpen } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
-  success: <CheckCircle2 size={15} color="var(--color-success)" />,
-  error: <AlertCircle size={15} color="var(--color-danger)" />,
-  info: <Info size={15} color="var(--color-info)" />,
-  warning: <AlertTriangle size={15} color="var(--color-warning)" />,
+  success: <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2714;</span>,
+  error: <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>&#x2716;</span>,
+  info: <span style={{ color: 'var(--color-info)', fontWeight: 700 }}>i</span>,
+  warning: <span style={{ color: 'var(--color-warning)', fontWeight: 700 }}>!</span>,
 };
 
 function timeAgo(t: number): string {
@@ -33,16 +30,62 @@ function timeAgo(t: number): string {
   return `hace ${Math.floor(h / 24)} d`;
 }
 
+const DEFAULT_WIDTH = 310;
+const MIN_WIDTH = 260;
+const MAX_WIDTH = 620;
+const LOCAL_STORAGE_KEY = 'wordapa7-inspector-width';
+
 export const RightSidePanel: React.FC = () => {
   const {
     forceRightPanelOpen, setForceRightPanelOpen,
     selectedElementId, selectedReferenceId, doc, wizardStep,
   } = useDocStore();
 
-  // Se abre automáticamente al seleccionar un elemento o una referencia
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Se abre automaticamente al seleccionar un elemento
   useEffect(() => {
     if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
   }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
+
+  // Guardar ancho en localStorage
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, panelWidth.toString());
+  }, [panelWidth]);
+
+  // Resize via drag en el borde izquierdo
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX));
+      setPanelWidth(newW);
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+  }, [isResizing]);
 
   if (!forceRightPanelOpen) return null;
 
@@ -55,219 +98,85 @@ export const RightSidePanel: React.FC = () => {
   const currentSection = sectionNames[wizardStep] || '';
 
   return (
-    <ResizablePanel side="right" defaultWidth={300} minWidth={260} maxWidth={620} localStorageKey="wordapa7-inspector-width">
-      <div style={{
-        flexShrink: 0, display: 'flex', flexDirection: 'column',
-        height: '100%', overflow: 'hidden',
-        background: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
-      }}>
-        {/* Header contextual */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
-          padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--sidebar-bg)',
-        }}>
-          {hasSelection ? (
-            <ListChecks size={14} color="var(--accent-primary)" />
-          ) : hasReference ? (
-            <BookOpen size={14} color="var(--accent-primary)" />
-          ) : (
-            <FileText size={14} color="var(--accent-primary)" />
-          )}
-          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-            {hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` · ${currentSection}` : ''}`}
-          </span>
-          <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            onClick={() => setForceRightPanelOpen(false)}
-            aria-label="Cerrar panel"
-            title="Cerrar panel"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-          >
-            <X size={14} />
-          </button>
-        </div>
+    <div
+      ref={panelRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: panelWidth,
+        zIndex: 25,
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--sidebar-bg)',
+        borderLeft: '1px solid var(--border-subtle)',
+        boxShadow: '-6px 0 20px rgba(0,0,0,0.12)',
+      }}
+    >
+      {/* Resize handle en el borde izquierdo */}
+      <div
+        onMouseDown={handleResizeStart}
+        style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: 5, cursor: 'col-resize', zIndex: 26,
+        }}
+      />
 
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          {hasSelection ? (
-            <ElementInspector />
-          ) : hasReference ? (
-            <ReferenceForm key={selectedReferenceId} />
-          ) : wizardStep === 5 ? (
-            <ReferencesPanel />
-          ) : (
-            <DocumentPanel />
-          )}
-        </div>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
+        padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--sidebar-bg)',
+      }}>
+        {hasSelection ? (
+          <ListChecks size={14} color="var(--accent-primary)" />
+        ) : hasReference ? (
+          <BookOpen size={14} color="var(--accent-primary)" />
+        ) : (
+          <FileText size={14} color="var(--accent-primary)" />
+        )}
+        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+          {hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={() => setForceRightPanelOpen(false)}
+          aria-label="Cerrar panel"
+          title="Cerrar panel"
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+        >
+          <X size={14} />
+        </button>
       </div>
-    </ResizablePanel>
+
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {hasSelection ? (
+          <ElementInspector />
+        ) : hasReference ? (
+          <ReferenceForm key={selectedReferenceId} />
+        ) : wizardStep === 5 ? (
+          <ReferencesPanel />
+        ) : (
+          <DocumentPanel />
+        )}
+      </div>
+    </div>
   );
 };
 
-// ── Panel "Documento" (sin selección): resumen + acciones + actividad útil ──
+// ── Panel "Documento": solo ActionBar + Actividad (sin Resumen ni Revisión IA) ──
 
 const DocumentPanel: React.FC = () => {
-  const {
-    doc, reviewResult, isReviewLoading, runAIReview, activityEvents,
-    runLLMClassify, runCitationAudit, citationAuditResult,
-    llmProgress,
-  } = useDocStore();
+  const { doc, activityEvents } = useDocStore();
 
   if (!doc) return null;
 
-  const headings = doc.elements.filter((e) => e.type === 'heading').length;
-  const paragraphs = doc.elements.filter((e) => e.type === 'paragraph').length;
-  const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
-  const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info).length;
-  const refs = doc.referencias?.length || 0;
-
-  const aiFlags = reviewResult?.flagged_count || 0;
-  const spellFlags = reviewResult?.spelling_count || 0;
-  const llmActive = llmProgress.status !== 'idle';
-
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* IA proactiva: ActionBar sutil con badges de pendientes */}
       <ActionBar />
 
-      {/* Resumen del documento */}
-      <div style={{
-        border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-        backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}>
-          <Activity size={15} color="var(--accent-secondary)" />
-          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>Resumen</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', padding: '10px 12px' }}>
-          {[
-            { label: 'Títulos', value: headings },
-            { label: 'Párrafos', value: paragraphs },
-            { label: 'Figuras', value: figures },
-            { label: 'Tablas', value: tables },
-            { label: 'Referencias', value: refs },
-            { label: 'Citas fantasma', value: citationAuditResult?.ghost_citations?.length || 0, danger: (citationAuditResult?.ghost_citations?.length || 0) > 0, hint: 'Citas en el texto sin referencia en la bibliografía' },
-          ].map((s) => (
-            <div key={s.label} style={{ fontSize: '11px', color: 'var(--text-secondary)' }} title={(s as any).hint || s.label}>
-              <span style={{ display: 'block', fontWeight: 800, color: s.danger ? 'var(--accent-danger)' : 'var(--text-main)', fontSize: '16px' }}>
-                {s.value}
-              </span>
-              {s.label}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Progreso de clasificación LLM en tiempo real (visibilidad IA) */}
-      {llmActive && !reviewResult && !isReviewLoading && (
-        <div style={{
-          border: '1px solid rgba(79,124,255,0.3)', borderRadius: 'var(--radius-lg)',
-          backgroundColor: 'rgba(79,124,255,0.06)', overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-            <Sparkles size={15} color="var(--accent-primary)" />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>IA clasificando</span>
-            <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
-              {llmProgress.elements_processed}/{llmProgress.elements_total}
-            </span>
-          </div>
-          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {/* Barra de progreso */}
-            <div style={{ height: '4px', backgroundColor: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
-              <div style={{
-                width: `${llmProgress.elements_total > 0 ? Math.round((llmProgress.elements_processed / llmProgress.elements_total) * 100) : 0}%`,
-                height: '100%', backgroundColor: 'var(--accent-primary)', borderRadius: '2px',
-                transition: 'width 0.4s ease',
-              }} />
-            </div>
-            {/* Muestra textual de lo que se está analizando */}
-            {llmProgress.current_sample && (
-              <div style={{
-                fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic',
-                backgroundColor: 'var(--surface-subtle)', padding: '6px 8px',
-                borderRadius: 'var(--radius-sm)', lineHeight: 1.4,
-              }}>
-                "{llmProgress.current_sample.slice(0, 120)}{llmProgress.current_sample.length > 120 ? '…' : ''}"
-              </div>
-            )}
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Proveedor: {llmProgress.current_provider || 'conectando…'}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Resultado de revisión IA */}
-      {(reviewResult || isReviewLoading) && (
-        <div style={{
-          border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-          backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-            <ShieldAlert size={15} color="var(--accent-primary)" />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>Revisión IA</span>
-          </div>
-          <div style={{ padding: '12px' }}>
-            {isReviewLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  Analizando documento…
-                  <style>{`@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }`}</style>
-                </div>
-                {/* IA visibility: muestra qué texto se está clasificando en este momento */}
-                {llmProgress.status === 'processing' && llmProgress.current_sample && (
-                  <div style={{
-                    fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic',
-                    backgroundColor: 'rgba(79,124,255,0.06)', padding: '6px 8px',
-                    borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
-                    lineHeight: 1.4,
-                  }}>
-                    Clasificando: "{llmProgress.current_sample}…"
-                  </div>
-                )}
-              </div>
-            ) : reviewResult ? (
-              <>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '8px' }}>
-                  {reviewResult.total_paragraphs} párrafos analizados:
-                </div>
-                <ul style={{ margin: '0 0 10px', paddingLeft: '16px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                  <li>
-                    <strong style={{ color: aiFlags > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{aiFlags}</strong>{' '}
-                    párrafo{aiFlags === 1 ? '' : 's'} con frases de posible texto generado
-                  </li>
-                  <li>
-                    <strong style={{ color: spellFlags > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{spellFlags}</strong>{' '}
-                    párrafo{spellFlags === 1 ? '' : 's'} con posibles errores de ortografía
-                  </li>
-                </ul>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  El texto señalado se marca sobre el documento (subrayado punteado = IA, ondulado = ortografía).
-                </div>
-                <button
-                  type="button"
-                  onClick={() => runAIReview()}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px',
-                    borderRadius: '8px', cursor: 'pointer', background: 'var(--color-accent-soft)',
-                    color: 'var(--accent-primary)', border: '1px solid rgba(79,124,255,0.35)',
-                    fontFamily: 'inherit', fontSize: '12px', fontWeight: 600,
-                  }}
-                >
-                  <RotateCw size={13} /> Revisar de nuevo
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {/* Actividad reciente (solo eventos útiles) */}
       {activityEvents.length > 0 && (
         <div style={{
           border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',

@@ -9,6 +9,7 @@ el gate bloquea la exportación y lanza una excepción explicativa.
 """
 
 from pathlib import Path
+
 from parsing.structure_scanner import scan_document_xml_nodes
 
 

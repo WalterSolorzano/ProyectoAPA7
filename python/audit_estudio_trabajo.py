@@ -4,7 +4,7 @@ Script de Auditoría y Verificación Pipeline E2E para Estudio_Trabajo (1).docx
 
 import sys
 from pathlib import Path
-import json
+
 import requests
 from docx import Document
 
@@ -33,7 +33,7 @@ def main():
     images = [e for e in doc_model.elements if e.type == "image"]
     bullets = [e for e in doc_model.elements if e.type in ("bullet", "numbered_list")]
 
-    print(f"[1] Diagnóstico de Clasificación:")
+    print("[1] Diagnóstico de Clasificación:")
     print(f"    - Elementos de Portada: {len(cover_elems)}")
     print(f"    - Títulos Validados: {len(headings)}")
     print(f"    - Tablas: {len(tables)}")

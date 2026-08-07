@@ -3,6 +3,7 @@
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { NIMDiagnosticsModal } from '../shared/NIMDiagnosticsModal';
+import { RotatingComment } from './RotatingComment';
 import { Cpu, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export const StatusBar: React.FC = () => {
@@ -60,9 +61,9 @@ export const StatusBar: React.FC = () => {
 
   return (
     <>
-      <footer className="app-statusbar" style={{ backgroundColor: 'var(--app-bg)', borderTop: '1px solid rgba(255,255,255,0.07)', color: 'var(--text-muted)' }}>
+      <footer className="app-statusbar" style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--app-bg)', borderTop: '1px solid rgba(255,255,255,0.07)', color: 'var(--text-muted)' }}>
         {/* Left: Document stats */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', color: 'var(--text-main)', fontWeight: 500 }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', color: 'var(--text-main)', fontWeight: 500, flexShrink: 0 }}>
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Pag: {estimatedPages}</span>
           <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{totalWords} pal.</span>
 
@@ -90,8 +91,13 @@ export const StatusBar: React.FC = () => {
           )}
         </div>
 
+        {/* Center: comentario rotativo (frases de la biblioteca) */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0, overflow: 'hidden', padding: '0 12px' }}>
+          <RotatingComment />
+        </div>
+
         {/* Right: Config and zoom */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', color: 'var(--text-main)', fontWeight: 500 }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', color: 'var(--text-main)', fontWeight: 500, flexShrink: 0 }}>
           <span style={{ fontSize: '10px' }}>
             {rules.font_family} ({rules.font_size_pt}pt)
           </span>

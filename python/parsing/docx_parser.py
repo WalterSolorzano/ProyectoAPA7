@@ -5,44 +5,45 @@ Convierte un archivo .docx subido por el usuario en una estructura `DocumentMode
 completamente procesada y clasificada con imagenes extraidas en el almacenamiento local de sesion.
 """
 
+import hashlib
 import io
 import os
+import re
 import time
-import hashlib
 import uuid
 from datetime import datetime, timezone
-import re
 from pathlib import Path
 from typing import List, Optional
 
 import docx
-
 from models import (
-    DocumentModel,
+    APAFormat,
+    BulletStyle,
     DocumentMeta,
+    DocumentModel,
     ElementModel,
     ElementType,
-    ImageModel,
-    TableModel,
-    SectionInfo,
-    APAFormat,
-    WorkMode,
-    NumberStyle,
-    BulletStyle,
     EquationConfig,
+    ImageModel,
+    NumberStyle,
+    SectionInfo,
+    TableModel,
+    WorkMode,
 )
-from parsing.xml_deep_parser import (
-    process_numbering_single_pass,
-    extract_textbox_paragraphs,
-    get_section_orientation_info,
-    is_inside_textbox_or_shape,
-    _deduplicate_textbox_texts,
-    extract_unique_textbox_pairs,
-    find_body_start_via_xml,
+
+from parsing.fast_mmap_parser import fast_parse_body_start
+from parsing.image_extractor_recursive import (
+    associate_captions_by_proximity,
+    extract_all_images_recursive,
 )
 from parsing.pre_classifier import pre_classify_elements
-from parsing.image_extractor_recursive import extract_all_images_recursive, associate_captions_by_proximity
-from parsing.fast_mmap_parser import fast_parse_body_start
+from parsing.xml_deep_parser import (
+    _deduplicate_textbox_texts,
+    extract_textbox_paragraphs,
+    extract_unique_textbox_pairs,
+    get_section_orientation_info,
+    process_numbering_single_pass,
+)
 
 # Namespace OOXML para constantes
 W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
@@ -716,6 +717,7 @@ def parse_docx_bytes(
 
     # Cargar documento docx desde bytes
     import zipfile
+
     from fastapi import HTTPException
     try:
         doc = docx.Document(io.BytesIO(sanitized_bytes))
@@ -736,7 +738,7 @@ def parse_docx_bytes(
                     forensic_metadata["words"] = int(words.group(1))
             except Exception:
                 pass
-                
+
             try:
                 core_xml = z.read('docProps/core.xml').decode('utf-8')
                 revision = re.search(r'<cp:revision>(\d+)</cp:revision>', core_xml)
@@ -1056,7 +1058,7 @@ def parse_docx_bytes(
                     pos_v_elem = anchor_elem.find(f'.//{{{WP_NS}}}positionV')
                     pos_h = pos_h_elem.find(f'.//{{{WP_NS}}}posOffset').text if pos_h_elem is not None and pos_h_elem.find(f'.//{{{WP_NS}}}posOffset') is not None else None
                     pos_v = pos_v_elem.find(f'.//{{{WP_NS}}}posOffset').text if pos_v_elem is not None and pos_v_elem.find(f'.//{{{WP_NS}}}posOffset') is not None else None
-                    
+
                     wrap_style = "square"
                     if anchor_elem.find(f'.//{{{WP_NS}}}wrapTight') is not None:
                         wrap_style = "tight"
@@ -1064,7 +1066,7 @@ def parse_docx_bytes(
                         wrap_style = "top_and_bottom"
                     elif anchor_elem.find(f'.//{{{WP_NS}}}wrapThrough') is not None:
                         wrap_style = "through"
-                        
+
                     anchor_data = {
                         "is_anchor": True,
                         "anchor_pos_h": pos_h,
@@ -1151,13 +1153,13 @@ def parse_docx_bytes(
                                 figure_number=0,
                                 note=img_note,
                             )
-                            
+
                             if anchor_data:
                                 img_model.is_anchor = anchor_data.get("is_anchor", False)
                                 img_model.anchor_pos_h = anchor_data.get("anchor_pos_h")
                                 img_model.anchor_pos_v = anchor_data.get("anchor_pos_v")
                                 img_model.wrap_style = anchor_data.get("wrap_style", "inline")
-                                
+
                             images_in_p.append(img_model)
                         except Exception as img_err:
                             print(f"[WARN] Error extrayendo imagen: {img_err}")
@@ -1263,7 +1265,7 @@ def parse_docx_bytes(
         elif tag.endswith("tbl"):
             element_counter += 1
             has_tables_detected = True
-            
+
             # --- NUEVO: Extraer imagenes embebidas en la tabla ---
             tbl_blips = []
             A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
@@ -1282,7 +1284,7 @@ def parse_docx_bytes(
                 for b in drawing.findall(f'.//{{{A_NS}}}blip'):
                     r_id = b.attrib.get(f'{{{R_NS}}}embed')
                     if r_id: tbl_blips.append((r_id, w_cm, h_cm))
-            
+
             for v in child.findall(f'.//{{{V_NS}}}imagedata'):
                 r_id = v.attrib.get(f'{{{R_NS}}}embed') or v.attrib.get(f'{{{R_NS}}}href')
                 if r_id: tbl_blips.append((r_id, 12.0, 8.0))
@@ -1297,7 +1299,7 @@ def parse_docx_bytes(
                             img_path = session_img_dir / img_filename
                             with open(img_path, "wb") as f_img:
                                 f_img.write(image_part.blob)
-                            
+
                             has_images = True
                             clamped_w = min(round(w_cm, 2), 16.0)
                             clamped_h = round(h_cm * (clamped_w / w_cm), 2) if w_cm > 0 else round(h_cm, 2)
@@ -1426,7 +1428,7 @@ def parse_docx_bytes(
         for i, elem in enumerate(elements):
             if i < len(layout_result.paragraph_pages):
                 elem.page_number = layout_result.paragraph_pages[i]
-        
+
         last_page1_idx = max(
             (i for i, pg in enumerate(layout_result.paragraph_pages) if pg == 1),
             default=-1

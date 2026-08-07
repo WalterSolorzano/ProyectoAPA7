@@ -1,6 +1,7 @@
-import docx
-from pathlib import Path
 import copy
+from pathlib import Path
+
+import docx
 
 src_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\10mo Trabajo Contabilidad.docx")
 out_path = Path(r"C:\Users\--X\.gemini\antigravity\scratch\wordapa7\python\tests\output_test_preserve_cover.docx")

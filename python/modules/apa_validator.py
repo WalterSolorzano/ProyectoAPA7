@@ -8,23 +8,22 @@ de Referencias bibliográficas para asegurar coherencia bidireccional:
 3. Opcional: verificación LLM para matches inciertos (requiere API key).
 """
 
-import json
-import os
-import re
 import asyncio
+import json
+import re
 import unicodedata
 from typing import List, Optional
 
 from models import (
-    DocumentModel,
     CitationModel,
+    DocumentModel,
     ElementType,
     ReferenciaModel,
     ValidationIssueModel,
     ValidationStatus,
 )
-from modules.citation_engine import extract_citations_from_text, normalize_surname_key
 
+from modules.citation_engine import extract_citations_from_text, normalize_surname_key
 
 # ── Helpers de normalización ──────────────────────────────────────────────────
 
@@ -394,7 +393,7 @@ async def validate_citations_with_llm(
     Ahora utiliza ai_client y chunking adaptativo.
     """
     issues: List[ValidationIssueModel] = []
-    
+
     # Collect all citations from the document
     all_citations: List[CitationModel] = []
     for elem in doc.elements:
@@ -413,7 +412,7 @@ async def validate_citations_with_llm(
             "year": r.year,
             "title": r.title[:80] if r.title else "",
         })
-        
+
     ref_json = json.dumps(ref_summaries, ensure_ascii=False, indent=2)
 
     system_prompt = (
@@ -424,11 +423,10 @@ async def validate_citations_with_llm(
         '[{"citation_text": "(Garcia, 2023)", "has_match": true, "matched_ref_id": "ref_001", "issues": [], "confidence": 0.95}]'
     )
 
-    from modules.ai_client import execute_with_fallback
-    
+
     CHUNK_SIZE = 20
     batches = [all_citations[i:i + CHUNK_SIZE] for i in range(0, len(all_citations), CHUNK_SIZE)]
-    
+
     for i, batch in enumerate(batches):
         citation_summaries = []
         for c in batch:
@@ -447,6 +445,7 @@ async def validate_citations_with_llm(
         )
 
         try:
+            from modules.ai_client import execute_with_specialty
             content = await execute_with_specialty(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
@@ -476,10 +475,10 @@ async def validate_citations_with_llm(
                         ),
                         suggestion="Revise la ortografia del autor o agrege la referencia correspondiente."
                     ))
-                    
+
         except Exception as err:
             print(f"[WARN] Error en validacion LLM de citas (Batch {i+1}): {err}")
-            
+
         # Delay to prevent rate limiting
         if i < len(batches) - 1:
             await asyncio.sleep(1.5)

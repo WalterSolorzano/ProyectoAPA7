@@ -13,19 +13,18 @@ Requiere que el servidor FastAPI esté corriendo en http://localhost:8742.
 Ejecutar con: pytest python/tests/test_integration.py -v -m integration
 """
 
-import sys
 import io
 import json
-import urllib.request
+import sys
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
 import docx
+import pytest
 from docx.shared import Pt
-
 
 # Marcador para tests de integración (requieren servidor corriendo)
 pytestmark = pytest.mark.integration

@@ -9,10 +9,10 @@ Si el documento resultante requiere que Word actualice sus campos dinámicos
 en word/settings.xml para que Word los recalcule automáticamente al abrir el archivo.
 """
 
-from pathlib import Path
 import zipfile
-from lxml import etree
+from pathlib import Path
 
+from lxml import etree
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 NS_MAP = {'w': W_NS}

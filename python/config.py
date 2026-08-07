@@ -10,7 +10,15 @@ from pathlib import Path
 # 2. No se borren al actualizar la app
 # 3. Funcionen correctamente para CUALQUIER usuario en cualquier computadora
 
-if getattr(sys, 'frozen', False):
+# WORDAPA7_STORAGE_DIR permite redirigir los datos del usuario a un disco
+# persistente (ej. /data en Hugging Face Spaces) para que las sesiones,
+# exports y la base SQLite sobrevivan reinicios del contenedor.
+_override = os.environ.get('WORDAPA7_STORAGE_DIR')
+if _override:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    STORAGE_DIR = Path(_override)
+    DIST_DIR = BASE_DIR / 'dist'
+elif getattr(sys, 'frozen', False):
     # Entorno PyInstaller (produccion)
     BASE_DIR = Path(sys.executable).parent
     # Usar AppData/Roaming para datos del usuario (estandar Windows)

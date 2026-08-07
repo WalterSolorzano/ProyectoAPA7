@@ -16,14 +16,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
-from models import TableModel, APARuleSet
-from generation.table_engine import format_apa_table, set_table_apa7_borders
-
 import docx
-from docx.shared import Pt
+import pytest
 from docx.oxml.ns import qn
-
+from docx.shared import Pt
+from generation.table_engine import format_apa_table, set_table_apa7_borders
+from models import APARuleSet, TableModel
 
 # ── FIXTURES ────────────────────────────────────────────────────────────────────
 

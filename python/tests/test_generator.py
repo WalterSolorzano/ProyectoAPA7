@@ -16,22 +16,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
 import docx
-from docx.shared import Inches, Pt
+import pytest
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-from models import (
-    DocumentModel, ElementModel, ElementType, APARuleSet,
-    PortadaData, ReferenciaModel, APAFormat
-)
+from docx.shared import Inches, Pt
 from generation.generator import generate_apa7_docx
 from generation.style_engine import (
-    apply_page_setup, format_heading_paragraph,
-    format_normal_paragraph, format_block_quote
+    format_block_quote,
+    format_heading_paragraph,
+    format_normal_paragraph,
 )
-from generation.document_structure import setup_apa_header
-
+from models import (
+    APAFormat,
+    APARuleSet,
+    DocumentModel,
+    ElementModel,
+    ElementType,
+    PortadaData,
+    ReferenciaModel,
+)
 
 # ── FIXTURES ────────────────────────────────────────────────────────────────────
 
@@ -611,8 +614,8 @@ class TestEquationGeneration:
 
     def test_equation_centered_with_number(self, rules):
         """Ecuación centrada con número → alineación centro + tab derecho con número."""
-        from models import EquationConfig
         from generation.generator import _render_equation_number
+        from models import EquationConfig
 
         doc = docx.Document()
         p = doc.add_paragraph("E=mc^2")
@@ -631,7 +634,7 @@ class TestEquationGeneration:
 
     def test_equation_rendered_with_number_in_docx(self, rules, tmp_path):
         """Generar un documento con ecuación numerada produce el número en el XML."""
-        from models import EquationConfig, DocumentMeta
+        from models import DocumentMeta, EquationConfig
 
         doc_model = DocumentModel(
             session_id="eqtest",

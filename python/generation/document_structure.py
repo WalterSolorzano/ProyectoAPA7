@@ -8,10 +8,10 @@ Maneja los elementos de nivel de documento:
 """
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import parse_xml, OxmlElement
+from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, qn
+from docx.shared import Pt, RGBColor
 from models import APAFormat, APARuleSet
 
 
@@ -23,7 +23,7 @@ def add_page_number_field(run):
     instrText = parse_xml(r'<w:instrText %s xml:space="preserve"> PAGE </w:instrText>' % nsdecls('w'))
     fldChar2 = parse_xml(r'<w:fldChar %s w:fldCharType="separate"/>' % nsdecls('w'))
     fldChar3 = parse_xml(r'<w:fldChar %s w:fldCharType="end"/>' % nsdecls('w'))
-    
+
     run._r.append(fldChar1)
     run._r.append(instrText)
     run._r.append(fldChar2)
@@ -85,7 +85,7 @@ def setup_apa_header(doc: docx.Document, format_type: APAFormat, running_head_te
         r_rh.font.name = rules.font_family
         r_rh.font.size = Pt(rules.font_size_pt)
         r_rh.font.color.rgb = RGBColor(0, 0, 0)
-    
+
     # Run para el número de página
     r_pg = p.add_run()
     r_pg.font.name = rules.font_family

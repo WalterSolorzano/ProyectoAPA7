@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: npm ci
     - name: Run ESLint
-      run: npx eslint src/
+      run: npm run lint
 
   # ── TESTS ─────────────────────────────────────────────────────────────────
   test-backend:

@@ -10,14 +10,12 @@ garantiza cobertura 100% de la norma (los otros heredan el mismo motor de
 detección de citas, compartido por diseño).
 """
 
-from pydantic import BaseModel, Field
-
 from models import (
     APARuleSet,
-    APAFormat,
-    TableBorderStyle,
     HeadingLevelConfig,
+    TableBorderStyle,
 )
+from pydantic import BaseModel, Field
 
 
 class FormatProfile(BaseModel):

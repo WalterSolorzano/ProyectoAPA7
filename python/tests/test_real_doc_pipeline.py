@@ -9,16 +9,18 @@ Verifica directamente sobre la salida real generada por la API:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import docx
-import zipfile
 import re
-import io
-import pytest
+import zipfile
 
-from models import DocumentModel, ElementModel, ElementType, APARuleSet, PortadaData, TableModel, ImageModel
+import docx
 from generation.generator import generate_apa7_docx
+from models import (
+    APARuleSet,
+    PortadaData,
+)
 
 
 def create_real_sample_docx(orig_path: Path):
@@ -26,7 +28,7 @@ def create_real_sample_docx(orig_path: Path):
     doc = docx.Document()
     doc.add_heading("Título Principal del Documento", level=1)
     doc.add_paragraph("Este es un párrafo de introducción sobre el estudio academico.")
-    
+
     # Tabla 1
     t1 = doc.add_table(rows=2, cols=2)
     t1.rows[0].cells[0].text = "Material"

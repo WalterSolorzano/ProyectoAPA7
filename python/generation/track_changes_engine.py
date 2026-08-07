@@ -9,11 +9,10 @@ from datetime import datetime
 from pathlib import Path
 
 import docx
-from docx.shared import Inches, Pt, RGBColor
-from docx.oxml import parse_xml, OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
-
-from models import DocumentModel, ElementType, ElementModel, APARuleSet
+from docx.shared import Inches, Pt, RGBColor
+from models import APARuleSet, DocumentModel, ElementModel, ElementType
 
 
 def _make_ins_run(text: str, author: str = "WordAPA7") -> OxmlElement:
