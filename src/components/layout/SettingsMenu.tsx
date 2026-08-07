@@ -52,12 +52,12 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
   const handleItem = (id: string) => {
     if (id === 'settings') {
-      useDocStore.getState().setSettingsStudioOpen(true);
+      useDocStore.getState().setSettingsStudioOpen(true, 'format');
       onClose();
       return;
     }
     if (id === 'ai') {
-      useDocStore.getState().setSettingsStudioOpen(true);
+      useDocStore.getState().setSettingsStudioOpen(true, 'ai');
       onClose();
       return;
     }

@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import {
   X, Cpu, BrainCircuit, ListChecks, Activity, AlertTriangle,
-  ShieldCheck, RefreshCw, Save, Server, Cloud, Wand2, Filter,
+  ShieldCheck, RefreshCw, Settings2, Server, Cloud, Wand2, Filter,
 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 
@@ -57,32 +57,11 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
   logs,
   apiKeyPresent,
 }) => {
-  const { apiKey, setApiKey, aiProviderConfig, setAiProviderConfig, doc } = useDocStore();
+  const { apiKey, aiProviderConfig, doc } = useDocStore();
   const [tab, setTab] = useState<Tab>('reasoning');
-  const [localApiKey, setLocalApiKey] = useState(apiKey || '');
-  const [useLocal, setUseLocal] = useState(aiProviderConfig.useLocal);
-  const [nimUrl, setNimUrl] = useState(aiProviderConfig.nimUrl);
-  const [isSaved, setIsSaved] = useState(false);
   const [filterLowConf, setFilterLowConf] = useState(false);
 
-  // Sync state when opened
-  React.useEffect(() => {
-    if (isOpen) {
-      setLocalApiKey(apiKey || '');
-      setUseLocal(aiProviderConfig.useLocal);
-      setNimUrl(aiProviderConfig.nimUrl);
-      setIsSaved(false);
-    }
-  }, [isOpen, apiKey, aiProviderConfig]);
-
   if (!isOpen) return null;
-
-  const handleSave = () => {
-    setApiKey(localApiKey.trim());
-    setAiProviderConfig({ useLocal, nimUrl: nimUrl.trim() });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
 
   // ── Datos de razonamiento desde el documento actual ──
   const allElements = doc?.elements || [];
@@ -363,66 +342,46 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
             </h4>
 
             <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-main)' }}>
-                <input type="radio" checked={!useLocal} onChange={() => setUseLocal(false)} />
-                <Cloud size={14} color={!useLocal ? 'var(--accent-primary)' : 'var(--text-muted)'} /> NVIDIA NIM Cloud
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'default', color: 'var(--text-main)' }}>
+                <input type="radio" checked={!aiProviderConfig.useLocal} readOnly />
+                <Cloud size={14} color={!aiProviderConfig.useLocal ? 'var(--accent-primary)' : 'var(--text-muted)'} /> NVIDIA NIM Cloud
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-main)' }}>
-                <input type="radio" checked={useLocal} onChange={() => setUseLocal(true)} />
-                <Server size={14} color={useLocal ? 'var(--accent-success)' : 'var(--text-muted)'} /> Servidor Local (Offline)
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'default', color: 'var(--text-main)' }}>
+                <input type="radio" checked={aiProviderConfig.useLocal} readOnly />
+                <Server size={14} color={aiProviderConfig.useLocal ? 'var(--accent-success)' : 'var(--text-muted)'} /> Servidor Local
               </label>
             </div>
 
-            {!useLocal && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>NVIDIA API Key:</label>
-                <input
-                  type="password"
-                  placeholder="nvapi-..."
-                  value={localApiKey}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', padding: '8px', fontSize: '12px' }}
-                />
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Requerido para usar los modelos en la nube de NVIDIA.</span>
-              </div>
-            )}
-
-            {useLocal && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>URL del Servidor Local (Compatible OpenAI):</label>
-                <input
-                  type="text"
-                  placeholder="http://localhost:8000/v1/chat/completions"
-                  value={nimUrl}
-                  onChange={(e) => setNimUrl(e.target.value)}
-                  className="input-field"
-                  style={{ width: '100%', padding: '8px', fontSize: '12px' }}
-                />
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Ej: NIM en Docker o LM Studio local. No se requiere API Key.</span>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                {(!useLocal && localApiKey) || useLocal ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-success)', fontWeight: 600 }}>
-                    <ShieldCheck size={14} /> Listo para Procesar
-                  </span>
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-warning)', fontWeight: 600 }}>
-                    <AlertTriangle size={14} /> Faltan credenciales (Se usará modo Reglas)
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleSave}
-                className="btn btn-primary btn-sm"
-                style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Save size={14} /> {isSaved ? 'Guardado' : 'Guardar Configuración'}
-              </button>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px',
+              padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--surface-subtle)', marginBottom: '16px', lineHeight: 1.5,
+            }}>
+              {apiKey ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-success)', fontWeight: 600 }}>
+                  <ShieldCheck size={14} /> Clave de IA configurada
+                </span>
+              ) : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-warning)', fontWeight: 600 }}>
+                  <AlertTriangle size={14} /> Sin clave: se usará el modo Reglas (heurístico)
+                </span>
+              )}
+              {aiProviderConfig.useLocal && aiProviderConfig.nimUrl && (
+                <span style={{ color: 'var(--text-secondary)' }}>· {aiProviderConfig.nimUrl}</span>
+              )}
             </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+              Las claves y el proveedor se gestionan en un solo lugar (Ajustes → IA y conexión), no acá.
+            </p>
+            <button
+              type="button"
+              onClick={() => useDocStore.getState().setSettingsStudioOpen(true, 'ai')}
+              className="btn btn-primary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
+            >
+              <Settings2 size={13} /> Configurar claves en Ajustes
+            </button>
           </div>
         )}
 

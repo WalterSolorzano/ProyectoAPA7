@@ -12,8 +12,17 @@ import { Card, Badge, InputField } from '../ui/wordapa7';
 import { UpdateCard } from '../shared/UpdateCard';
 import {
   Type, AlignLeft, StretchHorizontal, Heading1, Image as ImageIcon,
-  ListOrdered, Save, X, BookOpen, FileText, GalleryHorizontalEnd, ListTree, ArrowRight, Cpu,
+  ListOrdered, Save, X, BookOpen, FileText, GalleryHorizontalEnd, ListTree, ArrowRight, Cpu, ShieldCheck, Download,
 } from 'lucide-react';
+
+type StudioTab = 'format' | 'ai' | 'privacy' | 'about';
+
+const STUDIO_TABS: { id: StudioTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'format', label: 'Formato', icon: <Type size={13} /> },
+  { id: 'ai', label: 'IA y conexión', icon: <Cpu size={13} /> },
+  { id: 'privacy', label: 'Privacidad', icon: <ShieldCheck size={13} /> },
+  { id: 'about', label: 'Actualización', icon: <Download size={13} /> },
+];
 
 const FONT_OPTIONS = [
   { value: 'Times New Roman', label: 'Times New Roman', size: 12 },
@@ -38,6 +47,9 @@ const NUMBERING_OPTIONS = [
 
 export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?: () => void }> = ({ onClose, onContinue }) => {
   const { rules, setRules, saveRuleProfile, savePortadaProfile, portada, setPortada, portadaProfiles } = useDocStore();
+  const settingsStudioTab = useDocStore((s) => s.settingsStudioTab);
+  const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
+  const tab: StudioTab = settingsStudioTab || 'format';
   const [profileName, setProfileName] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
 
@@ -91,8 +103,31 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           )}
         </div>
 
+        {/* ── Pestañas: Formato / IA / Privacidad / Actualización ── */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+          {STUDIO_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSettingsStudioOpen(true, t.id)}
+              aria-pressed={tab === t.id}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                padding: '9px 4px', fontSize: '11px', fontWeight: tab === t.id ? 700 : 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: tab === t.id ? 'var(--color-accent-soft)' : 'transparent',
+                color: tab === t.id ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                border: 'none', borderBottom: tab === t.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
+          {tab === 'format' && (<>
           {/* Guardar plantilla */}
           <Card style={{ padding: '12px', border: '1px solid rgba(79,124,255,0.25)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
@@ -237,7 +272,9 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
               </select>
             </Field>
           </Section>
+          </>)}
 
+          {tab === 'ai' && (<>
           <Section icon={<Cpu size={14} />} title="Proveedores IA">
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.5 }}>
               Escribí tu clave y se guarda y sincroniza automáticamente con el motor (no hace falta presionar "Guardar"). Queda activa al instante para clasificación, revisor e IA.
@@ -253,9 +290,17 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
             <ProviderKeyField label="Cloudflare" envVar="CLOUDFLARE_API_TOKEN" />
             <ProviderKeyField label="Cloudflare Account ID" envVar="CLOUDFLARE_ACCOUNT_ID" />
           </Section>
+          </>)}
 
+          {tab === 'privacy' && (<>
           {/* Telemetría */}
           <TelemetryToggle />
+          </>)}
+
+          {tab === 'about' && (<>
+          {/* Actualización (menú de update) */}
+          <UpdateCard compact />
+          </>)}
 
         </div>
 
@@ -284,9 +329,6 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
             </p>
           </div>
         )}
-
-          {/* Actualización (menú de update) */}
-          <UpdateCard compact />
       </div>
 
       {/* ── PREVISUALIZACIÓN (derecha) ── */}
