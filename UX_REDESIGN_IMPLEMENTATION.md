@@ -187,3 +187,52 @@ del usuario. Todo documentado aquí para retomar sin fricción.
 ## 10.6 Verificación
 - `npx tsc --noEmit` → 0 errores · `npx vitest run` → 103 OK ·
   `npx vite build` → OK.
+
+---
+
+# 11. Menú de Actualización (update menu) + Release 1.0.19
+
+## 11.1 Cómo funciona la actualización
+- El instalador usa `electron-updater` con `publish: provider: github`
+  (`electron-builder.yml`). La app detecta la versión nueva leyendo `latest.yml`
+  del GitHub Release más reciente.
+- Al arrancar, Electron hace un chequeo silencioso (`autoUpdater.checkForUpdates()`)
+  con `autoDownload = true`; si hay versión nueva, **se descarga sola** y la UI
+  avisa con un chip verde "Actualización" en la toolbar (clic → instala y reinicia).
+- Para que una versión llegue a los usuarios hay que **taguear `v*.*.*`**:
+  `.github/workflows/release.yml` (solo tags) compila backend + frontend +
+  electron-builder en `windows-latest` y publica `.exe` + `latest.yml` al Release.
+  Un push a `master` NO publica actualización (solo CI).
+
+## 11.2 UI del menú de update
+- **Archivo → Actualización**: página en el backstage con `UpdateCard`
+  (versión instalada, estado, botón "Buscar actualizaciones", botón
+  "Reiniciar y actualizar" cuando está descargada).
+- **Estudio de ajustes**: tarjeta compacta de actualización al final de los controles.
+- **Toolbar**: chip verde "Actualización" (solo cuando `state === 'downloaded'`).
+
+## 11.3 Arquitectura (IPC)
+- `electron/main.ts`: `autoUpdater` con eventos → `webContents.send('update:status', ...)`.
+  IPC: `get-app-version` (sendSync), `update:check`, `update:install`.
+- `electron/preload.ts`: expone `getAppVersion`, `checkForUpdates`, `installUpdate`,
+  `onUpdateStatus(cb)` (retorna cleanup).
+- `src/store/useUpdateStore.ts`: store liviano NO persistido. Estados:
+  `idle | checking | available | downloading | downloaded | not-available | error`.
+  `init()` (idempotente) conecta `onUpdateStatus`; `check()` / `install()`.
+- `src/components/shared/UpdateCard.tsx`: tarjeta reutilizable (Archivo + Ajustes).
+- En navegador (dev web sin Electron) la tarjeta muestra "Solo disponible en la
+  app de escritorio".
+
+## 11.4 Release 1.0.19 (hecho)
+- `package.json` → `1.0.19`.
+- Commit: `feat(ux): rediseno completo + menú de actualizacion` (commit 31050e3).
+- Push `master` (29 commits) + tag `v1.0.19` → workflow **Release** corriendo en
+  GitHub Actions (compila y publica el instalador + `latest.yml`).
+- La app instalada (1.0.18) detectará 1.0.19 al próximo arranque (o vía
+  Archivo → Actualización → Buscar actualizaciones).
+
+## 11.5 Notas
+- `.gitignore` ahora excluye `ENTRENAR/`, `screenshots/`, `capturas-stitch/` y
+  los scripts de análisis (no son producto).
+- `telemetry/` (Cloudflare Worker + `src/telemetry/client.ts`) se subió con
+  placeholders únicamente (sin secretos).
