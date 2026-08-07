@@ -117,99 +117,50 @@ export const HomeHero: React.FC = () => {
     return () => clearInterval(iv);
   }, []);
 
-  const expression = getMascotExpression();
-  const timeLabel = getTimeLabel();
   const isSpecial = phrase.tag === 'hora-especial' || phrase.tag === 'contexto';
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '28px',
-        padding: '28px 32px',
-        borderRadius: 'var(--radius-xl)',
-        background: isSpecial
-          ? 'linear-gradient(135deg, rgba(232,93,4,0.12) 0%, rgba(250,173,20,0.06) 55%, var(--surface-elevated) 100%)'
-          : getTimeGradient(),
-        border: isSpecial ? '2px solid rgba(232,93,4,0.35)' : '1px solid var(--border-subtle)',
-        boxShadow: isSpecial ? '0 4px 20px rgba(232,93,4,0.15)' : 'var(--shadow-md)',
-        marginBottom: '28px',
-        flexWrap: 'wrap',
-        transition: 'background 0.6s ease, border 0.6s ease, box-shadow 0.6s ease',
-      }}
-    >
-      {/* Mascota con tamaño responsive (no se come el texto) */}
-      <div style={{ position: 'relative', flexShrink: 0, maxWidth: '140px' }}>
-        <div className="hero-mascot-breathe" style={{ lineHeight: 0 }}>
-          <DocumentMascot size={116} expression={expression} />
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '-8px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex', alignItems: 'center', gap: '5px',
-            backgroundColor: 'var(--surface-elevated)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '999px',
-            padding: '3px 10px',
-            whiteSpace: 'nowrap',
-            boxShadow: 'var(--shadow-md)',
-            animation: 'hero-badge-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
-          }}
-        >
-          <img
-            src="/logo.jpg"
-            alt="WordAPA7"
-            style={{ height: '14px', width: 'auto', borderRadius: '3px', display: 'block' }}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-          />
-          <span style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--text-main)' }}>
-            {timeLabel}
-          </span>
-        </div>
+    <div style={{ textAlign: 'center', padding: '6px 0 14px' }}>
+      {/* H1 rotatorio (frases cambiantes): el título principal de la pantalla */}
+      <div
+        key={fadeKey}
+        className="hero-phrase-in"
+        style={{
+          fontSize: '38px',
+          fontWeight: 900,
+          lineHeight: 1.15,
+          letterSpacing: '-0.02em',
+          color: isSpecial ? 'var(--accent-warning)' : 'var(--text-main)',
+          margin: '0 auto',
+          maxWidth: '860px',
+          fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+          textShadow: '0 2px 6px rgba(128,128,128,0.18)',
+        }}
+      >
+        {phrase.text}
       </div>
 
-      {/* Barra de frase animada (más espacio para frases largas) */}
-      <div style={{ flex: 1, minWidth: '320px' }}>
-        <div
-          key={fadeKey}
-          className="hero-phrase-in"
-          style={{
-            fontSize: '28px',
-            fontWeight: 900,
-            color: isSpecial ? '#5c2d00' : 'var(--text-main)',
-            lineHeight: 1.2,
-            letterSpacing: '-0.01em',
-            margin: '0 0 10px',
-            textShadow: isSpecial ? 'none' : '0 1px 3px rgba(128,128,128,0.25)',
-            fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-          }}
-        >
-          {phrase.text}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.6px',
-              color: '#fff',
-              backgroundColor: TAG_COLOR[phrase.tag] || 'var(--accent-primary)',
-              borderRadius: '999px',
-              padding: '3px 12px',
-            }}
-          >
-            {phrase.tag === 'inicio' ? timeLabel : phrase.tag === 'hora-especial' ? 'hora pico' : phrase.tag}
-          </span>
-          <span style={{ fontSize: '13px', color: 'var(--text-main)', fontWeight: 600 }}>
-            la mascota te acompaña mientras cargás tu documento
-          </span>
-        </div>
-      </div>
+      {/* Subtítulo descriptivo */}
+      <p style={{
+        fontSize: '15px',
+        color: 'var(--text-secondary)',
+        margin: '14px auto 0',
+        maxWidth: '640px',
+        lineHeight: 1.6,
+        fontWeight: 500,
+      }}>
+        Subí tu borrador. Nosotros alineamos los títulos, ajustamos la sangría y validamos tus citas en segundos.
+      </p>
+
+      {isSpecial && (
+        <span style={{
+          display: 'inline-block', marginTop: '10px',
+          fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px',
+          color: '#fff', backgroundColor: 'var(--accent-warning)', borderRadius: '999px', padding: '3px 12px',
+        }}>
+          hora pico
+        </span>
+      )}
     </div>
   );
 };

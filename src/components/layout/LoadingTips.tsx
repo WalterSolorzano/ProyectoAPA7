@@ -322,6 +322,24 @@ export const LoadingTips: React.FC = () => {
       ? 'Clasificando con IA…'
       : 'Procesando documento…';
 
+  // ── PANTALLA COMPLETA (tipo juego) mientras arranca el motor ──
+  // El usuario NO debe ver el inicio ni barras de "conectando": solo la
+  // mascota grande + frases rotativas a pantalla completa.
+  if (!isBackendReady) {
+    return (
+      <div className="loading-tips-fullscreen" role="status" aria-live="polite">
+        <div className="loading-tips-fullscreen-inner">
+          <div className="hero-mascot-breathe" style={{ lineHeight: 0 }}>
+            <DocumentMascot size={128} expression="happy" />
+          </div>
+          <div className="loading-tips-fullscreen-title">{message}</div>
+          <div className="loading-tips-fullscreen-tip" key={tip.text}>{tip.text}</div>
+          <div className="loading-tips-dots"><span /><span /><span /></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="loading-tips" role="status" aria-live="polite">
       <div className="loading-tips-card">

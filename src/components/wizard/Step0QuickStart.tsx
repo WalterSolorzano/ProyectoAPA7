@@ -4,12 +4,13 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Upload, X, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Zap, ListChecks, Download, FileUp, Home
+  Zap, ListChecks, Download, FileUp, Home, Menu, Lock
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
 import { SettingsMenu } from '../layout/SettingsMenu';
+import { DocumentMascot, getMascotExpression } from '../layout/DocumentMascot';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
@@ -170,6 +171,29 @@ export const Step0QuickStart: React.FC = () => {
           <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
 
+        {/* Botón: Archivo (menú de carga / backstage) — faltaba en el inicio */}
+        <button
+          type="button"
+          onClick={() => useDocStore.getState().setShowFileMenu(true)}
+          title="Archivo: nuevo, abrir, guardar, exportar y sesiones"
+          style={{
+            background: 'var(--surface-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-main)',
+            fontSize: '12px',
+            padding: '4px 10px',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '6px',
+            fontFamily: 'inherit',
+            ...noDragRegion,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+        >
+          <Menu size={12} /> Archivo
+        </button>
+
         <div style={{ flex: 1 }} />
 
         {/* Botón: Volver al documento abierto */}
@@ -287,38 +311,35 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-            {/* Hero: mascota + barra de frases animadas (reemplaza el texto estático) */}
+            {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
 
-            {/* Etiqueta de bienvenida animada (complementa el hero, no duplica el greeting) */}
-            <div style={{ marginBottom: '28px' }}>
-              <span style={{
-                display: 'inline-block',
-                fontSize: '15px', fontWeight: 700, color: 'var(--text-secondary)',
-                animation: 'hero-phrase-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
-              }}>
-                Elegí un archivo y dejá que WordAPA7 lo deje listo en APA 7.
-              </span>
+            {/* Mascota asomándose sobre el dropzone (hero) + globo */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '-14px', position: 'relative', zIndex: 5 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
+                <div className="hero-mascot-breathe" style={{ lineHeight: 0 }}>
+                  <DocumentMascot size={86} expression={getMascotExpression()} />
+                </div>
+                <div style={{
+                  position: 'relative',
+                  backgroundColor: 'var(--surface-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                  borderTopLeftRadius: '4px',
+                  borderRadius: '14px',
+                  padding: '10px 14px',
+                  fontSize: '12.5px', fontWeight: 600,
+                  color: 'var(--text-main)',
+                  boxShadow: 'var(--shadow-md)',
+                  maxWidth: '300px',
+                  lineHeight: 1.4,
+                }}>
+                  ¡Hola! Tirame ese Word desordenado, yo me encargo.
+                </div>
+              </div>
             </div>
 
-            {/* ── ACCIÓN PRIMARIA (A): Convertir documento ── */}
-            <div style={{ marginBottom: '36px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '16px' }}>
-                Convertir documento
-              </h2>
-
-              {!isBackendReady && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
-                  padding: '8px 14px', borderRadius: '10px',
-                  background: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
-                  fontSize: '13px', color: 'var(--accent-primary)',
-                }}>
-                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                  <span>Conectando con el motor de procesamiento...</span>
-                </div>
-              )}
+            {/* ── ACCIÓN PRIMARIA (A): Convertir documento (dropzone hero) ── */}
+            <div style={{ marginBottom: '40px' }}>
               <div style={{
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '16px',
@@ -350,6 +371,12 @@ export const Step0QuickStart: React.FC = () => {
                       </span>
                       <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                         o hacé clic para seleccionar un archivo
+                      </span>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        fontSize: '11px', color: 'var(--text-muted)', marginTop: '14px', fontWeight: 600,
+                      }}>
+                        <Lock size={11} color="var(--accent-success)" /> Procesamiento seguro. Tus documentos no se almacenan.
                       </span>
                     </div>
                   ) : (
@@ -471,8 +498,16 @@ export const Step0QuickStart: React.FC = () => {
                 </div>
             </div>
 
-            {/* ── ACCIÓN SECUNDARIA (B): Plantillas descargables ── */}
-            <div style={{ marginBottom: '40px' }}>
+            {/* ── ACCIÓN SECUNDARIA (B): Plantillas descargables — banda con fondo
+                distinto para separar la acción principal (Subir) de la secundaria ── */}
+            <div style={{
+              marginLeft: '-60px', marginRight: '-60px',
+              padding: '32px 60px 36px',
+              backgroundColor: 'var(--sidebar-bg)',
+              borderTop: '1px solid var(--border-subtle)',
+              borderBottom: '1px solid var(--border-subtle)',
+              marginBottom: '36px',
+            }}>
               <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
                 ¿Todavía no escribiste nada? Descargá una plantilla ya formateada
               </h2>

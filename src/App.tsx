@@ -69,6 +69,7 @@ export const App: React.FC = () => {
     tabs,
     auditorMode,
     setAuditorMode,
+    isBackendReady,
   } = useDocStore();
 
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
@@ -277,25 +278,9 @@ export const App: React.FC = () => {
     );
   }
 
-  // Quick Start screen — show when no doc OR when the user returned "home"
-  // (like Word's backstage). Open tabs remain accessible via ProjectTabs.
-  if (!doc || atHome) {
-    return (
-      <>
-        {tabs.length > 0 && (
-          <div style={{ position: 'sticky', top: 0, zIndex: 15 }}>
-            <ProjectTabs />
-          </div>
-        )}
-        <Step0QuickStart />
-        {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
-        <LoadingTips />
-        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
-      </>
-    );
-  }
-
-  // File menu
+  // File menu (backstage "Archivo") — ANTES que el home: debe poder abrirse
+  // también sin documento cargado (antes la rama "!doc || atHome" lo tapaba,
+  // por eso "el menú de carga no aparecía").
   if (showFileMenu) {
     return (
       <>
@@ -304,6 +289,26 @@ export const App: React.FC = () => {
           <StatusBar />
         </div>
         <LoadingTips />
+      </>
+    );
+  }
+
+  // Quick Start screen — show when no doc OR when the user returned "home"
+  // (like Word's backstage). Open tabs remain accessible via ProjectTabs.
+  // Mientras el motor no está listo se muestra la pantalla de carga FULLSCREEN
+  // (LoadingTips), NO el inicio — el usuario no ve "Conectando..." sobre el home.
+  if (!doc || atHome) {
+    return (
+      <>
+        {tabs.length > 0 && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 15 }}>
+            <ProjectTabs />
+          </div>
+        )}
+        {isBackendReady ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
+        {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
+        <LoadingTips />
+        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       </>
     );
   }

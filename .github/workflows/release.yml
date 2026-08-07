@@ -21,24 +21,17 @@ jobs:
     - name: Install Python dependencies
       run: pip install -r requirements.txt pyinstaller
 
-    - name: Build Python backend
-      run: |
-        python -m PyInstaller --onedir --name python-backend python/main.py
-        if (Test-Path dist-python) { Remove-Item -Recurse -Force dist-python }
-        Move-Item -Path dist/python-backend -Destination dist-python
-
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
         node-version: 18
 
-    - name: Install frontend dependencies
+    - name: Install dependencies
       run: npm ci
 
-    - name: Build frontend
-      run: npm run build
-
-    - name: Build Electron app
+    # electron:build = embed_payload → pyinstaller (spec con excludes de peso)
+    #                    → tsc+vite+manifest → electron-builder (publica .exe + latest.yml)
+    - name: Build backend + frontend + Electron
       run: npm run electron:build
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

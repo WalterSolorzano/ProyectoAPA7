@@ -72,7 +72,8 @@ treat
 dist-electron/
 dist-electron-builder/
 dist-python/
-build/
+build/*
+!build/pyinstaller.spec
 *.exe
 
 # Agents and reports
