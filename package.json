@@ -59,7 +59,6 @@
     "vite-plugin-electron": "^1.1.0",
     "vite-plugin-electron-renderer": "^1.0.0",
     "vite-plugin-node-polyfills": "^0.28.0",
-    "vitest": "^4.1.10",
-    "wrangler": "^4.119.0"
+    "vitest": "^3.2.4"
   }
 }
