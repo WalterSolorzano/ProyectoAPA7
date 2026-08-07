@@ -152,14 +152,28 @@ app.whenReady().then(() => {
   })
   autoUpdater.on('error', (err) => {
     console.error('auto-updater error:', err)
-    sendUpdateStatus({ state: 'error', message: err?.message || String(err) })
+    let msg = err?.message || String(err)
+    if (msg.includes('latest.yml')) {
+      msg = 'No se encontró el manifiesto latest.yml en el release de GitHub.'
+    }
+    sendUpdateStatus({ state: 'error', message: msg })
   })
 
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion()
   })
   ipcMain.on('update:check', () => {
-    autoUpdater.checkForUpdates().catch(() => {})
+    if (!app.isPackaged) {
+      sendUpdateStatus({ state: 'not-available', message: `Estás en modo de desarrollo local (v${app.getVersion()})` })
+      return
+    }
+    autoUpdater.checkForUpdates().catch((err) => {
+      let msg = err?.message || String(err)
+      if (msg.includes('latest.yml')) {
+        msg = 'No se encontró el manifiesto latest.yml en GitHub Releases.'
+      }
+      sendUpdateStatus({ state: 'error', message: msg })
+    })
   })
   ipcMain.on('update:install', () => {
     autoUpdater.quitAndInstall()
@@ -167,9 +181,11 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Chequeo inicial al arrancar + reintento a los ~10s (por si el primero
-  // arrancó antes de que la red/el backend estén listos y falló en silencio).
-  const runCheck = () => autoUpdater.checkForUpdates().catch(() => {})
+  // Chequeo inicial al arrancar solo en producción empaquetada
+  const runCheck = () => {
+    if (!app.isPackaged) return
+    autoUpdater.checkForUpdates().catch(() => {})
+  }
   try { runCheck() } catch { /* best-effort */ }
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {

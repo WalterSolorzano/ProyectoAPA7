@@ -515,7 +515,7 @@ export const useDocStore = create<DocState>()(
   nimLogs: [],
   isNIMDiagnosticsOpen: false,
 
-  atHome: false,
+  atHome: true,
   reviewResult: null,
   isReviewOpen: false,
   isReviewLoading: false,
