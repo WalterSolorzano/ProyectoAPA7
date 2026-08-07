@@ -2211,8 +2211,9 @@ async def validate_citations_endpoint(session_id: str) -> dict:
     result = cross_check_citations_and_references(doc)
 
     # 2. Advanced Graph RAG validation
-    if doc.references:
-        references_text = [r.text for r in doc.references if r.text]
+    if doc.referencias:
+        references_text = [(r.raw_text or r.formatted_apa or "") for r in doc.referencias]
+        references_text = [t for t in references_text if t]
         graph = build_citation_graph(references_text)
 
         graph_issues = []
