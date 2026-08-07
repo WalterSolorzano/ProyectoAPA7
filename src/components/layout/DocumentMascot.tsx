@@ -71,22 +71,22 @@ export const DocumentMascot: React.FC<MascotProps> = ({ size = 52, expression })
       {/* Ojos y boca según expresión */}
       {expr === 'happy' || expr === 'excited' || expr === 'neutral' ? (
         <>
-          <circle cx="26" cy="44" r="2.6" fill="#4E342E" />
-          <circle cx="38" cy="44" r="2.6" fill="#4E342E" />
+          <circle cx="26" cy="44" r="2.6" fill="#4E342E" className="doc-mascot-eye" />
+          <circle cx="38" cy="44" r="2.6" fill="#4E342E" className="doc-mascot-eye" />
           <circle cx="27" cy="43.2" r="0.9" fill="#ffffff" opacity="0.8" />
           <circle cx="39" cy="43.2" r="0.9" fill="#ffffff" opacity="0.8" />
         </>
       ) : expr === 'curious' ? (
         <>
-          <circle cx="26" cy="44" r="2.6" fill="#4E342E" />
+          <circle cx="26" cy="44" r="2.6" fill="#4E342E" className="doc-mascot-eye" />
           <circle cx="27" cy="43.2" r="0.9" fill="#ffffff" opacity="0.8" />
-          <circle cx="39" cy="42" r="3.6" fill="#4E342E" />
+          <circle cx="39" cy="42" r="3.6" fill="#4E342E" className="doc-mascot-eye" />
           <circle cx="39" cy="41" r="1.4" fill="#ffffff" />
         </>
       ) : (
         <>
-          <circle cx="26" cy="45" r="2.6" fill="#4E342E" />
-          <circle cx="38" cy="45" r="2.6" fill="#4E342E" />
+          <circle cx="26" cy="45" r="2.6" fill="#4E342E" className="doc-mascot-eye" />
+          <circle cx="38" cy="45" r="2.6" fill="#4E342E" className="doc-mascot-eye" />
           <path d="M20 39 Q24 37 28 39" stroke="#4E342E" strokeWidth="2" fill="none" strokeLinecap="round" />
           <path d="M36 39 Q40 37 44 39" stroke="#4E342E" strokeWidth="2" fill="none" strokeLinecap="round" />
         </>

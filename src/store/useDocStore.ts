@@ -91,6 +91,12 @@ interface DocState {
   /** Timestamp del último export con éxito (para la micro-animación de cierre) */
   exportSuccessAt: number | null;
   isBackendReady: boolean;  // true cuando el motor Python ha confirmado que está listo
+  /** True si el motor tardó demasiado: el usuario decidió continuar igual (no bloquear en pantalla de carga infinita). */
+  backendStalled: boolean;
+  setBackendStalled: (v: boolean) => void;
+  /** Reintenta la conexión al backend (incrementa un nonce que App escucha). */
+  retryBackend: () => void;
+  backendCheckNonce: number;
   error: string | null;
   selectedElementId: string | null;
   /** Referencia seleccionada en el Editor Unificado (sección Referencias). */
@@ -395,6 +401,10 @@ export const useDocStore = create<DocState>()(
   isLoading: false,
   exportSuccessAt: null,
   isBackendReady: false,
+  backendStalled: false,
+  setBackendStalled: (v) => set({ backendStalled: v }),
+  retryBackend: () => set((state) => ({ backendCheckNonce: state.backendCheckNonce + 1 })),
+  backendCheckNonce: 0,
   error: null,
   selectedElementId: null,
   selectedReferenceId: null,

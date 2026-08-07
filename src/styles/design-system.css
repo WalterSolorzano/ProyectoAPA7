@@ -1148,6 +1148,26 @@ html, body {
 .hero-phrase-in {
   animation: hero-phrase-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ── MASCOTA VIVA (el "libro" respira, se mece y parpadea) ──
+   Combate la "falsa muerte": el cerebro asocia el movimiento fluido con que
+   el programa sigue vivo. Parpadeo cada ~4.6s + balanceo/rebote suave. */
+@keyframes doc-mascot-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94%, 97% { transform: scaleY(0.08); }
+}
+.doc-mascot-eye {
+  animation: doc-mascot-blink 4.6s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes doc-mascot-alive {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+  50% { transform: translateY(-4px) scale(1.02) rotate(-1deg); }
+}
+.doc-mascot-alive {
+  animation: doc-mascot-alive 3s ease-in-out infinite;
+}
 @keyframes hero-phrase-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }

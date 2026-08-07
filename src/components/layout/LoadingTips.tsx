@@ -17,6 +17,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
 import { getSizeComment, getTimeOfWeekComment } from '../../lib/studentJokes';
 import { DocumentMascot } from './DocumentMascot';
+import { Loader2 } from 'lucide-react';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
 
@@ -175,6 +176,7 @@ export const LoadingTips: React.FC = () => {
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
   const doc = useDocStore((s) => s.doc);
   const isBackendReady = useDocStore((s) => s.isBackendReady);
+  const backendStalled = useDocStore((s) => s.backendStalled);
   const fileName = (doc as any)?.meta?.file_name || (doc as any)?.file_name || '';
 
   const [visible, setVisible] = useState(false);
@@ -184,6 +186,9 @@ export const LoadingTips: React.FC = () => {
   const honestyShownRef = useRef(false);
   const llmCalledRef = useRef(false);
   const minDisplayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cuántos segundos lleva la conexión al motor (para ofrecer "Reintentar" / "Continuar")
+  const [connectingSecs, setConnectingSecs] = useState(0);
+  const connectingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Tiempo mínimo de visibilidad: 3.5 segundos para que se aprecie el diseño
   const MIN_DISPLAY_MS = 3500;
@@ -233,9 +238,11 @@ export const LoadingTips: React.FC = () => {
   };
 
   useEffect(() => {
-    // Mostrar también durante arranque del backend (cuando !isBackendReady)
-    const shouldShow = isLoading || !isBackendReady;
+    // Mostrar también durante arranque del backend (cuando !isBackendReady).
+    // Si el usuario ya eligió "continuar" (backendStalled), NO bloquear.
+    const shouldShow = isLoading || (!isBackendReady && !backendStalled);
     if (!shouldShow) {
+      if (connectingInterval.current) { clearInterval(connectingInterval.current); connectingInterval.current = null; }
       // Delay hide: mantener visible el tiempo mínimo
       if (visible && startRef.current > 0) {
         const elapsed = Date.now() - startRef.current;
@@ -263,10 +270,14 @@ export const LoadingTips: React.FC = () => {
         setTip(initTip);
       }
       setVisible(true);
+      setConnectingSecs(0);
+      if (!connectingInterval.current) {
+        connectingInterval.current = setInterval(() => setConnectingSecs((s) => s + 1), 1000);
+      }
     }, 250);
     return () => { clearTimeout(t); if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isBackendReady]);
+  }, [isLoading, isBackendReady, backendStalled]);
 
   useEffect(() => {
     if (!visible) return;
@@ -324,17 +335,44 @@ export const LoadingTips: React.FC = () => {
 
   // ── PANTALLA COMPLETA (tipo juego) mientras arranca el motor ──
   // El usuario NO debe ver el inicio ni barras de "conectando": solo la
-  // mascota grande + frases rotativas a pantalla completa.
-  if (!isBackendReady) {
+  // mascota viva + frases rotativas a pantalla completa. Si el motor tarda
+  // mucho (>12s) se ofrecen "Reintentar" y "Continuar de todos modos".
+  if (!isBackendReady && !backendStalled) {
     return (
       <div className="loading-tips-fullscreen" role="status" aria-live="polite">
         <div className="loading-tips-fullscreen-inner">
-          <div className="hero-mascot-breathe" style={{ lineHeight: 0 }}>
+          <div className="doc-mascot-alive" style={{ lineHeight: 0 }}>
             <DocumentMascot size={128} expression="happy" />
           </div>
           <div className="loading-tips-fullscreen-title">{message}</div>
           <div className="loading-tips-fullscreen-tip" key={tip.text}>{tip.text}</div>
           <div className="loading-tips-dots"><span /><span /><span /></div>
+
+          {connectingSecs >= 12 && (
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                El motor tarda más de lo normal… seguimos intentando.
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setConnectingSecs(0); useDocStore.getState().retryBackend(); }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Loader2 size={13} /> Reintentar conexión
+                </button>
+                <button
+                  type="button"
+                  onClick={() => useDocStore.getState().setBackendStalled(true)}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '12px', color: 'var(--text-muted)' }}
+                >
+                  Continuar de todos modos
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
