@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
+import { RubricaChecklist } from './RubricaChecklist';
 import { needsReview, parseAuthorEntries } from '../../lib/portadaAuthors';
 import {
   ArrowLeft, FileText, FileType, FileCode, ShieldCheck, CheckCircle2,
@@ -152,6 +153,9 @@ export const ExportView: React.FC = () => {
               Revisá el manifiesto, elegí el formato y descargá tu documento APA 7.
             </p>
           </div>
+
+          {/* Checklist del profe (rúbrica, lenguaje de resultado) */}
+          <RubricaChecklist />
 
           {/* Manifiesto de Entrega */}
           <div style={{

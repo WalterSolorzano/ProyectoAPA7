@@ -32,6 +32,8 @@ function mkElem(over: Partial<ElementModel>): ElementModel {
 }
 
 const NO_CTX = { ghostCitations: [], orphanReferences: [], validationIssues: [] };
+// El auditor de estilo solo comenta tras ejecutar "Auditar párrafos".
+const AUDITED_CTX = { ...NO_CTX, styleAuditRun: true };
 
 describe('getWhatsAppComment — IA / emojis', () => {
   it('detects checklist emoji in paragraph text', () => {
@@ -53,20 +55,27 @@ describe('getWhatsAppComment — IA / emojis', () => {
   });
 
   it('detects "en resumen" and accented "en conclusión"', () => {
-    expect(getWhatsAppComment(mkElem({ text: 'En resumen, los datos son claros.' }), NO_CTX)!.kind).toBe('conclusion');
-    expect(getWhatsAppComment(mkElem({ text: 'En conclusión, se puede afirmar que…' }), NO_CTX)!.kind).toBe('conclusion');
+    expect(getWhatsAppComment(mkElem({ text: 'En resumen, los datos son claros.' }), AUDITED_CTX)!.kind).toBe('conclusion');
+    expect(getWhatsAppComment(mkElem({ text: 'En conclusión, se puede afirmar que…' }), AUDITED_CTX)!.kind).toBe('conclusion');
   });
 
   it('detects "cabe destacar" as AI phrase', () => {
-    expect(getWhatsAppComment(mkElem({ text: 'Cabe destacar que el análisis fue robusto.' }), NO_CTX)!.kind).toBe('ai');
+    expect(getWhatsAppComment(mkElem({ text: 'Cabe destacar que el análisis fue robusto.' }), AUDITED_CTX)!.kind).toBe('ai');
   });
 
-  it('returns null for clean academic text', () => {
+  it('returns null for clean academic text even after audit', () => {
     const c = getWhatsAppComment(
       mkElem({ text: 'La investigación educativa en América Latina mostró resultados significativos durante el estudio.' }),
-      NO_CTX,
+      AUDITED_CTX,
     );
     expect(c).toBeNull();
+  });
+
+  it('does NOT flag style issues before an explicit audit', () => {
+    // Sin "Auditar párrafos" no se juzga el estilo: solo fallas estructurales.
+    expect(getWhatsAppComment(mkElem({ text: 'En resumen, los datos son claros.' }), NO_CTX)).toBeNull();
+    expect(getWhatsAppComment(mkElem({ text: 'Cabe destacar que el análisis fue robusto.' }), NO_CTX)).toBeNull();
+    expect(getWhatsAppComment(mkElem({ text: 'Nosotros realizamos el experimento.' }), NO_CTX)).toBeNull();
   });
 });
 
@@ -109,35 +118,35 @@ describe('getWhatsAppComment — validación APA', () => {
 
 describe('getWhatsAppComment — estilo de redacción', () => {
   it('flags shouting (ALL CAPS paragraph)', () => {
-    const c = getWhatsAppComment(mkElem({ text: 'ESTE TEXTO ESTÁ TODO EN MAYÚSCULAS Y NADIE SABE POR QUÉ' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: 'ESTE TEXTO ESTÁ TODO EN MAYÚSCULAS Y NADIE SABE POR QUÉ' }), AUDITED_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('shouting');
   });
 
   it('does NOT flag an ALL CAPS heading (legítimo)', () => {
-    expect(getWhatsAppComment(mkElem({ type: 'heading', text: 'INTRODUCCIÓN' }), NO_CTX)).toBeNull();
+    expect(getWhatsAppComment(mkElem({ type: 'heading', text: 'INTRODUCCIÓN' }), AUDITED_CTX)).toBeNull();
   });
 
   it('detects spanglish', () => {
-    const c = getWhatsAppComment(mkElem({ text: 'The estudio fue muy importante and los resultados fueron claros de la investigación' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: 'The estudio fue muy importante and los resultados fueron claros de la investigación' }), AUDITED_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('spanglish');
   });
 
   it('detects a duplicated word', () => {
-    const c = getWhatsAppComment(mkElem({ text: 'El estudio estudió estudió la muestra durante el análisis de la investigación' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: 'El estudio estudió estudió la muestra durante el análisis de la investigación' }), AUDITED_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('duplicate');
   });
 
   it('detects first person', () => {
-    const c = getWhatsAppComment(mkElem({ text: 'Nosotros realizamos el experimento y luego yo analicé los resultados de la investigación' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: 'Nosotros realizamos el experimento y luego yo analicé los resultados de la investigación' }), AUDITED_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('first_person');
   });
 
   it('detects an undefined dotted acronym', () => {
-    const c = getWhatsAppComment(mkElem({ text: 'El método S.C.E.M. se aplicó durante toda la investigación del proyecto' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: 'El método S.C.E.M. se aplicó durante toda la investigación del proyecto' }), AUDITED_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('acronym');
   });
@@ -159,11 +168,11 @@ describe('WhatsAppComment component', () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it('shows the typing indicator first, then the message', () => {
-    const { container, rerender } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: 'En resumen, los datos son claros.' })} />);
+    const { container, rerender } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: '✅ Cumple con las normas' })} />);
     // En typing: la colita aún no existe y hay "escribiendo…"
     expect(screen.getByText(/escribiendo/i)).toBeTruthy();
     act(() => { vi.advanceTimersByTime(2200); });
-    rerender(<WhatsAppComment elem={mkElem({ id: 'x', text: 'En resumen, los datos son claros.' })} />);
+    rerender(<WhatsAppComment elem={mkElem({ id: 'x', text: '✅ Cumple con las normas' })} />);
     expect(screen.queryByText(/escribiendo/i)).toBeNull();
     expect(container.querySelector('.wa-tail')).toBeTruthy();
   });

@@ -294,6 +294,10 @@ interface DocState {
   replaceImage: (elementId: string, file: File) => Promise<void>;
   reorderElements: (elementIds: string[]) => Promise<void>;
   acceptHighConfidenceElements: () => Promise<void>;
+  /** "Arreglámelo": aplica el 90% del formato automáticamente (acepta
+   *  clasificaciones seguras, valida y audita citas). Solo el usuario decide
+   *  lo que de verdad necesita su criterio. */
+  runQuickFix: () => Promise<void>;
   insertTocElement: () => void;
 
   // Undo/Redo
@@ -1162,6 +1166,40 @@ export const useDocStore = create<DocState>()(
       set({ doc: updated, isLoading: false });
     } catch (e: any) {
       set({ error: e.message || 'Error al aprobar elementos', isLoading: false });
+    }
+  },
+
+  runQuickFix: async () => {
+    const { doc } = get();
+    if (!doc) {
+      get().showToast('Subí un documento primero', 'warning');
+      return;
+    }
+    set({ isLoading: true });
+    try {
+      await get().acceptHighConfidenceElements().catch(() => {});
+      await get().runValidation().catch(() => {});
+      await get().runCitationAudit().catch(() => {});
+      const res = get().citationAuditResult;
+      const ghosts = res?.ghost_citations?.length || 0;
+      const orphans = res?.orphan_references?.length || 0;
+      get().pushActivityEvent(
+        'success',
+        'Formato aplicado automáticamente',
+        ghosts + orphans > 0
+          ? `Quedan ${ghosts + orphans} citas/referencias por resolver`
+          : 'Clasificación, validación y citas al día',
+      );
+      get().showToast(
+        ghosts + orphans > 0
+          ? 'Documento arreglado. Revisá las citas en Referencias.'
+          : 'Documento arreglado: formato aplicado y citas al día.',
+        ghosts + orphans > 0 ? 'warning' : 'success',
+      );
+    } catch (err: any) {
+      get().showToast(err.message || 'No se pudo aplicar el formato', 'error');
+    } finally {
+      set({ isLoading: false });
     }
   },
 

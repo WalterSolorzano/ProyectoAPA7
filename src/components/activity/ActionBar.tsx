@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { ScanText, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { ScanText, CheckCircle2, Loader2, Sparkles, Wand2 } from 'lucide-react';
 
 const actionBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start', gap: '10px',
@@ -88,6 +88,7 @@ export const ActionBar: React.FC = () => {
   const {
     doc, isReviewLoading, reviewResult, runAIReview, runCitationAudit,
     citationAuditResult, runLLMClassify, llmProgress, sayMascot, setForceRightPanelOpen,
+    runQuickFix, isLoading,
   } = useDocStore();
 
   if (!doc) return null;
@@ -132,7 +133,42 @@ export const ActionBar: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--text-muted)', padding: '0 2px' }}>
+      {/* Ruta "Arreglámelo" de un clic: aplica el 90% del formato solo */}
+      <button
+        type="button"
+        onClick={async () => {
+          sayMascot('Dejámelo a mí: aplico el formato y reviso las citas. Después solo decidís lo importante.', 'info');
+          setForceRightPanelOpen(true);
+          await runQuickFix().catch(() => {});
+        }}
+        disabled={isLoading}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '9px', width: '100%', textAlign: 'left',
+          padding: '11px 13px', cursor: isLoading ? 'wait' : 'pointer', fontFamily: 'inherit',
+          background: 'var(--accent-primary)', border: 'none', borderRadius: 'var(--radius-lg)',
+          color: '#fff', opacity: isLoading ? 0.7 : 1,
+        }}
+      >
+        {isLoading ? (
+          <Loader2 size={15} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+        ) : (
+          <span style={{
+            width: '24px', height: '24px', borderRadius: '8px', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+          }}>
+            <Wand2 size={14} />
+          </span>
+        )}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: '12px', fontWeight: 800 }}>Arreglámelo</span>
+          <span style={{ display: 'block', fontSize: '10px', opacity: 0.85, lineHeight: 1.35, marginTop: '1px' }}>
+            Aplica el formato automáticamente. Vos solo decidís lo que de verdad necesita tu criterio.
+          </span>
+        </span>
+      </button>
+
+      <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--text-muted)', padding: '0 2px', marginTop: '2px' }}>
         Herramientas
       </div>
       <ActionItem

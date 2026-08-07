@@ -80,6 +80,12 @@ export interface WhatsAppContext {
   ghostCitations: any[];
   orphanReferences: any[];
   validationIssues: any[];
+  /** True tras ejecutar "Auditar párrafos": habilita los comentarios de
+   *  estilo/redacción (primera persona, siglas, spanglish, "cabe destacar"…).
+   *  Sin esta bandera solo se muestran fallas ESTRUCTURALES duras (citas
+   *  fantasma, validación, emojis, figuras sin leyenda), para no inundar
+   *  al usuario con comentarios que él no pidió. */
+  styleAuditRun?: boolean;
 }
 
 const EMPTY_CTX: WhatsAppContext = { ghostCitations: [], orphanReferences: [], validationIssues: [] };
@@ -301,14 +307,18 @@ export function getWhatsAppComment(
           match: bad.raw,
         };
       }
-      const first = citations[0];
-      const authorLabel = first.authors.slice(0, 2).join(' y ') || first.raw;
-      return {
-        emoji: '✅',
-        text: `Cita APA 7 detectada: ${authorLabel} (${first.year}). Está bien formateada.`,
-        kind: 'citation_ok',
-        match: first.raw,
-      };
+      // Confirmación verde: solo después de una auditoría explícita, para no
+      // llenar el documento de "Cita APA detectada" en cada párrafo.
+      if (ctx.styleAuditRun) {
+        const first = citations[0];
+        const authorLabel = first.authors.slice(0, 2).join(' y ') || first.raw;
+        return {
+          emoji: '✅',
+          text: `Cita APA 7 detectada: ${authorLabel} (${first.year}). Está bien formateada.`,
+          kind: 'citation_ok',
+          match: first.raw,
+        };
+      }
     }
   }
 
@@ -359,7 +369,10 @@ export function getWhatsAppComment(
     return { emoji: l.emoji, text: l.text, kind: 'copypaste' };
   }
 
-  if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
+  // ── Comentarios de ESTILO/REDACCIÓN: solo tras una auditoría explícita ──
+  // (el usuario presionó "Auditar párrafos"). Sin ella no se juzga al
+  // estudiante: solo aparecen fallas estructurales reales.
+  if (ctx.styleAuditRun && (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote')) {
     const letters = text.replace(/[^a-zA-ZÁÉÍÓÚÑáéíóúñ]/g, '');
     if (letters.length >= 6 && letters.length / Math.max(1, text.length) > 0.75 && letters === letters.toUpperCase()) {
       const l = pickByElement(SHOUT_COMMENTS, elem.id, nonce);
@@ -394,12 +407,12 @@ export function getWhatsAppComment(
   }
 
   const norm = normalize(text);
-  if (CONCLUSION_TRIGGERS.some((t) => norm.includes(t))) {
+  if (ctx.styleAuditRun && CONCLUSION_TRIGGERS.some((t) => norm.includes(t))) {
     const l = pickByElement(CONCLUSION_COMMENTS, elem.id, nonce);
     const trigger = CONCLUSION_TRIGGERS.find((t) => norm.includes(t));
     return { emoji: l.emoji, text: l.text, kind: 'conclusion', match: trigger ? accentMatchSlice(text, trigger) : undefined };
   }
-  if (AI_TRIGGERS.some((t) => norm.includes(t))) {
+  if (ctx.styleAuditRun && AI_TRIGGERS.some((t) => norm.includes(t))) {
     const l = pickByElement(AI_COMMENTS, elem.id, nonce);
     const trigger = AI_TRIGGERS.find((t) => norm.includes(t));
     return { emoji: l.emoji, text: l.text, kind: 'ai', match: trigger ? accentMatchSlice(text, trigger) : undefined };
@@ -451,6 +464,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
   const ghostCitations = useDocStore((s) => (s.citationAuditResult?.ghost_citations || []) as any[]);
   const orphanReferences = useDocStore((s) => (s.citationAuditResult?.orphan_references || []) as any[]);
   const validationIssues = useDocStore((s) => (s.validationIssues || []) as any[]);
+  const reviewResult = useDocStore((s) => s.reviewResult);
   const apiKey = useDocStore((s) => s.apiKey);
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
   const sessionId = useDocStore((s) => s.doc?.session_id || '');
@@ -464,7 +478,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
   const dragStartX = useRef<number | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ctx: WhatsAppContext = { ghostCitations, orphanReferences, validationIssues };
+  const ctx: WhatsAppContext = { ghostCitations, orphanReferences, validationIssues, styleAuditRun: !!reviewResult };
   let comment: WhatsAppCommentData | null = getWhatsAppComment(elem, ctx, nonceRef.current);
   let isPositive = false;
   if (!comment && positive) {

@@ -11,6 +11,9 @@ import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './What
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
 
+// Máximo de burbujas de comentario visibles por página (el resto se resume).
+const MAX_GUTTER = 6;
+
 export const computePages = (elements: ElementModel[]): ElementModel[][] => {
   const pages: ElementModel[][] = [];
   let currentPage: ElementModel[] = [];
@@ -380,21 +383,31 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // Algoritmo de paginación virtual respetando salto de página del cuerpo
   const pages = computePages(doc.elements);
 
-  // ── Comentarios positivos: TODAS las páginas/secciones totalmente limpias ──
+  // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
   const commentCtx = {
     ghostCitations: (citationAudit?.ghost_citations || []) as any[],
     orphanReferences: (citationAudit?.orphan_references || []) as any[],
     validationIssues: (validationIssues || []) as any[],
+    // Sin auditoría de estilo no se juzga redacción: evita inundar de
+    // comentarios ("detecta que como falla") en cada párrafo del documento.
+    styleAuditRun: !!reviewResult,
   };
+  // Un solo festejo: SOLO si el documento entero está impecable (cero comentarios).
   const positiveMap = new Map<string, boolean>();
   {
+    let anyComment = false;
     for (const pageElements of pages) {
-      const hasAny = pageElements.some((e) => getWhatsAppComment(e, commentCtx, 0) !== null);
-      if (!hasAny && pageElements.some((e) => e.type === 'heading' && !e.is_cover_section)) {
+      for (const e of pageElements) {
+        if (getWhatsAppComment(e, commentCtx, 0) !== null) { anyComment = true; break; }
+      }
+      if (anyComment) break;
+    }
+    if (!anyComment) {
+      for (const pageElements of pages) {
         const h = pageElements.find((e) => e.type === 'heading' && !e.is_cover_section);
-        if (h) { positiveMap.set(h.id, true); }
+        if (h) { positiveMap.set(h.id, true); break; }
       }
     }
   }
@@ -1409,36 +1422,61 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               )}
             </div>
             {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word).
-                Muestra TODOS los comentarios de la página sin límite (salvo los
-                descartados por el usuario). Si la medida offsetTop aún no está
-                lista (primer paint) se distribuye por índice. */}
+                Tope de burbujas por página (MAX_GUTTER) para no inundar; el resto
+                se resume en un chip "+N más". */}
             {pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null)).length > 0 && (
               <div style={{ position: 'relative', width: '250px', flexShrink: 0 }}>
-                {pageElements.map((elem, idx) => {
-                  const positive = !!positiveMap.get(elem.id);
-                  const hasComment = positive || getWhatsAppComment(elem, commentCtx, 0) !== null;
-                  if (!hasComment || dismissedCommentIds.includes(elem.id)) return null;
-                  const measured = gutterOffsets[elem.id];
-                  const top = typeof measured === 'number' && measured > 0
-                    ? measured
-                    : Math.min(idx * 96, 880 - 84);
+                {(() => {
+                  let shown = 0;
+                  const extra = pageElements.filter(
+                    (e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null),
+                  ).length;
                   return (
-                    <div
-                      key={elem.id}
-                      className="wa-gutter"
-                      style={{ position: 'absolute', top: `${top}px`, left: 0, width: '100%' }}
-                    >
-                      <WhatsAppComment
-                        elem={elem}
-                        positive={positive}
-                        onHover={setHoveredCommentId}
-                        onLeave={() => setHoveredCommentId(null)}
-                        onResolve={handleResolveComment}
-                        onDismiss={dismissComment}
-                      />
-                    </div>
+                    <>
+                      {pageElements.map((elem, idx) => {
+                        const positive = !!positiveMap.get(elem.id);
+                        const hasComment = positive || getWhatsAppComment(elem, commentCtx, 0) !== null;
+                        if (!hasComment || dismissedCommentIds.includes(elem.id)) return null;
+                        if (shown >= MAX_GUTTER) return null;
+                        shown += 1;
+                        const measured = gutterOffsets[elem.id];
+                        const top = typeof measured === 'number' && measured > 0
+                          ? measured
+                          : Math.min(idx * 96, 880 - 84);
+                        return (
+                          <div
+                            key={elem.id}
+                            className="wa-gutter"
+                            style={{ position: 'absolute', top: `${top}px`, left: 0, width: '100%' }}
+                          >
+                            <WhatsAppComment
+                              elem={elem}
+                              positive={positive}
+                              onHover={setHoveredCommentId}
+                              onLeave={() => setHoveredCommentId(null)}
+                              onResolve={handleResolveComment}
+                              onDismiss={dismissComment}
+                            />
+                          </div>
+                        );
+                      })}
+                      {extra > MAX_GUTTER && (
+                        <div style={{
+                          position: 'absolute', top: `${Math.min((MAX_GUTTER + 1) * 96, 880 - 84)}px`, left: 0, width: '100%',
+                          fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700,
+                          display: 'flex', alignItems: 'center', gap: '5px',
+                        }}>
+                          <span style={{
+                            width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                          }}>{extra - MAX_GUTTER}</span>
+                          más en esta página
+                        </div>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
             )}
 
