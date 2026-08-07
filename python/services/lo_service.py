@@ -51,20 +51,24 @@ class LibreOfficeService:
         if not self.is_available():
             return False
         with self._lock:
+            import tempfile
             try:
-                import uuid
-                env_arg = f"-env:UserInstallation=file:///{Path.home().as_posix()}/.lo_convert_{uuid.uuid4().hex}"
-                result = subprocess.run(
-                    [self._lo_path, env_arg, '--headless', '--norestore',
-                     '--convert-to', output_format,
-                     '--outdir', str(output_dir.resolve()),
-                     str(input_path.resolve())],
-                    capture_output=True, timeout=60
-                )
-                if result.returncode != 0:
-                    logger.error(f"[LibreOffice Service] Error en conversión: {result.stderr.decode('utf-8', errors='ignore')}")
-                    return False
-                return True
+                # Perfil de usuario aislado en un TemporaryDirectory que se
+                # autolimpia: ANTES cada conversión creaba ~/.lo_convert_<uuid>
+                # en el HOME y nunca lo borraba (decenas de MB acumulados).
+                with tempfile.TemporaryDirectory(prefix='lo_profile_') as tmp:
+                    env_arg = f"-env:UserInstallation=file:///{Path(tmp).as_posix()}"
+                    result = subprocess.run(
+                        [self._lo_path, env_arg, '--headless', '--norestore',
+                         '--convert-to', output_format,
+                         '--outdir', str(output_dir.resolve()),
+                         str(input_path.resolve())],
+                        capture_output=True, timeout=60
+                    )
+                    if result.returncode != 0:
+                        logger.error(f"[LibreOffice Service] Error en conversión: {result.stderr.decode('utf-8', errors='ignore')}")
+                        return False
+                    return True
             except subprocess.TimeoutExpired:
                 logger.error("[LibreOffice Service] Timeout en la conversión.")
                 return False

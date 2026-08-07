@@ -287,9 +287,9 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
 
         # Limpieza de archivos temporales sueltos en sesiones aún vivas
         # (que por su antigüedad hayan superado la mitad del TTL).
+        half_ttl = ttl_seconds // 2
+        cutoff_mtime = now - half_ttl
         if sessions_root.exists():
-            half_ttl = ttl_seconds // 2
-            cutoff_mtime = now - half_ttl
             for session_dir in sessions_root.iterdir():
                 if not session_dir.is_dir():
                     continue
@@ -305,6 +305,41 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
                             continue
                 except Exception:
                     continue
+
+        # Limpieza de carpetas de exportación y portadas temporales: archivos
+        # huérfanos que no pertenecen a una sesión y superan medio TTL.
+        for extra_dir_name in ("exports", "temp_covers"):
+            extra_dir = storage_dir / extra_dir_name
+            if not extra_dir.exists():
+                continue
+            try:
+                for f in extra_dir.iterdir():
+                    try:
+                        if f.is_file() and f.stat().st_mtime < cutoff_mtime:
+                            f.unlink()
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+
+        # Podar el registro de idempotencia antiguo (wordapa7.db): las filas
+        # de sesiones/hashes vencidos ya no hacen falta y no deben crecer sin fin.
+        try:
+            idem_db = storage_dir / "db" / "wordapa7.db"
+            if idem_db.exists():
+                conn = sqlite3.connect(str(idem_db))
+                conn.execute(
+                    "DELETE FROM hash_registry WHERE first_seen < datetime('now', ?)",
+                    (f"-{ttl_seconds} seconds",),
+                )
+                conn.execute(
+                    "DELETE FROM sessions WHERE processed_at < datetime('now', ?)",
+                    (f"-{ttl_seconds} seconds",),
+                )
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            print(f"[GC] Error podando idempotencia: {e}")
 
         return deleted
     finally:

@@ -2642,7 +2642,11 @@ class JsonFormatter(logging.Formatter):
 user_data_dir = os.environ.get('APP_USERDATA', str(STORAGE_DIR))
 log_file_path = os.path.join(user_data_dir, 'python-backend.log')
 
-file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+# Log rotativo (máx. 5 MB por archivo, 3 copias): el log NO debe crecer sin límite.
+from logging.handlers import RotatingFileHandler
+file_handler = RotatingFileHandler(
+    log_file_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
+)
 file_handler.setFormatter(JsonFormatter())
 
 stream_handler = logging.StreamHandler()
