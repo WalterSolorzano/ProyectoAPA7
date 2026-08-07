@@ -1,4 +1,4 @@
-﻿"""
+"""
 WordAPA7 — Servidor Principal FastAPI
 
 Servidor Web unificado que expone los endpoints REST para la manipulacion de documentos
@@ -88,6 +88,7 @@ from models import (
 )
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
 from modules.referencias_module import resolve_doi
+from modules.doc_auditor import audit_document_structure, DocAuditResult
 from parsing.docx_parser import parse_docx_bytes
 from persistence.idempotency import check_idempotency, init_sqlite_db
 from persistence.session_manager import (
@@ -840,6 +841,26 @@ async def upload_docx(
         doc_model: DocumentModel = await asyncio.to_thread(
             parse_docx_bytes, content, file.filename, session_id, STORAGE_DIR, skip_page_layout=True
         )
+
+        # Engine V2 (P0b): enriquecer con mediciones reales de Word via COM.
+        # Solo en Windows con Office instalado; sin COM sigue funcionando.
+        original_path = session_dir / "original.docx"
+        try:
+            from parsing.com_reader import enrich_document_from_com
+            com_diag = await asyncio.to_thread(
+                enrich_document_from_com, doc_model, str(original_path)
+            )
+            if com_diag.get("cover_corrected"):
+                logger.info(
+                    f"[COM Enrich] Portada corregida: body_start={com_diag.get('cover_new_start')}, "
+                    f"elementos corregidos={com_diag.get('cover_elements_corrected', 0)}"
+                )
+            if com_diag.get("heading_corrected"):
+                logger.info(
+                    f"[COM Enrich] Headings corregidos: {com_diag.get('heading_corrected')}/{com_diag.get('headings_checked')}"
+                )
+        except Exception as e:
+            logger.warning(f"[COM Enrich] Falló enriquecimiento COM (no crítico): {e}")
 
         # Run AI text detector (Library patterns)
         try:
@@ -2698,6 +2719,38 @@ async def save_session_snapshot_endpoint(session_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
     save_session_snapshot(doc_model, STORAGE_DIR)
     return {"status": "ok", "message": "Progreso guardado", "session_id": session_id}
+
+
+@app.post("/api/audit-structure/{session_id}")
+async def audit_structure_endpoint(session_id: str, request: Request) -> DocAuditResult:
+    """
+    Engine V2 (P2): Auditoría global de estructura vía LLM con salida JSON.
+    Analiza heading hierarchy, secciones faltantes, consistencia de citas
+    y da sugerencias de formato en español. Sin API key retorna un resultado
+    vacío indicando que no hay IA configurada.
+    """
+    doc_model: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc_model:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    # Obtener API key del usuario (NVIDIA u otro provider)
+    api_key = os.getenv("NVIDIA_API_KEY", "")
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    if body.get("api_key"):
+        api_key = body["api_key"]
+
+    provider_config = {
+        "nim_url": body.get("nim_url", ""),
+        "use_local": body.get("use_local", "false") == "true",
+        "provider_id": body.get("provider_id", ""),
+    }
+
+    result = await audit_document_structure(doc_model, api_key, provider_config)
+    return result
 
 
 @app.post("/api/ai-review/{session_id}")

@@ -96,14 +96,31 @@ class COMPostProcessor:
                         AddToRecentFiles=False
                     )
 
-                # 5. Actualizar TOC si existe
+                # 5. Aplicar estilos APA con el motor real de Word.
+                # Python-docx los escribió en styles.xml pero Word es la autoridad.
+                self._apply_apa_styles(word, doc)
+
+                # 6. Layout enforcement PASS 1: pageBreakBefore, KeepWithNext,
+                #    tablas partidas → corregir. Luego guardar para que Word
+                #    re-pagine con los nuevos estilos.
+                self._enforce_layout(doc)
+                doc.Save()
+                # PASS 2: re-medir (los estilos+layout del pass 1 pueden haber
+                # desplazado contenido). Corregir remanentes.
+                self._enforce_layout(doc)
+
+                # 7. Diagnóstico: resumen de la estructura final
+                diag = self._diagnostic_report(doc)
+                logger.info(f"[COM PostProcessor] Diagnóstico: {diag}")
+
+                # 8. Actualizar TOC si existe (los headings están en sus páginas finales)
                 for toc in doc.TablesOfContents:
                     toc.Update()
 
-                # Guardar cambios del DOCX
+                # Guardar cambios finales del DOCX
                 doc.Save()
 
-                # 6. Exportar a PDF
+                # 9. Exportar a PDF
                 if generate_pdf:
                     pdf_path = final_path.with_suffix(".pdf")
                     # wdExportFormatPDF = 17
@@ -152,6 +169,191 @@ class COMPostProcessor:
                 logger.error("[COM PostProcessor] Timeout esperando a Word.")
                 shutil.copy(generated_path, final_path)
                 return False, None
+
+    def _enforce_layout(self, doc) -> None:
+        """Garantiza el layout APA usando la paginación REAL de Word.
+
+        En lugar de estimar alturas (python-docx no paga), leemos el layout
+        que Word ya calculó y aplicamos propiedades declarativas que Word
+        respeta al guardar/exportar:
+          - Títulos nivel 1 → comienzan en página nueva (PageBreakBefore).
+          - Sección de Referencias → comienza en página nueva.
+          - Títulos (1-3) → KeepWithNext (nunca huérfanos al final de página).
+          - Tablas cortas partidas entre páginas → PageBreakBefore forzado.
+          - Párrafos de cuerpo → forzar estilo Normal (hereda Times 12pt,
+            doble espacio, 0.5" sangría definidos en _apply_apa_styles).
+        """
+        import re as _re
+        try:
+            in_refs = False
+            for p in doc.Paragraphs:
+                try:
+                    lvl = int(p.OutlineLevel)
+                except Exception:
+                    lvl = 10  # wdOutlineLevelBodyText
+                txt = (p.Range.Text or "").strip().lower()
+
+                # Detectar inicio/fin de sección de Referencias
+                if _re.match(r"^(referencias?|bibliograf[ií]a|obras citadas|works cited)\b", txt):
+                    in_refs = True
+                    try:
+                        p.PageBreakBefore = True
+                    except Exception:
+                        pass
+                elif in_refs and lvl >= 4 and txt:
+                    pass  # seguimos en referencias
+                elif in_refs and (lvl <= 3 or not txt):
+                    in_refs = False  # next heading → fin de referencias
+
+                try:
+                    if lvl <= 3:
+                        p.Format.KeepWithNext = True
+                        if lvl == 1:
+                            p.PageBreakBefore = True
+                    elif not in_refs:
+                        # Cuerpo (no referencias): forzar Normal style
+                        p.Range.Style = doc.Styles(-1)  # wdStyleNormal
+                except Exception:
+                    pass
+
+            # 4. Tablas partidas: si una tabla corta abarca 2 páginas, forzar
+            #    que comience en página nueva para no partirse.
+            for table in doc.Tables:
+                try:
+                    start_page = table.Range.Characters.First.Information(3)  # wdActiveEndPageNumber
+                    end_page = table.Range.Characters.Last.Information(3)
+                    if end_page > start_page and table.Rows.Count <= 20:
+                        # Forzar la tabla entera a página nueva
+                        table.Range.Paragraphs(1).PageBreakBefore = True
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"[COM PostProcessor] Error en enforce_layout: {e}")
+
+    def _apply_apa_styles(self, word, doc) -> None:
+        """Aplica estilos APA 7 nativos usando el motor real de Word.
+
+        Python-docx escribió los estilos en styles.xml pero Word es la
+        autoridad final. Acá modificamos las DEFINICIONES de los estilos
+        Built-in del documento: todo párrafo que use Normal o Heading 1-3
+        hereda automáticamente estos cambios sin iterar párrafo por párrafo.
+
+        Reglas APA 7:
+        - Normal: Times New Roman 12pt, doble espacio, justificado, sangría 0.5"
+        - Headings 1-3: Times New Roman 12pt bold, sin sangría, keep with next
+        """
+        try:
+            # ── Normal (cubre el 90% del cuerpo) ──
+            normal = doc.Styles(-1)  # wdStyleNormal
+            normal.Font.Name = "Times New Roman"
+            normal.Font.Size = 12
+            normal.ParagraphFormat.LineSpacingRule = 2      # wdLineSpaceDouble
+            normal.ParagraphFormat.Alignment = 3            # wdAlignParagraphJustify
+            normal.ParagraphFormat.FirstLineIndent = 36     # 0.5 inch
+            normal.ParagraphFormat.SpaceBefore = 0
+            normal.ParagraphFormat.SpaceAfter = 0
+            normal.NoSpaceBetweenParagraphsOfSameStyle = True
+
+            # ── Heading 1-3 (APA: misma fuente, bold, sin sangría, keep w/ next)
+            heading_ids = [-2, -3, -4]        # wdStyleHeading1/2/3
+            heading_before = [12, 6, 6]       # space before (pt)
+            heading_after = [6, 4, 4]         # space after (pt)
+
+            for h_id, h_before, h_after in zip(heading_ids, heading_before, heading_after):
+                try:
+                    h = doc.Styles(h_id)
+                    h.Font.Name = "Times New Roman"
+                    h.Font.Size = 12
+                    h.Font.Bold = True
+                    h.ParagraphFormat.KeepWithNext = True
+                    h.ParagraphFormat.LineSpacingRule = 2
+                    h.ParagraphFormat.Alignment = 0      # wdAlignParagraphLeft
+                    h.ParagraphFormat.FirstLineIndent = 0
+                    h.ParagraphFormat.SpaceBefore = h_before
+                    h.ParagraphFormat.SpaceAfter = h_after
+                except Exception:
+                    pass
+
+            logger.info("[COM PostProcessor] Estilos APA aplicados via Word Styles API")
+        except Exception as e:
+            logger.warning(f"[COM PostProcessor] Error en _apply_apa_styles: {e}")
+
+    def _diagnostic_report(self, doc) -> dict:
+        """Resumen estructural del documento tras el procesamiento.
+
+        Utilizado para logging y para medir la calidad del motor con números.
+        """
+        import re as _re
+        diag: dict = {"pages": 0, "headings": {}, "body_paragraphs": 0,
+                      "tables": 0, "fields": 0, "inline_shapes": 0,
+                      "sections": 0, "has_references_heading": False,
+                      "issues": []}
+        try:
+            diag["pages"] = doc.ComputeStatistics(2)  # wdStatisticPages
+
+            h_counts: dict[str, int] = {}
+            for p in doc.Paragraphs:
+                try:
+                    lvl = int(p.OutlineLevel)
+                    if 1 <= lvl <= 9:
+                        key = str(lvl)
+                        h_counts[key] = h_counts.get(key, 0) + 1
+                        txt = (p.Range.Text or "").strip().lower()
+                        if _re.match(r"^(referencias?|bibliograf[ií]a|obras citadas|works cited)\b", txt):
+                            diag["has_references_heading"] = True
+                        continue
+                except Exception:
+                    pass
+                diag["body_paragraphs"] += 1
+
+            diag["headings"] = h_counts
+            diag["tables"] = doc.Tables.Count
+            diag["fields"] = doc.Fields.Count
+            diag["inline_shapes"] = doc.InlineShapes.Count
+            diag["sections"] = doc.Sections.Count
+
+            # Heading hierarchy: detectar saltos de nivel (H1 → H3 sin H2 intermedio)
+            prev_lvl = 0
+            for p in doc.Paragraphs:
+                try:
+                    lvl = int(p.OutlineLevel)
+                    if 1 <= lvl <= 9:
+                        if prev_lvl > 0 and lvl > prev_lvl + 1:
+                            diag["issues"].append(
+                                f"Salto de heading: nivel {prev_lvl} → {lvl} sin nivel {prev_lvl+1}"
+                            )
+                        prev_lvl = lvl
+                except Exception:
+                    pass
+
+            # Tablas aún partidas
+            split_tables = 0
+            for t in doc.Tables:
+                try:
+                    sp = t.Range.Characters.First.Information(3)
+                    ep = t.Range.Characters.Last.Information(3)
+                    if ep > sp:
+                        split_tables += 1
+                except Exception:
+                    pass
+            if split_tables > 0:
+                diag["issues"].append(f"{split_tables} tabla(s) aún partidas entre páginas")
+
+            # Secciones (orientación)
+            landscapes = 0
+            for i in range(1, doc.Sections.Count + 1):
+                try:
+                    if doc.Sections(i).PageSetup.Orientation == 1:  # wdOrientLandscape
+                        landscapes += 1
+                except Exception:
+                    pass
+            if landscapes > 0:
+                diag["landscape_sections"] = landscapes
+
+        except Exception as e:
+            diag["error"] = str(e)
+
+        return diag
 
     def audit_layout(self, docx_path: Path) -> dict:
         """

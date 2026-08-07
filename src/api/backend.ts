@@ -791,3 +791,30 @@ export async function explainElement(
   }
   return res.json();
 }
+
+// ── Engine V2 (P2): Auditoría estructural global via LLM ────────────────
+
+export interface StructureAuditResult {
+  heading_issues: string[];
+  missing_sections: string[];
+  reference_issues: string[];
+  format_suggestions: string[];
+  overall_assessment: 'good' | 'needs_review' | 'critical';
+  summary: string;
+}
+
+export async function auditDocumentStructure(
+  sessionId: string,
+  opts?: { apiKey?: string; nimUrl?: string; useLocal?: boolean; providerId?: string },
+): Promise<StructureAuditResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/audit-structure/${sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || 'Error al auditar estructura del documento');
+  }
+  return res.json();
+}

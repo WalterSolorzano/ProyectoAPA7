@@ -137,6 +137,9 @@ interface DocState {
     orphan_references: any[];
   } | null;
 
+  /** Engine V2 (P2): resultado de la auditoría estructural global via LLM. */
+  structureAuditResult: import('../api/backend').StructureAuditResult | null;
+
   // Template system
   showTemplateDialog: boolean;
   availableTemplates: Array<{
@@ -322,6 +325,9 @@ interface DocState {
     candidates?: { authors: string[]; year: string; title: string; source: string; doi?: string; formatted_apa: string; relevance: string }[];
   } | null>;
 
+  /** Engine V2 (P2): auditoría estructural global via LLM. */
+  runStructureAudit: () => Promise<void>;
+
   runValidation: () => Promise<void>;
   runCitationAudit: () => Promise<void>;
   exportDocx: (tracked?: boolean) => Promise<void>;
@@ -432,6 +438,7 @@ export const useDocStore = create<DocState>()(
     providerId: 'nvidia_nim',
   },
   citationAuditResult: null,
+  structureAuditResult: null,
 
   wizardStep: 2,
   showFileMenu: false,
@@ -1397,6 +1404,33 @@ export const useDocStore = create<DocState>()(
     } catch (err: any) {
       set({ error: err.message || 'Error al validar citas' });
       get().showToast(err.message, 'error');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  runStructureAudit: async () => {
+    const { doc, apiKey, aiProviderConfig } = get();
+    if (!doc) return;
+    set({ isLoading: true });
+    try {
+      const result = await api.auditDocumentStructure(doc.session_id, {
+        apiKey,
+        nimUrl: aiProviderConfig.nimUrl,
+        useLocal: aiProviderConfig.useLocal,
+        providerId: aiProviderConfig.providerId,
+      });
+      set({ structureAuditResult: result });
+      const issues = (result.heading_issues.length || 0)
+        + (result.missing_sections.length || 0)
+        + (result.reference_issues.length || 0);
+      get().pushActivityEvent(
+        result.overall_assessment === 'good' ? 'success' : 'warning',
+        `Auditoría global: ${result.overall_assessment === 'good' ? 'OK' : `${issues} hallazgos`}`,
+        result.summary,
+      );
+    } catch (err: any) {
+      get().showToast(err.message || 'Error en auditoría estructural', 'error');
     } finally {
       set({ isLoading: false });
     }

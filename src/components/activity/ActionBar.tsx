@@ -88,7 +88,7 @@ export const ActionBar: React.FC = () => {
   const {
     doc, isReviewLoading, reviewResult, runAIReview, runCitationAudit,
     citationAuditResult, runLLMClassify, llmProgress, sayMascot, setForceRightPanelOpen,
-    runQuickFix, isLoading,
+    runQuickFix, isLoading, runStructureAudit,
   } = useDocStore();
 
   if (!doc) return null;
@@ -186,6 +186,28 @@ export const ActionBar: React.FC = () => {
         pending={citPending}
         loading={false}
         onClick={handleReviewCitations}
+      />
+      <ActionItem
+        icon={<Sparkles size={15} />}
+        title="Auditar estructura"
+        description="Validación global de headings, secciones y coherencia APA."
+        pending={0}
+        loading={false}
+        onClick={async () => {
+          sayMascot('Voy a revisar la estructura completa del documento...', 'info');
+          setForceRightPanelOpen(true);
+          await runStructureAudit().catch(() => {});
+          const res = useDocStore.getState().structureAuditResult;
+          if (res) {
+            const issues = (res.heading_issues?.length || 0) + (res.reference_issues?.length || 0);
+            sayMascot(
+              issues > 0
+                ? `Encontré ${issues} cosas por mejorar en la estructura del documento.`
+                : 'La estructura del documento es sólida.',
+              issues > 0 ? 'warning' : 'success',
+            );
+          }
+        }}
       />
       <button
         type="button"
