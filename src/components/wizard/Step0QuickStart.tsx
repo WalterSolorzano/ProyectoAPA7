@@ -44,15 +44,17 @@ const TEMPLATES = [
 const MODES = [
   {
     id: 'quick' as const,
-    title: 'Modo Rápido',
-    description: 'Conversión automática: clasifica, valida y abre el Health Check para revisar y descargar.',
-    icon: <Zap size={22} color="var(--accent-primary)" />,
+    title: 'Modo Rápido (Recomendado)',
+    badge: '1 clic',
+    description: 'Auto-formato APA 7: sangrías, márgenes, tablas y citas listas para descargar.',
+    icon: <Zap size={20} color="var(--accent-primary)" />,
   },
   {
     id: 'review' as const,
     title: 'Modo Guiado',
-    description: 'Revisión paso a paso: portada, títulos, figuras, cuerpo y referencias.',
-    icon: <ListChecks size={22} color="var(--accent-secondary)" />,
+    badge: 'Paso a paso',
+    description: 'Revisión manual: portada institucional, jerarquía de títulos, figuras y referencias.',
+    icon: <ListChecks size={20} color="var(--accent-secondary)" />,
   },
 ];
 
@@ -457,9 +459,16 @@ export const Step0QuickStart: React.FC = () => {
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                                   {mode.icon}
-                                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>{mode.title}</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', flex: 1 }}>{mode.title}</span>
+                                  <span style={{
+                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
+                                    backgroundColor: mode.id === 'quick' ? 'rgba(79,124,255,0.15)' : 'var(--surface-subtle)',
+                                    color: mode.id === 'quick' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                  }}>
+                                    {mode.badge}
+                                  </span>
                                 </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                                   {mode.description}
                                 </div>
                               </button>
@@ -477,19 +486,24 @@ export const Step0QuickStart: React.FC = () => {
                           width: '100%', marginTop: '20px', padding: '13px 20px',
                           borderRadius: '10px', border: 'none', cursor: (isLoading || !isBackendReady) ? 'wait' : 'pointer',
                           backgroundColor: 'var(--accent-primary)', color: '#fff',
-                          fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
+                          fontFamily: 'inherit', fontSize: '14px', fontWeight: 700,
                           opacity: isLoading ? 0.75 : 1,
                         }}
                       >
                         {isLoading ? (
                           <>
                             <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                            Convirtiendo...
+                            Formateando documento…
+                          </>
+                        ) : selectedMode === 'quick' ? (
+                          <>
+                            <Zap size={18} />
+                            Auto-formatear y descargar (Modo Rápido)
                           </>
                         ) : (
                           <>
-                            <FileUp size={18} />
-                            Convertir documento
+                            <ListChecks size={18} />
+                            Continuar en Modo Guiado
                           </>
                         )}
                       </button>

@@ -169,8 +169,15 @@ export const ReferencesPanel: React.FC = () => {
           <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>· {sorted.length}</span>
         </div>
         {sorted.length === 0 ? (
-          <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Pegá un DOI o una cita cruda arriba para armar la bibliografía.
+          <div style={{
+            padding: '20px 14px', fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.5,
+            textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
+          }}>
+            <span style={{ fontSize: '24px' }}>📚</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Aún no hay referencias en la lista</span>
+            <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+              Pegá un DOI (ej. 10.1016/...) o una cita cruda en el buscador para resolverla automáticamente.
+            </span>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '320px', overflowY: 'auto' }}>

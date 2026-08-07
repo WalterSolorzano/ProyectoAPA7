@@ -229,10 +229,21 @@ export const Step3FiguresTablesWizard: React.FC = () => {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
           {filteredItems.length === 0 && (
-            <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '12px' }}>
-              {currentItems.length === 0
-                ? `No se detectaron ${subTab === 'figures' ? 'figuras' : 'tablas'}.`
-                : 'Ningún elemento coincide con la búsqueda o el filtro.'}
+            <div style={{
+              padding: '36px 16px', textAlign: 'center', color: 'var(--text-secondary)',
+              fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+            }}>
+              <span style={{ fontSize: '28px' }}>{subTab === 'figures' ? '🖼️' : '📊'}</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                {currentItems.length === 0
+                  ? `No se detectaron ${subTab === 'figures' ? 'figuras' : 'tablas'}`
+                  : 'Sin coincidencias'}
+              </span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                {currentItems.length === 0
+                  ? `Tu documento no contiene ${subTab === 'figures' ? 'imágenes insertadas' : 'tablas de datos'}. Podés continuar al siguiente paso con tranquilidad.`
+                  : 'Ningún elemento coincide con la búsqueda o el filtro de pendientes.'}
+              </span>
             </div>
           )}
           {filteredItems.map((item) => {

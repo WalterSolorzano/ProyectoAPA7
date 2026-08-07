@@ -356,9 +356,16 @@ export const Step2HeadingsWizard: React.FC = () => {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {headings.length === 0 && (
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', textAlign: 'center', padding: '20px 0' }}>
-                      No hay títulos en el documento.
-                    </span>
+                    <div style={{
+                      padding: '24px 12px', textAlign: 'center', color: 'var(--text-secondary)',
+                      fontSize: '11.5px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                    }}>
+                      <span style={{ fontSize: '20px' }}>📑</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Sin títulos detectados</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        Hacé clic sobre cualquier párrafo en el documento para asignarle nivel H1, H2 o H3.
+                      </span>
+                    </div>
                   )}
                   {outlineTree.map((node) => renderNode(node, 1))}
                 </div>
@@ -394,16 +401,24 @@ export const Step2HeadingsWizard: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => useDocStore.getState().insertTocElement()}
-            title="Insertar una Tabla de Contenidos / Índice tras la portada"
+            onClick={() => {
+              if (doc?.elements.some(e => e.type === 'toc')) {
+                useDocStore.getState().removeTocElement();
+              } else {
+                useDocStore.getState().insertTocElement();
+              }
+            }}
+            title={doc?.elements.some(e => e.type === 'toc') ? "Quitar la Tabla de Contenidos del documento" : "Insertar una Tabla de Contenidos / Índice tras la portada"}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: 'var(--accent-primary)', color: '#fff', border: 'none',
+              background: doc?.elements.some(e => e.type === 'toc') ? 'rgba(34, 197, 94, 0.15)' : 'var(--accent-primary)',
+              color: doc?.elements.some(e => e.type === 'toc') ? '#15803d' : '#fff',
+              border: doc?.elements.some(e => e.type === 'toc') ? '1px solid #22c55e' : 'none',
               borderRadius: 'var(--radius-sm)',
             }}
           >
-            <ListOrdered size={13} /> Insertar índice
+            <ListOrdered size={13} /> {doc?.elements.some(e => e.type === 'toc') ? 'Índice activo (Quitar)' : 'Insertar índice'}
           </button>
           <button
             type="button"

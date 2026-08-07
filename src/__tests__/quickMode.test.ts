@@ -105,7 +105,7 @@ describe('useDocStore — Modo Rápido', () => {
     (api.uploadDocxFile as any).mockResolvedValue(mockDoc);
 
     const file = new File(['x'], 'trabajo.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    await useDocStore.getState().uploadFile(file, { profileId: 'apa7' });
+    await useDocStore.getState().uploadFile(file, { profileId: 'apa7', mode: 'review' });
 
     const state = useDocStore.getState();
     expect(state.isDownloadModalOpen).toBe(false);

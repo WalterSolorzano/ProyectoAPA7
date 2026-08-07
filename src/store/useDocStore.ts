@@ -302,6 +302,7 @@ interface DocState {
    *  lo que de verdad necesita su criterio. */
   runQuickFix: () => Promise<void>;
   insertTocElement: () => void;
+  removeTocElement: () => void;
 
   // Undo/Redo
   undo: () => void;
@@ -485,19 +486,26 @@ export const useDocStore = create<DocState>()(
   })),
   activityUnseen: 0,
   activityEvents: [],
-  pushActivityEvent: (kind, title, detail) => set((state) => ({
-    activityEvents: [
-      {
-        id: `act_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        kind,
-        title,
-        detail,
-        time: Date.now(),
-      },
-      ...state.activityEvents,
-    ].slice(0, 60),
-    activityUnseen: state.activityUnseen + 1,
-  })),
+  pushActivityEvent: (kind, title, detail) => set((state) => {
+    const first = state.activityEvents[0];
+    if (first && first.title === title && Date.now() - first.time < 5000) {
+      const updated = [{ ...first, kind, detail: detail || first.detail, time: Date.now() }, ...state.activityEvents.slice(1)];
+      return { activityEvents: updated };
+    }
+    return {
+      activityEvents: [
+        {
+          id: `act_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          kind,
+          title,
+          detail,
+          time: Date.now(),
+        },
+        ...state.activityEvents,
+      ].slice(0, 60),
+      activityUnseen: state.activityUnseen + 1,
+    };
+  }),
   imagePanelOpen: false,
   setImagePanelOpen: (open: boolean) => set({ imagePanelOpen: open }),
   tabs: [],
@@ -858,10 +866,11 @@ export const useDocStore = create<DocState>()(
       if (joke) useDocStore.getState().showToast(joke, 'info');
     } catch { /* no crítico */ }
 
+    const effectiveMode = opts?.mode || 'quick';
     set({ isLoading: true, error: null });
     get().pushActivityEvent('info', `Procesando ${file.name}…`);
     try {
-      let doc = await api.uploadDocxFile(file, { profileId: opts?.profileId, mode: opts?.mode });
+      let doc = await api.uploadDocxFile(file, { profileId: opts?.profileId, mode: effectiveMode });
       doc = migrateDocument(doc);
       // Sincronizar reglas con el perfil elegido en la subida (si el backend lo aplicó)
       const uploadedProfile = get().profiles.find((p) => p.profile_id === (opts?.profileId || doc.profile_id || 'apa7'));
@@ -905,7 +914,7 @@ export const useDocStore = create<DocState>()(
         get().showToast('Detectamos datos de tu portada y los precargamos', 'info');
       }
       get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
-      if (opts?.mode === 'quick') {
+      if (effectiveMode === 'quick') {
         // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
         // se aceptan los elementos de alta confianza y se valida al vuelo.
       set({ isLoading: false });
@@ -1252,6 +1261,15 @@ export const useDocStore = create<DocState>()(
     get().pushHistory(doc);
     set({ doc: { ...doc, elements: next } });
     get().showToast('Índice insertado tras la portada. Se generará como Tabla de Contenidos de Word.', 'success');
+  },
+
+  removeTocElement: () => {
+    const { doc } = get();
+    if (!doc) return;
+    const next = doc.elements.filter((e) => e.type !== 'toc');
+    get().pushHistory(doc);
+    set({ doc: { ...doc, elements: next } });
+    get().showToast('Índice eliminado del documento.', 'info');
   },
 
   setRules: (newRules) => set((state) => ({ rules: { ...state.rules, ...newRules } })),

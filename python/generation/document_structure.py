@@ -64,31 +64,65 @@ def _clean_existing_page_numbers(doc: docx.Document):
 def setup_apa_header(doc: docx.Document, format_type: APAFormat, running_head_text: str, rules: APARuleSet):
     """
     Configura el encabezado de las páginas según el tipo APA (Estudiante vs Profesional).
-    - Estudiante: Número de página a la derecha.
-    - Profesional: Running head en mayúsculas a la izquierda + Número de página a la derecha.
+    - Portada e Índice: No llevan número de página visible.
+    - Cuerpo (Sección principal): Número de página a la derecha (correlativo, ej. 3 si va tras portada e índice).
+    - Modo Profesional: Running head en mayúsculas a la izquierda + Número de página a la derecha.
     """
     # Clean existing page number fields to prevent double numbering
     _clean_existing_page_numbers(doc)
 
-    section = doc.sections[0]
-    section.different_first_page_header_footer = True
-    header = section.header
-    header.is_linked_to_previous = False
+    if len(doc.sections) > 1:
+        # Sección 1 (Front matter: Portada / Índice) -> Sin número de página
+        sec_front = doc.sections[0]
+        sec_front.different_first_page_header_footer = True
+        try:
+            for p in sec_front.header.paragraphs:
+                p.text = ""
+            for p in sec_front.first_page_header.paragraphs:
+                p.text = ""
+        except Exception:
+            pass
 
-    p = header.paragraphs[0]
-    p.text = ""
-    p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        # Secciones subsiguientes (Cuerpo del documento)
+        for i, sec in enumerate(doc.sections[1:], start=2):
+            sec.header.is_linked_to_previous = False
+            p = sec.header.paragraphs[0]
+            p.text = ""
+            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    if format_type == APAFormat.PROFESSIONAL and running_head_text:
-        # Running Head a la izquierda + Tabulación a la derecha + Número de página
-        r_rh = p.add_run(f"{running_head_text.upper()}\t")
-        r_rh.font.name = rules.font_family
-        r_rh.font.size = Pt(rules.font_size_pt)
-        r_rh.font.color.rgb = RGBColor(0, 0, 0)
+            if format_type == APAFormat.PROFESSIONAL and running_head_text:
+                r_rh = p.add_run(f"{running_head_text.upper()}\t")
+                r_rh.font.name = rules.font_family
+                r_rh.font.size = Pt(rules.font_size_pt)
+                r_rh.font.color.rgb = RGBColor(0, 0, 0)
 
-    # Run para el número de página
-    r_pg = p.add_run()
-    r_pg.font.name = rules.font_family
-    r_pg.font.size = Pt(rules.font_size_pt)
-    r_pg.font.color.rgb = RGBColor(0, 0, 0)
-    add_page_number_field(r_pg)
+            r_pg = p.add_run()
+            r_pg.font.name = rules.font_family
+            r_pg.font.size = Pt(rules.font_size_pt)
+            r_pg.font.color.rgb = RGBColor(0, 0, 0)
+            add_page_number_field(r_pg)
+
+    else:
+        # Documento de sección única
+        section = doc.sections[0]
+        section.different_first_page_header_footer = True
+        header = section.header
+        header.is_linked_to_previous = False
+
+        p = header.paragraphs[0]
+        p.text = ""
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+        if format_type == APAFormat.PROFESSIONAL and running_head_text:
+            # Running Head a la izquierda + Tabulación a la derecha + Número de página
+            r_rh = p.add_run(f"{running_head_text.upper()}\t")
+            r_rh.font.name = rules.font_family
+            r_rh.font.size = Pt(rules.font_size_pt)
+            r_rh.font.color.rgb = RGBColor(0, 0, 0)
+
+        # Run para el número de página
+        r_pg = p.add_run()
+        r_pg.font.name = rules.font_family
+        r_pg.font.size = Pt(rules.font_size_pt)
+        r_pg.font.color.rgb = RGBColor(0, 0, 0)
+        add_page_number_field(r_pg)

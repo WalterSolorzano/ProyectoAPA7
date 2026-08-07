@@ -113,23 +113,33 @@ class COMPostProcessor:
                 diag = self._diagnostic_report(doc)
                 logger.info(f"[COM PostProcessor] Diagnóstico: {diag}")
 
-                # 8. Actualizar TOC si existe (los headings están en sus páginas finales)
+                # 8. Actualizar campos de Word y TOC (los headings están en sus páginas finales)
+                try:
+                    doc.Fields.Update()
+                except Exception:
+                    pass
                 for toc in doc.TablesOfContents:
-                    toc.Update()
+                    try:
+                        toc.Update()
+                    except Exception:
+                        pass
 
                 # Guardar cambios finales del DOCX
                 doc.Save()
 
-                # 9. Exportar a PDF
+                # 9. Exportar a PDF con hipervínculos interactivos y marcadores
                 if generate_pdf:
                     pdf_path = final_path.with_suffix(".pdf")
-                    # wdExportFormatPDF = 17
+                    # wdExportFormatPDF = 17, wdExportOptimizeForPrint = 0, wdExportCreateHeadingBookmarks = 1
                     doc.ExportAsFixedFormat(
                         OutputFileName=str(pdf_path.resolve()),
                         ExportFormat=17,
                         OpenAfterExport=False,
-                        OptimizeFor=0, # wdExportOptimizeForPrint
-                        CreateBookmarks=1, # wdExportCreateHeadingBookmarks
+                        OptimizeFor=0,
+                        CreateBookmarks=1,
+                        DocStructureTags=True,
+                        BitmapMissingFonts=True,
+                        UseISO19005_1=False
                     )
 
                 return True, pdf_path
@@ -176,15 +186,39 @@ class COMPostProcessor:
         En lugar de estimar alturas (python-docx no paga), leemos el layout
         que Word ya calculó y aplicamos propiedades declarativas que Word
         respeta al guardar/exportar:
+          - Portada e Índice: sin número de página visible.
+          - Cuerpo: encabezado APA a la derecha con número correlativo (ej. 3 si hay portada e índice).
           - Títulos nivel 1 → comienzan en página nueva (PageBreakBefore).
           - Sección de Referencias → comienza en página nueva.
           - Títulos (1-3) → KeepWithNext (nunca huérfanos al final de página).
           - Tablas cortas partidas entre páginas → PageBreakBefore forzado.
-          - Párrafos de cuerpo → forzar estilo Normal (hereda Times 12pt,
-            doble espacio, 0.5" sangría definidos en _apply_apa_styles).
+          - Párrafos de cuerpo → forzar estilo Normal.
         """
         import re as _re
         try:
+            # ── 1. Configurar encabezados de secciones para Portada e Índice ──
+            if doc.Sections.Count > 1:
+                try:
+                    # Sección 1 (Portada / Índice) -> Limpiar encabezados
+                    sec1 = doc.Sections(1)
+                    sec1.PageSetup.DifferentFirstPageHeaderFooter = True
+                    sec1.Headers(1).Range.Text = "" # wdHeaderFooterPrimary
+                    sec1.Headers(2).Range.Text = "" # wdHeaderFooterFirstPage
+
+                    # Sección 2 (Cuerpo) -> Desvincular y mantener correlativo
+                    sec2 = doc.Sections(2)
+                    sec2.Headers(1).LinkToPrevious = False
+                    sec2.Headers(1).PageNumbers.RestartNumberingAtSection = False
+                except Exception as e_sec:
+                    logger.debug(f"[COM PostProcessor] Secciones header config: {e_sec}")
+            elif doc.Sections.Count == 1:
+                try:
+                    sec1 = doc.Sections(1)
+                    sec1.PageSetup.DifferentFirstPageHeaderFooter = True
+                    sec1.Headers(2).Range.Text = "" # wdHeaderFooterFirstPage
+                except Exception:
+                    pass
+
             in_refs = False
             for p in doc.Paragraphs:
                 try:

@@ -54,6 +54,10 @@ def fast_parse_body_start(file_bytes: bytes) -> int:
                     continue
 
                 text_lower = full_text.lower()
+                if text_lower.startswith(("tema:", "titulo:", "título:", "asignatura:", "materia:", "carrera:", "evaluacion:", "evaluación:")):
+                    elem.clear()
+                    paragraph_idx += 1
+                    continue
 
                 # Heuristics
                 for kw in body_keywords:

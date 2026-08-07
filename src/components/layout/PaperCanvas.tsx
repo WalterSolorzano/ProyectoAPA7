@@ -25,6 +25,7 @@ export const computePages = (elements: ElementModel[]): ElementModel[][] => {
 
     let units = 1;
     if (elem.type === 'heading') units = 2;
+    if (elem.type === 'toc') units = 20;
     if (elem.type === 'image') units = 4;
     if (elem.type === 'table') units = 6;
     if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.2 : 0.6;
@@ -32,9 +33,13 @@ export const computePages = (elements: ElementModel[]): ElementModel[][] => {
 
     const isFirstBodyHeading = !elem.is_cover_section && elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
     const isLevel1Heading = elem.type === 'heading' && elem.heading_level === 1;
+    const isToc = elem.type === 'toc';
+    const pageHasToc = currentPage.some(e => e.type === 'toc');
 
     if (
       elem.type === 'page_break' ||
+      isToc ||
+      pageHasToc ||
       isFirstBodyHeading ||
       (isLevel1Heading && currentPage.length > 0) ||
       (currentEstimatedHeight + units > MAX_PAGE_UNITS && currentPage.length > 0)
@@ -709,6 +714,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       }}>
         {pages.map((pageElements, pageIdx) => {
           const isCoverPage = pageIdx === 0;
+          const hasTocElement = pageElements.some(e => e.type === 'toc');
+          const showPageNumber = !isCoverPage && !hasTocElement;
 
           // Separar elementos de portada en bloques lógicos para renderizado limpio
           const coverHeaderTexts: ElementModel[] = [];
@@ -722,9 +729,27 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 const txt = (e.text || '').trim();
                 const txtLower = txt.toLowerCase();
 
-                if (txtLower.includes('elaborado por') || txtLower.includes('br.') || txtLower.includes('carnet') || txtLower.includes('tutor:')) {
+                if (
+                  txtLower.includes('elaborado por') ||
+                  txtLower.includes('presentado por') ||
+                  txtLower.includes('br.') ||
+                  txtLower.includes('carnet') ||
+                  txtLower.includes('carne') ||
+                  txtLower.includes('tutor') ||
+                  txtLower.includes('autor')
+                ) {
                   coverAuthorTexts.push(e);
-                } else if (txtLower.includes('grupo') || txtLower.includes('junio') || txtLower.includes('managua') || txtLower.includes('nicaragua')) {
+                } else if (
+                  txtLower.includes('docente') ||
+                  txtLower.includes('profesor') ||
+                  txtLower.includes('grupo') ||
+                  txtLower.includes('managua') ||
+                  txtLower.includes('nicaragua') ||
+                  txtLower.includes('recinto') ||
+                  txtLower.includes('fecha') ||
+                  /\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(txtLower) ||
+                  /\b\d{4}\b/.test(txtLower)
+                ) {
                   coverFooterTexts.push(e);
                 } else if (txt) {
                   coverHeaderTexts.push(e);
@@ -751,7 +776,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 flexDirection: 'column'
               }}
             >
-              {/* Encabezado Superior de Página */}
+              {/* Encabezado Superior de Página: APA 7 exige sin número en portada e índice */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -761,12 +786,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 color: '#000000',
                 minHeight: '20px'
               }}>
-                {doc.apa_format === 'professional' && !isCoverPage ? (
+                {doc.apa_format === 'professional' && showPageNumber ? (
                   <span style={{ fontWeight: 600 }}>RUNNING HEAD</span>
                 ) : (
                   <span></span>
                 )}
-                <span>{!isCoverPage ? pageIdx + 1 : ''}</span>
+                <span>{showPageNumber ? pageIdx + 1 : ''}</span>
               </div>
 
               {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
@@ -852,25 +877,50 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     </div>
                   )}
 
-                  {/* Pie de Portada: Grupo & Fecha */}
+                  {/* Pie de Portada: Docente/Grupo & Fecha/Lugar */}
                   <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto', paddingTop: '16px' }}>
-                    {coverFooterTexts.map(elem => (
-                      <p
-                        key={elem.id}
-                        id={`paper-elem-${elem.id}`}
-                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                        style={{
-                          margin: 0,
-                          fontSize: '11pt',
-                          fontWeight: 'bold',
-                          color: '#0f172a',
-                          cursor: 'pointer',
-                          textAlign: elem.text.toLowerCase().includes('managua') || elem.text.toLowerCase().includes('junio') ? 'right' : 'left'
-                        }}
-                      >
-                        {elem.text}
-                      </p>
-                    ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {coverFooterTexts
+                        .filter(e => !e.text.toLowerCase().includes('managua') && !e.text.toLowerCase().includes('nicaragua') && !/\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
+                        .map(elem => (
+                          <p
+                            key={elem.id}
+                            id={`paper-elem-${elem.id}`}
+                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                            style={{
+                              margin: 0,
+                              fontSize: '11pt',
+                              fontWeight: 'bold',
+                              color: '#0f172a',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            {elem.text}
+                          </p>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
+                      {coverFooterTexts
+                        .filter(e => e.text.toLowerCase().includes('managua') || e.text.toLowerCase().includes('nicaragua') || /\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
+                        .map(elem => (
+                          <p
+                            key={elem.id}
+                            id={`paper-elem-${elem.id}`}
+                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                            style={{
+                              margin: 0,
+                              fontSize: '11pt',
+                              fontWeight: 'bold',
+                              color: '#0f172a',
+                              cursor: 'pointer',
+                              textAlign: 'right'
+                            }}
+                          >
+                            {elem.text}
+                          </p>
+                        ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1223,6 +1273,90 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
                                 {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
+                            )}
+
+                            {elem.type === 'toc' && (
+                              <div style={{
+                                margin: '16px 0 24px 0',
+                                padding: '20px 24px',
+                                backgroundColor: '#f8fafc',
+                                border: '1.5px dashed #94a3b8',
+                                borderRadius: '8px',
+                                fontFamily: fontFamily,
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '13pt', color: '#0f172a' }}>Índice / Tabla de Contenidos</span>
+                                    <span style={{ fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                      Nativo Word (TOC) con hipervínculos
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      useDocStore.getState().removeTocElement();
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#ef4444',
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                    }}
+                                    title="Quitar este índice del documento"
+                                  >
+                                    Eliminar índice
+                                  </button>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {doc.elements
+                                    .filter(e => e.type === 'heading' && !e.is_cover_section && (e.heading_level || 1) <= 3)
+                                    .map((h, hIdx) => {
+                                      const lvl = h.heading_level || 1;
+                                      const title = headingDisplayText.get(h.id) ?? h.text;
+                                      return (
+                                        <div
+                                          key={h.id || hIdx}
+                                          onClick={(ev) => {
+                                            ev.stopPropagation();
+                                            const target = document.getElementById(`paper-elem-${h.id}`);
+                                            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                          }}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'baseline',
+                                            justifyContent: 'space-between',
+                                            marginLeft: `${(lvl - 1) * 20}px`,
+                                            fontSize: `${rules.font_size_pt - 0.5}pt`,
+                                            cursor: 'pointer',
+                                            color: '#1e293b',
+                                            fontWeight: lvl === 1 ? 600 : 400,
+                                            padding: '2px 4px',
+                                            borderRadius: '4px',
+                                            transition: 'background-color 0.15s ease',
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                        >
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                                            {title}
+                                          </span>
+                                          <span style={{ flex: 1, borderBottom: '1px dotted #94a3b8', margin: '0 8px', minWidth: '20px' }}></span>
+                                          <span style={{ fontSize: '10pt', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+                                            {hIdx + 3}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                                <div style={{ marginTop: '14px', fontSize: '10px', color: '#64748b', textAlign: 'center', fontStyle: 'italic' }}>
+                                  Word COM generará este índice automáticamente con los números de página exactos y enlaces interactivos para PDF.
+                                </div>
+                              </div>
                             )}
                           </>
                         ) : null}

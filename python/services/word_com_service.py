@@ -27,6 +27,8 @@ class WordCOMService:
         self.is_windows = sys.platform == "win32"
         self._word = None
         self._pid = None
+        self._git = None
+        self._cookie = None
         self._owner_thread: threading.Thread | None = None
         self._ready = threading.Event()
         self._stop = False
@@ -56,7 +58,7 @@ class WordCOMService:
             return False
 
     def _create_word_instance(self):
-        """Crea la instancia DispatchEx en el hilo owner (apartment persistente)."""
+        """Crea la instancia DispatchEx en el hilo owner y la registra en GlobalInterfaceTable."""
         import pythoncom
         import win32com.client
 
@@ -70,6 +72,20 @@ class WordCOMService:
         word.Visible = False
         word.DisplayAlerts = 0
         self._word = word
+
+        try:
+            git = pythoncom.CoCreateInstance(
+                pythoncom.CLSID_StdGlobalInterfaceTable,
+                None,
+                pythoncom.CLSCTX_INPROC_SERVER,
+                pythoncom.IID_IGlobalInterfaceTable
+            )
+            cookie = git.RegisterInterfaceInGlobal(word._oleobj_, pythoncom.IID_IDispatch)
+            self._git = git
+            self._cookie = cookie
+        except Exception as ge:
+            logger.warning(f"[WordCOMService] GIT no disponible: {ge}")
+
         self._ready.set()
         logger.info(f"[WordCOMService] Instancia compartida de Word iniciada (PID: {self._pid}).")
 
@@ -86,6 +102,13 @@ class WordCOMService:
         # así la instancia DispatchEx sigue válida para otros hilos.
         while not self._stop:
             time.sleep(0.5)
+        try:
+            if self._git and self._cookie:
+                self._git.RevokeInterfaceFromGlobal(self._cookie)
+                self._cookie = None
+                self._git = None
+        except Exception:
+            pass
         try:
             import pythoncom
             pythoncom.CoUninitialize()
@@ -109,6 +132,13 @@ class WordCOMService:
     def stop(self):
         self._stop = True
         with self._lock:
+            if self._git and self._cookie:
+                try:
+                    self._git.RevokeInterfaceFromGlobal(self._cookie)
+                except Exception:
+                    pass
+                self._cookie = None
+                self._git = None
             if self._word:
                 try:
                     self._word.Quit(0)
@@ -140,23 +170,32 @@ class WordCOMService:
                 pass
             self._pid = None
             self._word = None
+            self._git = None
+            self._cookie = None
 
     def _thread_handle(self) -> Any:
-        """Devuelve una referencia a la instancia marshalled para el hilo actual."""
+        """Devuelve una referencia a la instancia marshalled para el hilo actual usando GIT."""
         import pythoncom
         import win32com.client
 
+        if self._git and self._cookie:
+            obj = self._git.GetInterfaceFromGlobal(self._cookie, pythoncom.IID_IDispatch)
+            return win32com.client.Dispatch(obj)
+
         if self._word is None:
             return None
-        stream = pythoncom.CoMarshalInterThreadInterfaceInStream(
-            self._word._oleobj_, pythoncom.IID_IDispatch
-        )
-        obj = pythoncom.CoGetInterfaceAndReleaseStream(stream, pythoncom.IID_IDispatch)
-        return win32com.client.Dispatch(obj)
+        return self._word
 
     def _restart(self):
         with self._lock:
             self._stop = True
+            if self._git and self._cookie:
+                try:
+                    self._git.RevokeInterfaceFromGlobal(self._cookie)
+                except Exception:
+                    pass
+                self._cookie = None
+                self._git = None
             if self._word:
                 try:
                     self._word.Quit(0)

@@ -751,41 +751,83 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     body_start_idx = -1
     for idx, elem in enumerate(elements):
         txt_norm = _normalize_accent((elem.text or "").lower())
-        if any(kw in txt_norm for kw in [
+        words = txt_norm.split()
+        if not words:
+            continue
+        # Evitar falsos positivos de títulos de portada como "Tema: Introducción a...", "Asignatura: ...", etc.
+        if txt_norm.startswith(("tema:", "titulo:", "título:", "asignatura:", "materia:", "carrera:", "evaluacion:", "evaluación:")):
+            continue
+        
+        # Un inicio de sección por keyword debe ser un heading o un título corto (<= 12 palabras)
+        if len(words) > 12 and elem.type != ElementType.HEADING and not "heading" in (elem.style_name or "").lower():
+            continue
+
+        has_body_kw = any(kw in txt_norm for kw in [
             "introducc", "resumen", "abstract", "marco teorico",
             "antecedentes", "metodologia", "resultado", "discusion",
             "conclusion", "referencias", "bibliografia", "anexo",
-            "planteamiento del problema", "justificacion"
-        ]):
-            body_start_idx = idx
-            break
+            "planteamiento del problema", "justificacion", "analisis", "análisis"
+        ])
+        if has_body_kw:
+            # Validar que no haya elementos de portada (Docente, Carnet, etc.) inmediatamente después
+            subsequent_cover = False
+            for forward_elem in elements[idx + 1: idx + 8]:
+                f_txt = _normalize_accent((forward_elem.text or "").lower())
+                if any(ck in f_txt for ck in ["docente", "carnet", "elaborado por", "grupo", "tutor", "managua", "nicaragua"]):
+                    subsequent_cover = True
+                    break
+            if not subsequent_cover:
+                body_start_idx = idx
+                break
 
-    # Señal B: Palabras clave explícitas de portada
-    cover_kw_list = [
-        "universidad", "facultad", "carrera", "elaborado por", "tutor", "carnet",
-        "managua", "nicaragua", "proyecto de estudio", "area de conocimiento",
-        "área de conocimiento", "presentado por", "docente",
-        "monografia", "monografía", "tesis", "seminario de", "catedratico",
-        "catedrático", "licenciatura", "maestria", "maestría", "doctorado",
-        "trabajo de investigacion", "trabajo de investigación",
-        "departamento de", "escuela de", "instituto de", "plan de estudio",
-        "asignatura", "materia", "curso de", "dirigido por", "revisado por",
-        "miembro del tribunal", "tribunal examinador", "carnet universitario",
-        "numero de carnet", "presentada por", "presentado por", "para optar",
+
+    # Señal B: Palabras clave explícitas de portada con límites de palabra (regex)
+    cover_kw_patterns = [
+        re.compile(r'\buniversidad\b', re.IGNORECASE),
+        re.compile(r'\bfacultad\b', re.IGNORECASE),
+        re.compile(r'\bcarrera\b', re.IGNORECASE),
+        re.compile(r'\belaborado\s+por\b', re.IGNORECASE),
+        re.compile(r'\btutor\b', re.IGNORECASE),
+        re.compile(r'\bcarnet\b', re.IGNORECASE),
+        re.compile(r'\bcarne\b', re.IGNORECASE),
+        re.compile(r'\bmanagua\b', re.IGNORECASE),
+        re.compile(r'\bnicaragua\b', re.IGNORECASE),
+        re.compile(r'\barea\s+de\s+conocimiento\b', re.IGNORECASE),
+        re.compile(r'\bpresentado\s+(?:por|a)\b', re.IGNORECASE),
+        re.compile(r'\bdocente\b', re.IGNORECASE),
+        re.compile(r'\bprofesor[a]?\b', re.IGNORECASE),
+        re.compile(r'\bgrupo\b', re.IGNORECASE),
+        re.compile(r'\brecinto\b', re.IGNORECASE),
+        re.compile(r'\bmonografia\b', re.IGNORECASE),
+        re.compile(r'\btesis\b', re.IGNORECASE),
+        re.compile(r'\bseminario\b', re.IGNORECASE),
+        re.compile(r'\bcatedratico\b', re.IGNORECASE),
+        re.compile(r'\blicenciatura\b', re.IGNORECASE),
+        re.compile(r'\bmaestria\b', re.IGNORECASE),
+        re.compile(r'\bdoctorado\b', re.IGNORECASE),
+        re.compile(r'\btrabajo\s+de\s+investigacion\b', re.IGNORECASE),
+        re.compile(r'\bdepartamento\s+de\b', re.IGNORECASE),
+        re.compile(r'\bescuela\s+de\b', re.IGNORECASE),
+        re.compile(r'\binstituto\s+de\b', re.IGNORECASE),
+        re.compile(r'\bplan\s+de\s+estudio\b', re.IGNORECASE),
+        re.compile(r'\basignatura\b', re.IGNORECASE),
+        re.compile(r'\bmateria\b', re.IGNORECASE),
+        re.compile(r'\bdirigido\s+por\b', re.IGNORECASE),
+        re.compile(r'\brevisado\s+por\b', re.IGNORECASE),
+        re.compile(r'\btema\b', re.IGNORECASE),
+        re.compile(r'\btitulo\b', re.IGNORECASE),
+        re.compile(r'\bevaluacion\b', re.IGNORECASE),
+        re.compile(r'\btribunal\b', re.IGNORECASE),
+        re.compile(r'\bpara\s+optar\b', re.IGNORECASE),
+        re.compile(r'\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+\d{4}\b', re.IGNORECASE),
     ]
 
     has_explicit_cover_keywords = False
     cover_keyword_count = 0
     for e in elements[:40]:
         text_norm = _normalize_accent((e.text or "").lower())
-        for kw in cover_kw_list:
-            # Las palabras sueltas ("tutor", "materia") deben matchear como palabra
-            # completa, no como subcadena ("tutoría", "material" dan falsos positivos).
-            if " " in kw:
-                matched = kw in text_norm
-            else:
-                matched = f" {kw} " in f" {text_norm} "
-            if matched:
+        for pat in cover_kw_patterns:
+            if pat.search(text_norm):
                 has_explicit_cover_keywords = True
                 cover_keyword_count += 1
                 break
@@ -820,6 +862,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         "recoleccion de datos", "recolección de datos",
         "presentacion del proceso", "presentación del proceso",
         "descripcion del proceso", "descripción del proceso",
+        "analisis", "análisis",
         "analisis de la situacion", "análisis de la situación",
         "objetivo general", "objetivos especificos",
         "desarrollo", "diagnostico", "diagnóstico",
@@ -833,13 +876,37 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             txt = (elem.text or "").strip()
             style = (elem.style_name or "").lower()
             txt_norm = _normalize_accent(txt.lower())
+            
+            # Prefijos de portada no son el inicio del cuerpo
+            if txt_norm.startswith(("tema:", "titulo:", "título:", "asignatura:", "materia:", "carrera:", "evaluacion:", "evaluación:")):
+                continue
+
             # NO debe tener keywords de portada
-            has_cover_kw = any(
-                (f" {kw} " if " " in kw else f" {kw} ") in f" {txt_norm} "
-                for kw in cover_kw_list
-            )
+            has_cover_kw = any(pat.search(txt_norm) for pat in cover_kw_patterns)
             if has_cover_kw:
                 continue
+            
+            # Verificar si hay elementos posteriores con keywords de portada (en los próximos elementos no vacíos)
+            # Solo los elementos cortos (<= 10 palabras) son considerados metadatos de portada
+            has_subsequent_cover = False
+            non_empty_checked = 0
+            for f_elem in elements[idx + 1:]:
+                f_txt = (f_elem.text or "").strip()
+                if not f_txt and not f_elem.image_info:
+                    continue
+                non_empty_checked += 1
+                if non_empty_checked > 8:
+                    break
+                f_words = f_txt.split()
+                if len(f_words) > 10:
+                    continue  # Párrafos largos son cuerpo, no metadatos de portada
+                f_norm = _normalize_accent(f_txt.lower())
+                if any(pat.search(f_norm) for pat in cover_kw_patterns):
+                    has_subsequent_cover = True
+                    break
+            if has_subsequent_cover:
+                continue
+
             # Señal 1: Heading de Word explícito
             if "heading" in style:
                 first_real_heading_after_cover = idx
