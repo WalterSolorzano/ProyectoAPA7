@@ -38,7 +38,7 @@ jobs:
     # NO agregar pasos extra de upload (softprops) o se crea un release duplicado
     # sin latest.yml y el auto-update falla.
     - name: Build backend + frontend + Electron
-      run: npm run electron:build -- --publish always
+      run: npm run electron:build
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}

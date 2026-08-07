@@ -3,7 +3,7 @@
   "productName": "WordAPA7",
   "description": "Herramienta inteligente para dar formato APA 7",
   "author": "Antigravity",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "lint": "eslint src/",
     "electron:dev": "vite",
-    "electron:build": "npm run build:backend && npm run build && electron-builder",
+    "electron:build": "npm run build:backend && npm run build && electron-builder --publish always",
     "build:backend": "python python/embed_payload.py && pyinstaller build/pyinstaller.spec --distpath dist-python --workpath build/pyinstaller-build -y"
   },
   "dependencies": {
