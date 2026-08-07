@@ -30,16 +30,13 @@ jobs:
       run: npm ci
 
     # electron:build = embed_payload → pyinstaller (spec con excludes de peso)
-    #                    → tsc+vite+manifest → electron-builder (publica .exe + latest.yml)
+    #                    → tsc+vite+manifest → electron-builder
+    # electron-builder YA publica el release (.exe + latest.yml + blockmap).
+    # NO agregar pasos extra de upload (softprops) o se crea un release duplicado
+    # sin latest.yml y el auto-update falla.
     - name: Build backend + frontend + Electron
       run: npm run electron:build
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
         GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
-
-    - name: Upload artifacts to release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: dist-electron-builder/*.exe
-        generate_release_notes: true
