@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog } from 'electron'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import { PythonManager } from './python-manager'
@@ -118,12 +118,35 @@ app.whenReady().then(() => {
     if (w && !w.isDestroyed()) w.webContents.send('update:status', status)
   }
 
+  const mainWin = () => BrowserWindow.getAllWindows()[0] || undefined
+
   autoUpdater.on('checking-for-update', () => sendUpdateStatus({ state: 'checking' }))
   autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info }))
   autoUpdater.on('update-not-available', (info) => sendUpdateStatus({ state: 'not-available', info }))
   autoUpdater.on('download-progress', (p) => sendUpdateStatus({ state: 'downloading', progress: Math.round(p.percent * 10) / 10 }))
-  autoUpdater.on('update-downloaded', (info) => sendUpdateStatus({ state: 'downloaded', info }))
-  autoUpdater.on('error', (err) => sendUpdateStatus({ state: 'error', message: err?.message || String(err) }))
+  autoUpdater.on('update-downloaded', (info) => {
+    sendUpdateStatus({ state: 'downloaded', info })
+    // Preguntar antes de reiniciar e instalar (el usuario espera ser consultado)
+    const w = mainWin()
+    if (w && !w.isDestroyed()) {
+      const v = (info as any)?.version || ''
+      dialog.showMessageBox(w, {
+        type: 'info',
+        title: 'Actualización lista',
+        message: `WordAPA7 v${v} se descargó correctamente.`,
+        detail: '¿Querés reiniciar la app ahora para instalarla?',
+        buttons: ['Reiniciar ahora', 'Después'],
+        defaultId: 0,
+        cancelId: 1,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall()
+      }).catch(() => {})
+    }
+  })
+  autoUpdater.on('error', (err) => {
+    console.error('auto-updater error:', err)
+    sendUpdateStatus({ state: 'error', message: err?.message || String(err) })
+  })
 
   ipcMain.on('get-app-version', (event) => {
     event.returnValue = app.getVersion()
@@ -137,13 +160,15 @@ app.whenReady().then(() => {
 
   createWindow()
 
-  // Chequeo silencioso al arrancar: si hay actualización se descarga sola y
-  // la UI avisa ("Actualización lista") para que el usuario reinicie.
-  try {
-    autoUpdater.checkForUpdates().catch(() => {})
-  } catch {
-    // Updater es best-effort: nunca rompe el arranque
-  }
+  // Chequeo inicial al arrancar + reintento a los ~10s (por si el primero
+  // arrancó antes de que la red/el backend estén listos y falló en silencio).
+  const runCheck = () => autoUpdater.checkForUpdates().catch(() => {})
+  try { runCheck() } catch { /* best-effort */ }
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { runCheck() } catch { /* best-effort */ }
+    }
+  }, 10000)
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
