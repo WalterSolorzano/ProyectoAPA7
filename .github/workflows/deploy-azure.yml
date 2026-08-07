@@ -24,7 +24,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Compute image owner (lowercase)
-        run: echo "IMG_OWNER=${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' >> "$GITHUB_ENV"
+        id: owner
+        run: echo "IMG_OWNER=${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,8 +44,8 @@ jobs:
           file: deploy/azure/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.IMG_OWNER }}/wordapa7:latest
-            ghcr.io/${{ env.IMG_OWNER }}/wordapa7:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:latest
+            ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:${{ github.sha }}
 
       - name: Azure login
         uses: azure/login@v2
@@ -60,7 +61,7 @@ jobs:
           APP="${{ secrets.AZURE_CONTAINER_APP }}"
           RG="${{ secrets.AZURE_RESOURCE_GROUP }}"
           ENV="${{ secrets.AZURE_CONTAINER_ENV }}"
-          IMG="ghcr.io/${{ env.IMG_OWNER }}/wordapa7:latest"
+          IMG="ghcr.io/${{ steps.owner.outputs.IMG_OWNER }}/wordapa7:latest"
           if az containerapp show -n "$APP" -g "$RG" --query name -o tsv 2>/dev/null | grep -q .; then
             az containerapp update -n "$APP" -g "$RG" --image "$IMG" \
               --min-replicas 0 --max-replicas 3 \
