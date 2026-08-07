@@ -3,7 +3,7 @@
   "productName": "WordAPA7",
   "description": "Herramienta inteligente para dar formato APA 7",
   "author": "Antigravity",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -28,6 +28,7 @@
     "@radix-ui/react-toggle": "^1.1.18",
     "@radix-ui/react-toggle-group": "^1.1.19",
     "@react-pdf/renderer": "^4.5.1",
+    "electron-updater": "^6.8.9",
     "idb-keyval": "^6.3.0",
     "mammoth": "^1.7.2",
     "pdfjs-dist": "^6.1.200",
@@ -58,6 +59,7 @@
     "vite-plugin-electron": "^1.1.0",
     "vite-plugin-electron-renderer": "^1.0.0",
     "vite-plugin-node-polyfills": "^0.28.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.119.0"
   }
 }

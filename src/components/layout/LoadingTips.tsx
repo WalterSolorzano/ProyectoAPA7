@@ -174,6 +174,8 @@ export const LoadingTips: React.FC = () => {
   const apiKey = useDocStore((s) => s.apiKey);
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
   const doc = useDocStore((s) => s.doc);
+  const isBackendReady = useDocStore((s) => s.isBackendReady);
+  const fileName = (doc as any)?.meta?.file_name || (doc as any)?.file_name || '';
 
   const [visible, setVisible] = useState(false);
   const [tip, setTip] = useState<Tip>({ category: 'process', text: PROCESS_VERBS[0] });
@@ -181,12 +183,46 @@ export const LoadingTips: React.FC = () => {
   const startRef = useRef<number>(0);
   const honestyShownRef = useRef(false);
   const llmCalledRef = useRef(false);
+  const minDisplayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Tip contextual inicial (tamaño real del documento + hora del día)
+  // Tiempo mínimo de visibilidad: 3.5 segundos para que se aprecie el diseño
+  const MIN_DISPLAY_MS = 3500;
+
+  // ── Tip contextual: nombre de archivo + hora + tamaño ──
   const contextualInitialTip = (): Tip | null => {
     const now = new Date();
+
+    // 1. Por nombre de archivo
+    if (fileName) {
+      const nameLower = fileName.toLowerCase();
+      if (/final|tesis|monograf/i.test(nameLower)) {
+        const phrases = [
+          `"${fileName}" — esto tiene pinta de trabajo final. Vamos con todo.`,
+          `Archivo detectado: "${fileName}". Modo tesis activado.`,
+          `"${fileName}" — ¿defensa en camino? Tranqui, yo me encargo del formato.`,
+          `Documento final detectado. Ajustando precisión milimétrica APA 7.`,
+        ];
+        return { category: 'jokes', text: phrases[Math.floor(Math.random() * phrases.length)] };
+      }
+      if (/avance|borrador|draft/i.test(nameLower)) {
+        return { category: 'process', text: `"${fileName}" — borrador detectado. Perfecto, vamos puliendo.` };
+      }
+      if (/investigaci|proyecto/i.test(nameLower)) {
+        return { category: 'apa', text: `"${fileName}" — proyecto de investigación. Las referencias son sagradas.` };
+      }
+      if (/ejercicio|tarea|lab/i.test(nameLower)) {
+        return { category: 'jokes', text: `"${fileName}" — ¡un ejercicio! Perfecto para dejar impecable en APA 7.` };
+      }
+      if (/contabilidad|finanza/i.test(nameLower)) {
+        return { category: 'process', text: `"${fileName}" — finanzas con formato APA. Números claros, referencias claras.` };
+      }
+    }
+
+    // 2. Por hora del día
     const timeComment = getTimeOfWeekComment(now);
     if (timeComment) return { category: 'honest', text: timeComment };
+
+    // 3. Por tamaño del documento
     if (doc) {
       const figCount = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
       const tblCount = doc.elements.filter((e) => e.type === 'table').length;
@@ -197,16 +233,40 @@ export const LoadingTips: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isLoading) { setVisible(false); honestyShownRef.current = false; llmCalledRef.current = false; return; }
+    // Mostrar también durante arranque del backend (cuando !isBackendReady)
+    const shouldShow = isLoading || !isBackendReady;
+    if (!shouldShow) {
+      // Delay hide: mantener visible el tiempo mínimo
+      if (visible && startRef.current > 0) {
+        const elapsed = Date.now() - startRef.current;
+        const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+        if (remaining > 0) {
+          minDisplayTimer.current = setTimeout(() => setVisible(false), remaining);
+          return;
+        }
+      }
+      setVisible(false);
+      honestyShownRef.current = false;
+      llmCalledRef.current = false;
+      return;
+    }
+
     const t = setTimeout(() => {
+      if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); minDisplayTimer.current = null; }
       startRef.current = Date.now();
       seqIdxRef.current = 0;
-      setTip(contextualInitialTip() || tipFor('process'));
+      const ctx = contextualInitialTip();
+      const initTip = ctx || tipFor('process');
+      if (!isBackendReady) {
+        setTip({ category: 'process', text: ctx?.text || 'Conectando con el motor de procesamiento...' });
+      } else {
+        setTip(initTip);
+      }
       setVisible(true);
     }, 250);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, isBackendReady]);
 
   useEffect(() => {
     if (!visible) return;
@@ -256,7 +316,9 @@ export const LoadingTips: React.FC = () => {
   if (!visible) return null;
 
   const message =
-    llmStatus === 'processing'
+    !isBackendReady
+      ? 'Iniciando motor de procesamiento...'
+      : llmStatus === 'processing'
       ? 'Clasificando con IA…'
       : 'Procesando documento…';
 

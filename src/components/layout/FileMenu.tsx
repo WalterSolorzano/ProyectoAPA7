@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { listSessions, recoverSession } from '../../api/backend';
 import { SessionRecovery } from '../../types';
+import { UpdateCard } from '../shared/UpdateCard';
 import {
   FileText, FilePlus, FolderOpen, Save, Download, X, ArrowLeft,
   Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate,
   Type, Image, Table, ListOrdered, Quote,
 } from 'lucide-react';
 
-type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export';
+type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export' | 'update';
 
 interface SidebarItem {
   id: FileMenuPage;
@@ -24,6 +25,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'open', label: 'Abrir', icon: <FolderOpen size={18} /> },
   { id: 'save', label: 'Guardar', icon: <Save size={18} /> },
   { id: 'export', label: 'Exportar', icon: <Download size={18} /> },
+  { id: 'update', label: 'Actualización', icon: <RefreshCw size={18} /> },
 ];
 
 export const FileMenu: React.FC = () => {
@@ -379,7 +381,17 @@ export const FileMenu: React.FC = () => {
         );
 
       default:
-        return null;
+        return (
+          <div className="filemenu-content">
+            <h2 className="filemenu-heading">Actualización</h2>
+            <UpdateCard />
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: '16px' }}>
+              La app se actualiza automáticamente desde GitHub Releases. Si hay una
+              versión nueva, se descarga en segundo plano y este menú te permite
+              instalarla con un clic (reinicia la app).
+            </p>
+          </div>
+        );
     }
   };
 

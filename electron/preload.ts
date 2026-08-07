@@ -22,5 +22,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('python-restarting', callback)
     return () => ipcRenderer.removeListener('python-restarting', callback)
   },
-  getBackendPort: () => ipcRenderer.sendSync('get-backend-port')
+  getBackendPort: () => ipcRenderer.sendSync('get-backend-port'),
+  // Actualizaciones: estado + acciones del menú de update
+  getAppVersion: () => ipcRenderer.sendSync('get-app-version'),
+  checkForUpdates: () => ipcRenderer.send('update:check'),
+  installUpdate: () => ipcRenderer.send('update:install'),
+  onUpdateStatus: (callback: (status: any) => void) => {
+    const listener = (_event: any, status: any) => callback(status)
+    ipcRenderer.on('update:status', listener)
+    return () => ipcRenderer.removeListener('update:status', listener)
+  }
 })

@@ -81,3 +81,19 @@ report-*.md
 qa_ui_audit_report.md
 app_logs.txt
 asar_contents.txt
+
+# Entrenamiento del clasificador y artefactos de análisis (no son producto)
+ENTRENAR/
+screenshots/
+capturas-stitch/
+analyze_doc.py
+check_headers.py
+check_landscape.py
+compare_v1_v3.py
+deep_analyze.py
+deep_analyze2.py
+deep_analyze_sessions.py
+deep_analyze_v3.py
+regenerate_and_check.py
+trainer.py
+upload_test.py

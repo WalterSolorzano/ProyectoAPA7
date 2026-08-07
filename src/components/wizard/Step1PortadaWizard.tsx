@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { Badge, Card, Panel } from '../ui/wordapa7';
-import { CoverSetupDialog } from './CoverSetupDialog';
+import { CoverStrategyCard } from './CoverStrategyCard';
 import { parseAuthorEntries, serializeAuthorEntries } from '../../lib/portadaAuthors';
 
 export const Step1PortadaWizard: React.FC = () => {
@@ -102,8 +102,6 @@ export const Step1PortadaWizard: React.FC = () => {
 
   return (
     <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
-      {!coverSetupDone && <CoverSetupDialog />}
-
       {/* ── PANEL LATERAL IZQUIERDO: editor de datos de la portada ── */}
       {showLateral && (
         <div style={{
@@ -141,6 +139,9 @@ export const Step1PortadaWizard: React.FC = () => {
 
           {/* Contenido scrollable */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+            {/* Elección de estrategia de portada (inline, sin modal) */}
+            {!coverSetupDone && <CoverStrategyCard />}
 
             {/* Campos básicos */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

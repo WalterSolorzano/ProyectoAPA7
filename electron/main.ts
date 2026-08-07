@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, protocol, nativeTheme } from 'electron'
 import path from 'path'
+import { autoUpdater } from 'electron-updater'
 import { PythonManager } from './python-manager'
 import { setupWindowControls } from './ipc/window-controls'
 import { createMenu } from './menu'
@@ -108,7 +109,41 @@ app.whenReady().then(() => {
     event.returnValue = PythonManager.port
   })
 
+  // ── Actualizaciones (menú de update) ─────────────────────────────────────
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  const sendUpdateStatus = (status: Record<string, unknown>) => {
+    const w = BrowserWindow.getAllWindows()[0]
+    if (w && !w.isDestroyed()) w.webContents.send('update:status', status)
+  }
+
+  autoUpdater.on('checking-for-update', () => sendUpdateStatus({ state: 'checking' }))
+  autoUpdater.on('update-available', (info) => sendUpdateStatus({ state: 'available', info }))
+  autoUpdater.on('update-not-available', (info) => sendUpdateStatus({ state: 'not-available', info }))
+  autoUpdater.on('download-progress', (p) => sendUpdateStatus({ state: 'downloading', progress: Math.round(p.percent * 10) / 10 }))
+  autoUpdater.on('update-downloaded', (info) => sendUpdateStatus({ state: 'downloaded', info }))
+  autoUpdater.on('error', (err) => sendUpdateStatus({ state: 'error', message: err?.message || String(err) }))
+
+  ipcMain.on('get-app-version', (event) => {
+    event.returnValue = app.getVersion()
+  })
+  ipcMain.on('update:check', () => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  })
+  ipcMain.on('update:install', () => {
+    autoUpdater.quitAndInstall()
+  })
+
   createWindow()
+
+  // Chequeo silencioso al arrancar: si hay actualización se descarga sola y
+  // la UI avisa ("Actualización lista") para que el usuario reinicie.
+  try {
+    autoUpdater.checkForUpdates().catch(() => {})
+  } catch {
+    // Updater es best-effort: nunca rompe el arranque
+  }
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

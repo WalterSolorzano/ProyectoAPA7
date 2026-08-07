@@ -12,6 +12,7 @@ Genera y formatea la seccion de Referencias:
 
 import re
 from typing import List, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -149,6 +150,117 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
     except Exception as e:
         print(f"[WARN] Error in Crossref API: {e}")
     return None
+
+
+async def search_crossref_by_author_year(authors: list[str], year: str) -> Optional[dict]:
+    """
+    Busca en Crossref API por apellido(s) de autor + año.
+    API gratuita, no requiere key. Retorna el mejor match formateado en APA 7.
+
+    Args:
+        authors: lista de apellidos, ej: ["Garcia", "Lopez"]
+        year: año de publicación, ej: "2023"
+
+    Returns: dict con author, year, title, source, doi, formatted_apa, o None
+    """
+    query = " ".join(authors) + " " + year
+    url = f"https://api.crossref.org/works?query={quote(query)}&rows=5"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers={"User-Agent": "WordAPA7/1.0 (mailto:wordapa7@antigravity.dev)"})
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            items = data.get("message", {}).get("items", [])
+            if not items:
+                return None
+
+            results = []
+            for item in items:
+                # Formatear autores APA 7
+                apa_authors = []
+                item_authors = item.get("author", [])
+                for author in item_authors:
+                    family = author.get("family", "")
+                    given = author.get("given", "")
+                    if family and given:
+                        apa_authors.append(f"{family}, {given[0]}.")
+                    elif family:
+                        apa_authors.append(family)
+                if not apa_authors:
+                    apa_authors = ["Autor desconocido"]
+                author_str = ", & ".join(apa_authors) if len(apa_authors) <= 2 else (
+                    ", ".join(apa_authors[:-1]) + ", & " + apa_authors[-1]
+                )
+
+                # Año
+                pub_year = item.get("published-print", {}).get("date-parts", [[None]])[0][0]
+                if not pub_year:
+                    pub_year = item.get("published-online", {}).get("date-parts", [[None]])[0][0]
+                if not pub_year:
+                    pub_year = item.get("created", {}).get("date-parts", [[None]])[0][0]
+                year_str = str(pub_year) if pub_year else year
+
+                # Título
+                titles = item.get("title", [])
+                title_str = titles[0] if titles else "Sin título"
+
+                # Source
+                container = item.get("container-title", [])
+                source_str = container[0] if container else ""
+                publisher = item.get("publisher", "")
+                if not source_str and publisher:
+                    source_str = publisher
+
+                # DOI
+                doi = item.get("DOI", "")
+
+                # Volume, issue, pages
+                volume = item.get("volume", "")
+                issue = item.get("issue", "")
+                page = item.get("page", "")
+
+                # Formato APA 7
+                formatted = f"{author_str} ({year_str}). {title_str}."
+                if source_str:
+                    formatted += f" {source_str}"
+                    if volume:
+                        formatted += f", {volume}"
+                        if issue:
+                            formatted += f"({issue})"
+                    if page:
+                        formatted += f", {page}"
+                formatted += "."
+                if doi:
+                    formatted += f" https://doi.org/{doi}"
+
+                # Score de relevancia: el primer autor coincide = alta relevancia
+                item_surnames = [a.get("family", "").lower() for a in item_authors]
+                query_surnames = [a.lower() for a in authors]
+                relevance = "high" if (item_surnames and query_surnames and item_surnames[0] == query_surnames[0]) else "medium"
+
+                results.append({
+                    "authors": apa_authors,
+                    "year": year_str,
+                    "title": title_str,
+                    "source": source_str or publisher,
+                    "doi": doi,
+                    "formatted_apa": formatted,
+                    "relevance": relevance,
+                })
+
+            if not results:
+                return None
+
+            return {
+                "candidates": results,
+                "found": True,
+                "total_results": data.get("message", {}).get("total-results", len(results)),
+            }
+    except Exception as e:
+        print(f"[WARN] Error searching Crossref: {e}")
+    return None
+
 
 async def fetch_openlibrary_metadata(isbn: str) -> Optional[dict]:
     url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"

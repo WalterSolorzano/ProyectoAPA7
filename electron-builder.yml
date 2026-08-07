@@ -13,7 +13,6 @@ extraResources:
       - "**/*"
 win:
   target: nsis
-  icon: build/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -21,4 +20,7 @@ nsis:
   createStartMenuShortcut: true
   perMachine: true
   runAfterFinish: true
-  include: build/installer.nsh
+publish:
+  provider: github
+  owner: ${env.GITHUB_REPOSITORY_OWNER}
+  repo: ${env.GITHUB_REPOSITORY_NAME}

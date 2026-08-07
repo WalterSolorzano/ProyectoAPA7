@@ -29,6 +29,8 @@ const idbStorage: StateStorage = {
   },
 };
 
+let mascotTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function toRoman(num: number): string {
   if (num <= 0) return '';
   const lookup: { [key: string]: number } = {
@@ -167,9 +169,30 @@ interface DocState {
   hasSeenTour: boolean;
   coverSetupDone: boolean;
   setCoverSetupDone: (done: boolean) => void;
-  viewMode: 'edit' | 'result' | 'native-pdf' | 'split';
+  viewMode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export';
   forceRightPanelOpen: boolean;
   setForceRightPanelOpen: (open: boolean) => void;
+
+  // Mascota IA (rate-limited, máx. 1 línea). Se usa en hitos importantes:
+  // abrir el túnel de exportación, validar un paso o terminar una acción IA.
+  mascotMessage: { text: string; tone: 'info' | 'success' | 'warning' } | null;
+  sayMascot: (text: string, tone?: 'info' | 'success' | 'warning') => void;
+
+  /** Elemento al que PaperCanvas debe hacer scroll SIN abrir el inspector. */
+  scrollTargetId: string | null;
+  setScrollTargetId: (id: string | null) => void;
+
+  /** Overlay no bloqueante del Validador (drawer) — el canvas nunca se oculta. */
+  validatorOpen: boolean;
+  setValidatorOpen: (open: boolean) => void;
+
+  /** Abre el Túnel de Exportación (viewMode='export') reemplazando el modal. */
+  openExportTunnel: () => void;
+
+  /** Comentarios inline descartados por el usuario (persisten en la sesión). */
+  dismissedCommentIds: string[];
+  dismissComment: (id: string) => void;
+  restoreComment: (id: string) => void;
   imagePanelOpen: boolean;
   setImagePanelOpen: (open: boolean) => void;
   tabs: { session_id: string; file_name: string }[];
@@ -249,7 +272,7 @@ interface DocState {
   setZoomLevel: (zoom: number) => void;
   setShowFileMenu: (show: boolean) => void;
   setHasSeenTour: (seen: boolean) => void;
-  setViewMode: (mode: 'edit' | 'result' | 'native-pdf' | 'split') => void;
+  setViewMode: (mode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export') => void;
   setPdfPreviewCache: (cache: { hash: string; url: string } | null) => void;
 
   switchToTab: (index: number) => void;
@@ -285,6 +308,11 @@ interface DocState {
   addReference: (ref: ReferenciaModel) => void;
   removeReference: (id: string) => void;
   resolveDoiReference: (doi: string) => Promise<void>;
+  resolveGhostCitation: (authors: string[], year: string) => Promise<{
+    id: string; authors: string[]; year: string; title: string;
+    source: string; doi_or_url: string; raw_text: string; formatted_apa: string;
+    candidates?: { authors: string[]; year: string; title: string; source: string; doi?: string; formatted_apa: string; relevance: string }[];
+  } | null>;
 
   runValidation: () => Promise<void>;
   runCitationAudit: () => Promise<void>;
@@ -415,6 +443,22 @@ export const useDocStore = create<DocState>()(
   viewMode: 'edit',
   forceRightPanelOpen: false,
   setForceRightPanelOpen: (open: boolean) => set({ forceRightPanelOpen: open }),
+  mascotMessage: null,
+  sayMascot: (text, tone = 'info') => {
+    set({ mascotMessage: { text, tone } });
+    if (mascotTimer) clearTimeout(mascotTimer);
+    mascotTimer = setTimeout(() => set({ mascotMessage: null }), 7000);
+  },
+  scrollTargetId: null,
+  setScrollTargetId: (id) => set({ scrollTargetId: id }),
+  validatorOpen: false,
+  setValidatorOpen: (open) => set({ validatorOpen: open }),
+  openExportTunnel: () => set({ isDownloadModalOpen: false, viewMode: 'export', forceRightPanelOpen: false }),
+  dismissedCommentIds: [],
+  dismissComment: (id) => set((state) => ({
+    dismissedCommentIds: state.dismissedCommentIds.includes(id) ? state.dismissedCommentIds : [...state.dismissedCommentIds, id],
+  })),
+  restoreComment: (id) => set((state) => ({ dismissedCommentIds: state.dismissedCommentIds.filter((x) => x !== id) })),
   rightPanelTab: 'inspector',
   setRightPanelTab: (tab) => set((state) => ({
     rightPanelTab: tab,
@@ -840,12 +884,14 @@ export const useDocStore = create<DocState>()(
       if (opts?.mode === 'quick') {
         // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
         // se aceptan los elementos de alta confianza y se valida al vuelo.
-        set({ isLoading: false });
-        await get().acceptHighConfidenceElements().catch(() => {});
-        await get().runValidation().catch(() => {});
-        await get().runCitationAudit().catch(() => {});
-        set({ isDownloadModalOpen: true, pendingQuickExport: true });
-        return;
+      set({ isLoading: false });
+      await get().acceptHighConfidenceElements().catch(() => {});
+      await get().runValidation().catch(() => {});
+      await get().runCitationAudit().catch(() => {});
+      // Preservar la portada original — NO forzar CoverSetupDialog.
+      // El túnel de exportación reemplaza al modal de descarga.
+      set({ isDownloadModalOpen: false, pendingQuickExport: true, coverSetupDone: true, viewMode: 'export' });
+      return;
       }
       // Auto-disparar clasificación LLM en background
       const uncertainCount = doc.elements.filter(
@@ -1224,6 +1270,40 @@ export const useDocStore = create<DocState>()(
       console.error('Error resolving DOI:', e);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  resolveGhostCitation: async (authors: string[], year: string) => {
+    set({ isLoading: true });
+    try {
+      const result = await api.resolveGhostCitation(authors, year);
+      if (result.found && result.candidates && result.candidates.length > 0) {
+        // Auto-agregar el primer candidato (relevance=high) o todos para que el usuario elija
+        const ref = result.candidates[0];
+        const newRef = {
+          id: `ghost-${Date.now()}`,
+          authors: ref.authors,
+          year: ref.year,
+          title: ref.title,
+          source: ref.source,
+          doi_or_url: ref.doi || '',
+          raw_text: ref.formatted_apa,
+          formatted_apa: ref.formatted_apa,
+        };
+        get().addReference(newRef);
+        const extra = result.candidates.length > 1 ? ` (${result.candidates.length} resultados, se agregó el mejor match)` : '';
+        get().showToast(`Referencia encontrada: ${ref.authors[0]} (${ref.year})${extra}`, 'success');
+        get().runCitationAudit();
+        set({ isLoading: false });
+        return { ...newRef, candidates: result.candidates };
+      }
+      get().showToast(`No se encontró referencia para "${authors.join(' ')} (${year})" en Crossref`, 'warning');
+      set({ isLoading: false });
+      return null;
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al buscar referencia', 'error');
+      set({ isLoading: false });
+      return null;
     }
   },
 

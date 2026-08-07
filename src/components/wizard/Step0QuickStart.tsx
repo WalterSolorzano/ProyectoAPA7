@@ -307,14 +307,19 @@ export const Step0QuickStart: React.FC = () => {
                 Convertir documento
               </h2>
 
-              {!isBackendReady ? (
-                <Card style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px', color: 'var(--text-secondary)', fontSize: '16px' }}>
-                  <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
-                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                  Cargando motor de procesamiento...
-                </Card>
-              ) : (
+              {!isBackendReady && (
                 <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
+                  padding: '8px 14px', borderRadius: '10px',
+                  background: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
+                  fontSize: '13px', color: 'var(--accent-primary)',
+                }}>
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                  <span>Conectando con el motor de procesamiento...</span>
+                </div>
+              )}
+              <div style={{
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '16px',
                   background: 'var(--surface-subtle)',
@@ -323,20 +328,20 @@ export const Step0QuickStart: React.FC = () => {
                   {/* Paso 1: archivo */}
                   {!selectedFile ? (
                     <div
-                      onDragOver={(e) => { e.preventDefault(); if (!isLoading) setDragging(true); }}
+                      onDragOver={(e) => { e.preventDefault(); if (!isLoading && isBackendReady) setDragging(true); }}
                       onDragLeave={() => setDragging(false)}
                       onDrop={handleDrop}
-                      onClick={() => !isLoading && fileInputRef.current?.click()}
+                      onClick={() => !isLoading && isBackendReady && fileInputRef.current?.click()}
                       role="button"
                       aria-label="Seleccionar documento .docx"
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        minHeight: '220px', cursor: isLoading ? 'wait' : 'pointer',
+                        minHeight: '220px', cursor: (isLoading || !isBackendReady) ? 'wait' : 'pointer',
                         border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-subtle)',
                         borderRadius: '12px', transition: 'all 0.2s ease',
                         backgroundColor: dragging ? 'rgba(79,124,255,0.08)' : 'transparent',
                         transform: dragging ? 'scale(1.01)' : 'scale(1)',
-                        pointerEvents: isLoading ? 'none' : 'auto',
+                        pointerEvents: (isLoading || !isBackendReady) ? 'none' : 'auto',
                       }}
                     >
                       <FileUp size={56} color={dragging ? 'var(--accent-primary)' : 'var(--text-muted)'} style={{ marginBottom: '16px', transition: 'color 0.2s ease' }} />
@@ -439,11 +444,11 @@ export const Step0QuickStart: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleConvert}
-                        disabled={isLoading}
+                        disabled={isLoading || !isBackendReady}
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                           width: '100%', marginTop: '20px', padding: '13px 20px',
-                          borderRadius: '10px', border: 'none', cursor: isLoading ? 'wait' : 'pointer',
+                          borderRadius: '10px', border: 'none', cursor: (isLoading || !isBackendReady) ? 'wait' : 'pointer',
                           backgroundColor: 'var(--accent-primary)', color: '#fff',
                           fontFamily: 'inherit', fontSize: '15px', fontWeight: 700,
                           opacity: isLoading ? 0.75 : 1,
@@ -464,7 +469,6 @@ export const Step0QuickStart: React.FC = () => {
                     </>
                   )}
                 </div>
-              )}
             </div>
 
             {/* ── ACCIÓN SECUNDARIA (B): Plantillas descargables ── */}
@@ -553,15 +557,19 @@ export const Step0QuickStart: React.FC = () => {
             <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Abrir Documento Existente
             </h1>
-            {!isBackendReady ? (
-              <Card style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '24px', color: 'var(--text-secondary)', fontSize: '16px' }}>
-                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
+            {!isBackendReady && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
+                padding: '8px 14px', borderRadius: '10px',
+                background: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
+                fontSize: '13px', color: 'var(--accent-primary)',
+              }}>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
                 <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-                Cargando motor de procesamiento...
-              </Card>
-            ) : (
-              <UploadDropzone onFileSelected={(file) => uploadFile(file)} isLoading={isLoading} />
+                <span>Conectando con el motor de procesamiento...</span>
+              </div>
             )}
+            <UploadDropzone onFileSelected={(file) => uploadFile(file)} isLoading={isLoading || !isBackendReady} />
           </div>
         )}
 
@@ -625,10 +633,10 @@ const RecentsList: React.FC<{
 }> = ({ sessions, loading, backendReady, recoveringId, onOpen, showEmpty }) => {
   if (!backendReady) {
     return (
-      <Card style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-secondary)', fontSize: '14px' }}>
-        <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+      <Card style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        Cargando motor de IA...
+        <span style={{ verticalAlign: 'middle' }}>Conectando...</span>
       </Card>
     );
   }

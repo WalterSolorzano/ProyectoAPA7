@@ -15,6 +15,8 @@ import { useDocStore } from '../../store/useDocStore';
 import { generateChatComment } from '../../api/backend';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
+import { DocumentMascot, MascotExpression } from './DocumentMascot';
+import { PenLine, X, BookOpen, CheckCheck } from 'lucide-react';
 
 // ── DETECCIÓN ────────────────────────────────────────────────────────────────
 
@@ -373,13 +375,38 @@ export function getWhatsAppComment(
 
 // ── COMPONENTE (híbrido biblioteca + IA, con "escribiendo…") ─────────────────
 
+/** Micro-acción que muestra la burbuja según el tipo de comentario. */
+function resolveMeta(kind: string): { label: string; icon: React.ReactNode } | null {
+  if (kind === 'ghost_citation' || kind === 'orphan_references') return { label: 'Resolver cita', icon: <BookOpen size={11} /> };
+  if (kind === 'image_no_caption') return { label: 'Agregar leyenda', icon: <PenLine size={11} /> };
+  if (kind === 'positive' || kind === 'citation_ok') return null;
+  return { label: 'Revisar', icon: <PenLine size={11} /> };
+}
+
+/** Expresión de la mascota según gravedad/tipo (detective / pánico / festivo). */
+function mascotFor(kind: string, isPositive: boolean): MascotExpression {
+  if (isPositive || kind === 'positive') return 'excited';
+  if (kind === 'citation_ok') return 'happy';
+  if (kind === 'ghost_citation' || kind === 'orphan_references') return 'curious'; // cara de detective
+  if (kind === 'citation_error' || kind === 'shouting') return 'worried'; // pánico cómico
+  if (kind && kind.startsWith('validation_')) return 'worried';
+  if (kind === 'image_no_caption') return 'curious';
+  return 'neutral';
+}
+
 interface WhatsAppCommentProps {
   elem: ElementModel;
   /** True si este elemento es el "comentario positivo" de una sección limpia. */
   positive?: boolean;
+  onHover?: (id: string) => void;
+  onLeave?: () => void;
+  /** Botón "Resolver": navega y enfoca el panel correspondiente. */
+  onResolve?: (comment: WhatsAppCommentData, elem: ElementModel) => void;
+  /** "X" / swipe: el usuario ignoró el comentario. */
+  onDismiss?: (id: string) => void;
 }
 
-export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false }) => {
+export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false, onHover, onLeave, onResolve, onDismiss }) => {
   const ghostCitations = useDocStore((s) => (s.citationAuditResult?.ghost_citations || []) as any[]);
   const orphanReferences = useDocStore((s) => (s.citationAuditResult?.orphan_references || []) as any[]);
   const validationIssues = useDocStore((s) => (s.validationIssues || []) as any[]);
@@ -390,6 +417,11 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
   const nonceRef = useRef<number>(Math.floor(Math.random() * 1e6));
   const [phase, setPhase] = useState<'typing' | 'done'>('typing');
   const [iaText, setIaText] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState(false);
+  const [resolved, setResolved] = useState(false);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ctx: WhatsAppContext = { ghostCitations, orphanReferences, validationIssues };
   let comment: WhatsAppCommentData | null = getWhatsAppComment(elem, ctx, nonceRef.current);
@@ -441,27 +473,100 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elem.id]);
 
+  // Limpieza del timer de dismiss al desmontar
+  useEffect(() => () => { if (dismissTimer.current) clearTimeout(dismissTimer.current); }, []);
+
   if (!comment) return null;
 
   const display: WhatsAppCommentData = iaText
     ? { emoji: comment.emoji, text: iaText, kind: comment.kind }
     : comment;
 
+  const expression = mascotFor(display.kind, isPositive);
+  const action = resolveMeta(display.kind);
+
+  const triggerDismiss = () => {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    setDismissing(true);
+    dismissTimer.current = setTimeout(() => onDismiss?.(elem.id), 480);
+  };
+
+  const handleResolve = () => {
+    onResolve?.(comment, elem);
+    setResolved(true);
+    if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    dismissTimer.current = setTimeout(() => onDismiss?.(elem.id), 1500);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => { dragStartX.current = e.clientX; };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (dragStartX.current === null) return;
+    const dx = e.clientX - dragStartX.current;
+    if (dx > 4) setSwipeDx(Math.min(dx, 90));
+  };
+  const handlePointerUp = () => {
+    if (swipeDx > 55) {
+      setSwipeDx(0);
+      triggerDismiss();
+    } else {
+      setSwipeDx(0);
+    }
+    dragStartX.current = null;
+  };
+
+  const bubbleStyle: React.CSSProperties = {
+    transform: swipeDx > 0 ? `translateX(${swipeDx}px)` : undefined,
+  };
+
   return (
-    <div className={`wa-comment${isPositive ? ' wa-comment-positive' : ''}`} aria-label="Comentario de IA">
+    <div
+      className={`wa-comment${isPositive ? ' wa-comment-positive' : ''}${dismissing ? ' wa-comment-dismissing' : ''}${resolved ? ' wa-comment-resolved' : ''}`}
+      aria-label="Comentario de IA"
+      onMouseEnter={() => { onHover?.(elem.id); }}
+      onMouseLeave={() => { onLeave?.(); }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => { setSwipeDx(0); dragStartX.current = null; }}
+    >
       {phase === 'typing' ? (
-        <div className="wa-bubble wa-bubble-typing" aria-hidden="true">
+        <div className="wa-bubble wa-bubble-typing" aria-hidden="true" style={bubbleStyle}>
           <div className="wa-typing"><span /><span /><span /></div>
           <span className="wa-time">escribiendo…</span>
         </div>
+      ) : resolved ? (
+        /* Cara festiva: el usuario resolvió la alerta desde el botón */
+        <div className="wa-bubble wa-bubble-resolved">
+          <div className="wa-line">
+            <span className="wa-avatar"><DocumentMascot size={24} expression="excited" /></span>
+            <span className="wa-text">Listo. Te llevé al punto exacto.</span>
+          </div>
+          <span className="wa-time"><CheckCheck size={10} /> resuelto</span>
+        </div>
       ) : (
         <>
-          <div className="wa-bubble">
+          <div className="wa-bubble" style={bubbleStyle}>
             <div className="wa-line">
-              <span className="wa-emoji" aria-hidden="true">{display.emoji}</span>
+              <span className="wa-avatar"><DocumentMascot size={24} expression={expression} /></span>
               <span className="wa-text">{display.text}</span>
             </div>
-            <span className="wa-time">WordAPA7</span>
+            <div className="wa-actions">
+              {action && (
+                <button type="button" className="wa-action" onClick={(e) => { e.stopPropagation(); handleResolve(); }}>
+                  {action.icon} {action.label}
+                </button>
+              )}
+              <span className="wa-time">WordAPA7</span>
+              <button
+                type="button"
+                className="wa-dismiss"
+                onClick={(e) => { e.stopPropagation(); triggerDismiss(); }}
+                title="Ignorar comentario"
+                aria-label="Ignorar comentario"
+              >
+                <X size={11} />
+              </button>
+            </div>
           </div>
           <span className="wa-tail" aria-hidden="true" />
         </>

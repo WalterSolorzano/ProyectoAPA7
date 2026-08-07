@@ -7,7 +7,7 @@ import { ZoomIn, ZoomOut, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
-import { getWhatsAppComment, WhatsAppComment } from './WhatsAppComment';
+import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
 
@@ -56,8 +56,10 @@ export const computePages = (elements: ElementModel[]): ElementModel[][] => {
 };
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string> }> = ({ onElementClick, reviewHighlightIds }) => {
-  const { doc, rules, portada, selectedElementId, setSelectedElementId, updateElementType, reviewResult, zoomLevel, setZoomLevel } = useDocStore();
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
+  const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [contextMenuElemId, setContextMenuElemId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -360,6 +362,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     }
   }, [selectedElementId]);
 
+  // Scroll del DocumentOutline / auto-scroll a Referencias SIN abrir el inspector
+  const scrollTargetId = useDocStore((s) => s.scrollTargetId);
+  useEffect(() => {
+    if (scrollTargetId) {
+      const targetEl = document.getElementById(`paper-elem-${scrollTargetId}`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [scrollTargetId]);
+
   if (!doc) return null;
 
   const fontFamily = rules.font_family || 'Times New Roman';
@@ -417,6 +430,24 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       return changed ? next : prev;
     });
   }, [allGutterIds, doc, zoomLevel]);
+
+  // Acción "Resolver" del comentario inline: enfoca el panel lateral correcto.
+  const handleResolveComment = (comment: WhatsAppCommentData, elem: ElementModel) => {
+    setForceRightPanelOpen(true);
+    if (comment.kind === 'ghost_citation' || comment.kind === 'orphan_references') {
+      // El panel derecho de Referencias tiene el botón "Resolver" por cita.
+      setSelectedElementId(null);
+      setSelectedReferenceId(null);
+      setWizardStep(5);
+      setScrollTargetId(elem.id);
+      return;
+    }
+    setSelectedElementId(elem.id);
+    if (comment.kind && comment.kind.startsWith('validation_') && (comment.kind.includes('figur') || comment.kind.includes('tabla'))) {
+      setWizardStep(3); // inspector de la figura/tabla
+    }
+    setScrollTargetId(elem.id);
+  };
 
   let globalListCounter = 0;
 
@@ -690,7 +721,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           }
 
           return (
-            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', position: 'relative' }}>
             <div
               style={{
                 width: '680px',
@@ -920,7 +951,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           padding: '2px 2px 2px 6px',
                           backgroundColor: isSelected ? 'rgba(43, 87, 154, 0.05)' : (hasGhostCitation ? 'rgba(254, 242, 242, 0.5)' : aiBgColor),
                           transition: 'all 0.2s',
-                          cursor: 'text'
+                          cursor: 'text',
+                          // Hover contextual: la burbuja resalta el elemento referenciado
+                          ...(hoveredCommentId === elem.id ? {
+                            outline: '2px solid var(--accent-primary)',
+                            outlineOffset: '2px',
+                            backgroundColor: 'rgba(79,124,255,0.08)',
+                            boxShadow: '0 0 0 4px rgba(79,124,255,0.10)',
+                          } : {}),
                         }}
                       >
                         {/* Menú Contextual — debajo del elemento para que nunca
@@ -1371,14 +1409,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               )}
             </div>
             {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word).
-                Muestra TODOS los comentarios de la página sin límite. Si la medida
-                offsetTop aún no está lista (primer paint) se distribuye por índice. */}
-            {pageElements.filter((e) => positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null).length > 0 && (
+                Muestra TODOS los comentarios de la página sin límite (salvo los
+                descartados por el usuario). Si la medida offsetTop aún no está
+                lista (primer paint) se distribuye por índice. */}
+            {pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null)).length > 0 && (
               <div style={{ position: 'relative', width: '250px', flexShrink: 0 }}>
                 {pageElements.map((elem, idx) => {
                   const positive = !!positiveMap.get(elem.id);
                   const hasComment = positive || getWhatsAppComment(elem, commentCtx, 0) !== null;
-                  if (!hasComment) return null;
+                  if (!hasComment || dismissedCommentIds.includes(elem.id)) return null;
                   const measured = gutterOffsets[elem.id];
                   const top = typeof measured === 'number' && measured > 0
                     ? measured
@@ -1389,11 +1428,32 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                       className="wa-gutter"
                       style={{ position: 'absolute', top: `${top}px`, left: 0, width: '100%' }}
                     >
-                      <WhatsAppComment elem={elem} positive={positive} />
+                      <WhatsAppComment
+                        elem={elem}
+                        positive={positive}
+                        onHover={setHoveredCommentId}
+                        onLeave={() => setHoveredCommentId(null)}
+                        onResolve={handleResolveComment}
+                        onDismiss={dismissComment}
+                      />
                     </div>
                   );
                 })}
               </div>
+            )}
+
+            {/* Conector punteado sutil (Google Docs / Figma): une la burbuja en
+                hover con el borde del elemento referenciado en la hoja. */}
+            {hoveredCommentId && pageElements.some((e) => e.id === hoveredCommentId) && gutterOffsets[hoveredCommentId] != null && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', left: '680px', top: `${gutterOffsets[hoveredCommentId]}px`,
+                  width: '20px', height: 0,
+                  borderTop: '1.5px dashed rgba(79,124,255,0.65)',
+                  pointerEvents: 'none', zIndex: 20,
+                }}
+              />
             )}
             </div>
           );

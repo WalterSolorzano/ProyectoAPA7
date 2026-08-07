@@ -14,7 +14,7 @@ export const ValidatorView: React.FC = () => {
   const [hoveredCitation, setHoveredCitation] = useState<number | null>(null);
   const [hoveredReference, setHoveredReference] = useState<number | null>(null);
   // Estado por cita para corrección IA: { [citIndex]: { loading, result } }
-  const [fixState, setFixState] = useState<Record<number, { loading: boolean; result: { corrected: string; reason: string; action: string } | null }>>({});
+  const [fixState, setFixState] = useState<Record<number, { loading: boolean; resolved?: boolean; result: { corrected: string; reason: string; action: string } | null }>>({});
 
   useEffect(() => {
     runValidation();
@@ -170,6 +170,39 @@ export const ValidatorView: React.FC = () => {
                           ? 'Sin referencia en la lista'
                           : `Coincide con la referencia ${(ri ?? 0) + 1}`}
                       </div>
+
+                      {/* Botón "Resolver" — buscar en Crossref (gratis, sin IA) */}
+                      {isGhost && cit.authors?.length > 0 && cit.year && (
+                        <div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {!fs?.resolved ? (
+                            <button
+                              type="button"
+                              onClick={async (ev) => {
+                                ev.stopPropagation();
+                                setFixState(s => ({ ...s, [ci]: { ...(s[ci] || {}), loading: true } }));
+                                try {
+                                  await useDocStore.getState().resolveGhostCitation(cit.authors, cit.year!);
+                                  setFixState(s => ({ ...s, [ci]: { ...(s[ci] || {}), loading: false, resolved: true } }));
+                                } catch {
+                                  setFixState(s => ({ ...s, [ci]: { ...(s[ci] || {}), loading: false } }));
+                                }
+                              }}
+                              disabled={fs?.loading}
+                              style={{
+                                fontSize: '11px', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
+                                background: 'var(--accent-success)', color: '#fff', border: 'none', fontWeight: 600,
+                                opacity: fs?.loading ? 0.6 : 1,
+                              }}
+                            >
+                              {fs?.loading ? '⏳ Buscando...' : 'Resolver'}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 600 }}>
+                              Agregada a referencias
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Botón "Corregir con IA" (propuesta 6) */}
                       {(isGhost || (validationIssues || []).some(v => (v as any).citation_index === ci)) && (

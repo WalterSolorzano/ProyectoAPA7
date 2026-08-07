@@ -779,6 +779,99 @@ html, body {
   background: #e7f8ee;
 }
 
+/* ── Mejoras del sistema de comentarios inline (WhatsApp style) ── */
+
+/* Avatar: mascota expresiva en lugar del emoji estático */
+.wa-avatar {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(240, 244, 255, 0.7);
+  border-radius: 50%;
+}
+
+/* Fila de acciones dentro de la burbuja */
+.wa-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.wa-actions .wa-time {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+/* Micro-botón "Resolver" (acción rápida, sutil) */
+.wa-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: rgba(79, 124, 255, 0.12);
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+.wa-action:hover {
+  background: rgba(79, 124, 255, 0.22);
+}
+
+/* Botón "X" para ignorar */
+.wa-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #9aa7b1;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+}
+.wa-dismiss:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #5f6f7c;
+}
+
+/* Estado "descartando": tachado gris claro + desvanecido antes de esfumarse */
+.wa-comment-dismissing {
+  pointer-events: none;
+}
+.wa-comment-dismissing .wa-bubble {
+  filter: grayscale(1);
+  opacity: 0.5;
+  transform: translateX(14px);
+  transition: transform 0.45s ease, opacity 0.45s ease, filter 0.45s ease;
+}
+.wa-comment-dismissing .wa-text {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+
+/* Estado "resuelto": cara festiva + confirmación */
+.wa-bubble-resolved {
+  background: #e7f8ee;
+  border: 1px solid rgba(45, 106, 79, 0.28);
+  animation: wa-pop 0.35s ease-out both;
+}
+.wa-bubble-resolved .wa-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #2f7d4f;
+}
+
 /* ════════════ MASCOTA FIJA (esquina inferior derecha, sobre el statusbar) ════════════ */
 .doc-mascot-corner {
   position: fixed;

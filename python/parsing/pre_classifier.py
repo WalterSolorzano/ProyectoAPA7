@@ -207,6 +207,51 @@ def _flag_numbering_skips(elements: List[ElementModel]) -> None:
         seen_prefixes.add(nums)
 
 
+def _flag_atypical_single_word_headings(elements: List[ElementModel]) -> None:
+    """
+    Marca para revisión del usuario los headings de una sola palabra que no son
+    títulos académicos estándar ni números de sección. Ejemplos típicos:
+    "Enunciado", "Datos", "Huevo", "Cáscara", "Filtrado" — palabras en negrita
+    que la heurística clasificó como heading por formato pero que en contexto
+    son etiquetas de ejercicios o pasos de proceso, no headings APA.
+
+    La definición de "atípico" es estructural: 1 palabra, no está en el set
+    de palabras académicas estándar, y no es un número de sección.
+    """
+    # Palabras que SIEMPRE son válidas como heading de 1 palabra
+    _valid_single_word_headings = {
+        "introduccion", "introducción", "objetivos", "resumen", "abstract",
+        "conclusion", "conclusión", "conclusiones", "recomendaciones",
+        "referencias", "bibliografia", "bibliografía", "anexos", "anexo",
+        "desarrollo", "resultados", "discusion", "discusión",
+        "antecedentes", "justificacion", "justificación",
+        "metodologia", "metodología", "hipotesis", "hipótesis",
+        "alcance", "limitaciones", "propuesta", "cronograma", "presupuesto",
+        "dedicatoria", "agradecimientos", "glosario", "epigrafe", "epígrafe",
+        "indice", "índice", "apendice", "apéndice",
+        "diagnostico", "diagnóstico",
+    }
+    for elem in elements:
+        if elem.type != ElementType.HEADING or not elem.text:
+            continue
+        txt = elem.text.strip()
+        words = txt.split()
+        if len(words) != 1:
+            continue
+        word_lower = txt.lower().rstrip(".:;,")
+        # Es un número de sección? (ej: "1.", "2.3", "IV.")
+        if re.match(r'^[\dIVXLCDM.]+$', word_lower):
+            continue
+        # Es una palabra académica estándar?
+        if word_lower in _valid_single_word_headings:
+            continue
+        # Atípico: marcar para revisión, mantener como heading
+        elem.needs_review = True
+        elem.confidence = min(elem.confidence or 0.80, 0.55)
+        if not elem.pre_classifier_rule:
+            elem.pre_classifier_rule = "atypical_single_word"
+
+
 def _demote_numbered_headings(elements: List[ElementModel]) -> None:
     """
     Degrada headings numerados (p.ej. "3. ¿Cómo afecta...") que están
@@ -679,20 +724,28 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # --- Señales múltiples para detección robusta de portada ---
 
     portada_boundary = None
-    # El boundary por página solo es autoritativo si el documento es MULTIPÁGINA.
-    # Si todo cabe en la página 1, un doc corto no debe tratarse como portada
-    # completa — se cae a las señales de keywords.
+    page1_boundary_override = None
+    # El boundary por página solo es autoritativo si el documento es MULTIPÁGINA
+    # Y tiene una página 1 razonable (<= 20 elementos, una portada típica).
+    # Si la página 1 tiene muchos elementos (>20), probablemente el documento
+    # no formatea bien los saltos de página y debemos usar otras señales.
     if elements and getattr(elements[0], "page_number", None) is not None:
         any_after_page1 = any(
             (getattr(e, "page_number", 1) or 1) > 1 for e in elements
         )
         if any_after_page1:
-            portada_boundary = 0
+            page1_end = 0
             for idx, elem in enumerate(elements):
                 if getattr(elem, "page_number", None) == 1:
-                    portada_boundary = idx + 1
+                    page1_end = idx + 1
                 else:
                     break
+            if page1_end <= 20:
+                portada_boundary = page1_end
+            else:
+                # Página 1 muy grande (>20 elementos): guardar para usar
+                # como cota superior, pero buscar señales mejores dentro
+                page1_boundary_override = page1_end
 
     # Señal A: Palabras clave de cuerpo (body_start)
     body_start_idx = -1
@@ -755,20 +808,148 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # Señal E: Densidad de palabras clave de portada en primeros 15 elementos
     strong_keyword_density = cover_keyword_count >= 3
 
+    # Señal F: Buscar el primer heading real después de la portada
+    # (cuando no hay body_start_idx por keywords, o body_start_idx está muy lejos)
+    first_real_heading_after_cover = -1
+    # Expandir body keywords para detectar más patrones de inicio de cuerpo
+    _expanded_body_kws = [
+        "introducc", "resumen", "abstract", "marco teorico",
+        "antecedentes", "metodologia", "resultado", "discusion",
+        "conclusion", "referencias", "bibliografia", "anexo",
+        "planteamiento del problema", "justificacion",
+        "recoleccion de datos", "recolección de datos",
+        "presentacion del proceso", "presentación del proceso",
+        "descripcion del proceso", "descripción del proceso",
+        "analisis de la situacion", "análisis de la situación",
+        "objetivo general", "objetivos especificos",
+        "desarrollo", "diagnostico", "diagnóstico",
+        "propuesta", "recomendaciones", "cronograma",
+        "fundamentacion", "fundamentación",
+    ]
+    if body_start_idx == -1 or (body_start_idx > 25 and has_explicit_cover_keywords):
+        for idx, elem in enumerate(elements):
+            if idx < 5:
+                continue  # saltar las primeras líneas de portada
+            txt = (elem.text or "").strip()
+            style = (elem.style_name or "").lower()
+            txt_norm = _normalize_accent(txt.lower())
+            # NO debe tener keywords de portada
+            has_cover_kw = any(
+                (f" {kw} " if " " in kw else f" {kw} ") in f" {txt_norm} "
+                for kw in cover_kw_list
+            )
+            if has_cover_kw:
+                continue
+            # Señal 1: Heading de Word explícito
+            if "heading" in style:
+                first_real_heading_after_cover = idx
+                break
+            # Señal 2: Heading numerado con formato bold (ej. "1.Recolección", "2. Presentación")
+            num_match = re.match(r'^(\d+)[.)]\s+\S', txt)
+            if num_match and elem.is_bold and len(txt.split()) <= 12:
+                first_real_heading_after_cover = idx
+                break
+            # Señal 3: Centrado + bold + corto (heading clásico)
+            if elem.alignment == "center" and elem.is_bold and len(txt.split()) <= 6:
+                first_real_heading_after_cover = idx
+                break
+            # Señal 4: Body keyword expandida
+            if any(kw in txt_norm for kw in _expanded_body_kws):
+                if not elem.is_bold or len(txt.split()) <= 15:
+                    first_real_heading_after_cover = idx
+                    break
+            # Señal 5: Cambio estructural: párrafo largo left-aligned después de zona de portada
+            if elem.alignment in ("left", "justify") and len(txt.split()) > 30 and idx > 8:
+                first_real_heading_after_cover = idx
+                break
+
     # Decisión combinada: portada_boundary
     if portada_boundary is None:
         if has_explicit_cover_keywords and body_start_idx != -1:
-            portada_boundary = body_start_idx
+            # Si hay un heading estructural más cercano que body_start_idx, preferirlo
+            if first_real_heading_after_cover != -1 and first_real_heading_after_cover < body_start_idx:
+                portada_boundary = first_real_heading_after_cover
+            else:
+                portada_boundary = body_start_idx
         elif has_explicit_cover_keywords:
-            portada_boundary = min(len(elements), 40)
+            if first_real_heading_after_cover != -1:
+                portada_boundary = first_real_heading_after_cover
+            else:
+                # Sin heading claro, usar un limite conservador basado en
+                # el numero tipico de lineas de portada (~15-20 elementos)
+                # + buscar ruptura estructural (cambio de centrado a izquierda,
+                # parrafo largo, etc.)
+                structural_break = -1
+                consecutive_left_paras = 0
+                for idx, elem in enumerate(elements):
+                    if idx < 8:
+                        continue
+                    txt = (elem.text or "").strip()
+                    # Señal de ruptura: parrafo justificado o left + largo
+                    if elem.alignment in ("left", "justify") and len(txt.split()) > 20:
+                        structural_break = idx
+                        break
+                    # Señal: varios parrafos consecutivos alineados a izquierda
+                    if elem.alignment == "left" and not txt.startswith(("Elaborado", "Docente", "Tutor", "Carnet", "Fecha", "Grupo", "Recinto")):
+                        consecutive_left_paras += 1
+                        if consecutive_left_paras >= 3:
+                            structural_break = idx - 2
+                            break
+                    else:
+                        consecutive_left_paras = 0
+                if structural_break != -1:
+                    portada_boundary = structural_break
+                else:
+                    portada_boundary = min(len(elements), 20)
         elif images_in_first_page >= 1 and centered_short_blocks >= 2:
             portada_boundary = 15
         elif centered_short_blocks >= 3:
             portada_boundary = 15
         elif strong_keyword_density:
-            portada_boundary = min(len(elements), 40)
+            portada_boundary = min(len(elements), 20)
         else:
             portada_boundary = 0
+
+    # Si el boundary por página 1 era demasiado grande (>20), recortarlo
+    # usando las señales estructurales disponibles, pero nunca excederlo.
+    if page1_boundary_override is not None and portada_boundary is None:
+        # No se encontró boundary por otras señales. Usar el body_start_idx si existe
+        if body_start_idx != -1:
+            portada_boundary = min(body_start_idx, page1_boundary_override)
+        elif first_real_heading_after_cover != -1:
+            portada_boundary = min(first_real_heading_after_cover, page1_boundary_override)
+        else:
+            # Buscar ruptura estructural dentro de la página 1
+            structural_break = -1
+            consecutive_left = 0
+            for idx, elem in enumerate(elements[:page1_boundary_override]):
+                if idx < 8:
+                    continue
+                txt = (elem.text or "").strip()
+                style = (elem.style_name or "").lower()
+                # Si encontramos un heading de Word dentro de la página 1, es el límite
+                if "heading" in style:
+                    has_cover_kw_check = any(
+                        (f" {kw} " if " " in kw else f" {kw} ") in f" {_normalize_accent(txt.lower())} "
+                        for kw in cover_kw_list
+                    )
+                    if not has_cover_kw_check:
+                        structural_break = idx
+                        break
+                if elem.alignment in ("left", "justify") and len(txt.split()) > 20:
+                    structural_break = idx
+                    break
+                if elem.alignment == "left" and not txt.startswith(("Elaborado", "Docente", "Tutor", "Carnet", "Fecha", "Grupo", "Recinto")):
+                    consecutive_left += 1
+                    if consecutive_left >= 3:
+                        structural_break = idx - 2
+                        break
+                else:
+                    consecutive_left = 0
+            if structural_break != -1:
+                portada_boundary = structural_break
+            else:
+                portada_boundary = min(page1_boundary_override, 20)
 
     for idx, elem in enumerate(elements):
         if idx < portada_boundary:
@@ -992,6 +1173,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     # sobreescribiendo inferencias débiles anteriores.
     classifier = ClusteringHeadingClassifier()
     elements = classifier.classify(elements)
+
+    # ── PASADA 4a: Guard — headings de 1 palabra atípica → needs_review ────────
+    # Los headings de una sola palabra que no son títulos académicos estándar
+    # (Introducción, Anexos, etc.) ni números de sección se marcan para revisión
+    # del usuario. Cubre casos como "Enunciado", "Huevo", "Datos" que la heurística
+    # clasificó como heading por formato (bold + corto + sin punto final) pero que
+    # en contexto son etiquetas de ejercicios o pasos de proceso.
+    _flag_atypical_single_word_headings(elements)
 
     # ── PASADA 5: Validación con Tabla de Contenidos nativa ───────────────────
     # Si el documento tiene TOC de Word, sus entradas son ground truth:

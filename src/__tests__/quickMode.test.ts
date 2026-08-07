@@ -4,7 +4,7 @@
  * Verifica que uploadFile en modo quick:
  * - pasa profile_id y work_mode=quick al backend
  * - acepta elementos de alta confianza, valida y audita citas
- * - abre el modal de descarga con pendingQuickExport=true
+ * - abre el túnel de exportación (viewMode='export', sin modal) con pendingQuickExport=true
  * - NO navega al wizard paso a paso
  */
 
@@ -93,7 +93,8 @@ describe('useDocStore — Modo Rápido', () => {
     expect(api.validateCitations).toHaveBeenCalled();
 
     const state = useDocStore.getState();
-    expect(state.isDownloadModalOpen).toBe(true);
+    expect(state.isDownloadModalOpen).toBe(false); // ya no hay modal
+    expect(state.viewMode).toBe('export'); // el túnel de exportación lo reemplaza
     expect(state.pendingQuickExport).toBe(true);
     expect(state.doc?.session_id).toBe('sess_quick_1');
     expect(state.wizardStep).toBe(0); // no navega al wizard completo

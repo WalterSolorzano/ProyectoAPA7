@@ -13,7 +13,7 @@ import { ReactPDFPreview } from './components/layout/ReactPDFPreview';
 import { StatusBar } from './components/layout/StatusBar';
 import { Step0QuickStart } from './components/wizard/Step0QuickStart';
 import { SettingsPreviewStudio } from './components/settings/SettingsPreviewStudio';
-import { DownloadModal } from './components/wizard/DownloadModal';
+import { ExportView } from './components/export/ExportView';
 import { LoadingTips } from './components/layout/LoadingTips';
 import { DownloadSuccessOverlay } from './components/layout/DownloadSuccessOverlay';
 import { CommandPalette } from './components/CommandPalette';
@@ -33,6 +33,7 @@ import * as api from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
 import { DesignAuditor } from './components/auditor/DesignAuditor';
 import { RightSidePanel } from './components/activity/RightSidePanel';
+import { MascotBubble } from './components/activity/MascotBubble';
 import { syncAllProviderKeys } from './api/backend';
 
 const pendingCountForPhase = (phaseId: number) => {
@@ -153,6 +154,8 @@ export const App: React.FC = () => {
       // Escape cierra las UIs superpuestas de mayor a menor prioridad
       if (e.key === 'Escape') {
         const s = useDocStore.getState();
+        if (s.validatorOpen) { s.setValidatorOpen(false); return; }
+        if (s.viewMode === 'export') { s.setViewMode('edit'); return; }
         if (s.isNIMDiagnosticsOpen) { s.setIsNIMDiagnosticsOpen(false); return; }
         if (s.commandPaletteOpen) { s.setCommandPaletteOpen(false); return; }
         if (s.showFileMenu) { s.setShowFileMenu(false); return; }
@@ -217,7 +220,7 @@ export const App: React.FC = () => {
           case '6':
             e.preventDefault();
             if (doc) {
-              useDocStore.getState().setDownloadModalOpen(true);
+              useDocStore.getState().openExportTunnel();
             }
             break;
           default:
@@ -315,6 +318,8 @@ export const App: React.FC = () => {
           <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <PDFPreview />
           </div>
+        ) : viewMode === 'export' ? (
+          <ExportView />
         ) : viewMode === 'native-pdf' ? (
           <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <ReactPDFPreview />
@@ -366,8 +371,6 @@ export const App: React.FC = () => {
       {/* Onboarding como tooltips (primera vez) */}
       <OnboardingTour />
 
-      <DownloadModal />
-
       <LLMConsentDialog />
 
       {doc && commandPaletteOpen && <CommandPalette />}
@@ -380,6 +383,9 @@ export const App: React.FC = () => {
 
       <StatusBar />
       <AIBatteryIndicator />
+
+      {/* Mascota con globo de diálogo — hitos importantes, no bloquea */}
+      {doc && <MascotBubble />}
 
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
     </div>

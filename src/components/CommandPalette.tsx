@@ -13,7 +13,7 @@ interface Command {
 }
 
 export const CommandPalette: React.FC = () => {
-  const { doc, wizardStep, setWizardStep, exportDocx, exportPdf, setDownloadModalOpen } = useDocStore();
+  const { doc, wizardStep, setWizardStep, exportDocx, exportPdf } = useDocStore();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,8 +46,11 @@ export const CommandPalette: React.FC = () => {
 
     { id: 'download-docx', label: 'Descargar DOCX', shortcut: 'Ctrl+S', icon: FileDown, action: () => { exportDocx(false); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'docx', 'word'] },
     { id: 'download-pdf', label: 'Descargar PDF', shortcut: 'Ctrl+Shift+S', icon: FileText, action: () => { exportPdf(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'pdf'] },
-    { id: 'download-open-modal', label: 'Abrir ventana de descarga', shortcut: '', icon: FileCheck, action: () => { setDownloadModalOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'download', 'modal'] },
-  ], [doc, wizardStep, setWizardStep, exportDocx, exportPdf, setDownloadModalOpen]);
+    { id: 'download-open-tunnel', label: 'Abrir túnel de exportación', shortcut: 'Ctrl+6', icon: FileCheck, action: () => { useDocStore.getState().openExportTunnel(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'download', 'exportar', 'tunel', 'formato'] },
+    { id: 'open-validator', label: 'Abrir validador de citas', shortcut: '', icon: FileCheck, action: () => { useDocStore.getState().setValidatorOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['validador', 'citas', 'referencias', 'validar'] },
+    { id: 'open-auditor', label: 'Auditor de diseño', shortcut: '', icon: null, action: () => { useDocStore.getState().setAuditorMode(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['auditor', 'diseño', 'revision'] },
+    { id: 'open-nim-diagnostics', label: 'Diagnóstico de proveedores IA', shortcut: '', icon: null, action: () => { useDocStore.getState().setIsNIMDiagnosticsOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['diagnostico', 'ia', 'proveedor', 'nim', 'key'] },
+  ], [doc, wizardStep, setWizardStep, exportDocx, exportPdf]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands;

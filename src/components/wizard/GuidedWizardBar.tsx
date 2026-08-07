@@ -17,28 +17,28 @@ const STAGES: { id: Stage; title: string; icon: React.ReactNode; hint: string }[
 
 export const GuidedWizardBar: React.FC = () => {
   const {
-    doc, atHome, goHome, isDownloadModalOpen, setDownloadModalOpen,
+    doc, atHome, goHome, viewMode, setViewMode, openExportTunnel,
     tabs, activeTabIndex, switchToTab, setShowFileMenu,
   } = useDocStore();
 
-  const activeStage: Stage = (!doc || atHome) ? 1 : (isDownloadModalOpen ? 3 : 2);
+  const activeStage: Stage = (!doc || atHome) ? 1 : (viewMode === 'export' ? 3 : 2);
 
   const goToStage = (stage: Stage) => {
     if (stage === 1) {
       setShowFileMenu(false);
-      setDownloadModalOpen(false);
+      setViewMode('edit');
       goHome();
       return;
     }
     if (stage === 2) {
-      setDownloadModalOpen(false);
+      setViewMode('edit');
       if (atHome && tabs.length > 0) {
         switchToTab(activeTabIndex || 0);
       }
       return;
     }
     if (stage === 3 && doc) {
-      setDownloadModalOpen(true);
+      openExportTunnel();
       return;
     }
   };

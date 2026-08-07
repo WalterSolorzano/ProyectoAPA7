@@ -7,7 +7,9 @@
 import React, { useState, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { syncAllProviderKeys } from '../../api/backend';
+import { isTelemetryEnabled, setTelemetryEnabled } from '../../telemetry/client';
 import { Card, Badge, InputField } from '../ui/wordapa7';
+import { UpdateCard } from '../shared/UpdateCard';
 import {
   Type, AlignLeft, StretchHorizontal, Heading1, Image as ImageIcon,
   ListOrdered, Save, X, BookOpen, FileText, GalleryHorizontalEnd, ListTree, ArrowRight, Cpu,
@@ -252,6 +254,9 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
             <ProviderKeyField label="Cloudflare Account ID" envVar="CLOUDFLARE_ACCOUNT_ID" />
           </Section>
 
+          {/* Telemetría */}
+          <TelemetryToggle />
+
         </div>
 
         {onContinue && (
@@ -279,6 +284,9 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
             </p>
           </div>
         )}
+
+          {/* Actualización (menú de update) */}
+          <UpdateCard compact />
       </div>
 
       {/* ── PREVISUALIZACIÓN (derecha) ── */}
@@ -307,6 +315,31 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
     {children}
   </div>
 );
+
+/* Toggle de opt-in para telemetría anónima de errores */
+const TelemetryToggle: React.FC = () => {
+  const [enabled, setEnabled] = useState(() => {
+    try { return isTelemetryEnabled(); } catch { return false; }
+  });
+
+  return (
+    <Section icon={<Cpu size={14} />} title="Telemetría">
+      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 6px', lineHeight: 1.5 }}>
+        Ayuda a mejorar la app enviando reportes de error anonimos. Nunca se envia contenido de documentos, nombres, ni datos personales. Solo metadata tecnica (tipo de error, version, conteo de elementos).
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <button type="button" onClick={() => { const n = !enabled; setEnabled(n); setTelemetryEnabled(n); }}
+          style={{ width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+            background: enabled ? 'var(--accent-primary)' : 'var(--border-subtle)', position: 'relative' }}>
+          <span style={{ position: 'absolute', top: '2px', left: enabled ? '22px' : '2px',
+            width: '20px', height: '20px', borderRadius: '50%', background: '#fff',
+            transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+        </button>
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{enabled ? 'Activado' : 'Desactivado'}</span>
+      </div>
+    </Section>
+  );
+};
 
 /* Campo de clave de API para proveedores IA (persistida en localStorage) */
 const ProviderKeyField: React.FC<{ label: string; envVar: string }> = ({ label, envVar }) => {

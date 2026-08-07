@@ -11,7 +11,9 @@ import { useDocStore } from '../../store/useDocStore';
 import { ResizablePanel } from '../shared/ResizablePanel';
 import { ElementInspector } from '../inspector/ElementInspector';
 import { ReferenceForm } from '../referencias/ReferenceForm';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2, RotateCw, Activity, ShieldAlert, FileText, Download, ListChecks, Sparkles, X, BookOpen } from 'lucide-react';
+import { ActionBar } from './ActionBar';
+import { ReferencesPanel } from '../referencias/ReferencesPanel';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2, RotateCw, Activity, ShieldAlert, FileText, ListChecks, Sparkles, X, BookOpen } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   success: <CheckCircle2 size={15} color="var(--color-success)" />,
@@ -92,6 +94,8 @@ export const RightSidePanel: React.FC = () => {
             <ElementInspector />
           ) : hasReference ? (
             <ReferenceForm key={selectedReferenceId} />
+          ) : wizardStep === 5 ? (
+            <ReferencesPanel />
           ) : (
             <DocumentPanel />
           )}
@@ -106,7 +110,7 @@ export const RightSidePanel: React.FC = () => {
 const DocumentPanel: React.FC = () => {
   const {
     doc, reviewResult, isReviewLoading, runAIReview, activityEvents,
-    setDownloadModalOpen, runLLMClassify, runCitationAudit, citationAuditResult,
+    runLLMClassify, runCitationAudit, citationAuditResult,
     llmProgress,
   } = useDocStore();
 
@@ -124,6 +128,9 @@ const DocumentPanel: React.FC = () => {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* IA proactiva: ActionBar sutil con badges de pendientes */}
+      <ActionBar />
+
       {/* Resumen del documento */}
       <div style={{
         border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
@@ -153,57 +160,6 @@ const DocumentPanel: React.FC = () => {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Acciones rápidas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-        <button
-          type="button"
-          onClick={() => setDownloadModalOpen(true)}
-          className="btn btn-primary"
-          style={{ justifyContent: 'center', fontSize: '12px', padding: '8px 6px' }}
-        >
-          <Download size={13} /> Descargar
-        </button>
-        <button
-          type="button"
-          onClick={() => { if (!isReviewLoading && !reviewResult) runAIReview(); else if (reviewResult) {} }}
-          disabled={isReviewLoading}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            padding: '8px 6px', fontSize: '12px', fontWeight: 600, cursor: isReviewLoading ? 'wait' : 'pointer',
-            background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-            border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
-          }}
-        >
-          {isReviewLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldAlert size={13} />}
-          {isReviewLoading ? 'Analizando…' : 'Revisor IA'}
-        </button>
-        <button
-          type="button"
-          onClick={() => runLLMClassify()}
-          disabled={llmActive}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            padding: '8px 6px', fontSize: '12px', fontWeight: 600, cursor: llmActive ? 'wait' : 'pointer',
-            background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-            border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
-          }}
-        >
-          <Sparkles size={13} /> {llmActive ? 'Clasificando…' : 'Refinar IA'}
-        </button>
-        <button
-          type="button"
-          onClick={() => runCitationAudit()}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            padding: '8px 6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-            background: 'var(--surface-subtle)', color: 'var(--text-main)',
-            border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
-          }}
-        >
-          <ListChecks size={13} /> Validar citas
-        </button>
       </div>
 
       {/* Progreso de clasificación LLM en tiempo real (visibilidad IA) */}

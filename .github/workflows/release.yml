@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Install Python dependencies
+      run: pip install -r requirements.txt pyinstaller
+
+    - name: Build Python backend
+      run: |
+        python -m PyInstaller --onedir --name python-backend python/main.py
+        if (Test-Path dist-python) { Remove-Item -Recurse -Force dist-python }
+        Move-Item -Path dist/python-backend -Destination dist-python
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Install frontend dependencies
+      run: npm ci
+
+    - name: Build frontend
+      run: npm run build
+
+    - name: Build Electron app
+      run: npm run electron:build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
+
+    - name: Upload artifacts to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist-electron-builder/*.exe
+        generate_release_notes: true

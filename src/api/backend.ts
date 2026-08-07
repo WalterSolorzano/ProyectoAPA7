@@ -760,6 +760,22 @@ export async function resolveReferencesBatch(
   return res.json();
 }
 
+export async function resolveGhostCitation(
+  authors: string[],
+  year: string,
+): Promise<{ found: boolean; candidates?: { authors: string[]; year: string; title: string; source: string; doi?: string; formatted_apa: string; relevance: string }[]; total_results?: number }> {
+  const res = await fetchWithTrace(`${getApiBase()}/resolve-ghost-citation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ authors, year }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al buscar referencia fantasma');
+  }
+  return res.json();
+}
+
 export async function explainElement(
   elementId: string,
   question: string,

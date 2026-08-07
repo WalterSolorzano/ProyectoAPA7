@@ -459,6 +459,11 @@ class ResolveBatchRequest(BaseModel):
     references: List[str]
 
 
+class ResolveGhostCitationRequest(BaseModel):
+    authors: List[str]
+    year: str
+
+
 class SuggestCaptionRequest(BaseModel):
     session_id: str
     element_id: str
@@ -1684,6 +1689,20 @@ async def resolve_batch_endpoint(req: ResolveBatchRequest) -> dict:
         return {"results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/resolve-ghost-citation")
+async def resolve_ghost_citation_endpoint(req: ResolveGhostCitationRequest):
+    """
+    Busca en Crossref API referencias por apellido(s) de autor + año.
+    API gratuita (Crossref), sin API key. Retorna hasta 5 candidatos
+    formateados en APA 7 para que el usuario elija.
+    """
+    from modules.referencias_module import search_crossref_by_author_year
+    result = await search_crossref_by_author_year(req.authors, req.year)
+    if result:
+        return {"found": True, "candidates": result.get("candidates", []), "total_results": result.get("total_results", 0)}
+    return {"found": False, "candidates": [], "total_results": 0}
 
 
 @app.post("/api/validate")
