@@ -179,9 +179,13 @@ export const ExportView: React.FC = () => {
     doExport();
   };
 
+  // Navegación desde el resumen hacia el editor: usamos viewMode='edit' (no
+  // 'split') porque el modo 'edit' renderiza el EditorRail, el RightSidePanel
+  // y (para el paso 4) el CoverEditorPanel. El modo 'split' omite esos
+  // componentes y el usuario se quedaría sin controles para editar.
   const goToStep = (step: number) => {
     clearQuickExport();
-    setViewMode('split');
+    setViewMode('edit');
     setWizardStep(step);
   };
 
@@ -270,7 +274,7 @@ export const ExportView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => { clearQuickExport(); setViewMode('split'); }}
+            onClick={() => { clearQuickExport(); setViewMode('edit'); }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -797,7 +801,7 @@ export const ExportView: React.FC = () => {
           {/* 5. Enlace Secundario al Editor Asistido */}
           <button
             type="button"
-            onClick={() => { clearQuickExport(); setViewMode('split'); }}
+            onClick={() => { clearQuickExport(); setViewMode('edit'); }}
             style={{
               width: '100%',
               padding: '4px 0',
