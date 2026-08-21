@@ -33,7 +33,7 @@
     "electron-updater": "^6.8.9",
     "idb-keyval": "^6.3.0",
     "mammoth": "^1.7.2",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.2.108",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "use-debounce": "^10.1.1",
