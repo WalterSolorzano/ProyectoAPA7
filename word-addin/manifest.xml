@@ -8,48 +8,56 @@
 
   <!-- ===================================================================== -->
   <!-- WordAPA7 — Word Add-in Manifest                                        -->
-  <!-- Panel lateral (Task Pane) que vive DENTRO de Word. Implementa el        -->
-  <!-- "Asistente en Vivo" que edita el documento en APA 7 en tiempo real:   -->
-  <!-- detecta y guarda citas, aplica formato al vuelo y numera figuras/      -->
-  <!-- tablas automáticamente al pegar imágenes o tablas.                     -->
   <!--                                                                        -->
-  <!-- Además, la pestaña "WordAPA7" del Ribbon tiene botones de acceso       -->
-  <!-- rápido que abren el panel directamente en la sección correcta.         -->
+  <!-- Ribbon con 4 grupos y 10 botones, cada uno con su propio icono:        -->
+  <!--                                                                        -->
+  <!--   Grupo 1: Asistente                                                   -->
+  <!--     - Abrir panel (ShowTaskpane)                                       -->
+  <!--     - Auditar APA 7                                                    -->
+  <!--     - Actualizar                                                       -->
+  <!--                                                                        -->
+  <!--   Grupo 2: Insertar APA 7                                             -->
+  <!--     - Tabla                                                            -->
+  <!--     - Figura                                                           -->
+  <!--     - Titulo                                                          -->
+  <!--                                                                        -->
+  <!--   Grupo 3: Referencias                                                -->
+  <!--     - Citas                                                           -->
+  <!--     - Bibliografia                                                    -->
+  <!--     - Portada                                                         -->
+  <!--                                                                        -->
+  <!--   Grupo 4: Herramientas                                               -->
+  <!--     - IA (deteccion de texto IA)                                      -->
   <!-- ===================================================================== -->
 
-  <!-- El Id DEBE ser un GUID válido (Word lo exige para hacer sideload). -->
   <Id>8f3a2c1d-9b4e-4a7f-8c5d-2e1f0a3b6c9d</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.1.0.0</Version>
   <ProviderName>WordAPA7</ProviderName>
   <DefaultLocale>es-ES</DefaultLocale>
   <DisplayName DefaultValue="WordAPA7 — Asistente APA 7" />
-  <Description DefaultValue="Asistente APA 7 en vivo dentro de Word: detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automáticamente cuando las pegás." />
+  <Description DefaultValue="Asistente APA 7 en vivo dentro de Word: detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automaticamente cuando las pegás." />
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png" />
   <SupportUrl DefaultValue="https://localhost:3000" />
 
-  <!-- Hosts: solo Word -->
   <Hosts>
     <Host Name="Document" />
   </Hosts>
 
-  <!-- Requisitos: Word 2016+ o Word Online -->
   <Requirements>
     <Sets DefaultMinVersion="1.1">
       <Set Name="WordApi" MinVersion="1.3" />
     </Sets>
   </Requirements>
 
-  <!-- Ubicación del Task Pane (el asistente en vivo) -->
   <DefaultSettings>
     <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
   </DefaultSettings>
 
-  <!-- Permisos: lectura/escritura del documento -->
   <Permissions>ReadWriteDocument</Permissions>
 
   <!-- ===================================================================== -->
-  <!-- Version Overrides — pestaña del Ribbon con botones de acceso rápido   -->
+  <!-- Version Overrides — Ribbon con 4 grupos y 10 botones                  -->
   <!-- ===================================================================== -->
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides/1.1" xsi:type="VersionOverridesV1_0">
 
@@ -62,29 +70,29 @@
             <LearnMoreUrl resid="WordAPA7.LearnMoreUrl" />
           </GetStarted>
 
-          <!-- FunctionFile: HTML invisible que carga las funciones JS del ribbon -->
           <FunctionFile resid="WordAPA7.Commands.Url" />
 
-          <!-- Pestaña personalizada "WordAPA7" con grupos de botones -->
           <ExtensionPoint xsi:type="CustomTab">
             <CustomTab id="WordAPA7.Tab">
               <Label resid="WordAPA7.TabLabel" />
 
-              <!-- Grupo 1: Asistente -->
+              <!-- ================================================================ -->
+              <!-- Grupo 1: Asistente                                                -->
+              <!-- ================================================================ -->
               <Group id="WordAPA7.GroupAssistant">
                 <Label resid="WordAPA7.GroupAssistantLabel" />
 
-                <!-- Botón principal: abre el Task Pane (asistente en vivo) -->
+                <!-- Abrir panel -->
                 <Control xsi:type="Button" id="WordAPA7.OpenTaskpane">
-                  <Label resid="WordAPA7.TaskpaneButton.Label" />
+                  <Label resid="WordAPA7.OpenPanel.Label" />
                   <Supertip>
-                    <Title resid="WordAPA7.TaskpaneButton.Label" />
-                    <Description resid="WordAPA7.TaskpaneButton.Supertip" />
+                    <Title resid="WordAPA7.OpenPanel.Label" />
+                    <Description resid="WordAPA7.OpenPanel.Supertip" />
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.80" />
+                    <bt:Image size="16" resid="WordAPA7.Icon.Panel.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Panel.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Panel.80" />
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>WordAPA7.Taskpane</TaskpaneId>
@@ -92,7 +100,7 @@
                   </Action>
                 </Control>
 
-                <!-- Auditar APA 7: abre el panel en la pestaña "En Vivo" -->
+                <!-- Auditar APA 7 -->
                 <Control xsi:type="Button" id="WordAPA7.Audit">
                   <Label resid="WordAPA7.Audit.Label" />
                   <Supertip>
@@ -100,21 +108,40 @@
                     <Description resid="WordAPA7.Audit.Supertip" />
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.80" />
+                    <bt:Image size="16" resid="WordAPA7.Icon.Audit.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Audit.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Audit.80" />
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>validateSelection</FunctionName>
                   </Action>
                 </Control>
+
+                <!-- Actualizar -->
+                <Control xsi:type="Button" id="WordAPA7.Refresh">
+                  <Label resid="WordAPA7.Refresh.Label" />
+                  <Supertip>
+                    <Title resid="WordAPA7.Refresh.Label" />
+                    <Description resid="WordAPA7.Refresh.Supertip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="WordAPA7.Icon.Refresh.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Refresh.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Refresh.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>refreshDocument</FunctionName>
+                  </Action>
+                </Control>
               </Group>
 
-              <!-- Grupo 2: Insertar elementos APA 7 -->
+              <!-- ================================================================ -->
+              <!-- Grupo 2: Insertar APA 7                                          -->
+              <!-- ================================================================ -->
               <Group id="WordAPA7.GroupInsert">
                 <Label resid="WordAPA7.GroupInsertLabel" />
 
-                <!-- Insertar Tabla APA -->
+                <!-- Tabla -->
                 <Control xsi:type="Button" id="WordAPA7.InsertTable">
                   <Label resid="WordAPA7.InsertTable.Label" />
                   <Supertip>
@@ -122,16 +149,16 @@
                     <Description resid="WordAPA7.InsertTable.Supertip" />
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.80" />
+                    <bt:Image size="16" resid="WordAPA7.Icon.Table.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Table.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Table.80" />
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>insertTableAPA</FunctionName>
                   </Action>
                 </Control>
 
-                <!-- Insertar Figura APA -->
+                <!-- Figura -->
                 <Control xsi:type="Button" id="WordAPA7.InsertFigure">
                   <Label resid="WordAPA7.InsertFigure.Label" />
                   <Supertip>
@@ -139,16 +166,16 @@
                     <Description resid="WordAPA7.InsertFigure.Supertip" />
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.80" />
+                    <bt:Image size="16" resid="WordAPA7.Icon.Figure.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Figure.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Figure.80" />
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>insertFigureAPA</FunctionName>
                   </Action>
                 </Control>
 
-                <!-- Insertar Título APA -->
+                <!-- Titulo -->
                 <Control xsi:type="Button" id="WordAPA7.InsertHeading">
                   <Label resid="WordAPA7.InsertHeading.Label" />
                   <Supertip>
@@ -156,12 +183,94 @@
                     <Description resid="WordAPA7.InsertHeading.Supertip" />
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.80" />
+                    <bt:Image size="16" resid="WordAPA7.Icon.Heading.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Heading.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Heading.80" />
                   </Icon>
                   <Action xsi:type="ExecuteFunction">
                     <FunctionName>insertHeadingAPA</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+
+              <!-- ================================================================ -->
+              <!-- Grupo 3: Referencias                                             -->
+              <!-- ================================================================ -->
+              <Group id="WordAPA7.GroupReferences">
+                <Label resid="WordAPA7.GroupReferencesLabel" />
+
+                <!-- Citas -->
+                <Control xsi:type="Button" id="WordAPA7.Citation">
+                  <Label resid="WordAPA7.Citation.Label" />
+                  <Supertip>
+                    <Title resid="WordAPA7.Citation.Label" />
+                    <Description resid="WordAPA7.Citation.Supertip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="WordAPA7.Icon.Citation.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Citation.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Citation.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openReferences</FunctionName>
+                  </Action>
+                </Control>
+
+                <!-- Bibliografia -->
+                <Control xsi:type="Button" id="WordAPA7.Bibliography">
+                  <Label resid="WordAPA7.Bibliography.Label" />
+                  <Supertip>
+                    <Title resid="WordAPA7.Bibliography.Label" />
+                    <Description resid="WordAPA7.Bibliography.Supertip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="WordAPA7.Icon.Bibliography.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Bibliography.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Bibliography.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openBibliography</FunctionName>
+                  </Action>
+                </Control>
+
+                <!-- Portada -->
+                <Control xsi:type="Button" id="WordAPA7.Cover">
+                  <Label resid="WordAPA7.Cover.Label" />
+                  <Supertip>
+                    <Title resid="WordAPA7.Cover.Label" />
+                    <Description resid="WordAPA7.Cover.Supertip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="WordAPA7.Icon.Cover.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.Cover.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.Cover.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openCoverPage</FunctionName>
+                  </Action>
+                </Control>
+              </Group>
+
+              <!-- ================================================================ -->
+              <!-- Grupo 4: Herramientas                                            -->
+              <!-- ================================================================ -->
+              <Group id="WordAPA7.GroupTools">
+                <Label resid="WordAPA7.GroupToolsLabel" />
+
+                <!-- IA -->
+                <Control xsi:type="Button" id="WordAPA7.AI">
+                  <Label resid="WordAPA7.AI.Label" />
+                  <Supertip>
+                    <Title resid="WordAPA7.AI.Label" />
+                    <Description resid="WordAPA7.AI.Supertip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="WordAPA7.Icon.AI.16" />
+                    <bt:Image size="32" resid="WordAPA7.Icon.AI.32" />
+                    <bt:Image size="80" resid="WordAPA7.Icon.AI.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openAI</FunctionName>
                   </Action>
                 </Control>
               </Group>
@@ -172,12 +281,65 @@
       </Host>
     </Hosts>
 
-    <!-- Recursos (strings, URLs, iconos) -->
+    <!-- ================================================================== -->
+    <!-- Recursos: iconos, URLs, strings                                     -->
+    <!-- ================================================================== -->
     <Resources>
       <bt:Images>
+        <!-- Iconos de la pestana / app (compatibilidad) -->
         <bt:Image id="WordAPA7.Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png" />
         <bt:Image id="WordAPA7.Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png" />
         <bt:Image id="WordAPA7.Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png" />
+
+        <!-- Abrir panel — indigo -->
+        <bt:Image id="WordAPA7.Icon.Panel.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-16.png" />
+        <bt:Image id="WordAPA7.Icon.Panel.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-32.png" />
+        <bt:Image id="WordAPA7.Icon.Panel.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-80.png" />
+
+        <!-- Auditar — red -->
+        <bt:Image id="WordAPA7.Icon.Audit.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-16.png" />
+        <bt:Image id="WordAPA7.Icon.Audit.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-32.png" />
+        <bt:Image id="WordAPA7.Icon.Audit.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-80.png" />
+
+        <!-- Actualizar — teal -->
+        <bt:Image id="WordAPA7.Icon.Refresh.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-16.png" />
+        <bt:Image id="WordAPA7.Icon.Refresh.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-32.png" />
+        <bt:Image id="WordAPA7.Icon.Refresh.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-80.png" />
+
+        <!-- Tabla — cyan -->
+        <bt:Image id="WordAPA7.Icon.Table.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-16.png" />
+        <bt:Image id="WordAPA7.Icon.Table.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-32.png" />
+        <bt:Image id="WordAPA7.Icon.Table.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-80.png" />
+
+        <!-- Figura — pink -->
+        <bt:Image id="WordAPA7.Icon.Figure.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-16.png" />
+        <bt:Image id="WordAPA7.Icon.Figure.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-32.png" />
+        <bt:Image id="WordAPA7.Icon.Figure.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-80.png" />
+
+        <!-- Titulo — violet -->
+        <bt:Image id="WordAPA7.Icon.Heading.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-16.png" />
+        <bt:Image id="WordAPA7.Icon.Heading.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-32.png" />
+        <bt:Image id="WordAPA7.Icon.Heading.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-80.png" />
+
+        <!-- Citas — orange -->
+        <bt:Image id="WordAPA7.Icon.Citation.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-16.png" />
+        <bt:Image id="WordAPA7.Icon.Citation.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-32.png" />
+        <bt:Image id="WordAPA7.Icon.Citation.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-80.png" />
+
+        <!-- Bibliografia — green -->
+        <bt:Image id="WordAPA7.Icon.Bibliography.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-16.png" />
+        <bt:Image id="WordAPA7.Icon.Bibliography.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-32.png" />
+        <bt:Image id="WordAPA7.Icon.Bibliography.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-80.png" />
+
+        <!-- Portada — blue -->
+        <bt:Image id="WordAPA7.Icon.Cover.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-16.png" />
+        <bt:Image id="WordAPA7.Icon.Cover.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-32.png" />
+        <bt:Image id="WordAPA7.Icon.Cover.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-80.png" />
+
+        <!-- IA — purple -->
+        <bt:Image id="WordAPA7.Icon.AI.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-16.png" />
+        <bt:Image id="WordAPA7.Icon.AI.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-32.png" />
+        <bt:Image id="WordAPA7.Icon.AI.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-80.png" />
       </bt:Images>
 
       <bt:Urls>
@@ -188,24 +350,36 @@
 
       <bt:ShortStrings>
         <bt:String id="WordAPA7.GetStarted.Title" DefaultValue="WordAPA7 — Tu asistente APA 7 dentro de Word" />
-        <bt:String id="WordAPA7.TaskpaneButton.Label" DefaultValue="Abrir panel" />
         <bt:String id="WordAPA7.TabLabel" DefaultValue="WordAPA7" />
         <bt:String id="WordAPA7.GroupAssistantLabel" DefaultValue="Asistente" />
         <bt:String id="WordAPA7.GroupInsertLabel" DefaultValue="Insertar APA 7" />
-        <bt:String id="WordAPA7.Audit.Label" DefaultValue="Auditar APA 7" />
+        <bt:String id="WordAPA7.GroupReferencesLabel" DefaultValue="Referencias" />
+        <bt:String id="WordAPA7.GroupToolsLabel" DefaultValue="Herramientas" />
+        <bt:String id="WordAPA7.OpenPanel.Label" DefaultValue="Abrir panel" />
+        <bt:String id="WordAPA7.Audit.Label" DefaultValue="Auditar" />
+        <bt:String id="WordAPA7.Refresh.Label" DefaultValue="Actualizar" />
         <bt:String id="WordAPA7.InsertTable.Label" DefaultValue="Tabla" />
         <bt:String id="WordAPA7.InsertFigure.Label" DefaultValue="Figura" />
         <bt:String id="WordAPA7.InsertHeading.Label" DefaultValue="Título" />
+        <bt:String id="WordAPA7.Citation.Label" DefaultValue="Citas" />
+        <bt:String id="WordAPA7.Bibliography.Label" DefaultValue="Bibliografía" />
+        <bt:String id="WordAPA7.Cover.Label" DefaultValue="Portada" />
+        <bt:String id="WordAPA7.AI.Label" DefaultValue="IA" />
       </bt:ShortStrings>
 
       <bt:LongStrings>
-        <bt:String id="WordAPA7.Description" DefaultValue="Asistente APA 7 en vivo: detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automáticamente cuando las pegás." />
+        <bt:String id="WordAPA7.Description" DefaultValue="Asistente APA 7 en vivo: detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automaticamente cuando las pegás." />
         <bt:String id="WordAPA7.GetStarted.Description" DefaultValue="Abrí el panel lateral de WordAPA7 para editar tu documento con formato APA 7 en tiempo real. El asistente detecta citas, aplica formato y numera figuras y tablas al pegar." />
-        <bt:String id="WordAPA7.TaskpaneButton.Supertip" DefaultValue="Abre el asistente APA 7 en el panel lateral. Detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automáticamente al pegar, sin salir de Word." />
+        <bt:String id="WordAPA7.OpenPanel.Supertip" DefaultValue="Abre el asistente APA 7 en el panel lateral. Detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automaticamente al pegar, sin salir de Word." />
         <bt:String id="WordAPA7.Audit.Supertip" DefaultValue="Audita tu documento contra las normas APA 7: detecta citas, formato y problemas de estilo en tiempo real." />
-        <bt:String id="WordAPA7.InsertTable.Supertip" DefaultValue="Abre el panel en la sección de tablas APA 7: definí encabezados, título y nota; la numeración es automática." />
-        <bt:String id="WordAPA7.InsertFigure.Supertip" DefaultValue="Abre el panel en la sección de figuras APA 7: subí una imagen y se inserta con numeración, título en cursiva y nota automáticamente." />
-        <bt:String id="WordAPA7.InsertHeading.Supertip" DefaultValue="Abre el panel en la sección de títulos APA 7: elegí el nivel (1-5) y se inserta con el formato correcto." />
+        <bt:String id="WordAPA7.Refresh.Supertip" DefaultValue="Vuelve a escanear el documento completo: actualiza conteo de citas, figuras, tablas y formato APA 7." />
+        <bt:String id="WordAPA7.InsertTable.Supertip" DefaultValue="Abre el panel en la seccion de tablas APA 7: definí encabezados, título y nota; la numeración es automatica." />
+        <bt:String id="WordAPA7.InsertFigure.Supertip" DefaultValue="Abre el panel en la seccion de figuras APA 7: subí una imagen y se inserta con numeración, título en cursiva y nota automaticamente." />
+        <bt:String id="WordAPA7.InsertHeading.Supertip" DefaultValue="Abre el panel en la seccion de títulos APA 7: elegí el nivel (1-5) y se inserta con el formato correcto." />
+        <bt:String id="WordAPA7.Citation.Supertip" DefaultValue="Abre el gestor de citas APA 7: detecta y guarda citas del documento, editalas y reorganizá su orden." />
+        <bt:String id="WordAPA7.Bibliography.Supertip" DefaultValue="Genera la bibliografía en formato APA 7 a partir de las citas detectadas y guardadas en el documento." />
+        <bt:String id="WordAPA7.Cover.Supertip" DefaultValue="Crea la portada APA 7: título, autor, institucion, curso, fecha y profesor. Se inserta al inicio del documento." />
+        <bt:String id="WordAPA7.AI.Supertip" DefaultValue="Detecta texto generado por inteligencia artificial en tu documento y sugiere reescrituras para evitar plagio." />
       </bt:LongStrings>
     </Resources>
 

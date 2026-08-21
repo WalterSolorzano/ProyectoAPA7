@@ -5,21 +5,30 @@
  * Muestra las citas detectadas y la bibliografía sugerida (APA 7) construida
  * a partir de ellas. Permite insertarla al final del documento, editar
  * referencias y re-extraer citas del documento actual.
+ *
+ * Cuando el botón "Bibliografía" del Ribbon dispara la acción
+ * 'build_bibliography', este panel re-extrae las citas del documento y
+ * construye + inserta la bibliografía automáticamente.
  */
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { backend, type ReferenceDTO } from '../api/backend'
 import { getDocumentText, insertBibliographyAPA } from '../office/wordHelper'
 
 interface Props {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
+  /** Acción pendiente del ribbon ('build_bibliography' o '') */
+  pendingAction?: string
+  /** Callback para marcar la acción como consumida */
+  onActionConsumed?: () => void
 }
 
-export function ReferencesPanel({ showToast }: Props) {
+export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: Props) {
   const [references, setReferences] = useState<ReferenceDTO[]>([])
   const [bibText, setBibText] = useState('')
   const [loading, setLoading] = useState(false)
   const [inserting, setInserting] = useState(false)
+  const actionLockRef = useRef(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -70,28 +79,54 @@ export function ReferencesPanel({ showToast }: Props) {
       } else if (drafts > 0) {
         showToast(`${drafts} referencia(s) borrador: completá los datos`, 'info')
       }
+      return res
     } catch {
       showToast('No se pudo re-extraer las citas', 'error')
+      return null
     } finally {
       setLoading(false)
     }
   }, [showToast])
 
-  const insertBibliography = useCallback(async () => {
-    if (!bibText.trim()) {
+  const insertBibliography = useCallback(async (text?: string) => {
+    const bibToInsert = text ?? bibText
+    if (!bibToInsert.trim()) {
       showToast('No hay bibliografía para insertar. Extraé citas primero.', 'error')
-      return
+      return false
     }
     setInserting(true)
     try {
-      await insertBibliographyAPA(bibText)
+      await insertBibliographyAPA(bibToInsert)
       showToast('Bibliografía APA 7 insertada al final del documento', 'success')
+      return true
     } catch (err) {
       showToast(`Error: ${(err as Error).message}`, 'error')
+      return false
     } finally {
       setInserting(false)
     }
   }, [bibText, showToast])
+
+  // ── Ejecutar acción del ribbon: build_bibliography ───────────────────────
+  // Cuando el botón "Bibliografía" del ribbon dispara esta acción,
+  // re-extraemos las citas del documento y auto-insertamos la bibliografía.
+  useEffect(() => {
+    if (pendingAction !== 'build_bibliography' || actionLockRef.current) return
+    actionLockRef.current = true
+
+    const run = async () => {
+      showToast('Generando bibliografía APA 7...', 'info')
+      const res = await reextract()
+      if (res && res.bibliography_text) {
+        await insertBibliography(res.bibliography_text)
+      } else if (res) {
+        showToast('No se detectaron citas para generar bibliografía', 'info')
+      }
+      onActionConsumed?.()
+      actionLockRef.current = false
+    }
+    run()
+  }, [pendingAction, reextract, insertBibliography, showToast, onActionConsumed])
 
   const removeRef = useCallback(async (id: string) => {
     try {
@@ -155,7 +190,7 @@ export function ReferencesPanel({ showToast }: Props) {
             </button>
           </div>
 
-          <button className="btn btn--primary btn--full" onClick={insertBibliography} disabled={inserting || !bibText}>
+          <button className="btn btn--primary btn--full" onClick={() => insertBibliography()} disabled={inserting || !bibText}>
             {inserting ? <span className="spinner" /> : null} 📚 Insertar bibliografía
           </button>
         </div>

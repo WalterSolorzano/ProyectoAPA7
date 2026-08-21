@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --mode development",
     "build": "tsc && vite build",
+    "build:addin": "tsc && vite build",
+    "icons": "python ../venv/Scripts/python.exe scripts/generate_icons.py",
     "preview": "vite preview",
     "lint": "eslint src/",
     "test": "vitest run",

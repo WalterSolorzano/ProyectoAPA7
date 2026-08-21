@@ -13,8 +13,9 @@
  * (127.0.0.1:8742). Funciona igual offline (detección local de citas y
  * formato directo vía Office.js).
  *
- * Los botones del Ribbon (Tabla, Figura, Título, Auditar) abren este panel
+ * Los botones del Ribbon (10 botones en 4 grupos) abren este panel
  * en la sección correcta usando localStorage como puente de comunicación.
+ * Algunos botones también disparan acciones (refresh, build_bibliography).
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -38,6 +39,7 @@ import { backend } from './api/backend'
 
 type TabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
 type InsertSection = 'table' | 'figure' | 'heading' | ''
+type RibbonAction = 'refresh' | 'build_bibliography' | ''
 
 interface ToastState {
   msg: string
@@ -48,6 +50,7 @@ interface ToastState {
 // Claves del puente localStorage (escritas por commands.ts)
 const LS_TAB = 'wordapa7_addin_active_tab'
 const LS_SECTION = 'wordapa7_addin_insert_section'
+const LS_ACTION = 'wordapa7_addin_action'
 
 // ── Iconos SVG inline ────────────────────────────────────────────────────────
 const Icon: React.FC<{ name: string; size?: number }> = ({ name, size = 16 }) => {
@@ -92,6 +95,7 @@ export const App: React.FC = () => {
   const [running, setRunning] = useState(false)
   const [options, setOptions] = useState<AssistantOptions>(liveAssistant.getOptions())
   const [toast, setToast] = useState<ToastState | null>(null)
+  const [pendingAction, setPendingAction] = useState<RibbonAction>('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -100,9 +104,30 @@ export const App: React.FC = () => {
     toastTimer.current = setTimeout(() => setToast(null), 3200)
   }, [])
 
+  // ── Ejecutar acción del ribbon (refresh, build_bibliography) ─────────────
+  const executeRibbonAction = useCallback((action: RibbonAction) => {
+    if (!action) return
+
+    if (action === 'refresh') {
+      showToast('Re-escaneando el documento...', 'info')
+      liveAssistant.scanNow()
+    }
+
+    if (action === 'build_bibliography') {
+      // Navegar a la pestaña de referencias y disparar la acción
+      setActiveTab('references')
+      setPendingAction('build_bibliography')
+    }
+
+    // Limpiar la acción de localStorage para que no se re-ejecute
+    try {
+      localStorage.removeItem(LS_ACTION)
+    } catch {
+      /* ignore */
+    }
+  }, [showToast])
+
   // ── Puente con el Ribbon: leer localStorage al montar ────────────────────
-  // Los botones del ribbon (commands.ts) escriben estas claves antes de abrir
-  // el panel. Las leemos acá para arrancar en la pestaña correcta.
   useEffect(() => {
     try {
       const tab = localStorage.getItem(LS_TAB) as TabId | null
@@ -113,14 +138,16 @@ export const App: React.FC = () => {
       if (section) {
         setInsertSection(section)
       }
+      const action = localStorage.getItem(LS_ACTION) as RibbonAction | null
+      if (action) {
+        setTimeout(() => executeRibbonAction(action), 300)
+      }
     } catch {
       /* localStorage puede no estar disponible */
     }
-  }, [])
+  }, [executeRibbonAction])
 
   // ── Puente con el Ribbon: escuchar cambios en localStorage ──────────────
-  // Si el panel YA está abierto y el usuario clickea un botón del ribbon,
-  // localStorage cambia y este listener navega a la sección correcta.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_TAB && e.newValue) {
@@ -132,10 +159,13 @@ export const App: React.FC = () => {
       if (e.key === LS_SECTION) {
         setInsertSection((e.newValue as InsertSection) || 'table')
       }
+      if (e.key === LS_ACTION && e.newValue) {
+        executeRibbonAction(e.newValue as RibbonAction)
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [executeRibbonAction])
 
   // Verificar conexión con el backend al arrancar
   useEffect(() => {
@@ -281,7 +311,13 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'references' && <ReferencesPanel showToast={showToast} />}
+        {activeTab === 'references' && (
+          <ReferencesPanel
+            showToast={showToast}
+            pendingAction={pendingAction}
+            onActionConsumed={() => setPendingAction('')}
+          />
+        )}
         {activeTab === 'cover' && <CoverPagePanel showToast={showToast} />}
 
         {activeTab === 'comments' && (
