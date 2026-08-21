@@ -1,6 +1,6 @@
 /* WordAPA7 — Full Desktop Application Assembly (Fluent Design with Guided Wizard Flow) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { needsReview } from './lib/portadaAuthors';
 import { UnifiedToolbar } from './components/toolbar/UnifiedToolbar';
@@ -36,19 +36,55 @@ import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
 import { syncAllProviderKeys } from './api/backend';
 
+/* ═══ NEW WIZARD STEP MAPPING (refactor UX) ═══
+   1. Estructura   (Títulos + Cuerpo)  — Step2HeadingsWizard / Step5BodyWizard
+   2. Figuras y tablas                 — Step3FiguresTablesWizard
+   3. Referencias                      — Step5ReferencesWizard
+   4. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
+   5. Exportar                         — openExportTunnel() (viewMode='export')
+*/
+
 const pendingCountForPhase = (phaseId: number) => {
   const doc = useDocStore.getState().doc;
   if (!doc) return 0;
-  if (phaseId === 2) {
+  // Step 1: Estructura (headings pending review)
+  if (phaseId === 1) {
     return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
   }
-  if (phaseId === 3) {
+  // Step 2: Figuras y tablas (figures + tables pending review)
+  if (phaseId === 2) {
     const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
     const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
     return figures + tables;
   }
   return 0;
 };
+
+/** Toggle bar for step 1 (Estructura): Títulos | Cuerpo */
+const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'headings' | 'body') => void }> = ({ tab, setTab }) => (
+  <div style={{
+    display: 'flex', gap: '2px', padding: '6px 10px',
+    borderBottom: '1px solid var(--border-subtle)',
+    backgroundColor: 'var(--sidebar-bg)', flexShrink: 0,
+  }}>
+    {([['headings', 'Títulos'], ['body', 'Cuerpo']] as const).map(([key, label]) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => setTab(key)}
+        style={{
+          padding: '4px 14px', borderRadius: 'var(--radius-sm)', fontSize: '12px',
+          fontWeight: 700, cursor: 'pointer', border: 'none', fontFamily: 'inherit',
+          background: tab === key ? 'var(--color-accent-soft)' : 'transparent',
+          color: tab === key ? 'var(--accent-primary)' : 'var(--text-secondary)',
+          transition: 'background 0.15s, color 0.15s',
+        }}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+);
 
 export const App: React.FC = () => {
   const {
@@ -72,6 +108,59 @@ export const App: React.FC = () => {
     isBackendReady,
   } = useDocStore();
 
+  // Structure sub-tab: Títulos | Cuerpo (step 1 combines both)
+  const [structureTab, setStructureTab] = useState<'headings' | 'body'>('headings');
+
+  // ── Context Menu Integration ──────────────────────────────────────────────
+  // Cuando el usuario hace click derecho → "Convertir a APA 7" en un .docx,
+  // el main process lee el archivo y lo envía acá. Lo guardamos en un ref
+  // porque el backend puede no estar listo todavía.
+  const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array } | null>(null);
+
+  const processPendingOSFile = () => {
+    const data = pendingOSFile.current;
+    if (!data) return;
+    pendingOSFile.current = null;
+
+    // Convertir el buffer IPC (Uint8Array) a un ArrayBuffer nativo para File.
+    // Es necesario porque TS no acepta Uint8Array<ArrayBufferLike> como BlobPart.
+    const ab = new ArrayBuffer(data.buffer.byteLength);
+    new Uint8Array(ab).set(data.buffer);
+    const file = new File(
+      [ab],
+      data.fileName,
+      { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+    );
+
+    useDocStore.getState().showToast(`Abriendo "${data.fileName}" desde el menú contextual…`, 'info');
+    useDocStore.getState().uploadFile(file);
+  };
+
+  // Listener IPC: recibe el archivo del main process (context menu)
+  useEffect(() => {
+    const electronWindow = window as any;
+    if (!electronWindow.electronAPI?.onOpenFileFromOS) return;
+
+    const cleanup = electronWindow.electronAPI.onOpenFileFromOS(
+      (data: { fileName: string; buffer: Uint8Array }) => {
+        pendingOSFile.current = data;
+        // Si el backend ya está listo, procesar inmediatamente
+        if (useDocStore.getState().isBackendReady) {
+          processPendingOSFile();
+        }
+        // Si no, el useEffect de [isBackendReady] se encargará cuando esté listo
+      }
+    );
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
+
+  // Cuando el backend se vuelve ready, procesar archivo pendiente del context menu
+  useEffect(() => {
+    if (isBackendReady && pendingOSFile.current) {
+      processPendingOSFile();
+    }
+  }, [isBackendReady]);
+
   // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
   // This prevents the app from auto-loading the last document on startup (Word behavior)
 
@@ -89,11 +178,7 @@ export const App: React.FC = () => {
         const res = await fetch(`http://127.0.0.1:${port}/api/version`);
         if (res.ok) {
           useDocStore.setState({ isBackendReady: true });
-          // Sincroniza las claves de IA guardadas (localStorage) con el backend
-          // para que "Refinar con IA", "Revisor" y "Generar 3 versiones" funcionen
-          // sin tener que abrir antes el panel de Ajustes.
           syncAllProviderKeys().catch(() => {});
-          // Perfiles de formato disponibles (APA7, Revista Científica, ...)
           useDocStore.getState().fetchProfiles().catch(() => {});
           return true;
         }
@@ -101,8 +186,7 @@ export const App: React.FC = () => {
       return false;
     };
 
-    // Polling INFINITO (cada 2s) hasta que el motor responda: un backend lento
-    // (antivirus, primer arranque) ya no deja la app en "carga sin fin".
+    // Polling INFINITO (cada 2s) hasta que el motor responda
     const pollLoop = async () => {
       while (!cancelled) {
         if (await checkBackendOnce()) return;
@@ -111,17 +195,13 @@ export const App: React.FC = () => {
     };
 
     if (electronWindow.electronAPI?.onPythonReady) {
-      // Electron environment: wait for the IPC event + poll como respaldo
       const cleanup = electronWindow.electronAPI.onPythonReady(() => {
         useDocStore.setState({ isBackendReady: true });
-        // El backend se reinició (watchdog) y perdió las claves de os.environ:
-        // re-sincronizarlas para que la IA siga funcionando.
         syncAllProviderKeys().catch(() => {});
         useDocStore.getState().fetchProfiles().catch(() => {});
         useDocStore.getState().showToast('Motor de procesamiento listo', 'success');
       });
 
-      // Watchdog: el backend crasheó o se está reiniciando
       if (electronWindow.electronAPI.onPythonCrashed) {
         electronWindow.electronAPI.onPythonCrashed(() => {
           useDocStore.setState({ isBackendReady: false });
@@ -138,18 +218,11 @@ export const App: React.FC = () => {
       pollLoop();
       return () => { cancelled = true; if (typeof cleanup === 'function') cleanup(); };
     } else {
-      // Web/development mode: poll hasta responder (sin tope de intentos)
       pollLoop();
       return () => { cancelled = true; };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendCheckNonce]);
-
-  // Escape anti-carga-infinita eliminado: la pantalla de carga permanece hasta que
-  // el motor conecta (polling infinito cada 2s). No se ofrece "continuar de todos
-  // modos" porque llevar al usuario al inicio con el backend caído lo deja en un
-  // callejón sin salida (nada funcionaría). La única salida es "Reintentar conexión"
-  // dentro de la propia pantalla de carga, que fuerza un re-chequeo inmediato.
 
   // Keyboard shortcuts and Native Menu actions
   useEffect(() => {
@@ -172,11 +245,13 @@ export const App: React.FC = () => {
       }
 
       if (e.ctrlKey || e.metaKey) {
+        // Navegación entre pasos del wizard (Ctrl+Shift+[ / ]）
         if (e.shiftKey && (e.key === ']' || e.key === '}')) {
           e.preventDefault();
           if (!doc) return;
           const step = useDocStore.getState().wizardStep;
-          if (step < 5) useDocStore.getState().setWizardStep(step + 1);
+          if (step < 4) useDocStore.getState().setWizardStep(step + 1);
+          else if (step === 4) useDocStore.getState().openExportTunnel();
           return;
         }
         if (e.shiftKey && (e.key === '[' || e.key === '{')) {
@@ -192,11 +267,13 @@ export const App: React.FC = () => {
             e.preventDefault();
             if (!doc) break;
             const step = useDocStore.getState().wizardStep;
-            const nextWithPending = [1, 2, 3, 4, 5].find(s => s > step && pendingCountForPhase(s) > 0);
+            const nextWithPending = [1, 2, 3, 4].find(s => s > step && pendingCountForPhase(s) > 0);
             if (nextWithPending) {
               useDocStore.getState().setWizardStep(nextWithPending);
-            } else if (step < 5) {
+            } else if (step < 4) {
               useDocStore.getState().setWizardStep(step + 1);
+            } else if (step === 4) {
+              useDocStore.getState().openExportTunnel();
             }
             break;
           }
@@ -219,13 +296,15 @@ export const App: React.FC = () => {
             e.preventDefault();
             useDocStore.setState({ commandPaletteOpen: true });
             break;
-          case '1': case '2': case '3': case '4': case '5':
+          // Steps 1-4: wizard navigation
+          case '1': case '2': case '3': case '4':
             e.preventDefault();
             if (doc) {
               useDocStore.getState().setWizardStep(parseInt(e.key));
             }
             break;
-          case '6':
+          // Step 5: Export tunnel
+          case '5': case '6':
             e.preventDefault();
             if (doc) {
               useDocStore.getState().openExportTunnel();
@@ -257,7 +336,6 @@ export const App: React.FC = () => {
   }, [doc, exportDocx, exportPdf, undo, redo]);
 
   // Native menu events dispatched by the Electron handler above
-  // (trigger-upload, wordapa7-start-blank, trigger-preferences, wordapa7-start-template)
   useEffect(() => {
     const listeners: Array<[string, () => void]> = [
       ['trigger-upload', () => useDocStore.getState().setShowFileMenu(true)],
@@ -273,7 +351,9 @@ export const App: React.FC = () => {
     return () => cleanups.forEach((cleanup) => cleanup());
   }, []);
 
-  // Settings Studio (previsualizador de ajustes) — full screen override
+  // Settings Studio (previsualizador de ajustes) — full screen override.
+  // Ahora es OPCIONAL: se abre desde el toolbar ("Ajustes avanzados"), no es
+  // parte del flujo obligatorio del wizard. Las reglas APA 7 se aplican por defecto.
   if (settingsStudioOpen) {
     return (
       <>
@@ -285,9 +365,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // File menu (backstage "Archivo") — ANTES que el home: debe poder abrirse
-  // también sin documento cargado (antes la rama "!doc || atHome" lo tapaba,
-  // por eso "el menú de carga no aparecía").
+  // File menu (backstage "Archivo")
   if (showFileMenu) {
     return (
       <>
@@ -301,9 +379,6 @@ export const App: React.FC = () => {
   }
 
   // Quick Start screen — show when no doc OR when the user returned "home"
-  // (like Word's backstage). Open tabs remain accessible via ProjectTabs.
-  // Mientras el motor no está listo se muestra la pantalla de carga FULLSCREEN
-  // (LoadingTips), NO el inicio — el usuario no ve "Conectando..." sobre el home.
   if (!doc || atHome) {
     return (
       <>
@@ -339,14 +414,13 @@ export const App: React.FC = () => {
         ) : viewMode === 'split' ? (
           <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
             {/* Editor Side */}
-            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
-              <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}`}>
-                {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
-                {wizardStep === 1 && <Step1PortadaWizard />}
-                {wizardStep === 2 && <Step2HeadingsWizard />}
-                {wizardStep === 3 && <Step3FiguresTablesWizard />}
-                {wizardStep === 4 && <Step5BodyWizard />}
-                {wizardStep === 5 && <Step5ReferencesWizard />}
+            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
+              {wizardStep === 1 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+              <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
+                {wizardStep === 1 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+                {wizardStep === 2 && <Step3FiguresTablesWizard />}
+                {wizardStep === 3 && <Step5ReferencesWizard />}
+                {wizardStep === 4 && <Step1PortadaWizard />}
               </div>
             </div>
             {/* Preview Side */}
@@ -354,8 +428,8 @@ export const App: React.FC = () => {
               <ReactPDFPreview />
             </div>
           </div>
-        ) : wizardStep === 1 ? (
-          // Paso 1 (Portada): división del espacio 35% / 65%.
+        ) : wizardStep === 4 ? (
+          // Paso 4 (Portada): división del espacio 35% / 65%.
           //   EditorRail (izquierda, nav) | CoverEditorPanel (35%, control)
           //   | PaperCanvas (65%, hoja A4 centrada, flex-grow).
           <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
@@ -363,7 +437,7 @@ export const App: React.FC = () => {
             <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
               <CoverEditorPanel />
             </div>
-            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-4-canvas">
               <Step1PortadaWizard />
             </div>
           </div>
@@ -373,12 +447,13 @@ export const App: React.FC = () => {
                 rail lateral izquierdo de secciones + contenido del editor. */}
             <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
               <EditorRail />
-              <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
-                {wizardStep === 0 && <SettingsPreviewStudio onContinue={() => useDocStore.getState().setWizardStep(1)} />}
-                {wizardStep === 2 && <Step2HeadingsWizard />}
-                {wizardStep === 3 && <Step3FiguresTablesWizard />}
-                {wizardStep === 4 && <Step5BodyWizard />}
-                {wizardStep === 5 && <Step5ReferencesWizard />}
+              <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                {wizardStep === 1 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+                <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
+                  {wizardStep === 1 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+                  {wizardStep === 2 && <Step3FiguresTablesWizard />}
+                  {wizardStep === 3 && <Step5ReferencesWizard />}
+                </div>
               </div>
 
               {/* Panel Derecho flotante: se monta sobre el canvas sin quitarle espacio */}

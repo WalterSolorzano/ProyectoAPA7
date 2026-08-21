@@ -1,7 +1,8 @@
 /* WordAPA7 — Túnel de Exportación & Cabina de Control (WCAG AAA & Behavioral UX)
-   Arquitectura de 2 Columnas: Panel Izquierdo (Cabina de Control) + Panel Derecho (Lienzo Sagrado) */
+   Arquitectura de 2 Columnas: Panel Izquierdo (Cabina de Control) + Panel Derecho (Lienzo Sagrado)
+   Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark. */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
@@ -31,7 +32,7 @@ const FORMATS: {
     sublabel: 'Documento editable',
     ext: '.docx',
     icon: FileText,
-    iconColor: 'text-blue-600 dark:text-blue-400',
+    iconColor: 'var(--color-accent)',
   },
   {
     id: 'pdf',
@@ -39,7 +40,7 @@ const FORMATS: {
     sublabel: 'Para entrega / imprimir',
     ext: '.pdf',
     icon: FileType,
-    iconColor: 'text-red-600 dark:text-red-400',
+    iconColor: 'var(--color-danger)',
   },
   {
     id: 'latex',
@@ -47,9 +48,65 @@ const FORMATS: {
     sublabel: 'Código fuente .tex',
     ext: '.tex',
     icon: FileCode,
-    iconColor: 'text-teal-600 dark:text-teal-400',
+    iconColor: '#14b8a6',
   },
 ];
+
+/* ── Paletas de iconos para el resumen (colores fijos que funcionan en light/dark) ── */
+const ICON_PALETTES = {
+  accent:  { bg: 'rgba(79, 124, 255, 0.12)',  fg: '#4f7cff' },
+  purple:  { bg: 'rgba(139, 92, 246, 0.12)',  fg: '#8b5cf6' },
+  indigo:  { bg: 'rgba(99, 102, 241, 0.12)',  fg: '#6366f1' },
+  amber:   { bg: 'rgba(245, 158, 11, 0.12)',  fg: '#d97706' },
+  teal:    { bg: 'rgba(20, 184, 166, 0.12)',  fg: '#14b8a6' },
+} as const;
+
+/* ── Estilos reutilizables ── */
+const editLinkStyle: React.CSSProperties = {
+  fontSize: 'var(--text-xs)',
+  color: 'var(--color-accent)',
+  fontWeight: 'var(--font-semibold)',
+  marginTop: '2px',
+  flexShrink: 0,
+  cursor: 'pointer',
+  background: 'none',
+  border: 'none',
+  padding: 0,
+};
+
+const summaryItemStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: '12px',
+};
+
+const summaryTitleStyle: React.CSSProperties = {
+  fontWeight: 'var(--font-semibold)',
+  color: 'var(--color-text-primary)',
+  fontSize: 'var(--text-xs)',
+};
+
+const summaryDescStyle: React.CSSProperties = {
+  color: 'var(--color-text-secondary)',
+  fontSize: 'var(--text-xs)',
+  marginTop: '2px',
+  lineHeight: 'var(--leading-normal)',
+};
+
+function iconBox(palette: { bg: string; fg: string }): React.CSSProperties {
+  return {
+    padding: '6px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: palette.bg,
+    color: palette.fg,
+    marginTop: '2px',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+}
 
 export const ExportView: React.FC = () => {
   const {
@@ -72,7 +129,7 @@ export const ExportView: React.FC = () => {
 
   // Manejo de fases dinámicas durante exportación
   useEffect(() => {
-    let t1: any, t2: any;
+    let t1: ReturnType<typeof setTimeout>, t2: ReturnType<typeof setTimeout>;
     if (isLoading) {
       setLoadingPhase('Generando tipografía APA 7...');
       t1 = setTimeout(() => setLoadingPhase('Validando saltos de página y márgenes...'), 1200);
@@ -102,7 +159,6 @@ export const ExportView: React.FC = () => {
 
   const ghostCount = citationAuditResult?.ghost_citations?.length || 0;
   const headingsCount = doc.elements.filter((e) => e.type === 'heading' && !e.is_cover_section).length;
-  const paragraphsCount = doc.elements.filter((e) => e.type === 'paragraph' && !e.is_cover_section).length;
   const figuresCount = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
   const tablesCount = doc.elements.filter((e) => e.type === 'table' && e.table_info).length;
   const refsCount = doc.referencias?.length || 0;
@@ -130,27 +186,84 @@ export const ExportView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-950">
-      
-      {/* ── PANEL IZQUIERDO: CABINA DE CONTROL & RESUMEN RÁPIDO (40%, MIN 350px) ── */}
+    <div
+      style={{
+        display: 'flex',
+        height: '100%',
+        width: '100%',
+        overflow: 'hidden',
+        backgroundColor: 'var(--color-bg-canvas)',
+      }}
+    >
+
+      {/* ── PANEL IZQUIERDO: CABINA DE CONTROL & RESUMEN RÁPIDO ── */}
       <aside
         aria-label="Opciones y Resumen de Exportación"
-        className="w-[390px] max-w-[40%] min-w-[340px] flex-shrink-0 h-full flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-10 shadow-sm"
+        style={{
+          width: '390px',
+          maxWidth: '40%',
+          minWidth: '340px',
+          flexShrink: 0,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'var(--color-bg-surface)',
+          borderRight: '1px solid var(--color-border-subtle)',
+          zIndex: 10,
+          boxShadow: 'var(--shadow-sm)',
+        }}
       >
-        
-        {/* Cabecera Limpia (Sin botones duplicados de descarga) */}
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900/80">
+
+        {/* Cabecera Limpia */}
+        <div
+          style={{
+            padding: 'var(--space-4) var(--space-5)',
+            borderBottom: '1px solid var(--color-border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: 'var(--color-bg-surface-alt)',
+          }}
+        >
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-none">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <h1
+                style={{
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-bold)',
+                  color: 'var(--color-text-primary)',
+                  lineHeight: 1,
+                  margin: 0,
+                }}
+              >
                 Exportación Rápida
               </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60">
-                <Sparkles size={11} className="text-blue-600 dark:text-blue-400" />
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)',
+                  padding: '2px var(--space-2)',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--font-semibold)',
+                  backgroundColor: 'var(--color-accent-soft)',
+                  color: 'var(--color-accent)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <Sparkles size={11} style={{ color: 'var(--color-accent)' }} />
                 {profile?.display_name || 'APA 7ª Ed.'}
               </span>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+            <p
+              style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-secondary)',
+                marginTop: 'var(--space-1)',
+                margin: 0,
+              }}
+            >
               Tu archivo fue estandarizado y está listo para descarga.
             </p>
           </div>
@@ -158,148 +271,252 @@ export const ExportView: React.FC = () => {
           <button
             type="button"
             onClick={() => { clearQuickExport(); setViewMode('split'); }}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 transition-all shadow-2xs"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 'var(--font-semibold)',
+              color: 'var(--color-text-secondary)',
+              backgroundColor: 'var(--color-bg-surface)',
+              padding: '6px 10px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)',
+            }}
             title="Abrir editor asistido para ajustar títulos, tablas o figuras paso a paso"
           >
-            <SlidersHorizontal size={12} className="text-slate-500" />
+            <SlidersHorizontal size={12} style={{ color: 'var(--color-text-tertiary)' }} />
             <span>Avanzado</span>
           </button>
         </div>
 
         {/* Zona Scrolleable de Diagnóstico Unificado */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'var(--space-4) var(--space-5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-4)',
+          }}
+        >
 
-          {/* ── RESUMEN DE PROCESAMIENTO RÁPIDO (CERO REDUNDANCIA, WCAG AAA) ── */}
+          {/* ── RESUMEN DE PROCESAMIENTO RÁPIDO ── */}
           <section
             aria-label="Resumen de Procesamiento Rápido"
-            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 overflow-hidden shadow-2xs"
+            style={{
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid var(--color-border-subtle)',
+              backgroundColor: 'var(--surface-subtle)',
+              overflow: 'hidden',
+              boxShadow: 'var(--shadow-sm)',
+            }}
           >
-            <div className="px-4 py-2.5 bg-slate-100/80 dark:bg-slate-800/90 border-b border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+            <div
+              style={{
+                padding: '10px var(--space-4)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                borderBottom: '1px solid var(--color-border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--font-bold)',
+                  color: 'var(--color-text-primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
                 Resumen de Procesamiento Rápido
               </span>
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--font-semibold)',
+                  color: 'var(--color-success)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)',
+                }}
+              >
                 <CheckCircle2 size={13} /> Formato OK
               </span>
             </div>
 
-            <div className="divide-y divide-slate-200/70 dark:divide-slate-700/70 text-xs">
-              
-              {/* 1. Márgenes y Sangrías */}
-              <div className="px-4 py-3 flex items-start gap-3">
-                <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 mt-0.5 flex-shrink-0">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+              {/* 1. Formato y márgenes APA 7 */}
+              <div style={summaryItemStyle}>
+                <div style={iconBox(ICON_PALETTES.accent)}>
                   <Layers size={14} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
-                    Márgenes 1" (2.54 cm) e Interlineado 2.0x
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={summaryTitleStyle}>
+                    Formato y márgenes APA 7
                   </div>
-                  <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-normal">
-                    Sangría 0.5" aplicada a {paragraphsCount} párrafos del cuerpo.
+                  <div style={summaryDescStyle}>
+                    Documento formateado según normas APA 7.
                   </div>
                 </div>
-                <Check size={15} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
               </div>
 
               {/* 2. Portada */}
-              <div className="px-4 py-3 flex items-start gap-3">
-                <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 mt-0.5 flex-shrink-0">
+              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={iconBox(ICON_PALETTES.purple)}>
                   <BookOpen size={14} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={summaryTitleStyle}>
                     Portada Institucional / Estudiantil
                   </div>
-                  <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-normal">
+                  <div style={summaryDescStyle}>
                     {authorsCount} autor{authorsCount === 1 ? '' : 'es'} identificado{authorsCount === 1 ? '' : 's'}. Metadatos y título normalizados.
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => goToStep(1)}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline mt-0.5 flex-shrink-0"
-                >
+                <button type="button" onClick={() => goToStep(4)} style={editLinkStyle}>
                   Editar
                 </button>
               </div>
 
-              {/* 3. Títulos */}
-              <div className="px-4 py-3 flex items-start gap-3">
-                <div className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 mt-0.5 flex-shrink-0">
+              {/* 3. Títulos y estructura */}
+              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={iconBox(ICON_PALETTES.indigo)}>
                   <FileText size={14} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
-                    Jerarquía de Títulos (H1 - H5)
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={summaryTitleStyle}>
+                    Títulos y estructura
                   </div>
-                  <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-normal">
-                    {headingsCount} títulos jerarquizados con negrita y centrado APA.
+                  <div style={summaryDescStyle}>
+                    {headingsCount} títulos organizados según APA 7.
                   </div>
                 </div>
-                <Check size={15} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+                <button type="button" onClick={() => goToStep(1)} style={editLinkStyle}>
+                  Editar
+                </button>
               </div>
 
-              {/* 4. Citas y Bibliografía */}
-              <div className="px-4 py-3 flex items-start gap-3">
-                <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 mt-0.5 flex-shrink-0">
+              {/* 4. Citas y Referencias */}
+              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={iconBox(ICON_PALETTES.amber)}>
                   <FileText size={14} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={summaryTitleStyle}>
                     Citas y Referencias Bibliográficas
                   </div>
-                  <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-normal">
+                  <div style={summaryDescStyle}>
                     {refsCount} referencias en bibliografía con sangría francesa.
                     {ghostCount > 0 && (
-                      <span className="text-slate-700 dark:text-slate-300 font-medium block mt-1">
+                      <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-medium)', display: 'block', marginTop: '4px' }}>
                         ⚠️ {ghostCount} cita{ghostCount === 1 ? '' : 's'} en el texto sin entrada en bibliografía.
                       </span>
                     )}
                   </div>
                 </div>
-                {ghostCount === 0 ? (
-                  <Check size={15} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setFriction(friction === 'resolve' ? 'idle' : 'resolve')}
-                    className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold hover:underline mt-0.5 flex-shrink-0"
-                  >
-                    {friction === 'resolve' ? 'Cerrar' : 'Resolver'}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
+                  <button type="button" onClick={() => goToStep(3)} style={editLinkStyle}>
+                    Editar
                   </button>
-                )}
+                  {ghostCount === 0 ? (
+                    <Check size={15} style={{ color: 'var(--color-success)' }} />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setFriction(friction === 'resolve' ? 'idle' : 'resolve')}
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--color-warning)',
+                        fontWeight: 'var(--font-semibold)',
+                        cursor: 'pointer',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                      }}
+                    >
+                      {friction === 'resolve' ? 'Cerrar' : 'Resolver'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* 5. Tablas y Figuras (si existen) */}
               {(tablesCount > 0 || figuresCount > 0) && (
-                <div className="px-4 py-3 flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 mt-0.5 flex-shrink-0">
+                <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
+                  <div style={iconBox(ICON_PALETTES.teal)}>
                     {tablesCount > 0 ? <Table size={14} /> : <ImageIcon size={14} />}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={summaryTitleStyle}>
                       Tablas y Figuras APA 7
                     </div>
-                    <div className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-normal">
+                    <div style={summaryDescStyle}>
                       {tablesCount} tabla{tablesCount === 1 ? '' : 's'} y {figuresCount} figura{figuresCount === 1 ? '' : 's'} rotuladas y enumeradas.
                     </div>
                   </div>
-                  <Check size={15} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
+                    <button type="button" onClick={() => goToStep(2)} style={editLinkStyle}>
+                      Editar
+                    </button>
+                    <Check size={15} style={{ color: 'var(--color-success)' }} />
+                  </div>
                 </div>
               )}
             </div>
           </section>
 
-          {/* ── MASCOTA DINÁMICA / GLOBO DE DIÁLOGO IA (LEGIBILIDAD WCAG AAA) ── */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 shadow-md flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 border border-blue-200/60 dark:border-blue-800/60">
+          {/* ── MASCOTA DINÁMICA / GLOBO DE DIÁLOGO IA ── */}
+          <div
+            style={{
+              backgroundColor: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-xl)',
+              padding: '14px',
+              boxShadow: 'var(--shadow-md)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'var(--space-3)',
+            }}
+          >
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-accent-soft)',
+                color: 'var(--color-accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
               <Bot size={16} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-bold text-slate-900 dark:text-slate-100">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
                 Asistente WordAPA7
               </div>
-              <p className="text-xs text-slate-800 dark:text-slate-200 font-medium not-italic leading-relaxed mt-0.5">
+              <p
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 'var(--font-medium)',
+                  fontStyle: 'normal',
+                  lineHeight: 'var(--leading-relaxed)',
+                  marginTop: '2px',
+                  margin: 0,
+                }}
+              >
                 {mascotMessage?.text || 'Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.'}
               </p>
             </div>
@@ -307,15 +524,40 @@ export const ExportView: React.FC = () => {
 
           {/* ── BÚSQUEDA RÁPIDA INLINE DE REFERENCIAS ── */}
           {friction === 'resolve' && (
-            <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30 p-3.5 space-y-2">
-              <div className="flex items-center justify-between pb-2 border-b border-blue-200/60 dark:border-blue-800/60">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+            <div
+              style={{
+                borderRadius: 'var(--radius-xl)',
+                border: '1px solid var(--color-accent)',
+                backgroundColor: 'var(--color-accent-soft)',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: 'var(--space-2)',
+                  borderBottom: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
                   Vincular Referencias Faltantes (Crossref / DOI)
                 </span>
                 <button
                   type="button"
                   onClick={() => setFriction('idle')}
-                  className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold"
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-tertiary)',
+                    fontWeight: 'var(--font-semibold)',
+                    cursor: 'pointer',
+                    background: 'none',
+                    border: 'none',
+                  }}
                 >
                   Ocultar
                 </button>
@@ -331,11 +573,35 @@ export const ExportView: React.FC = () => {
 
         </div>
 
-        {/* ── STICKY CTA: PANEL DE ACCIÓN Y SELECCIÓN DE FORMATO (INAMOVIBLE AL PIE) ── */}
-        <div className="sticky bottom-0 mt-auto p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-10 shadow-lg space-y-3">
-          
-          {/* 1. Selector de Formato con Modelos Mentales Universales */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+        {/* ── STICKY CTA: PANEL DE ACCIÓN Y SELECCIÓN DE FORMATO ── */}
+        <div
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            marginTop: 'auto',
+            padding: 'var(--space-4)',
+            backgroundColor: 'var(--color-bg-surface)',
+            borderTop: '1px solid var(--color-border-subtle)',
+            zIndex: 10,
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+          }}
+        >
+
+          {/* 1. Selector de Formato */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '6px',
+              padding: '4px',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid var(--color-border-subtle)',
+            }}
+          >
             {FORMATS.map((f) => {
               const Icon = f.icon;
               const isSelected = format === f.id;
@@ -345,14 +611,35 @@ export const ExportView: React.FC = () => {
                   type="button"
                   onClick={() => setFormat(f.id)}
                   aria-pressed={isSelected}
-                  className={`flex flex-col items-center justify-center py-2 px-2 rounded-lg text-center transition-all ${
-                    isSelected
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-600'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-md)',
+                    textAlign: 'center',
+                    transition: 'all var(--transition-fast)',
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    ...(isSelected
+                      ? {
+                          backgroundColor: 'var(--color-bg-surface)',
+                          color: 'var(--color-text-primary)',
+                          boxShadow: 'var(--shadow-sm)',
+                          borderColor: 'var(--color-border-subtle)',
+                        }
+                      : {
+                          backgroundColor: 'transparent',
+                          color: 'var(--color-text-secondary)',
+                          borderColor: 'transparent',
+                        }),
+                  }}
                 >
-                  <Icon size={18} className={f.iconColor} />
-                  <span className="text-xs font-bold mt-1">{f.label}</span>
+                  <Icon size={18} style={{ color: f.iconColor }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', marginTop: 'var(--space-1)' }}>
+                    {f.label}
+                  </span>
                 </button>
               );
             })}
@@ -360,12 +647,29 @@ export const ExportView: React.FC = () => {
 
           {/* 2. Opciones de DOCX */}
           {format === 'docx' && (
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600 dark:text-slate-400 px-1 hover:text-slate-900 dark:hover:text-slate-200 select-none">
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-secondary)',
+                padding: '0 4px',
+                userSelect: 'none',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={tracked}
                 onChange={(e) => setTracked(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer accent-blue-600"
+                style={{
+                  borderRadius: 'var(--radius-sm)',
+                  width: '14px',
+                  height: '14px',
+                  cursor: 'pointer',
+                  accentColor: 'var(--color-accent)',
+                }}
               />
               <span>Incluir marcas de control de cambios (Track Changes)</span>
             </label>
@@ -373,25 +677,58 @@ export const ExportView: React.FC = () => {
 
           {/* 3. FRICCIÓN INTENCIONAL / INTERCEPCIÓN SI HAY CITAS FANTASMA */}
           {ghostCount > 0 && friction === 'ask' && (
-            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-2.5">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-800 dark:text-slate-200">
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 'var(--radius-xl)',
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <AlertTriangle size={16} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)' }}>
                   Espera, tienes <strong>{ghostCount}</strong> cita{ghostCount === 1 ? '' : 's'} en el texto sin referencia en la bibliografía. ¿Descargar de todos modos?
                 </div>
               </div>
-              <div className="flex gap-2 pt-1">
+              <div style={{ display: 'flex', gap: 'var(--space-2)', paddingTop: '4px' }}>
                 <button
                   type="button"
                   onClick={doExport}
-                  className="flex-1 py-1.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-medium transition-colors"
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    backgroundColor: 'var(--color-bg-surface)',
+                    color: 'var(--color-text-primary)',
+                    border: '1px solid var(--color-border-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--font-medium)',
+                    cursor: 'pointer',
+                    transition: 'background-color var(--transition-fast)',
+                  }}
                 >
                   Descargar igual
                 </button>
                 <button
                   type="button"
                   onClick={() => setFriction('resolve')}
-                  className="flex-1 py-1.5 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    backgroundColor: 'var(--color-accent)',
+                    color: 'var(--color-text-on-accent)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--font-semibold)',
+                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow-sm)',
+                    transition: 'background-color var(--transition-fast)',
+                  }}
                 >
                   Resolver ahora
                 </button>
@@ -404,12 +741,33 @@ export const ExportView: React.FC = () => {
             type="button"
             onClick={handleDownloadClick}
             disabled={isLoading}
-            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-70 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-blue-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer relative overflow-hidden"
+            style={{
+              width: '100%',
+              padding: '14px var(--space-4)',
+              backgroundColor: 'var(--color-accent)',
+              color: 'var(--color-text-on-accent)',
+              borderRadius: 'var(--radius-xl)',
+              fontWeight: 'var(--font-bold)',
+              fontSize: 'var(--text-sm)',
+              boxShadow: 'var(--shadow-md)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.7 : 1,
+              transition: 'all var(--transition-base)',
+              border: 'none',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
           >
             {isLoading ? (
               <>
-                <Loader2 size={18} className="animate-spin text-white" />
-                <span className="truncate">{loadingPhase}</span>
+                <Loader2 size={18} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {loadingPhase}
+                </span>
               </>
             ) : (
               <>
@@ -417,7 +775,19 @@ export const ExportView: React.FC = () => {
                 <span>
                   Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX'}
                 </span>
-                <kbd className="hidden sm:inline-block ml-1.5 px-1.5 py-0.5 text-[10px] font-mono font-normal bg-blue-700/80 rounded border border-blue-400/30 text-blue-100">
+                <kbd
+                  style={{
+                    marginLeft: '6px',
+                    padding: '2px 6px',
+                    fontSize: '10px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 400,
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                  }}
+                >
                   Ctrl+S
                 </kbd>
               </>
@@ -428,7 +798,18 @@ export const ExportView: React.FC = () => {
           <button
             type="button"
             onClick={() => { clearQuickExport(); setViewMode('split'); }}
-            className="w-full py-1 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:underline transition-colors text-center"
+            style={{
+              width: '100%',
+              padding: '4px 0',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 'var(--font-semibold)',
+              color: 'var(--color-text-secondary)',
+              textAlign: 'center',
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              transition: 'color var(--transition-fast)',
+            }}
           >
             ¿Necesitas personalizar algo? Ir al Editor Asistido
           </button>
@@ -436,24 +817,73 @@ export const ExportView: React.FC = () => {
         </div>
       </aside>
 
-      {/* ── PANEL DERECHO: EL LIENZO SAGRADO (60%+ DEL ANCHO) ── */}
+      {/* ── PANEL DERECHO: EL LIENZO SAGRADO ── */}
       <main
         aria-label="Previsualización en Vivo del Documento"
-        className="flex-1 min-w-0 h-full flex flex-col bg-slate-100 dark:bg-slate-950 overflow-hidden"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'var(--color-bg-canvas)',
+          overflow: 'hidden',
+        }}
       >
         {/* Barra Superior de Herramientas del Preview */}
-        <header className="h-12 px-6 flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 z-10 shadow-2xs">
-          
-          {/* Selector de Modo de Vista (Páginas vs PDF) */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200/80 dark:border-slate-700/80">
+        <header
+          style={{
+            height: '48px',
+            padding: '0 var(--space-6)',
+            flexShrink: 0,
+            backgroundColor: 'var(--color-bg-surface)',
+            borderBottom: '1px solid var(--color-border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-4)',
+            zIndex: 10,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+
+          {/* Selector de Modo de Vista */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+              padding: '2px',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)',
+            }}
+          >
             <button
               type="button"
               onClick={() => setPreviewMode('canvas')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-                previewMode === 'canvas'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-semibold)',
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
+                border: 'none',
+                ...(previewMode === 'canvas'
+                  ? {
+                      backgroundColor: 'var(--color-bg-surface)',
+                      color: 'var(--color-accent)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }
+                  : {
+                      backgroundColor: 'transparent',
+                      color: 'var(--color-text-secondary)',
+                    }),
+              }}
             >
               <Eye size={13} />
               <span>Páginas APA (Interactivo)</span>
@@ -461,36 +891,84 @@ export const ExportView: React.FC = () => {
             <button
               type="button"
               onClick={() => setPreviewMode('pdf')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-                previewMode === 'pdf'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-semibold)',
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
+                border: 'none',
+                ...(previewMode === 'pdf'
+                  ? {
+                      backgroundColor: 'var(--color-bg-surface)',
+                      color: 'var(--color-accent)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }
+                  : {
+                      backgroundColor: 'transparent',
+                      color: 'var(--color-text-secondary)',
+                    }),
+              }}
             >
               <FileType size={13} />
               <span>PDF Compilado</span>
             </button>
           </div>
 
-          {/* Controles de Zoom para el Canvas de Páginas */}
+          {/* Controles de Zoom */}
           {previewMode === 'canvas' && (
-            <div className="flex items-center gap-1.5">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
                 onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))}
                 title="Reducir zoom"
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border-subtle)',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'background-color var(--transition-fast)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 <ZoomOut size={13} />
               </button>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 min-w-[40px] text-center font-mono">
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--font-semibold)',
+                  color: 'var(--color-text-primary)',
+                  minWidth: '40px',
+                  textAlign: 'center',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
                 {zoomLevel}%
               </span>
               <button
                 type="button"
                 onClick={() => setZoomLevel(Math.min(200, zoomLevel + 10))}
                 title="Aumentar zoom"
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border-subtle)',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'background-color var(--transition-fast)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 <ZoomIn size={13} />
               </button>
@@ -498,7 +976,18 @@ export const ExportView: React.FC = () => {
                 type="button"
                 onClick={() => setZoomLevel(100)}
                 title="Restablecer zoom a 100%"
-                className="ml-1 px-2 py-1 text-[11px] font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+                style={{
+                  marginLeft: '4px',
+                  padding: '4px 8px',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--font-medium)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border-subtle)',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'background-color var(--transition-fast)',
+                }}
               >
                 100%
               </button>
@@ -506,8 +995,18 @@ export const ExportView: React.FC = () => {
           )}
         </header>
 
-        {/* Contenedor del Lienzo Sagrado */}
-        <div className="flex-1 min-h-0 overflow-auto relative p-6 flex justify-center">
+        {/* Contenedor del Lienzo */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            position: 'relative',
+            padding: 'var(--space-6)',
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
           {previewMode === 'canvas' ? (
             <PaperCanvas />
           ) : (

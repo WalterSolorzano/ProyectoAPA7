@@ -33,5 +33,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, status: any) => callback(status)
     ipcRenderer.on('update:status', listener)
     return () => ipcRenderer.removeListener('update:status', listener)
+  },
+  // ── Context Menu integration ──────────────────────────────────────────
+  // Recibe un archivo .docx desde el menú contextual de Windows
+  // (click derecho → "Convertir a APA 7 con WordAPA7").
+  // El main process lee el archivo del disco y envía { fileName, buffer }.
+  onOpenFileFromOS: (callback: (data: { fileName: string; buffer: Uint8Array }) => void) => {
+    const listener = (_event: any, data: { fileName: string; buffer: Uint8Array }) => callback(data)
+    ipcRenderer.on('open-file-from-os', listener)
+    return () => ipcRenderer.removeListener('open-file-from-os', listener)
   }
 })

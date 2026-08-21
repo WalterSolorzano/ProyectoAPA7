@@ -997,8 +997,8 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 # Si encontramos un heading de Word dentro de la página 1, es el límite
                 if "heading" in style:
                     has_cover_kw_check = any(
-                        (f" {kw} " if " " in kw else f" {kw} ") in f" {_normalize_accent(txt.lower())} "
-                        for kw in cover_kw_list
+                        pat.search(_normalize_accent(txt.lower()))
+                        for pat in cover_kw_patterns
                     )
                     if not has_cover_kw_check:
                         structural_break = idx

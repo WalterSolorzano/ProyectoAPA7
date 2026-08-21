@@ -679,7 +679,6 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
 
 # Removido: _get_numbering_type_map (ahora en xml_deep_parser.process_numbering_single_pass)
 
-
 # Mapping de numFmt OOXML a estilos APA
 OOXML_NUMFMT_TO_NUMBER_STYLE: dict[str, NumberStyle] = {
     'decimal': NumberStyle.DECIMAL,
@@ -943,18 +942,28 @@ def parse_docx_bytes(
             # Detectar formato directo
             is_bold: bool = False
             is_italic: bool = False
-            font_size: float = 12.0
-            font_name: str = "Times New Roman"
+            font_size: Optional[float] = None
+            font_name: Optional[str] = None
 
+            # First-run-wins for font_size and font_name: the first run with
+            # explicit formatting sets the value. This prevents a 14pt title
+            # run from being overwritten by subsequent 12pt body runs.
+            # is_bold/is_italic correctly use any-run (OR) semantics.
             for r in p.runs:
                 if r.bold:
                     is_bold = True
                 if r.italic:
                     is_italic = True
-                if r.font.size and r.font.size.pt:
+                if font_size is None and r.font.size and r.font.size.pt:
                     font_size = float(r.font.size.pt)
-                if r.font.name:
+                if font_name is None and r.font.name:
                     font_name = r.font.name
+
+            # Apply defaults if no run had explicit formatting
+            if font_size is None:
+                font_size = 12.0
+            if font_name is None:
+                font_name = "Times New Roman"
 
             # Determinar alineacion
             align_str: str = "left"
@@ -967,12 +976,29 @@ def parse_docx_bytes(
                 elif "JUSTIFY" in raw_align.upper():
                     align_str = "justify"
 
-            # Obtener indentacion
+            # Obtener indentacion y espaciado del parrafo
             left_indent_cm: float = 0.0
+            first_line_indent_cm: float = 0.0
+            space_before_pt: float = 0.0
+            space_after_pt: float = 0.0
+            line_spacing: Optional[float] = None
             try:
                 pf = p.paragraph_format
                 if pf.left_indent:
                     left_indent_cm = pf.left_indent.cm if pf.left_indent.cm else 0.0
+                # Sangría de primera línea (crítica para APA 7: 1.27 cm)
+                if pf.first_line_indent:
+                    first_line_indent_cm = pf.first_line_indent.cm if pf.first_line_indent.cm else 0.0
+                if pf.space_before:
+                    space_before_pt = pf.space_before.pt if pf.space_before.pt else 0.0
+                if pf.space_after:
+                    space_after_pt = pf.space_after.pt if pf.space_after.pt else 0.0
+                if pf.line_spacing is not None:
+                    ls = pf.line_spacing
+                    if isinstance(ls, (int, float)):
+                        line_spacing = float(ls)
+                    elif hasattr(ls, 'pt'):
+                        line_spacing = ls.pt
             except Exception:
                 pass
 
@@ -1013,6 +1039,10 @@ def parse_docx_bytes(
                     is_bold=is_bold,
                     is_italic=is_italic,
                     left_indent_cm=left_indent_cm,
+                    first_line_indent_cm=first_line_indent_cm,
+                    space_before_pt=space_before_pt,
+                    space_after_pt=space_after_pt,
+                    line_spacing=line_spacing,
                     confidence=1.0,
                     heading_level=None,
                     footnote_ids=footnote_ids,
@@ -1223,6 +1253,10 @@ def parse_docx_bytes(
                     is_bold=is_bold,
                     is_italic=is_italic,
                     left_indent_cm=left_indent_cm,
+                    first_line_indent_cm=first_line_indent_cm,
+                    space_before_pt=space_before_pt,
+                    space_after_pt=space_after_pt,
+                    line_spacing=line_spacing,
                     confidence=0.95 if bullet_source == "ooxml_list" else 0.5,
                     bullet_source=bullet_source,
                     bullet_style=detected_bullet_style,

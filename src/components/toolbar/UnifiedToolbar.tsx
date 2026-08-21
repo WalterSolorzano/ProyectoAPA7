@@ -155,12 +155,13 @@ export function UnifiedToolbar() {
           )}
           <button type="button"
             onClick={() => setSettingsStudioOpen(true)}
-            title="Abrir estudio de ajustes con vista previa en vivo"
+            title="Ajustes avanzados (opcional): tipografia, interlineado, titulos e IA"
             style={ghostBtn}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
             <SlidersHorizontal size={11} />
+            <span className="toolbar-btn-label">Ajustes</span>
           </button>
           {viewMode !== 'export' && (
             <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>

@@ -31,3 +31,19 @@ BrandingText "WordAPA7 · Formato APA 7 al instante"
 !macro customWelcomePage
   !insertmacro MUI_PAGE_WELCOME
 !macroend
+
+; ── Context Menu: "Convertir a APA 7" en click derecho sobre .docx ──────────
+; Registra una entrada en el menú contextual de Windows para archivos .docx.
+; Al hacer click derecho sobre un .docx → "Convertir a APA 7 con WordAPA7"
+; → abre la app con el archivo como argumento, que se procesa automáticamente.
+; Usamos SystemFileAssociations para no interferir con la asociación propia
+; de Word (Word.Document.12).
+!macro customInstall
+  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "" "Convertir a APA 7 con WordAPA7"
+  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "Icon" "$INSTDIR\WordAPA7.exe"
+  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
+!macroend
+
+!macro customUnInstall
+  DeleteRegKey HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"
+!macroend

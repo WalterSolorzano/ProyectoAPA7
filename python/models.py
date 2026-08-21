@@ -376,6 +376,10 @@ class ElementModel(BaseModel):
     is_italic: bool = False
     is_bullet: bool = False
     left_indent_cm: float = 0.0
+    first_line_indent_cm: float = 0.0
+    space_before_pt: float = 0.0
+    space_after_pt: float = 0.0
+    line_spacing: Optional[float] = None
     confidence: float = 0.5
     is_user_modified: bool = False
     image_info: Optional[ImageModel] = None

@@ -441,7 +441,7 @@ export const useDocStore = create<DocState>()(
   citationAuditResult: null,
   structureAuditResult: null,
 
-  wizardStep: 2,
+  wizardStep: 1,
   showFileMenu: false,
   settingsStudioOpen: false,
   settingsStudioTab: 'format',
@@ -707,7 +707,7 @@ export const useDocStore = create<DocState>()(
             activeTabIndex: existing,
             atHome: false,
             isLoading: false,
-            wizardStep: state.wizardStep === 0 ? 1 : state.wizardStep,
+            wizardStep: Math.max(1, state.wizardStep),
           };
         }
         const newTab = { session_id: recovered.session_id, file_name: recovered.file_name };
@@ -866,7 +866,7 @@ export const useDocStore = create<DocState>()(
       if (joke) useDocStore.getState().showToast(joke, 'info');
     } catch { /* no crítico */ }
 
-    const effectiveMode = opts?.mode || 'quick';
+    const effectiveMode = opts?.mode || 'review';
     set({ isLoading: true, error: null });
     get().pushActivityEvent('info', `Procesando ${file.name}…`);
     try {
@@ -907,25 +907,14 @@ export const useDocStore = create<DocState>()(
           historyIndex: 0,
           coverSetupDone: false,
           atHome: false,
-          wizardStep: 0,
+          wizardStep: 1,
         };
       });
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
         get().showToast('Detectamos datos de tu portada y los precargamos', 'info');
       }
       get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
-      if (effectiveMode === 'quick') {
-        // Modo Rápido: no hay revisión paso a paso ni clasificación LLM;
-        // se aceptan los elementos de alta confianza y se valida al vuelo.
-      set({ isLoading: false });
-      await get().acceptHighConfidenceElements().catch(() => {});
-      await get().runValidation().catch(() => {});
-      await get().runCitationAudit().catch(() => {});
-      // Preservar la portada original — NO forzar CoverSetupDialog.
-      // El túnel de exportación reemplaza al modal de descarga.
-      set({ isDownloadModalOpen: false, pendingQuickExport: true, coverSetupDone: true, viewMode: 'export' });
-      return;
-      }
+
       // Auto-disparar clasificación LLM en background
       const uncertainCount = doc.elements.filter(
         (e: any) => e.needs_review || (e.confidence < 0.85 && e.type !== 'empty' && e.type !== 'image' && e.type !== 'table')
@@ -961,7 +950,7 @@ export const useDocStore = create<DocState>()(
           historyIndex: 0,
           coverSetupDone: false,
           atHome: false,
-          wizardStep: 0,
+          wizardStep: 1,
         };
       });
     } catch (err: any) {

@@ -3,8 +3,8 @@ import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
-  FileText, BookOpen, GraduationCap, Upload, X, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Zap, ListChecks, Download, FileUp, Home, Menu, Lock
+  FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
+  Download, FileUp, Home, Menu, Lock
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -22,39 +22,19 @@ const TEMPLATES = [
     id: 'essay',
     name: 'Ensayo',
     description: 'Introducción, desarrollo, conclusiones y referencias',
-    icon: <FileText size={28} color="var(--accent-success)" />,
-    gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+    icon: <FileText size={26} color="var(--accent-success)" />,
   },
   {
     id: 'report',
     name: 'Informe Técnico',
     description: 'Resumen ejecutivo, metodología, resultados y anexos',
-    icon: <BookOpen size={28} color="var(--accent-primary)" />,
-    gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+    icon: <BookOpen size={26} color="var(--accent-primary)" />,
   },
   {
     id: 'thesis',
     name: 'Tesis / Monografía',
     description: 'Marco teórico, metodología, resultados y conclusiones',
-    icon: <GraduationCap size={28} color="var(--accent-primary)" />,
-    gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
-  },
-];
-
-const MODES = [
-  {
-    id: 'quick' as const,
-    title: 'Modo Rápido (Recomendado)',
-    badge: '1 clic',
-    description: 'Auto-formato APA 7: sangrías, márgenes, tablas y citas listas para descargar.',
-    icon: <Zap size={20} color="var(--accent-primary)" />,
-  },
-  {
-    id: 'review' as const,
-    title: 'Modo Guiado',
-    badge: 'Paso a paso',
-    description: 'Revisión manual: portada institucional, jerarquía de títulos, figuras y referencias.',
-    icon: <ListChecks size={20} color="var(--accent-secondary)" />,
+    icon: <GraduationCap size={26} color="var(--accent-primary)" />,
   },
 ];
 
@@ -95,8 +75,6 @@ export const Step0QuickStart: React.FC = () => {
   } = useDocStore();
   const [activeTab, setActiveTab] = useState<'inicio' | 'abrir' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedMode, setSelectedMode] = useState<'quick' | 'review'>('quick');
   const [dragging, setDragging] = useState(false);
   const [recentSessions, setRecentSessions] = useState<SessionRecovery[]>([]);
   const [loadingRecents, setLoadingRecents] = useState(false);
@@ -115,11 +93,19 @@ export const Step0QuickStart: React.FC = () => {
       .finally(() => setLoadingRecents(false));
   }, [isBackendReady]);
 
+  // ── Subida inmediata: al soltar o elegir un archivo arranca el proceso ──
+  // No hay paso intermedio de previsualización. Siempre Modo Guiado (review).
+  const handleUploadFile = (file: File) => {
+    if (isLoading || !isBackendReady) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) return;
+    uploadFile(file, { profileId: activeProfileId, mode: 'review' });
+  };
+
   const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-    setSelectedFile(file);
+    handleUploadFile(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -128,16 +114,15 @@ export const Step0QuickStart: React.FC = () => {
     if (isLoading) return;
     const file = e.dataTransfer.files?.[0];
     if (file && file.name.toLowerCase().endsWith('.docx')) {
-      setSelectedFile(file);
+      handleUploadFile(file);
     }
   };
 
-  const handleConvert = () => {
-    if (!selectedFile) return;
-    uploadFile(selectedFile, { profileId: activeProfileId, mode: selectedMode });
+  const triggerFilePicker = () => {
+    if (!isLoading && isBackendReady) fileInputRef.current?.click();
   };
 
-  const handleRecoverSession = async (sessionId: string, fileName: string) => {
+  const handleRecoverSession = async (sessionId: string, _fileName: string) => {
     setRecoveringId(sessionId);
     try {
       await openSession(sessionId);
@@ -147,6 +132,8 @@ export const Step0QuickStart: React.FC = () => {
       setRecoveringId(null);
     }
   };
+
+  const busy = isLoading || !isBackendReady;
 
   return (
     <div style={{
@@ -173,7 +160,7 @@ export const Step0QuickStart: React.FC = () => {
           <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
 
-        {/* Botón: Archivo (menú de carga / backstage) — faltaba en el inicio */}
+        {/* Botón: Archivo (menú de carga / backstage) */}
         <button
           type="button"
           onClick={() => useDocStore.getState().setShowFileMenu(true)}
@@ -210,8 +197,8 @@ export const Step0QuickStart: React.FC = () => {
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
                   padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                  backgroundColor: 'var(--color-accent-soft, rgba(79,124,255,0.14))', color: 'var(--accent-primary)',
-                  border: '1px solid rgba(79,124,255,0.4)', fontFamily: 'inherit',
+                  backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+                  border: '1px solid var(--accent-primary)', fontFamily: 'inherit',
                   fontSize: '11px', fontWeight: 700,
                   ...noDragRegion,
                 }}
@@ -231,8 +218,8 @@ export const Step0QuickStart: React.FC = () => {
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-            backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-main)',
-            border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'inherit',
+            backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)',
+            border: '1px solid var(--border-subtle)', fontFamily: 'inherit',
             fontSize: '11px', fontWeight: 600,
             marginRight: ((window as any).electronAPI ? 140 : 0), // reserva para botones nativos de la ventana
             ...noDragRegion,
@@ -259,7 +246,7 @@ export const Step0QuickStart: React.FC = () => {
         <NavItem icon={<FolderOpen size={22} />} label="Abrir" active={activeTab === 'abrir'} onClick={() => setActiveTab('abrir')} />
         <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
 
-        {/* Reportar problema + privacidad */}
+        {/* Configuraciones */}
         <div style={{ marginTop: 'auto', paddingBottom: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
           <button
             type="button"
@@ -268,7 +255,7 @@ export const Step0QuickStart: React.FC = () => {
             title="Configuraciones"
             style={{
               background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'none',
-              border: '1px solid ' + (settingsMenuOpen ? 'rgba(79,124,255,0.5)' : 'var(--border-subtle)'),
+              border: '1px solid ' + (settingsMenuOpen ? 'var(--accent-primary)' : 'var(--border-subtle)'),
               borderRadius: '8px',
               color: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
               cursor: 'pointer', padding: '7px', display: 'flex',
@@ -276,7 +263,7 @@ export const Step0QuickStart: React.FC = () => {
           >
             <Settings2 size={18} />
           </button>
-          <span style={{ fontSize: '8px', color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.3, fontWeight: 600 }}>
+          <span style={{ fontSize: '8px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3, fontWeight: 600 }}>
             Configuraciones
           </span>
         </div>
@@ -312,7 +299,7 @@ export const Step0QuickStart: React.FC = () => {
 
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
-          <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <div style={{ maxWidth: '820px', margin: '0 auto' }}>
             {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
 
@@ -332,187 +319,133 @@ export const Step0QuickStart: React.FC = () => {
                   fontSize: '12.5px', fontWeight: 600,
                   color: 'var(--text-main)',
                   boxShadow: 'var(--shadow-md)',
-                  maxWidth: '300px',
+                  maxWidth: '320px',
                   lineHeight: 1.4,
                 }}>
-                  ¡Hola! Tirame ese Word desordenado, yo me encargo.
+                  ¡{greeting}! Tirame ese Word desordenado, yo me encargo.
                 </div>
               </div>
             </div>
 
-            {/* ── ACCIÓN PRIMARIA (A): Convertir documento (dropzone hero) ── */}
+            {/* ── ACCIÓN PRIMARIA: Dropzone premium + perfil + Convertir ── */}
             <div style={{ marginBottom: '40px' }}>
               <div style={{
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '16px',
-                  background: 'var(--surface-subtle)',
-                  padding: '28px',
-                }}>
-                  {/* Paso 1: archivo */}
-                  {!selectedFile ? (
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); if (!isLoading && isBackendReady) setDragging(true); }}
-                      onDragLeave={() => setDragging(false)}
-                      onDrop={handleDrop}
-                      onClick={() => !isLoading && isBackendReady && fileInputRef.current?.click()}
-                      role="button"
-                      aria-label="Seleccionar documento .docx"
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        minHeight: '220px', cursor: (isLoading || !isBackendReady) ? 'wait' : 'pointer',
-                        border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-subtle)',
-                        borderRadius: '12px', transition: 'all 0.2s ease',
-                        backgroundColor: dragging ? 'rgba(79,124,255,0.08)' : 'transparent',
-                        transform: dragging ? 'scale(1.01)' : 'scale(1)',
-                        pointerEvents: (isLoading || !isBackendReady) ? 'none' : 'auto',
-                      }}
-                    >
-                      <FileUp size={56} color={dragging ? 'var(--accent-primary)' : 'var(--text-muted)'} style={{ marginBottom: '16px', transition: 'color 0.2s ease' }} />
-                      <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
-                        Arrastrá tu documento .docx aquí
-                      </span>
-                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        o hacé clic para seleccionar un archivo
-                      </span>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '5px',
-                        fontSize: '11px', color: 'var(--text-muted)', marginTop: '14px', fontWeight: 600,
-                      }}>
-                        <Lock size={11} color="var(--accent-success)" /> Procesamiento seguro. Tus documentos no se almacenan.
-                      </span>
-                    </div>
-                  ) : (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      padding: '14px 16px', borderRadius: '12px',
-                      border: '1px solid var(--border-subtle)',
-                      backgroundColor: 'var(--canvas-bg)',
-                    }}>
-                      <FileText size={22} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {selectedFile.name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          {(selectedFile.size / 1024).toFixed(0)} KB · listo para convertir
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFile(null)}
-                        title="Cambiar archivo"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '6px',
-                          padding: '6px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                          background: 'none', border: '1px solid var(--border-subtle)',
-                          color: 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '12px', fontWeight: 600,
-                        }}
-                      >
-                        <X size={13} /> Cambiar
-                      </button>
-                    </div>
-                  )}
+                background: 'var(--surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-xl)',
+                padding: '32px',
+                boxShadow: 'var(--shadow-card)',
+              }}>
+                {/* Zona interactiva: arrastrar o hacer clic */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={triggerFilePicker}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Seleccionar o arrastrar documento .docx"
+                  onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); triggerFilePicker(); } }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    minHeight: '200px', cursor: busy ? 'wait' : 'pointer',
+                    border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-strong)',
+                    borderRadius: 'var(--radius-lg)', transition: 'all 0.2s ease',
+                    backgroundColor: dragging ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                    transform: dragging ? 'scale(1.01)' : 'scale(1)',
+                    pointerEvents: busy ? 'none' : 'auto',
+                  }}
+                >
+                  <div style={{
+                    width: '64px', height: '64px', borderRadius: 'var(--radius-full)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: dragging ? 'var(--accent-primary)' : 'var(--color-accent-soft)',
+                    marginBottom: '18px', transition: 'all 0.2s ease',
+                  }}>
+                    <FileUp size={30} color={dragging ? '#fff' : 'var(--accent-primary)'} style={{ transition: 'color 0.2s ease' }} />
+                  </div>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px', letterSpacing: '-0.01em' }}>
+                    {isLoading ? 'Procesando tu documento…' : 'Arrastrá tu documento .docx aquí'}
+                  </span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    o hacé clic para seleccionar un archivo
+                  </span>
+                </div>
 
-                  {/* Paso 2 y 3: perfil + modo + convertir (solo con archivo) */}
-                  {selectedFile && (
+                {/* Selector de perfil de formato (siempre visible, antes de subir) */}
+                <div style={{ marginTop: '22px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px', letterSpacing: '0.02em' }}>
+                    Perfil de formato
+                  </label>
+                  <select
+                    value={activeProfileId}
+                    onChange={(e) => setActiveProfile(e.target.value)}
+                    disabled={isLoading}
+                    style={{
+                      width: '100%', padding: '11px 14px', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-strong)', backgroundColor: 'var(--canvas-bg)',
+                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '13px', fontWeight: 500,
+                      cursor: isLoading ? 'wait' : 'pointer', transition: 'border-color 0.15s ease',
+                    }}
+                  >
+                    {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
+                      <option key={p.profile_id} value={p.profile_id}>
+                        {p.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Botón Convertir — CTA principal, ancho completo, color de acento */}
+                <button
+                  type="button"
+                  onClick={triggerFilePicker}
+                  disabled={busy}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    width: '100%', marginTop: '16px', padding: '14px 20px',
+                    borderRadius: 'var(--radius-md)', border: 'none', cursor: busy ? 'wait' : 'pointer',
+                    backgroundColor: 'var(--accent-primary)', color: '#fff',
+                    fontFamily: 'inherit', fontSize: '14px', fontWeight: 700, letterSpacing: '0.01em',
+                    boxShadow: 'var(--shadow-lg)',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
+                    opacity: busy ? 0.8 : 1,
+                  }}
+                  onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'var(--accent-primary-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; } }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-primary)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
+                >
+                  {isLoading ? (
                     <>
-                      <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
-                        <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
-                            Perfil de formato
-                          </label>
-                          <select
-                            value={activeProfileId}
-                            onChange={(e) => setActiveProfile(e.target.value)}
-                            style={{
-                              width: '100%', padding: '10px 12px', borderRadius: '8px',
-                              border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)',
-                              color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '13px',
-                            }}
-                          >
-                            {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
-                              <option key={p.profile_id} value={p.profile_id}>
-                                {p.display_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div style={{ flex: '2 1 380px' }}>
-                          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
-                            Modo de conversión
-                          </label>
-                          <div style={{ display: 'flex', gap: '12px' }}>
-                            {MODES.map((mode) => (
-                              <button
-                                key={mode.id}
-                                type="button"
-                                onClick={() => setSelectedMode(mode.id)}
-                                aria-pressed={selectedMode === mode.id}
-                                style={{
-                                  flex: 1, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                                  padding: '12px 14px', borderRadius: '10px',
-                                  border: selectedMode === mode.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                                  backgroundColor: selectedMode === mode.id ? 'rgba(79,124,255,0.08)' : 'var(--canvas-bg)',
-                                  transition: 'border-color 0.15s, background 0.15s',
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                                  {mode.icon}
-                                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', flex: 1 }}>{mode.title}</span>
-                                  <span style={{
-                                    fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
-                                    backgroundColor: mode.id === 'quick' ? 'rgba(79,124,255,0.15)' : 'var(--surface-subtle)',
-                                    color: mode.id === 'quick' ? 'var(--accent-primary)' : 'var(--text-muted)',
-                                  }}>
-                                    {mode.badge}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                                  {mode.description}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleConvert}
-                        disabled={isLoading || !isBackendReady}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                          width: '100%', marginTop: '20px', padding: '13px 20px',
-                          borderRadius: '10px', border: 'none', cursor: (isLoading || !isBackendReady) ? 'wait' : 'pointer',
-                          backgroundColor: 'var(--accent-primary)', color: '#fff',
-                          fontFamily: 'inherit', fontSize: '14px', fontWeight: 700,
-                          opacity: isLoading ? 0.75 : 1,
-                        }}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                            Formateando documento…
-                          </>
-                        ) : selectedMode === 'quick' ? (
-                          <>
-                            <Zap size={18} />
-                            Auto-formatear y descargar (Modo Rápido)
-                          </>
-                        ) : (
-                          <>
-                            <ListChecks size={18} />
-                            Continuar en Modo Guiado
-                          </>
-                        )}
-                      </button>
+                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                      Procesando…
+                    </>
+                  ) : !isBackendReady ? (
+                    <>
+                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                      Conectando…
+                    </>
+                  ) : (
+                    <>
+                      <FileUp size={18} />
+                      Convertir a APA 7
                     </>
                   )}
+                </button>
+
+                {/* Mensaje de garantía */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  marginTop: '20px', paddingTop: '18px', borderTop: '1px solid var(--border-subtle)',
+                }}>
+                  <Lock size={14} color="var(--accent-success)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Tu contenido no se modifica ni se pierde. Garantizado.
+                  </span>
                 </div>
+              </div>
             </div>
 
-            {/* ── ACCIÓN SECUNDARIA (B): Plantillas descargables — banda con fondo
+            {/* ── ACCIÓN SECUNDARIA: Plantillas descargables — banda con fondo
                 distinto para separar la acción principal (Subir) de la secundaria ── */}
             <div style={{
               marginLeft: '-60px', marginRight: '-60px',
@@ -539,13 +472,13 @@ export const Step0QuickStart: React.FC = () => {
                     style={{
                       flex: '1 1 240px', maxWidth: '320px', cursor: 'pointer', fontFamily: 'inherit',
                       display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left',
-                      padding: '14px 16px', borderRadius: '12px',
+                      padding: '14px 16px', borderRadius: 'var(--radius-lg)',
                       background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
                       transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
                     }}
                     onMouseEnter={e => {
                       (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                      (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 14px rgba(0,0,0,0.10)';
+                      (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
                       (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)';
                     }}
                     onMouseLeave={e => {
@@ -555,8 +488,8 @@ export const Step0QuickStart: React.FC = () => {
                     }}
                   >
                     <div style={{
-                      width: '52px', height: '52px', borderRadius: '10px', flexShrink: 0,
-                      background: tpl.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '48px', height: '48px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                      background: 'var(--color-accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       {tpl.icon}
                     </div>
@@ -606,7 +539,7 @@ export const Step0QuickStart: React.FC = () => {
             <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Abrir Documento Existente
             </h1>
-            <UploadDropzone onFileSelected={(file) => uploadFile(file)} isLoading={isLoading || !isBackendReady} />
+            <UploadDropzone onFileSelected={(file) => uploadFile(file, { profileId: activeProfileId, mode: 'review' })} isLoading={isLoading || !isBackendReady} />
           </div>
         )}
 
@@ -653,8 +586,8 @@ const NavItem: React.FC<{
     onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
     onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
   >
-    <div style={{ color: active ? 'var(--accent-primary)' : 'var(--color-text-secondary)' }}>{icon}</div>
-    <span style={{ color: active ? 'var(--accent-primary)' : 'var(--color-text-tertiary)', fontSize: '9px', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
+    <div style={{ color: active ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>{icon}</div>
+    <span style={{ color: active ? 'var(--accent-primary)' : 'var(--text-muted)', fontSize: '9px', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
       {label}
     </span>
   </button>
@@ -739,3 +672,5 @@ const RecentsList: React.FC<{
     </>
   );
 };
+
+export default Step0QuickStart;

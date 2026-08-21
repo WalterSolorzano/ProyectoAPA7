@@ -315,7 +315,7 @@ def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str 
     import re
     fig_pattern = re.compile(
         r'^(?:figura|ilustraci[oó]n|imagen|gr[aá]fico|fotograf[ií]a|esquema|diagrama)'
-        r'\s*(?:\d+[\.:\)]\s*)?',
+        r'\s*(?:\d+[\.:)]\s*)?',
         re.IGNORECASE,
     )
     # Revisar el propio parrafo de la imagen
@@ -343,7 +343,7 @@ def _update_existing_caption_text(img_paragraph, new_caption: str, rules: APARul
         if text:
             # Preservar el prefijo "Figura X." si existe, solo reemplazar la descripcion
             import re
-            m = re.match(r'^(.*?\d+[\.:\)]\s*)', text)
+            m = re.match(r'^(.*?\d+[\.:)]\s*)', text)
             prefix = m.group(1) if m else ""
             para.text = ""
             r = para.add_run(prefix + new_caption)
@@ -979,6 +979,18 @@ def generate_apa7_docx(
     else:
         # Al reemplazar portada con la plantilla UNI, los parrafos de cuerpo empiezan despues de la nueva portada
         cover_paragraph_count = paragraphs_before_body
+
+    # SAFETY NET: Si cover_paragraph_count sigue siendo 0 pero el modelo
+    # tiene elementos marcados como is_cover_section, usar ese count.
+    # Esto previene que la portada original sea reformateada como cuerpo.
+    if cover_paragraph_count == 0 and use_orig_cover:
+        cover_from_model = sum(
+            1 for item in doc_model.elements
+            if (ElementModel.model_validate(item) if isinstance(item, dict) else item).is_cover_section
+        )
+        if cover_from_model > 0:
+            cover_paragraph_count = cover_from_model
+            print(f"[COVER-SAFETY] cover_paragraph_count ajustado desde modelo: {cover_paragraph_count}")
 
     p_idx = cover_paragraph_count
 

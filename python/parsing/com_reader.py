@@ -23,7 +23,6 @@ El WordCOMService proporciona la instancia de Word (apartment persistente).
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -159,7 +158,13 @@ class COMReader:
     # ── Single-pass Paragraphs Collector (Headings, Lists, Fonts, Styles) ──
 
     def _read_all_paragraphs_data(self, doc) -> Dict[str, Any]:
-        """Extrae headings, listas, fuentes y estilos en un único recorrido O(N)."""
+        """Extrae headings, listas, fuentes y estilos en un único recorrido O(N).
+
+        Retorna un dict con cuatro sub-dicts — ``headings``, ``lists``,
+        ``fonts`` y ``paragraphs`` — para que ``analyze()`` pueda pasarlos
+        directamente al resultado y ``enrich_document_from_com`` pueda leerlos
+        sin KeyErrors silenciosos.
+        """
         heading_list: List[Dict[str, Any]] = []
         level_counts: Dict[int, int] = {}
         list_items: List[Dict[str, Any]] = []
@@ -198,13 +203,40 @@ class COMReader:
                 fn = str(p.Range.Font.Name or "").lower()
                 if fn:
                     font_counts[fn] = font_counts.get(fn, 0) + 1
+
+                # 4. Paragraph styles
+                style_name = str(p.Style or "Normal")
+                paragraph_styles[style_name] = paragraph_styles.get(style_name, 0) + 1
             except Exception:
                 continue
+
         dominant = max(font_counts, key=font_counts.get) if font_counts else ""
+
+        # ── FIX: previously only font_counts / total / dominant were returned,
+        #    so heading_list and list_items were silently dropped.  This caused
+        #    a KeyError in analyze() (caught by the broad except → result["error"]
+        #    set → entire COM enrichment silently skipped).  Now we return the
+        #    nested structure that both analyze() and enrich_document_from_com()
+        #    expect.
         return {
-            "font_counts": font_counts,
-            "total_paragraphs": total,
-            "dominant": dominant,
+            "headings": {
+                "headings": heading_list,
+                "level_counts": level_counts,
+                "total": len(heading_list),
+            },
+            "lists": {
+                "items": list_items,
+                "total": len(list_items),
+            },
+            "fonts": {
+                "counts": font_counts,
+                "dominant": dominant,
+                "total_unique": len(font_counts),
+            },
+            "paragraphs": {
+                "total": total,
+                "style_distribution": paragraph_styles,
+            },
         }
 
     # ── Fields (TOC, PAGE, REF, HYPERLINK...) ────────────────────────────
@@ -277,7 +309,12 @@ class COMReader:
     # ── Paragraphs (basic info) ──────────────────────────────────────────
 
     def _read_paragraphs(self, doc) -> Dict[str, Any]:
-        """Información básica de párrafos: tipo de estilo, fuente dominante."""
+        """Información básica de párrafos: tipo de estilo, fuente dominante.
+
+        Nota: este método está disponible por compatibilidad, pero la
+        información de estilos ya se recolecta en ``_read_all_paragraphs_data``
+        durante el recorrido único O(N).
+        """
         paragraph_styles: Dict[str, int] = {}
         total_paragraphs = doc.Paragraphs.Count
         for i in range(1, min(total_paragraphs + 1, 1000)):
@@ -376,6 +413,7 @@ def enrich_document_from_com(doc_model: Any, original_docx_path: str | Path) -> 
         diag["cover_reason"] = "COM did not detect cover"
 
     # ── 2. Headings: validar niveles contra OutlineLevel de Word ────────
+    #    result["headings"] is a dict: {"headings": [...], "level_counts": {...}, "total": N}
     heading_info = result.get("headings", {})
     com_headings = heading_info.get("headings", [])
     if com_headings:
@@ -403,10 +441,12 @@ def enrich_document_from_com(doc_model: Any, original_docx_path: str | Path) -> 
             diag["heading_correction_ratio"] = round(corrected / max(1, len(model_headings)), 3)
 
     # ── 3. Listas: información de diagnóstico ────────────────────────────
+    #    result["lists"] is a dict: {"items": [...], "total": N}
     lists_info = result.get("lists", {})
     diag["lists_found"] = lists_info.get("total", 0)
 
     # ── 4. Fuentes ───────────────────────────────────────────────────────
+    #    result["fonts"] is a dict: {"counts": {...}, "dominant": "...", "total_unique": N}
     fonts_info = result.get("fonts", {})
     diag["font_dominant"] = fonts_info.get("dominant", "")
 

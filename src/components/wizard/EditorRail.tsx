@@ -1,21 +1,29 @@
 /* WordAPA7 — Rail lateral izquierdo del Editor Unificado.
    - Íconos con ProgressRing: el anillo se llena conforme se resuelven los
      pendientes de cada etapa (adiós al health-check final que asusta).
-   - DocumentOutline: mini-mapa colapsable para navegar documentos largos. */
+   - DocumentOutline: mini-mapa colapsable para navegar documentos largos.
+
+   ORDEN DE ETAPAS (refactor UX):
+   1. Estructura (Títulos + Cuerpo)
+   2. Figuras y tablas
+   3. Referencias
+   4. Portada
+   5. Exportar
+*/
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, AlignLeft, BookOpen, Map } from 'lucide-react';
+import { Layout, Type, Image, BookOpen, Map, Download } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
 import { ProgressRing } from './ProgressRing';
 import { DocumentOutline } from './DocumentOutline';
 
 export const EDITOR_SECTIONS = [
-  { id: 1, title: 'Portada', icon: Layout, hint: 'Metadatos y autores' },
-  { id: 2, title: 'Estructura', icon: Type, hint: 'Jerarquía de títulos' },
-  { id: 3, title: 'Figuras y tablas', icon: Image, hint: 'Rotulación APA' },
-  { id: 4, title: 'Cuerpo', icon: AlignLeft, hint: 'Sangría y listas' },
-  { id: 5, title: 'Referencias', icon: BookOpen, hint: 'Citas y bibliografía' },
+  { id: 1, title: 'Estructura', icon: Type, hint: 'Títulos y cuerpo' },
+  { id: 2, title: 'Figuras y tablas', icon: Image, hint: 'Rotulación APA' },
+  { id: 3, title: 'Referencias', icon: BookOpen, hint: 'Citas y bibliografía' },
+  { id: 4, title: 'Portada', icon: Layout, hint: 'Metadatos de portada' },
+  { id: 5, title: 'Exportar', icon: Download, hint: 'Descargar documento final' },
 ];
 
 const COVER_REQUIRED = ['title', 'author'];
@@ -25,22 +33,19 @@ const getStepProgress = (stepId: number): number => {
   const doc = s.doc;
   if (!doc) return 0;
 
-  if (stepId === 1) {
-    const required = (s.profiles.find((p) => p.profile_id === s.activeProfileId)?.cover_required_fields || COVER_REQUIRED)
-      .filter((f) => COVER_REQUIRED.includes(f));
-    if (required.length === 0) return 1;
-    const filled = required.filter((f) => (s.portada[f as keyof typeof s.portada] || '').toString().trim()).length;
-    return filled / required.length;
-  }
+  // Step 5 (Exportar) — no progress ring, always "ready"
+  if (stepId === 5) return 1;
 
-  if (stepId === 2) {
+  // Step 1 (Estructura) — headings pending
+  if (stepId === 1) {
     const headings = doc.elements.filter((e) => e.type === 'heading' && !e.is_cover_section);
     if (headings.length === 0) return 1;
     const review = headings.filter((e) => needsReview(e as any)).length;
     return (headings.length - review) / headings.length;
   }
 
-  if (stepId === 3) {
+  // Step 2 (Figuras y tablas)
+  if (stepId === 2) {
     const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error);
     const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info);
     const total = figures.length + tables.length;
@@ -49,12 +54,22 @@ const getStepProgress = (stepId: number): number => {
     return (total - review) / total;
   }
 
-  if (stepId === 5) {
+  // Step 3 (Referencias)
+  if (stepId === 3) {
     const refs = doc.referencias?.length || 0;
     const issues = (s.citationAuditResult?.ghost_citations?.length || 0) + (s.citationAuditResult?.orphan_references?.length || 0);
     if (refs === 0 && issues === 0) return 0;
     if (refs > 0 && issues === 0) return 1;
     return refs / (refs + issues);
+  }
+
+  // Step 4 (Portada)
+  if (stepId === 4) {
+    const required = (s.profiles.find((p) => p.profile_id === s.activeProfileId)?.cover_required_fields || COVER_REQUIRED)
+      .filter((f) => COVER_REQUIRED.includes(f));
+    if (required.length === 0) return 1;
+    const filled = required.filter((f) => (s.portada[f as keyof typeof s.portada] || '').toString().trim()).length;
+    return filled / required.length;
   }
 
   return 0;
@@ -70,7 +85,12 @@ export const EditorRail: React.FC = () => {
     // de una imagen mientras el usuario está en Referencias, por ejemplo).
     setSelectedReferenceId(null);
     setSelectedElementId(null);
-    setWizardStep(id);
+    if (id === 5) {
+      // "Exportar" abre el túnel de exportación (viewMode='export')
+      useDocStore.getState().openExportTunnel();
+    } else {
+      setWizardStep(id);
+    }
   };
 
   return (
