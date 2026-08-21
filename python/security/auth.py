@@ -9,12 +9,18 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, api_key: str = None):
         super().__init__(app)
         self.api_key = api_key or os.getenv("WORDAPA7_API_KEY")
-        # Rutas exentas de autenticación
+        # Rutas exentas de autenticación.
+        #
+        # Los endpoints del Word Add-in (/api/addin/*) están exentos porque
+        # Word no puede enviar headers de autenticación al cargar el Task Pane.
+        # El manifest dinámico y el health check también deben ser públicos
+        # para que Word pueda descubrir y cargar el complemento.
         self.exempt_paths = [
             "/api/health",
             "/api/version",
             "/api/provider-status",
             "/api/ai/health",
+            "/api/addin/",  # Todos los endpoints del Word Add-in (sin auth)
         ]
 
     async def dispatch(self, request: Request, call_next):

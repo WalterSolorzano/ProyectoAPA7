@@ -103,6 +103,45 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem --- [6] mkcert para HTTPS del Word Add-in (opcional pero recomendado) ---
+echo.
+echo [6/6] Configurando HTTPS para el Word Add-in (mkcert)...
+where mkcert >nul 2>nul
+if errorlevel 1 (
+    echo mkcert no esta instalado. Intentando instalar via winget...
+    where winget >nul 2>nul
+    if not errorlevel 1 (
+        winget install --id FiloSottile.mkcert -e --silent >nul 2>nul
+        if not errorlevel 1 (
+            echo mkcert instalado correctamente via winget.
+            rem Refrescar PATH en la sesion actual
+            set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WinGet\Packages\FiloSottile.mkcert_Microsoft.Winget.Source_8wekyb3d8bbwe"
+            where mkcert >nul 2>nul
+        )
+    )
+)
+
+where mkcert >nul 2>nul
+if not errorlevel 1 (
+    echo Instalando autoridad de certificacion local (mkcert -install)...
+    mkcert -install
+    if not errorlevel 1 (
+        echo.
+        echo OK: HTTPS del Add-in configurado. Word podra cargar el panel automaticamente.
+        echo     El backend generara los certificados SSL en storage\ssl\ al iniciar.
+    ) else (
+        echo AVISO: mkcert -install fallo. El Add-in funcionara en HTTP (Word puede rechazarlo).
+    )
+) else (
+    echo.
+    echo AVISO: mkcert no encontrado. El Word Add-in funcionara en modo HTTP.
+    echo Para activar HTTPS (necesario para que Word confie en el Add-in):
+    echo   1. Descarga mkcert: https://github.com/FiloSottile/mkcert/releases
+    echo   2. Copia mkcert.exe a una carpeta en tu PATH (ej. C:\Windows\System32)
+    echo   3. Ejecuta setup.bat nuevamente
+    echo.
+)
+
 echo.
 echo ============================================
 echo  Configuracion completada correctamente.

@@ -1,9 +1,19 @@
 """
-WordAPA7 — Auditor Estructural via LLM (Engine V2, P2)
+WordAPA7 — Auditor Estructural (Engine V3)
 
-Envía la estructura del documento al LLM para validación global con
-salida JSON estructurada (Pydantic). Reporta problemas de jerarquía de
-headings, secciones faltantes, citas sin referencia, y da sugerencias APA.
+Dos capas de auditoría:
+
+1. Heurística local (audit_document_heuristic) — cero latencia, cero API key:
+   - Salto de niveles de heading (H1 → H3 sin H2)
+   - Running head > 50 caracteres
+   - Abstract fuera del rango APA 7 (150-250 palabras)
+   - Headings numerados (1., 2., 2.1.) — no permitidos en APA 7
+   - Referencias antes del cuerpo del documento
+   - Figuras/tablas sin caption
+   - Citas huérfanas (en texto pero sin referencia en bibliografía)
+
+2. LLM global (audit_document_structure) — enriquece con IA cuando hay API key.
+   Si no hay API key, retorna el resultado heurístico en lugar de un error vacío.
 
 Uso:
     from modules.doc_auditor import audit_document_structure
@@ -37,6 +47,231 @@ class DocAuditResult(BaseModel):
         return self.overall_assessment == "good" and not any(
             [self.heading_issues, self.missing_sections, self.reference_issues]
         )
+
+
+# ── AUDITOR HEURÍSTICO LOCAL ──────────────────────────────────────────────────
+
+def audit_document_heuristic(doc_model: Any) -> DocAuditResult:
+    """
+    Audita la estructura del documento con checks puramente locales, sin LLM.
+
+    Retorna un DocAuditResult parcial con los problemas detectados por heurística.
+    Es el primer nivel siempre ejecutado, independientemente de la API key.
+
+    Checks incluidos:
+    - Salto de niveles de heading (H1 → H3 sin H2 intermedio) — APA 7 §2.27
+    - Running head > 50 caracteres — APA 7 §2.8
+    - Abstract fuera de rango 150-250 palabras — APA 7 §3.3
+    - Headings numerados (1., 2., 2.1.) — no APA 7 — APA 7 §2.27
+    - Referencias antes del cuerpo — APA 7 §2.4
+    - Figuras/tablas sin caption — APA 7 §7.10
+    - Citas huérfanas (en texto pero sin referencia) — APA 7 §8.4
+    """
+    try:
+        from models import ElementType
+    except ImportError:
+        ElementType = None
+
+    heading_issues: List[str] = []
+    missing_sections: List[str] = []
+    reference_issues: List[str] = []
+    format_suggestions: List[str] = []
+
+    elements = getattr(doc_model, 'elements', []) or []
+
+    # ── 1. Jerarquía de headings: salto de niveles ────────────────────────────
+    heading_elements = []
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        if t in ('heading', 'head'):
+            lvl = getattr(elem, 'heading_level', 1) or 1
+            text = (getattr(elem, 'text', '') or '').strip()
+            heading_elements.append((lvl, text))
+
+    prev_level = 0
+    for lvl, text in heading_elements:
+        if prev_level > 0 and lvl > prev_level + 1:
+            heading_issues.append(
+                f"Salto de nivel de heading: H{prev_level} → H{lvl} "
+                f"(falta H{prev_level + 1} antes de '{text[:60]}')"
+            )
+        # Heading numerado: "1.", "2.", "2.1." al inicio
+        if re.match(r'^\d+(\.\d+)*\.?\s', text):
+            heading_issues.append(
+                f"Heading numerado no permitido en APA 7: '{text[:60]}' "
+                "(los títulos APA no llevan numeración)"
+            )
+        prev_level = lvl
+
+    # ── 2. Running head > 50 caracteres ──────────────────────────────────────
+    portada = getattr(doc_model, 'portada', None) or {}
+    if isinstance(portada, dict):
+        running_head = portada.get('running_head', '') or portada.get('title', '') or ''
+    else:
+        running_head = (
+            getattr(portada, 'running_head', '') or
+            getattr(portada, 'title', '') or ''
+        )
+    if running_head and len(running_head) > 50:
+        format_suggestions.append(
+            f"Running head demasiado largo ({len(running_head)} caracteres): "
+            "APA 7 §2.8 establece máximo 50 caracteres en mayúsculas"
+        )
+
+    # ── 3. Abstract: conteo de palabras ──────────────────────────────────────
+    abstract_text = ''
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        text = (getattr(elem, 'text', '') or '').strip()
+        # Detectar abstract por tipo o por heading "Abstract" / "Resumen"
+        if t == 'abstract':
+            abstract_text += ' ' + text
+        elif t in ('heading', 'head') and re.search(r'\b(abstract|resumen)\b', text.lower()):
+            # El siguiente párrafo es el abstract — lo buscamos
+            pass
+    # También buscar bloque de texto que sigue a heading "Abstract"
+    found_abstract_heading = False
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        text = (getattr(elem, 'text', '') or '').strip()
+        if t in ('heading', 'head') and re.search(r'\b(abstract|resumen)\b', text.lower()):
+            found_abstract_heading = True
+            continue
+        if found_abstract_heading and t in ('paragraph', 'para'):
+            abstract_text = text
+            found_abstract_heading = False
+
+    if abstract_text.strip():
+        word_count = len(abstract_text.split())
+        if word_count < 150:
+            format_suggestions.append(
+                f"Abstract demasiado corto ({word_count} palabras): "
+                "APA 7 §3.3 establece 150-250 palabras"
+            )
+        elif word_count > 250:
+            format_suggestions.append(
+                f"Abstract demasiado largo ({word_count} palabras): "
+                "APA 7 §3.3 establece 150-250 palabras"
+            )
+
+    # ── 4. Orden de secciones: Referencias antes del cuerpo ──────────────────
+    refs_idx = None
+    body_last_idx = None
+    for i, elem in enumerate(elements):
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        text = (getattr(elem, 'text', '') or '').strip().lower()
+        if t in ('heading', 'head') and re.search(r'\b(referencias|references|bibliograf[ií]a)\b', text):
+            if refs_idx is None:
+                refs_idx = i
+        elif t in ('paragraph', 'bullet', 'numbered', 'block_quote'):
+            body_last_idx = i
+
+    if refs_idx is not None and body_last_idx is not None and refs_idx < body_last_idx:
+        reference_issues.append(
+            "La sección de Referencias aparece antes de párrafos del cuerpo: "
+            "APA 7 §2.4 exige Referencias al final del documento"
+        )
+
+    # ── 5. Figuras y tablas sin caption ──────────────────────────────────────
+    figures_without_caption = 0
+    tables_without_caption = 0
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        caption = (getattr(elem, 'caption', '') or '').strip()
+        alt_text = (getattr(elem, 'alt_text', '') or '').strip()
+        if t in ('image', 'figure', 'img') and not caption and not alt_text:
+            figures_without_caption += 1
+        elif t == 'table':
+            title = (getattr(elem, 'title', '') or '').strip()
+            if not caption and not title:
+                tables_without_caption += 1
+
+    if figures_without_caption > 0:
+        format_suggestions.append(
+            f"{figures_without_caption} figura(s) sin caption: "
+            "APA 7 §7.22 requiere 'Figura N' + título breve bajo la imagen"
+        )
+    if tables_without_caption > 0:
+        format_suggestions.append(
+            f"{tables_without_caption} tabla(s) sin título: "
+            "APA 7 §7.10 requiere 'Tabla N' + título breve sobre la tabla"
+        )
+
+    # ── 6. Citas huérfanas (en texto sin referencia en bibliografía) ──────────
+    citas = getattr(doc_model, 'citas_intext', None) or []
+    refs = getattr(doc_model, 'referencias', None) or []
+    if isinstance(citas, list) and citas and isinstance(refs, list) and refs:
+        ref_authors_years: set = set()
+        for r in refs:
+            if isinstance(r, dict):
+                authors = r.get('authors', []) or []
+                year = str(r.get('year', '') or '')
+            else:
+                authors = getattr(r, 'authors', []) or []
+                year = str(getattr(r, 'year', '') or '')
+            for author in authors[:1]:
+                last = str(author).split(',')[0].split()[-1].lower() if author else ''
+                if last:
+                    ref_authors_years.add(f"{last}_{year}")
+
+        orphan_citas = []
+        for cita in citas[:20]:  # muestra las primeras 20
+            if isinstance(cita, dict):
+                author = str(cita.get('author', '') or '')
+                year = str(cita.get('year', '') or '')
+            else:
+                author = str(getattr(cita, 'author', '') or '')
+                year = str(getattr(cita, 'year', '') or '')
+            key = f"{author.split()[-1].lower()}_{year}" if author else ''
+            if key and key not in ref_authors_years:
+                orphan_citas.append(f"{author} ({year})")
+
+        if orphan_citas:
+            reference_issues.append(
+                f"Citas en el texto sin referencia en bibliografía: "
+                f"{', '.join(orphan_citas[:5])}"
+                + (" y otras más" if len(orphan_citas) > 5 else "")
+            )
+
+    # ── Determinar evaluación general ─────────────────────────────────────────
+    critical = bool(heading_issues or (len(reference_issues) > 1))
+    if not heading_issues and not missing_sections and not reference_issues:
+        overall = "good"
+        summary = (
+            "La estructura del documento cumple con los requisitos básicos de APA 7. "
+            "Revisá el formato detallado (tipografía, márgenes, interlineado)."
+        )
+    elif critical:
+        overall = "critical"
+        summary = (
+            "El documento tiene problemas estructurales que requieren corrección antes de entregar. "
+            "Revisá la jerarquía de títulos y la consistencia de citas y referencias."
+        )
+    else:
+        overall = "needs_review"
+        summary = (
+            "El documento tiene observaciones menores. "
+            "Revisá las sugerencias de formato y la sección de referencias."
+        )
+
+    return DocAuditResult(
+        heading_issues=heading_issues,
+        missing_sections=missing_sections,
+        reference_issues=reference_issues,
+        format_suggestions=format_suggestions,
+        overall_assessment=overall,
+        summary=summary,
+    )
 
 
 def _build_structure_prompt(doc_model: Any) -> str:
@@ -143,27 +378,76 @@ _AUDIT_SYSTEM_PROMPT = (
 )
 
 
+def _merge_audit_results(heuristic: DocAuditResult, llm: DocAuditResult) -> DocAuditResult:
+    """
+    Fusiona el resultado heurístico con el del LLM, evitando duplicados.
+    El LLM puede agregar hallazgos que la heurística no detectó, y viceversa.
+    El overall_assessment más severo tiene prioridad.
+    """
+    severity_order = {"good": 0, "needs_review": 1, "critical": 2}
+    h_sev = severity_order.get(heuristic.overall_assessment, 1)
+    l_sev = severity_order.get(llm.overall_assessment, 1)
+    final_assessment = heuristic.overall_assessment if h_sev >= l_sev else llm.overall_assessment
+
+    # Fusionar listas sin duplicados exactos
+    def merge_lists(a: List[str], b: List[str]) -> List[str]:
+        seen = set(a)
+        result = list(a)
+        for item in b:
+            if item not in seen:
+                seen.add(item)
+                result.append(item)
+        return result
+
+    return DocAuditResult(
+        heading_issues=merge_lists(heuristic.heading_issues, llm.heading_issues),
+        missing_sections=merge_lists(heuristic.missing_sections, llm.missing_sections),
+        reference_issues=merge_lists(heuristic.reference_issues, llm.reference_issues),
+        format_suggestions=merge_lists(heuristic.format_suggestions, llm.format_suggestions),
+        overall_assessment=final_assessment,
+        # El summary del LLM es más rico; si no hay LLM, usa el heurístico.
+        summary=llm.summary if llm.summary else heuristic.summary,
+    )
+
+
 async def audit_document_structure(
     doc_model: Any,
     api_key: str,
     provider_config: Optional[Dict[str, Any]] = None,
 ) -> DocAuditResult:
     """
-    Llama al LLM para auditar la estructura global del documento.
+    Auditoría completa del documento en dos capas:
+
+    1. Heurística local (siempre, cero latencia): salto de headings, running head,
+       abstract word count, headings numerados, orden de secciones, figuras sin
+       caption, citas huérfanas.
+
+    2. LLM global (solo si hay api_key): enriquece el resultado heurístico con
+       análisis de estructura semántica, consistencia de referencias y sugerencias
+       específicas de APA 7.
+
+    Sin api_key → retorna el resultado heurístico (no un error vacío).
 
     Args:
         doc_model: DocumentModel (Pydantic) con elementos, referencias y portada.
-        api_key: API key del proveedor de IA.
+        api_key: API key del proveedor de IA (puede estar vacío).
         provider_config: dict opcional con {nim_url, use_local, provider_id}.
 
     Returns:
-        DocAuditResult con los hallazgos estructurados.
+        DocAuditResult con los hallazgos combinados de heurística + LLM.
     """
+    # Capa 1: Heurística local (siempre ejecuta)
+    heuristic_result = audit_document_heuristic(doc_model)
+
+    # Capa 2: LLM (solo si hay clave de IA)
     if not api_key:
-        return DocAuditResult(
-            overall_assessment="needs_review",
-            summary="No hay clave de IA configurada para la auditoría automática.",
-        )
+        logger.info("[DocAuditor] Sin API key — retornando resultado heurístico local")
+        if not heuristic_result.summary:
+            heuristic_result.summary = (
+                "Auditoría heurística completada. "
+                "Para un análisis más profundo, configurá una clave de IA en Ajustes."
+            )
+        return heuristic_result
 
     structure_text = _build_structure_prompt(doc_model)
 
@@ -189,11 +473,15 @@ async def audit_document_structure(
         json_text = re.sub(r"\s*```$", "", json_text)
         data = json.loads(json_text)
 
-        return DocAuditResult(**data)
+        llm_result = DocAuditResult(**data)
+        return _merge_audit_results(heuristic_result, llm_result)
 
     except Exception as e:
-        logger.warning(f"[DocAuditor] LLM audit failed: {e}")
-        return DocAuditResult(
-            overall_assessment="needs_review",
-            summary=f"La auditoría automática no pudo completarse. Revisá manualmente.",
-        )
+        logger.warning(f"[DocAuditor] LLM audit failed: {e} — retornando resultado heurístico")
+        # Si el LLM falla, al menos el resultado heurístico es válido
+        if not heuristic_result.summary:
+            heuristic_result.summary = (
+                "La auditoría IA no pudo completarse. "
+                "El análisis heurístico está disponible. Revisá manualmente los detalles."
+            )
+        return heuristic_result

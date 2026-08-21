@@ -81,14 +81,13 @@ export class PythonManager {
       // PyInstaller with console=False suppresses stdout on Windows, so we cannot wait for logs.
       // Instead, we poll the backend API until it responds.
       let retries = 0;
-      const maxRetries = 30; // 30 seconds timeout
+      const SOFT_TIMEOUT = 90; // Loguear advertencia a los 90s pero seguir intentando
       const pollBackend = () => {
         if (this.stopped) return
-        if (retries >= maxRetries) {
-          log('error', 'python-manager', 'Python backend failed to start (timeout)')
-          return reject(new Error('Python backend failed to start (timeout).'))
-        }
         retries++;
+        if (retries === SOFT_TIMEOUT) {
+          log('warn', 'python-manager', `Backend tardó más de ${SOFT_TIMEOUT}s — seguimos esperando...`)
+        }
         http.get(`http://127.0.0.1:${this.port}/api/version`, (res) => {
           if (res.statusCode === 200) {
             log('info', 'python-manager', 'Backend Python listo y respondiendo', { retries })

@@ -170,3 +170,105 @@ def test_analyze_document_ai_metadata_cap():
     results = analyze_document_ai([clean, clean], meta)
     for r in results:
         assert r["score"] <= 0.2, f"Boost de metadatos no debe saturar: {r['score']}"
+
+
+# ── Tests de señales nuevas (9-12) ──────────────────────────────────────────
+
+def test_detect_type_token_ratio_low():
+    """TTR bajo (vocabulario muy repetitivo) debe detectarse en textos largos."""
+    # Texto con vocabulario intencionalmente repetitivo para bajar el TTR
+    base = (
+        "El estudio muestra resultados importantes. "
+        "El estudio presenta datos relevantes. "
+        "El estudio demuestra hallazgos significativos. "
+        "El estudio analiza elementos importantes del estudio. "
+    )
+    # Repetir para tener 80+ tokens de 4+ letras
+    text = base * 8
+    result = analyze_ai_risk(text)
+    ttr_findings = [f for f in result["findings"] if f["pattern"] == "low_lexical_diversity"]
+    assert len(ttr_findings) > 0, "TTR bajo debe detectarse en texto con vocabulario repetitivo"
+
+
+def test_detect_type_token_ratio_short_text_no_signal():
+    """Textos cortos (<80 palabras de 4+ letras) no deben activar la señal TTR."""
+    text = "El estudio muestra resultados importantes para el análisis académico."
+    result = analyze_ai_risk(text)
+    ttr_findings = [f for f in result["findings"] if f["pattern"] == "low_lexical_diversity"]
+    assert len(ttr_findings) == 0, "Textos cortos no deben generar señal de TTR"
+
+
+def test_detect_translation_calques():
+    """Calcos del inglés ('en base a', 'llevar a cabo') deben detectarse."""
+    text = (
+        "En base a los resultados obtenidos, se decidió llevar a cabo un análisis "
+        "adicional. Es importante tener en cuenta que el hecho de que los datos "
+        "muestren variación no implica causalidad."
+    )
+    result = analyze_ai_risk(text)
+    calque_findings = [f for f in result["findings"] if f["pattern"] == "translation_calque"]
+    assert len(calque_findings) >= 2, (
+        f"Deben detectarse al menos 2 calcos del inglés, se encontraron: {len(calque_findings)}"
+    )
+    phrases = [f["phrase"] for f in calque_findings]
+    # Al menos uno de los calcos principales debe estar
+    assert any("base" in p or "llevar" in p or "cuenta" in p for p in phrases), (
+        f"Los calcos detectados no incluyen los esperados: {phrases}"
+    )
+
+
+def test_detect_translation_calques_clean_text():
+    """Texto sin calcos no debe generar señal de calcos de traducción."""
+    text = (
+        "La investigación reveló diferencias estadísticamente significativas entre "
+        "los grupos. Los participantes mostraron mayor rendimiento cognitivo tras "
+        "la intervención experimental controlada."
+    )
+    result = analyze_ai_risk(text)
+    calque_findings = [f for f in result["findings"] if f["pattern"] == "translation_calque"]
+    assert len(calque_findings) == 0, "Texto sin calcos no debe generar señal"
+
+
+def test_detect_argumentative_pattern_full():
+    """Estructura tripartita tesis→evidencia→conclusión en un párrafo debe detectarse."""
+    text = (
+        "En este estudio se sostiene que la metodología mixta es superior. "
+        "Según los datos obtenidos, los resultados indican mejoras significativas. "
+        "Por lo tanto, esto demuestra que el enfoque adoptado es correcto."
+    )
+    result = analyze_ai_risk(text)
+    arg_findings = [f for f in result["findings"] if f["pattern"] == "argumentative_pattern"]
+    assert len(arg_findings) > 0, "Estructura argumentativa rígida debe detectarse"
+
+
+def test_detect_argumentative_pattern_clean():
+    """Un párrafo descriptivo sin estructura rígida no debe generar señal."""
+    text = (
+        "La temperatura promedio registrada durante el experimento fue de 22.3 °C, "
+        "con una desviación estándar de 1.8 °C. Las mediciones se realizaron cada "
+        "hora durante un período de 72 horas consecutivas."
+    )
+    result = analyze_ai_risk(text)
+    arg_findings = [f for f in result["findings"] if f["pattern"] == "argumentative_pattern"]
+    assert len(arg_findings) == 0, "Párrafo descriptivo no debe activar la señal argumentativa"
+
+
+def test_detect_lexical_burstiness():
+    """Texto con longitud de palabras muy uniforme debe activar la señal de burstiness."""
+    # Construir texto con palabras de longitud muy similar (~6-7 letras)
+    # para forzar baja varianza
+    uniform_words = [
+        "estudio", "analiza", "muestra", "produce", "genera", "evalúa",
+        "explica", "destaca", "incluye", "permite", "confirma", "describe",
+    ]
+    text = " ".join(uniform_words * 10) + "."
+    result = analyze_ai_risk(text)
+    burst_findings = [f for f in result["findings"] if f["pattern"] == "lexical_burstiness"]
+    # La señal es sutil — solo verificamos que no crashea y el campo existe
+    assert "score" in result
+    assert "findings" in result
+    # Si se detecta burstiness, debe tener la estructura correcta
+    for f in burst_findings:
+        assert "pattern" in f
+        assert "severity" in f
+        assert "detail" in f

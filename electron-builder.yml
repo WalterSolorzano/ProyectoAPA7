@@ -11,6 +11,12 @@ extraResources:
     to: python-backend/
     filter:
       - "**/*"
+  - from: word-addin/dist/
+    to: addin/
+    filter:
+      - "**/*"
+  - from: word-addin/manifest.xml
+    to: addin/manifest.xml
 compression: maximum
 electronLanguages:
   - en-US

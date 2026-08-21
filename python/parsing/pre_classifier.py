@@ -782,6 +782,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
 
 
     # Señal B: Palabras clave explícitas de portada con límites de palabra (regex)
+    # NOTA: "evaluación" y "tema" solo se cuentan como señal de portada cuando
+    # aparecen como ETIQUETAS (con dos puntos), no como tema del documento.
+    # Esto previene falsos positivos donde todo un documento sobre "Evaluación
+    # del Aprendizaje" se clasifica como portada porque cada párrafo contiene
+    # la palabra "evaluación".
     cover_kw_patterns = [
         re.compile(r'\buniversidad\b', re.IGNORECASE),
         re.compile(r'\bfacultad\b', re.IGNORECASE),
@@ -814,9 +819,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         re.compile(r'\bmateria\b', re.IGNORECASE),
         re.compile(r'\bdirigido\s+por\b', re.IGNORECASE),
         re.compile(r'\brevisado\s+por\b', re.IGNORECASE),
-        re.compile(r'\btema\b', re.IGNORECASE),
-        re.compile(r'\btitulo\b', re.IGNORECASE),
-        re.compile(r'\bevaluacion\b', re.IGNORECASE),
+        # Solo como etiqueta con dos puntos: "Tema:", "Título:"
+        re.compile(r'\btema\s*:', re.IGNORECASE),
+        re.compile(r'\btitulo\s*:', re.IGNORECASE),
+        # Solo como etiqueta con dos puntos: "Evaluación:"
+        re.compile(r'\bevaluaci[oó]n\s*:', re.IGNORECASE),
         re.compile(r'\btribunal\b', re.IGNORECASE),
         re.compile(r'\bpara\s+optar\b', re.IGNORECASE),
         re.compile(r'\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+\d{4}\b', re.IGNORECASE),

@@ -172,6 +172,16 @@ from routers import admin
 
 app.include_router(admin.router)
 
+# ── WORD ADD-IN ROUTERS (Office.js) ──────────────────────────────────────────
+# Endpoints del Task Pane que vive dentro de Microsoft Word + archivos estaticos.
+from routers import addin
+
+app.include_router(addin.router)
+
+from routers import addin_static
+
+app.include_router(addin_static.router)
+
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
 def api_error(status_code: int, detail: str, error_type: str = "validation_error") -> JSONResponse:
@@ -2387,7 +2397,7 @@ async def list_cover_templates_endpoint() -> dict:
     Lista todas las plantillas de portada disponibles (integradas + del usuario).
     """
     from modules.cover_designer import list_cover_templates
-    templates = list_cover_templates(BASE_DIR)
+    templates = list_cover_templates(STORAGE_DIR)
     return {
         "templates": [
             {
@@ -2436,7 +2446,7 @@ async def upload_cover_image_endpoint(
 
     try:
         template = create_cover_from_image(
-            temp_path, name, description, BASE_DIR
+            temp_path, name, description, STORAGE_DIR
         )
         return {
             "status": "ok",
@@ -2489,7 +2499,7 @@ async def upload_cover_docx_endpoint(
 
     try:
         template = create_cover_from_docx(
-            temp_path, name, description, BASE_DIR
+            temp_path, name, description, STORAGE_DIR
         )
         return {
             "status": "ok",
@@ -2520,7 +2530,7 @@ async def delete_cover_template_endpoint(name: str) -> dict:
     """
     from modules.cover_designer import delete_cover_template
 
-    success = delete_cover_template(name, BASE_DIR)
+    success = delete_cover_template(name, STORAGE_DIR)
     if not success:
         raise HTTPException(
             status_code=404,
@@ -2557,7 +2567,7 @@ async def apply_cover_endpoint(req: ApplyCoverRequest) -> dict:
     save_session_snapshot(doc, STORAGE_DIR)
 
     # Buscar la plantilla por nombre
-    templates = list_cover_templates(BASE_DIR)
+    templates = list_cover_templates(STORAGE_DIR)
     template: Optional[CoverTemplate] = None
     for t in templates:
         if t.name == req.cover_template_name:
@@ -2604,7 +2614,7 @@ async def serve_cover_preview(name: str) -> FileResponse:
     """
     from modules.cover_designer import list_cover_templates
 
-    templates = list_cover_templates(BASE_DIR)
+    templates = list_cover_templates(STORAGE_DIR)
     for t in templates:
         if t.name == name and t.preview_path:
             preview_file = Path(t.preview_path)
@@ -3035,6 +3045,13 @@ def check_and_auto_build_frontend() -> None:
             print(f"[WARN] No se pudo ejecutar npm run build automáticamente: {e}")
 
 
+# Montar archivos estaticos del Word Add-in (Office.js) en /addin/.
+# Debe ir ANTES del montaje catch-all del SPA para que las rutas /addin/*
+# sean interceptadas correctamente por Starlette.
+from routers.addin_static import init_addin_static
+
+init_addin_static(app)
+
 if DIST_DIR.exists():
     app.mount("/", StaticFiles(directory=str(DIST_DIR), html=True), name="static")
 else:
@@ -3049,6 +3066,87 @@ else:
 
 
 # ── INICIO DEL SERVIDOR ────────────────────────────────────────────────────────
+
+def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Genera certificados SSL auto-firmados para el Word Add-in usando mkcert.
+
+    Office Add-ins requieren HTTPS incluso en localhost. Esta función:
+    1. Busca mkcert en PATH (instalado por setup.bat o manualmente).
+    2. Si está disponible, genera los certs en el directorio de almacenamiento del usuario.
+    3. Los certs persisten entre reinicios (no se regeneran si ya existen).
+
+    Retorna: (cert_path, key_path) o (None, None) si mkcert no está disponible.
+    """
+    import shutil
+    import subprocess as _sp
+
+    certs_dir = STORAGE_DIR / "ssl"
+    cert_path = certs_dir / "localhost.pem"
+    key_path = certs_dir / "localhost-key.pem"
+
+    # Certificados ya existen → reutilizarlos
+    if cert_path.exists() and key_path.exists():
+        print(f"[SSL] Certificados Add-in existentes: {cert_path}")
+        return cert_path, key_path
+
+    # mkcert disponible en PATH?
+    mkcert_bin = shutil.which("mkcert")
+    if not mkcert_bin:
+        print(
+            "[SSL] mkcert no encontrado — el Add-in correrá en HTTP (Word puede rechazarlo). "
+            "Instalá mkcert desde https://github.com/FiloSottile/mkcert y ejecutá setup.bat"
+        )
+        return None, None
+
+    # Generar certificados
+    certs_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        # Instalar CA local (si no está ya instalada; mkcert -install es idempotente)
+        _sp.run([mkcert_bin, "-install"], check=True, capture_output=True, timeout=30)
+        # Generar cert para localhost / 127.0.0.1
+        _sp.run(
+            [mkcert_bin, "-key-file", str(key_path), "-cert-file", str(cert_path),
+             "localhost", "127.0.0.1"],
+            check=True,
+            cwd=str(certs_dir),
+            capture_output=True,
+            timeout=30,
+        )
+        print(f"[SSL] Certificados Add-in generados con mkcert: {cert_path}")
+        return cert_path, key_path
+    except Exception as e:
+        print(f"[SSL] Error al generar certificados con mkcert: {e}")
+        return None, None
+
+
+@app.get("/api/addin/ssl-status")
+async def get_addin_ssl_status():
+    """
+    Informa si el backend está corriendo con HTTPS (necesario para Word Add-ins).
+
+    El frontend puede consultar este endpoint al iniciar para saber si debe
+    guiar al usuario a instalar mkcert o si el Add-in ya funciona correctamente.
+    """
+    import shutil
+
+    certs_dir = STORAGE_DIR / "ssl"
+    cert_path = certs_dir / "localhost.pem"
+    key_path = certs_dir / "localhost-key.pem"
+    mkcert_available = shutil.which("mkcert") is not None
+
+    return {
+        "ssl_active": cert_path.exists() and key_path.exists(),
+        "mkcert_available": mkcert_available,
+        "cert_path": str(cert_path) if cert_path.exists() else None,
+        "install_url": "https://github.com/FiloSottile/mkcert#installation",
+        "hint": (
+            "SSL activo — el Add-in puede cargar en Word sin problemas"
+            if (cert_path.exists() and key_path.exists())
+            else "Instalá mkcert y ejecutá setup.bat para habilitar HTTPS del Add-in"
+        ),
+    }
+
 
 if __name__ == "__main__":
     import argparse
@@ -3081,8 +3179,26 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[WARN] No se pudo crear la plantilla APA 7: {e}")
 
+    # 3. Configurar SSL para el Word Add-in (requiere mkcert instalado)
+    ssl_certfile, ssl_keyfile = _setup_ssl_for_addin()
+
     print("=" * 60)
-    print(f" WordAPA7 — Servidor iniciado en http://localhost:{args.port}")
+    protocol = "https" if ssl_certfile else "http"
+    print(f" WordAPA7 — Servidor iniciado en {protocol}://localhost:{args.port}")
+    if ssl_certfile:
+        print(" Add-in HTTPS: ACTIVO ✓ (Word puede cargar el panel correctamente)")
+    else:
+        print(" Add-in HTTPS: INACTIVO — instala mkcert y ejecuta setup.bat")
     print(" Presiona Ctrl+C para detener")
     print("=" * 60)
-    uvicorn.run(app, host="127.0.0.1", port=args.port)
+
+    if ssl_certfile and ssl_keyfile:
+        uvicorn.run(
+            app,
+            host="127.0.0.1",
+            port=args.port,
+            ssl_certfile=str(ssl_certfile),
+            ssl_keyfile=str(ssl_keyfile),
+        )
+    else:
+        uvicorn.run(app, host="127.0.0.1", port=args.port)

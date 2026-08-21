@@ -31,11 +31,15 @@ class CoverTemplate:
     created_at: str = ""
 
 
-def _get_storage_dir(base_dir: Path) -> Path:
-    """Retorna el directorio de almacenamiento de plantillas."""
-    storage_dir = base_dir / "storage" / COVER_TEMPLATES_DIR
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    return storage_dir
+def _get_storage_dir(storage_dir: Path) -> Path:
+    """Retorna el directorio de almacenamiento de plantillas.
+    
+    Recibe STORAGE_DIR directamente (no BASE_DIR) para que en producción
+    escriba en AppData en lugar de Program Files (que es de solo lectura).
+    """
+    cover_dir = storage_dir / COVER_TEMPLATES_DIR
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    return cover_dir
 
 
 def _template_dir(storage_dir: Path, name: str) -> Path:

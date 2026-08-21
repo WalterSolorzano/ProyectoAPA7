@@ -1,11 +1,23 @@
 """
 WordAPA7 — Detector de patrones de texto generado por IA
 
-Analiza párrafos del documento buscando:
-1. Muletillas y frases recurrentes comunes en texto generado por LLM (40+ patrones)
-2. Estructura repetitiva de oraciones (longitud homogénea)
-3. Abuso de punto y coma en un solo párrafo
-4. Párrafos de conclusión genérica ("En conclusión, ... se puede afirmar que ...")
+Analiza párrafos del documento buscando 12 señales:
+1.  Muletillas y frases recurrentes comunes en texto generado por LLM (50+ patrones)
+2.  Estructura repetitiva de oraciones (longitud homogénea, 18-32 palabras)
+3.  Abuso de punto y coma en un solo párrafo
+4.  Párrafos de conclusión genérica ("En conclusión, ... se puede afirmar que ...")
+5.  Artefactos de copia web/IA (emojis, markdown, doble guion, puntuación exagerada)
+6.  Densidad anormal de conectores formales
+7.  Anáfora: aperturas de oración repetidas
+8.  Puntuación tipográfica mixta (comillas rectas + curvas)
+9.  Diversidad léxica baja (type-token ratio < 0.45)
+10. Calcos sintácticos del inglés ("en base a", "llevar a cabo", "tener en cuenta"…)
+11. Estructura argumentativa repetitiva (tesis→evidencia→conclusión en cada párrafo)
+12. Uniformidad de longitud de palabras (burstiness léxica robótica)
+
+Señales globales de documento:
+- Metadatos forenses (velocidad de tipeo, tiempo de edición, revisiones)
+- Varianza sintáctica entre párrafos
 
 Retorna un puntaje de riesgo (0-1) y lista de hallazgos categorizados.
 """
@@ -390,6 +402,194 @@ def _detect_mixed_typography(text: str) -> Tuple[float, Optional[str]]:
     return 0.0, None
 
 
+# ── NUEVAS SEÑALES (9-12) ─────────────────────────────────────────────────────
+
+# Calcos sintácticos del inglés — construcciones que suenan a traducción directa
+# Fuente: «El español en contacto» (Lapesa, 1981) + patrones identificados en LLMs
+_TRANSLATION_CALQUES: List[Tuple[str, str, str]] = [
+    (r"\ben base a\b", "Calco del inglés 'based on': use 'con base en' o 'según'", "MEDIUM"),
+    (r"\ba nivel de\b", "Calco del inglés 'at the level of': construcción anglicada", "LOW"),
+    (r"\bhacer referencia a\b", "Calco del inglés 'to make reference to': use 'referirse a'", "LOW"),
+    (r"\bllevar a cabo\b", "Calco del inglés 'to carry out': favorecido por LLMs que traducen del inglés", "LOW"),
+    (r"\btener en cuenta\b", "Calco del inglés 'to take into account': uso excesivo en texto de IA", "LOW"),
+    (r"\ben t[eé]rminos de\b", "Calco del inglés 'in terms of': sobreusado en texto académico de IA", "MEDIUM"),
+    (r"\bel hecho de que\b", "Calco del inglés 'the fact that': nominalización anglicada frecuente en IA", "MEDIUM"),
+    (r"\bdebido a el hecho\b", "Calco del inglés 'due to the fact': perifrástico y típico de IA", "HIGH"),
+    (r"\ba trav[eé]s de\b", "Preposición anglicada sobreusada por LLMs: 'a través de' (abuso)", "LOW"),
+    (r"\bproveer de\b", "Calco del inglés 'to provide with': use 'proporcionar'", "MEDIUM"),
+    (r"\bel mismo\b.{0,20}\bque\b", "Uso anglicado de 'el mismo': calco de 'the same ... as'", "LOW"),
+    (r"\benfocado en\b", "Calco del inglés 'focused on': use 'centrado en' o 'orientado a'", "LOW"),
+    (r"\bbasado en\b", "Calco del inglés 'based on': sobreusado en texto de IA en español", "LOW"),
+    (r"\breferido a\b", "Calco del inglés 'referred to': use 'relacionado con' o 'sobre'", "LOW"),
+    (r"\bimpactar (?:en|sobre)\b", "Calco del inglés 'to impact on': 'impactar' es intransitivo en español académico", "MEDIUM"),
+]
+
+
+def _detect_type_token_ratio(text: str) -> Tuple[float, Optional[str]]:
+    """
+    Detecta diversidad léxica baja usando el Type-Token Ratio (TTR).
+
+    TTR = tipos_únicos / tokens_totales.
+    Un TTR < 0.45 en textos de 80+ palabras sugiere vocabulario repetitivo,
+    característico de los LLMs que tienden a reutilizar los mismos términos.
+
+    No se aplica en textos cortos (<80 palabras) donde el TTR es naturalmente
+    alto por volumen insuficiente.
+
+    Retorna: (score 0-1, descripción o None).
+    """
+    if not text:
+        return 0.0, None
+
+    # Tokenizar: solo palabras alfanuméricas de 4+ letras para evitar stopwords
+    tokens = re.findall(r'\b[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]{4,}\b', text.lower())
+    if len(tokens) < 80:
+        return 0.0, None
+
+    types = len(set(tokens))
+    ttr = types / len(tokens)
+
+    if ttr < 0.35:
+        return 0.4, f"Diversidad léxica muy baja (TTR={ttr:.2f}): vocabulario marcadamente repetitivo, típico de texto generado por IA"
+    elif ttr < 0.45:
+        return 0.25, f"Diversidad léxica baja (TTR={ttr:.2f}): reutilización de términos mayor a lo esperado en texto humano"
+    return 0.0, None
+
+
+def _detect_translation_calques(text: str) -> Tuple[float, List[Dict[str, Any]]]:
+    """
+    Detecta calcos sintácticos del inglés que delatan texto generado por LLMs
+    que operan internamente en inglés y traducen al español.
+
+    Los LLMs entrenados principalmente en inglés producen construcciones que
+    son literalmente el equivalente de frases inglesas: 'en base a' (based on),
+    'llevar a cabo' (carry out), 'el hecho de que' (the fact that), etc.
+
+    Retorna: (score 0-1, lista de hallazgos).
+    """
+    if not text or len(text.strip()) < 30:
+        return 0.0, []
+
+    text_lower = text.lower()
+    findings: List[Dict[str, Any]] = []
+    total_score = 0.0
+    seen_patterns: set = set()
+
+    for pattern, detail, severity in _TRANSLATION_CALQUES:
+        matches = list(re.finditer(pattern, text_lower))
+        if matches and pattern not in seen_patterns:
+            seen_patterns.add(pattern)
+            sev_score = {"LOW": 0.08, "MEDIUM": 0.15, "HIGH": 0.25}
+            score_contrib = sev_score.get(severity, 0.1) * min(len(matches), 2)
+            total_score += score_contrib
+            findings.append({
+                "pattern": "translation_calque",
+                "severity": severity,
+                "detail": detail,
+                "count": len(matches),
+                "phrase": matches[0].group(0).strip(),
+            })
+
+    return min(total_score, 0.8), findings
+
+
+def _detect_argumentative_pattern(text: str) -> Tuple[float, Optional[str]]:
+    """
+    Detecta la estructura argumentativa rígida tesis→evidencia→conclusión
+    que los LLMs reproducen mecánicamente en cada párrafo.
+
+    Señales de cada fase:
+    - Tesis: "En este trabajo / El objetivo / Se propone / Se sostiene que"
+    - Evidencia: "Según / De acuerdo con / Como señala / Los datos muestran / Los resultados indican"
+    - Conclusión: "Por lo tanto / En conclusión / Esto demuestra / En definitiva / Así pues"
+
+    Un párrafo con las 3 fases comprimidas en < 200 palabras es sospechoso.
+
+    Retorna: (score 0-1, descripción o None).
+    """
+    if not text or len(text.strip()) < 60:
+        return 0.0, None
+
+    text_lower = text.lower()
+    words = len(text.split())
+
+    # Solo es relevante en párrafos medianos (no monografías de 500 palabras)
+    if words > 250:
+        return 0.0, None
+
+    thesis_re = re.compile(
+        r'\b(en este (trabajo|estudio|an[aá]lisis)|el objetivo (de|del|es)|'
+        r'se propone|se sostiene|se plantea|el presente)\b'
+    )
+    evidence_re = re.compile(
+        r'\b(seg[uú]n|de acuerdo con|como (se[ñn]ala|indica|muestra|afirma)|'
+        r'los (datos|resultados|hallazgos|estudios) (muestran|indican|sugieren|demuestran)|'
+        r'la investigaci[oó]n (muestra|indica|demuestra))\b'
+    )
+    conclusion_re = re.compile(
+        r'\b(por (lo tanto|consiguiente)|en (conclusi[oó]n|definitiva|s[ií]ntesis)|'
+        r'esto (demuestra|indica|confirma|sugiere)|as[ií] pues|por ende)\b'
+    )
+
+    has_thesis = bool(thesis_re.search(text_lower))
+    has_evidence = bool(evidence_re.search(text_lower))
+    has_conclusion = bool(conclusion_re.search(text_lower))
+
+    if has_thesis and has_evidence and has_conclusion:
+        return 0.2, (
+            "Estructura argumentativa tripartita (tesis→evidencia→conclusión) "
+            "comprimida en un solo párrafo — patrón mecánico de LLM"
+        )
+    # Dos de tres también es leve señal si el párrafo es corto
+    if words < 100 and sum([has_thesis, has_evidence, has_conclusion]) >= 2:
+        return 0.1, (
+            "Dos marcadores de estructura argumentativa rígida en párrafo corto"
+        )
+    return 0.0, None
+
+
+def _detect_lexical_burstiness(text: str) -> Tuple[float, Optional[str]]:
+    """
+    Detecta uniformidad en la longitud de palabras (anti-burstiness léxica).
+
+    Los textos humanos tienen alta varianza en la longitud de sus palabras
+    (mezclan monosílabos con polisílabos de forma irregular).
+    Los LLMs tienden a producir longitudes más uniformes — señal sutil pero
+    estadísticamente significativa en párrafos largos.
+
+    Se mide como desviación estándar relativa de los largos de palabras.
+    relStd < 0.45 con >= 60 palabras → uniformidad sospechosa.
+
+    Retorna: (score 0-1, descripción o None).
+    """
+    if not text:
+        return 0.0, None
+
+    tokens = [w for w in re.findall(r'\b[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+\b', text) if len(w) >= 2]
+    if len(tokens) < 60:
+        return 0.0, None
+
+    lengths = [len(w) for w in tokens]
+    mean_len = sum(lengths) / len(lengths)
+    if mean_len == 0:
+        return 0.0, None
+
+    variance = sum((l - mean_len) ** 2 for l in lengths) / len(lengths)
+    std_dev = variance ** 0.5
+    rel_std = std_dev / mean_len
+
+    if rel_std < 0.38:
+        return 0.2, (
+            f"Uniformidad léxica robótica (relStd={rel_std:.2f}): "
+            "los textos humanos muestran mayor varianza en la longitud de palabras"
+        )
+    elif rel_std < 0.45:
+        return 0.1, (
+            f"Longitud de palabras levemente uniforme (relStd={rel_std:.2f})"
+        )
+    return 0.0, None
+
+
 def analyze_ai_risk(text: str) -> Dict[str, Any]:
     """
     Análisis completo de riesgo de texto generado por IA.
@@ -531,6 +731,52 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
         total_score += typo_score
         signal_count += 1
 
+    # 9. Diversidad léxica baja (type-token ratio)
+    ttr_score, ttr_detail = _detect_type_token_ratio(text)
+    if ttr_score > 0 and ttr_detail:
+        result["findings"].append({
+            "pattern": "low_lexical_diversity",
+            "severity": "HIGH" if ttr_score >= 0.35 else "MEDIUM",
+            "detail": ttr_detail,
+            "count": 1,
+            "phrase": "",
+        })
+        total_score += ttr_score * 0.6
+        signal_count += 1
+
+    # 10. Calcos sintácticos del inglés
+    calque_score, calque_findings = _detect_translation_calques(text)
+    if calque_score > 0:
+        result["findings"].extend(calque_findings)
+        total_score += calque_score * 0.7
+        signal_count += 1
+
+    # 11. Estructura argumentativa rígida tesis→evidencia→conclusión
+    arg_score, arg_detail = _detect_argumentative_pattern(text)
+    if arg_score > 0 and arg_detail:
+        result["findings"].append({
+            "pattern": "argumentative_pattern",
+            "severity": "MEDIUM" if arg_score >= 0.2 else "LOW",
+            "detail": arg_detail,
+            "count": 1,
+            "phrase": "",
+        })
+        total_score += arg_score * 0.6
+        signal_count += 1
+
+    # 12. Uniformidad de longitud de palabras (anti-burstiness léxica)
+    burst_score, burst_detail = _detect_lexical_burstiness(text)
+    if burst_score > 0 and burst_detail:
+        result["findings"].append({
+            "pattern": "lexical_burstiness",
+            "severity": "LOW",
+            "detail": burst_detail,
+            "count": 1,
+            "phrase": "",
+        })
+        total_score += burst_score * 0.5
+        signal_count += 1
+
     # Calcular puntaje final (suma ponderada con techo: MÁS evidencia = MÁS riesgo).
     # Antes se promediaba por señal, lo que diluía párrafos con mucha evidencia.
     final_score = min(total_score, 1.0)
@@ -543,9 +789,9 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
     else:
         category = "LOW"
 
-    # Limitar a 12 hallazgos (antes 10: las frases individuales de conectores
-    # llenaban el cupo y hacían perder el finding agregado de densidad).
-    result["findings"] = result["findings"][:12]
+    # Limitar a 16 hallazgos (subido de 12 para acomodar las 4 señales nuevas
+    # sin perder los findings de densidad y calcos que son muy informativos).
+    result["findings"] = result["findings"][:16]
     result["score"] = round(min(final_score, 1.0), 2)
     result["category"] = category
 
