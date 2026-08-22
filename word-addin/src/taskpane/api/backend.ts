@@ -6,12 +6,23 @@
  * de la app Electron (empaquetada por el instalador).
  *
  * ⚠️ Detección automática de la URL del backend:
- *   - En PRODUCCIÓN el add-in es servido por el propio backend
- *     (https://localhost:{port}/addin/taskpane.html), así que
- *     window.location.origin YA es la URL correcta — protocolo (HTTPS),
- *     host y puerto incluidos. No hay que hardcodear nada.
- *   - En DESARROLLO (Vite dev server en :3000) el backend corre en otro
- *     puerto; se descubre vía IPC de Electron o fallback a 8742.
+ *
+ *   1. MODO PRODUCCIÓN (URL HTTPS pública):
+ *      El Add-in se carga desde una URL HTTPS pública (ej.
+ *      https://wordapa7.pages.dev) y se comunica con el backend local en
+ *      http://127.0.0.1:8742 (HTTP plano). No necesita certificados.
+ *      → Se detecta cuando window.location.origin NO es localhost ni
+ *        el dev server :3000.
+ *
+ *   2. MODO SERVIDO POR BACKEND (HTTPS local o HTTP local):
+ *      El Add-in lo sirve el propio backend (https://localhost:8742/addin/
+ *      o http://localhost:8742/addin/), así que window.location.origin YA
+ *      es la URL correcta del backend.
+ *      → Se detecta cuando el origin ES localhost o 127.0.0.1.
+ *
+ *   3. MODO DESARROLLO (Vite dev server en :3000):
+ *      El backend corre en otro puerto; se descubre vía IPC de Electron
+ *      o fallback a 8742.
  *
  * El asistente en vivo funciona también SIN backend: la detección de citas y
  * el formato APA se hacen localmente (citationDetector + wordHelper). El
@@ -26,30 +37,101 @@
 const DEFAULT_PORT = 8742
 
 /**
- * Descubre la URL base del backend.
- *
- * En producción el add-in se sirve desde el backend, así que
- * window.location.origin es la URL correcta (incluye HTTPS + puerto dinámico).
- * En desarrollo (Vite en :3000) el backend está en otro puerto.
+ * Verifica si un origen (URL) es localhost o 127.0.0.1.
  */
-function getBackendUrl(): string {
-  const origin = window.location.origin
-
-  // Si NO estamos en el dev server de Vite (:3000), el add-in lo sirve el
-  // backend → origin ya es la URL del backend (HTTPS + puerto correcto).
-  if (!origin.includes(':3000')) {
-    return origin
-  }
-
-  // Dev mode: el backend está en otro puerto (descubierto vía IPC o default).
-  const electronPort = (window as any)?.electronAPI?.getBackendPort?.()
-  if (electronPort && typeof electronPort === 'number') {
-    return `http://127.0.0.1:${electronPort}`
-  }
-  return `http://127.0.0.1:${DEFAULT_PORT}`
+function isLocalOrigin(origin: string): boolean {
+  return (
+    origin.includes('://localhost') ||
+    origin.includes('://127.0.0.1') ||
+    origin.includes('://[::1]')
+  )
 }
 
-const BASE_URL = getBackendUrl()
+/**
+ * Descubre la URL base del backend de manera dinámica.
+ *
+ * - Si el Add-in se carga desde una URL HTTPS pública (producción), el
+ *   backend corre localmente en la máquina del usuario (localhost/127.0.0.1).
+ *   Para soportar puertos dinámicos si el puerto 8742 está ocupado, realiza un
+ *   barrido paralelo rápido (puertos 8742 a 8746) consultando /api/addin/health.
+ * - Si el Add-in lo sirve el propio backend (localhost), usa window.location.origin.
+ * - En desarrollo (Vite en :3000), descubre el puerto vía IPC o usa 8742.
+ */
+let BASE_URL = 'http://127.0.0.1:8742'
+let discoveryPromise: Promise<string> | null = null
+
+function ensureBaseUrl(): Promise<string> {
+  if (discoveryPromise) {
+    return discoveryPromise
+  }
+
+  const origin = window.location.origin
+
+  // 1. Si el origin es localhost/127.0.0.1 y no es Vite en :3000, el Add-in lo sirve el propio backend.
+  if (isLocalOrigin(origin) && !origin.includes(':3000')) {
+    BASE_URL = origin
+    discoveryPromise = Promise.resolve(origin)
+    return discoveryPromise
+  }
+
+  // 2. Dev mode (Vite en :3000)
+  if (origin.includes(':3000')) {
+    const electronPort = (window as any)?.electronAPI?.getBackendPort?.()
+    if (electronPort && typeof electronPort === 'number') {
+      const devUrl = `http://127.0.0.1:${electronPort}`
+      BASE_URL = devUrl
+      discoveryPromise = Promise.resolve(devUrl)
+      return discoveryPromise
+    }
+    const defaultDevUrl = `http://127.0.0.1:${DEFAULT_PORT}`
+    BASE_URL = defaultDevUrl
+    discoveryPromise = Promise.resolve(defaultDevUrl)
+    return discoveryPromise
+  }
+
+  // 3. Producción (Add-in en URL pública HTTPS): descubrir el puerto del backend local en 127.0.0.1.
+  // Edge/Chrome (WebView2 de Office) permiten peticiones HTTP plano a 127.0.0.1
+  // desde orígenes HTTPS al ser origen de loopback seguro.
+  discoveryPromise = (async () => {
+    const candidatePorts = [8742, 8743, 8744, 8745, 8746]
+    const probes = candidatePorts.map(async (port) => {
+      try {
+        const controller = new AbortController()
+        const id = setTimeout(() => controller.abort(), 800) // Timeout rápido de 800ms
+        const res = await fetch(`http://127.0.0.1:${port}/api/addin/health`, {
+          signal: controller.signal,
+        })
+        clearTimeout(id)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.status === 'ok') {
+            return `http://127.0.0.1:${port}`
+          }
+        }
+      } catch (e) {
+        // Ignorar fallos de conexión a puertos apagados
+      }
+      throw new Error('Not responding')
+    })
+
+    try {
+      // Retorna el primer puerto que responda correctamente
+      const resolvedUrl = await Promise.any(probes)
+      console.log(`[Add-in] Backend local descubierto en: ${resolvedUrl}`)
+      BASE_URL = resolvedUrl
+      return resolvedUrl
+    } catch (e) {
+      console.warn(`[Add-in] No se detectó backend local activo, usando puerto default.`)
+      BASE_URL = `http://127.0.0.1:8742`
+      return BASE_URL
+    }
+  })()
+
+  return discoveryPromise
+}
+
+// Iniciar descubrimiento inmediatamente al cargar
+ensureBaseUrl()
 
 // == TIPOS COMPARTIDOS ========================================================
 
@@ -226,7 +308,8 @@ export interface AIHealthResult {
 // == HTTP HELPERS =============================================================
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const baseUrl = await ensureBaseUrl()
+  const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -239,16 +322,19 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`)
+  const baseUrl = await ensureBaseUrl()
+  const res = await fetch(`${baseUrl}${path}`)
   if (!res.ok) throw new Error(`Backend ${res.status}`)
   return res.json()
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' })
+  const baseUrl = await ensureBaseUrl()
+  const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Backend ${res.status}`)
   return res.json()
 }
+
 
 // == API =======================================================================
 

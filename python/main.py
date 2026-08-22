@@ -120,6 +120,24 @@ async def lifespan_app(app: FastAPI):
         maybe_run_gc(STORAGE_DIR)
     except Exception as e:
         print(f"[WARN] GC inicial de sesiones falló: {e}")
+
+    # Generar/actualizar manifest.xml dinámico en STORAGE_DIR al arrancar (sideload local)
+    try:
+        from routers.addin_static import _get_addin_manifest_path, _resolve_addin_base_url, _DEV_ADDIN_URL
+        manifest_src = _get_addin_manifest_path()
+        if manifest_src and manifest_src.exists():
+            dest_manifest = STORAGE_DIR / "manifest.xml"
+            xml_content = manifest_src.read_text(encoding="utf-8")
+            addin_base_url = _resolve_addin_base_url()
+            xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
+            STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+            dest_manifest.write_text(xml_content, encoding="utf-8")
+            print(f"[INFO] [ADD-IN] Manifiesto generado en: {dest_manifest} -> apuntando a {addin_base_url}")
+        else:
+            print("[WARN] [ADD-IN] No se encontró el manifest.xml original de origen para copiar.")
+    except Exception as e:
+        print(f"[ERROR] [ADD-IN] Error al generar manifest.xml en almacenamiento: {e}")
+
     yield
     print("[INFO] Deteniendo LibreOffice service...")
     get_libreoffice_service().stop()
@@ -3088,6 +3106,19 @@ def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
 
     Retorna: (cert_path, key_path) o (None, None).
     """
+    # ── SSL es OPT-IN: solo se activa con WORDAPA7_USE_SSL=true ──────────
+    # En producción, el Add-in se carga desde una URL HTTPS pública y se
+    # comunica con este backend local en http://127.0.0.1:8742 (HTTP plano).
+    # No se necesitan certificados locales ni mkcert. SSL solo se usa en
+    # desarrollo avanzado local cuando el desarrollador lo solicita
+    # explícitamente.
+    if os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "true":
+        print(
+            "[SSL] SSL deshabilitado (WORDAPA7_USE_SSL != 'true'). "
+            "Backend en HTTP plano — el Add-in se carga desde URL HTTPS pública."
+        )
+        return None, None
+
     import shutil
     import subprocess as _sp
 
@@ -3181,6 +3212,14 @@ async def get_addin_ssl_status():
 
     ssl_active = cert_path.exists() and key_path.exists()
 
+    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "true"
+    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
+
+    if use_ssl_enabled:
+        backend_url = "https://127.0.0.1:8742"
+    else:
+        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
+
     return {
         "ssl_active": ssl_active,
         "python_ssl_available": python_ssl_available,
@@ -3191,6 +3230,48 @@ async def get_addin_ssl_status():
             "SSL activo — el Add-in puede cargar en Word sin problemas"
             if ssl_active
             else "El certificado SSL se genera automaticamente con cryptography al iniciar el backend"
+        ),
+        "mode": "dev_https" if use_ssl_enabled else "production_http",
+        "use_ssl_enabled": use_ssl_enabled,
+        "backend_url": backend_url,
+        "addin_public_url": addin_public_url,
+    }
+
+
+@app.get("/api/addin/config")
+async def get_addin_config():
+    """
+    Devuelve la configuración de conexión del backend para el Add-in.
+
+    En MODO PRODUCCIÓN (por defecto):
+      - El Add-in se carga desde una URL HTTPS pública (WORDAPA7_ADDIN_PUBLIC_URL)
+      - El backend corre localmente en http://127.0.0.1:8742 (HTTP plano)
+      - El frontend del Add-in usa esta URL para las llamadas a la API
+
+    En MODO DESARROLLO HTTPS (WORDAPA7_USE_SSL=true):
+      - El backend genera certificados SSL auto-firmados
+      - El Add-in se sirve desde el propio backend en HTTPS
+    """
+    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "true"
+    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
+
+    # Determinar la URL del backend que el frontend debe usar
+    if use_ssl:
+        backend_url = "https://127.0.0.1:8742"
+    else:
+        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
+
+    return {
+        "mode": "dev_https" if use_ssl else "production_http",
+        "use_ssl": use_ssl,
+        "backend_url": backend_url,
+        "addin_public_url": addin_public_url,
+        "port": 8742,
+        "hint": (
+            "Add-in cargado desde URL HTTPS pública → backend local HTTP"
+            if not use_ssl and addin_public_url
+            else "Modo desarrollo HTTPS local" if use_ssl
+            else "Backend en HTTP plano — configura WORDAPA7_ADDIN_PUBLIC_URL para producción"
         ),
     }
 
@@ -3233,9 +3314,18 @@ if __name__ == "__main__":
     protocol = "https" if ssl_certfile else "http"
     print(f" WordAPA7 — Servidor iniciado en {protocol}://localhost:{args.port}")
     if ssl_certfile:
-        print(" Add-in HTTPS: ACTIVO (Word puede cargar el panel correctamente)")
+        print(" Modo: DESARROLLO HTTPS (SSL activo)")
+        print(" Add-in HTTPS: ACTIVO — sirve el panel en HTTPS local")
     else:
-        print(" Add-in HTTPS: INACTIVO — revisa los logs [SSL] arriba para mas detalles")
+        addin_pub = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+        if addin_pub:
+            print(f" Modo: PRODUCCION (Add-in desde {addin_pub})")
+            print(f" Backend API: http://127.0.0.1:{args.port} (HTTP plano)")
+            print(" El Add-in se carga desde la URL publica y llama a este backend local.")
+        else:
+            print(" Modo: PRODUCCION (HTTP plano)")
+            print(f" Backend API: http://127.0.0.1:{args.port}")
+            print(" Add-in: configura WORDAPA7_ADDIN_PUBLIC_URL con tu URL HTTPS publica.")
     print(" Presiona Ctrl+C para detener")
     print("=" * 60)
 

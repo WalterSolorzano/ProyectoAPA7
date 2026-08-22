@@ -27,6 +27,14 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+
+def _swb(pattern: str) -> str:
+    r"""Spanish word boundary: \b that works with accented characters.
+    Uses (?<![\wáéíóúüñÁÉÍÓÚÜÑ]) and (?![\wáéíóúüñÁÉÍÓÚÜÑ]) instead of \b
+    to handle edge cases with combining characters."""
+    return r'(?<![\wáéíóúüñÁÉÍÓÚÜÑ])' + pattern + r'(?![\wáéíóúüñÁÉÍÓÚÜÑ])'
+
+
 # Emojis / símbolos de checklist (✅❌✔✘☑ etc.) que sobreviven al pegado de chat/IA
 EMOJI_CHECKLIST_RE = re.compile(
     r'[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u2764\u2714\u2718\u2705\u274C\u2611]'
@@ -54,9 +62,9 @@ WEB_SHADING_COLORS: set[str] = {
 
 AI_PATTERNS: List[Tuple[str, str, str]] = [
     # Patrones existentes (mantenidos con severidad MEDIUM)
-    (r"\ben conclusi[oó]n\b", "Muletilla común de IA: 'En conclusión'", "MEDIUM"),
+    (_swb(r"en conclusi[oó]n"), "Muletilla común de IA: 'En conclusión'", "MEDIUM"),
     (r"\ben resumen\b", "Muletilla común de IA: 'En resumen'", "LOW"),
-    (r"\ben s[ií]ntesis\b", "Muletilla común de IA: 'En síntesis'", "LOW"),
+    (_swb(r"en s[ií]ntesis"), "Muletilla común de IA: 'En síntesis'", "LOW"),
     (r"\bes importante destacar\b", "Frase recurrente de IA: 'Es importante destacar'", "MEDIUM"),
     (r"\bes fundamental mencionar\b", "Frase recurrente de IA: 'Es fundamental mencionar'", "MEDIUM"),
     (r"\ben primer lugar\b", "Conector frecuente de IA: 'En primer lugar'", "LOW"),
@@ -70,7 +78,7 @@ AI_PATTERNS: List[Tuple[str, str, str]] = [
     (r"\bno obstante\b", "Conector frecuente en IA: 'No obstante'", "LOW"),
     (r"\bsin embargo\b", "Conector frecuente en IA: 'Sin embargo'", "LOW"),
     (r"\bes menester\b", "Frase arcaica favorecida por IA: 'Es menester'", "HIGH"),
-    (r"\ba prop[oó]sito\b", "Transición típica de IA: 'A propósito'", "MEDIUM"),
+    (_swb(r"a prop[oó]sito"), "Transición típica de IA: 'A propósito'", "MEDIUM"),
     (r"\bcabe resaltar\b", "Muletilla de IA: 'Cabe resaltar'", "MEDIUM"),
     (r"\ben este sentido\b", "Conector frecuente de IA: 'En este sentido'", "LOW"),
     (r"\ben otras palabras\b", "Muletilla de IA: 'En otras palabras'", "LOW"),
@@ -80,21 +88,21 @@ AI_PATTERNS: List[Tuple[str, str, str]] = [
     (r"\bno cabe duda\b", "Frase enfática de IA: 'No cabe duda'", "MEDIUM"),
     (r"\bresulta evidente\b", "Frase enfática de IA: 'Resulta evidente'", "MEDIUM"),
     (r"\bde acuerdo con\b", "Fórmula de cita frecuente en IA", "LOW"),
-    (r"\ben relaci[oó]n a\b", "Conector frecuente de IA", "LOW"),
+    (_swb(r"en relaci[oó]n a"), "Conector frecuente de IA", "LOW"),
     (r"\bcon respecto a\b", "Conector frecuente de IA", "LOW"),
     (r"\bpor consiguiente\b", "Conector formal favorecido por IA", "MEDIUM"),
     (r"\ben consecuencia\b", "Conector formal frecuente en IA", "LOW"),
     (r"\bde tal manera\b", "Fórmula explicativa de IA", "MEDIUM"),
     (r"\bpues bien\b", "Muletilla de transición de IA", "MEDIUM"),
     (r"\bahora bien\b", "Conector contrastivo de IA", "LOW"),
-    (r"\ba continuaci[oó]n\b", "Transición de IA", "LOW"),
+    (_swb(r"a continuaci[oó]n"), "Transición de IA", "LOW"),
     (r"\ben definitiva\b", "Cierre favorecido por IA", "MEDIUM"),
-    (r"\ben u[´']ltima instancia\b", "Frase enfática de IA", "HIGH"),
-    (r"\ben t[eé]rminos generales\b", "Generalización de IA", "MEDIUM"),
+    (_swb(r"en u[´']ltima instancia"), "Frase enfática de IA", "HIGH"),
+    (_swb(r"en t[eé]rminos generales"), "Generalización de IA", "MEDIUM"),
     (r"\bdesde esta perspectiva\b", "Transición analítica de IA", "MEDIUM"),
     (r"\ben el marco de\b", "Fórmula contextual favorecida por IA", "MEDIUM"),
-    (r"\btal como se ha señalado\b", "Remisión textual típica de IA", "HIGH"),
-    (r"\bes preciso señalar\b", "Muletilla formal de IA: 'Es preciso señalar'", "HIGH"),
+    (_swb(r"tal como se ha señalado"), "Remisión textual típica de IA", "HIGH"),
+    (_swb(r"es preciso señalar"), "Muletilla formal de IA: 'Es preciso señalar'", "HIGH"),
     (r"\bconviene subrayar\b", "Muletilla formal de IA: 'Conviene subrayar'", "HIGH"),
     (r"\bes necesario resaltar\b", "Muletilla formal de IA: 'Es necesario resaltar'", "HIGH"),
     (r"\bcabe destacar\b", "Muletilla formal de IA: 'Cabe destacar'", "MEDIUM"),
@@ -107,8 +115,8 @@ AI_PATTERNS: List[Tuple[str, str, str]] = [
     (r"\bresulta crucial\b", "Énfasis favorecido por IA", "MEDIUM"),
     (r"\bes ampliamente conocido\b", "Generalización de IA", "MEDIUM"),
     (r"\bno es sorprendente\b", "Valoración subjetiva de IA", "MEDIUM"),
-    (r"\bcomo se mencion[oó] anteriormente\b", "Remisión textual de IA", "MEDIUM"),
-    (r"\ben la misma l[ií]nea\b", "Transición cohesiva de IA", "LOW"),
+    (_swb(r"como se mencion[oó] anteriormente"), "Remisión textual de IA", "MEDIUM"),
+    (_swb(r"en la misma l[ií]nea"), "Transición cohesiva de IA", "LOW"),
 ]
 
 
@@ -636,6 +644,10 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
                     "score": sev_score.get(severity, 0.15) * min(len(matches), 3),
                 }
 
+    # Acumular el puntaje de patrones de frases con un tope de 0.35.
+    # Muchos patrones solapan con AI_CONNECTORS (señal 6), por lo que sin
+    # tope el puntaje de esta señal se infla artificialmente.
+    phrase_score_total = 0.0
     for finding in phrase_findings.values():
         result["findings"].append({
             "pattern": finding["pattern"],
@@ -644,8 +656,9 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
             "count": finding["count"],
             "phrase": finding.get("phrase", ""),
         })
-        total_score += finding["score"]
+        phrase_score_total += finding["score"]
         signal_count += 1
+    total_score += min(phrase_score_total, 0.35)
 
     # 2. Estructura de oraciones repetitiva
     struct_score, medium_sentences, suspicious_sentences = _analyze_sentence_structure(text)

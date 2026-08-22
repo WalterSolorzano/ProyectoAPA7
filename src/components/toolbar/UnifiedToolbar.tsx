@@ -53,59 +53,62 @@ export function UnifiedToolbar() {
 
   return (
     <div style={{
-      display: 'flex',
+      display: 'grid',
+      gridTemplateColumns: '1fr auto 1fr',
       alignItems: 'center',
       height: '48px',
       backgroundColor: 'var(--sidebar-bg)',
       borderBottom: '1px solid var(--border-subtle)',
       padding: '0 16px 0 20px',
-      gap: '8px',
       position: 'relative',
       zIndex: 10,
       flexShrink: 0,
       ...dragRegion, // Single draggable chrome strip
     }}>
-      {/* Left: Logo + Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="9" y1="13" x2="15" y2="13" />
-          <line x1="9" y1="17" x2="15" y2="17" />
-        </svg>
-        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
+      {/* Left: Logo + Brand + File button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="13" x2="15" y2="13" />
+            <line x1="9" y1="17" x2="15" y2="17" />
+          </svg>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
+
+        {/* File button */}
+        <button type="button"
+          onClick={() => useDocStore.getState().setShowFileMenu(!useDocStore.getState().showFileMenu)}
+          style={{
+            background: 'var(--surface-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-main)',
+            fontSize: '12px',
+            padding: '4px 10px',
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+            flexShrink: 0,
+            ...noDragRegion,
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+        >Archivo</button>
       </div>
 
-      {/* Divider */}
-      <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
-
-      {/* File button */}
-      <button type="button"
-        onClick={() => useDocStore.getState().setShowFileMenu(!useDocStore.getState().showFileMenu)}
-        style={{
-          background: 'var(--surface-subtle)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          color: 'var(--text-main)',
-          fontSize: '12px',
-          padding: '4px 10px',
-          cursor: 'pointer',
-          transition: 'background 0.15s',
-          flexShrink: 0,
-          ...noDragRegion,
-        }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-      >Archivo</button>
-
-      {/* Center: GuidedWizardBar — grows to fill space */}
-      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', ...noDragRegion }}>
+      {/* Center: GuidedWizardBar */}
+      <div style={{ display: 'flex', justifyContent: 'center', minWidth: 0, overflow: 'hidden', ...noDragRegion }}>
         <GuidedWizardBar />
       </div>
 
       {/* Right: action buttons when doc is loaded */}
-      {doc && (
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
+        {doc && (
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
           {/* Save status chip (compact, passive) */}
           <span
             title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
@@ -228,6 +231,7 @@ export function UnifiedToolbar() {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

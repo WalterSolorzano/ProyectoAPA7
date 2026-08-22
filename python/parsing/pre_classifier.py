@@ -64,7 +64,7 @@ REGEX_FIGURE_CAPTION = re.compile(r'^(?:Figura|Figure|Fig\.)\s+\d+\.?', re.IGNOR
 
 # Referencia APA: "Apellido, A. (2000)." / "Apellido, A. B., & Apellido, C. (2000)."
 # Soporta apellidos compuestos ("García López, H.") y organizaciones ("OIT", "(UNESCO)").
-_REF_APELLIDO = r"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ'’\-]+"
+_REF_APELLIDO = r"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ''\-]+"
 _REF_INICIALES = r"(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]*\.?\s*)+"
 REFERENCE_PATTERN = re.compile(
     r'^' + _REF_APELLIDO + r'(?:\s+' + _REF_APELLIDO + r')*,\s*'
@@ -82,7 +82,7 @@ REFERENCE_URL_PATTERN = re.compile(
 )
 # Titulo de referencia que empieza por el nombre del trabajo (no por autor)
 REFERENCE_TITLE_PATTERN = re.compile(
-    r'^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ\s\'’\-]{8,}\b.{0,200}?(?:\(?\d{4}\)?|Available from|Recuperado de|researchgate|doi\.org|dx\.doi\.org)',
+    r'^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ\s''\-]{8,}\b.{0,200}?(?:\(?\d{4}\)?|Available from|Recuperado de|researchgate|doi\.org|dx\.doi\.org)',
 )
 
 # Palabras clave que, cuando aparecen SOLAS o como titulo principal
@@ -129,6 +129,32 @@ HEADING1_KEYWORDS: set[str] = {
     "propuesta",
     "cronograma",
     "presupuesto",
+    # ── Keywords adicionales de secciones académicas en español ──────────
+    # Se incluyen ambas variantes (con y sin acento) para mayor robustez.
+    # Nota: el texto de entrada se normaliza con _normalize_accent() antes de
+    # comparar, por lo que las versiones sin acento son las que coinciden
+    # funcionalmente; las versiones acentuadas se conservan por claridad.
+    "discusion", "discusión",
+    "definicion de terminos", "definición de términos",
+    "sistema de variables",
+    "operacionalizacion de variables", "operacionalización de variables",
+    "tecnicas de recoleccion de datos", "técnicas de recolección de datos",
+    "poblacion y muestra", "población y muestra",
+    "tipo de investigacion", "tipo de investigación",
+    "nivel de investigacion", "nivel de investigación",
+    "diseno de la investigacion", "diseño de la investigación",
+    "marco conceptual",
+    "marco de referencia",
+    "bases legales",
+    "sistema de hipotesis", "sistema de hipótesis",
+    "variables del estudio",
+    "definicion conceptual", "definición conceptual",
+    "definicion operacional", "definición operacional",
+    "tratamiento de datos",
+    "procesamiento de datos",
+    "analisis e interpretacion", "análisis e interpretación",
+    "conclusiones y recomendaciones",
+    "propuesta de intervencion", "propuesta de intervención",
 }
 
 

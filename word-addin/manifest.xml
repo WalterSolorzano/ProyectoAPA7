@@ -9,6 +9,17 @@
   <!-- ===================================================================== -->
   <!-- WordAPA7 — Word Add-in Manifest                                        -->
   <!--                                                                        -->
+  <!-- MODO PRODUCCIÓN (por defecto — sin certificados locales):             -->
+  <!--   Las URLs https://localhost:3000 se reemplazan dinámicamente por     -->
+  <!--   WORDAPA7_ADDIN_PUBLIC_URL (URL HTTPS pública) en el endpoint         -->
+  <!--   GET /api/addin/manifest del backend. El Add-in se carga desde la     -->
+  <!--   URL pública y se comunica con el backend local en                    -->
+  <!--   http://127.0.0.1:8742 (HTTP plano). NO requiere certificados.       -->
+  <!--                                                                        -->
+  <!-- MODO DESARROLLO LOCAL:                                                 -->
+  <!--   Sin WORDAPA7_ADDIN_PUBLIC_URL, las URLs se reemplazan por la URL     -->
+  <!--   del backend + /addin (ej. http://localhost:8742/addin).             -->
+  <!--                                                                        -->
   <!-- Ribbon con 4 grupos y 10 botones, cada uno con su propio icono:        -->
   <!--                                                                        -->
   <!--   Grupo 1: Asistente                                                   -->

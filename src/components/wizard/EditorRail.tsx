@@ -13,7 +13,7 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, BookOpen, Map, Download } from 'lucide-react';
+import { Layout, Type, Image, BookOpen, Map, Download, Sparkles } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
 import { ProgressRing } from './ProgressRing';
 import { DocumentOutline } from './DocumentOutline';
@@ -76,7 +76,7 @@ const getStepProgress = (stepId: number): number => {
 };
 
 export const EditorRail: React.FC = () => {
-  const { wizardStep, setWizardStep, setSelectedReferenceId, setSelectedElementId } = useDocStore();
+  const { wizardStep, setWizardStep, setSelectedReferenceId, setSelectedElementId, forceRightPanelOpen, setForceRightPanelOpen } = useDocStore();
   const [outlineOpen, setOutlineOpen] = useState(false);
 
   const goToSection = (id: number) => {
@@ -136,6 +136,31 @@ export const EditorRail: React.FC = () => {
         })}
 
         <div style={{ flex: 1 }} />
+
+        {/* Asistente IA toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedReferenceId(null);
+            setSelectedElementId(null);
+            setForceRightPanelOpen(!forceRightPanelOpen);
+          }}
+          title={forceRightPanelOpen ? 'Ocultar Asistente IA' : 'Asistente IA (Herramientas de revisión)'}
+          aria-label="Asistente IA"
+          aria-expanded={forceRightPanelOpen}
+          style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', border: 'none', background: 'transparent',
+            color: forceRightPanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            marginBottom: '4px', flexShrink: 0,
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+        >
+          <Sparkles size={16} />
+        </button>
 
         {/* DocumentOutline toggle */}
         <button

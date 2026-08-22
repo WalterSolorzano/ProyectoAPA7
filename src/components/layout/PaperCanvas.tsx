@@ -542,10 +542,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
           <span style={{ fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap' }}>Vista Previa del Documento</span>
-          <span style={{ color: 'var(--text-muted)' }}>|</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-            Tipografía: <strong style={{ color: 'var(--text-main)' }}>{fontFamily}</strong> ({rules.font_size_pt}pt)
-          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1187,6 +1183,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 return (
                                   <div style={{ marginTop: '20px', marginBottom: '8px' }}>
                                     <p style={{
+                                      fontFamily: fontFamily,
                                       fontWeight: 'bold', textAlign: 'center', fontSize: '14pt',
                                       margin: '0 0 12px 0',
                                     }}>
@@ -1197,6 +1194,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                       <div style={{ paddingLeft: 0 }}>
                                         {doc.referencias.map((ref, ri) => (
                                           <p key={ref.id || ri} style={{
+                                            fontFamily: fontFamily,
                                             fontSize: '11pt', lineHeight: 2.0, textAlign: 'left',
                                             textIndent: '-0.5in', marginLeft: '0.5in',
                                             marginBottom: '8px', marginTop: 0, marginRight: 0,
@@ -1214,6 +1212,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               }
                               return (
                                 <p style={{
+                                  fontFamily: fontFamily,
                                   fontWeight: 'bold',
                                   fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
                                   textAlign: elem.heading_level === 1 ? 'center' : 'left',
@@ -1234,6 +1233,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                             {elem.type === 'paragraph' && (
                               <p style={{
+                                fontFamily: fontFamily,
                                 textIndent: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 textAlign: 'justify',
@@ -1245,6 +1245,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                             {elem.type === 'block_quote' && (
                               <p style={{
+                                fontFamily: fontFamily,
                                 marginLeft: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 fontSize: `${rules.font_size_pt - 1}pt`,
@@ -1255,13 +1256,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             )}
 
                             {elem.type === 'bullet' && (
-                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
+                              <p style={{ fontFamily: fontFamily, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
                                 • {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
-                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
+                              <p style={{ fontFamily: fontFamily, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
                                 {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
                             )}

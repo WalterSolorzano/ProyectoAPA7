@@ -177,7 +177,23 @@ class ClusteringHeadingClassifier:
 
         vectors = [fp.to_vector() for fp in fingerprints]
 
-        labels = _simple_dbscan(vectors, eps=0.15, min_samples=2)
+        # Adaptive eps: si los tamaños de fuente tienen alta variación
+        # (coeficiente de variación CV > 0.15), usar un radio de clustering
+        # más tolerante (0.20) para evitar que headings con fuentes muy
+        # diferentes queden como ruido. Con baja variación, mantener eps=0.15.
+        if font_sizes:
+            mean_fs = sum(font_sizes) / len(font_sizes)
+            if mean_fs > 0:
+                variance = sum((fs - mean_fs) ** 2 for fs in font_sizes) / len(font_sizes)
+                std_fs = math.sqrt(variance)
+                cv = std_fs / mean_fs
+            else:
+                cv = 0.0
+        else:
+            cv = 0.0
+        eps = 0.20 if cv > 0.15 else 0.15
+
+        labels = _simple_dbscan(vectors, eps=eps, min_samples=2)
 
         heading_clusters = []
         for label, indices in self._group_clusters(labels).items():
