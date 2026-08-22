@@ -22,6 +22,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('python-restarting', callback)
     return () => ipcRenderer.removeListener('python-restarting', callback)
   },
+  // Emitido por PythonManager cuando el Add-in de Word se registró (sideload)
+  // en el registro de Windows. El renderer puede mostrar un toast al usuario
+  // diciéndole que reinicie Word para ver el complemento.
+  onAddinSideloaded: (callback: (data: { status: string; hint: string }) => void) => {
+    const listener = (_event: any, data: { status: string; hint: string }) => callback(data)
+    ipcRenderer.on('addin-sideloaded', listener)
+    return () => ipcRenderer.removeListener('addin-sideloaded', listener)
+  },
   getBackendPort: () => ipcRenderer.sendSync('get-backend-port'),
   // Abre una URL externa en el navegador del sistema (fallback de descarga manual)
   openExternal: (url: string) => ipcRenderer.send('open-external', url),

@@ -21,15 +21,71 @@ export class PythonManager {
   private static restartCount: number = 0
   private static readonly MAX_RESTARTS = 5
   private static stopped = false
+  private static addinSideloaded = false
 
   static async start(): Promise<void> {
     this.port = await getFreePort()
     this.stopped = false
     this.restartCount = 0
+    this.addinSideloaded = false
 
     log('info', 'python-manager', `Iniciando backend Python...`, { port: this.port })
 
     return this.spawnAndPoll()
+  }
+
+  /**
+   * Registra el manifiesto del Add-in en el registro de Windows (sideload).
+   *
+   * Llama al endpoint GET /api/addin/registry-sideload del backend, que escribe
+   * en HKCU\Software\Microsoft\Office\16.0\Wef\Developer\WordAPA7 con la URL
+   * del manifiesto dinámico. No requiere permisos de administrador (usa HKCU).
+   *
+   * Es idempotente: llamarlo múltiples veces actualiza la URL sin duplicar.
+   * Solo se ejecuta una vez por sesión (bandera addinSideloaded).
+   *
+   * Si la operación es exitosa, envía el evento IPC 'addin-sideloaded' al
+   * renderer para que muestre un toast informando al usuario.
+   */
+  private static sideloadAddin(): void {
+    if (this.addinSideloaded) return
+    if (process.platform !== 'win32') return
+
+    const url = `http://127.0.0.1:${this.port}/api/addin/registry-sideload`
+    log('info', 'python-manager', 'Auto-sideload del Add-in de Word...', { url })
+
+    http.get(url, (res) => {
+      let body = ''
+      res.on('data', (chunk) => { body += chunk })
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body)
+          if (result.status === 'ok') {
+            this.addinSideloaded = true
+            log('info', 'python-manager', 'Add-in registrado en Windows', {
+              registry_key: result.registry_key,
+              manifest_url: result.manifest_url,
+            })
+            // Notificar al renderer para que muestre un toast (solo primera vez)
+            BrowserWindow.getAllWindows().forEach(win => {
+              win.webContents.send('addin-sideloaded', {
+                status: 'ok',
+                hint: result.hint,
+                manifest_url: result.manifest_url,
+              })
+            })
+          } else if (result.status === 'not_supported') {
+            log('info', 'python-manager', 'Sideload no soportado en esta plataforma')
+          }
+        } catch {
+          log('warn', 'python-manager', 'Respuesta de sideload no era JSON válido')
+        }
+      })
+    }).on('error', (err) => {
+      // El endpoint puede no existir si el backend no tiene addin_static montado.
+      // No es crítico: el add-in se puede cargar manualmente.
+      log('warn', 'python-manager', 'No se pudo auto-sideload el Add-in', { error: String(err) })
+    })
   }
 
   private static spawnAndPoll(): Promise<void> {
@@ -95,6 +151,11 @@ export class PythonManager {
             BrowserWindow.getAllWindows().forEach(win => {
               win.webContents.send('python-ready')
             })
+            // Auto-sideload del Add-in de Word: registrar el manifiesto en el
+            // registro de Windows para que Word lo detecte automáticamente.
+            // Se hace después de confirmar que el backend está listo, con un
+            // pequeño delay para no competir con otras peticiones de arranque.
+            setTimeout(() => { this.sideloadAddin() }, 2000)
             return resolve()
           } else {
             setTimeout(pollBackend, 1000)

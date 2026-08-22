@@ -36,31 +36,43 @@ import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
 import { syncAllProviderKeys } from './api/backend';
 
-/* ═══ NEW WIZARD STEP MAPPING (refactor UX) ═══
-   1. Estructura   (Títulos + Cuerpo)  — Step2HeadingsWizard / Step5BodyWizard
-   2. Figuras y tablas                 — Step3FiguresTablesWizard
-   3. Referencias                      — Step5ReferencesWizard
-   4. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
+/* ═══ WIZARD STEP MAPPING (refactor UX) ═══
+   1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
+   2. Estructura   (Títulos + Cuerpo)  — Step2HeadingsWizard / Step5BodyWizard
+   3. Figuras y tablas                 — Step3FiguresTablesWizard
+   4. Referencias                      — Step5ReferencesWizard
    5. Exportar                         — openExportTunnel() (viewMode='export')
 */
 
 const pendingCountForPhase = (phaseId: number) => {
   const doc = useDocStore.getState().doc;
   if (!doc) return 0;
-  // Step 1: Estructura (headings pending review)
+
+  // Step 1: Portada — verificar si faltan campos requeridos
   if (phaseId === 1) {
+    const portada = useDocStore.getState().portada;
+    let pending = 0;
+    if (!portada.title?.trim()) pending++;
+    if (!portada.author?.trim()) pending++;
+    return pending;
+  }
+
+  // Step 2: Estructura (headings pending review)
+  if (phaseId === 2) {
     return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
   }
-  // Step 2: Figuras y tablas (figures + tables pending review)
-  if (phaseId === 2) {
+
+  // Step 3: Figuras y tablas (figures + tables pending review)
+  if (phaseId === 3) {
     const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
     const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
     return figures + tables;
   }
+
   return 0;
 };
 
-/** Toggle bar for step 1 (Estructura): Títulos | Cuerpo */
+/** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
 const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'headings' | 'body') => void }> = ({ tab, setTab }) => (
   <div style={{
     display: 'flex', gap: '2px', padding: '6px 10px',
@@ -108,7 +120,7 @@ export const App: React.FC = () => {
     isBackendReady,
   } = useDocStore();
 
-  // Structure sub-tab: Títulos | Cuerpo (step 1 combines both)
+  // Structure sub-tab: Títulos | Cuerpo (step 2 combines both)
   const [structureTab, setStructureTab] = useState<'headings' | 'body'>('headings');
 
   // ── Context Menu Integration ──────────────────────────────────────────────
@@ -215,8 +227,29 @@ export const App: React.FC = () => {
         });
       }
 
+      // ── Add-in sideload: notificar cuando el complemento de Word se registre ──
+      // PythonManager llama a /api/addin/registry-sideload automáticamente después
+      // de que el backend arranca. Si tiene éxito, registra el manifiesto en el
+      // registro de Windows (HKCU\...\Wef\Developer\WordAPA7) y Word detecta el
+      // complemento al reiniciar.
+      let addinCleanup: (() => void) | undefined;
+      if (electronWindow.electronAPI.onAddinSideloaded) {
+        addinCleanup = electronWindow.electronAPI.onAddinSideloaded((data: { status: string; hint: string }) => {
+          if (data.status === 'ok') {
+            useDocStore.getState().showToast(
+              'Complemento de Word disponible. Reiniciá Word para usarlo.',
+              'success'
+            );
+          }
+        });
+      }
+
       pollLoop();
-      return () => { cancelled = true; if (typeof cleanup === 'function') cleanup(); };
+      return () => {
+        cancelled = true;
+        if (typeof cleanup === 'function') cleanup();
+        if (typeof addinCleanup === 'function') addinCleanup();
+      };
     } else {
       pollLoop();
       return () => { cancelled = true; };
@@ -415,12 +448,12 @@ export const App: React.FC = () => {
           <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
             {/* Editor Side */}
             <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
-              {wizardStep === 1 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+              {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
               <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
-                {wizardStep === 1 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
-                {wizardStep === 2 && <Step3FiguresTablesWizard />}
-                {wizardStep === 3 && <Step5ReferencesWizard />}
-                {wizardStep === 4 && <Step1PortadaWizard />}
+                {wizardStep === 1 && <Step1PortadaWizard />}
+                {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+                {wizardStep === 3 && <Step3FiguresTablesWizard />}
+                {wizardStep === 4 && <Step5ReferencesWizard />}
               </div>
             </div>
             {/* Preview Side */}
@@ -428,8 +461,8 @@ export const App: React.FC = () => {
               <ReactPDFPreview />
             </div>
           </div>
-        ) : wizardStep === 4 ? (
-          // Paso 4 (Portada): división del espacio 35% / 65%.
+        ) : wizardStep === 1 ? (
+          // Paso 1 (Portada): división del espacio 35% / 65%.
           //   EditorRail (izquierda, nav) | CoverEditorPanel (35%, control)
           //   | PaperCanvas (65%, hoja A4 centrada, flex-grow).
           <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
@@ -437,7 +470,7 @@ export const App: React.FC = () => {
             <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
               <CoverEditorPanel />
             </div>
-            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-4-canvas">
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
               <Step1PortadaWizard />
             </div>
           </div>
@@ -448,11 +481,11 @@ export const App: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
               <EditorRail />
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                {wizardStep === 1 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+                {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
                 <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
-                  {wizardStep === 1 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
-                  {wizardStep === 2 && <Step3FiguresTablesWizard />}
-                  {wizardStep === 3 && <Step5ReferencesWizard />}
+                  {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+                  {wizardStep === 3 && <Step3FiguresTablesWizard />}
+                  {wizardStep === 4 && <Step5ReferencesWizard />}
                 </div>
               </div>
 

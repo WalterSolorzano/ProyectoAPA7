@@ -3,6 +3,13 @@
 ; ANTES del template principal, por lo que puede definir macros y defines
 ; de MUI2 (welcome/finish/colores) que el resto del script consume.
 
+; ── Instalación por usuario (sin UAC) ──────────────────────────────────────
+; perMachine: false en electron-builder.yml instala en
+; $LOCALAPPDATA\Programs\WordAPA7\ sin pedir permisos de administrador.
+; Todas las claves de registro deben ir en HKCU (no HKLM) para mantener
+; esta propiedad. Esto es crítico para estudiantes que no tienen permisos
+; admin en las computadoras de su universidad.
+
 ; ── Textos en español (misma voz que la app) ──────────────────────────────
 !define MUI_WELCOMEPAGE_TITLE "Bienvenido a WordAPA7"
 !define MUI_WELCOMEPAGE_TEXT "WordAPA7 convierte tus documentos de Word (.docx) al formato APA 7.$\r$\n$\r$\nVas a poder revisar títulos, figuras, tablas y referencias antes de exportar el documento final.$\r$\n$\r$\nSe recomienda cerrar las demás aplicaciones antes de continuar."
@@ -38,12 +45,15 @@ BrandingText "WordAPA7 · Formato APA 7 al instante"
 ; → abre la app con el archivo como argumento, que se procesa automáticamente.
 ; Usamos SystemFileAssociations para no interferir con la asociación propia
 ; de Word (Word.Document.12).
+;
+; IMPORTANTE: usamos HKCU (no HKLM) porque la instalación es por usuario
+; (perMachine: false). HKCU no requiere permisos de administrador.
 !macro customInstall
-  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "" "Convertir a APA 7 con WordAPA7"
-  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "Icon" "$INSTDIR\WordAPA7.exe"
-  WriteRegStr HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "" "Convertir a APA 7 con WordAPA7"
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "Icon" "$INSTDIR\WordAPA7.exe"
+  WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
 !macroend
 
 !macro customUnInstall
-  DeleteRegKey HKLM "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"
+  DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"
 !macroend

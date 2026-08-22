@@ -181,8 +181,11 @@ export const ExportView: React.FC = () => {
 
   // Navegación desde el resumen hacia el editor: usamos viewMode='edit' (no
   // 'split') porque el modo 'edit' renderiza el EditorRail, el RightSidePanel
-  // y (para el paso 4) el CoverEditorPanel. El modo 'split' omite esos
+  // y (para el paso 1) el CoverEditorPanel. El modo 'split' omite esos
   // componentes y el usuario se quedaría sin controles para editar.
+  //
+  // Mapeo de pasos (orden nuevo):
+  //   1 = Portada, 2 = Estructura, 3 = Figuras/Tablas, 4 = Referencias
   const goToStep = (step: number) => {
     clearQuickExport();
     setViewMode('edit');
@@ -372,7 +375,7 @@ export const ExportView: React.FC = () => {
                 <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
               </div>
 
-              {/* 2. Portada */}
+              {/* 2. Portada — paso 1 */}
               <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
                 <div style={iconBox(ICON_PALETTES.purple)}>
                   <BookOpen size={14} />
@@ -385,12 +388,12 @@ export const ExportView: React.FC = () => {
                     {authorsCount} autor{authorsCount === 1 ? '' : 'es'} identificado{authorsCount === 1 ? '' : 's'}. Metadatos y título normalizados.
                   </div>
                 </div>
-                <button type="button" onClick={() => goToStep(4)} style={editLinkStyle}>
+                <button type="button" onClick={() => goToStep(1)} style={editLinkStyle}>
                   Editar
                 </button>
               </div>
 
-              {/* 3. Títulos y estructura */}
+              {/* 3. Títulos y estructura — paso 2 */}
               <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
                 <div style={iconBox(ICON_PALETTES.indigo)}>
                   <FileText size={14} />
@@ -403,12 +406,12 @@ export const ExportView: React.FC = () => {
                     {headingsCount} títulos organizados según APA 7.
                   </div>
                 </div>
-                <button type="button" onClick={() => goToStep(1)} style={editLinkStyle}>
+                <button type="button" onClick={() => goToStep(2)} style={editLinkStyle}>
                   Editar
                 </button>
               </div>
 
-              {/* 4. Citas y Referencias */}
+              {/* 4. Citas y Referencias — paso 4 */}
               <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
                 <div style={iconBox(ICON_PALETTES.amber)}>
                   <FileText size={14} />
@@ -427,7 +430,7 @@ export const ExportView: React.FC = () => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
-                  <button type="button" onClick={() => goToStep(3)} style={editLinkStyle}>
+                  <button type="button" onClick={() => goToStep(4)} style={editLinkStyle}>
                     Editar
                   </button>
                   {ghostCount === 0 ? (
@@ -452,7 +455,7 @@ export const ExportView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 5. Tablas y Figuras (si existen) */}
+              {/* 5. Tablas y Figuras — paso 3 (si existen) */}
               {(tablesCount > 0 || figuresCount > 0) && (
                 <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
                   <div style={iconBox(ICON_PALETTES.teal)}>
@@ -467,7 +470,7 @@ export const ExportView: React.FC = () => {
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
-                    <button type="button" onClick={() => goToStep(2)} style={editLinkStyle}>
+                    <button type="button" onClick={() => goToStep(3)} style={editLinkStyle}>
                       Editar
                     </button>
                     <Check size={15} style={{ color: 'var(--color-success)' }} />
