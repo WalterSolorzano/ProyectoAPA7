@@ -15,6 +15,21 @@
 import React, { useState } from 'react'
 import { insertHeadingAPA, HEADING_CONFIGS } from '../office/wordHelper'
 
+const HeadingIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 4v16M18 4v16M6 12h12" />
+  </svg>
+)
+
+const BulbIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18h6M10 22h4" />
+    <path d="M12 2a7 7 0 00-4 12.7c.5.4.8 1 .8 1.7V18h6.4v-1.6c0-.7.3-1.3.8-1.7A7 7 0 0012 2z" />
+  </svg>
+)
+
 type HeadingLevel = 1 | 2 | 3 | 4 | 5
 
 interface Props {
@@ -138,9 +153,14 @@ export function HeadingPanel({ showToast }: Props) {
             <span className="spinner" /> Insertando...
           </>
         ) : (
-          <>¶ Insertar Título APA 7</>
+          <><HeadingIcon /> Insertar Titulo APA 7</>
         )}
       </button>
+
+      <div className="tip-box">
+        <span className="tip-box__icon"><BulbIcon /></span>
+        <span className="tip-box__text">5 niveles segun la jerarquia. Elegi segun cuan profundo sea tu trabajo.</span>
+      </div>
     </div>
   )
 }

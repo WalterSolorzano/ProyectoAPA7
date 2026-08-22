@@ -8,6 +8,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import './styles/taskpane.css'
+import './styles/onboarding.css'
 
 // Inicialización de Office: obligatoria antes de cualquier llamada a la API
 Office.onReady((info) => {

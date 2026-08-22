@@ -4,7 +4,7 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Download, FileUp, Home, Menu, Lock
+  Download, FileUp, Home, Menu, Lock, Lightbulb
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -66,6 +66,84 @@ function timeAgo(dateStr: string): string {
   const days = Math.floor(diff / 86400);
   if (days === 1) return 'Ayer';
   return `Hace ${days} días`;
+}
+
+/** Toast de descubrimiento: avisa 1 sola vez que hay una pestaña nueva en Word. */
+const DiscoveryToast: React.FC = () => {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('wordapa7_addin_announced')) {
+        setVisible(true)
+        const timer = setTimeout(() => dismiss(), 6000)
+        return () => clearTimeout(timer)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  const dismiss = () => {
+    try { localStorage.setItem('wordapa7_addin_announced', 'true') } catch { /* ignore */ }
+    setVisible(false)
+  }
+
+  if (!visible) return null
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      maxWidth: '420px',
+      margin: '0 auto 20px',
+      padding: '14px 18px',
+      backgroundColor: 'var(--surface-elevated)',
+      border: '1px solid var(--border-subtle)',
+      borderLeft: '3px solid var(--accent-primary)',
+      borderRadius: 'var(--radius-md)',
+      boxShadow: 'var(--shadow-md)',
+      animation: 'wk-step-fade 0.3s ease-out',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '32px',
+        height: '32px',
+        borderRadius: 'var(--radius-full)',
+        backgroundColor: 'var(--color-accent-soft)',
+        flexShrink: 0,
+      }}>
+        <Lightbulb size={16} color="var(--accent-primary)" />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '2px' }}>
+          Te deje una pestania nueva en Word
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          Busca "WordAPA7" arriba a la derecha.
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={dismiss}
+        style={{
+          padding: '6px 14px',
+          borderRadius: 'var(--radius-sm)',
+          border: 'none',
+          backgroundColor: 'var(--accent-primary)',
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          flexShrink: 0,
+        }}
+      >
+        Entendido
+      </button>
+    </div>
+  )
 }
 
 export const Step0QuickStart: React.FC = () => {
@@ -300,6 +378,9 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+            {/* Toast de descubrimiento del add-in (1 sola vez) */}
+            <DiscoveryToast />
+
             {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
 

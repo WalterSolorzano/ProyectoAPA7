@@ -35,6 +35,7 @@ import { HeadingPanel } from './components/HeadingPanel'
 import { TablePanel } from './components/TablePanel'
 import { ValidatePanel } from './components/ValidatePanel'
 import { AIPanel } from './components/AIPanel'
+import { WelcomeTour } from './components/WelcomeTour'
 import { backend } from './api/backend'
 
 type TabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
@@ -74,6 +75,19 @@ const Icon: React.FC<{ name: string; size?: number }> = ({ name, size = 16 }) =>
     </svg>
   )
 }
+
+const OwlMascot: React.FC = () => (
+  <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
+    <ellipse cx="16" cy="17" rx="11" ry="12" fill="var(--accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.5" />
+    <path d="M7 7L5 3L9 5Z" fill="var(--accent-primary)" />
+    <path d="M25 7L27 3L23 5Z" fill="var(--accent-primary)" />
+    <circle cx="12" cy="13" r="3.5" fill="var(--accent-primary)" />
+    <circle cx="20" cy="13" r="3.5" fill="var(--accent-primary)" />
+    <circle cx="12" cy="13" r="1.3" fill="#fff" />
+    <circle cx="20" cy="13" r="1.3" fill="#fff" />
+    <path d="M16 16L14 19L18 19Z" fill="var(--accent-secondary)" />
+  </svg>
+)
 
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'live', label: 'En Vivo', icon: 'live' },
@@ -259,6 +273,28 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  // ── Mascota contextual: primera vez que se visita cada pestaña ─────────────
+  useEffect(() => {
+    const tabMessages: Partial<Record<TabId, { msg: string; key: string }>> = {
+      insert: { msg: 'Tablas y figuras con numeracion APA. Vos subi, yo me ocupo del formato.', key: 'wordapa7_insert_seen' },
+      references: { msg: 'Escribi (Autor, Año) y los chupo solito.', key: 'wordapa7_refs_seen' },
+      cover: { msg: '5 campos y te hago la portada. Mas facil que pedirte prestado.', key: 'wordapa7_cover_seen' },
+      ai: { msg: 'Selecciona texto y te digo si suena a ChatGPT.', key: 'wordapa7_ai_seen' },
+    }
+
+    const entry = tabMessages[activeTab]
+    if (!entry) return
+
+    try {
+      if (!localStorage.getItem(entry.key)) {
+        localStorage.setItem(entry.key, 'true')
+        setMascotMessage(entry.msg)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [activeTab])
+
   return (
     <div className="app-container">
       {/* HEADER */}
@@ -329,7 +365,7 @@ export const App: React.FC = () => {
 
       {/* MASCOTA — globo flotante con mensaje rotativo */}
       <div className="mascot-bubble" role="status" aria-live="polite">
-        <div className="mascot-bubble__avatar">🦉</div>
+        <div className="mascot-bubble__avatar"><OwlMascot /></div>
         <div className="mascot-bubble__text">{mascotMessage}</div>
       </div>
 
@@ -340,6 +376,9 @@ export const App: React.FC = () => {
           <span>{toast.msg}</span>
         </div>
       )}
+
+      {/* WELCOME TOUR (primera vez) */}
+      <WelcomeTour />
     </div>
   )
 }

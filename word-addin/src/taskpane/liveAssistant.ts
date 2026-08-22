@@ -91,28 +91,28 @@ const AI_NOTIFY_DELTA = 0.05
 
 // Mensajes rotativos de la mascota (idle)
 const IDLE_TIPS: string[] = [
-  'Te estoy vigilando el formato… 👀',
+  'Te estoy vigilando el formato...',
   'Acordate: APA 7 usa Times New Roman 12, doble espacio.',
-  'Si pegás una imagen, le pongo la figura yo. 😎',
+  'Si pegás una imagen, le pongo la figura yo.',
   'Las tablas no llevan bordes verticales en APA 7.',
-  '3 o más autores → "et al." desde la primera cita.',
+  '3 o mas autores usan "et al." desde la primera cita.',
   'El DOI va con https://doi.org/ adelante.',
-  'Detectando citas en tiempo real… 🕵️',
+  'Detectando citas en tiempo real...',
   'Las citas de +40 palabras van en bloque, sin comillas.',
 ]
 
 const MASCOT_SUCCESS = [
-  '¡Cita procesada con éxito! ✅',
-  '¡La chupé y la guardé! 😎',
-  'Otra cita al saco 📚',
+  'Cita procesada con exito.',
+  'La chupe y la guarde.',
+  'Otra cita al saco.',
 ]
 const MASCOT_FIGURE = [
-  'Le puse la figura, de nada 🖼️',
-  'Imagen detectada → Figura numerada ✨',
+  'Le puse la figura, de nada.',
+  'Imagen detectada, figura numerada.',
 ]
 const MASCOT_TABLE = [
-  'Tabla numerada al estilo APA 📊',
-  'Le agregué el caption a la tabla ✅',
+  'Tabla numerada al estilo APA.',
+  'Le agregue el caption a la tabla.',
 ]
 
 // ── ESTADO INTERNO ───────────────────────────────────────────────────────────
@@ -137,6 +137,8 @@ let _applying = false // guard anti-reentrada (cambios hechos por el asistente)
 
 // Estado interno de detección de IA — evita notificar spam
 let _lastAIScore: number | null = null
+
+let _bibliographyHintShown = false
 
 // ── UTILIDADES ───────────────────────────────────────────────────────────────
 
@@ -299,6 +301,14 @@ async function scan(): Promise<void> {
             }
           }
         }
+
+        // ── Sugerencia de bibliografía después de 3+ citas ──
+        if (_citationsCount >= 3 && !_bibliographyHintShown) {
+          _bibliographyHintShown = true
+          setTimeout(() => {
+            emitMascot('Ya juntaste 3... ¿te armo la bibliografia o que?')
+          }, 2000)
+        }
       } catch {
         /* no crítico */
       }
@@ -416,7 +426,7 @@ export const liveAssistant = {
     // Escaneo inicial + rotación de mascota
     debouncedScan()
     startIdleRotation()
-    emitMascot('Asistente en vivo activado 🟢')
+    emitMascot('Asistente en vivo activado.')
   },
 
   /** Detiene la auditoría en vivo. */
@@ -426,7 +436,7 @@ export const liveAssistant = {
     if (_unsubSel) { _unsubSel(); _unsubSel = null }
     if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null }
     stopIdleRotation()
-    emitMascot('Asistente en vivo en pausa ⏸️')
+    emitMascot('Asistente en vivo en pausa.')
   },
 
   /** Indica si el asistente está corriendo. */
@@ -458,5 +468,6 @@ export const liveAssistant = {
   resetKnownCitations(): void {
     _knownCitationKeys.clear()
     _citationsCount = 0
+    _bibliographyHintShown = false
   },
 }

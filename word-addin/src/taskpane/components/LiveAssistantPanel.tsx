@@ -21,6 +21,14 @@ interface Props {
   onScanNow: () => void
 }
 
+const SearchIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.35-4.35" />
+  </svg>
+)
+
 function Toggle({ checked, onChange, label, desc }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -80,7 +88,6 @@ export function LiveAssistantPanel({
       {/* Options */}
       <div className="card">
         <div className="card__header card__header--static">
-          <span className="card__icon">⚙️</span>
           <span className="card__title">Automatismos</span>
         </div>
         <div className="card__body card__body--padded">
@@ -112,8 +119,8 @@ export function LiveAssistantPanel({
       </div>
 
       {/* Manual scan */}
-      <button className="btn btn--primary btn--full" onClick={onScanNow}>
-        🔎 Auditar documento ahora
+      <button className="btn btn--primary btn--full" onClick={onScanNow} data-tour="audit-button">
+        <SearchIcon /> Auditar documento ahora
       </button>
 
       <div className="live__hint">

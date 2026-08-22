@@ -13,6 +13,29 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { backend } from '../api/backend'
 import { insertTableAPA, getNextTableNumber, type TableData } from '../office/wordHelper'
 
+const TableIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+  </svg>
+)
+
+const SparklesIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z" />
+  </svg>
+)
+
+const BulbIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18h6M10 22h4" />
+    <path d="M12 2a7 7 0 00-4 12.7c.5.4.8 1 .8 1.7V18h6.4v-1.6c0-.7.3-1.3.8-1.7A7 7 0 0012 2z" />
+  </svg>
+)
+
 interface Props {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
 }
@@ -108,7 +131,7 @@ export function TablePanel({ showToast }: Props) {
   return (
     <div className="card">
       <button className="card__header" onClick={() => setExpanded(!expanded)}>
-        <span className="card__icon">⊞</span>
+        <span className="card__icon"><TableIcon /></span>
         <span className="card__title">Insertar Tabla APA 7</span>
         <span className={`chevron ${expanded ? 'chevron--open' : ''}`}>▾</span>
       </button>
@@ -205,7 +228,7 @@ export function TablePanel({ showToast }: Props) {
                 style={{ flexShrink: 0, padding: '6px 8px' }}
                 title="Sugerir con IA"
               >
-                ✨
+                <SparklesIcon />
               </button>
             </div>
           </div>
@@ -234,6 +257,11 @@ export function TablePanel({ showToast }: Props) {
 
           <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'center' }}>
             Formato APA 7: bordes horizontales únicamente, título en cursiva, nota al pie
+          </div>
+
+          <div className="tip-box">
+            <span className="tip-box__icon"><BulbIcon /></span>
+            <span className="tip-box__text">APA 7 usa solo bordes horizontales. Los verticales los odio yo tambien.</span>
           </div>
         </div>
       )}
