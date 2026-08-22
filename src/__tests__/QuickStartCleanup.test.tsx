@@ -7,6 +7,8 @@ import { Step0QuickStart } from '../components/wizard/Step0QuickStart';
 vi.mock('../api/backend', () => ({
   listSessions: vi.fn().mockResolvedValue([]),
   listProfiles: vi.fn().mockResolvedValue([]),
+  downloadTemplate: vi.fn(),
+  downloadTemplateAsync: vi.fn(),
 }));
 
 describe('Step0QuickStart cleanup', () => {
@@ -20,16 +22,16 @@ describe('Step0QuickStart cleanup', () => {
     expect(screen.queryByText(/sesiones recientes disponibles/i)).toBeNull();
   });
 
-  it('has a button to open the settings studio', async () => {
+  it('no longer has the redundant "Ajustes y vista previa" button (moved to sidebar Configuraciones)', async () => {
     useDocStore.setState({ isBackendReady: true, error: null });
     await act(async () => {
       render(<Step0QuickStart />);
     });
-    const btn = screen.getByRole('button', { name: /Ajustes y vista previa/i });
-    expect(btn).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(btn);
-    });
-    expect(useDocStore.getState().settingsStudioOpen).toBe(true);
+    // The "Ajustes y vista previa" button was removed from the top bar.
+    // Settings are now accessed exclusively via the sidebar's "Configuraciones" button.
+    expect(screen.queryByRole('button', { name: /Ajustes y vista previa/i })).toBeNull();
+    // The "Configuraciones" button in the sidebar should exist.
+    const configBtn = screen.getByRole('button', { name: 'Configuraciones' });
+    expect(configBtn).toBeTruthy();
   });
 });

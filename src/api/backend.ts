@@ -12,10 +12,20 @@ import {
   LLMProgressState,
   ImageModel,
 } from '../types';
-import { getApiBase, fetchWithTrace } from './http';
+import { getApiBase, getApiBaseAsync, fetchWithTrace } from './http';
 
-export { getApiBase, resolveAssetUrl } from './http';
+export { getApiBase, getApiBaseAsync, resolveAssetUrl } from './http';
 
+/**
+ * Sube un archivo .docx al backend para su análisis y clasificación.
+ *
+ * **CRITICAL:** Usa `getApiBaseAsync()` (no `getApiBase()`) para garantizar que
+ * el protocolo correcto (HTTP o HTTPS) ya haya sido detectado antes de hacer
+ * la petición. Si se usa `getApiBase()` (síncrono) antes de que la detección
+ * de protocolo termine, puede devolver HTTP cuando el backend está corriendo
+ * en HTTPS (o viceversa), y la petición falla silenciosamente sin feedback
+ * para el usuario — el bug #1 de "no sube el archivo".
+ */
 export async function uploadDocxFile(
   file: File,
   opts?: { profileId?: string; mode?: 'quick' | 'review' }
@@ -25,14 +35,19 @@ export async function uploadDocxFile(
   if (opts?.profileId) formData.append('profile_id', opts.profileId);
   if (opts?.mode) formData.append('work_mode', opts.mode);
 
-  const res = await fetchWithTrace(`${getApiBase()}/upload`, {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/upload`, {
     method: 'POST',
     body: formData,
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || 'Error al subir el archivo');
+    let detail = 'Error al subir el archivo';
+    try {
+      const err = await res.json();
+      detail = err.detail || detail;
+    } catch { /* response body might not be JSON */ }
+    throw new Error(detail);
   }
 
   return res.json();
@@ -76,6 +91,14 @@ export async function startBlankDocument(): Promise<DocumentModel> {
   }
 
   return res.json();
+}
+
+export async function downloadTemplateAsync(
+  profileId: string,
+  templateId: string
+): Promise<void> {
+  const apiBase = await getApiBaseAsync();
+  window.location.href = `${apiBase}/template-docx?profile_id=${encodeURIComponent(profileId)}&template_id=${encodeURIComponent(templateId)}`;
 }
 
 export function downloadTemplate(

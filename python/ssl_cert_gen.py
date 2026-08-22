@@ -6,10 +6,12 @@ so the backend can serve HTTPS without relying on external CLI tools such as
 ``mkcert`` (which is not shipped with the installer).
 
 **CRITICAL:** On Windows, the generated certificate is also installed into the
-CURRENT USER's Trusted Root Certification Authorities store using ``certutil``.
-Without this step, Word (which runs OUTSIDE Electron) rejects the self-signed
-certificate and the Add-in taskpane shows a blank panel — the #1 reason the
-Add-in "doesn't appear" in Word.
+CURRENT USER's Trusted Root Certification Authorities store using the .NET
+``X509Store`` API via PowerShell. This is completely **silent** — no Windows
+dialog, no UAC prompt, no certificate import wizard. Without this step, Word
+(which runs OUTSIDE Electron) rejects the self-signed certificate and the
+Add-in taskpane shows a blank panel — the #1 reason the Add-in "doesn't appear"
+in Word.
 
 The certificates are issued for ``localhost`` and ``127.0.0.1``, use RSA
 2048-bit keys, and are valid for 365 days. They are saved as PEM files (with an
@@ -168,11 +170,20 @@ def _build_certificate(key) -> "object":
 def _install_in_windows_trust_store(cert_path: Path) -> bool:
     """Install the certificate into the CURRENT USER's Trusted Root store.
 
-    Uses ``certutil -user -addstore Root <cert_path>`` which does NOT require
-    administrator privileges. This is essential because Word runs as a
-    separate process outside Electron and has its own certificate validation —
-    it will NOT accept self-signed certificates that aren't in the Windows
-    Trusted Root store.
+    Uses the .NET ``X509Store`` API via PowerShell, which is completely
+    **silent** — no Windows dialog, no UAC prompt, no certificate import
+    wizard. This is essential because:
+
+    1. Word runs as a separate process outside Electron and has its own
+       certificate validation — it will NOT accept self-signed certificates
+       that aren't in the Windows Trusted Root store.
+    2. ``certutil -addstore Root`` can trigger a Windows security dialog
+       ("Do you want to install this certificate?") on some configurations,
+       which is confusing for users.
+
+    The PowerShell command opens the ``CurrentUser\\Root`` store and calls
+    ``store.Add(cert)`` programmatically, which is the same operation that
+    ``certutil`` performs but without any UI.
 
     Returns ``True`` on success, ``False`` on failure or non-Windows platforms.
     Never raises — failures are logged but don't crash the backend.
@@ -181,61 +192,113 @@ def _install_in_windows_trust_store(cert_path: Path) -> bool:
         return False
 
     try:
-        # Use -user to install in the current user's store (no admin needed)
+        # Use PowerShell with .NET X509Store API — completely silent, no dialog.
+        # This is the recommended approach for programmatic cert installation
+        # because it bypasses the Windows Certificate Import Wizard entirely.
+        ps_script = (
+            "$ErrorActionPreference = 'Stop';"
+            f"$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 '{cert_path}';"
+            "$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root','CurrentUser');"
+            "$store.Open('ReadWrite');"
+            "$store.Add($cert);"
+            "$store.Close();"
+            "Write-Output 'OK'"
+        )
         result = subprocess.run(
-            ["certutil", "-user", "-addstore", "Root", str(cert_path)],
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            creationflags=0x08000000 if sys.platform == "win32" else 0,  # CREATE_NO_WINDOW
+        )
+        if result.returncode == 0 and "OK" in (result.stdout or ""):
+            logger.info("[SSL] Certificate installed in Windows Trusted Root store (silent, .NET API).")
+            print("[SSL] Certificate installed in Windows Trusted Root store (silent, .NET API).")
+            return True
+        else:
+            # Fallback: try certutil with -f (force) flag if PowerShell failed
+            output = (result.stderr or "") + (result.stdout or "")
+            logger.warning("[SSL] PowerShell cert install failed: %s. Trying certutil fallback.", output[:300])
+            print(f"[SSL] PowerShell cert install failed, trying certutil fallback: {output[:200]}")
+            return _install_certutil_fallback(cert_path)
+    except FileNotFoundError:
+        # PowerShell not found — try certutil as fallback
+        logger.warning("[SSL] PowerShell not found — trying certutil fallback.")
+        return _install_certutil_fallback(cert_path)
+    except Exception as exc:
+        logger.warning("[SSL] Failed to install cert in Windows trust store: %s. Trying certutil fallback.", exc)
+        return _install_certutil_fallback(cert_path)
+
+
+def _install_certutil_fallback(cert_path: Path) -> bool:
+    """Fallback: install cert using certutil (may show a dialog on some systems)."""
+    try:
+        result = subprocess.run(
+            ["certutil", "-user", "-addstore", "-f", "Root", str(cert_path)],
             capture_output=True,
             text=True,
             timeout=15,
         )
         if result.returncode == 0:
-            logger.info("[SSL] Certificate installed in Windows Trusted Root store (current user).")
-            print("[SSL] Certificate installed in Windows Trusted Root store (current user).")
+            logger.info("[SSL] Certificate installed via certutil fallback.")
             return True
-        else:
-            # certutil might return non-zero if the cert is already there
-            # Check stderr/stdout for "already in store" type messages
-            output = (result.stdout or "") + (result.stderr or "")
-            if "already" in output.lower() or "exist" in output.lower():
-                logger.info("[SSL] Certificate already in Windows Trusted Root store.")
-                return True
-            logger.warning("[SSL] certutil failed (rc=%d): %s", result.returncode, output[:300])
-            print(f"[SSL] certutil failed (rc={result.returncode}): {output[:200]}")
-            return False
-    except FileNotFoundError:
-        logger.warning("[SSL] certutil not found — certificate NOT installed in Windows trust store.")
-        print("[SSL] WARNING: certutil not found — Word may not load the Add-in.")
+        output = (result.stdout or "") + (result.stderr or "")
+        if "already" in output.lower() or "exist" in output.lower():
+            logger.info("[SSL] Certificate already in Windows Trusted Root store.")
+            return True
+        logger.warning("[SSL] certutil fallback also failed (rc=%d): %s", result.returncode, output[:300])
         return False
     except Exception as exc:
-        logger.warning("[SSL] Failed to install cert in Windows trust store: %s", exc)
-        print(f"[SSL] Failed to install cert in Windows trust store: {exc}")
+        logger.warning("[SSL] certutil fallback failed: %s", exc)
         return False
 
 
 def _is_cert_in_windows_trust_store(cert_path: Path) -> bool:
     """Check if the certificate is already in the Windows Trusted Root store.
 
-    Uses ``certutil -user -store Root`` and searches for the cert's SHA1
-    fingerprint. Returns ``True`` if found, ``False`` otherwise.
+    Uses the .NET ``X509Store`` API via PowerShell to search for the cert's
+    SHA-1 thumbprint in the ``CurrentUser\\Root`` store. This is completely
+    silent (no dialog) and faster than ``certutil -store``.
     """
     if sys.platform != "win32":
         return False
 
     try:
-        # Get the cert's SHA1 fingerprint
+        # Get the cert's SHA-1 fingerprint (thumbprint)
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
         cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
-        fingerprint = cert.fingerprint(hashes.SHA1()).hex().upper()
+        # .NET uses uppercase hex without separators
+        thumbprint = cert.fingerprint(hashes.SHA1()).hex().upper()
 
-        # Search in the current user's Root store
+        # Search in the current user's Root store using PowerShell .NET API
+        ps_script = (
+            "$ErrorActionPreference = 'SilentlyContinue';"
+            f"$thumb = '{thumbprint}';"
+            "$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root','CurrentUser');"
+            "$store.Open('ReadOnly');"
+            "$found = $store.Certificates | Where-Object { $_.Thumbprint -eq $thumb };"
+            "$store.Close();"
+            "if ($found) { Write-Output 'FOUND' } else { Write-Output 'NOTFOUND' }"
+        )
         result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            creationflags=0x08000000 if sys.platform == "win32" else 0,  # CREATE_NO_WINDOW
+        )
+        if result.returncode == 0 and "FOUND" in (result.stdout or ""):
+            return True
+
+        # Fallback: try certutil
+        result2 = subprocess.run(
             ["certutil", "-user", "-store", "Root"],
             capture_output=True,
             text=True,
             timeout=15,
         )
-        if result.returncode == 0 and fingerprint in (result.stdout or "").upper():
+        if result2.returncode == 0 and thumbprint in (result2.stdout or "").upper():
             return True
     except Exception:
         pass
@@ -252,6 +315,10 @@ def generate_self_signed_cert(
     CURRENT USER's Trusted Root Certification Authorities store so that
     Word (running outside Electron) can load the Add-in taskpane over HTTPS.
     Without this, Word shows a blank panel instead of the Add-in.
+
+    The installation is **completely silent** — it uses the .NET
+    ``X509Store`` API via PowerShell, which does not show any Windows dialog,
+    UAC prompt, or certificate import wizard.
 
     Parameters
     ----------
@@ -274,13 +341,11 @@ def generate_self_signed_cert(
     * The certificate is a self-signed RSA 2048 X.509 leaf cert valid for
       ``VALID_DAYS`` days, issued for ``localhost`` and ``127.0.0.1``.
     * On Windows, the cert is installed in the user's Trusted Root store via
-      ``certutil -user -addstore Root`` (no admin privileges needed).
+      the .NET ``X509Store`` API (silent, no dialog).
     """
     try:
         cert_p = Path(cert_path)
         key_p = Path(key_path)
-
-        cert_was_regenerated = False
 
         # ── Idempotency: reuse valid existing certs ──────────────────────
         if cert_p.exists() and key_p.exists():
@@ -325,14 +390,14 @@ def generate_self_signed_cert(
         except (OSError, NotImplementedError):
             pass  # Windows ignores POSIX chmod; fine.
 
-        cert_was_regenerated = True
         logger.info("[SSL] Self-signed certificate generated: %s", cert_p)
         print(f"[SSL] Self-signed certificate generated (cryptography): {cert_p}")
 
-        # ── CRITICAL: Install in Windows Trusted Root store ─────────────
+        # ── CRITICAL: Install in Windows Trusted Root store (SILENT) ─────
         # Word runs as a separate process and does NOT accept self-signed
         # certificates that aren't in the OS trust store. This is the #1
         # reason the Add-in shows a blank panel in Word.
+        # Uses .NET X509Store API via PowerShell — no dialog, no UAC.
         _install_in_windows_trust_store(cert_p)
 
         return cert_p, key_p

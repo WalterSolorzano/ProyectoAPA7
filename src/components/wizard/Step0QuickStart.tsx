@@ -16,25 +16,38 @@ type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' 
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
+/** SVG brand icon — clean document icon in the accent color. */
+const BrandIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="9" y1="13" x2="15" y2="13" />
+    <line x1="9" y1="17" x2="15" y2="17" />
+  </svg>
+);
+
 // ── PLANTILLAS DE ESTRUCTURA DESCARGABLES (variantes dentro del perfil) ──────
 const TEMPLATES = [
   {
     id: 'essay',
     name: 'Ensayo',
     description: 'Introducción, desarrollo, conclusiones y referencias',
-    icon: <FileText size={26} color="var(--accent-success)" />,
+    icon: <FileText size={22} color="var(--accent-success)" />,
+    iconBg: 'rgba(56, 160, 23, 0.12)',
   },
   {
     id: 'report',
     name: 'Informe Técnico',
     description: 'Resumen ejecutivo, metodología, resultados y anexos',
-    icon: <BookOpen size={26} color="var(--accent-primary)" />,
+    icon: <BookOpen size={22} color="var(--accent-primary)" />,
+    iconBg: 'rgba(79, 124, 255, 0.12)',
   },
   {
     id: 'thesis',
     name: 'Tesis / Monografía',
     description: 'Marco teórico, metodología, resultados y conclusiones',
-    icon: <GraduationCap size={26} color="var(--accent-primary)" />,
+    icon: <GraduationCap size={22} color="var(--accent-primary)" />,
+    iconBg: 'rgba(79, 124, 255, 0.12)',
   },
 ];
 
@@ -76,7 +89,7 @@ const DiscoveryToast: React.FC = () => {
     try {
       if (!localStorage.getItem('wordapa7_addin_announced')) {
         setVisible(true)
-        const timer = setTimeout(() => dismiss(), 6000)
+        const timer = setTimeout(() => dismiss(), 8000)
         return () => clearTimeout(timer)
       }
     } catch { /* ignore */ }
@@ -94,7 +107,7 @@ const DiscoveryToast: React.FC = () => {
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      maxWidth: '420px',
+      maxWidth: '460px',
       margin: '0 auto 20px',
       padding: '14px 18px',
       backgroundColor: 'var(--surface-elevated)',
@@ -118,10 +131,10 @@ const DiscoveryToast: React.FC = () => {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '2px' }}>
-          Te deje una pestania nueva en Word
+          Te dejé una pestaña nueva en Word
         </div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          Busca "WordAPA7" arriba a la derecha.
+          Buscá "WordAPA7" en la cinta de opciones de Word. Si no aparece, reiniciá Word.
         </div>
       </div>
       <button
@@ -173,9 +186,21 @@ export const Step0QuickStart: React.FC = () => {
 
   // ── Subida inmediata: al soltar o elegir un archivo arranca el proceso ──
   // No hay paso intermedio de previsualización. Siempre Modo Guiado (review).
+  // CRITICAL: dar feedback al usuario cuando el backend no está listo en lugar
+  // de retornar silenciosamente — antes "no hace nada" al arrastrar un archivo.
   const handleUploadFile = (file: File) => {
-    if (isLoading || !isBackendReady) return;
-    if (!file.name.toLowerCase().endsWith('.docx')) return;
+    if (isLoading) return;
+    if (!isBackendReady) {
+      useDocStore.getState().showToast(
+        'El motor está iniciando. Aguardá unos segundos e intentá de nuevo.',
+        'warning'
+      );
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      useDocStore.getState().showToast('Solo se aceptan archivos .docx', 'warning');
+      return;
+    }
     uploadFile(file, { profileId: activeProfileId, mode: 'review' });
   };
 
@@ -193,11 +218,21 @@ export const Step0QuickStart: React.FC = () => {
     const file = e.dataTransfer.files?.[0];
     if (file && file.name.toLowerCase().endsWith('.docx')) {
       handleUploadFile(file);
+    } else if (file) {
+      useDocStore.getState().showToast('Solo se aceptan archivos .docx', 'warning');
     }
   };
 
   const triggerFilePicker = () => {
-    if (!isLoading && isBackendReady) fileInputRef.current?.click();
+    if (isLoading) return;
+    if (!isBackendReady) {
+      useDocStore.getState().showToast(
+        'El motor está iniciando. Aguardá unos segundos e intentá de nuevo.',
+        'warning'
+      );
+      return;
+    }
+    fileInputRef.current?.click();
   };
 
   const handleRecoverSession = async (sessionId: string, _fileName: string) => {
@@ -212,6 +247,7 @@ export const Step0QuickStart: React.FC = () => {
   };
 
   const busy = isLoading || !isBackendReady;
+  const isElectron = !!(window as any).electronAPI;
 
   return (
     <div style={{
@@ -219,7 +255,9 @@ export const Step0QuickStart: React.FC = () => {
       backgroundColor: 'var(--canvas-bg)', fontFamily: 'var(--font-sans)',
       position: 'relative', flexDirection: 'column',
     }}>
-      {/* ── Franja superior de arrastre (ventana) ── */}
+      {/* ── Franja superior de arrastre (ventana) ──
+          Simplificada: solo branding + Archivo. El botón "Ajustes y vista
+          previa" fue eliminado porque duplica "Configuraciones" del sidebar. */}
       <div style={{
         height: '44px', flexShrink: 0, display: 'flex', alignItems: 'center',
         gap: '8px', padding: '0 16px 0 20px',
@@ -228,15 +266,14 @@ export const Step0QuickStart: React.FC = () => {
         position: 'relative', zIndex: 20,
         ...dragRegion,
       }}>
+        {/* Branding: SVG icon + nombre (sin repetir "APA 7") */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <img
-            src="/logo.jpg"
-            alt="WordAPA7"
-            style={{ height: '24px', width: 'auto', borderRadius: '6px', display: 'block' }}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-          />
+          <BrandIcon size={20} />
           <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
 
         {/* Botón: Archivo (menú de carga / backstage) */}
         <button
@@ -278,6 +315,7 @@ export const Step0QuickStart: React.FC = () => {
                   backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
                   border: '1px solid var(--accent-primary)', fontFamily: 'inherit',
                   fontSize: '11px', fontWeight: 700,
+                  marginRight: isElectron ? 140 : 0, // reserva para botones nativos
                   ...noDragRegion,
                 }}
               >
@@ -285,27 +323,9 @@ export const Step0QuickStart: React.FC = () => {
               </button>
             );
           }
-          return null;
+          // Spacer para reservar espacio de los botones nativos de la ventana
+          return isElectron ? <div style={{ width: '140px', flexShrink: 0, ...noDragRegion }} /> : null;
         })()}
-
-        {/* Botón: Estudio de ajustes (previsualizador) */}
-        <button
-          type="button"
-          onClick={() => useDocStore.setState({ settingsStudioOpen: true })}
-          title="Abrir estudio de ajustes con vista previa en vivo"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-            backgroundColor: 'var(--surface-subtle)', color: 'var(--text-main)',
-            border: '1px solid var(--border-subtle)', fontFamily: 'inherit',
-            fontSize: '11px', fontWeight: 600,
-            marginRight: ((window as any).electronAPI ? 140 : 0), // reserva para botones nativos de la ventana
-            ...noDragRegion,
-          }}
-        >
-          <Settings2 size={13} color="var(--accent-primary)" />
-          Ajustes y vista previa
-        </button>
       </div>
 
       {/* Hidden file input */}
@@ -324,7 +344,8 @@ export const Step0QuickStart: React.FC = () => {
         <NavItem icon={<FolderOpen size={22} />} label="Abrir" active={activeTab === 'abrir'} onClick={() => setActiveTab('abrir')} />
         <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
 
-        {/* Configuraciones */}
+        {/* Configuraciones — único punto de acceso a ajustes (el botón
+            duplicado del top bar fue eliminado por redundante) */}
         <div style={{ marginTop: 'auto', paddingBottom: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
           <button
             type="button"
@@ -526,8 +547,9 @@ export const Step0QuickStart: React.FC = () => {
               </div>
             </div>
 
-            {/* ── ACCIÓN SECUNDARIA: Plantillas descargables — banda con fondo
-                distinto para separar la acción principal (Subir) de la secundaria ── */}
+            {/* ── ACCIÓN SECUNDARIA: Plantillas descargables ──
+                Rediseñado: tarjetas limpias con fondo elevado, iconos con
+                color de fondo sutil, tipografía refinada. */}
             <div style={{
               marginLeft: '-60px', marginRight: '-60px',
               padding: '32px 60px 36px',
@@ -536,13 +558,13 @@ export const Step0QuickStart: React.FC = () => {
               borderBottom: '1px solid var(--border-subtle)',
               marginBottom: '36px',
             }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
-                ¿Todavía no escribiste nada? Descargá una plantilla ya formateada
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                ¿Todavía no escribiste nada? Descargá una plantilla
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
                 Un .docx con portada y secciones listas: lo abrís en Word y solo completás el contenido.
               </p>
-              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 {TEMPLATES.map(tpl => (
                   <button
                     key={tpl.id}
@@ -551,10 +573,10 @@ export const Step0QuickStart: React.FC = () => {
                     title={`Descargar plantilla ${tpl.name}`}
                     aria-label={`Descargar plantilla ${tpl.name}`}
                     style={{
-                      flex: '1 1 240px', maxWidth: '320px', cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left',
-                      padding: '14px 16px', borderRadius: 'var(--radius-lg)',
-                      background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                      flex: '1 1 220px', maxWidth: '280px', cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left',
+                      padding: '16px', borderRadius: 'var(--radius-lg)',
+                      background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
                       transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
                     }}
                     onMouseEnter={e => {
@@ -568,21 +590,27 @@ export const Step0QuickStart: React.FC = () => {
                       (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
                     }}
                   >
+                    {/* Icono con fondo de color sutil */}
                     <div style={{
-                      width: '48px', height: '48px', borderRadius: 'var(--radius-md)', flexShrink: 0,
-                      background: 'var(--color-accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '40px', height: '40px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                      background: tpl.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       {tpl.icon}
                     </div>
+                    {/* Nombre + descripción */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '3px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
                         {tpl.name}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                         {tpl.description}
                       </div>
                     </div>
-                    <Download size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                    {/* Indicador de descarga */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>
+                      <Download size={13} />
+                      Descargar .docx
+                    </div>
                   </button>
                 ))}
               </div>
@@ -617,7 +645,7 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── ABRIR ── */}
         {activeTab === 'abrir' && (
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Abrir Documento Existente
             </h1>
             <UploadDropzone onFileSelected={(file) => uploadFile(file, { profileId: activeProfileId, mode: 'review' })} isLoading={isLoading || !isBackendReady} />
@@ -627,7 +655,7 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── RECIENTES ── */}
         {activeTab === 'recientes' && (
           <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Documentos Recientes
             </h1>
             <RecentsList
