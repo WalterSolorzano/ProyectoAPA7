@@ -172,6 +172,50 @@ export async function getParagraphsForAnalysis(): Promise<string[]> {
   })
 }
 
+export interface HeadingItem {
+  index: number
+  text: string
+  level: number
+}
+
+export async function getDocumentHeadings(): Promise<HeadingItem[]> {
+  return withWordContext(async (context) => {
+    const paragraphs = context.document.body.paragraphs
+    // En algunas versiones de WordApi styleBuiltIn puede fallar si no se pide style también
+    context.load(paragraphs, 'styleBuiltIn, text, style')
+    await context.sync()
+    
+    const headings: HeadingItem[] = []
+    paragraphs.items.forEach((p, index) => {
+      // Intentamos usar styleBuiltIn, y si no, style (como string)
+      const style = String(p.styleBuiltIn || p.style || '').replace(/\s+/g, '')
+      let level = 0
+      if (style.includes('Heading1')) level = 1
+      else if (style.includes('Heading2')) level = 2
+      else if (style.includes('Heading3')) level = 3
+      else if (style.includes('Heading4')) level = 4
+      else if (style.includes('Heading5')) level = 5
+      
+      if (level > 0 && p.text.trim()) {
+        headings.push({ index, text: p.text.trim(), level })
+      }
+    })
+    return headings
+  })
+}
+
+export async function navigateToParagraph(index: number): Promise<void> {
+  await withWordContext(async (context) => {
+    const paragraphs = context.document.body.paragraphs
+    context.load(paragraphs)
+    await context.sync()
+    if (index >= 0 && index < paragraphs.items.length) {
+      const p = paragraphs.items[index]
+      p.select()
+    }
+  })
+}
+
 /** Cuenta figuras y tablas existentes (por texto "Figura N" / "Tabla N"). */
 export async function countFiguresAndTables(): Promise<{ figures: number; tables: number }> {
   const text = await getDocumentText()
@@ -346,7 +390,7 @@ export async function applyHeadingStyle(level: 1 | 2 | 3 | 4 | 5): Promise<void>
 // ── INSERCIÓN DE ELEMENTOS APA 7 ─────────────────────────────────────────────
 
 /**
- * Inserta una tabla con formato APA 7 al final del documento:
+ * Inserta una tabla con formato APA 7 en la selección/cursor:
  *   1. "Tabla N" en negrita
  *   2. Título de la tabla en cursiva
  *   3. Tabla con encabezados en negrita
@@ -354,10 +398,11 @@ export async function applyHeadingStyle(level: 1 | 2 | 3 | 4 | 5): Promise<void>
  */
 export async function insertTableAPA(data: TableData, tableNumber: number): Promise<void> {
   await withWordContext(async (context) => {
-    const body = context.document.body
+    // Insertar en la selección/cursor (no al final del documento)
+    const sel = context.document.getSelection()
 
     // 1. "Tabla N" en negrita
-    const pNum = body.insertParagraph(`Tabla ${tableNumber}`, Word.InsertLocation.end)
+    const pNum = sel.insertParagraph(`Tabla ${tableNumber}`, Word.InsertLocation.after)
     applyFont(pNum.font)
     pNum.font.bold = true
     pNum.alignment = Word.Alignment.left
@@ -365,16 +410,18 @@ export async function insertTableAPA(data: TableData, tableNumber: number): Prom
     pNum.spaceAfter = 0
 
     // 2. Título en cursiva
+    let anchor: Word.Paragraph = pNum
     if (data.caption) {
-      const pCap = body.insertParagraph(data.caption, Word.InsertLocation.end)
+      const pCap = pNum.insertParagraph(data.caption, Word.InsertLocation.after)
       applyFont(pCap.font)
       pCap.font.italic = true
       pCap.alignment = Word.Alignment.left
       pCap.lineSpacing = LINE_SPACING_DOUBLE
       pCap.spaceAfter = 6
+      anchor = pCap
     }
 
-    // 3. Tabla (insertTable con valores 2D)
+    // 3. Tabla (insertTable con valores 2D) — después del título
     const values: string[][] = []
     if (data.headers.length > 0) values.push(data.headers)
     for (const row of data.rows) values.push(row)
@@ -382,10 +429,9 @@ export async function insertTableAPA(data: TableData, tableNumber: number): Prom
     const rowCount = Math.max(values.length, 1)
     const colCount = data.headers.length || data.rows[0]?.length || 1
 
-    const table = body.insertTable(rowCount, colCount, Word.InsertLocation.end, values)
+    const table = anchor.getRange().insertTable(rowCount, colCount, Word.InsertLocation.after, values)
 
     // Formato de celdas: TNR 12; encabezados en negrita.
-    // TableCell no expone .font directamente → se accede vía body.paragraphs.
     const rows = table.rows
     context.load(rows)
     await context.sync()
@@ -406,9 +452,9 @@ export async function insertTableAPA(data: TableData, tableNumber: number): Prom
       }
     }
 
-    // 4. Nota al pie
+    // 4. Nota al pie (después de la tabla)
     if (data.note) {
-      const pNote = body.insertParagraph('', Word.InsertLocation.end)
+      const pNote = table.getRange(Word.RangeLocation.after).insertParagraph('', Word.InsertLocation.after)
       const rLabel = pNote.insertText('Nota. ', Word.InsertLocation.end)
       rLabel.font.italic = true
       applyFont(rLabel.font, 10)
@@ -419,13 +465,13 @@ export async function insertTableAPA(data: TableData, tableNumber: number): Prom
     }
 
     // Párrafo separador
-    const pSep = body.insertParagraph('', Word.InsertLocation.end)
+    const pSep = table.getRange(Word.RangeLocation.after).insertParagraph('', Word.InsertLocation.after)
     pSep.lineSpacing = LINE_SPACING_DOUBLE
   })
 }
 
 /**
- * Inserta una figura con formato APA 7 al final del documento:
+ * Inserta una figura con formato APA 7 en la selección/cursor:
  *   1. "Figura N" en negrita
  *   2. Título de la figura en cursiva
  *   3. Imagen centrada
@@ -433,10 +479,11 @@ export async function insertTableAPA(data: TableData, tableNumber: number): Prom
  */
 export async function insertFigureAPA(data: FigureData, figureNumber: number): Promise<void> {
   await withWordContext(async (context) => {
-    const body = context.document.body
+    // Insertar en la selección/cursor (no al final del documento)
+    const sel = context.document.getSelection()
 
     // 1. "Figura N" en negrita
-    const pNum = body.insertParagraph(`Figura ${figureNumber}`, Word.InsertLocation.end)
+    const pNum = sel.insertParagraph(`Figura ${figureNumber}`, Word.InsertLocation.after)
     applyFont(pNum.font)
     pNum.font.bold = true
     pNum.alignment = Word.Alignment.left
@@ -445,17 +492,19 @@ export async function insertFigureAPA(data: FigureData, figureNumber: number): P
     pNum.spaceAfter = 0
 
     // 2. Título en cursiva
+    let anchor: Word.Paragraph = pNum
     if (data.caption) {
-      const pCap = body.insertParagraph(data.caption, Word.InsertLocation.end)
+      const pCap = pNum.insertParagraph(data.caption, Word.InsertLocation.after)
       applyFont(pCap.font)
       pCap.font.italic = true
       pCap.alignment = Word.Alignment.left
       pCap.lineSpacing = LINE_SPACING_DOUBLE
       pCap.spaceAfter = 6
+      anchor = pCap
     }
 
     // 3. Imagen centrada (insertInlinePictureFromBase64 + ajuste de ancho)
-    const pImg = body.insertParagraph('', Word.InsertLocation.end)
+    const pImg = anchor.getRange().insertParagraph('', Word.InsertLocation.after)
     pImg.alignment = Word.Alignment.centered
     pImg.lineSpacing = LINE_SPACING_DOUBLE
     pImg.spaceBefore = 6
@@ -474,9 +523,9 @@ export async function insertFigureAPA(data: FigureData, figureNumber: number): P
       }
     }
 
-    // 4. Nota al pie
+    // 4. Nota al pie (después de la imagen)
     if (data.note) {
-      const pNote = body.insertParagraph('', Word.InsertLocation.end)
+      const pNote = pImg.getRange(Word.RangeLocation.after).insertParagraph('', Word.InsertLocation.after)
       const rLabel = pNote.insertText('Nota. ', Word.InsertLocation.end)
       rLabel.font.italic = true
       applyFont(rLabel.font, 10)
@@ -487,18 +536,19 @@ export async function insertFigureAPA(data: FigureData, figureNumber: number): P
     }
 
     // Párrafo separador
-    const pSep = body.insertParagraph('', Word.InsertLocation.end)
+    const pSep = pImg.getRange(Word.RangeLocation.after).insertParagraph('', Word.InsertLocation.after)
     pSep.lineSpacing = LINE_SPACING_DOUBLE
   })
 }
 
 /**
- * Inserta un heading APA 7 al final del documento con el nivel indicado.
+ * Inserta un heading APA 7 en la selección/cursor con el nivel indicado.
  */
 export async function insertHeadingAPA(text: string, level: 1 | 2 | 3 | 4 | 5): Promise<void> {
   await withWordContext(async (context) => {
-    const body = context.document.body
-    const heading = body.insertParagraph(text, Word.InsertLocation.end)
+    // Insertar en la selección/cursor (no al final del documento)
+    const sel = context.document.getSelection()
+    const heading = sel.insertParagraph(text, Word.InsertLocation.after)
     const cfg = HEADING_CONFIGS[level]
     applyFont(heading.font)
     heading.font.bold = cfg.bold
@@ -519,18 +569,70 @@ export async function insertPageBreakAPA(): Promise<void> {
 }
 
 /**
- * Inserta la sección de Referencias al final del documento:
- *   - Salto de página
- *   - Título "Referencias" centrado y en negrita (Nivel 1)
- *   - Cada referencia en su propio párrafo con sangría francesa
+ * Inserta una cita en texto (ej. "(García, 2023)") en la selección/cursor.
+ * Si hay texto seleccionado, lo reemplaza; si el cursor está colapsado, inserta.
+ */
+export async function insertCitationAtCursor(citation: string): Promise<void> {
+  await withWordContext(async (context) => {
+    const sel = context.document.getSelection()
+    sel.insertText(citation, Word.InsertLocation.replace)
+  })
+}
+
+/**
+ * Inserta o actualiza la sección de Referencias:
+ *   - Si ya existe un párrafo "Referencias", reemplaza su contenido (dedup).
+ *   - Si no, agrega salto de página + título al final.
+ *   - Cada referencia en su propio párrafo con sangría francesa.
  *
  * @param text Texto completo de la bibliografía (una referencia por línea).
  */
 export async function insertBibliographyAPA(text: string): Promise<void> {
   await withWordContext(async (context) => {
     const body = context.document.body
+    const paragraphs = body.paragraphs
+    context.load(paragraphs, 'text')
+    await context.sync()
 
-    // Salto de página + título
+    const refs = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+
+    // ¿Ya existe una sección "Referencias"?
+    let titlePara: Word.Paragraph | null = null
+    for (const p of paragraphs.items) {
+      if (p.text.trim().toLowerCase() === 'referencias') {
+        titlePara = p
+        break
+      }
+    }
+
+    if (titlePara) {
+      // Reaplicar formato APA al título y borrar lo que sigue
+      applyFont(titlePara.font)
+      titlePara.font.bold = true
+      titlePara.alignment = Word.Alignment.centered
+      titlePara.lineSpacing = LINE_SPACING_DOUBLE
+      titlePara.spaceAfter = 0
+
+      const afterRange = titlePara.getRange(Word.RangeLocation.after)
+      afterRange.delete()
+      await context.sync()
+
+      let prev: Word.Paragraph = titlePara
+      for (const ref of refs) {
+        const pRef = prev.insertParagraph(ref, Word.InsertLocation.after)
+        applyFont(pRef.font)
+        pRef.alignment = Word.Alignment.left
+        pRef.lineSpacing = LINE_SPACING_DOUBLE
+        pRef.leftIndent = FIRST_LINE_INDENT_PT // 0.5"
+        pRef.firstLineIndent = -FIRST_LINE_INDENT_PT // sangría francesa
+        pRef.spaceAfter = 0
+        pRef.spaceBefore = 0
+        prev = pRef
+      }
+      return
+    }
+
+    // No existe: salto de página + título al final
     body.insertBreak(Word.BreakType.page, Word.InsertLocation.end)
     const pTitle = body.insertParagraph('Referencias', Word.InsertLocation.end)
     applyFont(pTitle.font)
@@ -539,17 +641,17 @@ export async function insertBibliographyAPA(text: string): Promise<void> {
     pTitle.lineSpacing = LINE_SPACING_DOUBLE
     pTitle.spaceAfter = 0
 
-    // Una referencia por línea, con sangría francesa (hanging indent)
-    const refs = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    let prev: Word.Paragraph = pTitle
     for (const ref of refs) {
-      const pRef = body.insertParagraph(ref, Word.InsertLocation.end)
+      const pRef = prev.insertParagraph(ref, Word.InsertLocation.after)
       applyFont(pRef.font)
       pRef.alignment = Word.Alignment.left
       pRef.lineSpacing = LINE_SPACING_DOUBLE
-      pRef.leftIndent = FIRST_LINE_INDENT_PT // 0.5"
-      pRef.firstLineIndent = -FIRST_LINE_INDENT_PT // sangría francesa
+      pRef.leftIndent = FIRST_LINE_INDENT_PT
+      pRef.firstLineIndent = -FIRST_LINE_INDENT_PT
       pRef.spaceAfter = 0
       pRef.spaceBefore = 0
+      prev = pRef
     }
   })
 }
@@ -609,6 +711,16 @@ export async function insertCoverPageAPA(fields: CoverFields): Promise<void> {
 
     // Salto de página después de la portada
     body.insertParagraph('', Word.InsertLocation.end).insertBreak(Word.BreakType.page, Word.InsertLocation.after)
+  })
+}
+
+/**
+ * Inserta un comentario de revisión nativo de Word en la selección actual.
+ */
+export async function addWordComment(commentText: string): Promise<void> {
+  await withWordContext(async (context) => {
+    const range = context.document.getSelection()
+    range.insertComment(commentText)
   })
 }
 

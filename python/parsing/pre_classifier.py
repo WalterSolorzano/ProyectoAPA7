@@ -46,7 +46,7 @@ REGEX_NUMBERED_HEADING = re.compile(
 )
 
 # Bullet manual: caracteres de vineta + texto
-REGEX_BULLET_CHAR = re.compile(r'^([•●▪◦○▸►→·\-\–\—\*])\s+')
+REGEX_BULLET_CHAR = re.compile(r'^([•●▪◦○▸►→·\-–—\*])\s+')
 
 # Bullet con numero o letra: "1.", "a)", "(1)", etc.
 REGEX_BULLET_NUMBERED = re.compile(r'^(?:\(?\d+[\.\)]|\(?[a-z][\.\)])\s+')
@@ -1051,6 +1051,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             else:
                 portada_boundary = min(page1_boundary_override, 20)
 
+    # ── Variables de estado para detección de logo de portada ──────────────
+    # El portada_boundary a veces NO incluye el logo de la universidad, lo
+    # que hace que se numere incorrectamente como "Figura 1". Estas
+    # heurísticas adicionales detectan logos que quedaron fuera del boundary
+    # y los marcan como parte de la portada (sin número de figura).
+    seen_body_heading = False      # ¿Ya vimos un heading de cuerpo (no portada)?
+    first_body_image = True        # ¿Es esta la primera imagen del cuerpo?
+
     for idx, elem in enumerate(elements):
         if idx < portada_boundary:
             elem.is_cover_section = True
@@ -1066,7 +1074,78 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 elem.image_info.figure_number = 0
         else:
             elem.is_cover_section = False
+
+            # Registrar headings de cuerpo para las heurísticas de logo.
+            # Cualquier heading que quede fuera del boundary de portada es
+            # un heading de cuerpo (is_cover_section == False).
+            if elem.type == ElementType.HEADING:
+                seen_body_heading = True
+
             if elem.type == ElementType.IMAGE and elem.image_info:
+                # ── Heurísticas de detección de logo de portada ──────────
+                # Si la imagen es claramente un logo, no se le asigna número
+                # de figura (figure_number = 0) y no se incrementa el contador.
+                is_logo = False
+                page_num = getattr(elem, "page_number", None)
+
+                # Heurística 1: Posición — imagen en los primeros ~25 elementos
+                # con keywords de portada cerca (universidad, facultad, logo,
+                # etc.) o en página 1. Los logos institucionales suelen
+                # aparecer al inicio del documento junto a los datos de portada.
+                if idx < 25:
+                    has_cover_kw_nearby = False
+                    for nearby_idx in range(
+                        max(0, idx - 5), min(len(elements), idx + 6)
+                    ):
+                        nearby_text = _normalize_accent(
+                            (elements[nearby_idx].text or "").lower()
+                        )
+                        # Keywords de portada ya compiladas en cover_kw_patterns
+                        if any(
+                            pat.search(nearby_text) for pat in cover_kw_patterns
+                        ):
+                            has_cover_kw_nearby = True
+                            break
+                        # Detectar también la palabra "logo" explícitamente
+                        if "logo" in nearby_text:
+                            has_cover_kw_nearby = True
+                            break
+                    if has_cover_kw_nearby or page_num == 1:
+                        is_logo = True
+
+                # Heurística 2: Tamaño — los logos son imágenes pequeñas o
+                # anchas (banners horizontales). Si la imagen tiene dimensiones
+                # conocidas y es pequeña (altura < 5cm) o ancha (ancho > 2x
+                # altura), y está en página 1 o antes del primer heading de
+                # cuerpo, tratar como logo.
+                if not is_logo:
+                    w = getattr(elem.image_info, "width_cm", None)
+                    h = getattr(elem.image_info, "height_cm", None)
+                    if w and h and w > 0 and h > 0:
+                        is_small_logo = h < 5.0
+                        is_wide_banner = w > 2 * h
+                        if (is_small_logo or is_wide_banner) and (
+                            page_num == 1 or not seen_body_heading
+                        ):
+                            is_logo = True
+
+                # Heurística 3: Primera imagen antes de cualquier heading de
+                # cuerpo. La primera imagen del documento que aparece antes
+                # de cualquier heading de cuerpo (is_cover_section == False)
+                # es casi con seguridad un logo de portada.
+                if not is_logo and first_body_image and not seen_body_heading:
+                    is_logo = True
+
+                # Marcar que ya procesamos la primera imagen del cuerpo
+                first_body_image = False
+
+                if is_logo:
+                    # Tratar como logo de portada: sin número de figura
+                    elem.is_cover_section = True
+                    elem.image_info.figure_number = 0
+                    continue  # No asignar número ni incrementar el contador
+
+                # ── Asignación de número de figura (figura real del cuerpo) ──
                 figure_counter += 1
                 elem.image_info.figure_number = figure_counter
 

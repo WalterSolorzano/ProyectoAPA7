@@ -212,7 +212,8 @@ export class PythonManager {
       this.pythonProcess = spawn(command, args, {
         env: {
           ...process.env,
-          APP_USERDATA: app.getPath('userData')
+          APP_USERDATA: app.getPath('userData'),
+          WORDAPA7_USE_SSL: 'true'
         },
         windowsHide: true,
       })

@@ -149,8 +149,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // (solo preview; nunca llega al export).
   const renderReviewedText = (elem: ElementModel, plain: string): React.ReactNode => {
     const para = reviewResult?.paragraphs.find((p) => p.element_id === elem.id);
-    type Mark = { start: number; end: number; kind: 'ai' | 'spelling' | 'comment' | 'citation'; severity?: string; title: string };
-    const marks: Mark[] = [];
+    type Mark = { start: number; end: number; kind: 'ai' | 'spelling' | 'comment' | 'citation'; severity?: string; title: string }[];
+    const marks: Mark = [];
     const lower = plain.toLowerCase();
 
     if (para && (para.findings?.length || para.spelling?.length)) {
@@ -236,10 +236,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     // "La OIT (2007)"), se renderizan dos <mark> y el texto se duplica.
     // Prioridad: comment > citation > spelling > ai. La marca ganadora absorbe
     // el rango extendido y la otra se descarta.
-    const KIND_PRIORITY: Record<Mark['kind'], number> = {
+    const KIND_PRIORITY: Record<Mark[0]['kind'], number> = {
       comment: 4, citation: 3, spelling: 2, ai: 1,
     };
-    const merged: Mark[] = [];
+    const merged: Mark = [];
     for (const m of marks) {
       const prev = merged[merged.length - 1];
       if (prev && m.start <= prev.end) {
@@ -340,7 +340,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     }
   };
 
-  // Zoom con Ctrl + Scroll
+  // Zoom con Ctrl + scroll. El handler SOLO llama preventDefault cuando Ctrl
+  // está presionado (para hacer zoom). Cuando no lo está, no hace nada y deja
+  // que el navegador haga scroll normal de la página. { passive: false } se
+  // mantiene porque necesitamos poder llamar preventDefault en el caso del zoom.
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
@@ -349,6 +352,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         const s = useDocStore.getState();
         s.setZoomLevel(s.zoomLevel + delta);
       }
+      // Cuando Ctrl NO está presionado: no hacemos nada, el navegador hace
+      // scroll normalmente. Esto evita bloquear el scroll de la página.
     };
 
     const el = wrapperRef.current;
@@ -509,6 +514,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       ref={wrapperRef}
       style={{
         flex: 1,
+        height: '100%',
         minHeight: 0,
         overflowY: 'auto',
         backgroundColor: 'var(--canvas-bg)',
@@ -517,7 +523,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         alignItems: 'center',
         padding: '24px 16px',
         position: 'relative',
-        scrollbarColor: 'rgba(255,255,255,0.15) transparent'
+        scrollbarColor: 'rgba(255,255,255,0.15) transparent',
+        overscrollBehavior: 'contain'
       }}
     >
       {/* Barra de Herramientas Flotante del Lienzo */}
@@ -548,22 +555,22 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           <button
             className={`btn btn-xs ${showAIHeatmap ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setShowAIHeatmap(!showAIHeatmap)}
-            title="Activar/Desactivar Mapa de Calor IA"
+            title="Detector de IA: resalta en colores los párrafos que podrían haber sido escritos por IA (rojo = alto riesgo, amarillo = medio riesgo). Clic para activar/desactivar."
             style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
           >
             <Flame size={12} color={showAIHeatmap ? 'var(--accent-danger)' : 'var(--text-muted)'} />
-            Mapa IA
+            Detector IA
           </button>
 
           <button
             type="button"
             className={`btn btn-xs ${showCitationMarks ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setShowCitationMarks(!showCitationMarks)}
-            title="Mostrar citas APA 7 detectadas en el texto (verde = correcta, ámbar = revisar)"
+            title="Resaltar citas APA: marca en verde las citas con formato correcto y en ámbar las que necesitan corrección. Clic para activar/desactivar."
             style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
           >
             <Edit3 size={12} color={showCitationMarks ? '#1a7f4e' : 'var(--text-muted)'} />
-            Citas APA
+            Resaltar Citas
           </button>
           
           {useDocStore.getState().citationAuditResult && (
@@ -611,10 +618,42 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           <span style={{
             fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px',
             display: 'flex', alignItems: 'center', gap: '3px',
-          }} title="Ctrl + Scroll para hacer zoom con la rueda">
+          }} title="Ctrl + scroll para hacer zoom con la rueda">
             <ZoomIn size={10} /> Ctrl+Scroll
           </span>
         </div>
+
+        {/* Leyenda de colores: aparece solo cuando Detector IA o Resaltar Citas están activos */}
+        {(showAIHeatmap || showCitationMarks) && (
+          <div style={{
+            width: '100%',
+            display: 'flex',
+            gap: '16px',
+            flexWrap: 'wrap',
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            paddingTop: '6px',
+            marginTop: '4px',
+            borderTop: '1px solid var(--border-subtle)',
+          }}>
+            {showAIHeatmap && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
+                Párrafo con alto riesgo de IA
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-warning)', marginLeft: '4px' }} />
+                Riesgo medio de IA
+              </span>
+            )}
+            {showCitationMarks && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} />
+                Cita APA con formato correcto
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-warning)', marginLeft: '4px' }} />
+                Cita que necesita corrección
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Barra contextual de imagen (estilo Word: aparece al seleccionar una figura) */}
@@ -717,7 +756,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           const coverHeaderTexts: ElementModel[] = [];
           const coverAuthorTexts: ElementModel[] = [];
           const coverFooterTexts: ElementModel[] = [];
-          const coverLogoImage = pageElements.find(e => (e.is_cover_section || e.type === 'portada_block') && e.image_info && (e.image_info.width_cm || 0) > 2.0);
+          // CHANGE 2: Detect ANY image on the cover page (not just those wider than 2cm)
+          const coverLogoImage = pageElements.find(e => (e.is_cover_section || e.type === 'portada_block') && e.image_info && e.image_info.relative_url);
 
           if (isCoverPage) {
             pageElements.forEach(e => {
@@ -790,20 +830,43 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 <span>{showPageNumber ? pageIdx + 1 : ''}</span>
               </div>
 
-              {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1 */}
+              {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1
+                  La cadena ternaria evalúa en orden:
+                  1. cover_mode === 'generate_uni_cover' && !use_original_cover → UNICoverPreview
+                  2. !use_original_cover → APACoverEditor
+                  3. coverHeaderTexts.length > 0 && all cover elements → Structured cover
+                     (renderiza logo, textos de encabezado, autores y pie — incluso
+                      cuando use_original_cover es true, para que el usuario VEA la
+                      portada original en lugar de un placeholder)
+                  4. else → Standard body rendering */}
               {isCoverPage && (portada.cover_mode === 'generate_uni_cover') && !portada.use_original_cover ? (
                 <UNICoverPreview />
               ) : isCoverPage && !portada.use_original_cover ? (
                 <APACoverEditor />
-              ) : isCoverPage && portada.use_original_cover && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: '780px' }}>
-                  <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '8px', maxWidth: '80%' }}>
-                    <p style={{ fontWeight: 'bold', color: '#475569', margin: 0, fontSize: '14pt' }}>Portada original conservada</p>
-                    <p style={{ fontSize: '11pt', color: '#64748b', marginTop: '12px' }}>El documento mantendrá la portada exacta del archivo original al generar el documento final. Para cambiarla, usa el botón "Cambiar portada" arriba.</p>
-                  </div>
-                </div>
               ) : isCoverPage && coverHeaderTexts.length > 0 && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: '780px' }}>
+                  
+                  {/* Badge informativo: la portada original del archivo se conserva
+                      en el documento final. Sutil y no intrusivo para que el usuario
+                      sepa que VE la portada original, no una versión regenerada. */}
+                  {portada.use_original_cover && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      alignSelf: 'center',
+                      fontSize: '9pt',
+                      color: '#64748b',
+                      backgroundColor: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '2px 10px',
+                      marginBottom: '10px',
+                      fontStyle: 'italic',
+                    }}>
+                      Portada original conservada
+                    </div>
+                  )}
                   
                   {/* Encabezado: Logo + Universidad/Título */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '4px' }}>
@@ -925,7 +988,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   {pageElements.map((elem) => {
                     const isSelected = selectedElementId === elem.id;
                     const isContextMenuOpen = contextMenuElemId === elem.id;
-                    const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0;
+                    const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0 && !elem.is_cover_section;
                     const captionPosition = elem.image_info?.caption_position ?? 'below';
                     const tableStyle = elem.type === 'table' ? (tableStyles[elem.id] || 'standard') : 'standard';
                     const imgAlign = (elem.type === 'image' && elem.image_info?.alignment) || 'center';
@@ -1353,7 +1416,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           </>
                         ) : null}
 
-                        {(elem.type === 'image' || elem.image_info) && (
+                        {/* CHANGE 2: Guard — los elementos de portada (is_cover_section)
+                            ya son renderizados por el bloque de portada estructurado arriba.
+                            No deben duplicarse como figura en el cuerpo. */}
+                        {(elem.type === 'image' || elem.image_info) && !elem.is_cover_section && (
                           <div style={{
                             margin: '16px auto', maxWidth: '95%',
                             border: '1px solid #cbd5e1', borderRadius: '8px',

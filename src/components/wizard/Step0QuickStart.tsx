@@ -49,6 +49,14 @@ const TEMPLATES = [
     icon: <GraduationCap size={22} color="var(--accent-primary)" />,
     iconBg: 'rgba(79, 124, 255, 0.12)',
   },
+  {
+    id: 'math_book',
+    name: 'Libro de Matemáticas',
+    description: 'Diseño tipo libro universitario: cajas de colores, fórmulas numeradas (PDF)',
+    icon: <BookOpen size={22} color="#E67E22" />,
+    iconBg: 'rgba(230, 126, 34, 0.12)',
+    thumbnail: '/assets/math_book_thumbnail.jpg'
+  },
 ];
 
 // Fallback mientras /api/profiles aún no respondió (el campo rules nunca se usa acá)
@@ -81,80 +89,74 @@ function timeAgo(dateStr: string): string {
   return `Hace ${days} días`;
 }
 
-/** Toast de descubrimiento: avisa 1 sola vez que hay una pestaña nueva en Word. */
-const DiscoveryToast: React.FC = () => {
-  const [visible, setVisible] = useState(false)
+const PromoSlider: React.FC = () => {
+  const [slide, setSlide] = useState(0)
+
+  const slides = [
+    {
+      title: '¡Nuevo Complemento para Word incluido!',
+      desc: 'Ahora podés formatear en vivo sin salir de Microsoft Word. Buscá "WordAPA7" en la cinta de opciones o instalá el archivo manifest.xml si aún no aparece.',
+      icon: <FileText size={48} color="var(--accent-primary)" style={{ opacity: 0.9 }} />,
+      color: 'var(--color-accent-soft)',
+      border: 'var(--accent-primary)'
+    },
+    {
+      title: 'Mejoras de Diseño y Validaciones',
+      desc: 'Interfaz rediseñada más limpia y rápida. Panel derecho unificado, visor jerárquico de títulos y nuevo cruce validador de citas fantasma y referencias huérfanas.',
+      icon: <Lightbulb size={48} color="#e85d04" style={{ opacity: 0.9 }} />,
+      color: 'rgba(232, 93, 4, 0.08)',
+      border: 'rgba(232, 93, 4, 0.6)'
+    }
+  ]
 
   useEffect(() => {
-    try {
-      if (!localStorage.getItem('wordapa7_addin_announced')) {
-        setVisible(true)
-        const timer = setTimeout(() => dismiss(), 8000)
-        return () => clearTimeout(timer)
-      }
-    } catch { /* ignore */ }
+    const t = setInterval(() => setSlide(s => (s + 1) % slides.length), 6000)
+    return () => clearInterval(t)
   }, [])
-
-  const dismiss = () => {
-    try { localStorage.setItem('wordapa7_addin_announced', 'true') } catch { /* ignore */ }
-    setVisible(false)
-  }
-
-  if (!visible) return null
 
   return (
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
-      maxWidth: '460px',
-      margin: '0 auto 20px',
-      padding: '14px 18px',
-      backgroundColor: 'var(--surface-elevated)',
-      border: '1px solid var(--border-subtle)',
-      borderLeft: '3px solid var(--accent-primary)',
-      borderRadius: 'var(--radius-md)',
+      gap: '20px',
+      maxWidth: '620px',
+      margin: '0 auto 30px',
+      padding: '24px 30px 36px',
+      backgroundColor: slides[slide].color,
+      border: `1px solid ${slides[slide].border}`,
+      borderRadius: 'var(--radius-xl)',
       boxShadow: 'var(--shadow-md)',
-      animation: 'wk-step-fade 0.3s ease-out',
+      transition: 'all 0.4s ease-out',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '32px',
-        height: '32px',
-        borderRadius: 'var(--radius-full)',
-        backgroundColor: 'var(--color-accent-soft)',
-        flexShrink: 0,
-      }}>
-        <Lightbulb size={16} color="var(--accent-primary)" />
+      <div style={{ flexShrink: 0, transition: 'all 0.3s ease', transform: 'scale(1)' }}>
+         {slides[slide].icon}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '2px' }}>
-          Te dejé una pestaña nueva en Word
+      <div style={{ flex: 1, minHeight: '66px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
+          {slides[slide].title}
         </div>
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          Buscá "WordAPA7" en la cinta de opciones de Word. Si no aparece, reiniciá Word.
+        <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5, fontWeight: 500 }}>
+          {slides[slide].desc}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={dismiss}
-        style={{
-          padding: '6px 14px',
-          borderRadius: 'var(--radius-sm)',
-          border: 'none',
-          backgroundColor: 'var(--accent-primary)',
-          color: '#fff',
-          fontSize: '12px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          flexShrink: 0,
-        }}
-      >
-        Entendido
-      </button>
+      
+      {/* Indicadores */}
+      <div style={{ position: 'absolute', bottom: 14, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 8 }}>
+        {slides.map((_, i) => (
+           <button 
+             key={i}
+             onClick={() => setSlide(i)}
+             style={{ 
+               width: 8, height: 8, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+               background: i === slide ? slides[slide].border : 'var(--text-muted)',
+               opacity: i === slide ? 1 : 0.4, transition: 'all 0.3s'
+             }} 
+             aria-label={`Ver slide ${i + 1}`}
+           />
+        ))}
+      </div>
     </div>
   )
 }
@@ -399,8 +401,8 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '820px', margin: '0 auto' }}>
-            {/* Toast de descubrimiento del add-in (1 sola vez) */}
-            <DiscoveryToast />
+            {/* Promo Slider */}
+            <PromoSlider />
 
             {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
@@ -590,13 +592,20 @@ export const Step0QuickStart: React.FC = () => {
                       (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
                     }}
                   >
-                    {/* Icono con fondo de color sutil */}
-                    <div style={{
-                      width: '40px', height: '40px', borderRadius: 'var(--radius-md)', flexShrink: 0,
-                      background: tpl.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      {tpl.icon}
-                    </div>
+                    {tpl.thumbnail ? (
+                        <div style={{
+                          width: '100%', height: '120px', borderRadius: 'var(--radius-md)',
+                          backgroundImage: `url(${tpl.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'top',
+                          border: '1px solid var(--border-subtle)', marginBottom: '4px'
+                        }} />
+                      ) : (
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                          background: tpl.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {tpl.icon}
+                        </div>
+                      )}
                     {/* Nombre + descripción */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
@@ -607,7 +616,7 @@ export const Step0QuickStart: React.FC = () => {
                       </div>
                     </div>
                     {/* Indicador de descarga */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: 'auto' }}>
                       <Download size={13} />
                       Descargar .docx
                     </div>

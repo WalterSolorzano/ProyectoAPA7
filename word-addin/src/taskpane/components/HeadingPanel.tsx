@@ -12,8 +12,8 @@
  *      Nivel 5: Sangría, negrita + cursiva, en línea con texto
  */
 
-import React, { useState } from 'react'
-import { insertHeadingAPA, HEADING_CONFIGS } from '../office/wordHelper'
+import React, { useState, useEffect } from 'react'
+import { insertHeadingAPA, HEADING_CONFIGS, getDocumentHeadings, navigateToParagraph, type HeadingItem } from '../office/wordHelper'
 
 const HeadingIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -48,6 +48,24 @@ export function HeadingPanel({ showToast }: Props) {
   const [text, setText] = useState('')
   const [level, setLevel] = useState<HeadingLevel>(1)
   const [loading, setLoading] = useState(false)
+  const [headings, setHeadings] = useState<HeadingItem[]>([])
+  const [loadingMap, setLoadingMap] = useState(false)
+
+  const loadHeadings = async () => {
+    setLoadingMap(true)
+    try {
+      const h = await getDocumentHeadings()
+      setHeadings(h)
+    } catch {
+      // Ignorar errores silentes
+    } finally {
+      setLoadingMap(false)
+    }
+  }
+
+  useEffect(() => {
+    loadHeadings()
+  }, [])
 
   const handleInsert = async () => {
     if (!text.trim()) {
@@ -59,6 +77,7 @@ export function HeadingPanel({ showToast }: Props) {
       await insertHeadingAPA(text.trim(), level)
       showToast(`Título nivel ${level} insertado`, 'success')
       setText('')
+      loadHeadings()
     } catch (err: any) {
       showToast(err.message || 'Error al insertar título', 'error')
     } finally {
@@ -66,8 +85,50 @@ export function HeadingPanel({ showToast }: Props) {
     }
   }
 
+  const handleNavigate = async (index: number) => {
+    try {
+      await navigateToParagraph(index)
+    } catch {
+      showToast('No se pudo navegar al título', 'error')
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {headings.length > 0 && (
+        <div className="card">
+          <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="field-label" style={{ marginBottom: 0 }}>Estructura del documento</div>
+            <button className="btn btn--ghost" onClick={loadHeadings} disabled={loadingMap} style={{ padding: '2px 6px', fontSize: 11 }}>
+              ↻ Actualizar
+            </button>
+          </div>
+          <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto' }}>
+            {loadingMap ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Cargando estructura...</div> : (
+               headings.map(h => (
+                 <div
+                   key={h.index}
+                   onClick={() => handleNavigate(h.index)}
+                   style={{
+                     fontSize: 12,
+                     color: 'var(--text-secondary)',
+                     cursor: 'pointer',
+                     paddingLeft: `${(h.level - 1) * 12}px`,
+                     whiteSpace: 'nowrap',
+                     overflow: 'hidden',
+                     textOverflow: 'ellipsis'
+                   }}
+                   title={h.text}
+                 >
+                   <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginRight: 4 }}>H{h.level}</span>
+                   {h.text}
+                 </div>
+               ))
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div style={{ padding: '10px 12px' }}>
           <div className="field-label">Texto del título</div>
@@ -153,13 +214,13 @@ export function HeadingPanel({ showToast }: Props) {
             <span className="spinner" /> Insertando...
           </>
         ) : (
-          <><HeadingIcon /> Insertar Titulo APA 7</>
+          <><HeadingIcon /> Insertar Título APA 7</>
         )}
       </button>
 
       <div className="tip-box">
         <span className="tip-box__icon"><BulbIcon /></span>
-        <span className="tip-box__text">5 niveles segun la jerarquia. Elegi segun cuan profundo sea tu trabajo.</span>
+        <span className="tip-box__text">5 niveles según la jerarquía. Elegí según cuán profundo sea tu trabajo.</span>
       </div>
     </div>
   )

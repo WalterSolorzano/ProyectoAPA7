@@ -35,7 +35,7 @@ Office.onReady((info) => {
 
   // Grupo 3: Referencias
   Office.actions.associate('openReferences', openReferencesPanel)
-  Office.actions.associate('buildBibliography', buildBibliography)
+  Office.actions.associate('openBibliography', buildBibliography)
   Office.actions.associate('openCoverPage', openCoverPagePanel)
 
   // Grupo 4: Herramientas

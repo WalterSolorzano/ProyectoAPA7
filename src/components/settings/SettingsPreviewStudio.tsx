@@ -1,27 +1,35 @@
-/* WordAPA7 — Estudio de Ajustes con Previsualizador en vivo
+﻿/* WordAPA7 — Estudio de Ajustes con Previsualizador en vivo
  * Panel de controles (izquierda) + vista previa APA 7 (derecha).
  * Permite ajustar tipografía, interlineado, títulos (enumerados/bold/itálica),
  * imágenes (alineación/estilo), índice, listas y guardar plantillas de reglas y portada.
+ *
+ * Cada sección es colapsable (acordeón) con una descripción explicativa.
+ * Incluye una pestaña "Complemento Word" para importar el add-in de Office
+ * directamente en Microsoft Word vía el endpoint /api/addin/registry-sideload.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { syncAllProviderKeys } from '../../api/backend';
+import { getApiBaseAsync } from '../../api/http';
 import { isTelemetryEnabled, setTelemetryEnabled } from '../../telemetry/client';
 import { Card, Badge, InputField } from '../ui/wordapa7';
 import { UpdateCard } from '../shared/UpdateCard';
 import {
-  Type, AlignLeft, StretchHorizontal, Heading1, Image as ImageIcon,
-  ListOrdered, Save, X, BookOpen, FileText, GalleryHorizontalEnd, ListTree, ArrowRight, Cpu, ShieldCheck, Download,
+  Type, StretchHorizontal, Heading1, Image as ImageIcon,
+  Save, X, BookOpen, FileText, GalleryHorizontalEnd, ListTree, ArrowRight,
+  Cpu, ShieldCheck, Download,
+  ChevronDown, ChevronRight, Puzzle, CheckCircle2, AlertCircle, Loader2,
 } from 'lucide-react';
 
-type StudioTab = 'format' | 'ai' | 'privacy' | 'about';
+type StudioTab = 'format' | 'ai' | 'privacy' | 'about' | 'addin';
 
 const STUDIO_TABS: { id: StudioTab; label: string; icon: React.ReactNode }[] = [
   { id: 'format', label: 'Formato', icon: <Type size={13} /> },
   { id: 'ai', label: 'IA y conexión', icon: <Cpu size={13} /> },
   { id: 'privacy', label: 'Privacidad', icon: <ShieldCheck size={13} /> },
   { id: 'about', label: 'Actualización', icon: <Download size={13} /> },
+  { id: 'addin', label: 'Complemento', icon: <Puzzle size={13} /> },
 ];
 
 const FONT_OPTIONS = [
@@ -49,9 +57,17 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
   const { rules, setRules, saveRuleProfile, savePortadaProfile, portada, setPortada, portadaProfiles } = useDocStore();
   const settingsStudioTab = useDocStore((s) => s.settingsStudioTab);
   const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
-  const tab: StudioTab = settingsStudioTab || 'format';
+  const tab: StudioTab = (settingsStudioTab as StudioTab) || 'format';
   const [profileName, setProfileName] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
+
+  /* ── Estado de secciones colapsables (acordeón) ──
+   * Todas empiezan expandidas (collapsed = false por defecto). */
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (title: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   // Sincroniza las claves de IA guardadas con el backend al abrir el panel
   useEffect(() => {
@@ -80,7 +96,8 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
     }}>
       {/* ── CONTROLES (izquierda) ── */}
       <div style={{
-        width: '400px', flexShrink: 0, backgroundColor: 'var(--sidebar-bg)',
+        width: '520px', flexShrink: 0, maxWidth: '70%', minWidth: '300px',
+        backgroundColor: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
@@ -103,13 +120,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           )}
         </div>
 
-        {/* ── Pestañas: Formato / IA / Privacidad / Actualización ── */}
+        {/* ── Pestañas: Formato / IA / Privacidad / Actualización / Complemento Word ── */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
           {STUDIO_TABS.map((t) => (
             <button
               key={t.id}
               type="button"
-              onClick={() => setSettingsStudioOpen(true, t.id)}
+              onClick={() => setSettingsStudioOpen(true, t.id as any)}
               aria-pressed={tab === t.id}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
@@ -156,7 +173,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Card>
 
           {/* Tipografía */}
-          <Section icon={<Type size={14} />} title="Tipografía">
+          <Section
+            icon={<Type size={14} />}
+            title="Tipografía"
+            explanation="APA 7 requiere Times New Roman 12pt por defecto. Calibri y Arial son alternativas aceptadas con tamaño 11pt."
+            collapsed={!!collapsedSections['Tipografía']}
+            onToggle={() => toggleSection('Tipografía')}
+          >
             <Field label="Fuente">
               <select className="form-select" value={rules.font_family}
                 onChange={(e) => {
@@ -175,7 +198,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Section>
 
           {/* Párrafo */}
-          <Section icon={<StretchHorizontal size={14} />} title="Párrafo">
+          <Section
+            icon={<StretchHorizontal size={14} />}
+            title="Párrafo"
+            explanation="APA 7 usa interlineado doble (2.0), alineación a la izquierda y sangría de 1.27cm en la primera línea de cada párrafo."
+            collapsed={!!collapsedSections['Párrafo']}
+            onToggle={() => toggleSection('Párrafo')}
+          >
             <Field label="Interlineado">
               <select className="form-select" value={rules.line_spacing}
                 onChange={(e) => setRules({ line_spacing: parseFloat(e.target.value) })}>
@@ -200,7 +229,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Section>
 
           {/* Títulos */}
-          <Section icon={<Heading1 size={14} />} title="Títulos (niveles APA)">
+          <Section
+            icon={<Heading1 size={14} />}
+            title="Títulos (niveles APA)"
+            explanation="APA 7 define 5 niveles de títulos con combinaciones específicas de negrita, itálica y alineación. Aquí configuras los 3 principales."
+            collapsed={!!collapsedSections['Títulos (niveles APA)']}
+            onToggle={() => toggleSection('Títulos (niveles APA)')}
+          >
             {[1, 2, 3].map(lvl => {
               const cfg = hl(lvl);
               return (
@@ -232,7 +267,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Section>
 
           {/* Imágenes */}
-          <Section icon={<ImageIcon size={14} />} title="Imágenes">
+          <Section
+            icon={<ImageIcon size={14} />}
+            title="Imágenes"
+            explanation="Las figuras en APA 7 van centradas con número y leyenda en itálica debajo. El estilo 'revista científica' añade un marco."
+            collapsed={!!collapsedSections['Imágenes']}
+            onToggle={() => toggleSection('Imágenes')}
+          >
             <Field label="Alineación">
               <select className="form-select" value={rules.image_alignment || 'center'}
                 onChange={(e) => setRules({ image_alignment: e.target.value as 'left' | 'center' | 'right' })}>
@@ -251,7 +292,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Section>
 
           {/* Índice */}
-          <Section icon={<ListTree size={14} />} title="Índice">
+          <Section
+            icon={<ListTree size={14} />}
+            title="Índice"
+            explanation="Word genera el índice automáticamente (Tabla de Contenidos nativa) con los números de página reales al exportar."
+            collapsed={!!collapsedSections['Índice']}
+            onToggle={() => toggleSection('Índice')}
+          >
             <Field label="Diseño">
               <select className="form-select" value={rules.toc_style || 'apa'}
                 onChange={(e) => setRules({ toc_style: e.target.value as 'apa' | 'dotted' | 'plain' })}>
@@ -263,7 +310,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </Section>
 
           {/* Portada */}
-          <Section icon={<BookOpen size={14} />} title="Portada">
+          <Section
+            icon={<BookOpen size={14} />}
+            title="Portada"
+            explanation="La portada APA 7 incluye título, autor, institución, curso, docente y fecha. El formato profesional añade 'running head'."
+            collapsed={!!collapsedSections['Portada']}
+            onToggle={() => toggleSection('Portada')}
+          >
             <Field label="Formato">
               <select className="form-select" value={portada.apa_format}
                 onChange={(e) => setPortada({ apa_format: e.target.value as 'student' | 'professional' })}>
@@ -275,7 +328,13 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           </>)}
 
           {tab === 'ai' && (<>
-          <Section icon={<Cpu size={14} />} title="Proveedores IA">
+          <Section
+            icon={<Cpu size={14} />}
+            title="Proveedores IA"
+            explanation="Configura las claves de API de los proveedores de IA. Se sincronizan automáticamente con el motor al escribir."
+            collapsed={!!collapsedSections['Proveedores IA']}
+            onToggle={() => toggleSection('Proveedores IA')}
+          >
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: 1.5 }}>
               Escribí tu clave y se guarda y sincroniza automáticamente con el motor (no hace falta presionar "Guardar"). Queda activa al instante para clasificación, revisor e IA.
             </p>
@@ -300,6 +359,11 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           {tab === 'about' && (<>
           {/* Actualización (menú de update) */}
           <UpdateCard compact />
+          </>)}
+
+          {tab === 'addin' && (<>
+          {/* Complemento de Word */}
+          <AddinStatusCard />
           </>)}
 
         </div>
@@ -332,7 +396,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
       </div>
 
       {/* ── PREVISUALIZACIÓN (derecha) ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '28px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '28px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
         <PreviewPaper />
       </div>
     </div>
@@ -341,15 +405,74 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
 
 /* ── Sub-componentes ──────────────────────────────────────────────────────── */
 
-const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
-  <Card style={{ padding: '12px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-      <span style={{ color: 'var(--accent-secondary)' }}>{icon}</span>
-      <strong style={{ fontSize: '12px', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{title}</strong>
-    </div>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>{children}</div>
-  </Card>
-);
+/* Sección colapsable (estilo acordeón) con cabecera clicable y descripción opcional.
+ *
+ * Props:
+ *  - icon:        Icono que aparece a la izquierda del título.
+ *  - title:       Título de la sección (se muestra en mayúsculas).
+ *  - explanation: Texto explicativo en itálica que aparece bajo el título.
+ *  - collapsed:   Estado controlado (true = colapsado). Si no se pasa, usa estado interno.
+ *  - onToggle:    Callback al hacer clic en la cabecera (modo controlado).
+ */
+const Section: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  explanation?: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}> = ({ icon, title, explanation, collapsed, onToggle, children }) => {
+  // Estado interno para secciones no controladas (ej. TelemetryToggle)
+  const [internalExpanded, setInternalExpanded] = useState(true);
+  const isControlled = collapsed !== undefined;
+  const isExpanded = isControlled ? !collapsed : internalExpanded;
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      setInternalExpanded((prev) => !prev);
+    }
+  };
+
+  return (
+    <Card style={{ padding: '0', overflow: 'hidden' }}>
+      {/* Cabecera clicable */}
+      <div
+        onClick={handleToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '12px',
+          cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        <span style={{ color: 'var(--accent-secondary)', display: 'flex', alignItems: 'center' }}>{icon}</span>
+        <strong style={{
+          flex: 1, fontSize: '12px', color: 'var(--text-main)',
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+        }}>{title}</strong>
+        {/* Chevron que rota: ChevronDown (expandido) / ChevronRight (colapsado) */}
+        {isExpanded
+          ? <ChevronDown size={14} color="var(--text-secondary)" />
+          : <ChevronRight size={14} color="var(--text-secondary)" />}
+      </div>
+
+      {/* Contenido colapsable */}
+      {isExpanded && (
+        <div style={{ padding: '0 12px 12px' }}>
+          {explanation && (
+            <p style={{
+              fontSize: '10px', color: 'var(--text-tertiary)', margin: '0 0 10px',
+              lineHeight: 1.5, fontStyle: 'italic',
+            }}>
+              ¿Por qué? {explanation}
+            </p>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>{children}</div>
+        </div>
+      )}
+    </Card>
+  );
+};
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -358,6 +481,180 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
   </div>
 );
 
+/* ── Tarjeta del complemento de Word ───────────────────────────────────────
+ *
+ * Permite importar (sideload) el complemento de WordAPA7 en Microsoft Word
+ * llamando al endpoint GET /api/addin/registry-sideload del backend Python.
+ *
+ * Solo funciona en Electron (Windows). Si no se detecta electronAPI.getBackendPort,
+ * se muestra "No disponible en esta plataforma".
+ */
+const AddinStatusCard: React.FC = () => {
+  type AddinState = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
+  const [status, setStatus] = useState<AddinState>('idle');
+  const [detailMsg, setDetailMsg] = useState<string | null>(null);
+
+  // Comprueba si estamos en Electron (Windows). Si electronAPI.getBackendPort
+  // no existe, no estamos en la app de escritorio y el complemento no funciona.
+  const isElectron = !!(window as any).electronAPI?.getBackendPort;
+
+  useEffect(() => {
+    if (!isElectron) {
+      setStatus('unavailable');
+    }
+  }, [isElectron]);
+
+  const handleImportAddin = async () => {
+    if (!isElectron) {
+      setStatus('unavailable');
+      return;
+    }
+    setStatus('loading');
+    setDetailMsg(null);
+    try {
+      const apiBase = await getApiBaseAsync();
+      const res = await fetch(`${apiBase}/addin/registry-sideload`);
+      const data = await res.json();
+      if (res.ok) {
+        setStatus('success');
+        setDetailMsg(data.message || data.detail || null);
+        useDocStore.getState().showToast('Complemento registrado. Reinicia Word para verlo.', 'success');
+      } else {
+        setStatus('error');
+        setDetailMsg(data.message || data.error || data.detail || null);
+      }
+    } catch (err: any) {
+      setStatus('error');
+      setDetailMsg(err.message || 'Error de conexión con el backend.');
+    }
+  };
+
+  // Configuración visual según el estado
+  const statusConfig: Record<AddinState, { icon: React.ReactNode; color: string; label: string } | null> = {
+    idle: null,
+    loading: {
+      icon: <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />,
+      color: 'var(--accent-warning, #f59e0b)',
+      label: 'Importando…',
+    },
+    success: {
+      icon: <CheckCircle2 size={15} />,
+      color: 'var(--accent-success, #22c55e)',
+      label: '✓ Complemento registrado',
+    },
+    error: {
+      icon: <AlertCircle size={15} />,
+      color: 'var(--accent-danger, #ef4444)',
+      label: '⚠ No se pudo registrar',
+    },
+    unavailable: {
+      icon: <AlertCircle size={15} />,
+      color: 'var(--text-muted, #71717a)',
+      label: 'No disponible en esta plataforma',
+    },
+  };
+
+  const cfg = statusConfig[status];
+
+  return (
+    <>
+      <Card style={{ padding: '0', overflow: 'hidden' }}>
+        {/* Cabecera con icono Puzzle y título */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 14px 0',
+        }}>
+          <span style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '32px', height: '32px', borderRadius: 'var(--radius-md, 8px)',
+            background: 'var(--color-accent-soft, rgba(79,124,255,0.12))',
+            color: 'var(--accent-primary)',
+          }}>
+            <Puzzle size={16} />
+          </span>
+          <div>
+            <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Complemento de Word</strong>
+            <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', margin: '2px 0 0' }}>
+              Integración con Microsoft Word
+            </p>
+          </div>
+        </div>
+
+        <div style={{ padding: '12px 14px 14px' }}>
+          {/* Descripción */}
+          <p style={{
+            fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5,
+          }}>
+            El complemento de WordAPA7 se integra directamente en Microsoft Word. Si no se cargó
+            automáticamente al iniciar la app, puedes importarlo manualmente aquí.
+          </p>
+
+          {/* Indicador de estado (solo si hay un estado relevante) */}
+          {cfg && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 12px', marginBottom: '12px',
+              borderRadius: 'var(--radius-sm, 6px)',
+              background: status === 'success'
+                ? 'rgba(34,197,94,0.10)'
+                : status === 'error'
+                  ? 'rgba(239,68,68,0.10)'
+                  : status === 'unavailable'
+                    ? 'var(--surface-subtle, rgba(255,255,255,0.04))'
+                    : 'var(--surface-subtle, rgba(255,255,255,0.04))',
+            }}>
+              <span style={{ color: cfg.color, display: 'flex', alignItems: 'center' }}>{cfg.icon}</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
+            </div>
+          )}
+
+          {/* Mensaje de detalle (respuesta del backend) */}
+          {detailMsg && (
+            <p style={{
+              fontSize: '10px', color: status === 'error' ? 'var(--accent-danger, #ef4444)' : 'var(--text-secondary)',
+              margin: '0 0 12px', lineHeight: 1.5, fontStyle: 'italic',
+            }}>
+              {detailMsg}
+            </p>
+          )}
+
+          {/* Botón de importación */}
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleImportAddin}
+            disabled={status === 'loading' || status === 'unavailable'}
+            style={{
+              width: '100%', padding: '11px 14px', fontSize: '12px', fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              background: 'var(--accent-primary)', color: '#fff', border: 'none',
+              borderRadius: '10px', cursor: status === 'loading' || status === 'unavailable' ? 'not-allowed' : 'pointer',
+              opacity: status === 'loading' || status === 'unavailable' ? 0.6 : 1,
+            }}
+          >
+            {status === 'loading' ? (
+              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <Puzzle size={14} />
+            )}
+            Importar complemento en Word
+          </button>
+
+          {/* Texto de ayuda */}
+          <p style={{
+            fontSize: '10px', color: 'var(--text-tertiary)', margin: '12px 0 0', lineHeight: 1.5,
+          }}>
+            Después de importar, reinicia Microsoft Word para ver el complemento en la pestaña
+            'Insertar → Mis complementos'.
+          </p>
+        </div>
+      </Card>
+
+      {/* Animación spin para el icono Loader2 */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </>
+  );
+};
+
 /* Toggle de opt-in para telemetría anónima de errores */
 const TelemetryToggle: React.FC = () => {
   const [enabled, setEnabled] = useState(() => {
@@ -365,9 +662,13 @@ const TelemetryToggle: React.FC = () => {
   });
 
   return (
-    <Section icon={<Cpu size={14} />} title="Telemetría">
+    <Section
+      icon={<Cpu size={14} />}
+      title="Telemetría"
+      explanation="Reportes de error anónimos. Nunca se envía contenido de documentos ni datos personales."
+    >
       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 6px', lineHeight: 1.5 }}>
-        Ayuda a mejorar la app enviando reportes de error anonimos. Nunca se envia contenido de documentos, nombres, ni datos personales. Solo metadata tecnica (tipo de error, version, conteo de elementos).
+        Ayuda a mejorar la app enviando reportes de error anónimos. Nunca se envía contenido de documentos, nombres, ni datos personales. Solo metadata técnica (tipo de error, versión, conteo de elementos).
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button type="button" onClick={() => { const n = !enabled; setEnabled(n); setTelemetryEnabled(n); }}
@@ -476,13 +777,12 @@ const PreviewPaper: React.FC = () => {
     const cfg = rules.heading_levels?.[lvl] ?? { bold: true, italic: false, alignment: 'left' };
     const num = rules[`heading_numbering_style_lvl${lvl}` as keyof typeof rules];
     const prefix = num === 'decimal' ? `${lvl}. ` : num === 'roman' ? (lvl === 1 ? 'I. ' : lvl === 2 ? 'II. ' : 'III. ') : '';
-    const label = `${prefix}${lvl === 1 ? 'Introducción' : lvl === 2 ? 'Contexto teórico' : 'Definiciones'}`;
     return {
       fontFamily: font, fontSize: `${size}pt`, lineHeight: spacing,
       fontWeight: cfg.bold ? 700 : 400, fontStyle: cfg.italic ? 'italic' : 'normal',
       textAlign: (cfg.alignment as React.CSSProperties['textAlign']) ?? 'left',
       margin: `${spacing * 0.5}em 0 0`,
-    } as React.CSSProperties & { ['--label']?: string };
+    } as React.CSSProperties;
   };
 
   const imgAlign = rules.image_alignment || 'center';

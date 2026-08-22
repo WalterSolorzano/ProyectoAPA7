@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
@@ -9,6 +9,38 @@ import { RecentProjects } from './recent-projects'
 import { log } from './logger'
 
 let mainWindow: BrowserWindow | null = null
+
+// ── Modo oculto (autoinicio en segundo plano, sin ventana) ──────────────────
+// Permite que el Word Add-in funcione sin que el usuario abra la app: el backend
+// arranca en background y queda en la bandeja del sistema. Así "instalar y ya
+// está en Word" sin mostrar ventana ni consumir RAM de renderer.
+const isHiddenLaunch = process.argv.includes('--hidden')
+let tray: Tray | null = null
+
+function startBackend() {
+  PythonManager.start().catch(err => console.error('Failed to start python backend:', err))
+}
+
+function createSystray() {
+  if (tray) return
+  try {
+    const iconPath = path.join(process.resourcesPath || __dirname, 'build', 'icon.ico')
+    tray = new Tray(iconPath)
+    tray.setToolTip('WordAPA7 (segundo plano)')
+    const ctxMenu = Menu.buildFromTemplate([
+      {
+        label: 'Mostrar WordAPA7',
+        click: () => { if (!mainWindow || mainWindow.isDestroyed()) createWindow() },
+      },
+      { type: 'separator' },
+      { label: 'Salir', click: () => { app.quit() } },
+    ])
+    tray.setContextMenu(ctxMenu)
+    tray.on('double-click', () => { if (!mainWindow || mainWindow.isDestroyed()) createWindow() })
+  } catch (err) {
+    log('warn', 'systray', 'No se pudo crear la bandeja', { error: String(err) })
+  }
+}
 
 // ── Context Menu: detección de archivo .docx pasado como argumento ──────────
 // Cuando el usuario hace click derecho → "Convertir a APA 7" sobre un .docx,
@@ -141,16 +173,18 @@ const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', (_event, argv, _cwd) => {
-    if (mainWindow) {
+    app.on('second-instance', (_event, argv, _cwd) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow()
+        return
+      }
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
-    }
-    const filePath = findDocxArg(argv)
-    if (filePath) {
-      setTimeout(() => sendFileToRenderer(filePath), 300)
-    }
-  })
+      const filePath = findDocxArg(argv)
+      if (filePath) {
+        setTimeout(() => sendFileToRenderer(filePath), 300)
+      }
+    })
 
   app.whenReady().then(() => {
     protocol.registerFileProtocol('app', (request, callback) => {
@@ -254,7 +288,21 @@ if (!gotTheLock) {
       autoUpdater.quitAndInstall()
     })
 
-    createWindow()
+    // ── Autoinicio en segundo plano (sin ventana) ─────────────────────────────
+    // Al iniciar sesión Windows lanza la app con --hidden: el backend corre en
+    // background y queda en la bandeja, para que el Word Add-in funcione sin que
+    // el usuario abra la ventana. Si abre la app manualmente, se muestra la UI.
+    try {
+      app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+    } catch { /* best-effort */ }
+
+    if (isHiddenLaunch) {
+      log('info', 'startup', 'Modo oculto: backend en segundo plano (sin ventana)')
+      startBackend()
+      createSystray()
+    } else {
+      createWindow()
+    }
 
     // Chequeo inicial al arrancar solo en producción empaquetada
     const runCheck = () => {
@@ -280,6 +328,7 @@ if (!gotTheLock) {
   })
 
   app.on('quit', () => {
+    if (tray) { tray.destroy(); tray = null }
     PythonManager.stop()
   })
 }

@@ -37,17 +37,6 @@
 const DEFAULT_PORT = 8742
 
 /**
- * Verifica si un origen (URL) es localhost o 127.0.0.1.
- */
-function isLocalOrigin(origin: string): boolean {
-  return (
-    origin.includes('://localhost') ||
-    origin.includes('://127.0.0.1') ||
-    origin.includes('://[::1]')
-  )
-}
-
-/**
  * Descubre la URL base del backend de manera dinámica.
  *
  * - Si el Add-in se carga desde una URL HTTPS pública (producción), el
@@ -67,67 +56,75 @@ function ensureBaseUrl(): Promise<string> {
 
   const origin = window.location.origin
 
-  // 1. Si el origin es localhost/127.0.0.1 y no es Vite en :3000, el Add-in lo sirve el propio backend.
-  if (isLocalOrigin(origin) && !origin.includes(':3000')) {
-    BASE_URL = origin
-    discoveryPromise = Promise.resolve(origin)
-    return discoveryPromise
-  }
-
-  // 2. Dev mode (Vite en :3000)
+  // Dev mode (Vite en :3000): usa el puerto del backend de Electron.
   if (origin.includes(':3000')) {
     const electronPort = (window as any)?.electronAPI?.getBackendPort?.()
-    if (electronPort && typeof electronPort === 'number') {
-      const devUrl = `http://127.0.0.1:${electronPort}`
-      BASE_URL = devUrl
-      discoveryPromise = Promise.resolve(devUrl)
-      return discoveryPromise
-    }
-    const defaultDevUrl = `http://127.0.0.1:${DEFAULT_PORT}`
-    BASE_URL = defaultDevUrl
-    discoveryPromise = Promise.resolve(defaultDevUrl)
+    const devUrl =
+      electronPort && typeof electronPort === 'number'
+        ? `http://127.0.0.1:${electronPort}`
+        : `http://127.0.0.1:${DEFAULT_PORT}`
+    BASE_URL = devUrl
+    discoveryPromise = Promise.resolve(devUrl)
     return discoveryPromise
   }
 
-  // 3. Producción (Add-in en URL pública HTTPS): descubrir el puerto del backend local en 127.0.0.1.
-  // Edge/Chrome (WebView2 de Office) permiten peticiones HTTP plano a 127.0.0.1
-  // desde orígenes HTTPS al ser origen de loopback seguro.
+  // Producción: add-in servido por backend local (loopback) O desde URL pública HTTPS.
+  // Respaldo: backend LOCAL primero (estable/offline); si no responde, cae al
+  // backend en la NUBE leyendo ./config.json (apiUrl). "Si uno falla, el otro".
   discoveryPromise = (async () => {
-    const candidatePorts = [8742, 8743, 8744, 8745, 8746]
-    const probes = candidatePorts.map(async (port) => {
-      try {
-        const controller = new AbortController()
-        const id = setTimeout(() => controller.abort(), 800) // Timeout rápido de 800ms
-        const res = await fetch(`http://127.0.0.1:${port}/api/addin/health`, {
-          signal: controller.signal,
-        })
-        clearTimeout(id)
-        if (res.ok) {
-          const data = await res.json()
-          if (data.status === 'ok') {
-            return `http://127.0.0.1:${port}`
-          }
-        }
-      } catch (e) {
-        // Ignorar fallos de conexión a puertos apagados
-      }
-      throw new Error('Not responding')
-    })
+    const localUrl = await probeLocalBackend()
+    if (localUrl) {
+      console.log(`[Add-in] Backend local: ${localUrl}`)
+      BASE_URL = localUrl
+      return localUrl
+    }
 
     try {
-      // Retorna el primer puerto que responda correctamente
-      const resolvedUrl = await Promise.any(probes)
-      console.log(`[Add-in] Backend local descubierto en: ${resolvedUrl}`)
-      BASE_URL = resolvedUrl
-      return resolvedUrl
-    } catch (e) {
-      console.warn(`[Add-in] No se detectó backend local activo, usando puerto default.`)
-      BASE_URL = `http://127.0.0.1:8742`
-      return BASE_URL
-    }
+      const cfgRes = await fetch('./config.json', { cache: 'no-store' })
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json()
+        const cloud = cfg?.apiUrl?.toString().trim().replace(/\/$/, '')
+        if (cloud) {
+          try {
+            const hc = new AbortController()
+            const tid = setTimeout(() => hc.abort(), 2000)
+            const h = await fetch(`${cloud}/api/addin/health`, { signal: hc.signal })
+            clearTimeout(tid)
+            if (h.ok) {
+              console.log(`[Add-in] Backend en la nube (fallback): ${cloud}`)
+              BASE_URL = cloud
+              return cloud
+            }
+          } catch { /* cloud caído */ }
+        }
+      }
+    } catch { /* sin config.json */ }
+
+    console.warn(`[Add-in] Ni local ni nube responden; usando local por defecto.`)
+    BASE_URL = `http://127.0.0.1:8742`
+    return BASE_URL
   })()
 
   return discoveryPromise
+}
+
+// Escanea 127.0.0.1:8742..8746 en busca del backend local (loopback).
+function probeLocalBackend(): Promise<string | null> {
+  const candidatePorts = [8742, 8743, 8744, 8745, 8746]
+  const probes = candidatePorts.map(async (port) => {
+    try {
+      const controller = new AbortController()
+      const id = setTimeout(() => controller.abort(), 800)
+      const res = await fetch(`http://127.0.0.1:${port}/api/addin/health`, { signal: controller.signal })
+      clearTimeout(id)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.status === 'ok') return `http://127.0.0.1:${port}`
+      }
+    } catch { /* puerto apagado */ }
+    throw new Error('Not responding')
+  })
+  return Promise.any(probes).catch(() => null)
 }
 
 // Iniciar descubrimiento inmediatamente al cargar

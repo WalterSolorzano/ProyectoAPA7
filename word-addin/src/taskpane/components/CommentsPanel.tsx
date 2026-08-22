@@ -8,12 +8,14 @@
  * Es el "WhatsApp-style comments panel" que se mantiene del diseño original.
  */
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { AssistantEvent } from '../liveAssistant'
+import { addWordComment } from '../office/wordHelper'
 
 interface Props {
   events: AssistantEvent[]
   onClear: () => void
+  showToast?: (msg: string, type: 'success'|'error'|'info') => void
 }
 
 const TYPE_META: Record<string, { icon: string; tone: 'success' | 'info' | 'warning' | 'error' }> = {
@@ -34,8 +36,24 @@ function timeLabel(t: number): string {
   return `${hh}:${mm}`
 }
 
-export function CommentsPanel({ events, onClear }: Props) {
+export function CommentsPanel({ events, onClear, showToast }: Props) {
   const endRef = useRef<HTMLDivElement>(null)
+  const [commentText, setCommentText] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return
+    setLoading(true)
+    try {
+      await addWordComment(commentText)
+      setCommentText('')
+      showToast?.('Comentario insertado', 'success')
+    } catch (err: any) {
+      showToast?.(err.message || 'Error al insertar comentario', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -62,7 +80,7 @@ export function CommentsPanel({ events, onClear }: Props) {
         {events.length === 0 ? (
           <div className="chat__empty">
             <div className="chat__empty-icon">🦉</div>
-            <div className="chat__empty-title">Aún no hay comentarios</div>
+            <div className="chat__empty-title">Aún no hay mensajes</div>
             <div className="chat__empty-text">
               Activa el asistente en vivo y empezá a escribir. Cada cita que pongas,
               cada imagen que pegues y cada formato que apliques aparecerá acá como
@@ -88,6 +106,22 @@ export function CommentsPanel({ events, onClear }: Props) {
           })
         )}
         <div ref={endRef} />
+      </div>
+
+      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            className="field-input"
+            style={{ margin: 0, flex: 1 }}
+            value={commentText}
+            onChange={e => setCommentText(e.target.value)}
+            placeholder="Añadir comentario a la selección..."
+            onKeyDown={e => { if (e.key === 'Enter') handleAddComment() }}
+          />
+          <button className="btn btn--primary" onClick={handleAddComment} disabled={!commentText.trim() || loading}>
+             {loading ? <span className="spinner" /> : '💬'}
+          </button>
+        </div>
       </div>
     </div>
   )

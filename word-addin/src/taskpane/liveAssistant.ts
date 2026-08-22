@@ -80,6 +80,33 @@ const DEFAULT_OPTIONS: AssistantOptions = {
   autoDetectAI: false, // off por defecto: es más pesado que la detección local
 }
 
+/** Clave de persistencia de opciones en Office roamingSettings. */
+const RS_OPTIONS_KEY = 'wordapa7_assistant_options'
+
+/** Carga opciones persistidas (roamingSettings). Null si no hay/error. */
+function loadPersistedOptions(): Partial<AssistantOptions> | null {
+  try {
+    if (typeof Office === 'undefined' || !Office.context?.roamingSettings) return null
+    const raw = Office.context.roamingSettings.get(RS_OPTIONS_KEY)
+    if (!raw) return null
+    return (typeof raw === 'string' ? JSON.parse(raw) : raw) as Partial<AssistantOptions>
+  } catch {
+    return null
+  }
+}
+
+/** Guarda opciones en roamingSettings (best-effort, persiste entre sesiones). */
+function persistOptions(opts: AssistantOptions): void {
+  try {
+    if (typeof Office === 'undefined' || !Office.context?.roamingSettings) return
+    const rs = Office.context.roamingSettings
+    rs.set(RS_OPTIONS_KEY, JSON.stringify(opts))
+    rs.saveAsync(() => {})
+  } catch {
+    /* best-effort */
+  }
+}
+
 /** Umbral de score para considerar texto de ALTO riesgo de IA. */
 const AI_HIGH_THRESHOLD = 0.5
 /** Umbral de score para considerar texto de riesgo MEDIO de IA. */
@@ -404,9 +431,13 @@ export const liveAssistant = {
    */
   start(callbacks: AssistantCallbacks, options?: Partial<AssistantOptions>): void {
     _callbacks = callbacks
-    if (options) {
-      _options = { ..._options, ...options }
-    }
+
+    // Cargar opciones persistidas (roamingSettings) y mezclar con defaults/pasadas
+    const persisted = loadPersistedOptions()
+    _options = { ...DEFAULT_OPTIONS }
+    if (persisted) _options = { ..._options, ...persisted }
+    if (options) _options = { ..._options, ...options }
+    persistOptions(_options)
 
     if (_running) return
     _running = true
@@ -452,6 +483,7 @@ export const liveAssistant = {
   /** Actualiza opciones parciales en caliente. */
   setOptions(partial: Partial<AssistantOptions>): void {
     _options = { ..._options, ...partial }
+    persistOptions(_options)
   },
 
   /** Dispara un escaneo manual inmediato. */

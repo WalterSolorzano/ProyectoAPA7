@@ -1,8 +1,10 @@
 appId: com.wordapa7.app
 productName: WordAPA7
+disableSanityCheckAsar: true
 directories:
   output: dist-electron-builder
   buildResources: build
+electronDist: electron-dist
 files:
   - dist/**/*
   - dist-electron/**/*
@@ -17,12 +19,11 @@ extraResources:
       - "**/*"
   - from: word-addin/manifest.xml
     to: addin/manifest.xml
-compression: maximum
-electronLanguages:
-  - en-US
+compression: store
 win:
   target: nsis
   icon: build/icon.ico
+  signExecutable: false
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

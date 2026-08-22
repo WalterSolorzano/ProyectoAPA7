@@ -164,8 +164,8 @@ interface DocState {
   wizardStep: number;
   showFileMenu: boolean;
   settingsStudioOpen: boolean;
-  settingsStudioTab: 'format' | 'ai' | 'privacy' | 'about';
-  setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about') => void;
+  settingsStudioTab: 'format' | 'ai' | 'privacy' | 'about' | 'addin';
+  setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about' | 'addin') => void;
   isDownloadModalOpen: boolean;
   setDownloadModalOpen: (open: boolean) => void;
   /** True si el modal de descarga se abrió desde Modo Rápido (bloqueadores duros deshabilitan Descargar) */
@@ -445,7 +445,7 @@ export const useDocStore = create<DocState>()(
   showFileMenu: false,
   settingsStudioOpen: false,
   settingsStudioTab: 'format',
-  setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about') => set({ settingsStudioOpen: open, settingsStudioTab: tab || (open ? 'format' : 'format') }),
+  setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about' | 'addin') => set({ settingsStudioOpen: open, settingsStudioTab: tab || (open ? 'format' : 'format') }),
   isDownloadModalOpen: false,
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

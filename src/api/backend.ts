@@ -841,3 +841,34 @@ export async function auditDocumentStructure(
   }
   return res.json();
 }
+
+// ── WORD ADD-IN API ──────────────────────────────────────────────────────
+
+/** Resultado del sideload del complemento de Word en el registro de Windows. */
+export interface AddinSideloadResult {
+  status: 'ok' | 'not_supported' | 'error';
+  hint?: string;
+  manifest_url?: string;
+  registry_key?: string;
+  message?: string;
+}
+
+/**
+ * Registra (o actualiza) el complemento de WordAPA7 en el registro de Windows
+ * (HKCU\Software\Microsoft\Office\16.0\Wef\Developer\WordAPA7) para que Word lo
+ * detecte automáticamente en la lista de complementos.
+ *
+ * Es idempotente: llamarlo múltiples veces actualiza la URL sin duplicar.
+ * No requiere permisos de administrador (usa HKCU).
+ *
+ * Llama al endpoint GET /api/addin/registry-sideload del backend Python.
+ */
+export async function sideloadWordAddin(): Promise<AddinSideloadResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/addin/registry-sideload`, {
+    method: 'GET',
+  });
+  if (!res.ok) {
+    throw new Error('No se pudo contactar al motor para registrar el complemento');
+  }
+  return res.json();
+}

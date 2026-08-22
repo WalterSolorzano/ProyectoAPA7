@@ -19,6 +19,7 @@ interface Props {
   onToggle: () => void
   onOptionChange: (key: keyof AssistantOptions, value: boolean | number) => void
   onScanNow: () => void
+  onFormatAll?: () => void
 }
 
 const SearchIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
@@ -26,6 +27,14 @@ const SearchIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="7" />
     <path d="M21 21l-4.35-4.35" />
+  </svg>
+)
+
+const SettingsIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
   </svg>
 )
 
@@ -55,7 +64,7 @@ function Toggle({ checked, onChange, label, desc }: {
 }
 
 export function LiveAssistantPanel({
-  running, options, stats, citationsCount, onToggle, onOptionChange, onScanNow,
+  running, options, stats, citationsCount, onToggle, onOptionChange, onScanNow, onFormatAll
 }: Props) {
   return (
     <div className="live">
@@ -118,10 +127,17 @@ export function LiveAssistantPanel({
         </div>
       </div>
 
-      {/* Manual scan */}
-      <button className="btn btn--primary btn--full" onClick={onScanNow} data-tour="audit-button">
-        <SearchIcon /> Auditar documento ahora
-      </button>
+      {/* Manual Actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button className="btn btn--primary btn--full" onClick={onScanNow} data-tour="audit-button">
+          <SearchIcon /> Auditar documento ahora
+        </button>
+        {onFormatAll && (
+          <button className="btn btn--secondary btn--full" onClick={onFormatAll}>
+            <SettingsIcon /> Formatear todo el documento a APA 7
+          </button>
+        )}
+      </div>
 
       <div className="live__hint">
         El asistente viene incluido con el instalador de WordAPA7 y se conecta

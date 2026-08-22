@@ -1,6 +1,10 @@
 /* WordAPA7 — Túnel de Exportación & Cabina de Control (WCAG AAA & Behavioral UX)
    Arquitectura de 2 Columnas: Panel Izquierdo (Cabina de Control) + Panel Derecho (Lienzo Sagrado)
-   Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark. */
+   Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark.
+
+   Vista de solo lectura: se eliminaron los controles de edición (botones "Editar",
+   enlace al editor asistido y botón "Avanzado") para dar mayor prominencia a la
+   previsualización del documento. El panel izquierdo se redujo de 390px a 340px. */
 
 import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
@@ -11,7 +15,7 @@ import { parseAuthorEntries } from '../../lib/portadaAuthors';
 import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle, Download, Loader2,
-  SlidersHorizontal, Sparkles, Eye, ZoomIn, ZoomOut, Check,
+  Sparkles, Eye, ZoomIn, ZoomOut, Check,
   BookOpen, Layers, Image as ImageIcon, Table, Bot
 } from 'lucide-react';
 
@@ -62,18 +66,6 @@ const ICON_PALETTES = {
 } as const;
 
 /* ── Estilos reutilizables ── */
-const editLinkStyle: React.CSSProperties = {
-  fontSize: 'var(--text-xs)',
-  color: 'var(--color-accent)',
-  fontWeight: 'var(--font-semibold)',
-  marginTop: '2px',
-  flexShrink: 0,
-  cursor: 'pointer',
-  background: 'none',
-  border: 'none',
-  padding: 0,
-};
-
 const summaryItemStyle: React.CSSProperties = {
   padding: '12px 16px',
   display: 'flex',
@@ -112,7 +104,7 @@ export const ExportView: React.FC = () => {
   const {
     doc, portada, isLoading,
     exportDocx, exportPdf, exportLatex,
-    profiles, activeProfileId, setWizardStep, setViewMode,
+    profiles, activeProfileId, setViewMode,
     citationAuditResult, sayMascot, mascotMessage, clearQuickExport,
     zoomLevel, setZoomLevel,
   } = useDocStore();
@@ -179,19 +171,6 @@ export const ExportView: React.FC = () => {
     doExport();
   };
 
-  // Navegación desde el resumen hacia el editor: usamos viewMode='edit' (no
-  // 'split') porque el modo 'edit' renderiza el EditorRail, el RightSidePanel
-  // y (para el paso 1) el CoverEditorPanel. El modo 'split' omite esos
-  // componentes y el usuario se quedaría sin controles para editar.
-  //
-  // Mapeo de pasos (orden nuevo):
-  //   1 = Portada, 2 = Estructura, 3 = Figuras/Tablas, 4 = Referencias
-  const goToStep = (step: number) => {
-    clearQuickExport();
-    setViewMode('edit');
-    setWizardStep(step);
-  };
-
   return (
     <div
       style={{
@@ -207,9 +186,9 @@ export const ExportView: React.FC = () => {
       <aside
         aria-label="Opciones y Resumen de Exportación"
         style={{
-          width: '390px',
+          width: '340px',
           maxWidth: '40%',
-          minWidth: '340px',
+          minWidth: '300px',
           flexShrink: 0,
           height: '100%',
           display: 'flex',
@@ -275,27 +254,23 @@ export const ExportView: React.FC = () => {
             </p>
           </div>
 
+          {/* Enlace discreto para volver al editor (sin prominencia visual) */}
           <button
             type="button"
             onClick={() => { clearQuickExport(); setViewMode('edit'); }}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 'var(--space-1)',
               fontSize: 'var(--text-xs)',
-              fontWeight: 'var(--font-semibold)',
+              fontWeight: 'var(--font-medium)',
               color: 'var(--color-text-secondary)',
-              backgroundColor: 'var(--color-bg-surface)',
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border-subtle)',
               cursor: 'pointer',
-              transition: 'all var(--transition-fast)',
+              background: 'none',
+              border: 'none',
+              padding: '4px 0',
+              transition: 'color var(--transition-fast)',
+              whiteSpace: 'nowrap',
             }}
-            title="Abrir editor asistido para ajustar títulos, tablas o figuras paso a paso"
           >
-            <SlidersHorizontal size={12} style={{ color: 'var(--color-text-tertiary)' }} />
-            <span>Avanzado</span>
+            Volver al editor
           </button>
         </div>
 
@@ -388,9 +363,7 @@ export const ExportView: React.FC = () => {
                     {authorsCount} autor{authorsCount === 1 ? '' : 'es'} identificado{authorsCount === 1 ? '' : 's'}. Metadatos y título normalizados.
                   </div>
                 </div>
-                <button type="button" onClick={() => goToStep(1)} style={editLinkStyle}>
-                  Editar
-                </button>
+                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
               </div>
 
               {/* 3. Títulos y estructura — paso 2 */}
@@ -406,9 +379,7 @@ export const ExportView: React.FC = () => {
                     {headingsCount} títulos organizados según APA 7.
                   </div>
                 </div>
-                <button type="button" onClick={() => goToStep(2)} style={editLinkStyle}>
-                  Editar
-                </button>
+                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
               </div>
 
               {/* 4. Citas y Referencias — paso 4 */}
@@ -429,30 +400,27 @@ export const ExportView: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
-                  <button type="button" onClick={() => goToStep(4)} style={editLinkStyle}>
-                    Editar
+                {ghostCount === 0 ? (
+                  <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFriction(friction === 'resolve' ? 'idle' : 'resolve')}
+                    style={{
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--color-warning)',
+                      fontWeight: 'var(--font-semibold)',
+                      cursor: 'pointer',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      marginTop: '2px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {friction === 'resolve' ? 'Cerrar' : 'Resolver'}
                   </button>
-                  {ghostCount === 0 ? (
-                    <Check size={15} style={{ color: 'var(--color-success)' }} />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setFriction(friction === 'resolve' ? 'idle' : 'resolve')}
-                      style={{
-                        fontSize: 'var(--text-xs)',
-                        color: 'var(--color-warning)',
-                        fontWeight: 'var(--font-semibold)',
-                        cursor: 'pointer',
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                      }}
-                    >
-                      {friction === 'resolve' ? 'Cerrar' : 'Resolver'}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* 5. Tablas y Figuras — paso 3 (si existen) */}
@@ -469,12 +437,7 @@ export const ExportView: React.FC = () => {
                       {tablesCount} tabla{tablesCount === 1 ? '' : 's'} y {figuresCount} figura{figuresCount === 1 ? '' : 's'} rotuladas y enumeradas.
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginTop: '2px' }}>
-                    <button type="button" onClick={() => goToStep(3)} style={editLinkStyle}>
-                      Editar
-                    </button>
-                    <Check size={15} style={{ color: 'var(--color-success)' }} />
-                  </div>
+                  <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
                 </div>
               )}
             </div>
@@ -800,27 +763,6 @@ export const ExportView: React.FC = () => {
               </>
             )}
           </button>
-
-          {/* 5. Enlace Secundario al Editor Asistido */}
-          <button
-            type="button"
-            onClick={() => { clearQuickExport(); setViewMode('edit'); }}
-            style={{
-              width: '100%',
-              padding: '4px 0',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 'var(--font-semibold)',
-              color: 'var(--color-text-secondary)',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: 'none',
-              border: 'none',
-              transition: 'color var(--transition-fast)',
-            }}
-          >
-            ¿Necesitas personalizar algo? Ir al Editor Asistido
-          </button>
-
         </div>
       </aside>
 
@@ -1002,16 +944,25 @@ export const ExportView: React.FC = () => {
           )}
         </header>
 
-        {/* Contenedor del Lienzo */}
+        {/* Contenedor del Lienzo
+            — overflow: 'hidden' para evitar scroll anidado: PaperCanvas tiene su
+              propio overflowY: 'auto' y maneja el scroll internamente.
+            — display: 'flex', flexDirection: 'column' para que PaperCanvas pueda
+              usar flex: 1 y obtener una altura restringida que active su scroll.
+            — Sin padding: PaperCanvas ya aplica su propio padding interno
+              ('24px 16px'). El padding del padre causaba un conflicto de scroll al
+              reducir el área visible y desplazar el contenido. Se eliminó para que
+              el componente hijo controle totalmente su propia área desplazable.
+            — Se eliminó justifyContent: 'center' (era un no-op con flex:1 y
+              causaba el conflicto de scroll reportado). */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
-            overflow: 'auto',
+            overflow: 'hidden',
             position: 'relative',
-            padding: 'var(--space-6)',
             display: 'flex',
-            justifyContent: 'center',
+            flexDirection: 'column',
           }}
         >
           {previewMode === 'canvas' ? (

@@ -3,8 +3,11 @@
  * ====================================================
  *
  * Muestra las citas detectadas y la bibliografía sugerida (APA 7) construida
- * a partir de ellas. Permite insertarla al final del documento, editar
- * referencias y re-extraer citas del documento actual.
+ * a partir de ellas. Permite:
+ *   - Insertar la bibliografía al final del documento (con dedup).
+ *   - Re-extraer citas del documento.
+ *   - Alta/edición manual de referencias (no solo las autodetectadas).
+ *   - Insertar una cita en texto "(Autor, Año)" en el cursor.
  *
  * Cuando el botón "Bibliografía" del Ribbon dispara la acción
  * 'build_bibliography', este panel re-extrae las citas del documento y
@@ -13,7 +16,24 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { backend, type ReferenceDTO } from '../api/backend'
-import { getDocumentText, insertBibliographyAPA } from '../office/wordHelper'
+import { getDocumentText, insertBibliographyAPA, insertCitationAtCursor } from '../office/wordHelper'
+
+/** Construye el texto de cita APA 7 a partir de una referencia. */
+function buildCitation(ref: ReferenceDTO): string {
+  const year = ref.year ?? 's.f.'
+  const authors = ref.authors || []
+  let authorPart: string
+  if (authors.length === 0) {
+    authorPart = (ref.title || 'Anónimo').split(' ').slice(0, 3).join(' ')
+  } else if (authors.length === 1) {
+    authorPart = authors[0]
+  } else if (authors.length === 2) {
+    authorPart = `${authors[0]} y ${authors[1]}`
+  } else {
+    authorPart = `${authors[0]} et al.`
+  }
+  return `(${authorPart}, ${year})`
+}
 
 interface Props {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
@@ -28,6 +48,16 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
   const [bibText, setBibText] = useState('')
   const [loading, setLoading] = useState(false)
   const [inserting, setInserting] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    authors: '',
+    year: '',
+    title: '',
+    source: '',
+    doi_or_url: '',
+    raw_text: '',
+  })
   const actionLockRef = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -58,9 +88,6 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
     setLoading(true)
     try {
       const text = await getDocumentText()
-      // 1. Escanear el documento y persistir las citas en el store del backend.
-      //    El endpoint /extract-citations detecta (Autor, Año) y crea
-      //    referencias "borrador" automáticamente.
       let newCount = 0
       try {
         const extracted = await backend.extractCitations(text)
@@ -68,7 +95,6 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
       } catch {
         /* si falla la extracción, igual intentamos construir la bibliografía */
       }
-      // 2. Construir la bibliografía APA 7 a partir del store actualizado.
       const res = await backend.buildBibliography()
       setReferences(res.references || [])
       setBibText(res.bibliography_text || '')
@@ -108,8 +134,6 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
   }, [bibText, showToast])
 
   // ── Ejecutar acción del ribbon: build_bibliography ───────────────────────
-  // Cuando el botón "Bibliografía" del ribbon dispara esta acción,
-  // re-extraemos las citas del documento y auto-insertamos la bibliografía.
   useEffect(() => {
     if (pendingAction !== 'build_bibliography' || actionLockRef.current) return
     actionLockRef.current = true
@@ -128,6 +152,69 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
     run()
   }, [pendingAction, reextract, insertBibliography, showToast, onActionConsumed])
 
+  // ── Alta / edición manual de referencias ────────────────────────────────
+  const openNew = useCallback(() => {
+    setEditingId(null)
+    setForm({ authors: '', year: '', title: '', source: '', doi_or_url: '', raw_text: '' })
+    setShowForm(true)
+  }, [])
+
+  const openEdit = useCallback((ref: ReferenceDTO) => {
+    setEditingId(ref.id)
+    setForm({
+      authors: (ref.authors || []).join(', '),
+      year: ref.year ?? '',
+      title: ref.title ?? '',
+      source: ref.source ?? '',
+      doi_or_url: ref.doi_or_url ?? '',
+      raw_text: ref.raw_text ?? '',
+    })
+    setShowForm(true)
+  }, [])
+
+  const handleFormChange = useCallback((key: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }, [])
+
+  const handleSaveRef = useCallback(async () => {
+    if (!form.title.trim() && !form.raw_text.trim()) {
+      showToast('Poné un título o el texto de la referencia', 'error')
+      return
+    }
+    setLoading(true)
+    try {
+      const payload = {
+        id: editingId ?? undefined,
+        authors: form.authors.split(',').map((a) => a.trim()).filter(Boolean),
+        year: form.year.trim() || null,
+        title: form.title.trim(),
+        source: form.source.trim(),
+        doi_or_url: form.doi_or_url.trim() || null,
+        raw_text: form.raw_text.trim(),
+      }
+      await backend.saveReference(payload)
+      showToast(editingId ? 'Referencia actualizada' : 'Referencia agregada', 'success')
+      setShowForm(false)
+      setEditingId(null)
+      await refresh()
+    } catch {
+      showToast('No se pudo guardar la referencia', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [form, editingId, showToast, refresh])
+
+  // ── Insertar cita en el cursor ──────────────────────────────────────────
+  const handleInsertCitation = useCallback(async (ref: ReferenceDTO) => {
+    try {
+      const citation = buildCitation(ref)
+      await insertCitationAtCursor(citation)
+      showToast(`Cita insertada: ${citation}`, 'success')
+    } catch (err) {
+      showToast(`Error: ${(err as Error).message}`, 'error')
+    }
+  }, [showToast])
+
   const removeRef = useCallback(async (id: string) => {
     try {
       await backend.deleteReference(id)
@@ -139,7 +226,7 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
             const ref = references.find((r) => r.id === id)
             return ref ? !line.includes((ref.formatted_apa || '').slice(0, 30)) : true
           })
-          .join('\n')
+          .join('\n'),
       )
       showToast('Referencia eliminada', 'info')
     } catch {
@@ -193,8 +280,71 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
           <button className="btn btn--primary btn--full" onClick={() => insertBibliography()} disabled={inserting || !bibText}>
             {inserting ? <span className="spinner" /> : null} 📚 Insertar bibliografía
           </button>
+
+          <button className="btn btn--secondary btn--full" onClick={openNew} style={{ marginTop: 8 }}>
+            + Agregar referencia manual
+          </button>
         </div>
       </div>
+
+      {/* Formulario alta/edición de referencia */}
+      {showForm && (
+        <div className="card">
+          <div className="card__simple-header">{editingId ? 'Editar referencia' : 'Agregar referencia'}</div>
+          <div className="card__body">
+            <div className="field-label">Autores (separados por coma)</div>
+            <input
+              className="field-input"
+              value={form.authors}
+              onChange={(e) => handleFormChange('authors', e.target.value)}
+              placeholder="García, López"
+            />
+            <div className="field-label">Año</div>
+            <input
+              className="field-input"
+              value={form.year}
+              onChange={(e) => handleFormChange('year', e.target.value)}
+              placeholder="2023"
+            />
+            <div className="field-label">Título</div>
+            <input
+              className="field-input"
+              value={form.title}
+              onChange={(e) => handleFormChange('title', e.target.value)}
+              placeholder="Título del trabajo"
+            />
+            <div className="field-label">Fuente (revista, libro, editorial)</div>
+            <input
+              className="field-input"
+              value={form.source}
+              onChange={(e) => handleFormChange('source', e.target.value)}
+              placeholder="Revista X"
+            />
+            <div className="field-label">DOI o URL</div>
+            <input
+              className="field-input"
+              value={form.doi_or_url}
+              onChange={(e) => handleFormChange('doi_or_url', e.target.value)}
+              placeholder="https://..."
+            />
+            <div className="field-label">Texto crudo (opcional)</div>
+            <input
+              className="field-input"
+              value={form.raw_text}
+              onChange={(e) => handleFormChange('raw_text', e.target.value)}
+              placeholder="(García, 2023) ..."
+            />
+            <div className="row-2">
+              <button className="btn btn--primary" onClick={handleSaveRef} disabled={loading}>
+                {loading ? <span className="spinner" /> : null} Guardar
+              </button>
+              <button className="btn btn--ghost" onClick={() => setShowForm(false)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview de la bibliografía */}
       {bibText && (
@@ -221,6 +371,20 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
                     <span className="badge badge--success">completa</span>
                   )}
                   <button
+                    className="ref-item__action"
+                    title="Insertar cita en el cursor"
+                    onClick={() => handleInsertCitation(ref)}
+                  >
+                    Citar
+                  </button>
+                  <button
+                    className="ref-item__action"
+                    title="Editar referencia"
+                    onClick={() => openEdit(ref)}
+                  >
+                    Editar
+                  </button>
+                  <button
                     className="ref-item__delete"
                     onClick={() => removeRef(ref.id)}
                     title="Eliminar referencia"
@@ -240,10 +404,12 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
           <div className="empty-state__title">Sin referencias aún</div>
           <div className="empty-state__text">
             Escribí citas como (García, 2023) en tu documento y el asistente las detectará
-            automáticamente. Luego volvé acá y pulsá "Re-extraer".
+            automáticamente. Luego volvé acá y pulsá "Re-extraer". También podés agregarlas manualmente.
           </div>
         </div>
       )}
     </>
   )
 }
+
+export default ReferencesPanel

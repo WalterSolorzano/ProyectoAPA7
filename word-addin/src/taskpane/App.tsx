@@ -25,7 +25,7 @@ import {
   type AssistantOptions,
   type AssistantCallbacks,
 } from './liveAssistant'
-import type { DocumentStats } from './office/wordHelper'
+import { type DocumentStats, formatDocumentAPA7 } from './office/wordHelper'
 import { LiveAssistantPanel } from './components/LiveAssistantPanel'
 import { CommentsPanel } from './components/CommentsPanel'
 import { ReferencesPanel } from './components/ReferencesPanel'
@@ -262,6 +262,16 @@ export const App: React.FC = () => {
     liveAssistant.scanNow()
   }, [showToast])
 
+  const handleFormatAll = useCallback(async () => {
+    showToast('Formateando el documento...', 'info')
+    try {
+      await formatDocumentAPA7()
+      showToast('Documento formateado a APA 7', 'success')
+    } catch (err: any) {
+      showToast(err.message || 'Error al formatear documento', 'error')
+    }
+  }, [showToast])
+
   // Cuando el usuario cambia de pestaña manualmente, limpiar la sección
   // pendiente del ribbon para no sobrescribir su selección.
   const handleTabChange = useCallback((tab: TabId) => {
@@ -336,6 +346,7 @@ export const App: React.FC = () => {
             onToggle={handleToggle}
             onOptionChange={handleOptionChange}
             onScanNow={handleScanNow}
+            onFormatAll={handleFormatAll}
           />
         )}
 
@@ -357,7 +368,7 @@ export const App: React.FC = () => {
         {activeTab === 'cover' && <CoverPagePanel showToast={showToast} />}
 
         {activeTab === 'comments' && (
-          <CommentsPanel events={events} onClear={() => setEvents([])} />
+          <CommentsPanel events={events} onClear={() => setEvents([])} showToast={showToast} />
         )}
 
         {activeTab === 'ai' && <AIPanel showToast={showToast} />}

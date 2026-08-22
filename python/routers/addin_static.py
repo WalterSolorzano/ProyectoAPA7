@@ -116,6 +116,7 @@ def _get_addin_dist_dir() -> Optional[Path]:
         # Producción (PyInstaller): el exe está en resources/python-backend/,
         # el Add-in está en resources/addin/ (hermano del directorio del exe).
         exe_dir = Path(sys.executable).parent
+        candidates.append(exe_dir.parent.parent / "addin")
         candidates.append(exe_dir.parent / "addin")
         candidates.append(exe_dir / "addin")
     else:
@@ -150,6 +151,7 @@ def _get_addin_manifest_path() -> Optional[Path]:
     candidates: list[Path] = []
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).parent
+        candidates.append(exe_dir.parent.parent / "addin" / "manifest.xml")
         candidates.append(exe_dir.parent / "addin" / "manifest.xml")
         candidates.append(exe_dir / "addin" / "manifest.xml")
     else:

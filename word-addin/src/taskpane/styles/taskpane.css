@@ -965,6 +965,95 @@ select.field-input { cursor: pointer; }
 .cover-preview__spacer { height: 48px; }
 .cover-preview__line { line-height: 2; color: var(--text-primary); }
 
+/* ── ACCESIBILIDAD & PROGRESO (mejoras de diseño) ─────────────────────────────
+   Anillos de foco visibles (WCAG 2.1) y barra de progreso reutilizable para
+   operaciones largas (p. ej. formatear documento completo). */
+.btn:focus-visible,
+.tab:focus-visible,
+.switch:focus-visible,
+.ref-item__delete:focus-visible,
+.chat__clear:focus-visible,
+.card__header:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+.field-input:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+/* Barra de progreso (operaciones largas) */
+.progress {
+  width: 100%;
+  height: 6px;
+  background: var(--border-subtle);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress__fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent-primary);
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+.progress--success .progress__fill { background: var(--color-success); }
+.progress--error .progress__fill { background: var(--color-error); }
+
+/* Estado de carga genérico */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 12px;
+  color: var(--text-secondary);
+}
+.loading-state__text { font-size: 12px; line-height: 1.5; text-align: center; }
+
+/* ── RESPONSIVE & MICRO-INTERACTIONS (mejoras de diseño) ─────────────────────── */
+/* Feedback táctil en botones */
+.btn:active { transform: scale(0.98); }
+.btn-pill:active { transform: scale(0.96); }
+.ref-item { transition: border-color 0.15s, box-shadow 0.15s; }
+.ref-item:hover { border-color: var(--accent-primary); }
+
+/* Tarjeta de previsualización confirmable (portada/tabla/figura/bibliografía) */
+.preview-card {
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--bg-primary);
+}
+.preview-card__title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+/* Estado de error (complementa .empty-state) */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 24px 12px;
+}
+.error-state__icon { font-size: 34px; }
+.error-state__title { font-size: 14px; font-weight: 800; color: var(--color-error); }
+.error-state__text { font-size: 11px; color: var(--text-secondary); line-height: 1.5; max-width: 260px; }
+
+/* Taskpane angosto: evitar desbordes */
+@media (max-width: 320px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .tab-bar .tab__label { display: none; }
+  .app-header__subtitle { display: none; }
+}
+
 /* ── DARK MODE (sigue el tema de Office) ────────────────────────────────────
    Aligned with main program design-system.css [data-theme="dark"] */
 @media (prefers-color-scheme: dark) {
