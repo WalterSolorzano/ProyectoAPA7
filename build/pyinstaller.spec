@@ -3,7 +3,16 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('../python', 'python')]
 binaries = []
-hiddenimports = ['docx', 'lxml', 'pillow', 'pydantic', 'fastapi', 'uvicorn', 'dotenv', 'networkx', 'cryptography', 'cffi']
+# word_watcher y ssl_cert_gen se importan condicionalmente en main.py
+# (dentro de if args.watcher / try-except), por lo que PyInstaller podría no
+# detectarlos en su análisis estático. Se declaran explícitamente para
+# asegurar que el watcher de Word y la generación de certificados SSL
+# funcionen en el build empaquetado.
+hiddenimports = [
+    'docx', 'lxml', 'pillow', 'pydantic', 'fastapi', 'uvicorn', 'dotenv',
+    'networkx', 'cryptography', 'cffi',
+    'word_watcher', 'ssl_cert_gen',
+]
 tmp_ret = collect_all('docx')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('lxml')

@@ -124,9 +124,12 @@ class APARuleSet(BaseModel):
     })
 
     # Numeracion de headings
-    heading_numbering_style_lvl1: str = "decimal"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl2: str = "decimal"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl3: str = "decimal"  # "decimal" | "roman" | "none"
+    # APA 7 does NOT require numbered headings: the 5 levels are distinguished
+    # purely by formatting (bold, centered, italic, indented). The default is
+    # therefore "none" so no spurious numbering (e.g. "0.1") is injected.
+    heading_numbering_style_lvl1: str = "none"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl2: str = "none"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl3: str = "none"  # "decimal" | "roman" | "none"
 
     # Referencias
     reference_hanging_indent_cm: float = 1.27

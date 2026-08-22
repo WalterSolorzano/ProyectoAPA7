@@ -33,10 +33,16 @@ class COMPostProcessor:
             return False
 
     def process(self, original_path: Path, generated_path: Path, final_path: Path,
-                preserve_cover: bool = False, generate_pdf: bool = True) -> Tuple[bool, Optional[Path]]:
+                preserve_cover: bool = False, generate_pdf: bool = True,
+                rules=None) -> Tuple[bool, Optional[Path]]:
         """
         Post-procesa el documento generado.
         Retorna (exito: bool, ruta_pdf: Optional[Path])
+
+        ``rules`` es un APARuleSet (Pydantic). Si se proporciona, los estilos
+        APA se aplican respetando la configuración del usuario en lugar de los
+        defaults hardcoded. Si es ``None``, se usan los defaults APA clásicos
+        (backward compatible).
         """
         if not self.is_available():
             logger.warning("[COM PostProcessor] COM no está disponible en este sistema.")
@@ -98,7 +104,7 @@ class COMPostProcessor:
 
                 # 5. Aplicar estilos APA con el motor real de Word.
                 # Python-docx los escribió en styles.xml pero Word es la autoridad.
-                self._apply_apa_styles(word, doc)
+                self._apply_apa_styles(word, doc, rules=rules)
 
                 # 6. Layout enforcement PASS 1: pageBreakBefore, KeepWithNext,
                 #    tablas partidas → corregir. Luego guardar para que Word
@@ -188,11 +194,14 @@ class COMPostProcessor:
         respeta al guardar/exportar:
           - Portada e Índice: sin número de página visible.
           - Cuerpo: encabezado APA a la derecha con número correlativo (ej. 3 si hay portada e índice).
-          - Títulos nivel 1 → comienzan en página nueva (PageBreakBefore).
-          - Sección de Referencias → comienza en página nueva.
+          - Sección de Referencias → comienza en página nueva (PageBreakBefore).
           - Títulos (1-3) → KeepWithNext (nunca huérfanos al final de página).
           - Tablas cortas partidas entre páginas → PageBreakBefore forzado.
           - Párrafos de cuerpo → forzar estilo Normal.
+
+        NOTA: NO se fuerza PageBreakBefore en todos los Heading 1, ya que eso
+        empujaba el contenido a páginas inesperadas/aleatorias. Solo el
+        encabezado "Referencias" recibe PageBreakBefore.
         """
         import re as _re
         try:
@@ -242,8 +251,10 @@ class COMPostProcessor:
                 try:
                     if lvl <= 3:
                         p.Format.KeepWithNext = True
-                        if lvl == 1:
-                            p.PageBreakBefore = True
+                        # NOTE: Do NOT force PageBreakBefore on all H1 headings.
+                        # Doing so pushed content to unexpected/random pages.
+                        # Only the "Referencias" heading gets PageBreakBefore
+                        # (handled in the block above).
                     elif not in_refs:
                         # Cuerpo (no referencias): forzar Normal style
                         p.Range.Style = doc.Styles(-1)  # wdStyleNormal
@@ -264,7 +275,7 @@ class COMPostProcessor:
         except Exception as e:
             logger.warning(f"[COM PostProcessor] Error en enforce_layout: {e}")
 
-    def _apply_apa_styles(self, word, doc) -> None:
+    def _apply_apa_styles(self, word, doc, rules=None) -> None:
         """Aplica estilos APA 7 nativos usando el motor real de Word.
 
         Python-docx escribió los estilos en styles.xml pero Word es la
@@ -272,18 +283,59 @@ class COMPostProcessor:
         Built-in del documento: todo párrafo que use Normal o Heading 1-3
         hereda automáticamente estos cambios sin iterar párrafo por párrafo.
 
-        Reglas APA 7:
-        - Normal: Times New Roman 12pt, doble espacio, justificado, sangría 0.5"
-        - Headings 1-3: Times New Roman 12pt bold, sin sangría, keep with next
+        Si ``rules`` (un APARuleSet) se proporciona, se respetan los valores
+        configurados por el usuario (fuente, tamaño, interlineado, sangría,
+        alineación). Si ``rules`` es ``None``, se usan los defaults APA
+        clásicos hardcoded (backward compatible).
         """
         try:
+            # ── Resolver valores desde rules o usar defaults hardcoded ──
+            if rules is not None:
+                font_family = getattr(rules, "font_family", None) or "Times New Roman"
+                font_size_pt = getattr(rules, "font_size_pt", None) or 12
+                line_spacing = float(getattr(rules, "line_spacing", 2.0) or 2.0)
+                paragraph_indent_cm = float(getattr(rules, "paragraph_indent_cm", 1.27) or 1.27)
+                alignment_str = (getattr(rules, "alignment", "left") or "left").lower()
+
+                # Convert line_spacing → Word LineSpacingRule
+                # 2.0 → wdLineSpaceDouble (2), 1.5 → wdLineSpace1pt5 (1),
+                # 1.0 → wdLineSpaceSingle (0)
+                if line_spacing >= 2.0:
+                    line_spacing_rule = 2
+                elif line_spacing >= 1.5:
+                    line_spacing_rule = 1
+                else:
+                    line_spacing_rule = 0
+
+                # Convert alignment string → Word alignment int
+                # "left" → 0, "center" → 1, "right" → 2, "justify" → 3
+                alignment_map = {"left": 0, "center": 1, "right": 2, "justify": 3}
+                alignment = alignment_map.get(alignment_str, 0)
+
+                # Convert indent cm → points (1 cm = 28.35 pt)
+                first_line_indent = round(paragraph_indent_cm * 28.35)
+
+                logger.info(
+                    f"[COM PostProcessor] Aplicando estilos desde rules: "
+                    f"font={font_family}, size={font_size_pt}, "
+                    f"spacing_rule={line_spacing_rule}, "
+                    f"indent={first_line_indent}pt, align={alignment}"
+                )
+            else:
+                # Hardcoded APA defaults (backward compatible)
+                font_family = "Times New Roman"
+                font_size_pt = 12
+                line_spacing_rule = 2      # wdLineSpaceDouble
+                alignment = 3              # wdAlignParagraphJustify
+                first_line_indent = 36     # 0.5 inch
+
             # ── Normal (cubre el 90% del cuerpo) ──
             normal = doc.Styles(-1)  # wdStyleNormal
-            normal.Font.Name = "Times New Roman"
-            normal.Font.Size = 12
-            normal.ParagraphFormat.LineSpacingRule = 2      # wdLineSpaceDouble
-            normal.ParagraphFormat.Alignment = 3            # wdAlignParagraphJustify
-            normal.ParagraphFormat.FirstLineIndent = 36     # 0.5 inch
+            normal.Font.Name = font_family
+            normal.Font.Size = font_size_pt
+            normal.ParagraphFormat.LineSpacingRule = line_spacing_rule
+            normal.ParagraphFormat.Alignment = alignment
+            normal.ParagraphFormat.FirstLineIndent = first_line_indent
             normal.ParagraphFormat.SpaceBefore = 0
             normal.ParagraphFormat.SpaceAfter = 0
             normal.NoSpaceBetweenParagraphsOfSameStyle = True
@@ -296,11 +348,11 @@ class COMPostProcessor:
             for h_id, h_before, h_after in zip(heading_ids, heading_before, heading_after):
                 try:
                     h = doc.Styles(h_id)
-                    h.Font.Name = "Times New Roman"
-                    h.Font.Size = 12
+                    h.Font.Name = font_family
+                    h.Font.Size = font_size_pt
                     h.Font.Bold = True
                     h.ParagraphFormat.KeepWithNext = True
-                    h.ParagraphFormat.LineSpacingRule = 2
+                    h.ParagraphFormat.LineSpacingRule = line_spacing_rule
                     h.ParagraphFormat.Alignment = 0      # wdAlignParagraphLeft
                     h.ParagraphFormat.FirstLineIndent = 0
                     h.ParagraphFormat.SpaceBefore = h_before
@@ -308,7 +360,7 @@ class COMPostProcessor:
                 except Exception:
                     pass
 
-            logger.info("[COM PostProcessor] Estilos APA aplicados via Word Styles API")
+            logger.info(f"[COM PostProcessor] Estilos APA aplicados via Word Styles API (rules={'sí' if rules else 'default'})")
         except Exception as e:
             logger.warning(f"[COM PostProcessor] Error en _apply_apa_styles: {e}")
 

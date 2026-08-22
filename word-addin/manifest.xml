@@ -9,17 +9,6 @@
   <!-- ===================================================================== -->
   <!-- WordAPA7 — Word Add-in Manifest                                        -->
   <!--                                                                        -->
-  <!-- MODO PRODUCCIÓN (por defecto — sin certificados locales):             -->
-  <!--   Las URLs https://localhost:3000 se reemplazan dinámicamente por     -->
-  <!--   WORDAPA7_ADDIN_PUBLIC_URL (URL HTTPS pública) en el endpoint         -->
-  <!--   GET /api/addin/manifest del backend. El Add-in se carga desde la     -->
-  <!--   URL pública y se comunica con el backend local en                    -->
-  <!--   http://127.0.0.1:8742 (HTTP plano). NO requiere certificados.       -->
-  <!--                                                                        -->
-  <!-- MODO DESARROLLO LOCAL:                                                 -->
-  <!--   Sin WORDAPA7_ADDIN_PUBLIC_URL, las URLs se reemplazan por la URL     -->
-  <!--   del backend + /addin (ej. http://localhost:8742/addin).             -->
-  <!--                                                                        -->
   <!-- Ribbon con 4 grupos y 10 botones, cada uno con su propio icono:        -->
   <!--                                                                        -->
   <!--   Grupo 1: Asistente                                                   -->
@@ -47,9 +36,9 @@
   <DefaultLocale>es-ES</DefaultLocale>
   <DisplayName DefaultValue="WordAPA7 — Asistente APA 7" />
   <Description DefaultValue="Asistente APA 7 en vivo dentro de Word: detecta citas, aplica formato APA 7 al vuelo y numera figuras y tablas automaticamente cuando las pegás." />
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png" />
-  <SupportUrl DefaultValue="https://localhost:3000" />
+  <IconUrl DefaultValue="https://localhost:8742/addin/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:8742/addin/assets/icon-80.png" />
+  <SupportUrl DefaultValue="https://github.com/WalterSolorzano/ProyectoAPA7" />
 
   <Hosts>
     <Host Name="Document" />
@@ -62,7 +51,10 @@
   </Requirements>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+    <SourceLocation DefaultValue="https://localhost:8742/addin/taskpane.html" />
+    <AppDomains>
+      <AppDomain>https://localhost:8742</AppDomain>
+    </AppDomains>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -298,65 +290,65 @@
     <Resources>
       <bt:Images>
         <!-- Iconos de la pestana / app (compatibilidad) -->
-        <bt:Image id="WordAPA7.Icon.16" DefaultValue="https://localhost:3000/assets/icon-16.png" />
-        <bt:Image id="WordAPA7.Icon.32" DefaultValue="https://localhost:3000/assets/icon-32.png" />
-        <bt:Image id="WordAPA7.Icon.80" DefaultValue="https://localhost:3000/assets/icon-80.png" />
+        <bt:Image id="WordAPA7.Icon.16" DefaultValue="https://localhost:8742/addin/assets/icon-16.png" />
+        <bt:Image id="WordAPA7.Icon.32" DefaultValue="https://localhost:8742/addin/assets/icon-32.png" />
+        <bt:Image id="WordAPA7.Icon.80" DefaultValue="https://localhost:8742/addin/assets/icon-80.png" />
 
         <!-- Abrir panel — indigo -->
-        <bt:Image id="WordAPA7.Icon.Panel.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-16.png" />
-        <bt:Image id="WordAPA7.Icon.Panel.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-32.png" />
-        <bt:Image id="WordAPA7.Icon.Panel.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-panel-80.png" />
+        <bt:Image id="WordAPA7.Icon.Panel.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-panel-16.png" />
+        <bt:Image id="WordAPA7.Icon.Panel.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-panel-32.png" />
+        <bt:Image id="WordAPA7.Icon.Panel.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-panel-80.png" />
 
         <!-- Auditar — red -->
-        <bt:Image id="WordAPA7.Icon.Audit.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-16.png" />
-        <bt:Image id="WordAPA7.Icon.Audit.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-32.png" />
-        <bt:Image id="WordAPA7.Icon.Audit.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-audit-80.png" />
+        <bt:Image id="WordAPA7.Icon.Audit.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-audit-16.png" />
+        <bt:Image id="WordAPA7.Icon.Audit.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-audit-32.png" />
+        <bt:Image id="WordAPA7.Icon.Audit.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-audit-80.png" />
 
         <!-- Actualizar — teal -->
-        <bt:Image id="WordAPA7.Icon.Refresh.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-16.png" />
-        <bt:Image id="WordAPA7.Icon.Refresh.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-32.png" />
-        <bt:Image id="WordAPA7.Icon.Refresh.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-refresh-80.png" />
+        <bt:Image id="WordAPA7.Icon.Refresh.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-refresh-16.png" />
+        <bt:Image id="WordAPA7.Icon.Refresh.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-refresh-32.png" />
+        <bt:Image id="WordAPA7.Icon.Refresh.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-refresh-80.png" />
 
         <!-- Tabla — cyan -->
-        <bt:Image id="WordAPA7.Icon.Table.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-16.png" />
-        <bt:Image id="WordAPA7.Icon.Table.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-32.png" />
-        <bt:Image id="WordAPA7.Icon.Table.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-table-80.png" />
+        <bt:Image id="WordAPA7.Icon.Table.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-table-16.png" />
+        <bt:Image id="WordAPA7.Icon.Table.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-table-32.png" />
+        <bt:Image id="WordAPA7.Icon.Table.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-table-80.png" />
 
         <!-- Figura — pink -->
-        <bt:Image id="WordAPA7.Icon.Figure.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-16.png" />
-        <bt:Image id="WordAPA7.Icon.Figure.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-32.png" />
-        <bt:Image id="WordAPA7.Icon.Figure.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-figure-80.png" />
+        <bt:Image id="WordAPA7.Icon.Figure.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-figure-16.png" />
+        <bt:Image id="WordAPA7.Icon.Figure.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-figure-32.png" />
+        <bt:Image id="WordAPA7.Icon.Figure.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-figure-80.png" />
 
         <!-- Titulo — violet -->
-        <bt:Image id="WordAPA7.Icon.Heading.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-16.png" />
-        <bt:Image id="WordAPA7.Icon.Heading.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-32.png" />
-        <bt:Image id="WordAPA7.Icon.Heading.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-heading-80.png" />
+        <bt:Image id="WordAPA7.Icon.Heading.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-heading-16.png" />
+        <bt:Image id="WordAPA7.Icon.Heading.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-heading-32.png" />
+        <bt:Image id="WordAPA7.Icon.Heading.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-heading-80.png" />
 
         <!-- Citas — orange -->
-        <bt:Image id="WordAPA7.Icon.Citation.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-16.png" />
-        <bt:Image id="WordAPA7.Icon.Citation.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-32.png" />
-        <bt:Image id="WordAPA7.Icon.Citation.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-citation-80.png" />
+        <bt:Image id="WordAPA7.Icon.Citation.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-citation-16.png" />
+        <bt:Image id="WordAPA7.Icon.Citation.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-citation-32.png" />
+        <bt:Image id="WordAPA7.Icon.Citation.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-citation-80.png" />
 
         <!-- Bibliografia — green -->
-        <bt:Image id="WordAPA7.Icon.Bibliography.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-16.png" />
-        <bt:Image id="WordAPA7.Icon.Bibliography.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-32.png" />
-        <bt:Image id="WordAPA7.Icon.Bibliography.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-bibliography-80.png" />
+        <bt:Image id="WordAPA7.Icon.Bibliography.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-bibliography-16.png" />
+        <bt:Image id="WordAPA7.Icon.Bibliography.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-bibliography-32.png" />
+        <bt:Image id="WordAPA7.Icon.Bibliography.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-bibliography-80.png" />
 
         <!-- Portada — blue -->
-        <bt:Image id="WordAPA7.Icon.Cover.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-16.png" />
-        <bt:Image id="WordAPA7.Icon.Cover.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-32.png" />
-        <bt:Image id="WordAPA7.Icon.Cover.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-cover-80.png" />
+        <bt:Image id="WordAPA7.Icon.Cover.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-cover-16.png" />
+        <bt:Image id="WordAPA7.Icon.Cover.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-cover-32.png" />
+        <bt:Image id="WordAPA7.Icon.Cover.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-cover-80.png" />
 
         <!-- IA — purple -->
-        <bt:Image id="WordAPA7.Icon.AI.16" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-16.png" />
-        <bt:Image id="WordAPA7.Icon.AI.32" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-32.png" />
-        <bt:Image id="WordAPA7.Icon.AI.80" DefaultValue="https://localhost:3000/assets/ribbon/icon-ai-80.png" />
+        <bt:Image id="WordAPA7.Icon.AI.16" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-ai-16.png" />
+        <bt:Image id="WordAPA7.Icon.AI.32" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-ai-32.png" />
+        <bt:Image id="WordAPA7.Icon.AI.80" DefaultValue="https://localhost:8742/addin/assets/ribbon/icon-ai-80.png" />
       </bt:Images>
 
       <bt:Urls>
-        <bt:Url id="WordAPA7.Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
-        <bt:Url id="WordAPA7.Commands.Url" DefaultValue="https://localhost:3000/commands.html" />
-        <bt:Url id="WordAPA7.LearnMoreUrl" DefaultValue="https://localhost:3000" />
+        <bt:Url id="WordAPA7.Taskpane.Url" DefaultValue="https://localhost:8742/addin/taskpane.html" />
+        <bt:Url id="WordAPA7.Commands.Url" DefaultValue="https://localhost:8742/addin/commands.html" />
+        <bt:Url id="WordAPA7.LearnMoreUrl" DefaultValue="https://localhost:8742/addin" />
       </bt:Urls>
 
       <bt:ShortStrings>

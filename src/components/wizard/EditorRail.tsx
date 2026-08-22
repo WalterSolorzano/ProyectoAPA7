@@ -1,7 +1,8 @@
 /* WordAPA7 — Rail lateral izquierdo del Editor Unificado.
    - Íconos con ProgressRing: el anillo se llena conforme se resuelven los
      pendientes de cada etapa (adiós al health-check final que asusta).
-   - DocumentOutline: mini-mapa colapsable para navegar documentos largos.
+   - DocumentOutline: ahora se renderiza como panel permanente en el lado
+     derecho del layout (ver App.tsx), no como panel flotante aquí.
 
    ORDEN DE ETAPAS (refactor UX):
    1. Portada
@@ -11,12 +12,11 @@
    5. Exportar
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, BookOpen, Map, Download, Sparkles } from 'lucide-react';
+import { Layout, Type, Image, BookOpen, Download, Sparkles } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
 import { ProgressRing } from './ProgressRing';
-import { DocumentOutline } from './DocumentOutline';
 
 export const EDITOR_SECTIONS = [
   { id: 1, title: 'Portada', icon: Layout, hint: 'Metadatos de portada' },
@@ -77,7 +77,6 @@ const getStepProgress = (stepId: number): number => {
 
 export const EditorRail: React.FC = () => {
   const { wizardStep, setWizardStep, setSelectedReferenceId, setSelectedElementId, forceRightPanelOpen, setForceRightPanelOpen } = useDocStore();
-  const [outlineOpen, setOutlineOpen] = useState(false);
 
   const goToSection = (id: number) => {
     // Al cambiar de sección se limpian las selecciones para que el panel
@@ -161,49 +160,7 @@ export const EditorRail: React.FC = () => {
         >
           <Sparkles size={16} />
         </button>
-
-        {/* DocumentOutline toggle */}
-        <button
-          type="button"
-          onClick={() => setOutlineOpen((o) => !o)}
-          title={outlineOpen ? 'Ocultar mapa del documento' : 'Mapa del documento (navegación rápida)'}
-          aria-label="Mapa del documento"
-          aria-expanded={outlineOpen}
-          style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', border: 'none', background: 'transparent',
-            color: outlineOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-            marginBottom: '8px', flexShrink: 0,
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-        >
-          <Map size={16} />
-        </button>
       </div>
-
-      {outlineOpen && (
-        <div style={{
-          position: 'absolute', top: 0, left: 52, bottom: 0,
-          width: '210px', zIndex: 30,
-          backgroundColor: 'var(--sidebar-bg)',
-          borderRight: '1px solid var(--border-subtle)',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '8px 0 20px rgba(0,0,0,0.15)',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '7px',
-            padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
-          }}>
-            <Map size={13} color="var(--accent-primary)" />
-            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Mapa del documento</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <DocumentOutline />
-          </div>
-        </div>
-      )}
     </div>
   );
 };

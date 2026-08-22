@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, Server } from 'lucide-react';
+import { Activity, Server, Settings } from 'lucide-react';
 import { getApiBase } from '../api/backend';
+import { useDocStore } from '../store/useDocStore';
 
 type AIHealthStatus = 'good' | 'warning' | 'critical';
 
@@ -31,8 +32,7 @@ const SignalBars = ({ percentage, status }: { percentage: number, status: AIHeal
         <div
           key={bar}
           style={{
-            width: '6px',
-            borderRadius: '2px',
+            width: '6px', borderRadius: '2px',
             backgroundColor: getColor(bar <= activeBars, status),
             height: bar === 1 ? '6px' : bar === 2 ? '10px' : bar === 3 ? '14px' : '16px',
             transition: 'background-color 500ms ease',
@@ -47,6 +47,7 @@ const SignalBars = ({ percentage, status }: { percentage: number, status: AIHeal
 export const AIBatteryIndicator: React.FC = () => {
   const [health, setHealth] = useState<AIHealthResponse | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const { setSettingsStudioOpen, setIsNIMDiagnosticsOpen } = useDocStore();
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -84,6 +85,11 @@ export const AIBatteryIndicator: React.FC = () => {
       ? '0 0 16px color-mix(in srgb, var(--color-warning) 30%, transparent)'
       : 'var(--shadow-md)';
 
+  // Al hacer clic: abrir la configuración de IA del Settings Studio
+  const handleClick = () => {
+    setSettingsStudioOpen(true, 'ai');
+  };
+
   return (
     <div
       style={{ position: 'fixed', bottom: '16px', left: '16px', zIndex: 9999, display: 'flex', alignItems: 'flex-end' }}
@@ -99,7 +105,7 @@ export const AIBatteryIndicator: React.FC = () => {
           bottom: '100%',
           left: 0,
           marginBottom: '12px',
-          width: '256px',
+          width: '280px',
           backgroundColor: 'var(--surface-elevated)',
           border: '1px solid var(--border-subtle)',
           borderRadius: 'var(--radius-lg)',
@@ -125,7 +131,7 @@ export const AIBatteryIndicator: React.FC = () => {
             <div key={specialty} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <p style={{ margin: 0, fontSize: '12px', fontWeight: 500, color: 'var(--text-main)' }}>
-                  {specialty === 'FAST' ? 'Corrector Rapido' : specialty === 'HEAVY' ? 'Analizador Profundo' : 'Motor Lógico'}
+                  {specialty === 'FAST' ? 'Corrector Rapido' : specialty === 'HEAVY' ? 'Analizador Profundo' : 'Motor Logico'}
                 </p>
                 <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                   {data.provider}
@@ -135,10 +141,42 @@ export const AIBatteryIndicator: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Boton de accion: abrir configuracion de IA */}
+        <button
+          type="button"
+          onClick={handleClick}
+          style={{
+            marginTop: '12px',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '8px 12px',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: '1px solid var(--accent-primary)',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--color-accent-soft)',
+            color: 'var(--accent-primary)',
+            fontFamily: 'inherit',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent-primary)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-accent-soft)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent-primary)'; }}
+        >
+          <Settings size={13} /> Configurar IA
+        </button>
       </div>
 
-      {/* Ícono Principal */}
+      {/* Icono Principal — clicable */}
       <div
+        onClick={handleClick}
+        role="button"
+        aria-label="Configurar estado de IA"
+        title="Clic para configurar IA · Pasa el cursor para ver el estado"
         style={{
           position: 'relative',
           display: 'flex',

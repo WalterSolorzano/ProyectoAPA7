@@ -4,13 +4,17 @@ disableSanityCheckAsar: true
 directories:
   output: dist-electron-builder
   buildResources: build
-electronDist: electron-dist
 files:
   - dist/**/*
   - dist-electron/**/*
 extraResources:
-  - from: dist-python/
-    to: python-backend/
+  # ── Python embebido (reemplaza PyInstaller) ──────────────────────────
+  # El runtime de Python oficial viaja en resources/python-runtime/.
+  # Usa python.exe firmado por Python Software Foundation en lugar del
+  # exe de PyInstaller que Windows Defender flaggea como malware.
+  # NO se requieren exclusiones en el antivirus del usuario final.
+  - from: dist-python/python-runtime/
+    to: python-runtime/
     filter:
       - "**/*"
   - from: word-addin/dist/
@@ -19,11 +23,11 @@ extraResources:
       - "**/*"
   - from: word-addin/manifest.xml
     to: addin/manifest.xml
-compression: store
+compression: normal
 win:
   target: nsis
   icon: build/icon.ico
-  signExecutable: false
+  signtoolOptions: null
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

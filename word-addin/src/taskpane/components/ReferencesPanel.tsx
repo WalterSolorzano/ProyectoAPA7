@@ -218,16 +218,19 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
   const removeRef = useCallback(async (id: string) => {
     try {
       await backend.deleteReference(id)
+      const removed = references.find((r) => r.id === id)
       setReferences((prev) => prev.filter((r) => r.id !== id))
-      setBibText((prev) =>
-        prev
-          .split('\n')
-          .filter((line) => {
-            const ref = references.find((r) => r.id === id)
-            return ref ? !line.includes((ref.formatted_apa || '').slice(0, 30)) : true
-          })
-          .join('\n'),
-      )
+      // Quitar la línea correspondiente del preview de bibliografía.
+      // Usar formatted_apa si existe, si no, raw_text, con fallback a string vacía.
+      const matchText = (removed?.formatted_apa || removed?.raw_text || '').slice(0, 40)
+      if (matchText) {
+        setBibText((prev) =>
+          prev
+            .split('\n')
+            .filter((line) => !line.includes(matchText))
+            .join('\n'),
+        )
+      }
       showToast('Referencia eliminada', 'info')
     } catch {
       showToast('No se pudo eliminar', 'error')

@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Return a cleanup function
     return () => ipcRenderer.removeListener('python-ready', callback)
   },
-  // Watchdog: el backend crasheó / se está reiniciando
+  // Watchdog: el backend crasheo / se esta reiniciando
   onPythonCrashed: (callback: () => void) => {
     ipcRenderer.on('python-crashed', callback)
     return () => ipcRenderer.removeListener('python-crashed', callback)
@@ -22,18 +22,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('python-restarting', callback)
     return () => ipcRenderer.removeListener('python-restarting', callback)
   },
-  // Emitido por PythonManager cuando el Add-in de Word se registró (sideload)
-  // en el registro de Windows. El renderer puede mostrar un toast al usuario
-  // diciéndole que reinicie Word para ver el complemento.
-  onAddinSideloaded: (callback: (data: { status: string; hint: string }) => void) => {
-    const listener = (_event: any, data: { status: string; hint: string }) => callback(data)
+  // Emitido por PythonManager cuando el Add-in de Word se configuro
+  // automaticamente (manifiesto + registro de Windows + catalogo compartido).
+  // El renderer puede mostrar un toast al usuario diciendole que reinicie
+  // Word para ver el complemento.
+  onAddinSideloaded: (callback: (data: {
+    status: string
+    hint: string
+    manifest_path?: string
+    registry_key?: string
+    ssl_cert_installed?: boolean
+  }) => void) => {
+    const listener = (_event: any, data: any) => callback(data)
     ipcRenderer.on('addin-sideloaded', listener)
     return () => ipcRenderer.removeListener('addin-sideloaded', listener)
   },
   getBackendPort: () => ipcRenderer.sendSync('get-backend-port'),
   // Abre una URL externa en el navegador del sistema (fallback de descarga manual)
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
-  // Actualizaciones: estado + acciones del menú de update
+  // Actualizaciones: estado + acciones del menu de update
   getAppVersion: () => ipcRenderer.sendSync('get-app-version'),
   checkForUpdates: () => ipcRenderer.send('update:check'),
   installUpdate: () => ipcRenderer.send('update:install'),
@@ -43,9 +50,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('update:status', listener)
   },
   // ── Context Menu integration ──────────────────────────────────────────
-  // Recibe un archivo .docx desde el menú contextual de Windows
-  // (click derecho → "Convertir a APA 7 con WordAPA7").
-  // El main process lee el archivo del disco y envía { fileName, buffer }.
+  // Recibe un archivo .docx desde el menu contextual de Windows
+  // (click derecho -> "Convertir a APA 7 con WordAPA7").
+  // El main process lee el archivo del disco y envia { fileName, buffer }.
   onOpenFileFromOS: (callback: (data: { fileName: string; buffer: Uint8Array }) => void) => {
     const listener = (_event: any, data: { fileName: string; buffer: Uint8Array }) => callback(data)
     ipcRenderer.on('open-file-from-os', listener)

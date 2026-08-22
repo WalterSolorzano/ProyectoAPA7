@@ -1,6 +1,6 @@
-/* WordAPA7 — Panel derecho flotante (overlay sobre el canvas).
-   No compite por espacio con el EditorRail: se monta con position: absolute
-   y box-shadow para no aplastar el documento central.
+/* WordAPA7 — Panel derecho integrado (flex, no overlay).
+   Forma parte del layout flex: cuando se abre, empuja el documento
+   hacia la izquierda en lugar de flotar encima.
    - ActionBar + Inspector según contexto.
    - Sin bloques de "Resumen" ni "Revision IA" repetidos. */
 
@@ -108,17 +108,16 @@ export const RightSidePanel: React.FC = () => {
     <div
       ref={panelRef}
       style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        bottom: 0,
+        // Flex item: empuja el documento en lugar de flotar encima.
         width: panelWidth,
-        zIndex: 25,
+        flexShrink: 0,
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--sidebar-bg)',
         borderLeft: '1px solid var(--border-subtle)',
-        boxShadow: '-6px 0 20px rgba(0,0,0,0.12)',
+        position: 'relative', // para que el resize handle se posicione relativo a este contenedor
+        overflow: 'hidden',
       }}
     >
       {/* Resize handle en el borde izquierdo */}

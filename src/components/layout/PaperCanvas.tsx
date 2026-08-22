@@ -63,7 +63,7 @@ export const computePages = (elements: ElementModel[]): ElementModel[][] => {
   return pages;
 };
 
-export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string> }> = ({ onElementClick, reviewHighlightIds }) => {
+export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
@@ -527,137 +527,41 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         overscrollBehavior: 'contain'
       }}
     >
-      {/* Barra de Herramientas Flotante del Lienzo */}
+      {/* Zoom control minimalista — reemplaza la barra flotante gigante */}
       <div style={{
         position: 'sticky',
-        top: '0',
-        zIndex: 100,
-        width: '100%',
-        backgroundColor: 'var(--surface-elevated)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        marginBottom: '16px',
+        bottom: '8px',
+        zIndex: 50,
+        alignSelf: 'flex-end',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '6px 12px',
-        padding: '6px 16px',
-        fontSize: '11px',
-        color: 'var(--text-secondary)',
-        boxShadow: 'var(--shadow-md)'
+        gap: '2px',
+        backgroundColor: 'var(--surface-elevated)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: '999px',
+        padding: '3px 4px',
+        marginBottom: '8px',
+        boxShadow: 'var(--shadow-sm)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
-          <span style={{ fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap' }}>Vista Previa del Documento</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            className={`btn btn-xs ${showAIHeatmap ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setShowAIHeatmap(!showAIHeatmap)}
-            title="Detector de IA: resalta en colores los párrafos que podrían haber sido escritos por IA (rojo = alto riesgo, amarillo = medio riesgo). Clic para activar/desactivar."
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
-          >
-            <Flame size={12} color={showAIHeatmap ? 'var(--accent-danger)' : 'var(--text-muted)'} />
-            Detector IA
-          </button>
-
-          <button
-            type="button"
-            className={`btn btn-xs ${showCitationMarks ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setShowCitationMarks(!showCitationMarks)}
-            title="Resaltar citas APA: marca en verde las citas con formato correcto y en ámbar las que necesitan corrección. Clic para activar/desactivar."
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}
-          >
-            <Edit3 size={12} color={showCitationMarks ? '#1a7f4e' : 'var(--text-muted)'} />
-            Resaltar Citas
-          </button>
-          
-          {useDocStore.getState().citationAuditResult && (
-            <div style={{ display: 'flex', gap: '6px', marginRight: '8px' }}>
-              <div 
-                title="Citas fantasma: Existen en el texto pero no en la bibliografía"
-                style={{ 
-                  display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                  backgroundColor: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'rgba(255,77,79,0.12)' : 'rgba(82,196,26,0.12)',
-                  color: useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'var(--accent-danger)' : 'var(--accent-success)',
-                  border: `1px solid ${useDocStore.getState().citationAuditResult?.ghost_citations?.length ? 'rgba(255,77,79,0.35)' : 'rgba(82,196,26,0.35)'}`
-                }}
-              >
-                {useDocStore.getState().citationAuditResult?.ghost_citations?.length || 0} Citas Fantasma
-              </div>
-              <div 
-                title="Referencias huérfanas: Existen en la bibliografía pero nunca se citaron"
-                style={{ 
-                  display: 'inline-flex', alignItems: 'center', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                  backgroundColor: useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'rgba(250,173,20,0.12)' : 'rgba(82,196,26,0.12)',
-                  color: useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'var(--accent-warning)' : 'var(--accent-success)',
-                  border: `1px solid ${useDocStore.getState().citationAuditResult?.orphan_references?.length ? 'rgba(250,173,20,0.35)' : 'rgba(82,196,26,0.35)'}`
-                }}
-              >
-                {useDocStore.getState().citationAuditResult?.orphan_references?.length || 0} Refs Huérfanas
-              </div>
-            </div>
-          )}
-
-          <button
-            className="btn btn-secondary btn-xs"
-            onClick={() => setZoomLevel(zoomLevel - 10)}
-            title="Reducir Zoom"
-          >
-            <ZoomOut size={12} />
-          </button>
-          <span style={{ fontWeight: 600, minWidth: '40px', textAlign: 'center' }}>{zoomLevel}%</span>
-          <button
-            className="btn btn-secondary btn-xs"
-            onClick={() => setZoomLevel(zoomLevel + 10)}
-            title="Aumentar Zoom"
-          >
-            <ZoomIn size={12} />
-          </button>
-          <span style={{
-            fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px',
-            display: 'flex', alignItems: 'center', gap: '3px',
-          }} title="Ctrl + scroll para hacer zoom con la rueda">
-            <ZoomIn size={10} /> Ctrl+Scroll
-          </span>
-        </div>
-
-        {/* Leyenda de colores: aparece solo cuando Detector IA o Resaltar Citas están activos */}
-        {(showAIHeatmap || showCitationMarks) && (
-          <div style={{
-            width: '100%',
-            display: 'flex',
-            gap: '16px',
-            flexWrap: 'wrap',
-            fontSize: '10px',
-            color: 'var(--text-muted)',
-            paddingTop: '6px',
-            marginTop: '4px',
-            borderTop: '1px solid var(--border-subtle)',
-          }}>
-            {showAIHeatmap && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)' }} />
-                Párrafo con alto riesgo de IA
-                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-warning)', marginLeft: '4px' }} />
-                Riesgo medio de IA
-              </span>
-            )}
-            {showCitationMarks && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-success)' }} />
-                Cita APA con formato correcto
-                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--accent-warning)', marginLeft: '4px' }} />
-                Cita que necesita corrección
-              </span>
-            )}
-          </div>
-        )}
+        <button
+          onClick={() => setZoomLevel(zoomLevel - 10)}
+          title="Reducir Zoom"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}
+        >
+          <ZoomOut size={14} />
+        </button>
+        <span style={{ fontWeight: 600, minWidth: '36px', textAlign: 'center', fontSize: '11px', color: 'var(--text-secondary)' }}>{zoomLevel}%</span>
+        <button
+          onClick={() => setZoomLevel(zoomLevel + 10)}
+          title="Aumentar Zoom"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}
+        >
+          <ZoomIn size={14} />
+        </button>
       </div>
 
       {/* Barra contextual de imagen (estilo Word: aparece al seleccionar una figura) */}
-      {doc && selectedElementId && (() => {
+      {!readOnly && doc && selectedElementId && (() => {
         const selElem = doc.elements.find(e => e.id === selectedElementId);
         if (!selElem || selElem.type !== 'image' || !selElem.image_info) return null;
         const img = selElem.image_info;
@@ -740,9 +644,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
       {/* Renderizado de Páginas */}
       <div style={{
-        transform: `scale(${zoomLevel / 100})`,
-        transformOrigin: 'top center',
-        transition: 'transform 0.15s ease',
+        zoom: zoomLevel / 100,
+        transition: 'zoom 0.15s ease',
         display: 'flex',
         flexDirection: 'column',
         gap: '24px'
@@ -879,23 +782,61 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         />
                       </div>
                     )}
-                    {coverHeaderTexts.map(elem => (
-                      <p
-                        key={elem.id}
-                        id={`paper-elem-${elem.id}`}
-                        onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                        style={{
-                          margin: '2px 0',
-                          textAlign: (elem.alignment as any) || 'center',
-                          fontWeight: elem.is_bold ? 'bold' : 'normal',
-                          fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
-                          color: '#0f172a',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {elem.text}
-                      </p>
-                    ))}
+                    {/* Separar textos institucionales de nombres cortos para distribuirlos horizontalmente */}
+                    {(() => {
+                      const INSTITUTIONAL_KW = ['universidad', 'recinto', 'facultad', 'tema', 'trabajo', 'asignatura', 'curso', 'departamento', 'carrera', 'ingenier', 'licenc', 'unidad academica', 'asignatura'];
+                      const isNameLike = (txt: string) => {
+                        const lower = (txt || '').toLowerCase();
+                        return (txt || '').trim().length <= 80 && !INSTITUTIONAL_KW.some(kw => lower.includes(kw));
+                      };
+                      const institutionalTexts = coverHeaderTexts.filter(e => !isNameLike(e.text || ''));
+                      const nameLikeTexts = coverHeaderTexts.filter(e => isNameLike(e.text || ''));
+                      return (
+                        <>
+                          {/* Textos institucionales (universidad, tema, etc.) — verticales, centrados */}
+                          {institutionalTexts.map(elem => (
+                            <p
+                              key={elem.id}
+                              id={`paper-elem-${elem.id}`}
+                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                              style={{
+                                margin: '2px 0',
+                                textAlign: (elem.alignment as any) || 'center',
+                                fontWeight: elem.is_bold ? 'bold' : 'normal',
+                                fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
+                                color: '#0f172a',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {elem.text}
+                            </p>
+                          ))}
+                          {/* Nombres cortos — distribuidos horizontalmente como en el documento original */}
+                          {nameLikeTexts.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px 24px', marginTop: '12px', maxWidth: '100%' }}>
+                              {nameLikeTexts.map(elem => (
+                                <p
+                                  key={elem.id}
+                                  id={`paper-elem-${elem.id}`}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                                  style={{
+                                    margin: 0,
+                                    textAlign: 'center',
+                                    fontWeight: elem.is_bold ? 'bold' : 'normal',
+                                    fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
+                                    color: '#0f172a',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'pre-line',
+                                  }}
+                                >
+                                  {elem.text}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Bloque Autores: Grilla de Columnas Limpia */}
@@ -1051,6 +992,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           e.stopPropagation();
                           e.preventDefault();
                           (window.getSelection?.() ?? null)?.removeAllRanges?.();
+                          if (readOnly) return;
                           if (elem.type === 'image' && elem.image_info) {
                             setEditingId(elem.id);
                             setEditValue(elem.image_info.caption || '');
@@ -1063,7 +1005,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           e.preventDefault();
                           e.stopPropagation();
                           setSelectedElementId(elem.id);
-                          setContextMenuElemId(elem.id);
+                          if (!readOnly) setContextMenuElemId(elem.id);
                         }}
                         style={{
                           position: 'relative',

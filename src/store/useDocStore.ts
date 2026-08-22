@@ -396,6 +396,17 @@ const defaultLLMProgress: LLMProgressState = {
 // (delegado a backend.ts para no duplicar la lógica del puerto).
 const getApiBase = () => api.getApiBase();
 
+/** Triggers a file download without navigating away from the app (Electron-safe). */
+function triggerDownload(url: string, filename?: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.style.display = 'none';
+  if (filename) a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export const useDocStore = create<DocState>()(
   persist(
     (set, get) => ({
@@ -1461,7 +1472,7 @@ export const useDocStore = create<DocState>()(
       const downloadUrl = data.download_url.startsWith('http')
         ? data.download_url
         : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
-      window.location.href = downloadUrl;
+      triggerDownload(downloadUrl, data.filename || `APA7_${doc.file_name}`);
       set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar documento', isLoading: false });
@@ -1492,7 +1503,7 @@ export const useDocStore = create<DocState>()(
         const downloadUrl = data.download_url.startsWith('http')
           ? data.download_url
           : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
-        window.location.href = downloadUrl;
+        triggerDownload(downloadUrl, data.pdf_name || (doc.file_name?.replace(/\.[^.]+$/, '') + '.pdf'));
         set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
       }
     } catch (err: any) {

@@ -48,6 +48,10 @@ middle_scroll_screenshot.png
 dist-electron/
 dist-electron-builder/
 dist-python/
+dist-python.trash.*/
+electron-dist/
+electron-dist-pre/
+electron-fresh.zip
 build/*
 !build/pyinstaller.spec
 !build/installer.nsh
@@ -57,6 +61,9 @@ build/*
 !build/installerSidebar.bmp
 !build/uninstallerSidebar.bmp
 *.exe
+
+# Alternate / experimental build configs (dev-only, not the canonical electron-builder.yml)
+electron-builder-build.yml
 
 # Agents and reports
 .agents/
@@ -82,3 +89,43 @@ deep_analyze_v3.py
 regenerate_and_check.py
 trainer.py
 upload_test.py
+
+# ── Archivos temporales de debug / build (no son producto) ───────────────────
+# Scripts de parche/depuración de un solo uso en la raíz del repo
+/_debug_fix.py
+/_fix_download.py
+/_fix_logo.py
+/_fix_mkdir.py
+/_patch_lifespan.py
+/_patch_main.py
+/_patch_main2.py
+/_patch_main_ts.py
+/_patch_main_watcher.py
+/_patch_python_manager.py
+/_probe_findtype.py
+/_verify3.py
+/_verify_logo_fix.py
+/_verify_ssl_ctypes.py
+# Scripts de debug dentro de python/
+python/_dump_section.py
+python/_test_logo.py
+python/_verify_ca_fix.py
+# Parches JS y scripts de análisis sueltos
+patch_paper.js
+patch_paper2.js
+fix_css.py
+test_flow.py
+# Salidas de texto de build / 7zip / eslint / pytest
+7za_*.txt
+build_*.txt
+/_eslint_out.txt
+/_pytest_out.txt
+/_pytest_err.txt
+/_vitest.log
+/_commit_msg.txt
+/_validate_nsh.cjs
+# Artefactos vacíos / de error
+/Editar
+word-addin/$null
+# Catálogo generado por auto-setup del Add-in (runtime, no fuente)
+catalog/

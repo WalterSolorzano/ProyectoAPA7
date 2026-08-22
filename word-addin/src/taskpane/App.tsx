@@ -388,6 +388,12 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* Nota pequena: servicio automatico */}
+      <div className="watcher-note">
+        <span className="watcher-note__dot" />
+        Servicio automatico - Se inicia al abrir Word
+      </div>
+
       {/* WELCOME TOUR (primera vez) */}
       <WelcomeTour />
     </div>

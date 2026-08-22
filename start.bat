@@ -1,28 +1,28 @@
 @echo off
+cd /d "%~dp0"
 chcp 65001 >nul
 echo ============================================================
-echo  Iniciando WordAPA7...
+echo  Iniciando WordAPA7 (modo desarrollo)...
 echo ============================================================
-echo El backend compila el frontend automaticamente si detecta cambios.
 echo.
-echo El backend corre en HTTP plano (sin certificados locales).
-echo Abre http://localhost:8742 en tu navegador.
-echo Cierra esta ventana para detener la aplicacion.
+echo El backend corre en HTTPS (https://localhost:8742).
+echo El certificado SSL se genera e instala automaticamente
+echo en el Trusted Root store de Windows (silenciosamente, sin dialogos).
 echo.
-echo --- Complemento de Word (Add-in) ---
-echo MODO PRODUCCION (recomendado):
-echo   1. Hospeda los archivos del Add-in en una URL HTTPS publica
-echo      (ej. GitHub Pages, Netlify, Vercel).
-echo   2. Configura WORDAPA7_ADDIN_PUBLIC_URL en .env con esa URL.
-echo   3. Carga el manifiesto desde: http://localhost:8742/api/addin/manifest
+echo Complemento de Word (Add-in):
+echo   - Se registra AUTOMATICAMENTE al iniciar el backend.
+echo   - No necesitas ejecutar ningun script adicional.
+echo   - Abre Word y busca la pestana "WordAPA7" arriba.
+echo   - Si no aparece, cierra Word completamente y vuelvelo a abrir.
 echo.
-echo MODO LOCAL (sin SSL):
-echo   El Add-in se sirve desde el propio backend en HTTP.
-echo   Task Pane:  http://localhost:8742/addin/taskpane.html
-echo   Manifest:   http://localhost:8742/api/addin/manifest
+echo NOTA: Este script es para DESARROLLO. En produccion, el watcher
+echo ligero (word_watcher.py) se encarga de todo automaticamente:
+echo   - Se inicia al iniciar sesion en Windows
+echo   - Detecta cuando abres Word y arranca el backend
+echo   - Lo detiene cuando cierras Word (ahorra recursos)
+echo   - No necesitas tener esta ventana abierta
 echo.
-echo MODO DESARROLLO HTTPS (avanzado):
-echo   Setea WORDAPA7_USE_SSL=true en .env para activar SSL local.
+echo Cierra esta ventana para detener el backend.
 echo.
 if exist "venv\Scripts\python.exe" (
     "venv\Scripts\python" python\main.py

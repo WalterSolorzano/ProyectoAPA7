@@ -24,7 +24,9 @@ export const Step3FiguresTablesWizard: React.FC = () => {
   const [toolbarAnchor, setToolbarAnchor] = useState<DOMRect | null>(null);
   const [toolbarElementId, setToolbarElementId] = useState<string | null>(null);
 
-  const figures = doc?.elements.filter((e) => e.type === 'image') ?? [];
+  // Exclude cover-section images (logos) from the figures list — they are part
+  // of the cover layout, not content figures that need APA 7 figure numbering.
+  const figures = doc?.elements.filter((e) => e.type === 'image' && !e.is_cover_section) ?? [];
   const tables = doc?.elements.filter((e) => e.type === 'table') ?? [];
   const selectedImage = figures.find((f) => f.id === selectedElementId) || null;
   const selectedTable = tables.find((t) => t.id === selectedElementId) || null;
@@ -309,7 +311,11 @@ export const Step3FiguresTablesWizard: React.FC = () => {
       </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', backgroundColor: 'var(--canvas-bg)' }}>
+      {/* Container: use display:flex + flexDirection:column so PaperCanvas's
+          flex:1 + height:100% properly constrain its height and handle its own
+          scrolling. Previously overflowY:'auto' here created a nested-scroll
+          conflict with PaperCanvas's own overflowY:'auto'. */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', display: 'flex', flexDirection: 'column' }}>
         <PaperCanvas onElementClick={handleElementClick} />
       </div>
 

@@ -90,7 +90,7 @@ rem --- [5] Plantilla APA7 y build ---
 echo [5/5] Generando plantilla APA7...
 "venv\Scripts\python" python\create_template.py
 if errorlevel 1 (
-    echo ERROR: Fallo la generacion de la plantilla APA7.
+    echo ERROR: Fallo la generacion de la plantilla APA 7.
     pause
     exit /b 1
 )
@@ -103,69 +103,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem --- [6] Modo de operacion del Word Add-in ---
-echo.
-echo ============================================
-echo  Word Add-in: Configuracion HTTPS (opcional)
-echo ============================================
-echo.
-echo El Word Add-in funciona en MODO PRODUCCION por defecto:
-echo   - El backend corre en http://127.0.0.1:8742 (HTTP plano)
-echo   - El Add-in se carga desde una URL HTTPS publica
-echo   - No se necesitan certificados locales ni mkcert
-echo   - Sin alertas de seguridad de Windows
-echo.
-echo MODO DESARROLLO AVANZADO (HTTPS local con mkcert):
-echo   Solo necesario si desarrollas el Add-in localmente y necesitas
-echo   que Word cargue el panel desde https://localhost:3000.
-echo   Para activarlo, ejecuta: setup.bat --dev-https
-echo.
-
-rem --- Verificar si se solicito el modo de desarrollo con HTTPS ---
-set "DEV_HTTPS=0"
-for %%A in (%*) do (
-    if /i "%%A"=="--dev-https" set "DEV_HTTPS=1"
-)
-
-if "!DEV_HTTPS!"=="1" (
-    echo [DEV-HTTPS] Configurando mkcert para desarrollo local avanzado...
-    where mkcert >nul 2>nul
-    if errorlevel 1 (
-        echo mkcert no esta instalado. Intentando instalar via winget...
-        where winget >nul 2>nul
-        if not errorlevel 1 (
-            winget install --id FiloSottile.mkcert -e --silent >nul 2>nul
-            if not errorlevel 1 (
-                echo mkcert instalado correctamente via winget.
-                set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WinGet\Packages\FiloSottile.mkcert_Microsoft.Winget.Source_8wekyb3d8bbwe"
-                where mkcert >nul 2>nul
-            )
-        )
-    )
-
-    where mkcert >nul 2>nul
-    if not errorlevel 1 (
-        echo Instalando autoridad de certificacion local (mkcert -install)...
-        mkcert -install
-        if not errorlevel 1 (
-            echo.
-            echo OK: HTTPS de desarrollo configurado con mkcert.
-            echo     El backend generara los certificados SSL al iniciar.
-            echo     Activa WORDAPA7_USE_SSL=true en .env para usarlo.
-        ) else (
-            echo AVISO: mkcert -install fallo. El Add-in funcionara en HTTP.
-        )
-    ) else (
-        echo.
-        echo AVISO: mkcert no se pudo instalar.
-        echo Para instalarlo manualmente:
-        echo   1. Descarga mkcert: https://github.com/FiloSottile/mkcert/releases
-        echo   2. Copia mkcert.exe a una carpeta en tu PATH
-        echo   3. Ejecuta: setup.bat --dev-https
-        echo.
-    )
+echo Construyendo complemento de Word...
+cd word-addin && call npm install && call npm run build && cd ..
+if errorlevel 1 (
+    echo WARNING: Fallo la construccion del complemento de Word.
+    echo No es obligatorio para el funcionamiento principal.
 ) else (
-    echo [OK] Modo produccion: no se requieren certificados locales.
+    echo [OK] Complemento de Word construido correctamente.
 )
 
 echo.
@@ -173,14 +117,14 @@ echo ============================================
 echo  Configuracion completada correctamente.
 echo ============================================
 echo.
-echo Ejecuta start.bat y abre http://localhost:8742 en tu navegador.
-echo (start.bat usara el entorno virtual creado en la carpeta venv\)
+echo Ejecuta start.bat para iniciar la aplicacion.
 echo.
-echo Word Add-in (produccion):
-echo   - El backend sirve el Add-in en http://127.0.0.1:8742/addin/
-echo   - Para usarlo en Word, carga el manifest desde:
-echo     http://127.0.0.1:8742/api/addin/manifest
-echo   - Para produccion con URL publica, configura:
-echo     WORDAPA7_ADDIN_PUBLIC_URL en .env
+echo Word Add-in (complemento de Word):
+echo   - El backend corre en HTTPS (https://localhost:8742)
+echo   - El certificado SSL se genera e instala automaticamente
+echo   - El complemento se registra AUTOMATICAMENTE al iniciar
+echo   - No necesitas ejecutar scripts ni aceptar advertencias
+echo   - Abre Word y busca la pestana "WordAPA7" arriba
+echo   - Si no aparece, cierra Word completamente y vuelvelo a abrir
 echo.
 pause

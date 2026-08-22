@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 import shutil
 import threading
@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 class DocConverterService:
     """
-    Servicio unificado para conversiÃ³n DOCX â†’ PDF y post-procesamiento.
+    Servicio unificado para conversión DOCX → PDF y post-procesamiento.
 
     Estrategia Dual Engine:
-    1. Si FORCE_ENGINE == 'COM', fuerza usar pywin32 (falla si no estÃ¡ disponible)
+    1. Si FORCE_ENGINE == 'COM', fuerza usar pywin32 (falla si no está disponible)
     2. Si FORCE_ENGINE == 'LO', fuerza usar LibreOffice
     3. Default: intenta COM primero, si falla intenta LO.
     """
@@ -26,7 +26,7 @@ class DocConverterService:
         self._lock = threading.Lock()
 
     def get_active_engine(self) -> str:
-        """Determina quÃ© motor usar basado en disponibilidad y variables de entorno."""
+        """Determina qué motor usar basado en disponibilidad y variables de entorno."""
         force_engine = os.getenv("FORCE_ENGINE", "").upper()
 
         if force_engine == "COM":
@@ -34,7 +34,7 @@ class DocConverterService:
         elif force_engine == "LO":
             return "LO" if self._lo_service.is_available() else "NONE"
 
-        # Fallback automÃ¡tico
+        # Fallback automático
         if self._com_processor.is_available():
             return "COM"
         if self._lo_service.is_available():
@@ -44,9 +44,16 @@ class DocConverterService:
 
     def process_and_convert(
         self, original_path: Path, generated_path: Path, final_path: Path,
-        preserve_cover: bool = False, generate_pdf: bool = True
+        preserve_cover: bool = False, generate_pdf: bool = True, rules=None
     ) -> Tuple[bool, Optional[Path]]:
-        """Aplica post-procesamiento (portada, TOC) y genera PDF usando el motor activo. Protegido por un Lock global para evitar concurrencia en COM/LO."""
+        """Aplica post-procesamiento (portada, TOC) y genera PDF usando el motor activo.
+        Protegido por un Lock global para evitar concurrencia en COM/LO.
+
+        ``rules`` es opcionalmente un ``APARuleSet`` (Pydantic) con la
+        configuración de formato del usuario. Se pasa al motor COM para
+        que respete fuente, tamaño, interlineado, etc. en lugar de los
+        defaults APA hardcoded.
+        """
 
         with self._lock:
             engine = self.get_active_engine()
@@ -55,12 +62,13 @@ class DocConverterService:
                 logger.info("[DocConverter] Usando motor COM para post-procesamiento y PDF.")
                 return self._com_processor.process(
                     original_path, generated_path, final_path,
-                    preserve_cover=preserve_cover, generate_pdf=generate_pdf
+                    preserve_cover=preserve_cover, generate_pdf=generate_pdf,
+                    rules=rules
                 )
 
             elif engine == "LO":
                 logger.info("[DocConverter] Usando motor LibreOffice para post-procesamiento y PDF.")
-                # LO no puede hacer el trasplante quirÃºrgico de portada tan fÃ¡cil como COM.
+                # LO no puede hacer el trasplante quirúrgico de portada tan fácil como COM.
                 # En caso de LO, si preserve_cover es True, perderemos fidelidad en la portada,
                 # pero el usuario sabe que LO es un fallback o para previews.
                 # Solo copiamos el generado al final.
@@ -76,7 +84,7 @@ class DocConverterService:
                 return True, None
 
             else:
-                logger.warning("[DocConverter] NingÃºn motor disponible. Solo se copia el archivo generado.")
+                logger.warning("[DocConverter] Ningún motor disponible. Solo se copia el archivo generado.")
                 shutil.copy(generated_path, final_path)
                 return False, None
 

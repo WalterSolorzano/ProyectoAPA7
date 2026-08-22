@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { backend } from '../api/backend'
-import { insertTableAPA, getNextTableNumber, type TableData } from '../office/wordHelper'
+import { insertTableAPA, getNextTableNumber, getDocumentText, type TableData } from '../office/wordHelper'
 
 const TableIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -272,12 +272,9 @@ export function TablePanel({ showToast }: Props) {
 /** Obtiene las primeras 2000 palabras del documento como contexto para la IA. */
 async function getDocumentTextForContext(): Promise<string> {
   try {
-    const text = await getDocumentTextSafe()
+    const text = await getDocumentText()
     return text.split(/\s+/).slice(0, 2000).join(' ')
   } catch {
     return ''
   }
 }
-
-// Re-export para evitar circular import
-import { getDocumentText as getDocumentTextSafe } from '../office/wordHelper'

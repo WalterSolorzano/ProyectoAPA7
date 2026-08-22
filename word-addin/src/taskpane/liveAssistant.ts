@@ -154,6 +154,7 @@ let _stats: DocumentStats | null = null
 let _unsubDoc: (() => void) | null = null
 let _unsubSel: (() => void) | null = null
 let _idleTimer: ReturnType<typeof setInterval> | null = null
+let _backendCheckInterval: ReturnType<typeof setInterval> | null = null
 let _debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // Estado interno del scan
@@ -450,7 +451,7 @@ export const liveAssistant = {
 
     // Chequear backend y reintentar periódicamente
     checkBackend()
-    setInterval(() => {
+    _backendCheckInterval = setInterval(() => {
       if (!_backendOnline) checkBackend()
     }, 8000)
 
@@ -466,6 +467,7 @@ export const liveAssistant = {
     if (_unsubDoc) { _unsubDoc(); _unsubDoc = null }
     if (_unsubSel) { _unsubSel(); _unsubSel = null }
     if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null }
+    if (_backendCheckInterval) { clearInterval(_backendCheckInterval); _backendCheckInterval = null }
     stopIdleRotation()
     emitMascot('Asistente en vivo en pausa.')
   },

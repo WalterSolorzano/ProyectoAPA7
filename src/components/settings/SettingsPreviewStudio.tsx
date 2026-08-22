@@ -1,4 +1,4 @@
-﻿/* WordAPA7 — Estudio de Ajustes con Previsualizador en vivo
+/* WordAPA7 — Estudio de Ajustes con Previsualizador en vivo
  * Panel de controles (izquierda) + vista previa APA 7 (derecha).
  * Permite ajustar tipografía, interlineado, títulos (enumerados/bold/itálica),
  * imágenes (alineación/estilo), índice, listas y guardar plantillas de reglas y portada.
@@ -29,7 +29,7 @@ const STUDIO_TABS: { id: StudioTab; label: string; icon: React.ReactNode }[] = [
   { id: 'ai', label: 'IA y conexión', icon: <Cpu size={13} /> },
   { id: 'privacy', label: 'Privacidad', icon: <ShieldCheck size={13} /> },
   { id: 'about', label: 'Actualización', icon: <Download size={13} /> },
-  { id: 'addin', label: 'Complemento', icon: <Puzzle size={13} /> },
+  { id: 'addin', label: 'Complemento Word', icon: <FileText size={13} /> },
 ];
 
 const FONT_OPTIONS = [
@@ -96,7 +96,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
     }}>
       {/* ── CONTROLES (izquierda) ── */}
       <div style={{
-        width: '520px', flexShrink: 0, maxWidth: '70%', minWidth: '300px',
+        width: '480px', flexShrink: 0, maxWidth: '70%', minWidth: '300px',
         backgroundColor: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column',
       }}>
@@ -176,7 +176,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<Type size={14} />}
             title="Tipografía"
-            explanation="APA 7 requiere Times New Roman 12pt por defecto. Calibri y Arial son alternativas aceptadas con tamaño 11pt."
+            description="La fuente y tamaño definen la apariencia general del documento. APA 7 requiere Times New Roman 12pt por defecto."
             collapsed={!!collapsedSections['Tipografía']}
             onToggle={() => toggleSection('Tipografía')}
           >
@@ -201,7 +201,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<StretchHorizontal size={14} />}
             title="Párrafo"
-            explanation="APA 7 usa interlineado doble (2.0), alineación a la izquierda y sangría de 1.27cm en la primera línea de cada párrafo."
+            description="El interlineado y sangría afectan la legibilidad. APA 7 exige doble espacio y sangría de 1.27cm."
             collapsed={!!collapsedSections['Párrafo']}
             onToggle={() => toggleSection('Párrafo')}
           >
@@ -232,7 +232,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<Heading1 size={14} />}
             title="Títulos (niveles APA)"
-            explanation="APA 7 define 5 niveles de títulos con combinaciones específicas de negrita, itálica y alineación. Aquí configuras los 3 principales."
+            description="Controla cómo se ven y numeran los títulos. APA 7 tiene reglas específicas de negrita, itálica y alineación por nivel."
             collapsed={!!collapsedSections['Títulos (niveles APA)']}
             onToggle={() => toggleSection('Títulos (niveles APA)')}
           >
@@ -270,7 +270,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<ImageIcon size={14} />}
             title="Imágenes"
-            explanation="Las figuras en APA 7 van centradas con número y leyenda en itálica debajo. El estilo 'revista científica' añade un marco."
+            description="Define cómo se alinean y rotulan las figuras en el documento final."
             collapsed={!!collapsedSections['Imágenes']}
             onToggle={() => toggleSection('Imágenes')}
           >
@@ -295,7 +295,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<ListTree size={14} />}
             title="Índice"
-            explanation="Word genera el índice automáticamente (Tabla de Contenidos nativa) con los números de página reales al exportar."
+            description="El estilo del índice/tabla de contenidos que Word generará automáticamente."
             collapsed={!!collapsedSections['Índice']}
             onToggle={() => toggleSection('Índice')}
           >
@@ -313,7 +313,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<BookOpen size={14} />}
             title="Portada"
-            explanation="La portada APA 7 incluye título, autor, institución, curso, docente y fecha. El formato profesional añade 'running head'."
+            description="Elige entre formato de estudiante o profesional para la portada APA 7."
             collapsed={!!collapsedSections['Portada']}
             onToggle={() => toggleSection('Portada')}
           >
@@ -331,7 +331,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<Cpu size={14} />}
             title="Proveedores IA"
-            explanation="Configura las claves de API de los proveedores de IA. Se sincronizan automáticamente con el motor al escribir."
+            description="Configura las claves de API de los proveedores de IA. Se sincronizan automáticamente con el motor al escribir."
             collapsed={!!collapsedSections['Proveedores IA']}
             onToggle={() => toggleSection('Proveedores IA')}
           >
@@ -410,18 +410,18 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
  * Props:
  *  - icon:        Icono que aparece a la izquierda del título.
  *  - title:       Título de la sección (se muestra en mayúsculas).
- *  - explanation: Texto explicativo en itálica que aparece bajo el título.
+ *  - description: Texto explicativo en itálica que aparece bajo el título.
  *  - collapsed:   Estado controlado (true = colapsado). Si no se pasa, usa estado interno.
  *  - onToggle:    Callback al hacer clic en la cabecera (modo controlado).
  */
 const Section: React.FC<{
   icon: React.ReactNode;
   title: string;
-  explanation?: string;
+  description?: string;
   collapsed?: boolean;
   onToggle?: () => void;
   children: React.ReactNode;
-}> = ({ icon, title, explanation, collapsed, onToggle, children }) => {
+}> = ({ icon, title, description, collapsed, onToggle, children }) => {
   // Estado interno para secciones no controladas (ej. TelemetryToggle)
   const [internalExpanded, setInternalExpanded] = useState(true);
   const isControlled = collapsed !== undefined;
@@ -459,12 +459,12 @@ const Section: React.FC<{
       {/* Contenido colapsable */}
       {isExpanded && (
         <div style={{ padding: '0 12px 12px' }}>
-          {explanation && (
+          {description && (
             <p style={{
               fontSize: '10px', color: 'var(--text-tertiary)', margin: '0 0 10px',
               lineHeight: 1.5, fontStyle: 'italic',
             }}>
-              ¿Por qué? {explanation}
+              {description}
             </p>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>{children}</div>
@@ -598,9 +598,7 @@ const AddinStatusCard: React.FC = () => {
                 ? 'rgba(34,197,94,0.10)'
                 : status === 'error'
                   ? 'rgba(239,68,68,0.10)'
-                  : status === 'unavailable'
-                    ? 'var(--surface-subtle, rgba(255,255,255,0.04))'
-                    : 'var(--surface-subtle, rgba(255,255,255,0.04))',
+                  : 'var(--surface-subtle, rgba(255,255,255,0.04))',
             }}>
               <span style={{ color: cfg.color, display: 'flex', alignItems: 'center' }}>{cfg.icon}</span>
               <span style={{ fontSize: '12px', fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
@@ -665,7 +663,7 @@ const TelemetryToggle: React.FC = () => {
     <Section
       icon={<Cpu size={14} />}
       title="Telemetría"
-      explanation="Reportes de error anónimos. Nunca se envía contenido de documentos ni datos personales."
+      description="Reportes de error anónimos. Nunca se envía contenido de documentos ni datos personales."
     >
       <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 6px', lineHeight: 1.5 }}>
         Ayuda a mejorar la app enviando reportes de error anónimos. Nunca se envía contenido de documentos, nombres, ni datos personales. Solo metadata técnica (tipo de error, versión, conteo de elementos).

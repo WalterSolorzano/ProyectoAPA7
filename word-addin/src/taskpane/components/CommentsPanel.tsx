@@ -108,7 +108,7 @@ export function CommentsPanel({ events, onClear, showToast }: Props) {
         <div ref={endRef} />
       </div>
 
-      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           <input
             className="field-input"

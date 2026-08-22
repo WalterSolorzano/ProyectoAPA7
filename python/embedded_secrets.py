@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import sys
+from pathlib import Path
 
 _DATA_FILE = "_embedded_payload.json"
 
@@ -26,9 +27,41 @@ _DATA_FILE = "_embedded_payload.json"
 SEED = "wordapa7-embedded-9f3a7c1e-2026"
 
 
+def _is_packaged() -> bool:
+    """Detecta si estamos corriendo en modo empaquetado.
+
+    Soporta dos modos de empaquetado:
+    - **PyInstaller (legacy)**: ``sys.frozen`` está definido.
+    - **Embedded Python (actual)**: ``python.exe`` oficial está en
+      ``resources/python-runtime/`` y el código fuente en
+      ``resources/python-runtime/python/``. Con el embedded Python,
+      ``sys.frozen`` NO está definido (no es PyInstaller), así que
+      detectamos el modo empaquetado verificando que ``python.exe`` tenga
+      un directorio ``python/`` con ``main.py`` al lado.
+    """
+    if getattr(sys, "frozen", False):
+        return True
+    # Embedded Python: python.exe está en resources/python-runtime/
+    exe_dir = Path(sys.executable).parent
+    return (exe_dir / "python" / "main.py").exists()
+
+
 def _base_dir() -> str:
+    """Directorio base donde buscar el payload embebido (_embedded_payload.json).
+
+    - **PyInstaller (legacy)**: ``sys._MEIPASS`` apunta al directorio de
+      extracción temporal donde PyInstaller descomprime los datos bundled.
+    - **Embedded Python (actual)**: ``sys._MEIPASS`` no está definido.
+      El payload viaja junto al código fuente en
+      ``resources/python-runtime/python/_embedded_payload.json``, por lo que
+      usamos el directorio de este módulo (``__file__``).
+    - **Desarrollo**: igual que embedded Python — el payload está en el
+      directorio ``python/`` junto a este módulo.
+    """
+    # PyInstaller (legacy): _MEIPASS apunta al directorio de extracción
     if getattr(sys, "_MEIPASS", False):
         return str(sys._MEIPASS)
+    # Embedded Python o desarrollo: el payload está junto al código fuente
     return os.path.dirname(os.path.abspath(__file__))
 
 

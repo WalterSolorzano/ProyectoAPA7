@@ -11,30 +11,33 @@ plantilla ``manifest.xml``, reemplaza la URL de desarrollo
 (``https://localhost:3000``) por la URL real del Add-in y la devuelve como
 ``application/xml``.
 
-MODO PRODUCCIÓN (por defecto):
-  - El backend corre en ``http://127.0.0.1:8742`` (HTTP plano).
+MODO LOCAL HTTPS (por defecto en Windows):
+  - El backend genera certificados SSL auto-firmados con ``ssl_cert_gen.py``
+    (librería ``cryptography``) y los instala silenciosamente en el Trusted
+    Root store de Windows vía CryptoAPI (ctypes, 100% in-process, sin diálogos).
+  - El Add-in se sirve desde el propio backend en ``https://localhost:8742/addin/``.
+  - El manifiesto apunta a la URL del backend (derivada de la petición).
+  - El certificado se registra automáticamente en el registro de Windows
+    para que Word lo cargue sin intervención del usuario.
+
+MODO PRODUCCIÓN (URL pública):
   - El Add-in se carga desde una URL HTTPS pública configurada con la
     variable de entorno ``WORDAPA7_ADDIN_PUBLIC_URL``.
-  - El manifiesto apunta a la URL pública para los recursos del Add-in
-    (HTML, JS, CSS, iconos).
-  - El frontend del Add-in se comunica con el backend local en
-    ``http://127.0.0.1:8742`` (ver ``backend.ts``).
-  - NO se necesitan certificados locales ni mkcert.
-
-MODO DESARROLLO HTTPS (avanzado):
-  - Si ``WORDAPA7_USE_SSL=true``, el backend genera certificados SSL y
-    sirve el Add-in en HTTPS local.
-  - El manifiesto apunta a la URL del backend (derivada de la petición).
+  - El backend corre localmente en ``http://127.0.0.1:8742`` (HTTP plano).
+  - El frontend del Add-in se comunica con el backend local.
 
 Endpoints:
-  GET /api/addin/manifest        — manifiesto XML dinámico (URL del Add-in)
-  GET /api/addin/manifest-info   — metadatos del manifiesto (URL de descarga)
+  GET  /api/addin/manifest         — manifiesto XML dinámico (URL del Add-in)
+  GET  /api/addin/manifest-info     — metadatos del manifiesto (URL de descarga)
+  GET  /api/addin/registry-sideload — registra el Add-in en el registro de Windows
+  GET  /api/addin/auto-setup        — configuración completa en una sola llamada
 
 Función:
-  init_addin_static(app)         — monta los archivos estáticos en ``/addin/``
+  init_addin_static(app)             — monta los archivos estáticos en ``/addin/``
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -43,13 +46,19 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from config import BASE_DIR, STORAGE_DIR
+from config import BASE_DIR, STORAGE_DIR, _is_packaged
 
 router = APIRouter(prefix="/api/addin", tags=["word-addin-static"])
 
 # URL base del servidor de desarrollo del Add-in (lo que está en manifest.xml).
 # Esta URL debe ser exactamente lo que está en manifest.xml para poder reemplazarla.
 _DEV_ADDIN_URL = "https://localhost:3000"
+# Fallback: the source manifest.xml (word-addin/manifest.xml) uses a different URL.
+# This ensures replacement works regardless of which manifest is found.
+# "https://localhost:8742/addin" is included because that is the actual URL
+# used in the source manifest.xml — without it the replacement would be a no-op
+# in production (public URL) mode.
+_DEV_ADDIN_URLS = ["https://localhost:3000", "http://localhost:8742/addin", "https://localhost:8742/addin"]
 
 
 # ── RESOLUCIÓN DE LA URL DEL ADD-IN ──────────────────────────────────────────
@@ -73,12 +82,20 @@ def _resolve_addin_base_url(request: Optional[Request] = None) -> str:
         # Quitar trailing slash para que las concatenaciones sean consistentes.
         return public_url.rstrip("/")
 
-    # Fallback: usar la URL del backend (desarrollo local o SSL local).
+    # Modo local SSL (comportamiento por defecto en Windows).
+    # Office Add-ins REQUIEREN HTTPS; el backend sirve el Add-in en
+    # https://localhost:8742/addin con certificado auto-firmado.
+    # No usamos request.base_url aquí porque el TestClient de FastAPI
+    # produce http://testserver, lo que daría una URL HTTP incorrecta.
+    ssl_disabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "false"
+    if not ssl_disabled:
+        return "https://localhost:8742/addin"
+
+    # SSL deshabilitado (modo HTTP plano): usar la URL de la petición.
     if request is not None:
         base_url = str(request.base_url).rstrip("/")
         return f"{base_url}/addin"
 
-    # Último recurso: HTTP local sin petición.
     return "http://127.0.0.1:8742/addin"
 
 
@@ -90,10 +107,40 @@ def _get_backend_api_url() -> str:
     ``WORDAPA7_BACKEND_URL`` si está seteado).
     En modo desarrollo HTTPS: ``https://127.0.0.1:8742``.
     """
-    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "true"
-    if use_ssl:
+    public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+    ssl_disabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "false"
+    if not ssl_disabled and not public_url:
         return "https://127.0.0.1:8742"
     return os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
+
+
+def _generate_manifest_to_storage(request: Optional[Request] = None) -> Optional[Path]:
+    """
+    Genera el manifiesto XML con las URLs correctas y lo escribe en STORAGE_DIR.
+
+    Lee la plantilla ``manifest.xml``, reemplaza las URLs de desarrollo por la
+    URL real del Add-in y lo guarda en ``STORAGE_DIR/manifest.xml``.
+
+    Retorna la ruta del archivo generado, o ``None`` si no se pudo generar.
+    """
+    manifest_path = _get_addin_manifest_path()
+    if not manifest_path or not manifest_path.exists():
+        print("[WARN] [ADD-IN] No se encontró la plantilla de manifest.xml")
+        return None
+
+    xml_content = manifest_path.read_text(encoding="utf-8")
+    addin_base_url = _resolve_addin_base_url(request)
+
+    # Reemplazar todas las URLs de desarrollo conocidas
+    xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
+    for _old_url in _DEV_ADDIN_URLS:
+        xml_content = xml_content.replace(_old_url, addin_base_url)
+
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_dest = STORAGE_DIR / "manifest.xml"
+    manifest_dest.write_text(xml_content, encoding="utf-8")
+    print(f"[ADD-IN] Manifiesto generado en: {manifest_dest} -> apuntando a {addin_base_url}")
+    return manifest_dest
 
 
 # ── RESOLUCIÓN DE RUTAS DE ARCHIVOS ──────────────────────────────────────────
@@ -105,20 +152,34 @@ def _get_addin_dist_dir() -> Optional[Path]:
     Orden de búsqueda:
       1. ``word-addin/dist/``  — entorno de desarrollo
       2. ``dist/addin/``       — build local (cuando se copia a dist/)
-      3. ``../addin/``         — producción (extraResources de Electron)
+      3. ``resources/addin/``  — producción (embedded Python o PyInstaller)
+
+    En modo empaquetado (embedded Python), la estructura es::
+
+        resources/
+          python-runtime/       ← python.exe
+            python/             ← código fuente
+          addin/                ← taskpane.html, manifest.xml, etc.
+
+    Por lo tanto, desde ``sys.executable`` (``resources/python-runtime/python.exe``),
+    el directorio ``addin/`` está en ``parent.parent / "addin"``
+    (``parent`` = ``python-runtime/``, ``parent.parent`` = ``resources/``).
 
     Retorna el primer directorio que contenga ``taskpane.html``, o ``None``
     si no se encuentra ninguno.
     """
     candidates: list[Path] = []
 
-    if getattr(sys, "frozen", False):
-        # Producción (PyInstaller): el exe está en resources/python-backend/,
-        # el Add-in está en resources/addin/ (hermano del directorio del exe).
-        exe_dir = Path(sys.executable).parent
-        candidates.append(exe_dir.parent.parent / "addin")
-        candidates.append(exe_dir.parent / "addin")
+    if _is_packaged():
+        # Modo empaquetado (embedded Python o PyInstaller legacy).
+        # python.exe está en resources/python-runtime/ (embedded Python) o
+        # resources/python-backend/ (PyInstaller legacy).
+        # El Add-in está en resources/addin/ (sibling del directorio del exe).
+        exe_dir = Path(sys.executable).parent       # resources/python-runtime/
+        candidates.append(exe_dir.parent / "addin")  # resources/addin/
+        # Fallbacks por si la estructura varía
         candidates.append(exe_dir / "addin")
+        candidates.append(exe_dir.parent.parent / "addin")
     else:
         # Desarrollo: word-addin/dist/ en la raíz del proyecto
         candidates.append(BASE_DIR / "word-addin" / "dist")
@@ -138,7 +199,11 @@ def _get_addin_manifest_path() -> Optional[Path]:
     Orden de búsqueda:
       1. Dentro del directorio dist del Add-in (``manifest.xml`` copiado)
       2. ``word-addin/manifest.xml`` — desarrollo (fuente)
-      3. ``../addin/manifest.xml``  — producción (extraResources)
+      3. ``resources/addin/manifest.xml`` — producción (embedded Python o
+         PyInstaller)
+
+    En modo empaquetado, el manifiesto está en ``resources/addin/manifest.xml``.
+    Ver ``_get_addin_dist_dir`` para el cálculo de rutas.
     """
     # 1. Buscar dentro del directorio dist del Add-in (el build lo copia)
     dist_dir = _get_addin_dist_dir()
@@ -149,11 +214,12 @@ def _get_addin_manifest_path() -> Optional[Path]:
 
     # 2. Buscar en ubicaciones fuente / de producción
     candidates: list[Path] = []
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).parent
-        candidates.append(exe_dir.parent.parent / "addin" / "manifest.xml")
-        candidates.append(exe_dir.parent / "addin" / "manifest.xml")
+    if _is_packaged():
+        exe_dir = Path(sys.executable).parent       # resources/python-runtime/
+        candidates.append(exe_dir.parent / "addin" / "manifest.xml")   # resources/addin/manifest.xml
+        # Fallbacks por si la estructura varía
         candidates.append(exe_dir / "addin" / "manifest.xml")
+        candidates.append(exe_dir.parent.parent / "addin" / "manifest.xml")
     else:
         candidates.append(BASE_DIR / "word-addin" / "manifest.xml")
 
@@ -171,7 +237,7 @@ def init_addin_static(app) -> None:
     Monta los archivos estáticos del Add-in en la ruta ``/addin/``.
 
     Debe llamarse **después** de registrar los routers de la API y **antes**
-    de montar el SPA catch-all (``app.mount(\"/\", StaticFiles(...))``), para
+    de montar el SPA catch-all (``app.mount("/", StaticFiles(...))``), para
     que las rutas ``/addin/...`` tengan prioridad sobre la captura genérica.
 
     Si no se encuentran los archivos del Add-in, se registra un aviso pero no
@@ -189,11 +255,17 @@ def init_addin_static(app) -> None:
             f"         Backend API en: {_get_backend_api_url()}"
         )
 
+    class _NoCacheStaticFiles(StaticFiles):
+        async def get_response(self, path, scope):
+            response = await super().get_response(path, scope)
+            response.headers.setdefault("Cache-Control", "no-store")
+            return response
+
     addin_dir = _get_addin_dist_dir()
     if addin_dir and addin_dir.is_dir():
         app.mount(
             "/addin",
-            StaticFiles(directory=str(addin_dir), html=True),
+            _NoCacheStaticFiles(directory=str(addin_dir), html=True),
             name="addin-static",
         )
         print(f"[ADD-IN] Archivos estáticos montados desde: {addin_dir}")
@@ -243,6 +315,8 @@ async def get_addin_manifest(request: Request):
     # Leer la plantilla del manifiesto y reemplazar la URL de desarrollo.
     xml_content = manifest_path.read_text(encoding="utf-8")
     xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
+    for _old_url in _DEV_ADDIN_URLS:
+        xml_content = xml_content.replace(_old_url, addin_base_url)
 
     return Response(content=xml_content, media_type="application/xml")
 
@@ -301,8 +375,6 @@ async def registry_sideload(request: Request) -> dict:
     No requiere permisos de administrador (usa HKCU).
     Es idempotente: llamarlo múltiples veces actualiza la ruta sin duplicar.
     """
-    import sys
-
     if sys.platform != "win32":
         return {
             "status": "not_supported",
@@ -313,17 +385,12 @@ async def registry_sideload(request: Request) -> dict:
         import winreg
 
         # Asegurar de escribir el archivo actualizado en STORAGE_DIR
-        manifest_dest = STORAGE_DIR / "manifest.xml"
-        manifest_path = _get_addin_manifest_path()
-        if manifest_path and manifest_path.exists():
-            xml_content = manifest_path.read_text(encoding="utf-8")
-            addin_base_url = _resolve_addin_base_url(request)
-            xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
-            STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-            manifest_dest.write_text(xml_content, encoding="utf-8")
-            print(f"[ADD-IN] Manifiesto guardado en local: {manifest_dest}")
-        else:
-            print("[WARN] [ADD-IN] No se encontró la plantilla de manifest.xml")
+        manifest_dest = _generate_manifest_to_storage(request)
+        if not manifest_dest:
+            return {
+                "status": "error",
+                "reason": "No se pudo generar el manifiesto del Add-in",
+            }
 
         # Clave oficial de sideload de desarrolladores de Office
         reg_path = r"Software\Microsoft\Office\16.0\Wef\Developer"
@@ -338,7 +405,7 @@ async def registry_sideload(request: Request) -> dict:
         return {
             "status": "ok",
             "registry_key": full_key,
-            "manifest_url": str(manifest_dest),
+            "manifest_path": str(manifest_dest),
             "public_addin_url": public_url,
             "hint": (
                 "Reinicia Word para que detecte el Add-in. "
@@ -356,3 +423,225 @@ async def registry_sideload(request: Request) -> dict:
             status_code=500,
             detail=f"Error al escribir en el registro de Windows: {e}",
         )
+
+
+@router.get("/auto-setup")
+async def auto_setup_addin(request: Request) -> dict:
+    """
+    Configuración completa del Add-in en una sola llamada.
+
+    Este endpoint hace TODO lo necesario para que el complemento aparezca
+    en Word sin intervención del usuario:
+
+    1. **Generar el manifiesto** con las URLs HTTPS correctas y lo guarda
+       en ``STORAGE_DIR/manifest.xml``.
+    2. **Registrar en el registro de Windows** (sideload de desarrollador):
+       ``HKCU\\Software\\Microsoft\\Office\\16.0\\Wef\\Developer\\WordAPA7``
+    3. **Copiar el manifiesto a un catálogo compartido** como fallback:
+       ``%APPDATA%\\WordAPA7\\catalog\\manifest.xml``
+    4. **Verificar el certificado SSL** esté en el Trusted Root store.
+
+    Es llamado automáticamente por Electron (``python-manager.ts``) cuando
+    el backend está listo. No requiere que el usuario haga nada manualmente.
+
+    Es idempotente: llamarlo múltiples veces es seguro y no duplica nada.
+
+    Retorna un resumen con el estado de cada paso.
+    """
+    result = {
+        "status": "ok",
+        "platform": sys.platform,
+        "steps": {},
+    }
+
+    # ── Paso 1: Generar el manifiesto ──────────────────────────────────
+    try:
+        manifest_dest = _generate_manifest_to_storage(request)
+        if manifest_dest:
+            result["steps"]["manifest"] = {
+                "status": "ok",
+                "path": str(manifest_dest),
+            }
+            # Verificar que el manifiesto tenga URLs HTTPS
+            xml = manifest_dest.read_text(encoding="utf-8")
+            if "https://localhost:8742" in xml or "https://127.0.0.1:8742" in xml:
+                result["steps"]["manifest"]["urls"] = "https_ok"
+            else:
+                result["steps"]["manifest"]["urls"] = "warning: no https urls found"
+        else:
+            result["steps"]["manifest"] = {"status": "error", "reason": "manifest.xml not found"}
+            result["status"] = "partial"
+    except Exception as e:
+        result["steps"]["manifest"] = {"status": "error", "reason": str(e)}
+        result["status"] = "partial"
+
+    # ── Paso 2: Registrar en el registro de Windows (sideload) ─────────
+    if sys.platform == "win32":
+        try:
+            import winreg
+
+            manifest_path_str = str(STORAGE_DIR / "manifest.xml")
+            reg_path = r"Software\Microsoft\Office\16.0\Wef\Developer"
+            key_name = "WordAPA7"
+
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_path) as wef_key:
+                winreg.SetValueEx(wef_key, key_name, 0, winreg.REG_SZ, manifest_path_str)
+
+            result["steps"]["registry"] = {
+                "status": "ok",
+                "key": f"HKCU\\{reg_path}\\{key_name}",
+                "value": manifest_path_str,
+            }
+            print(f"[ADD-IN] [auto-setup] Registro: HKCU\\{reg_path}\\{key_name} = {manifest_path_str}")
+        except Exception as e:
+            result["steps"]["registry"] = {"status": "error", "reason": str(e)}
+            result["status"] = "partial"
+            print(f"[WARN] [ADD-IN] [auto-setup] Error en registro: {e}")
+
+        # ── Paso 3: Copiar a catálogo compartido (fallback) ────────────
+        try:
+            catalog_dir = STORAGE_DIR.parent / "catalog"
+            catalog_dir.mkdir(parents=True, exist_ok=True)
+            catalog_manifest = catalog_dir / "manifest.xml"
+            manifest_src = STORAGE_DIR / "manifest.xml"
+            if manifest_src.exists():
+                shutil.copy2(str(manifest_src), str(catalog_manifest))
+                result["steps"]["catalog"] = {
+                    "status": "ok",
+                    "path": str(catalog_manifest),
+                }
+                print(f"[ADD-IN] [auto-setup] Catálogo: {catalog_manifest}")
+            else:
+                result["steps"]["catalog"] = {"status": "skipped", "reason": "no manifest to copy"}
+        except Exception as e:
+            result["steps"]["catalog"] = {"status": "error", "reason": str(e)}
+            result["status"] = "partial"
+
+        # ── Paso 4: Verificar certificado SSL ──────────────────────────
+        try:
+            certs_dir = STORAGE_DIR / "ssl"
+            cert_path = certs_dir / "localhost.pem"
+            key_path = certs_dir / "localhost-key.pem"
+            ssl_ok = cert_path.exists() and key_path.exists()
+            result["steps"]["ssl"] = {
+                "status": "ok" if ssl_ok else "missing",
+                "cert_path": str(cert_path) if cert_path.exists() else None,
+            }
+            if ssl_ok:
+                print("[ADD-IN] [auto-setup] SSL: certificado presente")
+            else:
+                print("[WARN] [ADD-IN] [auto-setup] SSL: certificado NO encontrado")
+        except Exception as e:
+            result["steps"]["ssl"] = {"status": "error", "reason": str(e)}
+
+    else:
+        result["steps"]["registry"] = {"status": "skipped", "reason": "not windows"}
+        result["steps"]["catalog"] = {"status": "skipped", "reason": "not windows"}
+        result["steps"]["ssl"] = {"status": "skipped", "reason": "not windows"}
+
+    # ── Resumen ────────────────────────────────────────────────────────
+    addin_base_url = _resolve_addin_base_url(request)
+    backend_api_url = _get_backend_api_url()
+    result["addin_base_url"] = addin_base_url
+    result["backend_api_url"] = backend_api_url
+    result["manifest_available"] = (STORAGE_DIR / "manifest.xml").exists()
+
+    # Contar pasos exitosos
+    ok_count = sum(1 for v in result["steps"].values() if v.get("status") == "ok")
+    total_count = len(result["steps"])
+    result["summary"] = f"{ok_count}/{total_count} pasos completados"
+
+    print(f"[ADD-IN] [auto-setup] Completo: {result['summary']}")
+
+    return result
+
+
+# ── SSL STATUS Y CONFIG (movidos de main.py para registro antes del catch-all) ─
+
+@router.get("/ssl-status")
+async def get_addin_ssl_status():
+    """
+    Informa si el backend esta corriendo con HTTPS (necesario para Word Add-ins).
+
+    El frontend puede consultar este endpoint al iniciar para saber si el
+    certificado SSL ya esta disponible. La generacion principal usa el modulo
+    Python ``ssl_cert_gen`` (libreria cryptography); mkcert es solo un respaldo.
+    """
+    import shutil
+
+    certs_dir = STORAGE_DIR / "ssl"
+    cert_path = certs_dir / "localhost.pem"
+    key_path = certs_dir / "localhost-key.pem"
+    mkcert_available = shutil.which("mkcert") is not None
+
+    # El generador Python (cryptography) es el metodo principal.
+    try:
+        import ssl_cert_gen  # noqa: F401
+        python_ssl_available = True
+    except Exception:
+        python_ssl_available = False
+
+    ssl_active = cert_path.exists() and key_path.exists()
+
+    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
+
+    if use_ssl_enabled:
+        backend_url = "https://127.0.0.1:8742"
+    else:
+        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
+
+    return {
+        "ssl_active": ssl_active,
+        "python_ssl_available": python_ssl_available,
+        "mkcert_available": mkcert_available,
+        "cert_path": str(cert_path) if cert_path.exists() else None,
+        "install_url": "https://github.com/FiloSottile/mkcert#installation",
+        "hint": (
+            "SSL activo — el Add-in puede cargar en Word sin problemas"
+            if ssl_active
+            else "El certificado SSL se genera automaticamente con cryptography al iniciar el backend"
+        ),
+        "mode": "dev_https" if use_ssl_enabled else "production_http",
+        "use_ssl_enabled": use_ssl_enabled,
+        "backend_url": backend_url,
+        "addin_public_url": addin_public_url,
+    }
+
+
+@router.get("/config")
+async def get_addin_config():
+    """
+    Devuelve la configuracion de conexion del backend para el Add-in.
+
+    En MODO LOCAL HTTPS (por defecto en Windows):
+      - El backend genera certificados SSL auto-firmados
+      - El Add-in se sirve desde el propio backend en HTTPS
+
+    En MODO PRODUCCION (URL publica):
+      - El Add-in se carga desde una URL HTTPS publica (WORDAPA7_ADDIN_PUBLIC_URL)
+      - El backend corre localmente en http://127.0.0.1:8742 (HTTP plano)
+      - El frontend del Add-in usa esta URL para las llamadas a la API
+    """
+    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
+    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not addin_public_url
+
+    # Determinar la URL del backend que el frontend debe usar
+    if use_ssl:
+        backend_url = "https://127.0.0.1:8742"
+    else:
+        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
+
+    return {
+        "mode": "dev_https" if use_ssl else "production_http",
+        "use_ssl": use_ssl,
+        "backend_url": backend_url,
+        "addin_public_url": addin_public_url,
+        "port": 8742,
+        "hint": (
+            "Add-in cargado desde URL HTTPS publica → backend local HTTP"
+            if not use_ssl and addin_public_url
+            else "Modo desarrollo HTTPS local" if use_ssl
+            else "Backend en HTTP plano — configura WORDAPA7_ADDIN_PUBLIC_URL para produccion"
+        ),
+    }

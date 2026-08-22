@@ -149,7 +149,7 @@ code {
 .status-pill--ok { background: var(--color-success-soft); color: var(--color-success); }
 .status-pill--err { background: var(--color-warning-soft); color: var(--color-warning); }
 
-/* ── TABS ──────────────────────────────────��──────────────────────────────── */
+/* ── TABS ─────────────────────────────────────────────────────────────────── */
 .tabs {
   display: flex;
   gap: 2px;
@@ -946,6 +946,21 @@ select.field-input { cursor: pointer; }
   cursor: pointer;
   padding: 2px 6px;
 }
+.ref-item__action {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ref-item__action:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
 .badge--success { background: var(--color-success-soft); color: var(--color-success); }
 
 /* Empty-state block (ReferencesPanel & others) */
@@ -1052,6 +1067,27 @@ select.field-input { cursor: pointer; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .tab-bar .tab__label { display: none; }
   .app-header__subtitle { display: none; }
+}
+
+/* ── WATCHER NOTE (footer) ─────────────────────────────────────────────────── */
+.watcher-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.watcher-note__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
 }
 
 /* ── DARK MODE (sigue el tema de Office) ────────────────────────────────────

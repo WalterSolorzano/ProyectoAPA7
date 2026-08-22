@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
+﻿import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
@@ -7,6 +7,7 @@ import { setupWindowControls } from './ipc/window-controls'
 import { createMenu } from './menu'
 import { RecentProjects } from './recent-projects'
 import { log } from './logger'
+import { registerWatcher, startWatcherNow } from './watcher'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -293,15 +294,31 @@ if (!gotTheLock) {
     // background y queda en la bandeja, para que el Word Add-in funcione sin que
     // el usuario abra la ventana. Si abre la app manualmente, se muestra la UI.
     try {
-      app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
+      app.setLoginItemSettings({ openAtLogin: false })
     } catch { /* best-effort */ }
+
+    // ── Watcher ligero (red de seguridad) ─────────────────────────────────────
+    // Registrar el watcher en el inicio de Windows (idempotente) y arrancarlo
+    // inmediatamente si no está corriendo. Esto asegura que el complemento
+    // funcione incluso si el usuario abre la app sin haber reiniciado Windows
+    // tras la instalación, o si el instalador NSIS no lo registró todavía.
+    //
+    // El watcher es un proceso Python de bajísimo consumo (~8-12MB RAM, ~0% CPU)
+    // que detecta cuando Word se abre y arranca el backend automáticamente.
+    registerWatcher()
 
     if (isHiddenLaunch) {
       log('info', 'startup', 'Modo oculto: backend en segundo plano (sin ventana)')
       startBackend()
       createSystray()
+      // En modo oculto el watcher podría ser quien nos arrancó — no duplicarlo
+      // si el backend ya responde. startWatcherNow() verifica internamente.
+      startWatcherNow()
     } else {
+      // Arranque normal (usuario abrió la app): mostrar ventana y asegurar
+      // que el watcher esté corriendo para cuando cierre la app y abra Word.
       createWindow()
+      startWatcherNow()
     }
 
     // Chequeo inicial al arrancar solo en producción empaquetada

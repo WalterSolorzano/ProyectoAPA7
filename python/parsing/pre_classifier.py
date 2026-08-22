@@ -1092,7 +1092,9 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 # con keywords de portada cerca (universidad, facultad, logo,
                 # etc.) o en página 1. Los logos institucionales suelen
                 # aparecer al inicio del documento junto a los datos de portada.
-                if idx < 25:
+                # Solo aplica antes del primer heading de cuerpo: una imagen
+                # después de un heading de cuerpo es una figura, no un logo.
+                if idx < 25 and not seen_body_heading:
                     has_cover_kw_nearby = False
                     for nearby_idx in range(
                         max(0, idx - 5), min(len(elements), idx + 6)

@@ -99,7 +99,7 @@ export const GuidedWizardBar: React.FC = () => {
                 )}
               </span>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                <span style={{ fontSize: '9px', fontWeight: 800, opacity: 0.7 }}>{stage.id}</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, opacity: 0.6, lineHeight: 1 }}>{stage.id}</span>
                 <span className="wizard-tab-label">{stage.title}</span>
               </span>
             </button>

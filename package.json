@@ -4,7 +4,11 @@
   "description": "Herramienta inteligente para dar formato APA 7",
   "author": "Antigravity",
   "version": "1.0.35",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WalterSolorzano/ProyectoAPA7.git"
+  },
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -16,7 +20,7 @@
     "lint": "eslint src/",
     "electron:dev": "vite",
     "electron:build": "npm run build:backend && npm run build && electron-builder --publish always",
-    "build:backend": "python python/embed_payload.py && pyinstaller build/pyinstaller.spec --distpath dist-python --workpath build/pyinstaller-build -y"
+    "build:backend": "python python/embed_payload.py && python python/build_embedded.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -57,7 +61,7 @@
     "eslint-plugin-react-refresh": "^0.4.26",
     "jsdom": "^29.1.1",
     "lucide-react": "^1.26.0",
-    "postcss": "^8.5.23",
+    "postcss": "^10.5.23",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",

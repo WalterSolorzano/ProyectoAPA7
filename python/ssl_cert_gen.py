@@ -74,6 +74,11 @@ def _is_cert_valid(cert_path: Path, key_path: Path) -> bool:
       of validity left.
     * The private key is RSA and its public numbers match the certificate's
       public key (i.e. the key and cert belong together).
+    * The certificate has ``BasicConstraints(ca=True)``. Older certificates
+      were generated with ``ca=False`` (an end-entity / leaf cert); when such
+      a cert is placed in the Windows Trusted Root store WebView2 rejects it
+      and the Word Add-in shows a blank panel. Returning ``False`` here forces
+      a regeneration so the buggy cert is automatically replaced.
     """
     try:
         from cryptography import x509
@@ -100,6 +105,31 @@ def _is_cert_valid(cert_path: Path, key_path: Path) -> bool:
             return False
         if cert.public_key().public_numbers() != key.public_key().public_numbers():
             logger.debug("Cert/key mismatch, will regenerate.")
+            return False
+
+        # ── BasicConstraints (CA) check ─────────────────────────────────
+        # This is the migration path for the critical "blank panel" bug:
+        # certificates previously generated with ca=False are end-entity
+        # (leaf) certificates. When installed in the Windows Trusted Root
+        # Certification Authorities store, WebView2 (used by Office Add-ins)
+        # REJECTS them because root/trust-anchor certificates are expected to
+        # have CA=True. Detect any legacy ca=False cert here and force a
+        # regeneration with the corrected ca=True setting.
+        try:
+            bc_ext = cert.extensions.get_extension_for_class(x509.BasicConstraints)
+            if not bc_ext.value.ca:
+                logger.info(
+                    "[SSL] Existing certificate has BasicConstraints(ca=False) — "
+                    "regenerating as CA=True root cert (WebView2 trust fix)."
+                )
+                return False
+        except x509.ExtensionNotFound:
+            # No BasicConstraints extension at all → also regenerate so the
+            # corrected cert (with an explicit CA=True BasicConstraints) is
+            # written in its place.
+            logger.info(
+                "[SSL] Existing certificate lacks BasicConstraints — regenerating."
+            )
             return False
 
         return True
@@ -139,11 +169,21 @@ def _build_certificate(key) -> "object":
             ]),
             critical=False,
         )
-        # BasicConstraints: mark as a CA:false leaf certificate so Office
-        # trusts it as an end-entity cert (some validators reject certs
-        # without an explicit basicConstraints extension).
+        # BasicConstraints: mark this as a CA:TRUE certificate.
+        #
+        # WHY ca=True (CRITICAL FIX): This self-signed certificate is installed
+        # directly into the Windows Trusted Root Certification Authorities
+        # store. WebView2 (used by Office Add-ins) validates certificates found
+        # in the Root store as *trust anchors* and requires them to have
+        # CA=True. A certificate with CA=False is an end-entity (leaf)
+        # certificate; when such a cert is placed in the Trusted Root store,
+        # WebView2 REJECTS it and the Word Add-in taskpane shows a blank panel.
+        # Setting ca=True marks this cert as a legitimate root/CA certificate
+        # so the Windows certificate chaining engine accepts it as a trust
+        # anchor. (path_length=None means no limit on how many intermediates
+        # may sit below it — appropriate for a self-signed root.)
         .add_extension(
-            x509.BasicConstraints(ca=False, path_length=None),
+            x509.BasicConstraints(ca=True, path_length=None),
             critical=True,
         )
         # ExtendedKeyUsage: serverAuth is required for HTTPS server certs.
@@ -151,7 +191,12 @@ def _build_certificate(key) -> "object":
             x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.SERVER_AUTH]),
             critical=False,
         )
-        # KeyUsage: digitalSignature + keyEncipherment for TLS server auth.
+        # KeyUsage: digitalSignature + keyEncipherment for TLS server auth,
+        # PLUS key_cert_sign=True. CA certificates MUST assert keyCertSign so
+        # they are permitted to sign certificates — the Windows/WebView2
+        # chaining engine checks this bit when treating the cert as a trust
+        # anchor. Without it the cert is not a valid CA per RFC 5280 §4.2.1.3
+        # and trust validation fails (again → blank Add-in panel).
         .add_extension(
             x509.KeyUsage(
                 digital_signature=True,
@@ -159,12 +204,32 @@ def _build_certificate(key) -> "object":
                 content_commitment=False,
                 data_encipherment=False,
                 key_agreement=False,
-                key_cert_sign=False,
+                key_cert_sign=True,
                 crl_sign=False,
                 encipher_only=False,
                 decipher_only=False,
             ),
             critical=True,
+        )
+        # SubjectKeyIdentifier (SKI) — RFC 5280 §4.2.1.2.
+        # A SHA-1-based identifier of this certificate's public key. Required
+        # for proper certificate path building: the Windows certificate
+        # chaining engine uses the SKI/AKI pair to assemble the chain from a
+        # leaf up to a trust anchor. Without an SKI, WebView2 may be unable to
+        # build a path to this self-signed root and will reject the cert.
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(key.public_key()),
+            critical=False,
+        )
+        # AuthorityKeyIdentifier (AKI) — RFC 5280 §4.2.1.1.
+        # Identifies the public key of the certificate's ISSUER. Because this
+        # certificate is self-signed, the issuer is the same as the subject,
+        # so the AKI references the SAME public key as the SKI above. This
+        # closes the self-referential loop that the Windows chaining engine
+        # needs to confirm this root cert is its own trust anchor.
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(key.public_key()),
+            critical=False,
         )
     )
 
@@ -570,7 +635,7 @@ def generate_self_signed_cert(
     -----
     * If both files already exist and are valid (not expired, key matches,
       enough remaining validity) they are reused as-is (idempotent).
-    * The certificate is a self-signed RSA 2048 X.509 leaf cert valid for
+    * The certificate is a self-signed RSA 2048 X.509 CA root cert valid for
       ``VALID_DAYS`` days, issued for ``localhost`` and ``127.0.0.1``.
     * On Windows, the cert is installed in the user's Trusted Root store via
       the CryptoAPI (ctypes, in-process, no dialog).

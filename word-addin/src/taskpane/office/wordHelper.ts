@@ -80,11 +80,11 @@ const PT_PER_INCH = 72
  * Usado tanto para insertar títulos como para aplicar formato detectado.
  */
 export const HEADING_CONFIGS: Record<number, HeadingConfig> = {
-  1: { bold: true, italic: false, alignment: Word.Alignment.centered, indentCm: 0, inlineText: false, label: 'Nivel 1 — Centrado, negrita' },
-  2: { bold: true, italic: false, alignment: Word.Alignment.left, indentCm: 0, inlineText: false, label: 'Nivel 2 — Izquierda, negrita' },
-  3: { bold: true, italic: true, alignment: Word.Alignment.left, indentCm: 0, inlineText: false, label: 'Nivel 3 — Izquierda, negrita + cursiva' },
-  4: { bold: true, italic: false, alignment: Word.Alignment.left, indentCm: 0.5, inlineText: true, label: 'Nivel 4 — Sangría, negrita, en línea' },
-  5: { bold: true, italic: true, alignment: Word.Alignment.left, indentCm: 0.5, inlineText: true, label: 'Nivel 5 — Sangría, negrita + cursiva, en línea' },
+  1: { bold: true, italic: false, alignment: "Centered" as unknown as Word.Alignment, indentCm: 0, inlineText: false, label: 'Nivel 1 — Centrado, negrita' },
+  2: { bold: true, italic: false, alignment: "Left" as unknown as Word.Alignment, indentCm: 0, inlineText: false, label: 'Nivel 2 — Izquierda, negrita' },
+  3: { bold: true, italic: true, alignment: "Left" as unknown as Word.Alignment, indentCm: 0, inlineText: false, label: 'Nivel 3 — Izquierda, negrita + cursiva' },
+  4: { bold: true, italic: false, alignment: "Left" as unknown as Word.Alignment, indentCm: 0.5, inlineText: true, label: 'Nivel 4 — Sangría, negrita, en línea' },
+  5: { bold: true, italic: true, alignment: "Left" as unknown as Word.Alignment, indentCm: 0.5, inlineText: true, label: 'Nivel 5 — Sangría, negrita + cursiva, en línea' },
 }
 
 // ── INICIALIZACIÓN ───────────────────────────────────────────────────────────
@@ -672,45 +672,56 @@ export async function insertCoverPageAPA(fields: CoverFields): Promise<void> {
   await withWordContext(async (context) => {
     const body = context.document.body
 
-    // Espacios iniciales (≈ 4 líneas dobles en blanco para centrar verticalmente)
-    for (let i = 0; i < 4; i++) {
-      const p = body.insertParagraph('', Word.InsertLocation.start)
+    // Espacios iniciales (≈ 4 líneas dobles en blanco para centrar verticalmente).
+    // Insertar el primero al inicio del documento y encadenar los demás después
+    // con InsertLocation.after para mantener el orden correcto.
+    let prev: Word.Paragraph = body.insertParagraph('', Word.InsertLocation.start)
+    prev.lineSpacing = LINE_SPACING_DOUBLE
+    for (let i = 1; i < 4; i++) {
+      const p = prev.insertParagraph('', Word.InsertLocation.after)
       p.lineSpacing = LINE_SPACING_DOUBLE
+      prev = p
     }
 
     // Título (centrado, negrita, Title Case)
-    const pTitle = body.insertParagraph(fields.title || 'Título del Trabajo', Word.InsertLocation.start)
+    const pTitle = prev.insertParagraph(fields.title || 'Título del Trabajo', Word.InsertLocation.after)
     applyFont(pTitle.font)
     pTitle.font.bold = true
     pTitle.alignment = Word.Alignment.centered
     pTitle.lineSpacing = LINE_SPACING_DOUBLE
+    prev = pTitle
 
     // Autor
-    const pAuthor = body.insertParagraph(fields.author || 'Nombre del Autor', Word.InsertLocation.end)
+    const pAuthor = prev.insertParagraph(fields.author || 'Nombre del Autor', Word.InsertLocation.after)
     applyFont(pAuthor.font)
     pAuthor.alignment = Word.Alignment.centered
     pAuthor.lineSpacing = LINE_SPACING_DOUBLE
+    prev = pAuthor
 
     // Institución
-    const pInst = body.insertParagraph(fields.institution || 'Institución', Word.InsertLocation.end)
+    const pInst = prev.insertParagraph(fields.institution || 'Institución', Word.InsertLocation.after)
     applyFont(pInst.font)
     pInst.alignment = Word.Alignment.centered
     pInst.lineSpacing = LINE_SPACING_DOUBLE
+    prev = pInst
 
     // Curso
-    const pCourse = body.insertParagraph(fields.course || 'Curso', Word.InsertLocation.end)
+    const pCourse = prev.insertParagraph(fields.course || 'Curso', Word.InsertLocation.after)
     applyFont(pCourse.font)
     pCourse.alignment = Word.Alignment.centered
     pCourse.lineSpacing = LINE_SPACING_DOUBLE
+    prev = pCourse
 
     // Fecha
-    const pDate = body.insertParagraph(fields.date || 'Fecha', Word.InsertLocation.end)
+    const pDate = prev.insertParagraph(fields.date || 'Fecha', Word.InsertLocation.after)
     applyFont(pDate.font)
     pDate.alignment = Word.Alignment.centered
     pDate.lineSpacing = LINE_SPACING_DOUBLE
+    prev = pDate
 
     // Salto de página después de la portada
-    body.insertParagraph('', Word.InsertLocation.end).insertBreak(Word.BreakType.page, Word.InsertLocation.after)
+    const pBreak = prev.insertParagraph('', Word.InsertLocation.after)
+    pBreak.insertBreak(Word.BreakType.page, Word.InsertLocation.after)
   })
 }
 

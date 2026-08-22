@@ -96,6 +96,14 @@ def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style:
     if numbering_style == 'none' or level > 2:
         return ""
 
+    # Safety check: a sub-heading (level > 1) must have a numbered parent.
+    # If the parent level counter is 0 (no prior heading at that level), don't
+    # number this heading at all — a sub-heading without a parent heading
+    # should not be numbered. This prevents bogus prefixes like "0.1." from
+    # appearing when a level 2 heading shows up before any level 1 heading.
+    if level > 1 and counters.get(level - 1, 0) == 0:
+        return ""
+
     parts = []
     for l in range(1, level + 1):
         c = counters.get(l, 0)
@@ -248,9 +256,11 @@ def _generate_toc_from_headings(
 # ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 
 def _strip_existing_numbering(text: str) -> str:
-    """Remove existing roman numeral prefix from heading text to avoid double prefixes.
+    """Remove existing numbering prefix from heading text to avoid double prefixes.
 
-    Handles patterns like 'I. Title', 'II. Title', 'A. Title', '1. Title'.
+    Handles patterns like 'I. Title', 'II. Title', 'A. Title', '1. Title',
+    '0.1 Title', '1.1 Title', '1.1.1 Title' (multi-level decimal numbering
+    with or without a trailing dot).
     """
     if not text:
         return text
@@ -263,6 +273,13 @@ def _strip_existing_numbering(text: str) -> str:
     )
     if m:
         return m.group(2)
+    # Multi-level decimal prefixes: 0.1, 1.1, 1.1.1, etc. followed by a space.
+    # The optional trailing dot also covers build-style prefixes like "1.1. ".
+    # Checked before the single-level decimal so that '1.1 Title' is stripped as
+    # a whole rather than leaving the '.1 Title' remainder behind.
+    m_multi = re.match(r'^(\d+(?:\.\d+)+)\.?\s+(.*)', t)
+    if m_multi:
+        return m_multi.group(2)
     # Decimal prefixes: 1. 2. 10.
     m2 = re.match(r'^(\d+)\.\s+(.*)', t)
     if m2:
@@ -278,7 +295,6 @@ def _strip_existing_numbering(text: str) -> str:
 # was inserting page breaks at wrong positions when model text ≠ paragraph text.
 # doc_model.elements order ALREADY matches doc.paragraphs[cover_paragraph_count:] order
 # (both come from the same DOCX). Sequential access is correct and deterministic.
-
 
 def _is_table_too_wide(table_info) -> tuple[bool, bool]:
     """Determine if a table needs landscape orientation.

@@ -46,7 +46,7 @@ const DEFAULT_PORT = 8742
  * - Si el Add-in lo sirve el propio backend (localhost), usa window.location.origin.
  * - En desarrollo (Vite en :3000), descubre el puerto vía IPC o usa 8742.
  */
-let BASE_URL = 'http://127.0.0.1:8742'
+let BASE_URL = 'https://localhost:8742'
 let discoveryPromise: Promise<string> | null = null
 
 function ensureBaseUrl(): Promise<string> {
@@ -55,6 +55,17 @@ function ensureBaseUrl(): Promise<string> {
   }
 
   const origin = window.location.origin
+
+  // Si el Add-in lo sirve el propio backend (origin es localhost/127.0.0.1
+  // en el puerto 8742-8746), usar el origin directamente como URL del backend.
+  // Esto funciona tanto en HTTPS (default) como en HTTP.
+  const backendPortMatch = origin.match(/:(874[2-6])$/)
+  if (backendPortMatch && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+    console.log(`[Add-in] Add-in servido por el backend local: ${origin}`)
+    BASE_URL = origin
+    discoveryPromise = Promise.resolve(origin)
+    return discoveryPromise
+  }
 
   // Dev mode (Vite en :3000): usa el puerto del backend de Electron.
   if (origin.includes(':3000')) {
@@ -101,7 +112,7 @@ function ensureBaseUrl(): Promise<string> {
     } catch { /* sin config.json */ }
 
     console.warn(`[Add-in] Ni local ni nube responden; usando local por defecto.`)
-    BASE_URL = `http://127.0.0.1:8742`
+    BASE_URL = `https://localhost:8742`
     return BASE_URL
   })()
 
@@ -109,21 +120,34 @@ function ensureBaseUrl(): Promise<string> {
 }
 
 // Escanea 127.0.0.1:8742..8746 en busca del backend local (loopback).
+// Prueba HTTPS primero (el backend usa SSL por defecto) y HTTP como respaldo.
 function probeLocalBackend(): Promise<string | null> {
   const candidatePorts = [8742, 8743, 8744, 8745, 8746]
-  const probes = candidatePorts.map(async (port) => {
-    try {
-      const controller = new AbortController()
-      const id = setTimeout(() => controller.abort(), 800)
-      const res = await fetch(`http://127.0.0.1:${port}/api/addin/health`, { signal: controller.signal })
-      clearTimeout(id)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.status === 'ok') return `http://127.0.0.1:${port}`
+  const protocols = ['https', 'http']
+  const hosts = ['localhost', '127.0.0.1']
+
+  const probes: Promise<string>[] = []
+  for (const proto of protocols) {
+    for (const host of hosts) {
+      for (const port of candidatePorts) {
+        probes.push((async () => {
+          try {
+            const controller = new AbortController()
+            const id = setTimeout(() => controller.abort(), 1000)
+            const res = await fetch(`${proto}://${host}:${port}/api/addin/health`, {
+              signal: controller.signal,
+            })
+            clearTimeout(id)
+            if (res.ok) {
+              const data = await res.json()
+              if (data.status === 'ok') return `${proto}://${host}:${port}`
+            }
+          } catch { /* puerto apagado o cert no confiable */ }
+          throw new Error('Not responding')
+        })())
       }
-    } catch { /* puerto apagado */ }
-    throw new Error('Not responding')
-  })
+    }
+  }
   return Promise.any(probes).catch(() => null)
 }
 

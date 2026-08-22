@@ -108,7 +108,7 @@ export function UnifiedToolbar() {
       {/* Right: action buttons when doc is loaded */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
         {doc && (
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, paddingRight: isElectron ? '8px' : '12px', maxWidth: isElectron ? 'calc(100% - 140px)' : '100%', ...noDragRegion }}>
           {/* Save status chip (compact, passive) */}
           <span
             title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}

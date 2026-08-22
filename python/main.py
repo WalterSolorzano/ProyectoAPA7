@@ -123,14 +123,15 @@ async def lifespan_app(app: FastAPI):
 
     # Generar/actualizar manifest.xml dinámico en STORAGE_DIR al arrancar (sideload local)
     try:
-        from routers.addin_static import _get_addin_manifest_path, _resolve_addin_base_url, _DEV_ADDIN_URL
+        from routers.addin_static import _get_addin_manifest_path, _resolve_addin_base_url, _DEV_ADDIN_URL, _DEV_ADDIN_URLS
         manifest_src = _get_addin_manifest_path()
         if manifest_src and manifest_src.exists():
             dest_manifest = STORAGE_DIR / "manifest.xml"
             xml_content = manifest_src.read_text(encoding="utf-8")
             addin_base_url = _resolve_addin_base_url()
             xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
-            STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+            for _old_url in _DEV_ADDIN_URLS:
+                xml_content = xml_content.replace(_old_url, addin_base_url)
             dest_manifest.write_text(xml_content, encoding="utf-8")
             print(f"[INFO] [ADD-IN] Manifiesto generado en: {dest_manifest} -> apuntando a {addin_base_url}")
         else:
@@ -1446,6 +1447,7 @@ async def api_loading_tip(req: LoadingTipRequest) -> dict:
         return {"category": category, "text": text[:110]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/ai/citation-fix")
 async def api_citation_fix(req: CitationFixRequest) -> dict:
     """
     Sugiere la corrección APA 7 de una cita problemática (propuesta 6).
@@ -1908,7 +1910,8 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
         generated_path=docx_path,
         final_path=final_path,
         preserve_cover=preserve_cover,
-        generate_pdf=True
+        generate_pdf=True,
+        rules=rules
     )
 
     pdf_generated = False
@@ -2138,7 +2141,8 @@ async def generate_docx(req: GenerateRequest) -> dict:
             generated_path=generated_path,
             final_path=final_path,
             preserve_cover=preserve_cover,
-            generate_pdf=False # El endpoint de PDF se maneja en /api/generate-pdf
+            generate_pdf=False, # El endpoint de PDF se maneja en /api/generate-pdf
+            rules=rules
         )
 
         if success and final_path.exists():
@@ -3106,17 +3110,23 @@ def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
 
     Retorna: (cert_path, key_path) o (None, None).
     """
-    # ── SSL es OPT-IN: solo se activa con WORDAPA7_USE_SSL=true ──────────
-    # En producción, el Add-in se carga desde una URL HTTPS pública y se
-    # comunica con este backend local en http://127.0.0.1:8742 (HTTP plano).
-    # No se necesitan certificados locales ni mkcert. SSL solo se usa en
-    # desarrollo avanzado local cuando el desarrollador lo solicita
-    # explícitamente.
-    if os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "true":
-        print(
-            "[SSL] SSL deshabilitado (WORDAPA7_USE_SSL != 'true'). "
-            "Backend en HTTP plano — el Add-in se carga desde URL HTTPS pública."
-        )
+        # ── SSL es el COMPORTAMIENTO POR DEFECTO en Windows ─────────
+    # Office Add-ins REQUIEREN HTTPS incluso en localhost. Sin SSL, Word
+    # rechaza el Add-in (panel en blanco o no aparece). El módulo
+    # ssl_cert_gen genera certificados auto-firmados y los instala
+    # silenciosamente en el Trusted Root store de Windows via CryptoAPI.
+    #
+    # SSL se DESACTIVA solo si:
+    #   1. WORDAPA7_USE_SSL=false (desactivación explícita)
+    #   2. WORDAPA7_ADDIN_PUBLIC_URL está seteada (modo producción con URL pública HTTPS)
+    public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+    ssl_disabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "false"
+
+    if ssl_disabled or public_url:
+        if public_url:
+            print(f"[SSL] Desactivado — Add-in servido desde URL pública: {public_url}")
+        else:
+            print("[SSL] Desactivado explícitamente (WORDAPA7_USE_SSL=false)")
         return None, None
 
     import shutil
@@ -3212,7 +3222,7 @@ async def get_addin_ssl_status():
 
     ssl_active = cert_path.exists() and key_path.exists()
 
-    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "true"
+    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
     addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
 
     if use_ssl_enabled:
@@ -3252,8 +3262,8 @@ async def get_addin_config():
       - El backend genera certificados SSL auto-firmados
       - El Add-in se sirve desde el propio backend en HTTPS
     """
-    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "true"
     addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
+    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not addin_public_url
 
     # Determinar la URL del backend que el frontend debe usar
     if use_ssl:
@@ -3293,7 +3303,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8742, help='Port to run the server on')
+    parser.add_argument('--watcher', action='store_true',
+                        help='Run as lightweight Word watcher (starts backend when Word opens, stops when closed)')
     args, unknown = parser.parse_known_args()
+
+    # Modo Watcher: proceso ligero que detecta Word y arranca el backend.
+    # Si se pasa --watcher, NO arrancamos uvicorn. En su lugar, ejecutamos
+    # el bucle del watcher (word_watcher.py) que monitorea si Word esta
+    # abierto y arranca/detiene el backend segun sea necesario.
+    # Esto permite que el mismo ejecutable (python-backend.exe en produccion)
+    # funcione tanto como servidor como como watcher.
+    if args.watcher:
+        from word_watcher import run_watcher
+        run_watcher()
+        sys.exit(0)
 
     # 1. Verificar y recompilar frontend si hubo cambios en src/
     check_and_auto_build_frontend()
@@ -3323,9 +3346,10 @@ if __name__ == "__main__":
             print(f" Backend API: http://127.0.0.1:{args.port} (HTTP plano)")
             print(" El Add-in se carga desde la URL publica y llama a este backend local.")
         else:
-            print(" Modo: PRODUCCION (HTTP plano)")
-            print(f" Backend API: http://127.0.0.1:{args.port}")
-            print(" Add-in: configura WORDAPA7_ADDIN_PUBLIC_URL con tu URL HTTPS publica.")
+            print(" Modo: LOCAL HTTPS (SSL automatico)")
+            print(f" Backend API: https://127.0.0.1:{args.port}")
+            print(" Add-in: se sirve desde el backend en HTTPS. Word deberia cargarlo sin problemas.")
+            print(" El complemento se registra automaticamente en Word al iniciar.")
     print(" Presiona Ctrl+C para detener")
     print("=" * 60)
 

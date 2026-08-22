@@ -48,6 +48,9 @@ FONT_TITLE = "Montserrat Black"      # Título del trabajo
 FONT_BODY = "Montserrat"             # Autores, fecha, lugar
 BLACK = RGBColor(0x00, 0x00, 0x00)
 
+# Conversión de centímetros a "twentieths of a point" (dxa): 1 cm = 567 dxa
+_CM_TO_DXA = 567
+
 
 def _add_run_styled(paragraph, text: str, bold=False, size_pt=12,
                     font: str = FONT_BODY, color: RGBColor = BLACK):
@@ -111,7 +114,13 @@ class _UniCoverBuilder:
 
 
 def _clear_cell_borders(cell, keep_right: bool = False):
-    """Elimina todos los bordes de la celda; opcionalmente conserva el derecho."""
+    """Elimina todos los bordes de la celda; opcionalmente conserva el derecho.
+
+    El separador vertical derecho solo se añade cuando *keep_right* es True,
+    lo que debe reservarse para celdas que contienen contenido real. Las
+    celdas vacías (sin autor) reciben ``keep_right=False`` para que no quede
+    un separador colgando sobre el vacío.
+    """
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     tcBorders = OxmlElement('w:tcBorders')
@@ -139,8 +148,61 @@ def _set_cell_width(cell, width_cm: float):
     if tcW is None:
         tcW = OxmlElement('w:tcW')
         tcPr.append(tcW)
-    tcW.set(qn('w:w'), str(int(width_cm * 567)))
+    tcW.set(qn('w:w'), str(int(width_cm * _CM_TO_DXA)))
     tcW.set(qn('w:type'), 'dxa')
+
+
+def _set_cell_vertical_alignment(cell, align: str = "center"):
+    """Fija la alineación vertical de una celda de tabla.
+
+    Valores válidos en OOXML: ``top``, ``center``, ``bottom``.
+    Por defecto centra verticalmente para que todas las celdas de una misma
+    fila queden alineadas aunque tengan distinta cantidad de texto.
+    """
+    tcPr = cell._tc.get_or_add_tcPr()
+    vAlign = tcPr.find(qn('w:vAlign'))
+    if vAlign is None:
+        vAlign = OxmlElement('w:vAlign')
+        tcPr.append(vAlign)
+    vAlign.set(qn('w:val'), align)
+
+
+def _set_cell_padding(cell, top_cm: float = 0.2, bottom_cm: float = 0.2,
+                      left_cm: float = 0.2, right_cm: float = 0.2):
+    """Agrega relleno (padding) interno a una celda de tabla.
+
+    Evita que el texto quede pegado a las líneas separadoras verticales,
+    dando un respiro visual uniforme de 0.2 cm por defecto.
+    """
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcMar = tcPr.find(qn('w:tcMar'))
+    if tcMar is None:
+        tcMar = OxmlElement('w:tcMar')
+        tcPr.append(tcMar)
+    for side, val_cm in [('top', top_cm), ('bottom', bottom_cm),
+                         ('left', left_cm), ('right', right_cm)]:
+        mar = tcMar.find(qn(f'w:{side}'))
+        if mar is None:
+            mar = OxmlElement(f'w:{side}')
+            tcMar.append(mar)
+        mar.set(qn('w:w'), str(int(val_cm * _CM_TO_DXA)))
+        mar.set(qn('w:type'), 'dxa')
+
+
+def _set_row_min_height(row, height_cm: float = 1.5):
+    """Fija la altura mínima de una fila de tabla (regla ``atLeast``).
+
+    Garantiza que las filas de autores no colapsen cuando hay poco texto
+    (p. ej. un solo estudiante). ``atLeast`` permite que la fila crezca si el
+    contenido la rebasa.
+    """
+    trPr = row._tr.get_or_add_trPr()
+    trHeight = trPr.find(qn('w:trHeight'))
+    if trHeight is None:
+        trHeight = OxmlElement('w:trHeight')
+        trPr.append(trHeight)
+    trHeight.set(qn('w:val'), str(int(height_cm * _CM_TO_DXA)))
+    trHeight.set(qn('w:hRule'), 'atLeast')
 
 
 def generate_uni_cover(
@@ -218,7 +280,7 @@ def generate_uni_cover(
     _add_run_styled(elab_p, "Elaborado por", bold=True, size_pt=11, font=FONT_BODY)
     _set_paragraph_spacing(elab_p, before=0, after=10)
 
-    # ── 6. Autores en 4 columnas con separadores verticales negros ───────────
+    # ── 6. Autores en columnas con separadores verticales negros ─────────────
     estudiantes = [a for a in autores if not a.get("es_tutor", False)]
 
     # Distribuir en columnas de estudiantes (la última es el docente).
@@ -240,12 +302,22 @@ def generate_uni_cover(
     max_rows = max(max_rows, 1)
 
     if n_cols > 0:
-        # Ancho total de la página ~16cm: ancho de estudiante se adapta al
-        # número de columnas y la columna de docente siempre es la más ancha.
-        student_col_width = {3: 3.6, 2: 5.4, 1: 9.6}.get(n_student_cols, 3.6)
-        col_widths_cm = ([student_col_width] * n_student_cols) + ([5.2] if tutor_entry else [])
+        # ── 6.1 Anchos de columna balanceados según nº de estudiantes ──────────
+        # Pocos integrantes → columnas más anchas y equilibrio con el docente.
+        #   3 estudiantes → 3.5 cm cada uno  + 5.0 cm docente  (total 15.5 cm)
+        #   2 estudiantes → 5.0 cm cada uno  + 5.0 cm docente  (total 15.0 cm)
+        #   1 estudiante  → 7.0 cm           + 5.0 cm docente  (total 12.0 cm)
+        student_col_width = {3: 3.5, 2: 5.0, 1: 7.0}.get(n_student_cols, 3.5)
+        tutor_col_width = 5.0
+        col_widths_cm = ([student_col_width] * n_student_cols) + \
+                        ([tutor_col_width] if tutor_entry else [])
+
         authors_table = doc.add_table(rows=max_rows, cols=n_cols)
         authors_table.autofit = False
+
+        for row_i in range(max_rows):
+            # Altura mínima de fila para que las celdas no colapsen.
+            _set_row_min_height(authors_table.rows[row_i], height_cm=1.5)
 
         for col_i in range(n_cols):
             is_tutor_col = (col_i == n_student_cols and tutor_entry)
@@ -254,10 +326,23 @@ def generate_uni_cover(
             for row_i in range(max_rows):
                 cell = authors_table.cell(row_i, col_i)
                 _set_cell_width(cell, col_widths_cm[col_i])
-                # Separador vertical negro entre columnas (todos menos la última)
-                _clear_cell_borders(cell, keep_right=(col_i < n_cols - 1))
 
-                if row_i < len(col_data):
+                # Centrar verticalmente todas las celdas de la misma fila.
+                _set_cell_vertical_alignment(cell, align="center")
+
+                # Padding interno para que el texto no toque las líneas.
+                _set_cell_padding(cell, top_cm=0.2, bottom_cm=0.2,
+                                   left_cm=0.2, right_cm=0.2)
+
+                # ── 6.4 Separador vertical solo en celdas con contenido ─────────
+                # Una celda vacía (sin autor en esa fila) NO debe mostrar el
+                # separador derecho; de lo contrario queda una línea colgando
+                # sobre el vacío y la portada se ve rota.
+                has_content = row_i < len(col_data)
+                keep_right = (col_i < n_cols - 1) and has_content
+                _clear_cell_borders(cell, keep_right=keep_right)
+
+                if has_content:
                     autor = col_data[row_i]
                     p = cell.paragraphs[0]
                     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -288,7 +373,7 @@ def generate_uni_cover(
     # con todo el vacío abajo (replica el flex:1 del preview).
     PAGE_USABLE_CM = 24.6    # A4 29.7cm - márgenes 2.54cm ×2
     TOP_BLOCK_CM = 8.0       # logo + dept + título + asignatura + "Elaborado por"
-    AUTH_ROW_CM = 0.9        # altura por fila de autores (~10pt + aire)
+    AUTH_ROW_CM = 1.5        # altura mínima por fila de autores (con padding)
     DATE_BLOCK_CM = 1.4      # fecha + lugar
     TARGET_FILL = 0.86       # la fecha queda cerca del 86% del alto de la hoja
     used_cm = TOP_BLOCK_CM + max(1, max_rows) * AUTH_ROW_CM + DATE_BLOCK_CM
