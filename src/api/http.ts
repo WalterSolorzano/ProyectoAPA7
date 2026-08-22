@@ -4,33 +4,74 @@
  * certificados SSL generados para el Word Add-in, ya que Office.js los
  * requiere). Este módulo detecta automáticamente cuál protocolo usar:
  * intenta HTTPS primero y cae a HTTP si no responde.
+ *
+ * CRITICAL FIX: El protocolo NO se cachea si ambos (HTTPS y HTTP) fallan.
+ * Antes, si el backend no había arrancado todavía, _detectProtocol cacheaba
+ * 'http' (fallback) y nunca lo reintentaba. Cuando el backend finalmente
+ * arrancaba con HTTPS, todas las peticiones iban a HTTP y fallaban
+ * silenciosamente — el bug #1 de "no sube el archivo".
  */
 
-/** Protocolo detectado del backend (cacheado tras la primera detección). */
+/** Protocolo detectado del backend (cacheado solo tras una detección exitosa). */
 let _backendProtocol: 'https' | 'http' | null = null;
 
-/** Detecta si el backend responde por HTTPS, cacheando el resultado. */
+/**
+ * Detecta si el backend responde por HTTPS o HTTP.
+ *
+ * SOLO cachea el resultado si una de las dos opciones responde con HTTP 200.
+ * Si ambas fallan (backend todavía arrancando), retorna 'http' como
+ * fallback temporal PERO NO lo cachea, para que la próxima llamada reintente.
+ */
 async function _detectProtocol(port: number): Promise<'https' | 'http'> {
+  // Si ya detectamos un protocolo que funciona, usarlo (cache válido)
   if (_backendProtocol) return _backendProtocol;
 
-  // Intentar HTTPS primero (con timeout corto de 1.5s)
+  // Intentar HTTPS primero (con timeout corto de 2s)
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 1500);
+    const timer = setTimeout(() => ctrl.abort(), 2000);
     const res = await fetch(`https://127.0.0.1:${port}/api/version`, {
       signal: ctrl.signal,
     });
     clearTimeout(timer);
     if (res.ok) {
       _backendProtocol = 'https';
+      console.log('[http] Backend detectado: HTTPS');
       return 'https';
     }
   } catch {
-    // HTTPS no disponible (cert no configurado o rechazado) → intentar HTTP
+    // HTTPS no disponible (cert no configurado o backend no listo) → intentar HTTP
   }
 
-  _backendProtocol = 'http';
-  return _backendProtocol;
+  // Intentar HTTP (con timeout corto de 2s)
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(`http://127.0.0.1:${port}/api/version`, {
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      _backendProtocol = 'http';
+      console.log('[http] Backend detectado: HTTP');
+      return 'http';
+    }
+  } catch {
+    // HTTP tampoco responde — backend probablemente todavía arrancando
+  }
+
+  // AMBOS fallaron: retornar 'http' como fallback pero NO cachear,
+  // para que la próxima llamada reintente la detección.
+  console.log('[http] Backend no responde todavía, reintentando en próxima llamada');
+  return 'http';
+}
+
+/**
+ * Resetea el cache de protocolo. Llamar cuando el backend se reinicia
+ * o cuando se sabe que el protocolo puede haber cambiado.
+ */
+export function resetProtocolCache(): void {
+  _backendProtocol = null;
 }
 
 export const getApiBase = (): string => {
@@ -51,7 +92,7 @@ export const getApiBase = (): string => {
 /**
  * Versión asíncrona de getApiBase() que garantiza haber detectado el
  * protocolo correcto antes de devolver la URL. Usar cuando se necesita
- * la URL correcta inmediatamente (ej: al arrancar la app).
+ * la URL correcta inmediatamente (ej: al subir un archivo).
  */
 export async function getApiBaseAsync(): Promise<string> {
   if (!(window as any).electronAPI) return '/api';

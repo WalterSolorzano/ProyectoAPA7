@@ -30,7 +30,7 @@ import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
 import * as api from './api/backend';
-import { getApiBaseAsync } from './api/http';
+import { getApiBaseAsync, resetProtocolCache } from './api/http';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
 import { DesignAuditor } from './components/auditor/DesignAuditor';
 import { RightSidePanel } from './components/activity/RightSidePanel';
@@ -125,9 +125,6 @@ export const App: React.FC = () => {
   const [structureTab, setStructureTab] = useState<'headings' | 'body'>('headings');
 
   // ── Context Menu Integration ──────────────────────────────────────────────
-  // Cuando el usuario hace click derecho → "Convertir a APA 7" en un .docx,
-  // el main process lee el archivo y lo envía acá. Lo guardamos en un ref
-  // porque el backend puede no estar listo todavía.
   const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array } | null>(null);
 
   const processPendingOSFile = () => {
@@ -135,8 +132,6 @@ export const App: React.FC = () => {
     if (!data) return;
     pendingOSFile.current = null;
 
-    // Convertir el buffer IPC (Uint8Array) a un ArrayBuffer nativo para File.
-    // Es necesario porque TS no acepta Uint8Array<ArrayBufferLike> como BlobPart.
     const ab = new ArrayBuffer(data.buffer.byteLength);
     new Uint8Array(ab).set(data.buffer);
     const file = new File(
@@ -149,7 +144,6 @@ export const App: React.FC = () => {
     useDocStore.getState().uploadFile(file);
   };
 
-  // Listener IPC: recibe el archivo del main process (context menu)
   useEffect(() => {
     const electronWindow = window as any;
     if (!electronWindow.electronAPI?.onOpenFileFromOS) return;
@@ -157,35 +151,31 @@ export const App: React.FC = () => {
     const cleanup = electronWindow.electronAPI.onOpenFileFromOS(
       (data: { fileName: string; buffer: Uint8Array }) => {
         pendingOSFile.current = data;
-        // Si el backend ya está listo, procesar inmediatamente
         if (useDocStore.getState().isBackendReady) {
           processPendingOSFile();
         }
-        // Si no, el useEffect de [isBackendReady] se encargará cuando esté listo
       }
     );
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
 
-  // Cuando el backend se vuelve ready, procesar archivo pendiente del context menu
   useEffect(() => {
     if (isBackendReady && pendingOSFile.current) {
       processPendingOSFile();
     }
   }, [isBackendReady]);
 
-  // Session recovery is NOT automatic — user must go to Archivo → Abrir → Sesiones recientes
-  // This prevents the app from auto-loading the last document on startup (Word behavior)
-
-  // Global backend readiness: listen for the IPC event from Electron PythonManager
-  // This is the SINGLE source of truth for isBackendReady across the entire app
+  // ── Global backend readiness ──────────────────────────────────────────────
+  // CRITICAL: Cuando el backend se vuelve ready, reseteamos el cache de
+  // protocolo para forzar una re-detección limpia. Antes, el cache podía
+  // tener 'http' (fallback de cuando el backend no había arrancado) y nunca
+  // se actualizaba a 'https', causando que todas las peticiones (incluida
+  // la subida de archivos) fallaran silenciosamente.
   const backendCheckNonce = useDocStore((s) => s.backendCheckNonce);
   useEffect(() => {
     const electronWindow = window as any;
     let cancelled = false;
 
-    // Chequeo puntual (retorna true si el motor responde)
-    // Prueba HTTPS primero (cuando hay SSL para el Word Add-in) y cae a HTTP.
     const checkBackendOnce = async (): Promise<boolean> => {
       try {
         const apiBase = await getApiBaseAsync();
@@ -200,7 +190,6 @@ export const App: React.FC = () => {
       return false;
     };
 
-    // Polling INFINITO (cada 2s) hasta que el motor responda
     const pollLoop = async () => {
       while (!cancelled) {
         if (await checkBackendOnce()) return;
@@ -210,6 +199,10 @@ export const App: React.FC = () => {
 
     if (electronWindow.electronAPI?.onPythonReady) {
       const cleanup = electronWindow.electronAPI.onPythonReady(() => {
+        // CRITICAL: Resetear el cache de protocolo ANTES de marcar el backend
+        // como ready. El cache puede tener 'http' de cuando el backend no
+        // había arrancado, y necesitamos que se re-detecte como 'https'.
+        resetProtocolCache();
         useDocStore.setState({ isBackendReady: true });
         syncAllProviderKeys().catch(() => {});
         useDocStore.getState().fetchProfiles().catch(() => {});
@@ -229,11 +222,6 @@ export const App: React.FC = () => {
         });
       }
 
-      // ── Add-in sideload: notificar cuando el complemento de Word se registre ──
-      // PythonManager llama a /api/addin/registry-sideload automáticamente después
-      // de que el backend arranca. Si tiene éxito, registra el manifiesto en el
-      // registro de Windows (HKCU\...\Wef\Developer\WordAPA7) y Word detecta el
-      // complemento al reiniciar.
       let addinCleanup: (() => void) | undefined;
       if (electronWindow.electronAPI.onAddinSideloaded) {
         addinCleanup = electronWindow.electronAPI.onAddinSideloaded((data: { status: string; hint: string }) => {
@@ -259,7 +247,6 @@ export const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendCheckNonce]);
 
-  // Keyboard shortcuts and Native Menu actions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -267,7 +254,6 @@ export const App: React.FC = () => {
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable;
       if (isInput) return;
 
-      // Escape cierra las UIs superpuestas de mayor a menor prioridad
       if (e.key === 'Escape') {
         const s = useDocStore.getState();
         if (s.validatorOpen) { s.setValidatorOpen(false); return; }
@@ -280,7 +266,6 @@ export const App: React.FC = () => {
       }
 
       if (e.ctrlKey || e.metaKey) {
-        // Navegación entre pasos del wizard (Ctrl+Shift+[ / ]）
         if (e.shiftKey && (e.key === ']' || e.key === '}')) {
           e.preventDefault();
           if (!doc) return;
@@ -331,14 +316,12 @@ export const App: React.FC = () => {
             e.preventDefault();
             useDocStore.setState({ commandPaletteOpen: true });
             break;
-          // Steps 1-4: wizard navigation
           case '1': case '2': case '3': case '4':
             e.preventDefault();
             if (doc) {
               useDocStore.getState().setWizardStep(parseInt(e.key));
             }
             break;
-          // Step 5: Export tunnel
           case '5': case '6':
             e.preventDefault();
             if (doc) {
@@ -352,7 +335,6 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
 
-    // Listen to native OS menu clicks from Electron
     let removeMenuListener = () => {};
     const electronWindow = window as any;
     if (electronWindow.electronAPI && electronWindow.electronAPI.onMenuAction) {
@@ -370,7 +352,6 @@ export const App: React.FC = () => {
     };
   }, [doc, exportDocx, exportPdf, undo, redo]);
 
-  // Native menu events dispatched by the Electron handler above
   useEffect(() => {
     const listeners: Array<[string, () => void]> = [
       ['trigger-upload', () => useDocStore.getState().setShowFileMenu(true)],
@@ -386,9 +367,6 @@ export const App: React.FC = () => {
     return () => cleanups.forEach((cleanup) => cleanup());
   }, []);
 
-  // Settings Studio (previsualizador de ajustes) — full screen override.
-  // Ahora es OPCIONAL: se abre desde el toolbar ("Ajustes avanzados"), no es
-  // parte del flujo obligatorio del wizard. Las reglas APA 7 se aplican por defecto.
   if (settingsStudioOpen) {
     return (
       <>
@@ -400,7 +378,6 @@ export const App: React.FC = () => {
     );
   }
 
-  // File menu (backstage "Archivo")
   if (showFileMenu) {
     return (
       <>
@@ -413,7 +390,6 @@ export const App: React.FC = () => {
     );
   }
 
-  // Quick Start screen — show when no doc OR when the user returned "home"
   if (!doc || atHome) {
     return (
       <>
@@ -423,7 +399,6 @@ export const App: React.FC = () => {
           </div>
         )}
         {isBackendReady ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
-        {/* LoadingTips debe vivir en TODAS las ramas para que se vea al importar */}
         <LoadingTips />
         <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       </>
@@ -448,7 +423,6 @@ export const App: React.FC = () => {
           </div>
         ) : viewMode === 'split' ? (
           <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
-            {/* Editor Side */}
             <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
               {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
               <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
@@ -458,15 +432,11 @@ export const App: React.FC = () => {
                 {wizardStep === 4 && <Step5ReferencesWizard />}
               </div>
             </div>
-            {/* Preview Side */}
             <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)', borderLeft: '2px solid var(--border-subtle)' }}>
               <ReactPDFPreview />
             </div>
           </div>
         ) : wizardStep === 1 ? (
-          // Paso 1 (Portada): división del espacio 35% / 65%.
-          //   EditorRail (izquierda, nav) | CoverEditorPanel (35%, control)
-          //   | PaperCanvas (65%, hoja A4 centrada, flex-grow).
           <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
             <EditorRail />
             <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
@@ -478,8 +448,6 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* ETAPA 2 — EDITOR UNIFICADO:
-                rail lateral izquierdo de secciones + contenido del editor. */}
             <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
               <EditorRail />
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -490,36 +458,22 @@ export const App: React.FC = () => {
                   {wizardStep === 4 && <Step5ReferencesWizard />}
                 </div>
               </div>
-
-              {/* Panel Derecho flotante: se monta sobre el canvas sin quitarle espacio */}
               <RightSidePanel />
             </div>
           </>
         )}
       </div>
 
-      {/* Template Dialog */}
       <TemplateDialog />
-
-      {/* Onboarding como tooltips (primera vez) */}
       <OnboardingTour />
-
       <LLMConsentDialog />
 
       {doc && commandPaletteOpen && <CommandPalette />}
-
-      {/* Pantalla de carga estilo juego (mascota + tips) */}
       <LoadingTips />
-
-      {/* Micro-animación de cierre cuando la descarga termina con éxito */}
       <DownloadSuccessOverlay />
-
       <StatusBar />
       <AIBatteryIndicator />
-
-      {/* Mascota con globo de diálogo — hitos importantes, no bloquea */}
       {doc && <MascotBubble />}
-
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
     </div>
   );
