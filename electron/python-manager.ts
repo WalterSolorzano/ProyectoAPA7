@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import { app, BrowserWindow } from 'electron'
 import http from 'http'
+import https from 'https'
 import path from 'path'
 import net from 'net'
 import { log } from './logger'
@@ -23,11 +24,26 @@ export class PythonManager {
   private static stopped = false
   private static addinSideloaded = false
 
+  /**
+   * Protocolo detectado del backend durante el polling.
+   *
+   * El backend Python puede correr en HTTP o HTTPS. Cuando hay certificados
+   * SSL disponibles (generados por ssl_cert_gen.py para el Word Add-in),
+   * el backend arranca con HTTPS. El módulo ``http`` de Node.js NO soporta
+   * HTTPS, así que necesitamos saber qué protocolo usar para las peticiones
+   * del main process (polling de readiness + sideload del add-in).
+   *
+   * Se descubre durante ``pollBackend`` probando HTTPS primero y cayendo a
+   * HTTP si no responde.
+   */
+  private static backendProtocol: 'https' | 'http' = 'https'
+
   static async start(): Promise<void> {
     this.port = await getFreePort()
     this.stopped = false
     this.restartCount = 0
     this.addinSideloaded = false
+    this.backendProtocol = 'https'
 
     log('info', 'python-manager', `Iniciando backend Python...`, { port: this.port })
 
@@ -35,14 +51,81 @@ export class PythonManager {
   }
 
   /**
+   * Hace una petición GET al backend intentando HTTPS primero, luego HTTP.
+   *
+   * Node.js tiene módulos separados para HTTP y HTTPS (``http`` y ``https``).
+   * No podemos usar ``fetch`` aquí porque estamos en el main process (Node),
+   * no en el renderer (Chromium). El ``setCertificateVerifyProc`` solo aplica
+   * a Chromium, no a Node.js, así que para HTTPS necesitamos
+   * ``rejectUnauthorized: false`` para aceptar el cert auto-firmado.
+   *
+   * Retorna ``true`` si el backend respondió con status 200.
+   */
+  private static pingBackend(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const tryHttps = () => {
+        const req = https.get(
+          `https://127.0.0.1:${this.port}/api/version`,
+          { rejectUnauthorized: false, timeout: 2000 },
+          (res) => {
+            if (res.statusCode === 200) {
+              this.backendProtocol = 'https'
+              resolve(true)
+            } else {
+              resolve(false)
+            }
+            // Drenar el response para evitar que el socket se quede colgado
+            res.resume()
+          }
+        )
+        req.on('error', () => {
+          // HTTPS falló — intentar HTTP como fallback
+          tryHttp()
+        })
+        req.on('timeout', () => {
+          req.destroy()
+          tryHttp()
+        })
+      }
+
+      const tryHttp = () => {
+        const req = http.get(
+          `http://127.0.0.1:${this.port}/api/version`,
+          { timeout: 2000 },
+          (res) => {
+            if (res.statusCode === 200) {
+              this.backendProtocol = 'http'
+              resolve(true)
+            } else {
+              resolve(false)
+            }
+            res.resume()
+          }
+        )
+        req.on('error', () => {
+          resolve(false)
+        })
+        req.on('timeout', () => {
+          req.destroy()
+          resolve(false)
+        })
+      }
+
+      tryHttps()
+    })
+  }
+
+  /**
    * Registra el manifiesto del Add-in en el registro de Windows (sideload).
    *
    * Llama al endpoint GET /api/addin/registry-sideload del backend, que escribe
-   * en HKCU\Software\Microsoft\Office\16.0\Wef\Developer\WordAPA7 con la URL
+   * en HKCU\\Software\\Microsoft\\Office\\16.0\\Wef\\Developer\\WordAPA7 con la URL
    * del manifiesto dinámico. No requiere permisos de administrador (usa HKCU).
    *
    * Es idempotente: llamarlo múltiples veces actualiza la URL sin duplicar.
    * Solo se ejecuta una vez por sesión (bandera addinSideloaded).
+   *
+   * Usa el protocolo detectado durante ``pingBackend`` (HTTPS o HTTP).
    *
    * Si la operación es exitosa, envía el evento IPC 'addin-sideloaded' al
    * renderer para que muestre un toast informando al usuario.
@@ -51,10 +134,16 @@ export class PythonManager {
     if (this.addinSideloaded) return
     if (process.platform !== 'win32') return
 
-    const url = `http://127.0.0.1:${this.port}/api/addin/registry-sideload`
-    log('info', 'python-manager', 'Auto-sideload del Add-in de Word...', { url })
+    const proto = this.backendProtocol
+    const url = `${proto}://127.0.0.1:${this.port}/api/addin/registry-sideload`
+    log('info', 'python-manager', 'Auto-sideload del Add-in de Word...', { url, proto })
 
-    http.get(url, (res) => {
+    const requestLib = proto === 'https' ? https : http
+    const options = proto === 'https'
+      ? { rejectUnauthorized: false, timeout: 5000 }
+      : { timeout: 5000 }
+
+    requestLib.get(url, options, (res) => {
       let body = ''
       res.on('data', (chunk) => { body += chunk })
       res.on('end', () => {
@@ -136,33 +225,39 @@ export class PythonManager {
 
       // PyInstaller with console=False suppresses stdout on Windows, so we cannot wait for logs.
       // Instead, we poll the backend API until it responds.
+      // IMPORTANTE: usamos pingBackend() que prueba HTTPS primero y cae a HTTP,
+      // porque el backend puede correr con SSL (necesario para el Word Add-in).
+      // El módulo ``http`` de Node.js NO soporta HTTPS, por lo que un ``http.get``
+      // a un servidor HTTPS siempre falla — eso causaba que el polling nunca
+      // pasara, el evento 'python-ready' nunca se disparara y el sideload del
+      // add-in nunca se ejecutara.
       let retries = 0;
       const SOFT_TIMEOUT = 90; // Loguear advertencia a los 90s pero seguir intentando
-      const pollBackend = () => {
+      const pollBackend = async () => {
         if (this.stopped) return
         retries++;
         if (retries === SOFT_TIMEOUT) {
           log('warn', 'python-manager', `Backend tardó más de ${SOFT_TIMEOUT}s — seguimos esperando...`)
         }
-        http.get(`http://127.0.0.1:${this.port}/api/version`, (res) => {
-          if (res.statusCode === 200) {
-            log('info', 'python-manager', 'Backend Python listo y respondiendo', { retries })
-            // Notify all renderer windows that Python is ready
-            BrowserWindow.getAllWindows().forEach(win => {
-              win.webContents.send('python-ready')
-            })
-            // Auto-sideload del Add-in de Word: registrar el manifiesto en el
-            // registro de Windows para que Word lo detecte automáticamente.
-            // Se hace después de confirmar que el backend está listo, con un
-            // pequeño delay para no competir con otras peticiones de arranque.
-            setTimeout(() => { this.sideloadAddin() }, 2000)
-            return resolve()
-          } else {
-            setTimeout(pollBackend, 1000)
-          }
-        }).on('error', () => {
+        const ok = await this.pingBackend()
+        if (ok) {
+          log('info', 'python-manager', 'Backend Python listo y respondiendo', {
+            retries,
+            protocol: this.backendProtocol,
+          })
+          // Notify all renderer windows that Python is ready
+          BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('python-ready')
+          })
+          // Auto-sideload del Add-in de Word: registrar el manifiesto en el
+          // registro de Windows para que Word lo detecte automáticamente.
+          // Se hace después de confirmar que el backend está listo, con un
+          // pequeño delay para no competir con otras peticiones de arranque.
+          setTimeout(() => { this.sideloadAddin() }, 2000)
+          return resolve()
+        } else {
           setTimeout(pollBackend, 1000)
-        })
+        }
       }
       setTimeout(pollBackend, 1000)
 

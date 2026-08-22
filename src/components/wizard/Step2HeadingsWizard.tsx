@@ -435,8 +435,13 @@ export const Step2HeadingsWizard: React.FC = () => {
           </button>
         </div>
 
-        {/* Document canvas */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', backgroundColor: 'var(--canvas-bg)' }}>
+        {/* Document canvas.
+            ⚠️ NO usar overflowY:'auto' ni padding aquí — PaperCanvas ya tiene su
+            propio contenedor de scroll (overflowY:'auto' + padding). Si anidamos
+            otro scrollable, scrollIntoView() solo mueve el contenedor interno y
+            el autoscroll se "bloquea" porque el contenedor externo nunca se
+            desplaza. */}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
           <PaperCanvas
             onElementClick={handleElementClick}
             reviewHighlightIds={reviewHighlightIds}

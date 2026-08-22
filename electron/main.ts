@@ -63,6 +63,23 @@ async function createWindow() {
     },
   })
 
+  // ── SSL: aceptar certificados auto-firmados de localhost ──────────────────
+  // El backend Python genera un cert SSL auto-firmado (ssl_cert_gen.py) para
+  // que el Word Add-in (Office.js) pueda cargar el panel por HTTPS, ya que
+  // Office LO REQUIERE incluso en localhost. Chromium rechaza certificados
+  // auto-firmados por defecto; aquí aceptamos SOLO los de 127.0.0.1/localhost
+  // para que el renderer pueda hacer fetch() al backend HTTPS.
+  mainWindow.webContents.session.setCertificateVerifyProc((request, callback) => {
+    const { hostname } = request
+    if (hostname === '127.0.0.1' || hostname === 'localhost') {
+      // Aceptar certificados auto-firmados del backend local
+      callback(0) // 0 = accept
+    } else {
+      // Usar verificación normal para todos los demás hostnames
+      callback(-1) // -1 = use default verification
+    }
+  })
+
   // Load React UI immediately for instant startup feel
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)

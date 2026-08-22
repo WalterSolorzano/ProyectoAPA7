@@ -30,6 +30,7 @@ import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
 import * as api from './api/backend';
+import { getApiBaseAsync } from './api/http';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
 import { DesignAuditor } from './components/auditor/DesignAuditor';
 import { RightSidePanel } from './components/activity/RightSidePanel';
@@ -184,10 +185,11 @@ export const App: React.FC = () => {
     let cancelled = false;
 
     // Chequeo puntual (retorna true si el motor responde)
+    // Prueba HTTPS primero (cuando hay SSL para el Word Add-in) y cae a HTTP.
     const checkBackendOnce = async (): Promise<boolean> => {
       try {
-        const port = electronWindow.electronAPI ? electronWindow.electronAPI.getBackendPort() : 8742;
-        const res = await fetch(`http://127.0.0.1:${port}/api/version`);
+        const apiBase = await getApiBaseAsync();
+        const res = await fetch(`${apiBase}/version`);
         if (res.ok) {
           useDocStore.setState({ isBackendReady: true });
           syncAllProviderKeys().catch(() => {});

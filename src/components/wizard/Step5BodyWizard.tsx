@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { AlignLeft, CheckCircle2, SpellCheck } from 'lucide-react';
+import { AlignLeft, CheckCircle2, SpellCheck, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { Badge } from '../ui/wordapa7';
 
@@ -13,14 +13,13 @@ const SPACING_OPTIONS = [
 ];
 
 /** Fila compacta de una regla aplicada (resumen visual, sin párrafos largos). */
-const RuleRow: React.FC<{ icon: React.ReactNode; label: string; value: string; badge: React.ReactNode }> = ({ icon, label, value, badge }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', flexShrink: 0, color: 'var(--text-secondary)' }}>{icon}</span>
+const RuleRow: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px' }}>
+    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '16px', flexShrink: 0, color: 'var(--text-secondary)' }}>{icon}</span>
     <span style={{ flex: 1, minWidth: 0 }}>
       <span style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>{label}</span>
       <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', marginTop: '1px' }}>{value}</span>
     </span>
-    {badge}
   </div>
 );
 
@@ -39,42 +38,50 @@ export const Step5BodyWizard: React.FC = () => {
       {showPanel ? (
       /* Panel Izquierdo: Reglas APA aplicadas */
       <div style={{
-        width: '320px',
+        width: '300px',
+        flexShrink: 0,
         backgroundColor: 'var(--sidebar-bg)',
         borderRight: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <div style={{ padding: '18px', borderBottom: '1px solid var(--border-subtle)' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlignLeft size={16} /> Cuerpo del documento
-          </h3>
-          <Badge tone="accent">Párrafos, listas y sangrías</Badge>
-          <button type="button" onClick={() => setShowPanel(false)} title="Colapsar panel de reglas"
-            style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}>✕</button>
+        {/* Header compacto */}
+        <div style={{
+          padding: '14px 16px 12px', borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <AlignLeft size={16} color="var(--accent-primary)" />
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>Cuerpo del documento</h3>
+            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Párrafos, listas y sangrías</span>
+          </div>
+          <button type="button" onClick={() => setShowPanel(false)} title="Colapsar panel"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}>
+            <PanelLeftClose size={16} />
+          </button>
         </div>
 
-        <div style={{ padding: '14px', flex: 1, overflowY: 'auto', display: 'grid', gap: '12px' }}>
+        <div style={{ padding: '12px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
           {/* Resumen compacto de reglas aplicadas */}
           <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '7px' }}>
               <CheckCircle2 size={13} color="var(--color-success)" />
               <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Reglas aplicadas</span>
               <div style={{ flex: 1 }} />
               <Badge tone="success">Auto</Badge>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <RuleRow icon={<AlignLeft size={13} />} label="Sangría primera línea" value={`1.27 cm · ${totalParagraphs} párrafos`} badge={<Badge tone="muted">Fijo</Badge>} />
-              <RuleRow icon={<AlignLeft size={13} />} label="Enumeración de listas" value={`${totalLists} listas secuenciales`} badge={<Badge tone="muted">Fijo</Badge>} />
-              <RuleRow icon={<AlignLeft size={13} />} label="Márgenes y tipografía" value={`2.54 cm · ${rules.font_family} ${rules.font_size_pt}pt`} badge={<Badge tone="muted">Fijo</Badge>} />
+              <RuleRow icon={<AlignLeft size={12} />} label="Sangría primera línea" value={`1.27 cm · ${totalParagraphs} párrafos`} />
+              <RuleRow icon={<AlignLeft size={12} />} label="Enumeración de listas" value={`${totalLists} listas secuenciales`} />
+              <RuleRow icon={<AlignLeft size={12} />} label="Márgenes y tipografía" value={`2.54 cm · ${rules.font_family} ${rules.font_size_pt}pt`} />
             </div>
           </div>
 
           {/* Interlineado (configurable) */}
           <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Interlineado</span>
               <Badge tone="accent">Configurable</Badge>
             </div>
@@ -83,14 +90,13 @@ export const Step5BodyWizard: React.FC = () => {
                 <button
                   key={opt.value}
                   type="button"
-                  className="ribbon-tab"
                   style={{
                     padding: '7px 6px', fontSize: '11px', borderRadius: '8px',
                     border: rules.line_spacing === opt.value ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
                     background: rules.line_spacing === opt.value ? 'rgba(79,124,255,0.12)' : 'rgba(255,255,255,0.03)',
                     color: rules.line_spacing === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
                     fontWeight: rules.line_spacing === opt.value ? 700 : 500,
-                    cursor: 'pointer',
+                    cursor: 'pointer', fontFamily: 'inherit',
                   }}
                   onClick={() => setRules({ line_spacing: opt.value })}
                 >
@@ -143,13 +149,18 @@ export const Step5BodyWizard: React.FC = () => {
           <button type="button" onClick={() => setShowPanel(true)}
             title="Mostrar panel de reglas del cuerpo"
             style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'rgba(79,124,255,0.10)', border: '1px solid rgba(79,124,255,0.2)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <AlignLeft size={14} />
+            <PanelLeftOpen size={14} />
           </button>
         </div>
       )}
 
-      {/* Panel Derecho: Lienzo Sincronizado */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>
+      {/* Panel Derecho: Lienzo Sincronizado.
+          ⚠️ NO usar overflowY:'auto' ni padding aquí — PaperCanvas ya tiene su
+          propio contenedor de scroll (overflowY:'auto' + padding). Si anidamos
+          otro scrollable, scrollIntoView() solo mueve el contenedor interno y
+          el autoscroll se "bloquea" porque el contenedor externo nunca se
+          desplaza. */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
         <PaperCanvas />
       </div>
     </div>

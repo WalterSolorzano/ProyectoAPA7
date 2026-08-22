@@ -925,7 +925,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 </div>
               ) : (
                 /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   {pageElements.map((elem) => {
                     const isSelected = selectedElementId === elem.id;
                     const isContextMenuOpen = contextMenuElemId === elem.id;
@@ -1194,12 +1194,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     </p>
                                     {/* Lista de referencias estructuradas */}
                                     {doc.referencias && doc.referencias.length > 0 ? (
-                                      <div style={{ paddingLeft: '0.5in' }}>
+                                      <div style={{ paddingLeft: 0 }}>
                                         {doc.referencias.map((ref, ri) => (
                                           <p key={ref.id || ri} style={{
                                             fontSize: '11pt', lineHeight: 2.0, textAlign: 'left',
                                             textIndent: '-0.5in', marginLeft: '0.5in',
-                                            margin: '0 0 6px 0.5in', paddingLeft: 0,
+                                            marginBottom: '8px', marginTop: 0, marginRight: 0,
+                                            paddingLeft: 0,
                                           }}>
                                             {ref.formatted_apa || (
                                               <>{[...(ref.authors || [])].join(', ')}{ref.year ? ` (${ref.year}).` : '.'} {ref.title}.{ref.source ? ` ${ref.source}.` : ''}{ref.doi_or_url ? ` ${ref.doi_or_url}` : ''}</>
@@ -1217,24 +1218,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   fontStyle: elem.heading_level === 3 ? 'italic' : 'normal',
                                   textAlign: elem.heading_level === 1 ? 'center' : 'left',
                                   marginTop: '12px',
-                                  marginBottom: '6px',
-                                  borderLeft: elem.heading_level === 1
-                                    ? '3px solid var(--color-text-primary)'
-                                    : elem.heading_level === 2
-                                      ? '2px solid var(--color-text-secondary)'
-                                      : elem.heading_level === 3
-                                        ? '2px solid var(--color-text-tertiary)'
-                                        : 'none',
-                                  paddingLeft: elem.heading_level ? '10px' : '0',
+                                  marginBottom: '8px',
+                                  // APA 7: sin decoración visual (bordes, paddings). Solo negrita/itálica/alineación.
+                                  // El resaltado de revisión usa un fondo sutil, no un borde decorativo.
                                   backgroundColor: reviewHighlightIds?.has(elem.id)
                                     ? 'var(--color-accent-soft)'
-                                    : elem.heading_level === 1
-                                      ? 'rgba(255,255,255,0.02)'
-                                      : 'transparent',
-                                  borderLeftColor: reviewHighlightIds?.has(elem.id)
-                                    ? 'var(--color-warning)'
-                                    : undefined,
-                                  transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                                    : 'transparent',
+                                  borderRadius: reviewHighlightIds?.has(elem.id) ? 'var(--radius-sm)' : 0,
+                                  transition: 'background-color 0.15s ease',
                                 }}>
                                   {headingDisplayText.get(elem.id) ?? elem.text}
                                 </p>
@@ -1246,7 +1237,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 textIndent: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 textAlign: 'justify',
-                                margin: '0 0 6px 0'
+                                margin: '0 0 8px 0'
                               }}>
                                 {renderReviewedText(elem, elem.text)}
                               </p>
@@ -1257,20 +1248,20 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 marginLeft: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 fontSize: `${rules.font_size_pt - 1}pt`,
-                                margin: '6px 0'
+                                marginTop: '6px', marginBottom: '8px'
                               }}>
                                 {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'bullet' && (
-                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
                                 • {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
-                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '0px' }}>
+                              <p style={{ marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
                                 {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
                             )}

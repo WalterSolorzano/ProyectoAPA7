@@ -3069,14 +3069,24 @@ else:
 
 def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
     """
-    Genera certificados SSL auto-firmados para el Word Add-in usando mkcert.
+    Genera certificados SSL auto-firmados para el Word Add-in.
 
-    Office Add-ins requieren HTTPS incluso en localhost. Esta función:
-    1. Busca mkcert en PATH (instalado por setup.bat o manualmente).
-    2. Si está disponible, genera los certs en el directorio de almacenamiento del usuario.
-    3. Los certs persisten entre reinicios (no se regeneran si ya existen).
+    Office Add-ins requieren HTTPS incluso en localhost. Esta funcion sigue
+    una estrategia de respaldo en cascada:
 
-    Retorna: (cert_path, key_path) o (None, None) si mkcert no está disponible.
+    1. PRIMERO intenta generar los certs con el modulo Python ``ssl_cert_gen``
+       (usa la libreria ``cryptography``, incluida en el instalador). NO
+       depende de herramientas CLI externas, asi que funciona en cualquier
+       maquina sin instalacion adicional.
+    2. Si eso falla, recurre a ``mkcert`` (CLI externa) si esta en el PATH
+       (instalada por setup.bat o manualmente).
+    3. Si ambos fallan, retorna ``(None, None)`` y el backend corre en HTTP
+       (Word puede rechazar el Add-in).
+
+    Los certs persisten entre reinicios en ``STORAGE_DIR/ssl/`` (AppData del
+    usuario en produccion) y no se regeneran si ya existen y son validos.
+
+    Retorna: (cert_path, key_path) o (None, None).
     """
     import shutil
     import subprocess as _sp
@@ -3085,24 +3095,51 @@ def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
     cert_path = certs_dir / "localhost.pem"
     key_path = certs_dir / "localhost-key.pem"
 
-    # Certificados ya existen → reutilizarlos
+    # ------------------------------------------------------------------
+    # 1. Intento: generador Python puro (libreria cryptography).
+    #    No requiere herramientas externas; funciona en el instalador
+    #    empaquetado con PyInstaller. Maneja idempotencia internamente:
+    #    si los certs ya existen y son validos (no expirados, clave
+    #    coherente), los reutiliza sin regenerar.
+    # ------------------------------------------------------------------
+    try:
+        from ssl_cert_gen import generate_self_signed_cert
+    except Exception as _e:
+        print(f"[SSL] No se pudo importar el modulo ssl_cert_gen: {_e}")
+        generate_self_signed_cert = None
+
+    if generate_self_signed_cert is not None:
+        _cert, _key = generate_self_signed_cert(cert_path, key_path)
+        if _cert is not None and _key is not None:
+            return _cert, _key
+        print("[SSL] El generador Python (cryptography) fallo — intentando mkcert como respaldo...")
+    else:
+        print("[SSL] ssl_cert_gen no disponible — intentando mkcert como respaldo...")
+
+    # ------------------------------------------------------------------
+    # 2. Respaldo: mkcert (CLI externa).
+    #    Se conserva para compatibilidad con instalaciones donde mkcert ya
+    #    estaba configurado y su CA raiz confia en el sistema.
+    # ------------------------------------------------------------------
+
+    # Reutilizar certs existentes si el generador Python no estuvo disponible.
     if cert_path.exists() and key_path.exists():
-        print(f"[SSL] Certificados Add-in existentes: {cert_path}")
+        print(f"[SSL] Reutilizando certificados Add-in existentes: {cert_path}")
         return cert_path, key_path
 
-    # mkcert disponible en PATH?
     mkcert_bin = shutil.which("mkcert")
     if not mkcert_bin:
         print(
-            "[SSL] mkcert no encontrado — el Add-in correrá en HTTP (Word puede rechazarlo). "
-            "Instalá mkcert desde https://github.com/FiloSottile/mkcert y ejecutá setup.bat"
+            "[SSL] mkcert tampoco esta disponible — el Add-in correra en HTTP "
+            "(Word puede rechazarlo). El generador Python (cryptography) deberia "
+            "ser suficiente; revisa los logs de [SSL] arriba."
         )
         return None, None
 
-    # Generar certificados
+    # Generar certificados con mkcert
     certs_dir.mkdir(parents=True, exist_ok=True)
     try:
-        # Instalar CA local (si no está ya instalada; mkcert -install es idempotente)
+        # Instalar CA local (si no esta ya instalada; mkcert -install es idempotente)
         _sp.run([mkcert_bin, "-install"], check=True, capture_output=True, timeout=30)
         # Generar cert para localhost / 127.0.0.1
         _sp.run(
@@ -3119,14 +3156,14 @@ def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
         print(f"[SSL] Error al generar certificados con mkcert: {e}")
         return None, None
 
-
 @app.get("/api/addin/ssl-status")
 async def get_addin_ssl_status():
     """
-    Informa si el backend está corriendo con HTTPS (necesario para Word Add-ins).
+    Informa si el backend esta corriendo con HTTPS (necesario para Word Add-ins).
 
-    El frontend puede consultar este endpoint al iniciar para saber si debe
-    guiar al usuario a instalar mkcert o si el Add-in ya funciona correctamente.
+    El frontend puede consultar este endpoint al iniciar para saber si el
+    certificado SSL ya esta disponible. La generacion principal usa el modulo
+    Python ``ssl_cert_gen`` (libreria cryptography); mkcert es solo un respaldo.
     """
     import shutil
 
@@ -3135,15 +3172,25 @@ async def get_addin_ssl_status():
     key_path = certs_dir / "localhost-key.pem"
     mkcert_available = shutil.which("mkcert") is not None
 
+    # El generador Python (cryptography) es el metodo principal.
+    try:
+        import ssl_cert_gen  # noqa: F401
+        python_ssl_available = True
+    except Exception:
+        python_ssl_available = False
+
+    ssl_active = cert_path.exists() and key_path.exists()
+
     return {
-        "ssl_active": cert_path.exists() and key_path.exists(),
+        "ssl_active": ssl_active,
+        "python_ssl_available": python_ssl_available,
         "mkcert_available": mkcert_available,
         "cert_path": str(cert_path) if cert_path.exists() else None,
         "install_url": "https://github.com/FiloSottile/mkcert#installation",
         "hint": (
             "SSL activo — el Add-in puede cargar en Word sin problemas"
-            if (cert_path.exists() and key_path.exists())
-            else "Instalá mkcert y ejecutá setup.bat para habilitar HTTPS del Add-in"
+            if ssl_active
+            else "El certificado SSL se genera automaticamente con cryptography al iniciar el backend"
         ),
     }
 
@@ -3186,9 +3233,9 @@ if __name__ == "__main__":
     protocol = "https" if ssl_certfile else "http"
     print(f" WordAPA7 — Servidor iniciado en {protocol}://localhost:{args.port}")
     if ssl_certfile:
-        print(" Add-in HTTPS: ACTIVO ✓ (Word puede cargar el panel correctamente)")
+        print(" Add-in HTTPS: ACTIVO (Word puede cargar el panel correctamente)")
     else:
-        print(" Add-in HTTPS: INACTIVO — instala mkcert y ejecuta setup.bat")
+        print(" Add-in HTTPS: INACTIVO — revisa los logs [SSL] arriba para mas detalles")
     print(" Presiona Ctrl+C para detener")
     print("=" * 60)
 

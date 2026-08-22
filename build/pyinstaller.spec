@@ -3,10 +3,18 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('../python', 'python')]
 binaries = []
-hiddenimports = ['docx', 'lxml', 'pillow', 'pydantic', 'fastapi', 'uvicorn', 'dotenv', 'networkx']
+hiddenimports = ['docx', 'lxml', 'pillow', 'pydantic', 'fastapi', 'uvicorn', 'dotenv', 'networkx', 'cryptography', 'cffi']
 tmp_ret = collect_all('docx')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('lxml')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+# cryptography: generacion de certificados SSL auto-firmados para el Word
+# Add-in (python/ssl_cert_gen.py). Incluye extensiones nativas (OpenSSL bindings
+# via cffi) que PyInstaller debe empaquetar explicitamente.
+tmp_ret = collect_all('cryptography')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('cffi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 # Auditoría de peso (reducción ~700MB): estas librerías NO están en

@@ -3,8 +3,15 @@
  * =====================================================
  *
  * Se conecta al servidor FastAPI local (127.0.0.1:PUERTO) que corre dentro
- * de la app Electron (empaquetada por el instalador). El Add-in descubre el
- * puerto vía IPC (Electron) o usa el puerto por defecto 8742.
+ * de la app Electron (empaquetada por el instalador).
+ *
+ * ⚠️ Detección automática de la URL del backend:
+ *   - En PRODUCCIÓN el add-in es servido por el propio backend
+ *     (https://localhost:{port}/addin/taskpane.html), así que
+ *     window.location.origin YA es la URL correcta — protocolo (HTTPS),
+ *     host y puerto incluidos. No hay que hardcodear nada.
+ *   - En DESARROLLO (Vite dev server en :3000) el backend corre en otro
+ *     puerto; se descubre vía IPC de Electron o fallback a 8742.
  *
  * El asistente en vivo funciona también SIN backend: la detección de citas y
  * el formato APA se hacen localmente (citationDetector + wordHelper). El
@@ -18,8 +25,23 @@
 
 const DEFAULT_PORT = 8742
 
-/** Descubre el puerto del backend. */
+/**
+ * Descubre la URL base del backend.
+ *
+ * En producción el add-in se sirve desde el backend, así que
+ * window.location.origin es la URL correcta (incluye HTTPS + puerto dinámico).
+ * En desarrollo (Vite en :3000) el backend está en otro puerto.
+ */
 function getBackendUrl(): string {
+  const origin = window.location.origin
+
+  // Si NO estamos en el dev server de Vite (:3000), el add-in lo sirve el
+  // backend → origin ya es la URL del backend (HTTPS + puerto correcto).
+  if (!origin.includes(':3000')) {
+    return origin
+  }
+
+  // Dev mode: el backend está en otro puerto (descubierto vía IPC o default).
   const electronPort = (window as any)?.electronAPI?.getBackendPort?.()
   if (electronPort && typeof electronPort === 'number') {
     return `http://127.0.0.1:${electronPort}`

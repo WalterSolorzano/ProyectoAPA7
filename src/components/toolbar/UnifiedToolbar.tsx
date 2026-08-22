@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Download, Sparkles, Undo, Redo, SlidersHorizontal, Command, Sun, Moon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Sparkles, Undo, Redo, Sun, Moon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
 import { GuidedWizardBar } from '../wizard/GuidedWizardBar';
@@ -17,8 +17,6 @@ export function UnifiedToolbar() {
     doc,
     isBackendReady,
     isLoading,
-    setSettingsStudioOpen,
-    setCommandPaletteOpen,
     theme,
     setTheme,
     hasUnsavedChanges,
@@ -109,7 +107,7 @@ export function UnifiedToolbar() {
       {/* Right: action buttons when doc is loaded */}
       {doc && (
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0, paddingRight: isElectron ? '100px' : '12px', ...noDragRegion }}>
-          {/* Estado de guardado pasivo (reduce ansiedad, sin botón) */}
+          {/* Save status chip (compact, passive) */}
           <span
             title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
             style={{
@@ -122,47 +120,47 @@ export function UnifiedToolbar() {
               ? <><AlertCircle size={11} /> Sin guardar</>
               : <><CheckCircle2 size={11} /> Guardado</>}
           </span>
+
           <div style={toolbarDivider} />
+
+          {/* Undo / Redo (icon only) */}
           <button type="button"
-            onClick={() => setCommandPaletteOpen(true)}
-            disabled={!doc}
-            title="Paleta de comandos (Ctrl+K)"
-            style={{ ...ghostBtn, color: 'var(--accent-primary)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Command size={11} /> <span className="toolbar-btn-label">Ctrl+K</span>
-          </button>
-          <div style={toolbarDivider} />
-          {updateState === 'downloaded' && (
-            <button
-              type="button"
-              onClick={() => installUpdate()}
-              title="Actualización descargada. Clic para reiniciar e instalar."
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                background: 'rgba(82,196,26,0.14)',
-                border: '1px solid rgba(82,196,26,0.4)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--accent-success)',
-                fontSize: '11px', fontWeight: 700,
-                padding: '4px 8px', cursor: 'pointer',
-              }}
-            >
-              <Download size={11} />
-              <span className="toolbar-btn-label">Actualización</span>
-            </button>
-          )}
-          <button type="button"
-            onClick={() => setSettingsStudioOpen(true)}
-            title="Ajustes avanzados (opcional): tipografia, interlineado, titulos e IA"
+            onClick={() => undo()}
+            disabled={!canUndo}
+            title="Deshacer (Ctrl+Z)"
             style={ghostBtn}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
-            <SlidersHorizontal size={11} />
-            <span className="toolbar-btn-label">Ajustes</span>
+            <Undo size={11} />
           </button>
+          <button type="button"
+            onClick={() => redo()}
+            disabled={!canRedo}
+            title="Rehacer (Ctrl+Y)"
+            style={ghostBtn}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+          >
+            <Redo size={11} />
+          </button>
+
+          <div style={toolbarDivider} />
+
+          {/* Revisor — simplified to ghost style (no blue accent) */}
+          <button type="button"
+            onClick={() => useDocStore.getState().setForceRightPanelOpen(true)}
+            disabled={!isBackendReady || !doc || isLoading}
+            title="Revisor: auditar párrafos y revisar citas"
+            style={ghostBtn}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+          >
+            <Sparkles size={11} />
+            <span className="toolbar-btn-label">Revisor</span>
+          </button>
+
+          {/* Descargar — primary CTA */}
           {viewMode !== 'export' && (
             <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
               <button type="button"
@@ -195,46 +193,31 @@ export function UnifiedToolbar() {
               )}
             </div>
           )}
+
+          {/* Update available (only when an update has been downloaded) */}
+          {updateState === 'downloaded' && (
+            <button
+              type="button"
+              onClick={() => installUpdate()}
+              title="Actualización descargada. Clic para reiniciar e instalar."
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                background: 'rgba(82,196,26,0.14)',
+                border: '1px solid rgba(82,196,26,0.4)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--accent-success)',
+                fontSize: '11px', fontWeight: 700,
+                padding: '4px 8px', cursor: 'pointer',
+              }}
+            >
+              <Download size={11} />
+              <span className="toolbar-btn-label">Actualización</span>
+            </button>
+          )}
+
           <div style={toolbarDivider} />
-          <button type="button"
-            onClick={() => useDocStore.getState().setForceRightPanelOpen(true)}
-            disabled={!isBackendReady || !doc || isLoading}
-            title="Herramientas: auditar párrafos y revisar citas"
-            style={{
-              background: 'rgba(79,124,255,0.14)',
-              border: '1px solid rgba(79,124,255,0.35)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-main)',
-              fontSize: '11px',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '4px',
-            }}
-          >
-            <Sparkles size={11} color="var(--accent-primary)" />
-            <span className="toolbar-btn-label">Revisor</span>
-          </button>
-          <button type="button"
-            onClick={() => undo()}
-            disabled={!canUndo}
-            title="Deshacer (Ctrl+Z)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Undo size={11} />
-          </button>
-          <button type="button"
-            onClick={() => redo()}
-            disabled={!canRedo}
-            title="Rehacer (Ctrl+Y)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Redo size={11} />
-          </button>
-          <div style={toolbarDivider} />
+
+          {/* Theme toggle (icon only) */}
           <button type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
@@ -265,4 +248,3 @@ const ghostBtn: React.CSSProperties = {
 const toolbarDivider = {
   width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 2px', flexShrink: 0,
 } as React.CSSProperties;
-
