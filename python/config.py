@@ -48,8 +48,14 @@ elif _is_packaged():
     DIST_DIR = BASE_DIR  # No aplica en producción empaquetada
 else:
     # Entorno desarrollo
+    # IMPORTANTE: en desarrollo usamos la MISMA ubicación que producción
+    # (%APPDATA%/WordAPA7/storage). Antes era BASE_DIR/storage, y eso hacía
+    # que una instancia dev y la app instalada escribieran rutas distintas en
+    # la MISMA clave del registro (HKCU\...\Wef\Developer\WordAPA7), pisándose
+    # mutuamente y rompiendo el Add-in de Word según cuál hubiera corrido último.
     BASE_DIR = Path(__file__).resolve().parent.parent
-    STORAGE_DIR = BASE_DIR / 'storage'
+    _appdata = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
+    STORAGE_DIR = _appdata / 'WordAPA7' / 'storage'
     DIST_DIR = BASE_DIR / 'dist'
 
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)

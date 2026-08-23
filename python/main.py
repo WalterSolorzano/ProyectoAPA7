@@ -1902,8 +1902,16 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
 
-    # Inyectar Post-Processor Dual Engine para PDF
+    # Inyectar Post-Processor Dual Engine para PDF.
+    # El archivo intermedio DEBE tener extensión .docx: Word COM decide el
+    # formato de apertura/guardado por extensión y con alertas suprimidas
+    # (DisplayAlerts=0) un nombre sin extensión produce aperturas erráticas
+    # (formato incorrecto o recuperación de texto).
     final_path = out_dir / f"FinalPDFSource_{clean_file_name}"
+    if final_path.suffix.lower() != ".docx":
+        final_path = final_path.with_suffix(".docx")
+
+    engine_used = doc_converter.get_active_engine()
 
     success, pdf_out_path = doc_converter.process_and_convert(
         original_path=original_path,
@@ -1924,11 +1932,15 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
         if final_path.exists():
             final_path.unlink()
     else:
-        # Fallback a LibreOffice o docx2pdf
+        # Fallback a LibreOffice vía el servicio singleton (resuelve la ruta
+        # real de soffice.exe en Windows y usa perfil aislado). El subprocess
+        # directo con "libreoffice" no existe en el PATH de Windows y este
+        # eslabón moría SIEMPRE en silencio.
         try:
-            res = subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(out_dir), str(docx_path)], capture_output=True, timeout=30)
-            if res.returncode == 0 and pdf_path.exists():
+            lo = get_libreoffice_service()
+            if lo.convert(docx_path, "pdf", out_dir) and pdf_path.exists():
                 pdf_generated = True
+                engine_used = "LO"
         except Exception as e:
             print(f"[WARN] LibreOffice conversion exception: {e}")
 
@@ -1947,6 +1959,7 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
             "session_id": req.session_id,
             "download_url": f"/api/download-pdf/{req.session_id}",
             "pdf_name": pdf_name,
+            "engine": engine_used or "COM",
         }
     else:
         return {
@@ -1954,7 +1967,8 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
             "session_id": req.session_id,
             "download_url": f"/api/download/{req.session_id}",
             "docx_name": docx_name,
-            "message": "Conversión PDF no disponible en este entorno; se descargará la versión DOCX oficial.",
+            "engine": engine_used,
+            "message": "No se pudo generar el PDF en este entorno; se descarga la versión DOCX oficial.",
         }
 
 
@@ -3286,6 +3300,41 @@ async def get_addin_config():
     }
 
 
+def _backend_already_running(port: int) -> bool:
+    """Detecta si ya hay una instancia del backend respondiendo en 127.0.0.1:<port>.
+
+    Prueba HTTPS primero (aceptando el certificado auto-firmado) y luego HTTP.
+    Si /api/version responde 200, otra instancia vive (arrancada por el watcher,
+    la app Electron o manualmente) y esta NO debe arrancar: pelear por el bind
+    produce [Errno 10048], crash-loop del watchdog y churn de servicios
+    (Word COM / LibreOffice) que desestabiliza todo el sistema.
+    """
+    import http.client
+
+    try:
+        import ssl as _ssl
+        ctx = _ssl._create_unverified_context()
+    except Exception:
+        ctx = None
+
+    for use_tls in (True, False):
+        try:
+            if use_tls and ctx is not None:
+                conn = http.client.HTTPSConnection("127.0.0.1", port, context=ctx, timeout=2)
+            else:
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+            conn.request("GET", "/api/version")
+            resp = conn.getresponse()
+            ok = resp.status == 200
+            resp.read()
+            conn.close()
+            if ok:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -3316,6 +3365,12 @@ if __name__ == "__main__":
     if args.watcher:
         from word_watcher import run_watcher
         run_watcher()
+        sys.exit(0)
+
+    # 0. Single-instance: si ya hay un backend sano en este puerto, salir
+    # limpio en vez de pelear por el bind (evita [Errno 10048] + crash-loop).
+    if _backend_already_running(args.port):
+        print(f"[BACKEND] Instancia ya activa en el puerto {args.port} — saliendo (single-instance).")
         sys.exit(0)
 
     # 1. Verificar y recompilar frontend si hubo cambios en src/
