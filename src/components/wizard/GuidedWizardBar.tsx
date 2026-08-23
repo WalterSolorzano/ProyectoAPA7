@@ -1,52 +1,40 @@
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { UploadCloud, PenLine, Download, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { EDITOR_SECTIONS, getStepProgress } from './EditorRail';
 
-/* WordAPA7 — Barra de ETAPAS (3, no más), con verbos de ACCIÓN del usuario.
-   1. SUBIR  →  2. REVISAR  →  3. DESCARGAR
-   Cada etapa que ya se completó muestra un check verde (confianza visual). */
-
-type Stage = 1 | 2 | 3;
-
-const STAGES: { id: Stage; title: string; icon: React.ReactNode; hint: string }[] = [
-  { id: 1, title: 'Subir', icon: <UploadCloud size={14} />, hint: 'Subí tu .docx' },
-  { id: 2, title: 'Revisar', icon: <PenLine size={14} />, hint: 'Revisá y corregí' },
-  { id: 3, title: 'Descargar', icon: <Download size={14} />, hint: 'Exportá el resultado' },
-];
+/* WordAPA7 — Barra superior de navegación.
+   ESPEJA EXACTA del EditorRail izquierdo: mismos 5 pasos, mismos números,
+   mismos títulos y mismo progreso. Antes había dos modelos mentales
+   incoherentes (3 etapas acá vs 5 pasos en el rail) y el usuario no sabía
+   dónde estaba ni a dónde ir.
+   1 Portada · 2 Estructura · 3 Figuras y tablas · 4 Referencias · 5 Exportar */
 
 export const GuidedWizardBar: React.FC = () => {
   const {
-    doc, atHome, goHome, viewMode, setViewMode, openExportTunnel,
-    tabs, activeTabIndex, switchToTab, setShowFileMenu, exportSuccessAt,
+    doc, viewMode, openExportTunnel, setViewMode, atHome,
+    tabs, activeTabIndex, switchToTab,
+    setSelectedReferenceId, setSelectedElementId,
+    exportSuccessAt,
   } = useDocStore();
+  const wizardStep = useDocStore((s) => s.wizardStep);
 
-  const activeStage: Stage = (!doc || atHome) ? 1 : (viewMode === 'export' ? 3 : 2);
+  // El paso activo en la barra = el mismo que marca el rail.
+  const activeStep = viewMode === 'export' ? 5 : wizardStep;
 
-  // Etapas ya completadas: 1 al subir, 2 al revisar, 3 al haber descargado.
-  const completedStage = (stage: Stage): boolean => {
-    if (stage === 1) return !!doc;
-    if (stage === 2) return !!doc && exportSuccessAt != null;
-    if (stage === 3) return exportSuccessAt != null;
-    return false;
-  };
-
-  const goToStage = (stage: Stage) => {
-    if (stage === 1) {
-      setShowFileMenu(false);
-      setViewMode('edit');
-      goHome();
-      return;
+  const goToStep = (id: number) => {
+    if (!doc || id === activeStep) return;
+    // Misma limpieza de contexto que hace el rail al cambiar de sección.
+    setSelectedReferenceId(null);
+    setSelectedElementId(null);
+    setViewMode('edit');
+    if (atHome && tabs.length > 0) {
+      switchToTab(activeTabIndex || 0);
     }
-    if (stage === 2) {
-      setViewMode('edit');
-      if (atHome && tabs.length > 0) {
-        switchToTab(activeTabIndex || 0);
-      }
-      return;
-    }
-    if (stage === 3 && doc) {
+    if (id === 5) {
       openExportTunnel();
-      return;
+    } else {
+      useDocStore.getState().setWizardStep(id);
     }
   };
 
@@ -62,20 +50,23 @@ export const GuidedWizardBar: React.FC = () => {
         scrollbarWidth: 'thin',
       }}
     >
-      {STAGES.map((stage, i) => {
-        const isActive = stage.id === activeStage;
-        const isDone = completedStage(stage.id);
-        const disabled = stage.id === 3 && !doc;
+      {EDITOR_SECTIONS.map((section, i) => {
+        const isActive = section.id === activeStep;
+        const isDone = section.id === 5
+          ? exportSuccessAt != null
+          : !!doc && getStepProgress(section.id) >= 1;
+        const disabled = !doc;
+        const Icon = section.icon;
         return (
-          <React.Fragment key={stage.id}>
+          <React.Fragment key={section.id}>
             {i > 0 && (
               <span style={{ color: 'var(--border-strong)', margin: '0 2px', fontSize: '11px' }}>›</span>
             )}
             <button
               type="button"
-              onClick={() => goToStage(stage.id)}
+              onClick={() => goToStep(section.id)}
               disabled={disabled}
-              title={`${stage.id}. ${stage.title} — ${stage.hint}`}
+              title={`${section.id}. ${section.title} — ${section.hint}`}
               aria-current={isActive ? 'step' : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
@@ -86,7 +77,7 @@ export const GuidedWizardBar: React.FC = () => {
                 fontSize: '12px', fontWeight: isActive ? 800 : 600,
                 opacity: disabled ? 0.45 : 1,
                 borderBottom: isActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                transition: 'color 0.15s ease',
+                transition: 'color 0.15s ease, border-color 0.15s ease',
               }}
             >
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '16px' }}>
@@ -95,12 +86,12 @@ export const GuidedWizardBar: React.FC = () => {
                     <Check size={10} strokeWidth={3} />
                   </span>
                 ) : (
-                  stage.icon
+                  <Icon size={14} />
                 )}
               </span>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, opacity: 0.6, lineHeight: 1 }}>{stage.id}</span>
-                <span className="wizard-tab-label">{stage.title}</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, opacity: 0.6, lineHeight: 1 }}>{section.id}</span>
+                <span className="wizard-tab-label">{section.title}</span>
               </span>
             </button>
           </React.Fragment>

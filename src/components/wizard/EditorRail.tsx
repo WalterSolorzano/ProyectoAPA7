@@ -28,7 +28,7 @@ export const EDITOR_SECTIONS = [
 
 const COVER_REQUIRED = ['title', 'author'];
 
-const getStepProgress = (stepId: number): number => {
+export const getStepProgress = (stepId: number): number => {
   const s = useDocStore.getState();
   const doc = s.doc;
   if (!doc) return 0;

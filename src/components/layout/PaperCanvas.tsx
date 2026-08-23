@@ -461,7 +461,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       // El panel derecho de Referencias tiene el botón "Resolver" por cita.
       setSelectedElementId(null);
       setSelectedReferenceId(null);
-      setWizardStep(5);
+      setWizardStep(4);
       setScrollTargetId(elem.id);
       return;
     }
@@ -697,8 +697,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             });
           }
 
+          // Elementos con comentario en esta página. Si hay gutter de comentarios,
+          // se reserva un espaciador simétrico a la IZQUIERDA para que la hoja
+          // permanezca centrada (antes solo el gutter derecho empujaba la hoja
+          // ~135px y "bailaba" al activarse/desactivar comentarios).
+          const pageCommentElems = pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null));
+
           return (
             <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', position: 'relative' }}>
+            {pageCommentElems.length > 0 && <div aria-hidden="true" style={{ width: '250px', flexShrink: 0 }} />}
             <div
               style={{
                 width: '680px',
@@ -1558,7 +1565,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word).
                 Tope de burbujas por página (MAX_GUTTER) para no inundar; el resto
                 se resume en un chip "+N más". */}
-            {pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null)).length > 0 && (
+            {pageCommentElems.length > 0 && (
               <div style={{ position: 'relative', width: '250px', flexShrink: 0 }}>
                 {(() => {
                   let shown = 0;

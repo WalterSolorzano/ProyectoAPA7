@@ -81,8 +81,8 @@ export const DownloadModal: React.FC = () => {
     { label: `Portada con ${authorsCount} integrante${authorsCount === 1 ? '' : 's'}`, ok: missingCover.length === 0 },
     { label: `${headingsCount} títulos clasificados`, ok: reviewHeadings === 0, count: reviewHeadings, targetStep: 2 },
     { label: `${figuresCount} figuras y ${tablesCount} tablas`, ok: reviewFigures === 0 && reviewTables === 0, count: reviewFigures + reviewTables, targetStep: 3 },
-    { label: `${refsCount} referencias en la lista`, ok: refsCount > 0, targetStep: 5 },
-    { label: 'Citas cruzadas contra referencias', ok: ghostCount === 0 && unresolved === 0, count: ghostCount + unresolved, targetStep: 5 },
+    { label: `${refsCount} referencias en la lista`, ok: refsCount > 0, targetStep: 4 },
+    { label: 'Citas cruzadas contra referencias', ok: ghostCount === 0 && unresolved === 0, count: ghostCount + unresolved, targetStep: 4 },
   ];
 
   const goToStep = (step?: number) => {

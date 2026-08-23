@@ -596,7 +596,7 @@ export const useDocStore = create<DocState>()(
     }, DURATIONS[type]);
   },
   setLastRequestId: (id) => set({ lastRequestId: id }),
-  setWizardStep: (step) => set({ wizardStep: step }),
+      setWizardStep: (step) => set({ wizardStep: Math.min(4, Math.max(1, step)) }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),
   setSelectedReferenceId: (id) => set((state) => ({ selectedReferenceId: id })),
   setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
@@ -1476,6 +1476,7 @@ export const useDocStore = create<DocState>()(
       set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar documento', isLoading: false });
+      get().showToast(err.message || 'Error al descargar DOCX', 'error');
     } finally {
       set({ isLoading: false });
     }
@@ -1499,6 +1500,10 @@ export const useDocStore = create<DocState>()(
       });
       if (!res.ok) throw new Error('Error al exportar PDF');
       const data = await res.json();
+      if (data.status === 'fallback_docx' && data.download_url) {
+        // El backend no pudo generar el PDF: avisa en vez de entregar un DOCX como si nada.
+        get().showToast('El PDF no pudo generarse en este equipo; se descargó el DOCX oficial.', 'error');
+      }
       if (data.download_url) {
         const downloadUrl = data.download_url.startsWith('http')
           ? data.download_url

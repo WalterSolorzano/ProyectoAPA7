@@ -323,7 +323,7 @@ export const ValidatorView: React.FC = () => {
                     <button
                       type="button"
                       title="Ir a la referencia (paso Referencias)"
-                      onClick={() => setWizardStep(5)}
+                      onClick={() => setWizardStep(4)}
                       style={{
                         background: 'transparent', border: 'none', cursor: 'pointer',
                         color: 'var(--color-accent)', padding: 'var(--space-1)',

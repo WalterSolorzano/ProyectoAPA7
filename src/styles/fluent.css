@@ -21,10 +21,9 @@
   --border-color: #d2d0ce;
   --border-light: #e1dfdd;
 
-  /* Office Brand Accents */
-  --word-blue: #2b579a;
-  --word-blue-hover: #1b3d73;
-  --word-blue-light: #eff6fc;
+  /* Office Brand Accents
+     --word-blue/-hover/-light NO se declaran acá: la fuente única es
+     design-system.css, que las aliasea a --color-accent (un solo acento). */
   --word-green: #107c41;
   --word-green-hover: #0b5a2f;
 

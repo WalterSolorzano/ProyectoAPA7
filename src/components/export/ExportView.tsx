@@ -254,23 +254,27 @@ export const ExportView: React.FC = () => {
             </p>
           </div>
 
-          {/* Enlace discreto para volver al editor (sin prominencia visual) */}
+          {/* Salida visible del túnel: botón secundario claro, junto al estado de éxito */}
           <button
             type="button"
             onClick={() => { clearQuickExport(); setViewMode('edit'); }}
             style={{
-              fontSize: 'var(--text-xs)',
-              fontWeight: 'var(--font-medium)',
-              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--font-semibold)',
+              color: 'var(--color-accent)',
               cursor: 'pointer',
-              background: 'none',
-              border: 'none',
-              padding: '4px 0',
-              transition: 'color var(--transition-fast)',
+              background: 'transparent',
+              border: '1px solid var(--border-strong, var(--border-subtle))',
+              borderRadius: 'var(--radius-md)',
+              padding: '8px 14px',
+              transition: 'background var(--transition-fast), border-color var(--transition-fast)',
               whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover, rgba(79,124,255,0.08))'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            Volver al editor
+            ← Volver a editar
           </button>
         </div>
 

@@ -59,6 +59,7 @@ export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: 
   if (!open) return null;
   return (
     <div
+      className="modal-backdrop"
       style={{
         position: 'fixed',
         inset: 0,
@@ -86,8 +87,8 @@ export const Badge: React.FC<React.PropsWithChildren<{ tone?: 'accent' | 'succes
     success: { background: 'rgba(82,196,26,0.14)', color: 'var(--accent-success)', borderColor: 'rgba(82,196,26,0.22)' },
     warning: { background: 'rgba(250,173,20,0.14)', color: 'var(--accent-warning)', borderColor: 'rgba(250,173,20,0.24)' },
     danger: { background: 'rgba(255,77,79,0.14)', color: 'var(--accent-danger)', borderColor: 'rgba(255,77,79,0.24)' },
-    muted: { background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
-    neutral: { background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
+    muted: { background: 'var(--surface-subtle)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
+    neutral: { background: 'var(--surface-subtle)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
     info: { background: 'rgba(79,124,255,0.14)', color: 'var(--accent-primary)', borderColor: 'rgba(79,124,255,0.2)' },
   };
 
@@ -131,8 +132,8 @@ export const StepperItem: React.FC<{
       gap: 'var(--space-3)',
       padding: 'var(--space-3) var(--space-4)',
       borderRadius: 'var(--radius-lg)',
-      border: `1px solid ${complete ? 'rgba(6,214,160,0.28)' : active ? 'rgba(79,124,255,0.38)' : 'var(--border-subtle)'}`,
-      background: complete ? 'rgba(6,214,160,0.08)' : active ? 'rgba(79,124,255,0.12)' : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${complete ? 'var(--accent-success)' : active ? 'rgba(79,124,255,0.38)' : 'var(--border-subtle)'}`,
+      background: complete ? 'rgba(56,160,23,0.10)' : active ? 'rgba(79,124,255,0.12)' : 'transparent',
       color: 'var(--text-main)',
       cursor: onClick ? 'pointer' : 'default',
       textAlign: 'left',
@@ -142,7 +143,7 @@ export const StepperItem: React.FC<{
     <div
       className="wizard-step-pill"
       style={{
-        background: complete ? 'var(--accent-secondary)' : active ? 'var(--accent-primary)' : 'rgba(255,255,255,0.08)',
+        background: complete ? 'var(--accent-success)' : active ? 'var(--accent-primary)' : 'var(--surface-subtle)',
         color: active || complete ? '#fff' : 'var(--text-secondary)',
         flexShrink: 0,
       }}
@@ -165,7 +166,7 @@ export const InputField = React.forwardRef<HTMLInputElement, React.InputHTMLAttr
         width: '100%',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-subtle)',
-        background: 'rgba(255,255,255,0.05)',
+        background: 'var(--surface-subtle)',
         color: 'var(--text-main)',
         padding: '11px 12px',
         fontSize: 'var(--text-sm)',
@@ -187,7 +188,7 @@ export const TextAreaField = React.forwardRef<HTMLTextAreaElement, React.Textare
         width: '100%',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-subtle)',
-        background: 'rgba(255,255,255,0.05)',
+        background: 'var(--surface-subtle)',
         color: 'var(--text-main)',
         padding: '11px 12px',
         fontSize: 'var(--text-sm)',

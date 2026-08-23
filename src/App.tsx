@@ -279,8 +279,11 @@ export const App: React.FC = () => {
         if (e.shiftKey && (e.key === '[' || e.key === '{')) {
           e.preventDefault();
           if (!doc) return;
-          const step = useDocStore.getState().wizardStep;
-          if (step > 1) useDocStore.getState().setWizardStep(step - 1);
+          const s = useDocStore.getState();
+          // Si estamos en el túnel de export, primero salir de él.
+          if (s.viewMode === 'export') { s.setViewMode('edit'); return; }
+          const step = s.wizardStep;
+          if (step > 1) s.setWizardStep(step - 1);
           return;
         }
 
@@ -302,6 +305,11 @@ export const App: React.FC = () => {
           case 's':
             e.preventDefault();
             if (doc) {
+              const vm = useDocStore.getState().viewMode;
+              if (vm === 'export') {
+                // ExportView tiene su propio handler que respeta el formato elegido.
+                break;
+              }
               if (e.shiftKey) exportPdf();
               else exportDocx(false);
             }
@@ -414,13 +422,15 @@ export const App: React.FC = () => {
       
       <div className="app-main" style={{ flex: 1, overflow: 'hidden', display: 'flex', backgroundColor: 'var(--app-bg)', minWidth: 0 }}>
         {viewMode === 'result' ? (
-          <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
+          <div key="view-result" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <PDFPreview />
           </div>
         ) : viewMode === 'export' ? (
-          <ExportView />
+          <div key="view-export" className="wizard-step-enter" style={{ flex: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
+            <ExportView />
+          </div>
         ) : viewMode === 'native-pdf' ? (
-          <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
+          <div key="view-native-pdf" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <ReactPDFPreview />
           </div>
         ) : viewMode === 'split' ? (
