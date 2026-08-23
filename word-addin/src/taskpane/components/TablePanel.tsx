@@ -261,7 +261,7 @@ export function TablePanel({ showToast }: Props) {
 
           <div className="tip-box">
             <span className="tip-box__icon"><BulbIcon /></span>
-            <span className="tip-box__text">APA 7 usa solo bordes horizontales. Los verticales los odio yo tambien.</span>
+            <span className="tip-box__text">APA 7 usa solo bordes horizontales. Los verticales los odio yo también.</span>
           </div>
         </div>
       )}

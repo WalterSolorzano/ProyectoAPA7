@@ -669,6 +669,16 @@ select.field-input { cursor: pointer; }
 .toast--success { background: var(--color-success); }
 .toast--error { background: var(--color-error); }
 .toast--info { background: var(--accent-primary); }
+.toast__close {
+  margin-left: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
 
 /* ── SPINNER ────────────────────────────────────────────────────────────────── */
 .spinner {
@@ -750,6 +760,11 @@ select.field-input { cursor: pointer; }
 .status-badge--ok { background: var(--color-success-soft); color: var(--color-success); }
 .status-badge--off { background: var(--color-warning-soft); color: var(--color-warning); }
 .status-badge--idle { background: var(--accent-soft); color: var(--text-tertiary); }
+button.status-badge--clickable {
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
 
 /* Tab bar (App.tsx) — icon + label side by side (row), not stacked */
 .tab-bar {
@@ -1085,10 +1100,11 @@ select.field-input { cursor: pointer; }
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-success);
   flex-shrink: 0;
   animation: pulse 2s infinite;
 }
+.watcher-note__dot--ok { background: var(--color-success); }
+.watcher-note__dot--off { background: var(--color-error); }
 
 /* ── DARK MODE (sigue el tema de Office) ────────────────────────────────────
    Aligned with main program design-system.css [data-theme="dark"] */

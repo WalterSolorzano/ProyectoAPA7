@@ -36,7 +36,7 @@ import { TablePanel } from './components/TablePanel'
 import { ValidatePanel } from './components/ValidatePanel'
 import { AIPanel } from './components/AIPanel'
 import { WelcomeTour } from './components/WelcomeTour'
-import { backend } from './api/backend'
+import { backend, OFFLINE_TOAST_MESSAGE } from './api/backend'
 
 type TabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
 type InsertSection = 'table' | 'figure' | 'heading' | ''
@@ -115,7 +115,9 @@ export const App: React.FC = () => {
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ msg, type, id: Date.now() })
     if (toastTimer.current) clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 3200)
+    if (type !== 'error') {
+      toastTimer.current = setTimeout(() => setToast(null), 3200)
+    }
   }, [])
 
   // ── Ejecutar acción del ribbon (refresh, build_bibliography) ─────────────
@@ -315,9 +317,20 @@ export const App: React.FC = () => {
           <div className="app-header__subtitle">Asistente APA 7 en vivo</div>
         </div>
         <div className="app-header__status">
-          <span className={`status-badge ${backendOk ? 'status-badge--ok' : backendOk === false ? 'status-badge--off' : 'status-badge--idle'}`}>
-            {backendOk ? 'Online' : backendOk === false ? 'Offline' : '...'}
-          </span>
+          {backendOk === false ? (
+            <button
+              type="button"
+              className="status-badge status-badge--off status-badge--clickable"
+              title={OFFLINE_TOAST_MESSAGE}
+              onClick={() => showToast(OFFLINE_TOAST_MESSAGE, 'error')}
+            >
+              Sin conexión
+            </button>
+          ) : (
+            <span className={`status-badge ${backendOk ? 'status-badge--ok' : 'status-badge--idle'}`}>
+              {backendOk ? 'Online' : '...'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -382,16 +395,21 @@ export const App: React.FC = () => {
 
       {/* TOAST */}
       {toast && (
-        <div className={`toast toast--${toast.type}`} key={toast.id}>
+        <div className={`toast toast--${toast.type}`} key={toast.id} role="status">
           <Icon name={toast.type === 'success' ? 'check' : toast.type === 'error' ? 'alert' : 'sparkles'} size={16} />
           <span>{toast.msg}</span>
+          {toast.type === 'error' && (
+            <button type="button" className="toast__close" onClick={() => setToast(null)} aria-label="Cerrar">
+              ✕
+            </button>
+          )}
         </div>
       )}
 
       {/* Nota pequena: servicio automatico */}
       <div className="watcher-note">
-        <span className="watcher-note__dot" />
-        Servicio automatico - Se inicia al abrir Word
+        <span className={`watcher-note__dot ${backendOk ? 'watcher-note__dot--ok' : 'watcher-note__dot--off'}`} />
+        Automático · se inicia al abrir Word
       </div>
 
       {/* WELCOME TOUR (primera vez) */}

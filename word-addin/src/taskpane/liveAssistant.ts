@@ -129,7 +129,7 @@ const IDLE_TIPS: string[] = [
 ]
 
 const MASCOT_SUCCESS = [
-  'Cita procesada con exito.',
+  'Cita procesada con éxito.',
   'La chupe y la guarde.',
   'Otra cita al saco.',
 ]
@@ -139,7 +139,7 @@ const MASCOT_FIGURE = [
 ]
 const MASCOT_TABLE = [
   'Tabla numerada al estilo APA.',
-  'Le agregue el caption a la tabla.',
+  'Le agregué el caption a la tabla.',
 ]
 
 // ── ESTADO INTERNO ───────────────────────────────────────────────────────────
@@ -334,7 +334,7 @@ async function scan(): Promise<void> {
         if (_citationsCount >= 3 && !_bibliographyHintShown) {
           _bibliographyHintShown = true
           setTimeout(() => {
-            emitMascot('Ya juntaste 3... ¿te armo la bibliografia o que?')
+            emitMascot('Ya juntaste 3... ¿te armo la bibliografía o que?')
           }, 2000)
         }
       } catch {

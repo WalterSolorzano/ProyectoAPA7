@@ -82,8 +82,8 @@ export function CommentsPanel({ events, onClear, showToast }: Props) {
             <div className="chat__empty-icon">🦉</div>
             <div className="chat__empty-title">Aún no hay mensajes</div>
             <div className="chat__empty-text">
-              Activa el asistente en vivo y empezá a escribir. Cada cita que pongas,
-              cada imagen que pegues y cada formato que apliques aparecerá acá como
+              Activá el asistente en vivo y empezá a escribir. Cada cita que pongás,
+              cada imagen que pegués y cada formato que apliqués aparecerá acá como
               un mensaje.
             </div>
           </div>

@@ -30,7 +30,7 @@ const STEPS: TourStep[] = [
   },
   {
     selector: '[data-tour="audit-button"]',
-    text: '¿Queres revisar todo de una? Dale aca y hago el trabajo sucio.',
+    text: '¿Querés revisar todo de una? Dale aca y hago el trabajo sucio.',
   },
   {
     selector: '.tab-bar',

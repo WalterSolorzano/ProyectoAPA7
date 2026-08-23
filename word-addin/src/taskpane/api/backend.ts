@@ -36,6 +36,9 @@
 
 const DEFAULT_PORT = 8742
 
+export const OFFLINE_TOAST_MESSAGE =
+  'WordAPA7 no está corriendo. Abrí la app WordAPA7 desde el escritorio y esperá unos segundos.'
+
 /**
  * Descubre la URL base del backend de manera dinámica.
  *

@@ -248,6 +248,21 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
     }
   }, [showToast])
 
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleClearAll = useCallback(async () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true)
+      if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current)
+      clearConfirmTimer.current = setTimeout(() => setConfirmingClear(false), 4000)
+      return
+    }
+    if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current)
+    setConfirmingClear(false)
+    await clearAll()
+  }, [confirmingClear, clearAll])
+
   const drafts = references.filter((r) => r.is_draft).length
   const complete = references.length - drafts
 
@@ -275,8 +290,8 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
             <button className="btn btn--secondary" onClick={reextract} disabled={loading}>
               {loading ? <span className="spinner" /> : null} Re-extraer
             </button>
-            <button className="btn btn--ghost" onClick={clearAll} disabled={references.length === 0}>
-              Vaciar
+            <button className="btn btn--ghost" onClick={handleClearAll} disabled={references.length === 0}>
+              {confirmingClear ? '¿Seguro? Sí, vaciar' : 'Vaciar'}
             </button>
           </div>
 
