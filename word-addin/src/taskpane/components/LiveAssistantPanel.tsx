@@ -11,6 +11,7 @@ import {
   normalizeEntireDocumentAPA7,
   type NormalizationReport,
 } from '../office/masterNormalizer'
+import { SelectionCriticCard } from './SelectionCriticCard'
 import {
   DocumentTextIcon,
   TableIcon,
@@ -133,12 +134,15 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* HERO CARD — ACCIÓN PROACTIVA PRINCIPAL (1 CLIC DIRECTO EN WORD) */}
+      {/* CRÍTICO Y APOYO EN VIVO — INSPECCIÓN Y CORRECCIÓN DE LA SELECCIÓN */}
+      <SelectionCriticCard showToast={showToast} />
+
+      {/* HERO CARD — NORMALIZACIÓN MAESTRA DE 1 CLIC */}
       <div className="card card--hero">
         <div className="card__header">
           <div className="card__title">
             <ZapIcon size={16} color="var(--accent-primary)" />
-            <span>Normalizador Proactivo APA 7</span>
+            <span>Normalizador Global APA 7</span>
           </div>
           <button
             type="button"
@@ -151,7 +155,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         </div>
 
         <p className="card__subtitle">
-          Edita y normaliza tu documento en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía en tiempo real.
+          Normaliza el documento completo en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía respetando índices y estructura.
         </p>
 
         {/* BARRA DE PROGRESO EN VIVO */}
@@ -190,7 +194,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           </button>
         </div>
 
-        {/* RESUMEN DEL ÚLTIMO REPORTE DE NORMALIZACIÓN */}
+        {/* REPORTE DE LA ÚLTIMA NORMALIZACIÓN */}
         {lastReport && (
           <div style={{ marginTop: 6, padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11.5, color: '#166534', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -198,6 +202,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
               <span>Normalización aplicada en Word:</span>
             </div>
             <div>• Portada: {lastReport.coverDetected ? 'Detectada y centrada' : 'Sin portada inicial'}</div>
+            <div>• Índice: {lastReport.tocProtected ? 'Detectado y protegido (sin sangría)' : 'Sin índice detectado'}</div>
             <div>• Títulos: {lastReport.headingsCount} jerarquizados</div>
             <div>• Tablas: {lastReport.tablesCount} formateadas a APA 7</div>
             <div>• Referencias: {lastReport.referencesCount} con sangría francesa</div>

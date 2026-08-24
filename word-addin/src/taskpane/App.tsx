@@ -3,7 +3,7 @@
  * =========================================================
  *
  * Panel lateral proactivo integrado en Microsoft Word 365.
- * Diseño limpio con iconos SVG (cero emojis) y operación 100% in-place.
+ * Vistas dedicadas para cada función del Ribbon, cero emojis y crítico activo en vivo.
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -15,12 +15,16 @@ import {
 } from './liveAssistant'
 import { type DocumentStats, formatDocumentAPA7, getDocumentText } from './office/wordHelper'
 import { LiveAssistantPanel } from './components/LiveAssistantPanel'
+import { HeadingPanel } from './components/HeadingPanel'
+import { TablesFiguresPanel } from './components/TablesFiguresPanel'
 import { ReferencesPanel } from './components/ReferencesPanel'
 import { CoverPagePanel } from './components/CoverPagePanel'
 import { AIPanel } from './components/AIPanel'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
 import {
   SearchIcon,
+  DocumentTextIcon,
+  TableIcon,
   BookOpenIcon,
   FileTextIcon,
   SparklesIcon,
@@ -28,14 +32,14 @@ import {
   AlertCircleIcon,
 } from './components/Icons'
 
-type TabId = 'auditoria' | 'referencias' | 'portada' | 'ia'
+type TabId = 'auditoria' | 'titulos' | 'tablas' | 'referencias' | 'portada' | 'ia'
 type LegacyTabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
 type RibbonAction = 'refresh' | 'build_bibliography' | ''
 type AuditStatus = 'idle' | 'running' | 'done'
 
 const LEGACY_TAB_MAP: Record<LegacyTabId, TabId> = {
   live: 'auditoria',
-  insert: 'auditoria',
+  insert: 'tablas',
   comments: 'auditoria',
   references: 'referencias',
   cover: 'portada',
@@ -50,7 +54,9 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: 'auditoria', label: 'Auditoría', IconComponent: SearchIcon },
-  { id: 'referencias', label: 'Referencias', IconComponent: BookOpenIcon },
+  { id: 'titulos', label: 'Títulos', IconComponent: DocumentTextIcon },
+  { id: 'tablas', label: 'Tablas', IconComponent: TableIcon },
+  { id: 'referencias', label: 'Citas', IconComponent: BookOpenIcon },
   { id: 'portada', label: 'Portada', IconComponent: FileTextIcon },
   { id: 'ia', label: 'IA', IconComponent: SparklesIcon },
 ]
@@ -285,7 +291,7 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* PESTAÑAS CON ICONOS SVG (CERO EMOJIS) */}
+      {/* PESTAÑAS DEDICADAS (CERO EMOJIS) */}
       <div className="tab-bar">
         {TABS.map((t) => {
           const Icon = t.IconComponent
@@ -297,7 +303,7 @@ export const App: React.FC = () => {
               className={`tab ${isActive ? 'tab--active' : ''}`}
               onClick={() => handleTabChange(t.id)}
             >
-              <Icon size={14} color={isActive ? '#ffffff' : 'var(--text-secondary)'} />
+              <Icon size={13} color={isActive ? '#ffffff' : 'var(--text-secondary)'} />
               <span>{t.label}</span>
             </button>
           )
@@ -322,6 +328,10 @@ export const App: React.FC = () => {
             showToast={showToast}
           />
         )}
+
+        {activeTab === 'titulos' && <HeadingPanel showToast={showToast} />}
+
+        {activeTab === 'tablas' && <TablesFiguresPanel showToast={showToast} />}
 
         {activeTab === 'referencias' && (
           <ReferencesPanel

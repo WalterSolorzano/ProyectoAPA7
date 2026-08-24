@@ -2,19 +2,13 @@
  * WordAPA7 Add-in — Comandos del Ribbon (FunctionFile)
  * =====================================================
  *
- * Funciones que se ejecutan cuando el usuario hace clic en los botones
- * del Ribbon superior de Microsoft Word.
- *
- * Cada comando actúa DIRECTAMENTE sobre el documento de Word en vivo
- * y/o abre el panel lateral en la sección correspondiente.
+ * Cada comando del Ribbon tiene su propia acción dedicada y abre el
+ * Task Pane en la vista correspondiente.
  */
 
 import {
   insertTableAPA,
-  insertFigureAPA,
   applyHeadingStyle,
-  insertBibliographyAPA,
-  insertCoverPageAPA,
 } from '../taskpane/office/wordHelper'
 import { normalizeEntireDocumentAPA7 } from '../taskpane/office/masterNormalizer'
 
@@ -107,16 +101,19 @@ async function refreshDocument(event: Office.AddinCommands.Event) {
 
 async function handleInsertTable(event: Office.AddinCommands.Event) {
   try {
-    await insertTableAPA({
-      caption: 'Título descriptivo de la Tabla',
-      headers: ['Categoría', 'Variable A', 'Variable B', 'Total'],
-      rows: [
-        ['Grupo 1', '12', '18', '30'],
-        ['Grupo 2', '15', '22', '37'],
-      ],
-      note: 'Valores observados en el estudio experimental.',
-    }, 1)
-    await openTaskpane('auditoria')
+    await openTaskpane('tablas')
+    await insertTableAPA(
+      {
+        caption: 'Título descriptivo de la Tabla',
+        headers: ['Variable', 'Grupo Control (n=30)', 'Grupo Experimental (n=30)', 'p-valor'],
+        rows: [
+          ['Edad (años)', '24.5 ± 3.2', '25.1 ± 2.8', '0.452'],
+          ['Puntaje Pre-test', '14.2 ± 2.1', '13.9 ± 2.4', '0.618'],
+        ],
+        note: 'Nota. *p < 0.05 nivel de significancia.',
+      },
+      1,
+    )
   } catch (e) {
     console.error('[WordAPA7 Ribbon] Error insertando tabla', e)
   } finally {
@@ -126,7 +123,7 @@ async function handleInsertTable(event: Office.AddinCommands.Event) {
 
 async function handleInsertFigure(event: Office.AddinCommands.Event) {
   try {
-    await openTaskpane('auditoria')
+    await openTaskpane('tablas')
   } finally {
     event.completed()
   }
@@ -134,6 +131,7 @@ async function handleInsertFigure(event: Office.AddinCommands.Event) {
 
 async function handleInsertHeading(event: Office.AddinCommands.Event) {
   try {
+    await openTaskpane('titulos')
     await applyHeadingStyle(1)
   } catch (e) {
     console.error('[WordAPA7 Ribbon] Error aplicando heading', e)
