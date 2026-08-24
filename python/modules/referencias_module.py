@@ -23,7 +23,7 @@ from generation.style_engine import set_run_font
 from models import APARuleSet, ReferenciaModel
 
 _REF_PREFIX_RE = re.compile(
-    r'^(?:[â€¢â—‹â–ªâ€“\-\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
+    r'^(?:[•○▪–\-*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
 )
 
 
@@ -200,7 +200,7 @@ async def search_crossref_by_author_year(authors: list[str], year: str) -> Optio
 
                 # TÃ­tulo
                 titles = item.get("title", [])
-                title_str = titles[0] if titles else "Sin tÃ­tulo"
+                title_str = titles[0] if titles else "Sin título"
 
                 # Source
                 container = item.get("container-title", [])

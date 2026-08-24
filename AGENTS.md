@@ -109,4 +109,19 @@ Copy `.env.example` to `.env`. Key variables:
 - Use design tokens (`var(--...)`) — no hardcoded hex in wizard/pages (exceptions documented in `design-tokens.md`)
 - Use `<button type="button">` with handlers — never clickable `<div>`s without real behavior
 - One implementation per screen: remove legacy duplicates instead of leaving them alongside
-- Single top chrome strip: `UnifiedToolbar` only (no stacked titlebars)
+- Single top chrome strip: `UnifiedToolbar` only — brand + global actions (archivo, deshacer, descargar, tema). Wizard navigation lives in the left `StepRail`, not in the top bar.
+
+## Arquitectura real (2026-08, post-limpieza)
+
+| Real | Nota |
+|---|---|
+| Navegacion pasos | `StepRail` izquierdo (NO GuidedWizardBar ? eliminado) |
+| Descarga | Tunel `ExportView` + store.exportDocx (NO DownloadModal ? eliminado) |
+| Toasts | `showToast` del Zustand store (NO components/shared/Toast.tsx ? eliminado) |
+| Referencias UI | `ReferencesPanel` (ReferenciasView eliminado) |
+| Export DOCX | Motor IN-PLACE default (`generation/inplace_editor.py`); rebuild legacy fallback. Portada dual: original editable O generada APA |
+| Add-in estado honesto | chip usa heartbeat `/api/addin/heartbeat` (<2min = Activo en Word) |
+| Tokens papel | PaperCanvas usa `var(--paper-*)`; mascota exenta (colores propios) |
+
+> Los endpoints /api/* NO deben darse de muertos por grep estatico:
+> frontend construye URLs con getApiBaseAsync() y el add-in tiene su propio cliente.

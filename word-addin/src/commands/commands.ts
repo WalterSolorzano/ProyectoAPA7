@@ -2,137 +2,55 @@
  * WordAPA7 Add-in — Comandos del Ribbon (FunctionFile)
  * =====================================================
  *
- * Estas funciones se ejecutan cuando el usuario hace click en los botones
- * del Ribbon de Word.
+ * Funciones que se ejecutan cuando el usuario hace clic en los botones
+ * del Ribbon superior de Microsoft Word.
  *
- * Cada función:
- *   1. Guarda en localStorage la pestaña/sección destino (puente de comunicación
- *      con el Task Pane, ya que Office.js no permite pasar parámetros al panel).
- *   2. Opcionalmente guarda una "acción" a ejecutar (refresh, build_bibliography).
- *   3. Abre el Task Pane si no estaba abierto (Office.addin.showAsTaskpane).
- *
- * El Task Pane (App.tsx) lee localStorage al montar Y escucha el evento
- * `storage` para reaccionar si el panel ya estaba abierto.
- *
- * Claves de localStorage:
- *   wordapa7_addin_active_tab     → 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
- *   wordapa7_addin_insert_section → 'table' | 'figure' | 'heading'  (solo para tab='insert')
- *   wordapa7_addin_action         → 'refresh' | 'build_bibliography' | ''  (acción a ejecutar tras navegar)
+ * Cada comando actúa DIRECTAMENTE sobre el documento de Word en vivo
+ * y/o abre el panel lateral en la sección correspondiente.
  */
 
-// Inicialización de Office: registrar las funciones del ribbon
+import {
+  insertTableAPA,
+  insertFigureAPA,
+  applyHeadingStyle,
+  insertBibliographyAPA,
+  insertCoverPageAPA,
+} from '../taskpane/office/wordHelper'
+import { normalizeEntireDocumentAPA7 } from '../taskpane/office/masterNormalizer'
+
 Office.onReady((info) => {
   if (info.host !== Office.HostType.Word) return
 
   // Grupo 1: Asistente
-  Office.actions.associate('validateSelection', openLiveTab)
+  Office.actions.associate('validateSelection', validateSelection)
   Office.actions.associate('refreshDocument', refreshDocument)
+  Office.actions.associate('passAPAQuick', passAPAQuick)
 
-  // Grupo 2: Insertar
-  Office.actions.associate('insertTableAPA', openInsertTable)
-  Office.actions.associate('insertFigureAPA', openInsertFigure)
-  Office.actions.associate('insertHeadingAPA', openInsertHeading)
+  // Grupo 2: Insertar APA 7
+  Office.actions.associate('insertTableAPA', handleInsertTable)
+  Office.actions.associate('insertFigureAPA', handleInsertFigure)
+  Office.actions.associate('insertHeadingAPA', handleInsertHeading)
 
   // Grupo 3: Referencias
   Office.actions.associate('openReferences', openReferencesPanel)
-  Office.actions.associate('openBibliography', buildBibliography)
+  Office.actions.associate('openBibliography', handleBibliography)
   Office.actions.associate('openCoverPage', openCoverPagePanel)
 
   // Grupo 4: Herramientas
   Office.actions.associate('openAI', openAIPanel)
 })
 
-// ── Grupo 1: Asistente ──────────────────────────────────────────────────────
+// ── UTILIDAD: ABRIR TASKPANE ────────────────────────────────────────────────
 
-/** Botón "Auditar APA 7" → abre el panel en En Vivo. */
-async function openLiveTab(event: Office.AddinCommands.Event) {
-  await openTaskpane('live')
-  event.completed()
-}
-
-/** Botón "Actualizar" → abre el panel en En Vivo y dispara un re-escaneo. */
-async function refreshDocument(event: Office.AddinCommands.Event) {
-  await openTaskpane('live', undefined, 'refresh')
-  event.completed()
-}
-
-// ── Grupo 2: Insertar APA 7 ─────────────────────────────────────────────────
-
-/** Botón "Tabla" → abre el panel en Insertar > Tabla. */
-async function openInsertTable(event: Office.AddinCommands.Event) {
-  await openTaskpane('insert', 'table')
-  event.completed()
-}
-
-/** Botón "Figura" → abre el panel en Insertar > Figura. */
-async function openInsertFigure(event: Office.AddinCommands.Event) {
-  await openTaskpane('insert', 'figure')
-  event.completed()
-}
-
-/** Botón "Título" → abre el panel en Insertar > Título. */
-async function openInsertHeading(event: Office.AddinCommands.Event) {
-  await openTaskpane('insert', 'heading')
-  event.completed()
-}
-
-// ── Grupo 3: Referencias ────────────────────────────────────────────────────
-
-/** Botón "Citas" → abre el panel en Referencias. */
-async function openReferencesPanel(event: Office.AddinCommands.Event) {
-  await openTaskpane('references')
-  event.completed()
-}
-
-/** Botón "Bibliografía" → abre el panel en Referencias y genera la bibliografía. */
-async function buildBibliography(event: Office.AddinCommands.Event) {
-  await openTaskpane('references', undefined, 'build_bibliography')
-  event.completed()
-}
-
-/** Botón "Portada" → abre el panel en Portada. */
-async function openCoverPagePanel(event: Office.AddinCommands.Event) {
-  await openTaskpane('cover')
-  event.completed()
-}
-
-// ── Grupo 4: Herramientas ───────────────────────────────────────────────────
-
-/** Botón "IA" → abre el panel en IA. */
-async function openAIPanel(event: Office.AddinCommands.Event) {
-  await openTaskpane('ai')
-  event.completed()
-}
-
-// ── Utilidad: abre el Task Pane con la pestaña/sección/acción indicada ───────
-
-/**
- * Guarda la pestaña/sección/acción destino en localStorage y abre el Task Pane.
- *
- * @param tab     pestaña del panel ('live', 'insert', 'references', 'cover', 'comments', 'ai')
- * @param section sub-sección dentro de 'insert' ('table', 'figure', 'heading')
- * @param action  acción a ejecutar tras navegar ('refresh', 'build_bibliography')
- */
-async function openTaskpane(tab: string, section?: string, action?: string) {
+async function openTaskpane(tab: string, action?: string) {
   try {
     localStorage.setItem('wordapa7_addin_active_tab', tab)
-
-    if (section) {
-      localStorage.setItem('wordapa7_addin_insert_section', section)
-    } else {
-      localStorage.removeItem('wordapa7_addin_insert_section')
-    }
-
     if (action) {
       localStorage.setItem('wordapa7_addin_action', action)
     } else {
       localStorage.removeItem('wordapa7_addin_action')
     }
 
-    // Disparar un evento storage manualmente: localStorage.setItem no dispara
-    // storage en la MISMA ventana, solo en otras pestañas/ventanas. Como el
-    // Task Pane y el FunctionFile pueden correr en el mismo contexto, forzamos
-    // el evento para que el panel lo detecte si ya estaba abierto.
     window.dispatchEvent(new StorageEvent('storage', {
       key: 'wordapa7_addin_active_tab',
       newValue: tab,
@@ -144,15 +62,118 @@ async function openTaskpane(tab: string, section?: string, action?: string) {
       }))
     }
   } catch {
-    /* localStorage puede no estar disponible en algunos contextos */
+    /* ignore */
   }
 
-  // Abrir el Task Pane
   try {
     if (Office.addin && typeof (Office.addin as any).showAsTaskpane === 'function') {
       await (Office.addin as any).showAsTaskpane()
     }
   } catch (error) {
-    console.warn('[WordAPA7] No se pudo abrir el Task Pane automáticamente.', error)
+    console.warn('[WordAPA7] showAsTaskpane no disponible', error)
+  }
+}
+
+// ── GRUPO 1: ASISTENTE ──────────────────────────────────────────────────────
+
+async function passAPAQuick(event: Office.AddinCommands.Event) {
+  try {
+    await normalizeEntireDocumentAPA7()
+    await openTaskpane('auditoria')
+  } catch (e) {
+    console.error('[WordAPA7 Ribbon] Error en passAPAQuick', e)
+  } finally {
+    event.completed()
+  }
+}
+
+async function validateSelection(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('auditoria', 'scan')
+  } finally {
+    event.completed()
+  }
+}
+
+async function refreshDocument(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('auditoria', 'refresh')
+  } finally {
+    event.completed()
+  }
+}
+
+// ── GRUPO 2: INSERTAR APA 7 DIRECTO EN WORD ─────────────────────────────────
+
+async function handleInsertTable(event: Office.AddinCommands.Event) {
+  try {
+    await insertTableAPA({
+      caption: 'Título descriptivo de la Tabla',
+      headers: ['Categoría', 'Variable A', 'Variable B', 'Total'],
+      rows: [
+        ['Grupo 1', '12', '18', '30'],
+        ['Grupo 2', '15', '22', '37'],
+      ],
+      note: 'Valores observados en el estudio experimental.',
+    }, 1)
+    await openTaskpane('auditoria')
+  } catch (e) {
+    console.error('[WordAPA7 Ribbon] Error insertando tabla', e)
+  } finally {
+    event.completed()
+  }
+}
+
+async function handleInsertFigure(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('auditoria')
+  } finally {
+    event.completed()
+  }
+}
+
+async function handleInsertHeading(event: Office.AddinCommands.Event) {
+  try {
+    await applyHeadingStyle(1)
+  } catch (e) {
+    console.error('[WordAPA7 Ribbon] Error aplicando heading', e)
+  } finally {
+    event.completed()
+  }
+}
+
+// ── GRUPO 3: REFERENCIAS ────────────────────────────────────────────────────
+
+async function openReferencesPanel(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('referencias')
+  } finally {
+    event.completed()
+  }
+}
+
+async function handleBibliography(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('referencias', 'build_bibliography')
+  } finally {
+    event.completed()
+  }
+}
+
+async function openCoverPagePanel(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('portada')
+  } finally {
+    event.completed()
+  }
+}
+
+// ── GRUPO 4: HERRAMIENTAS ───────────────────────────────────────────────────
+
+async function openAIPanel(event: Office.AddinCommands.Event) {
+  try {
+    await openTaskpane('ia')
+  } finally {
+    event.completed()
   }
 }

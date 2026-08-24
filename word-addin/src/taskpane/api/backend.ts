@@ -5,7 +5,7 @@
  * Se conecta al servidor FastAPI local (127.0.0.1:PUERTO) que corre dentro
  * de la app Electron (empaquetada por el instalador).
  *
- * ⚠️ Detección automática de la URL del backend:
+ * Detección automática de la URL del backend:
  *
  *   1. MODO PRODUCCIÓN (URL HTTPS pública):
  *      El Add-in se carga desde una URL HTTPS pública (ej.
@@ -184,6 +184,36 @@ export interface ValidationResult {
   summary: string
 }
 
+// == Auditoría de documento completo (POST /api/addin/audit-document) ========
+
+export type AuditSeverity = 'error' | 'warn' | 'info'
+export type AuditCategory = 'citacion' | 'referencias' | 'formato' | 'estructura'
+
+export interface AuditFinding {
+  id: string
+  severity: AuditSeverity
+  category: AuditCategory
+  message: string
+  fix: string
+  where?: {
+    paragraph_index?: number
+    excerpt?: string
+  }
+}
+
+export interface AuditStats {
+  paragraphs: number
+  words: number
+  citations: number
+  references: number
+}
+
+/** POST /api/addin/audit-document → { findings, stats } */
+export interface AuditDocumentResult {
+  findings: AuditFinding[]
+  stats: AuditStats
+}
+
 export interface NextNumberResult {
   next_number: number
   existing_labels: string[]
@@ -329,6 +359,18 @@ export interface AIHealthResult {
   specialties: Record<string, { provider: string; percentage: number; status: string }>
 }
 
+/** Chip de un proveedor de IA (GET /api/addin/ai-providers). */
+export interface AIProviderChip {
+  name: string
+  active: boolean
+}
+
+/** GET /api/addin/ai-providers → { providers: [{ name, active }], count } */
+export interface AIProvidersResult {
+  providers: AIProviderChip[]
+  count: number
+}
+
 // == HTTP HELPERS =============================================================
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -367,6 +409,12 @@ export const backend = {
 
   health: () => get<{ status: string; version: string }>(`/api/addin/health`),
 
+  scopedApplyLive: (ooxml_base64: string, scopes: string[]) =>
+    post<{ docx_base64: string; pdf_base64?: string; summary: Record<string, unknown> }>(
+      `/api/addin/scoped-apply-live`,
+      { ooxml_base64, scopes },
+    ),
+
   analyzeSelection: (text: string, context?: string) =>
     post<AnalysisResult>(`/api/addin/analyze-selection`, { text, context }),
 
@@ -375,6 +423,13 @@ export const backend = {
 
   validateFragment: (text: string, element_type?: string) =>
     post<ValidationResult>(`/api/addin/validate-fragment`, { text, element_type }),
+
+  /**
+   * Auditoría APA 7 del documento completo (texto plano con saltos de párrafo).
+   * Devuelve hallazgos estructurados + estadísticas.
+   */
+  auditDocument: (text: string) =>
+    post<AuditDocumentResult>(`/api/addin/audit-document`, { text }),
 
   nextFigureNumber: (document_text: string) =>
     post<NextNumberResult>(`/api/addin/next-figure-number`, { document_text }),
@@ -455,6 +510,10 @@ export const backend = {
   /** GET /api/addin/ai-health → estado de los proveedores de IA. */
   aiHealth: () =>
     get<AIHealthResult>(`/api/addin/ai-health`),
+
+  /** GET /api/addin/ai-providers → chips de proveedores según env del backend. */
+  aiProviders: () =>
+    get<AIProvidersResult>(`/api/addin/ai-providers`),
 
   /** POST /api/addin/ai-analyze-table → analiza los datos de una tabla. */
   analyzeAITable: (headers: string[], rows: string[][]) =>

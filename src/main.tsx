@@ -3,6 +3,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { GlobalErrorBoundary, installGlobalErrorLogging } from './lib/errorReporting';
+
+// Consola de errores: TODO crash queda en logs del sistema (L0).
+installGlobalErrorLogging();
+
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
@@ -142,6 +147,8 @@ setTimeout(() => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <GlobalErrorBoundary>
+      <App />
+    </GlobalErrorBoundary>
   </React.StrictMode>
 );

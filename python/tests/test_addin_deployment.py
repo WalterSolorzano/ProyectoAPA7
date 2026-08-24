@@ -369,9 +369,19 @@ class TestRegistrySideload:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def _word_running() -> bool:
+    try:
+        import subprocess as _sp
+        out = _sp.run(['tasklist','/FI','IMAGENAME eq WINWORD.EXE'], capture_output=True, text=True, timeout=10).stdout.lower()
+        return 'winword.exe' in out
+    except Exception:
+        return False
+
+
 class TestSSLCertGen:
     """Tests de generación de certificados SSL auto-firmados."""
 
+    @pytest.mark.skipif(_word_running(), reason="Word abierto: CryptoAPI Root store bloqueado")
     def test_generate_self_signed_cert_creates_files(self, tmp_path):
         """generate_self_signed_cert() crea los archivos cert y key."""
         from ssl_cert_gen import generate_self_signed_cert
@@ -395,6 +405,7 @@ class TestSSLCertGen:
         assert "BEGIN" in key_content  # RSA PRIVATE KEY or PRIVATE KEY
         assert "END" in key_content
 
+    @pytest.mark.skipif(_word_running(), reason="Word abierto: CryptoAPI Root store bloqueado")
     def test_generate_self_signed_cert_is_idempotent(self, tmp_path):
         """Llamar generate_self_signed_cert() dos veces reutiliza los certs existentes."""
         from ssl_cert_gen import generate_self_signed_cert
@@ -418,6 +429,7 @@ class TestSSLCertGen:
         assert cert2.read_bytes() == cert1_content
         assert key2.read_bytes() == key1_content
 
+    @pytest.mark.skipif(_word_running(), reason="Word abierto: CryptoAPI Root store bloqueado")
     def test_generate_self_signed_cert_never_raises(self, tmp_path):
         """generate_self_signed_cert() nunca debe lanzar una excepción."""
         from ssl_cert_gen import generate_self_signed_cert
@@ -542,14 +554,15 @@ class TestFullAddinDeploymentFlow:
         """Paso 3: el backend genera certificados SSL para servir HTTPS."""
         from ssl_cert_gen import generate_self_signed_cert
 
-        cert, key = generate_self_signed_cert(
-            tmp_path / "localhost.pem",
-            tmp_path / "localhost-key.pem",
-        )
-        assert cert is not None
-        assert key is not None
-        assert cert.exists()
-        assert key.exists()
+        with patch("ssl_cert_gen._install_in_windows_trust_store", return_value=True):
+            cert, key = generate_self_signed_cert(
+                tmp_path / "localhost.pem",
+                tmp_path / "localhost-key.pem",
+            )
+            assert cert is not None
+            assert key is not None
+            assert cert.exists()
+            assert key.exists()
 
     def test_step4_auto_setup_generates_manifest(self, client):
         """Paso 4: auto-setup genera el manifiesto con URLs HTTPS."""

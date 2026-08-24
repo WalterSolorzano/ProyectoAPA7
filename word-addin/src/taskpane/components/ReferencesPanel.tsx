@@ -17,6 +17,15 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { backend, type ReferenceDTO } from '../api/backend'
 import { getDocumentText, insertBibliographyAPA, insertCitationAtCursor } from '../office/wordHelper'
+import { clearHighlightsBeforeGenerate } from '../office/highlighter'
+
+const BookIcon: React.FC<{ size?: number }> = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+  </svg>
+)
 
 /** Construye el texto de cita APA 7 a partir de una referencia. */
 function buildCitation(ref: ReferenceDTO): string {
@@ -63,6 +72,8 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
+      // Antes de cualquier POST de bibliografía: limpiar resaltados temporales.
+      await clearHighlightsBeforeGenerate()
       const res = await backend.buildBibliography()
       setReferences(res.references || [])
       setBibText(res.bibliography_text || '')
@@ -90,6 +101,8 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
       const text = await getDocumentText()
       let newCount = 0
       try {
+        // Antes del POST de bibliografía: limpiar resaltados temporales.
+        await clearHighlightsBeforeGenerate()
         const extracted = await backend.extractCitations(text)
         newCount = extracted.new_count ?? 0
       } catch {
@@ -268,6 +281,18 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
 
   return (
     <>
+      {/* ── ACCIÓN PRINCIPAL: CONSTRUIR BIBLIOGRAFÍA ───────────────────────── */}
+      <div className="action-card">
+        <div className="action-card__title">Bibliografía APA 7</div>
+        <button
+          className="btn btn--primary btn--full action-card__btn"
+          onClick={reextract}
+          disabled={loading}
+        >
+          {loading ? <span className="spinner" /> : null} Construir bibliografía ahora
+        </button>
+      </div>
+
       <div className="card">
         <div className="card__simple-header">Bibliografía sugerida (APA 7)</div>
         <div className="card__body">
@@ -296,7 +321,7 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
           </div>
 
           <button className="btn btn--primary btn--full" onClick={() => insertBibliography()} disabled={inserting || !bibText}>
-            {inserting ? <span className="spinner" /> : null} 📚 Insertar bibliografía
+            {inserting ? <span className="spinner" /> : null} Insertar bibliografía
           </button>
 
           <button className="btn btn--secondary btn--full" onClick={openNew} style={{ marginTop: 8 }}>
@@ -418,11 +443,14 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
 
       {references.length === 0 && !loading && (
         <div className="empty-state">
-          <div className="empty-state__icon">📚</div>
+          <div className="empty-state__icon" style={{ color: 'var(--accent-primary)' }}>
+            <BookIcon />
+          </div>
           <div className="empty-state__title">Sin referencias aún</div>
-          <div className="empty-state__text">
-            Escribí citas como (García, 2023) en tu documento y el asistente las detectará
-            automáticamente. Luego volvé acá y pulsá "Re-extraer". También podés agregarlas manualmente.
+          <div className="step-chips step-chips--vertical" aria-label="Cómo armar la bibliografía">
+            <span className="step-chips__chip"><b>1</b> Escribí (Autor, Año)</span>
+            <span className="step-chips__chip"><b>2</b> El asistente la detecta</span>
+            <span className="step-chips__chip"><b>3</b> Pulsá Construir bibliografía</span>
           </div>
         </div>
       )}

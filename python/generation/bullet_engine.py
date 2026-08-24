@@ -29,7 +29,7 @@ def clean_bullet_prefix(text: str) -> str:
     Remueve prefijos de viñeta o número existentes en el texto del usuario.
     """
     cleaned = re.sub(
-        r'^(?:[•○▪–\-\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*',
+        r'^(?:[•●▪◦○▸►→·\-–—\*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*',
         '',
         text.strip(),
     )

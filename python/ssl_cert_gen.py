@@ -236,6 +236,269 @@ def _build_certificate(key) -> "object":
     return builder.sign(private_key=key, algorithm=hashes.SHA256())
 
 
+def _cleanup_old_wordapa7_certs_from_trust_store(
+    keep_cert_path: Optional[Path] = None,
+) -> int:
+    """Remove stale WordAPA7 certificates from the Windows Trusted Root store.
+
+    Every time a NEW certificate is generated (new RSA key → new SHA-1
+    thumbprint), the *old* certificate remains in ``CurrentUser\\Root``.
+    Over many regenerations dozens of duplicate ``CN=localhost, O=WordAPA7``
+    certificates accumulate, which confuses the WebView2/Word certificate
+    chaining engine and causes the Add-in taskpane to go blank.
+
+    This function walks the store, finds every certificate whose raw DER
+    encoding contains the ASCII string ``b"WordAPA7"`` (the Organization
+    name embedded as a UTF8String/PrintableString in the subject), and
+    **deletes** every one whose SHA-1 thumbprint does **not** match
+    ``keep_cert_path``'s thumbprint.
+
+    The entire operation is **100% silent** — no dialogs, no UAC prompts —
+    using only the Windows CryptoAPI via ``ctypes``.  A PowerShell fallback
+    is used only if the CryptoAPI path is unavailable (e.g. ``crypt32``
+    cannot be loaded in a frozen environment).
+
+    Parameters
+    ----------
+    keep_cert_path:
+        Path to the PEM certificate that should be **kept** in the store.
+        Its SHA-1 thumbprint is computed and every other WordAPA7 cert is
+        deleted.  If ``None``, **all** WordAPA7 certs are removed.
+
+    Returns
+    -------
+    int
+        Number of certificates removed.  **Never raises** — every error is
+        caught and logged at ``DEBUG`` level.
+
+    Notes
+    -----
+    * ``CertDeleteCertificateFromStore`` **frees** the certificate context
+      it is passed (regardless of success or failure), so
+      ``CertFreeCertificateContext`` must **not** be called on it
+      afterwards.
+    * Deletion **invalidates** the enumeration state, so after each
+      deletion the enumeration is restarted from the beginning
+      (``prev = None``).
+    * To detect WordAPA7 certs without parsing ASN.1, we simply search
+      for ``b"WordAPA7"`` in the raw DER bytes — the O field is stored as a
+      readable UTF-8 string in the DER-encoded subject name.
+    """
+    if sys.platform != "win32":
+        return 0
+
+    # ── Guard: con WINWORD.EXE abierto, Crypt32/Root puede dar ACCESS
+    # VIOLATION al enumerar+borrar (store compartido con el proceso vivo).
+    # La limpieza de certs viejos es una optimización: si Word corre, la
+    # saltamos silenciosamente; la próxima generación (con Word cerrado)
+    # la ejecutará.
+    try:
+        import subprocess as _sp
+
+        _out = _sp.run(
+            ["tasklist", "/FI", "IMAGENAME eq WINWORD.EXE"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.lower()
+        if "winword.exe" in _out:
+            logger.info("[SSL] cleanup: WINWORD.EXE activo — se omite limpieza de certs")
+            return 0
+    except Exception:
+        pass
+
+    # ── Compute the SHA-1 thumbprint of the cert to KEEP ──────────────
+    # keep_sha1  → raw digest bytes, for fast ctypes comparison.
+    # keep_thumb_hex → UPPER hex string, for the PowerShell -ne filter.
+    keep_sha1: Optional[bytes] = None
+    keep_thumb_hex: Optional[str] = None
+    if keep_cert_path is not None:
+        try:
+            from cryptography import x509
+            from cryptography.hazmat.primitives import serialization
+
+            keep_cert = x509.load_pem_x509_certificate(keep_cert_path.read_bytes())
+            keep_der = keep_cert.public_bytes(serialization.Encoding.DER)
+            keep_sha1 = hashlib.sha1(keep_der).digest()
+            keep_thumb_hex = keep_sha1.hex().upper()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[SSL] cleanup: could not compute keep-cert thumbprint: %s", exc)
+
+    # ── Primary: ctypes CryptoAPI (100% in-process, zero dialogs) ─────
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        # CERT_CONTEXT — same layout as in _is_cert_in_windows_trust_store.
+        # Declaring it as a Structure lets ctypes insert the correct padding
+        # (e.g. 4 bytes after dwCertEncodingType on x64).
+        class CERT_CONTEXT(ctypes.Structure):
+            _fields_ = [
+                ("dwCertEncodingType", wintypes.DWORD),
+                ("pbCertEncoded", ctypes.POINTER(ctypes.c_ubyte)),
+                ("cbCertEncoded", wintypes.DWORD),
+                ("pCertInfo", ctypes.c_void_p),
+                ("hCertStore", wintypes.HANDLE),
+            ]
+
+        crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)  # type: ignore[attr-defined]
+
+        CERT_STORE_PROV_SYSTEM = 10
+        CERT_SYSTEM_STORE_CURRENT_USER = 0x00010000
+
+        crypt32.CertOpenStore.restype = wintypes.HANDLE
+        crypt32.CertOpenStore.argtypes = [
+            ctypes.c_void_p,   # lpszStoreProvider (numeric provider id)
+            wintypes.DWORD,    # dwEncodingType
+            wintypes.HANDLE,   # hCryptProv
+            wintypes.DWORD,    # dwFlags
+            wintypes.LPCWSTR,  # pvPara
+        ]
+        store_handle = crypt32.CertOpenStore(
+            CERT_STORE_PROV_SYSTEM, 0, None,
+            CERT_SYSTEM_STORE_CURRENT_USER, "Root",
+        )
+        if not store_handle:
+            logger.debug("[SSL] cleanup: CertOpenStore failed (err=%d)",
+                         ctypes.get_last_error())
+            raise RuntimeError("CertOpenStore failed")
+
+        crypt32.CertEnumCertificatesInStore.restype = wintypes.HANDLE
+        crypt32.CertEnumCertificatesInStore.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+        # BOOL CertDeleteCertificateFromStore(HCERTSTORE, PCCERT_CONTEXT)
+        # Deletes the cert AND frees the context — do NOT call
+        # CertFreeCertificateContext on the same pointer afterwards.
+        crypt32.CertDeleteCertificateFromStore.restype = wintypes.BOOL
+        crypt32.CertDeleteCertificateFromStore.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+        removed = 0
+        # Thumbprints we already tried to delete — prevents an infinite
+        # restart loop if a deletion fails and the cert reappears in the
+        # next enumeration pass.
+        attempted: set[str] = set()
+
+        try:
+            prev = None  # type: Optional[int]
+            while True:
+                ctx = crypt32.CertEnumCertificatesInStore(store_handle, prev)
+                if not ctx:
+                    break  # end of store
+
+                # By default this context becomes ``prev`` for the next
+                # CertEnumCertificatesInStore call (which frees it).  We
+                # only change ``prev`` to ``None`` after a deletion.
+                prev = ctx
+
+                try:
+                    cc = CERT_CONTEXT.from_address(ctx)
+                    if not (cc.cbCertEncoded and cc.pbCertEncoded):
+                        continue
+                    der = ctypes.string_at(cc.pbCertEncoded, cc.cbCertEncoded)
+
+                    # ── Is this a WordAPA7 cert? ──────────────────────
+                    # The Organization name "WordAPA7" is embedded in the
+                    # DER-encoded subject as a readable UTF8String.  A simple
+                    # substring search avoids any ASN.1 parsing.
+                    if b"WordAPA7" not in der:
+                        continue
+
+                    # ── SHA-1 thumbprint ──────────────────────────────
+                    cert_sha1 = hashlib.sha1(der).digest()
+                    thumb_hex = cert_sha1.hex()
+
+                    # Skip the cert we want to keep.
+                    if keep_sha1 is not None and cert_sha1 == keep_sha1:
+                        continue
+
+                    # Skip certs we already tried (and failed) to delete —
+                    # otherwise we'd loop forever.
+                    if thumb_hex in attempted:
+                        continue
+
+                    # ── Delete the stale cert ─────────────────────────
+                    # CertDeleteCertificateFromStore frees the context,
+                    # so we must NOT free it ourselves.  After deletion the
+                    # enumeration state is invalidated → restart from top.
+                    attempted.add(thumb_hex)
+                    del_ok = crypt32.CertDeleteCertificateFromStore(
+                        store_handle, ctx,
+                    )
+                    # Set prev = None IMMEDIATELY so enumeration restarts
+                    # from the beginning, before any logging that could
+                    # theoretically raise.
+                    prev = None
+
+                    if del_ok:
+                        removed += 1
+                        logger.info(
+                            "[SSL] cleanup: removed stale WordAPA7 cert "
+                            "(thumb=%s) from Trusted Root store.",
+                            thumb_hex.upper(),
+                        )
+                    else:
+                        logger.debug(
+                            "[SSL] cleanup: CertDeleteCertificateFromStore "
+                            "failed for thumb=%s (err=%d)",
+                            thumb_hex.upper(),
+                            ctypes.get_last_error(),
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    # Skip a malformed/unreadable cert entry — ``prev``
+                    # still points at the current (valid) context so
+                    # enumeration continues past it.
+                    logger.debug("[SSL] cleanup: error inspecting cert: %s", exc)
+        finally:
+            crypt32.CertCloseStore.restype = wintypes.BOOL
+            crypt32.CertCloseStore.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            crypt32.CertCloseStore(store_handle, 0)
+
+        if removed:
+            logger.info(
+                "[SSL] cleanup: removed %d stale WordAPA7 cert(s) from "
+                "Trusted Root store.", removed,
+            )
+        return removed
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[SSL] ctypes cleanup failed (%s); trying PowerShell fallback.", exc)
+
+    # ── Fallback: PowerShell ───────────────────────────────────────────
+    try:
+        import subprocess
+
+        # Build the thumbprint filter clause (or omit it when keep is None).
+        thumb_clause = (
+            f" -and $_.Thumbprint -ne '{keep_thumb_hex}'"
+            if keep_thumb_hex
+            else ""
+        )
+        ps_script = (
+            "$ErrorActionPreference = 'SilentlyContinue';"
+            " $certs = @(Get-ChildItem Cert:\\CurrentUser\\Root |"
+            f" Where-Object {{ $_.Subject -match 'WordAPA7'{thumb_clause} }});"
+            " $certs | Remove-Item -Force -ErrorAction SilentlyContinue;"
+            " Write-Output $certs.Count"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True, text=True, timeout=15,
+            creationflags=0x08000000 if sys.platform == "win32" else 0,
+        )
+        if result.returncode == 0:
+            try:
+                count = int((result.stdout or "").strip())
+            except ValueError:
+                count = 0
+            logger.info(
+                "[SSL] cleanup: PowerShell fallback removed %d cert(s).", count,
+            )
+            return count
+        logger.warning("[SSL] cleanup: PowerShell fallback failed (rc=%d).",
+                       result.returncode)
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[SSL] cleanup: PowerShell fallback error: %s", exc)
+        return 0
+
+
 def _install_in_windows_trust_store(cert_path: Path) -> bool:
     """Install the certificate into the CURRENT USER's Trusted Root store.
 
@@ -262,6 +525,19 @@ def _install_in_windows_trust_store(cert_path: Path) -> bool:
     """
     if sys.platform != "win32":
         return False
+
+    # ── Remove any stale WordAPA7 certs BEFORE installing the new one ─
+    # When a new certificate is generated (new key → new thumbprint), old
+    # certs accumulate in the Trusted Root store.  This causes WebView2/Word
+    # cert validation to break because multiple "CN=localhost, O=WordAPA7"
+    # certs confuse the chaining engine.  Cleaning up BEFORE the install
+    # guarantees that at most ONE WordAPA7 cert exists in the store.
+    try:
+        removed = _cleanup_old_wordapa7_certs_from_trust_store(cert_path)
+        if removed:
+            logger.info("[SSL] Removed %d stale WordAPA7 cert(s) before install.", removed)
+    except Exception:  # noqa: BLE001 — never let cleanup break the install
+        pass
 
     # Try ctypes first (100% in-process, zero dialogs)
     try:

@@ -29,8 +29,14 @@ win:
   icon: build/icon.ico
   signtoolOptions: null
 nsis:
+  # ── Asistido: bienvenida con info de app + complemento ────────────────
+  # oneClick: false muestra la página de Bienvenida (build/installer.nsh:
+  # customWelcomePage) que explica los DOS componentes y los pasos automáticos,
+  # más la página final con instrucciones para Word.
+  # allowToChangeInstallationDirectory: false oculta la elección de carpeta
+  # (instala igual en %LOCALAPPDATA%\Programs\WordAPA7\ sin UAC).
   oneClick: false
-  allowToChangeInstallationDirectory: true
+  allowToChangeInstallationDirectory: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
   perMachine: false

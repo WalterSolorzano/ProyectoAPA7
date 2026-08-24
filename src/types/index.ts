@@ -455,6 +455,18 @@ export interface PreviewResponse {
   html: string;
 }
 
+export interface ProofreadFinding {
+  element_id: string;
+  start: number;
+  end: number;
+  excerpt: string;
+  kind: 'first_person' | 'ortografia' | 'ai_phrase' | 'pegado' | 'muletilla';
+  severity: 'info' | 'warn' | 'error';
+  message: string;
+  suggestion?: string;
+  source: 'local' | 'llm';
+}
+
 export interface LLMProgressState {
   status: 'idle' | 'processing' | 'complete' | 'error';
   total_batches: number;

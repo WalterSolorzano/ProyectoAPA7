@@ -2,21 +2,17 @@
  * WordAPA7 Add-in — Panel de Detección de IA
  * ===========================================
  *
- * Permite al usuario:
- *   1. Ver el estado de los proveedores de IA del backend (salud + nombres)
- *   2. Analizar la selección actual en busca de patrones de IA generada
- *   3. Analizar todo el documento (por párrafos) y ver el riesgo general
- *   4. Reescribir texto con IA para humanizarlo, con botón de copiar
+ *   1. Chips de proveedores de IA (GET /api/addin/ai-providers)
+ *   2. Acción principal: "Escanear texto IA" (documento completo por párrafos)
+ *   3. Análisis de selección + reescritura con IA
  *
- * Usa los endpoints de detección de IA del backend de Python y reutiliza las
- * mismas clases CSS que el resto de los paneles (.card, .btn, .issue,
- * .score-bar, .stat-box, .spinner, etc.).
+ * Sin emojis: solo SVG inline y etiquetas de texto plano.
  */
 
 import React, { useState, useCallback, useEffect } from 'react'
 import {
   backend,
-  type AIHealthResult,
+  type AIProvidersResult,
   type AIAnalysisResult,
   type AIDocumentResult,
   type AIRewriteResult,
@@ -24,20 +20,21 @@ import {
 } from '../api/backend'
 import { getSelectedText, getDocumentText } from '../office/wordHelper'
 
+/** Evento global para re-consultar proveedores tras guardar ajustes. */
+export const AI_PROVIDERS_REFRESH_EVENT = 'wordapa7_addin_refresh_ai_providers'
+
 interface Props {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
 }
 
-// == HELPERS DE COLOR =========================================================
+// == HELPERS ==================================================================
 
-/** Color del score según el nivel de riesgo de IA (verde < 20, amarillo 20-50, rojo > 50). */
 function riskColor(scorePct: number): string {
   if (scorePct >= 50) return 'var(--color-error)'
   if (scorePct >= 20) return 'var(--color-warning)'
   return 'var(--color-success)'
 }
 
-/** Convierte el severity de un AIFinding a una clase CSS de issue. */
 function severityToIssueClass(severity: AIFinding['severity']): string {
   switch (severity) {
     case 'HIGH': return 'issue--error'
@@ -46,12 +43,6 @@ function severityToIssueClass(severity: AIFinding['severity']): string {
   }
 }
 
-/** Ícono según el severity del hallazgo. */
-function severityIcon(severity: AIFinding['severity']): string {
-  return severity === 'HIGH' ? '⚠️' : 'ℹ️'
-}
-
-/** Etiqueta legible para la categoría de riesgo. */
 function categoryLabel(category: string): string {
   switch (category.toUpperCase()) {
     case 'HIGH': return 'Alto riesgo'
@@ -61,7 +52,6 @@ function categoryLabel(category: string): string {
   }
 }
 
-/** Color de texto para una categoría de riesgo. */
 function categoryColor(category: string): string {
   switch (category.toUpperCase()) {
     case 'HIGH': return 'var(--color-error)'
@@ -71,7 +61,6 @@ function categoryColor(category: string): string {
   }
 }
 
-/** Color de fondo (soft) para una categoría de riesgo. */
 function categoryBg(category: string): string {
   switch (category.toUpperCase()) {
     case 'HIGH': return 'var(--color-error-soft)'
@@ -81,15 +70,48 @@ function categoryBg(category: string): string {
   }
 }
 
-/** Recorta un texto largo para mostrarlo como preview de párrafo. */
 function truncate(text: string, maxLen = 120): string {
   const t = text.trim()
   return t.length > maxLen ? t.slice(0, maxLen) + '…' : t
 }
 
+// == ICONOS SVG ===============================================================
+
+const ScanIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.35-4.35" />
+  </svg>
+)
+
+const DocScanIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <path d="M14 2v6h6" />
+    <path d="M9 13h6M9 17h4" />
+  </svg>
+)
+
+const EditIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+)
+
+const SparklesIcon: React.FC<{ size?: number }> = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z" />
+    <path d="M19 15l.8 2.7L22.5 18.5l-2.7.8L19 22l-.8-2.7-2.7-.8 2.7-.8L19 15z" />
+  </svg>
+)
+
 // == SUBCOMPONENTES ===========================================================
 
-/** Barra de score de riesgo de IA (0-100%) con color dinámico. */
 function ScoreBar({ scorePct, label }: { scorePct: number; label: string }) {
   return (
     <div className="card">
@@ -111,7 +133,6 @@ function ScoreBar({ scorePct, label }: { scorePct: number; label: string }) {
   )
 }
 
-/** Badge de categoría de riesgo con color dinámico. */
 function CategoryBadge({ category }: { category: string }) {
   return (
     <span
@@ -123,14 +144,12 @@ function CategoryBadge({ category }: { category: string }) {
   )
 }
 
-/** Lista de hallazgos de IA, cada uno con su ícono de severity y frase. */
 function FindingsList({ findings }: { findings: AIFinding[] }) {
   if (!findings || findings.length === 0) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {findings.map((f, i) => (
         <div key={i} className={`issue ${severityToIssueClass(f.severity)}`}>
-          <span className="issue__icon">{severityIcon(f.severity)}</span>
           <div className="issue__text">
             {f.detail}
             {f.count > 1 && (
@@ -146,10 +165,75 @@ function FindingsList({ findings }: { findings: AIFinding[] }) {
   )
 }
 
+/** Chips de proveedores: punto verde/gris + nombre. count==0 → hint a Ajustes. */
+function ProviderChips({ showToast }: { showToast: Props['showToast'] }) {
+  const [providers, setProviders] = useState<AIProvidersResult | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await backend.aiProviders()
+      setProviders(res)
+    } catch {
+      setProviders(null)
+    }
+  }, [])
+
+  // Fetch al abrir la pestaña (el panel se monta al entrar) + evento externo.
+  useEffect(() => {
+    load()
+    const onRefresh = () => load()
+    window.addEventListener(AI_PROVIDERS_REFRESH_EVENT, onRefresh)
+    return () => window.removeEventListener(AI_PROVIDERS_REFRESH_EVENT, onRefresh)
+  }, [load])
+
+  const copy = useCallback((name: string) => {
+    navigator.clipboard?.writeText(name).then(() => showToast(`Proveedor ${name}`, 'info')).catch(() => {})
+  }, [showToast])
+
+  if (!providers) {
+    return (
+      <div className="card">
+        <div className="card__body">
+          <div className="hint">Verificando proveedores…</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <div className="card__body">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="field-label" style={{ marginBottom: 0 }}>
+            Proveedores de IA
+          </span>
+          <span className="badge badge--count">{providers.count}</span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {providers.providers.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className={`provider-chip ${p.active ? 'provider-chip--on' : ''}`}
+              onClick={() => copy(p.name)}
+              title={p.active ? `${p.name}: activo` : `${p.name}: sin clave`}
+            >
+              <span className="provider-chip__dot" />
+              {p.name}
+            </button>
+          ))}
+        </div>
+        {providers.count === 0 && (
+          <div className="hint">Sin claves de IA. Configuralas en Ajustes de la app WordAPA7.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // == COMPONENTE PRINCIPAL =====================================================
 
 export function AIPanel({ showToast }: Props) {
-  const [health, setHealth] = useState<AIHealthResult | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzingDoc, setAnalyzingDoc] = useState(false)
   const [rewriting, setRewriting] = useState(false)
@@ -159,22 +243,34 @@ export function AIPanel({ showToast }: Props) {
   const [rewrite, setRewrite] = useState<AIRewriteResult | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // ── Cargar estado de los proveedores de IA al montar ──────────────────────
-  useEffect(() => {
-    let cancelled = false
-    const loadHealth = async () => {
-      try {
-        const h = await backend.aiHealth()
-        if (!cancelled) setHealth(h)
-      } catch {
-        // Backend sin endpoints de IA o sin conexión — no es crítico
+  // ── Escanear texto IA (acción principal del tab) ──────────────────────────
+  const scanDocument = useCallback(async () => {
+    setAnalyzingDoc(true)
+    setDocResult(null)
+    try {
+      const text = await getDocumentText()
+      if (!text.trim()) {
+        showToast('El documento está vacío', 'error')
+        return
       }
+      const paragraphs = text.split(/\r?\n/).map((p) => p.trim()).filter(Boolean)
+      if (paragraphs.length === 0) {
+        showToast('No se encontraron párrafos para analizar', 'error')
+        return
+      }
+      setDocParagraphs(paragraphs)
+      const res = await backend.analyzeAIDocument(paragraphs)
+      setDocResult(res)
+      const pct = Math.round(res.overall_score * 100)
+      showToast(`${res.high_risk_count} párrafo(s) de alto riesgo — ${pct}% IA`, 'info')
+    } catch {
+      showToast('No se pudo analizar el documento. ¿Está el backend activo?', 'error')
+    } finally {
+      setAnalyzingDoc(false)
     }
-    loadHealth()
-    return () => { cancelled = true }
-  }, [])
+  }, [showToast])
 
-  // ── Analizar selección ─────────────────────────────────────────────────────
+  // ── Analizar selección ────────────────────────────────────────────────────
   const analyzeSelection = useCallback(async () => {
     setAnalyzing(true)
     setResult(null)
@@ -188,42 +284,14 @@ export function AIPanel({ showToast }: Props) {
       setResult(res)
       const pct = Math.round(res.score * 100)
       if (res.findings.length === 0) {
-        showToast('No se detectaron patrones de IA en la selección', 'success')
+        showToast('Sin patrones de IA en la selección', 'success')
       } else {
-        showToast(`${res.findings.length} patrón(es) detectado(s) — ${pct}% IA`, 'info')
+        showToast(`${res.findings.length} patrón(es) — ${pct}% IA`, 'info')
       }
     } catch {
       showToast('No se pudo conectar con el backend de IA. ¿Está WordAPA7 abierto?', 'error')
     } finally {
       setAnalyzing(false)
-    }
-  }, [showToast])
-
-  // ── Analizar documento completo ────────────────────────────────────────────
-  const analyzeDocument = useCallback(async () => {
-    setAnalyzingDoc(true)
-    setDocResult(null)
-    try {
-      const text = await getDocumentText()
-      if (!text.trim()) {
-        showToast('El documento está vacío', 'error')
-        return
-      }
-      // Dividir en párrafos por saltos de línea y descartar vacíos
-      const paragraphs = text.split(/\r?\n/).map((p) => p.trim()).filter(Boolean)
-      if (paragraphs.length === 0) {
-        showToast('No se encontraron párrafos para analizar', 'error')
-        return
-      }
-      setDocParagraphs(paragraphs)
-      const res = await backend.analyzeAIDocument(paragraphs)
-      setDocResult(res)
-      const pct = Math.round(res.overall_score * 100)
-      showToast(`Documento analizado: ${res.high_risk_count} alto riesgo — ${pct}% IA`, 'info')
-    } catch {
-      showToast('No se pudo analizar el documento. ¿Está el backend activo?', 'error')
-    } finally {
-      setAnalyzingDoc(false)
     }
   }, [showToast])
 
@@ -247,18 +315,15 @@ export function AIPanel({ showToast }: Props) {
     }
   }, [showToast])
 
-  // ── Copiar texto al portapapeles ───────────────────────────────────────────
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
-      showToast('Texto copiado al portapapeles', 'success')
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {
       showToast('No se pudo copiar el texto', 'error')
     })
   }, [showToast])
 
-  // Resultados del documento: combinar con el texto del párrafo y ordenar por riesgo
   const riskyParagraphs = docResult
     ? docResult.results
         .map((r, i) => ({ ...r, text: docParagraphs[i] || r.matches.join(' ') || '(sin texto)' }))
@@ -267,81 +332,35 @@ export function AIPanel({ showToast }: Props) {
         .slice(0, 10)
     : []
 
-  const healthActive = health && health.providers_active > 0
+  const busy = analyzing || analyzingDoc || rewriting
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* ── ESTADO DE PROVEEDORES DE IA ────────────────────────────────────── */}
-      <div className="card">
-        <div className="card__simple-header">Estado de IA</div>
-        <div className="card__body">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: healthActive ? 'var(--color-success)' : 'var(--color-error)',
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {health
-                ? `${health.providers_active} proveedor(es) de IA activo(s)`
-                : 'Verificando proveedores…'}
-            </span>
-          </div>
-          {health && health.providers.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {health.providers.map((p) => (
-                <span key={p} className="chip">{p}</span>
-              ))}
-            </div>
-          )}
-          {health && !healthActive && (
-            <div className="hint">
-              No hay proveedores de IA activos. Iniciá WordAPA7 para habilitar la detección.
-            </div>
-          )}
-        </div>
-      </div>
+      {/* ── CHIPS DE PROVEEDORES ───────────────────────────────────────────── */}
+      <ProviderChips showToast={showToast} />
 
-      {/* ── BOTONES DE ACCIÓN ──────────────────────────────────────────────── */}
+      {/* ── ACCIÓN PRINCIPAL: ESCANEAR TEXTO IA ───────────────────────────── */}
       <button
-        className="btn btn--primary btn--full"
-        onClick={analyzeSelection}
-        disabled={analyzing || analyzingDoc || rewriting}
-      >
-        {analyzing ? (
-          <><span className="spinner" /> Analizando…</>
-        ) : (
-          <>🔍 Analizar selección</>
-        )}
-      </button>
-
-      <button
-        className="btn btn--secondary btn--full"
-        onClick={analyzeDocument}
-        disabled={analyzing || analyzingDoc || rewriting}
+        className="btn btn--primary btn--full action-card__btn"
+        onClick={scanDocument}
+        disabled={busy}
       >
         {analyzingDoc ? (
-          <><span className="spinner" /> Analizando documento…</>
+          <><span className="spinner" /> Escaneando documento…</>
         ) : (
-          <>📄 Analizar documento</>
+          <><DocScanIcon /> Escanear texto IA</>
         )}
       </button>
 
-      <button
-        className="btn btn--secondary btn--full"
-        onClick={aiRewrite}
-        disabled={analyzing || analyzingDoc || rewriting}
-      >
-        {rewriting ? (
-          <><span className="spinner" /> Reescribiendo…</>
-        ) : (
-          <>✍️ Reescribir con IA</>
-        )}
-      </button>
+      {/* ── ACCIONES SECUNDARIAS ───────────────────────────────────────────── */}
+      <div className="row-2">
+        <button className="btn btn--secondary" onClick={analyzeSelection} disabled={busy}>
+          {analyzing ? <span className="spinner" /> : <ScanIcon size={14} />} Selección
+        </button>
+        <button className="btn btn--secondary" onClick={aiRewrite} disabled={busy}>
+          {rewriting ? <span className="spinner" /> : <EditIcon size={14} />} Reescribir
+        </button>
+      </div>
 
       {/* ── RESULTADO: ANÁLISIS DE SELECCIÓN ──────────────────────────────── */}
       {result && (
@@ -368,7 +387,7 @@ export function AIPanel({ showToast }: Props) {
             <div className="card">
               <div className="card__body">
                 <div className="empty-text">
-                  No se detectaron patrones típicos de IA en el texto seleccionado.
+                  Sin patrones típicos de IA en el texto seleccionado.
                 </div>
               </div>
             </div>
@@ -376,7 +395,7 @@ export function AIPanel({ showToast }: Props) {
         </div>
       )}
 
-      {/* ── RESULTADO: ANÁLISIS DE DOCUMENTO ──────────────────────────────── */}
+      {/* ── RESULTADO: ESCANEO DE DOCUMENTO ───────────────────────────────── */}
       {docResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <ScoreBar
@@ -384,7 +403,6 @@ export function AIPanel({ showToast }: Props) {
             label="Probabilidad de IA (documento)"
           />
 
-          {/* Stats de párrafos por nivel de riesgo */}
           <div className="stats-grid stats-grid--compact">
             <div className="stat-box">
               <div className="stat-box__value" style={{ color: 'var(--color-error)' }}>
@@ -407,11 +425,10 @@ export function AIPanel({ showToast }: Props) {
           </div>
 
           <div className="hint" style={{ textAlign: 'center' }}>
-            de {docResult.total_paragraphs} párrafo(s) analizado(s)
-            {' · '}categoría general: <strong>{categoryLabel(docResult.overall_category)}</strong>
+            {docResult.total_paragraphs} párrafo(s) · categoría:{' '}
+            <strong>{categoryLabel(docResult.overall_category)}</strong>
           </div>
 
-          {/* Lista de párrafos más riesgosos (top 10) */}
           {riskyParagraphs.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div className="field-label">Párrafos con más riesgo</div>
@@ -419,12 +436,7 @@ export function AIPanel({ showToast }: Props) {
                 <div key={i} className="card">
                   <div className="card__body" style={{ gap: 6 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span
-                        className="badge"
-                        style={{ background: categoryBg(p.category), color: categoryColor(p.category) }}
-                      >
-                        {categoryLabel(p.category)}
-                      </span>
+                      <CategoryBadge category={p.category} />
                       <span style={{ fontSize: 12, fontWeight: 800, color: riskColor(Math.round(p.score * 100)) }}>
                         {Math.round(p.score * 100)}%
                       </span>
@@ -446,7 +458,7 @@ export function AIPanel({ showToast }: Props) {
             <div className="card">
               <div className="card__body">
                 <div className="empty-text">
-                  Ningún párrafo presenta riesgo medio o alto de IA. 👍
+                  Ningún párrafo con riesgo medio o alto.
                 </div>
               </div>
             </div>
@@ -471,7 +483,7 @@ export function AIPanel({ showToast }: Props) {
                   style={{ padding: '4px 10px', fontSize: 11 }}
                   onClick={() => copyToClipboard(rewrite.rewritten)}
                 >
-                  {copied ? '✓ Copiado' : '📋 Copiar'}
+                  {copied ? 'Copiado ✓' : 'Copiar'}
                 </button>
               </div>
               <pre className="bib-preview" style={{ borderColor: 'var(--accent-primary)', background: 'var(--accent-soft)' }}>
@@ -488,13 +500,14 @@ export function AIPanel({ showToast }: Props) {
       {/* ── ESTADO VACÍO ──────────────────────────────────────────────────── */}
       {!result && !docResult && !rewrite && (
         <div className="empty-state">
-          <div className="empty-state__icon">🤖</div>
+          <div className="empty-state__icon" style={{ color: 'var(--accent-primary)' }}>
+            <SparklesIcon />
+          </div>
           <div className="empty-state__title">Detección de IA</div>
-          <div className="empty-state__text">
-            Seleccioná texto y pulsá &ldquo;Analizar selección&rdquo; para detectar patrones
-            de texto generado por IA (muletillas, estructura repetitiva, transiciones
-            artificiales). También podés analizar todo el documento o reescribir texto
-            para humanizarlo.
+          <div className="step-chips step-chips--vertical" aria-label="Cómo funciona la detección de IA">
+            <span className="step-chips__chip"><b>1</b> Pulsá Escanear texto IA</span>
+            <span className="step-chips__chip"><b>2</b> Revisá los párrafos en riesgo</span>
+            <span className="step-chips__chip"><b>3</b> Seleccioná y reescribí</span>
           </div>
         </div>
       )}

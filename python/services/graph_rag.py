@@ -86,7 +86,7 @@ def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[D
                 issues.append({
                     "type": "missing_reference",
                     "citation": f"{author_raw}, {year}",
-                    "message": f"Cita '{author_raw}' no encontrada en el Grafo de Referencias BibliogrÃ¡ficas."
+                    "message": f"Cita '{author_raw}' no encontrada en el Grafo de Referencias Bibliográficas."
                 })
         else:
             # Author exists, check if year is connected
@@ -95,7 +95,7 @@ def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[D
                 issues.append({
                     "type": "year_mismatch",
                     "citation": f"{author_raw}, {year}",
-                    "message": f"El autor '{author_raw}' existe, pero el aÃ±o {year} no estÃ¡ asociado en el Grafo."
+                    "message": f"El autor '{author_raw}' existe, pero el año {year} no está asociado en el Grafo."
                 })
 
     return issues

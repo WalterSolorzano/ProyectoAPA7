@@ -10,6 +10,7 @@
 import React, { useState, useCallback } from 'react'
 import { backend } from '../api/backend'
 import { insertCoverPageAPA, getDocumentText, type CoverFields } from '../office/wordHelper'
+import { clearHighlightsBeforeGenerate } from '../office/highlighter'
 
 const SparklesIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -23,14 +24,6 @@ const DocIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
     stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
     <path d="M14 2v6h6" />
-  </svg>
-)
-
-const BulbIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 18h6M10 22h4" />
-    <path d="M12 2a7 7 0 00-4 12.7c.5.4.8 1 .8 1.7V18h6.4v-1.6c0-.7.3-1.3.8-1.7A7 7 0 0012 2z" />
   </svg>
 )
 
@@ -60,6 +53,8 @@ export function CoverPagePanel({ showToast }: Props) {
   const suggest = useCallback(async () => {
     setSuggesting(true)
     try {
+      // Antes del POST de portada: limpiar resaltados temporales.
+      await clearHighlightsBeforeGenerate()
       const text = await getDocumentText()
       const res = await backend.suggestCover(text)
       setFields({
@@ -69,7 +64,7 @@ export function CoverPagePanel({ showToast }: Props) {
         course: res.course || fields.course,
         date: res.date || fields.date,
       })
-      showToast('Portada sugerida a partir del documento ✨', 'success')
+      showToast('Portada sugerida a partir del documento', 'success')
     } catch {
       showToast('No pude sugerir la portada. Completá los campos a mano.', 'error')
     } finally {
@@ -95,13 +90,20 @@ export function CoverPagePanel({ showToast }: Props) {
 
   return (
     <>
+      {/* ── ACCIÓN PRINCIPAL: GENERAR PORTADA ──────────────────────────────── */}
+      <div className="action-card">
+        <div className="action-card__title">Portada APA 7 (estudiante)</div>
+        <button
+          className="btn btn--primary btn--full action-card__btn"
+          onClick={suggest}
+          disabled={suggesting}
+        >
+          {suggesting ? <span className="spinner" /> : <SparklesIcon size={16} />} Generar portada con mis datos
+        </button>
+      </div>
+
       <div className="card">
-        <div className="card__simple-header">Portada APA 7 (estudiante)</div>
         <div className="card__body">
-          <div className="tip-box">
-            <span className="tip-box__icon"><BulbIcon /></span>
-            <span className="tip-box__text">5 campos y te armo la portada. Dale a la varita y los completo desde tu doc.</span>
-          </div>
           <button className="btn btn--secondary btn--full" onClick={suggest} disabled={suggesting}>
             {suggesting ? <span className="spinner" /> : <SparklesIcon />} Sugerir desde el documento
           </button>

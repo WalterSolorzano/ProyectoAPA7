@@ -102,7 +102,7 @@ export const DesignAuditor: React.FC<{ open: boolean; onClose: () => void }> = (
   return (
     <div style={{
       position: 'fixed', top: '54px', right: '0', zIndex: 20000,
-      width: '440px', maxHeight: 'calc(100vh - 80px)',
+      width: 'min(440px, 100vw)', maxHeight: 'calc(100vh - 80px)',
       background: 'var(--color-bg-surface)',
       borderLeft: '1px solid var(--color-border-strong)',
       boxShadow: 'var(--shadow-lg)',

@@ -203,7 +203,15 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
     add_border = False
 
     if design == "full_width":
-        effective_width_cm = 16.0  # Ancho completo del area de texto APA
+        usable_cm = None
+        try:
+            sec = doc.sections[0] if doc.sections else None
+            if (sec is not None and sec.page_width is not None
+                    and sec.left_margin is not None and sec.right_margin is not None):
+                usable_cm = float((sec.page_width - sec.left_margin - sec.right_margin) / 360000)
+        except Exception:
+            usable_cm = None
+        effective_width_cm = usable_cm if usable_cm else 16.0  # Ancho completo del area de texto APA
         effective_alignment = "center"
     elif design == "scientific":
         add_border = True

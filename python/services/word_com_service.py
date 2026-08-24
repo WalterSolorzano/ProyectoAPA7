@@ -147,10 +147,25 @@ class WordCOMService:
                 self._word = None
             if self._pid:
                 try:
+                    time.sleep(1.5)
                     p = psutil.Process(self._pid)
-                    if p.name() == 'WINWORD.EXE':
-                        p.kill()
-                        time.sleep(0.5)
+                    if p.name() == 'WINWORD.EXE' and not p.is_running():
+                        pass  # ya cerró solo
+                    elif p.name() == 'WINWORD.EXE':
+                        # NUNCA matar si el usuario tiene documentos abiertos en la instancia
+                        # (COM reutiliza procesos: el usuario pudo abrir su doc aquí).
+                        try:
+                            docs = 0
+                            import win32com.client
+                            w = win32com.client.GetObject(Class="Word.Application")
+                            docs = w.Documents.Count
+                        except Exception:
+                            docs = -1
+                        if docs == 0:
+                            p.kill()
+                            time.sleep(0.3)
+                except psutil.NoSuchProcess:
+                    pass
                 except Exception:
                     pass
                 self._pid = None

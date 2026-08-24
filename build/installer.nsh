@@ -3,6 +3,18 @@
 ; ANTES del template principal, por lo que puede definir macros y defines
 ; de MUI2 (welcome/finish/colores) que el resto del script consume.
 
+; ── One-click: mínima fricción (oneClick: true en electron-builder.yml) ────
+; Con oneClick: true, electron-builder NO muestra página de bienvenida ni
+; de elección de carpeta. El instalador muestra una sola barra de progreso,
+; se instala en %LOCALAPPDATA%\Programs\WordAPA7\ (sin UAC) y al terminar
+; muestra la página de finalización (MUI_FINISHPAGE) con el checkbox de
+; "Abrir WordAPA7" (runAfterFinish: true).
+;
+; La macro customWelcomePage se conserva por compatibilidad: si en el futuro
+; se vuelve a oneClick: false, las páginas de bienvenida con branding se
+; muestran automáticamente. Con oneClick: true, electron-builder no llama
+; a esta macro y las defines son simplemente ignoradas (inofensivas).
+
 ; ── Instalación por usuario (sin UAC) ──────────────────────────────────────
 ; perMachine: false en electron-builder.yml instala en
 ; $LOCALAPPDATA\Programs\WordAPA7\ sin pedir permisos de administrador.
@@ -13,14 +25,19 @@
 ; ── Textos en español (misma voz que la app) ──────────────────────────────
 ; IMPORTANTE: el instalador es Unicode (NSIS Unicode por defecto en
 ; electron-builder), por lo que los caracteres acentuados, flechas (→) y
-; comillas angulares («») se muestran correctamente. Las páginas de
-; bienvenida y finalización explican que se instalan DOS componentes
-; (app de escritorio + complemento de Word) y qué pasos ocurren solos.
-!define MUI_WELCOMEPAGE_TITLE "Bienvenido a WordAPA7 (Impulsada por IA)"
-!define MUI_WELCOMEPAGE_TEXT "WordAPA7 es una herramienta inteligente que convierte tus documentos de Word (.docx) al formato APA 7.$\r$\n$\r$\nEste asistente instalará DOS componentes en tu sistema:$\r$\n$\r$\n1. La aplicación de escritorio de WordAPA7 (Impulsada por IA): revisa títulos, figuras, tablas y referencias de tus documentos.$\r$\n$\r$\n2. El complemento oficial (Add-in) para Microsoft Word: permite formatear y auditar citas directamente desde Word, sin salir del documento.$\r$\n$\r$\nDurante la instalación se realizarán automáticamente los siguientes pasos (no tenés que configurar nada del complemento a mano):$\r$\n   - Se copiarán los archivos de la aplicación y del complemento.$\r$\n   - Se registrará el complemento en Word (aparecerá en Insertar → Mis complementos).$\r$\n   - Se agregará la opción «Convertir a APA 7» al hacer clic derecho sobre un archivo .docx.$\r$\n   - Se configurará el inicio automático del backend para que funcione en segundo plano.$\r$\n$\r$\nSe recomienda cerrar Microsoft Word y demás aplicaciones antes de continuar."
+; comillas angulares («») se muestran correctamente.
+;
+; Las defines de WELCOME se conservan para el modo oneClick: false.
+; Con oneClick: true solo se muestra la página de finalización (FINISHPAGE).
 
-!define MUI_FINISHPAGE_TITLE "Instalación completada"
-!define MUI_FINISHPAGE_TEXT "WordAPA7 y el complemento para Microsoft Word quedaron instalados correctamente y listos para usar.$\r$\n$\r$\nAl presionar Terminar, la aplicación se abrirá automáticamente. La primera vez puede tardar entre 10 y 20 segundos mientras el backend se inicializa en segundo plano (es normal; esperá unos instantes a que termine de arrancar).$\r$\n$\r$\nSobre el complemento de Word:$\r$\n   - Si Word estaba abierto durante la instalación, cerralo y volvé a abrirlo para que cargue el complemento.$\r$\n   - Si Word estaba cerrado, simplemente abrílo: el complemento ya estará disponible la próxima vez que abras Word.$\r$\n   - Lo encontrarás en el menú Insertar → Mis complementos.$\r$\n$\r$\nPresioná Terminar para abrir la aplicación."
+!define MUI_WELCOMEPAGE_TITLE "Bienvenido a WordAPA7 (Impulsada por IA)"
+!define MUI_WELCOMEPAGE_TEXT "WordAPA7 es una herramienta inteligente que convierte tus documentos de Word (.docx) al formato APA 7.$\r$\n$\r$\nEste asistente instalará DOS componentes en tu sistema:$\r$\n$\r$\n1. La aplicación de escritorio de WordAPA7 (Impulsada por IA): revisa títulos, figuras, tablas y referencias de tus documentos.$\r$\n$\r$\n2. El complemento oficial (Add-in) para Microsoft Word: permite formatear y auditar citas directamente desde Word, sin salir del documento.$\r$\n$\r$\nDurante la instalación se realizarán automáticamente los siguientes pasos (no tenés que configurar nada del complemento a mano):$\r$\n   - Se copiarán los archivos de la aplicación y del complemento.$\r$\n   - Se registrará el complemento en Word (aparecerá como pestaña «WordAPA7» al abrir Word).$\r$\n   - Se agregará la opción «Convertir a APA 7» al hacer clic derecho sobre un archivo .docx.$\r$\n   - Se configurará el inicio automático del backend para que funcione en segundo plano.$\r$\n$\r$\nSe recomienda cerrar Microsoft Word y demás aplicaciones antes de continuar."
+
+; ── Página de finalización (única página visible con oneClick: true) ──────
+; Este es el ÚNICO texto que el usuario ve durante la instalación one-click.
+; Explica que el complemento ya está instalado y qué hacer con Word.
+!define MUI_FINISHPAGE_TITLE "¡WordAPA7 instalado correctamente!"
+!define MUI_FINISHPAGE_TEXT "La aplicación de escritorio y el complemento de Word quedaron instalados.$\r$\n$\r$\nAl presionar Terminar, WordAPA7 se abrirá automáticamente. La primera vez puede tardar entre 10 y 20 segundos mientras el backend se inicializa (es normal; esperá unos instantes).$\r$\n$\r$\nSobre el complemento de Word:$\r$\n   ✓ El complemento queda registrado y el catálogo confiable creado automáticamente.$\r$\n   ✓ Si no aparece solo: Insertar → Mis complementos → CARPETA COMPARTIDA → WordAPA7 → Agregar.$\r$\n   ✓ Si Word estaba abierto, cerralo y volvé a abrirlo para que cargue el complemento.$\r$\n   ✓ El certificado de seguridad se instala automáticamente (sin ventanas emergentes).$\r$\n$\r$\nPresioná Terminar para abrir la aplicación."
 
 !define MUI_ABORTWARNING_TEXT "¿Seguro que querés cancelar la instalación de WordAPA7?"
 
@@ -40,6 +57,7 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
 
 ; Página de bienvenida con la sidebar de marca
+; (solo se muestra si oneClick: false; con oneClick: true no se llama)
 !macro customWelcomePage
   !insertmacro MUI_PAGE_WELCOME
 !macroend
@@ -70,6 +88,14 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
 ;      instalación, y main.ts llama a startWatcherNow() automáticamente.
 ;   2. La clave Run de Windows arranca el watcher en el próximo inicio
 ;      de sesión, garantizando que funcione sin abrir la app manualmente.
+; ── customInit: cerrar instancias previas para evitar bloqueos de archivos ─
+!macro customInit
+  nsExec::Exec 'cmd /c taskkill /IM WordAPA7.exe /T /F >nul 2>nul || exit 0'
+  Pop $0
+  nsExec::Exec `wmic process where "name='python.exe' and CommandLine like '%python-runtime%'" call terminate`
+  Pop $0
+!macroend
+
 !macro customInstall
   ; ── Detectar si Microsoft Word está abierto ──────────────────────────────
   ; Si Word está abierto durante la instalación, el complemento se registrará
@@ -102,6 +128,8 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   CopyFiles "$INSTDIR\resources\addin\manifest.xml" "$APPDATA\WordAPA7\storage\manifest.xml"
 
   ; Registro del Add-in en Word (mecanismo oficial de auto-sideload de Office)
+  ; Esta clave hace que Word cargue el Add-in automáticamente al iniciar,
+  ; sin que el usuario tenga que ir a Insertar > Mis complementos > Agregar.
   WriteRegStr HKCU "Software\Microsoft\Office\16.0\Wef\Developer" "WordAPA7" "$APPDATA\WordAPA7\storage\manifest.xml"
 
   ; ── Watcher ligero en el inicio de Windows ─────────────────────────────
@@ -125,6 +153,23 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   ; porque ejecutar un binario no firmado durante la instalación es un
   ; patrón de comportamiento típico de malware. Se remueve por seguridad.
   DetailPrint "Watcher registrado para el inicio de sesión (se activará al abrir la app)"
+; Click derecho sobre .docx -> Convertir a APA 7 (ventana compacta)
+  ; IMPORTANTE: HKCU\Software\Classes (NO HKCR) — instalación per-user sin UAC.
+  ; Escribir a HKCR requeriría admin y fallaría silencioso para estudiantes.
+WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert" "" "Convertir a APA 7"
+WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert" "Icon" "$INSTDIR\WordAPA7.exe"
+WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert" "Position" "Top"
+WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert\command" "" '"$INSTDIR\WordAPA7.exe" --quick "%1"'
+
+  ; ── Catálogo confiable del complemento, listo ANTES del primer arranque ──
+  ; Copia del manifest + clave TrustedCatalogs para que Word lo liste en
+  ; Insertar → Mis complementos → CARPETA COMPARTIDA sin abrir la app antes.
+CreateDirectory "$LOCALAPPDATA\WordAPA7\addin-catalog"
+CopyFiles /SILENT "$INSTDIR\resources\addin\manifest.xml" "$LOCALAPPDATA\WordAPA7\addin-catalog\manifest.xml"
+WriteRegStr HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}" "Url" "$LOCALAPPDATA\WordAPA7\addin-catalog"
+WriteRegStr HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}" "Id" "{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}"
+WriteRegDWORD HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}" "Flags" 1
+DetailPrint "Complemento de Word: catálogo confiable registrado"
 !macroend
 
 !macro customUnInstall
@@ -142,9 +187,27 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   Pop $0
 
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"
+  ; Verbos contextuales propios (click derecho) — en HKCU\Classes (como se crearon)
+  DeleteRegKey HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert"
+  DeleteRegKey HKCU "Software\Classes\Word.Document.8\shell\WordAPA7Convert"
+  ; Limpieza de restos legacy (versiones <=1.0.48 escribían a HKCR)
+  DeleteRegKey HKCR "Word.Document.12\shell\WordAPA7Convert"
+  DeleteRegKey HKCR "Word.Document.8\shell\WordAPA7Convert"
+  ; Catalogo confiable del add-in
+  DeleteRegKey HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}"
+  RMDir /r "$LOCALAPPDATA\WordAPA7\addin-catalog"
   
   ; Limpiar el registro del Add-in en Word al desinstalar
   DeleteRegValue HKCU "Software\Microsoft\Office\16.0\Wef\Developer" "WordAPA7"
+  DeleteRegValue HKCU "Software\Microsoft\Office\16.0\Wef\Developer" "{56D02414-D45C-456C-A180-9123FBFA206D}"
+  DeleteRegValue HKCU "Software\Microsoft\Office\16.0\Wef\Developer" "{8F3A2C1D-9B4E-4A7F-8C5D-2E1F0A3B6C9D}"
+
+  ; ── Purga de caché web de complementos (Wef) ──────────────────────────
+  ; Es SOLO caché (bug conocido office-js#6009): borrarla evita que Word
+  ; muestre un complemento fantasma tras desinstalar.
+  RMDir /r "$LOCALAPPDATA\Microsoft\Office\16.0\Wef"
+  Delete "$LOCALAPPDATA\Microsoft\Office\16.0\.wordapa7_wef_purged_2026_08"
+  Delete "$LOCALAPPDATA\Microsoft\Office\16.0\.wef_purge_marker"
 
   ; Eliminar el watcher del inicio de Windows
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Watcher"
@@ -187,3 +250,4 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
 
   DetailPrint "Complemento de Word, watcher y certificado SSL eliminados"
 !macroend
+

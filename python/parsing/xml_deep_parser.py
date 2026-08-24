@@ -183,18 +183,28 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
         t_lower = t.lower()
 
         # Detectar patrón "Br. Nombre Apellido Apellido"
-        if t_lower.startswith('br.'):
-            # Finalizar miembro anterior si existe
-            if current.get('name'):
-                members.append(current)
-            current = {'name': t, 'id': '', 'role': 'br.', 'group': ''}
-            # Puede venir "Br. Nombre Carnet: XXXX" en la MISMA linea
-            if 'carnet:' in t_lower:
-                import re as _re
-                m_car = _re.search(r'carnet:\s*(\S+)', t, _re.IGNORECASE)
-                if m_car:
-                    current['id'] = m_car.group(1)
-                    current['name'] = _re.sub(r'carnet:\s*\S+', '', t, flags=_re.IGNORECASE).strip()
+        # Puede venir VARIOS integrantes corridos en UNA sola línea
+        # ("Br. A Carnet: 2021-0251UBr. B Carnet: 2023-0366U..."): se parte
+        # por cada título personal y el carnet se NORMALIZA a \d{4}-\d{2,6}
+        # (la letra basura pegada al carnet rompía el dedupe → duplicados).
+        if t_lower.startswith('br.') or ('br.' in t_lower and 'carnet:' in t_lower):
+            import re as _re
+            segments = [s.strip() for s in _re.split(r"(?=Br\.)", t) if s.strip()]
+            if not segments:
+                segments = [t]
+            for seg in segments:
+                m_car = _re.search(r'carnet:\s*(\d{4}-\d{2,6})', seg, _re.IGNORECASE)
+                cid = m_car.group(1) if m_car else ''
+                name = _re.sub(r'carnet:\s*\S+', '', seg, flags=_re.IGNORECASE).strip(' .,;')
+                if not name:
+                    continue
+                # Cerrar el miembro en curso antes de abrir uno nuevo.
+                if current.get('name'):
+                    members.append(current)
+                    current = {}
+                members.append({'name': name, 'id': cid, 'role': 'br.', 'group': ''})
+            current = {}
+            continue
 
         # Detectar patrón "Ing. Nombre"
         elif t_lower.startswith('ing.') or t_lower.startswith('m.sc.') or t_lower.startswith('dr.'):
@@ -207,7 +217,9 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
 
         # Detectar "Carnet: XXXX" o número de carnet
         elif 'carnet:' in t_lower:
-            carnet_val = t.split(':', 1)[-1].strip() if ':' in t else t
+            import re as _re2
+            _m_id = _re2.search(r'\d{4}-\d{2,6}', t)
+            carnet_val = _m_id.group(0) if _m_id else (t.split(':', 1)[-1].strip() if ':' in t else t)
             if current.get('name') and not current['name'].startswith(('ing.', 'm.sc.', 'dr.')):
                 current['id'] = carnet_val
             else:
@@ -242,7 +254,23 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
     if current.get('name'):
         members.append(current)
 
-    return members
+    # Dedupe duro por carnet: Choice+Fallback, shapes duplicadas o textboxes
+    # repetidos producen los mismos integrantes DOS veces (bug reportado:
+    # portada con 8 autores en vez de 4).
+    seen_ids: set = set()
+    unique: List[dict] = []
+    for m in members:
+        key = (m.get('id') or '').strip().lower()
+        if key:
+            if key in seen_ids:
+                continue
+            seen_ids.add(key)
+        else:
+            name_key = re.sub(r'\s+', ' ', (m.get('name') or '').lower()).strip()
+            if name_key and any(re.sub(r'\s+', ' ', (u.get('name') or '').lower()).strip() == name_key for u in unique):
+                continue
+        unique.append(m)
+    return unique
 
 
 def find_body_start_via_xml(docx_bytes: bytes) -> int:

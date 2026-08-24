@@ -520,16 +520,11 @@ export const LoadingTips: React.FC = () => {
   return (
     <>
       <LoadingProgressBar />
-      <div className="loading-tips" role="status" aria-live="polite">
-        <div className="loading-tips-card">
-          <div className={`loading-tips-mascot ${mascotAnim}`}>
-            <DocumentMascot size={56} expression={mascotExpr} />
-            <div className="loading-tips-dots"><span /><span /><span /></div>
-          </div>
-          <div className="loading-tips-body">
-            <div className="loading-tips-title">{message}</div>
-            {renderTipComment('sm')}
-          </div>
+      <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite">
+        <div className="loading-minimal-inner">
+          <div className="loading-minimal-spinner" aria-hidden="true" />
+          <div className="loading-minimal-title">{message}</div>
+          <div className="loading-minimal-tip" key={tip.text}>{tip.text}</div>
         </div>
       </div>
     </>

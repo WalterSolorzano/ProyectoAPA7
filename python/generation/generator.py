@@ -27,6 +27,7 @@ from models import (
 from modules.cover_designer import CoverTemplate, apply_cover_to_document, list_cover_templates
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
+from parsing.pre_classifier import REGEX_FIGURE_CAPTION
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
@@ -145,7 +146,7 @@ def _render_equation_number(number: str, number_format: str) -> str:
     return f"({number})"
 
 
-def _apply_equation_number(p, display: str, eq_cfg) -> None:
+def _apply_equation_number(p, display: str, eq_cfg, doc=None) -> None:
     """Agrega el número de ecuación al párrafo con un tab stop derecho.
 
     - Inserta un carácter tab antes del número para que quede alineado al
@@ -154,10 +155,18 @@ def _apply_equation_number(p, display: str, eq_cfg) -> None:
     """
     from docx.enum.text import WD_TAB_ALIGNMENT
 
-    # Tab stop derecho a 6.3" (margen derecho APA, dentro de márgenes de 1")
+    # Tab stop derecho pegado al margen derecho de la sección activa
+    # (usable − offset); fallback 6.3" APA si no hay dimensiones.
+    tab_position = 6.3
+    try:
+        usable_in = _usable_width_inches(doc.sections[0] if (doc and doc.sections) else None)
+        if usable_in:
+            tab_position = max(3.0, usable_in - 0.2)
+    except Exception:
+        pass
     tabs = p.paragraph_format.tab_stops
     try:
-        tabs.add_tab_stop(Inches(6.3), WD_TAB_ALIGNMENT.RIGHT)
+        tabs.add_tab_stop(Inches(tab_position), WD_TAB_ALIGNMENT.RIGHT)
     except Exception:
         pass
     try:
@@ -327,13 +336,10 @@ def _is_table_too_wide(table_info) -> tuple[bool, bool]:
 def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str | None:
     """Detecta si ya existe un caption de figura en el texto del parrafo de
     la imagen o en el parrafo inmediatamente anterior. Retorna el texto del
-    caption encontrado o None."""
-    import re
-    fig_pattern = re.compile(
-        r'^(?:figura|ilustraci[oó]n|imagen|gr[aá]fico|fotograf[ií]a|esquema|diagrama)'
-        r'\s*(?:\d+[\.:)]\s*)?',
-        re.IGNORECASE,
-    )
+    caption encontrado o None. Usa la MISMA semantica de deteccion que el
+    parser (REGEX_FIGURE_CAPTION: Figura|Figure|Fig. + digito) para que las
+    etiquetas detectadas en parseo no queden huerfanas aqui."""
+    fig_pattern = REGEX_FIGURE_CAPTION
     # Revisar el propio parrafo de la imagen
     img_text = img_paragraph.text.strip()
     if fig_pattern.match(img_text):
@@ -376,6 +382,8 @@ def _wrap_in_landscape_section(doc: docx.Document, element) -> None:
     if parent is None:
         return
 
+    from copy import deepcopy
+
     from docx.oxml import parse_xml
     from docx.oxml.ns import nsdecls, qn
 
@@ -393,21 +401,50 @@ def _wrap_in_landscape_section(doc: docx.Document, element) -> None:
     # For a landscape sandwich we need:
     #   [portrait content] → before_p (PORTRAIT sectPr) → [table] → after_p (LANDSCAPE sectPr) → [portrait content]
 
+    # Clonar el sectPr ACTUAL (pgSz/pgMar/header/footer refs) para no
+    # re-dimensionar documentos A4 a Letter dentro del sándwich.
+    current_sect = None
+    try:
+        body = doc._element.body
+        sect_prs = body.findall(qn('w:sectPr'))
+        if sect_prs:
+            current_sect = deepcopy(sect_prs[-1])
+    except Exception:
+        current_sect = None
+
+    if current_sect is not None:
+        portrait_sect = current_sect
+        landscape_sect = deepcopy(current_sect)
+        pg_sz = landscape_sect.find(qn('w:pgSz'))
+        if pg_sz is None:
+            pg_sz = OxmlElement('w:pgSz')
+            landscape_sect.insert(0, pg_sz)
+        try:
+            w_val = int(pg_sz.get(qn('w:w'), '12240'))
+            h_val = int(pg_sz.get(qn('w:h'), '15840'))
+        except ValueError:
+            w_val, h_val = 12240, 15840
+        pg_sz.set(qn('w:w'), str(max(w_val, h_val)))
+        pg_sz.set(qn('w:h'), str(min(w_val, h_val)))
+        pg_sz.set(qn('w:orient'), 'landscape')
+    else:
+        # Fallback Letter cuando no hay sectPr clonable
+        portrait_sect = parse_xml(
+            f'<w:sectPr {nsdecls("w")}>'
+            f'<w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/>'
+            f'</w:sectPr>'
+        )
+        landscape_sect = parse_xml(
+            f'<w:sectPr {nsdecls("w")}>'
+            f'<w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>'
+            f'</w:sectPr>'
+        )
+
     # Section break BEFORE the table: ends the preceding PORTRAIT section
-    portrait_sect = parse_xml(
-        f'<w:sectPr {nsdecls("w")}>'
-        f'<w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/>'
-        f'</w:sectPr>'
-    )
     before_p = parse_xml(f'<w:p {nsdecls("w")}><w:pPr/></w:p>')
     before_p.find(qn('w:pPr')).append(portrait_sect)
 
     # Section break AFTER the table: ends the LANDSCAPE section that contains the table
-    landscape_sect = parse_xml(
-        f'<w:sectPr {nsdecls("w")}>'
-        f'<w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/>'
-        f'</w:sectPr>'
-    )
     after_p = parse_xml(f'<w:p {nsdecls("w")}><w:pPr/></w:p>')
     after_p.find(qn('w:pPr')).append(landscape_sect)
 
@@ -415,6 +452,23 @@ def _wrap_in_landscape_section(doc: docx.Document, element) -> None:
     parent.insert(idx, before_p)
     # Insert after the element (idx + 2 because before_p shifted by 1)
     parent.insert(idx + 2, after_p)
+
+
+def _usable_width_inches(section) -> float | None:
+    """Ancho utilizable de la sección (page − márgenes) en pulgadas, o None."""
+    try:
+        if (section is None or section.page_width is None
+                or section.left_margin is None or section.right_margin is None):
+            return None
+        return float((section.page_width - section.left_margin - section.right_margin) / 914400)
+    except Exception:
+        return None
+
+
+def _usable_width_cm(section) -> float | None:
+    """Ancho utilizable de la sección en centímetros, o None."""
+    usable_in = _usable_width_inches(section)
+    return usable_in * 2.54 if usable_in is not None else None
 
 
 def _apply_image_design_style(
@@ -725,8 +779,17 @@ def generate_apa7_docx(
     if original_file.exists():
         doc = docx.Document(original_file)
     else:
-        # Fallback si no existe original (ej: pruebas unitarias sintéticas)
+        # Fallback si no existe original (ej: pruebas unitarias sintǸticas)
         doc = docx.Document()
+
+    # H20: si el original ya trae índice, actualizarlo (campo TOC) y no duplicar.
+    try:
+        from generation.document_structure import refresh_or_flag_existing_toc
+        _toc_kind = refresh_or_flag_existing_toc(doc)
+        if _toc_kind:
+            print(f"[TOC] Índice existente detectado ({_toc_kind}): se actualiza, no se duplica")
+    except Exception as _e:
+        print(f"[WARN] [TOC] revisión de índice omitida: {_e}")
 
     # 2. Configuración de página y márgenes
     apply_page_setup(doc, rules, preserve_landscape=doc_model.has_landscape_sections)
@@ -849,6 +912,8 @@ def generate_apa7_docx(
                 from modules.portada_uni import generate_uni_cover
                 autores_parsed = []
                 if portada.author:
+                    from modules.portada_normalize import normalize_author_lines
+                    portada.author = normalize_author_lines(portada.author)
                     # Formato del frontend: "Br. Nombre Apellido | Carnet: 2023-XXXX"
                     # o dos lineas "Br. Nombre" + "Carnet: 2023-XXXX".
                     author_lines = [l.strip() for l in portada.author.split('\n') if l.strip()]
@@ -881,11 +946,18 @@ def generate_apa7_docx(
                         autores_parsed.append({"nombre": pending_nombre, "carnet": ""})
                     # Deduplicar por nombre (el parser de textboxes no debe repetirlos, pero por seguridad)
                     seen_aut = set()
+                    seen_carnets = set()
                     uniq_aut = []
                     for a in autores_parsed:
                         key = _re.sub(r'\s+', ' ', a["nombre"]).strip().lower()
                         if key in seen_aut:
                             continue
+                        carnet = (a.get("carnet") or "").strip().lower()
+                        if carnet and len(uniq_aut) > 0:
+                            # Mismo carnet = misma persona aunque el nombre varíe
+                            if carnet in seen_carnets:
+                                continue
+                            seen_carnets.add(carnet)
                         seen_aut.add(key)
                         uniq_aut.append(a)
                     autores_parsed = uniq_aut
@@ -1130,6 +1202,14 @@ def generate_apa7_docx(
             return True
         return False
 
+    _landscape_threshold_cm = 16.0
+    try:
+        _usable_cm = _usable_width_cm(doc.sections[0] if doc.sections else None)
+        if _usable_cm:
+            _landscape_threshold_cm = max(10.0, _usable_cm - 0.5)
+    except Exception:
+        pass
+
     for item in doc_model.elements:
         elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
         elem_type = elem.type
@@ -1240,7 +1320,7 @@ def generate_apa7_docx(
                         insert_page_break_before(img_p._element)
 
                 # 🆕 LANDSCAPE: Wrap wide images in landscape section
-                if elem.image_info and (elem.image_info.width_cm or 0) > 16.0:
+                if elem.image_info and (elem.image_info.width_cm or 0) > _landscape_threshold_cm:
                     _wrap_in_landscape_section(doc, img_p._element)
 
                 # 🆕 BUG 5 FIX: Detectar si ya existe un caption de figura en el texto
@@ -1361,24 +1441,32 @@ def generate_apa7_docx(
             format_heading_paragraph(p, lvl, heading_text, rules, preserve_text=(elem.has_math or elem.has_fields))
 
         elif elem_type == ElementType.PARAGRAPH:
+            # A1: párrafos de la portada original preservada NO se formatean.
+            if use_orig_cover and elem.is_cover_section:
+                continue
             # Reset numbered list counters — a paragraph breaks the list sequence
             numbered_counters = {1: 0, 2: 0, 3: 0}
             last_numbered_level = 0
             format_normal_paragraph(p, elem.text or p.text, rules, preserve_text=(elem.has_math or elem.has_fields))
 
         elif elem_type == ElementType.PORTADA_BLOCK:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if elem.alignment == 'center' else WD_ALIGN_PARAGRAPH.LEFT
-            p.paragraph_format.line_spacing = rules.line_spacing
-            p.paragraph_format.first_line_indent = Inches(0)
-            p.paragraph_format.space_before = Pt(2)
-            p.paragraph_format.space_after = Pt(2)
-            if elem.text:
-                p.text = ""
-                r = p.add_run(elem.text)
-                set_run_font(r, rules.font_family, rules.font_size_pt)
-                r.bold = elem.is_bold
-                r.italic = elem.is_italic
-                r.font.color.rgb = RGBColor(0, 0, 0)
+            # A1 Portada INTOCABLE: si se preserva la portada original, ni
+            # formato ni reescritura de texto — representación tal cual.
+            if use_orig_cover:
+                pass
+            else:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER if elem.alignment == 'center' else WD_ALIGN_PARAGRAPH.LEFT
+                p.paragraph_format.line_spacing = rules.line_spacing
+                p.paragraph_format.first_line_indent = Inches(0)
+                p.paragraph_format.space_before = Pt(2)
+                p.paragraph_format.space_after = Pt(2)
+                if elem.text:
+                    p.text = ""
+                    r = p.add_run(elem.text)
+                    set_run_font(r, rules.font_family, rules.font_size_pt)
+                    r.bold = elem.is_bold
+                    r.italic = elem.is_italic
+                    r.font.color.rgb = RGBColor(0, 0, 0)
 
         elif elem_type == ElementType.BLOCK_QUOTE:
             numbered_counters = {1: 0, 2: 0, 3: 0}
@@ -1449,7 +1537,8 @@ def generate_apa7_docx(
                 pass
 
         elif elem_type == ElementType.PAGE_BREAK:
-            doc.add_page_break()
+            if p is not None and p._element is not None:
+                insert_page_break_before(p._element)
 
         elif elem_type == ElementType.SECTION_BREAK:
             # Salto de sección real (no solo de página): insertar un párrafo con

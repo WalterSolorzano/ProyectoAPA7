@@ -9,6 +9,9 @@ vi.mock('../api/backend', () => ({
   listProfiles: vi.fn().mockResolvedValue([]),
   downloadTemplate: vi.fn(),
   downloadTemplateAsync: vi.fn(),
+  applyTemplate: vi.fn().mockResolvedValue({ status: 'ok' }),
+  getSideloadStatus: vi.fn().mockResolvedValue({ installed: true, up_to_date: true, path: '', installed_at: null }),
+  repairSideload: vi.fn().mockResolvedValue({ status: 'ok' }),
 }));
 
 describe('Step0QuickStart cleanup', () => {

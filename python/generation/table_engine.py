@@ -90,13 +90,43 @@ def _raw_row_tcs(row) -> list:
         return []
 
 
-def _available_page_width_inches(rules: APARuleSet, landscape: bool = False) -> float:
+def _available_page_width_inches(
+    rules: APARuleSet,
+    landscape: bool = False,
+    section=None,
+) -> float:
+    """Ancho útil en pulgadas. Lee dimensiones REALES de la sección activa
+    (page − márgenes); cae a constantes Letter solo si son desconocidas."""
+    try:
+        if (section is not None
+                and section.page_width is not None
+                and section.left_margin is not None
+                and section.right_margin is not None):
+            usable_in = float((section.page_width - section.left_margin - section.right_margin) / 914400)
+            if landscape and section.page_height is not None:
+                try:
+                    page_h = float(section.page_height / 914400)
+                    top_m = float(section.top_margin / 914400) if section.top_margin is not None else 0.0
+                    bot_m = float(section.bottom_margin / 914400) if section.bottom_margin is not None else 0.0
+                    usable_landscape = page_h - top_m - bot_m
+                    if usable_landscape > usable_in:
+                        usable_in = usable_landscape
+                except Exception:
+                    pass
+            return max(3.0, usable_in)
+    except Exception:
+        pass
     page_width = 11.0 if landscape else 8.5
     margin_inches = rules.margins_cm / 2.54
     return max(3.0, page_width - (margin_inches * 2))
 
 
-def fit_table_to_page(table, rules: APARuleSet, landscape: bool = False) -> None:
+def fit_table_to_page(
+    table,
+    rules: APARuleSet,
+    landscape: bool = False,
+    section=None,
+) -> None:
     """Force a table to stay within the available text width."""
     try:
         from docx.oxml import OxmlElement
@@ -105,7 +135,7 @@ def fit_table_to_page(table, rules: APARuleSet, landscape: bool = False) -> None
     except Exception:
         return
 
-    available_width = _available_page_width_inches(rules, landscape=landscape)
+    available_width = _available_page_width_inches(rules, landscape=landscape, section=section)
     column_count = len(table.columns)
     if column_count <= 0:
         return
@@ -152,7 +182,8 @@ def fit_table_to_page(table, rules: APARuleSet, landscape: bool = False) -> None
 def validate_table_widths(doc: docx.Document, rules: APARuleSet) -> list[str]:
     """Log any tables that still exceed the printable width after formatting."""
     warnings: list[str] = []
-    max_width = _available_page_width_inches(rules, landscape=False)
+    section = doc.sections[0] if doc.sections else None
+    max_width = _available_page_width_inches(rules, landscape=False, section=section)
     for idx, table in enumerate(doc.tables, start=1):
         total = 0.0
         try:
@@ -360,7 +391,8 @@ def format_apa_table(
 
     table = doc.add_table(rows=num_rows, cols=num_cols)
     set_table_borders(table, rules.table_border_style.value)
-    fit_table_to_page(table, rules, landscape=False)
+    fit_table_to_page(table, rules, landscape=False,
+                      section=(doc.sections[0] if doc.sections else None))
 
     current_row_idx: int = 0
 

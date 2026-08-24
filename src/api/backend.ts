@@ -12,6 +12,7 @@ import {
   LLMProgressState,
   ImageModel,
 } from '../types';
+import { useDocStore } from '../store/useDocStore';
 import { getApiBase, getApiBaseAsync, fetchWithTrace } from './http';
 
 export { getApiBase, getApiBaseAsync, resolveAssetUrl } from './http';
@@ -98,19 +99,111 @@ export async function downloadTemplateAsync(
   templateId: string
 ): Promise<void> {
   const apiBase = await getApiBaseAsync();
-  window.location.href = `${apiBase}/template-docx?profile_id=${encodeURIComponent(profileId)}&template_id=${encodeURIComponent(templateId)}`;
+  await fetchTemplateToDownload(`${apiBase}/template-docx?profile_id=${encodeURIComponent(profileId)}&template_id=${encodeURIComponent(templateId)}`, `WordAPA7_${profileId}_${templateId}.docx`);
 }
 
 export function downloadTemplate(
   profileId: string,
   templateId: string
 ): void {
-  // Descarga directa vía navegación: el backend responde FileResponse (attachment)
-  window.location.href = `${getApiBase()}/template-docx?profile_id=${encodeURIComponent(profileId)}&template_id=${encodeURIComponent(templateId)}`;
+  // Descarga via fetch->blob: NUNCA navega fuera de la app si el backend
+  // responde error (antes window.location.href mostraba el JSON del error
+  // y "sacaba" al usuario de la aplicacion).
+  void downloadTemplateAsync(profileId, templateId);
 }
 
-export async function bulkAcceptElements(
-  sessionId: string,
+async function fetchTemplateToDownload(url: string, filename: string): Promise<void> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try { detail = (await res.json()).detail || detail; } catch { /* ignore */ }
+      useDocStore.getState().showToast(`Plantilla no disponible: ${detail}`, 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+  } catch (e) {
+    useDocStore.getState().showToast(`Error descargando plantilla: ${String(e)}`, 'error');
+  }
+}
+
+export interface AIIndicesSummary {
+  indices: Record<string, number>;
+  score: number;
+  zone: string;
+  elevated_count?: number;
+  paragraphs_analyzed?: number;
+}
+
+export interface ProofreadBatchResponse {
+  findings: import('../types').ProofreadFinding[];
+  used_llm: boolean;
+  ai_indices?: AIIndicesSummary | null;
+}
+
+/** Revisor por lotes: ortografía + frases IA + texto pegado (local+LLM). */
+export async function proofreadBatch(sessionId: string): Promise<ProofreadBatchResponse> {
+  const res = await fetchWithTrace(`${getApiBase()}/proofread-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface SideloadStatus {
+  installed: boolean;
+  up_to_date: boolean;
+  path: string;
+  installed_at: string | null;
+}
+
+/** Estado del complemento de Word (carpeta System Feed). */
+export async function getSideloadStatus(): Promise<SideloadStatus> {
+  const res = await fetch(`${getApiBase()}/addin/sideload-status`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** Re-ejecuta el auto-setup del add-in (repara sideload). */
+export async function repairSideload(): Promise<{ status: string }> {
+  const res = await fetch(`${getApiBase()}/addin/auto-setup`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface ScopedApplyResult {
+  scopes: string[];
+  download_url: string;
+  tablas?: number;
+  figuras?: number;
+  refs_formateadas?: number;
+}
+
+/** Aplica SOLO los alcances pedidos sobre el original (sin regeneración). */
+export async function scopedApply(sessionId: string, scopes: string[]): Promise<ScopedApplyResult> {
+  const res = await fetchWithTrace(`${getApiBase()}/scoped-apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, scopes }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function bulkAcceptElements(  sessionId: string,
   elementIds: string[]
 ): Promise<DocumentModel> {
   const res = await fetchWithTrace(`${getApiBase()}/bulk-accept`, {

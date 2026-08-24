@@ -14,11 +14,45 @@ import { findAccentAgnostic } from '../../lib/accentMatch';
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
 
-export const computePages = (elements: ElementModel[]): ElementModel[][] => {
+// ── Marcas de transparencia (ChangeMark) ─────────────────────────────────────
+// Micro-etiqueta gris anclada al borde superior-derecho del elemento. Indica
+// qué transformación APA se aplicó (ej. "sangría aplicada", "Tabla → APA").
+// Solo lectura: el mapa vive en localStorage (key wordapa7_marcas_map) y lo
+// escribe otro agente. No editable, pointer-events none.
+const ChangeMark: React.FC<{ label: string }> = ({ label }) => (
+  <span
+    className="change-mark"
+    title={`Cambio aplicado: ${label}`}
+    style={{
+      position: 'absolute',
+      top: 2,
+      right: 2,
+      zIndex: 40,
+      maxWidth: 'calc(100% - 8px)',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      fontSize: '11px',
+      lineHeight: 1.35,
+      padding: '1px 7px',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--border-subtle)',
+      backgroundColor: 'var(--surface-elevated)',
+      color: 'var(--text-secondary)',
+      boxShadow: 'var(--shadow-sm)',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    }}
+  >
+    {label}
+  </span>
+);
+
+export const computePages = (elements: ElementModel[], maxUnits = 30): ElementModel[][] => {
   const pages: ElementModel[][] = [];
   let currentPage: ElementModel[] = [];
   let currentEstimatedHeight = 0;
-  const MAX_PAGE_UNITS = 30;
+  const MAX_PAGE_UNITS = Math.max(20, Math.round(maxUnits));
 
   elements.forEach((elem) => {
     if (elem.type === 'empty') return;
@@ -67,6 +101,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
+  const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
+  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [contextMenuElemId, setContextMenuElemId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -271,15 +307,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       const isComment = m.kind === 'comment';
       const isCitation = m.kind === 'citation';
       const color = isCitation
-        ? (m.severity === 'HIGH' ? '#8a4d00' : '#1a7f4e')
-        : isComment ? '#7c5e00' : isSpell ? '#d4382e' : m.severity === 'HIGH' ? '#d4382e' : m.severity === 'MEDIUM' ? '#b8860b' : '#1e6fd9';
+        ? (m.severity === 'HIGH' ? 'var(--warn-brown)' : 'var(--ok-deep)')
+        : isComment ? 'var(--warn-dark)' : isSpell ? 'var(--accent-danger, #d4382e)' : m.severity === 'HIGH' ? 'var(--accent-danger, #d4382e)' : m.severity === 'MEDIUM' ? 'var(--warn-amber)' : 'var(--info-blue)';
       const bg = isCitation
         ? (m.severity === 'HIGH' ? 'rgba(214,137,16,0.22)' : 'rgba(26,127,78,0.15)')
         : isComment ? 'rgba(255, 213, 0, 0.45)' : isSpell ? 'rgba(212,56,46,0.12)' : m.severity === 'HIGH' ? 'rgba(212,56,46,0.15)' : m.severity === 'MEDIUM' ? 'rgba(184,134,11,0.15)' : 'rgba(30,111,217,0.12)';
       out.push(
         <mark key={`${m.start}-${i}`} title={m.title} style={{
           color, backgroundColor: bg,
-          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy #d4382e' : `underline dotted ${color}`,
+          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy var(--accent-danger, #d4382e)' : `underline dotted ${color}`,
           padding: '0 1px', borderRadius: 2,
         }}>
           {frag}
@@ -371,6 +407,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       const targetEl = document.getElementById(`paper-elem-${selectedElementId}`);
       if (targetEl) {
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Flash visible: el usuario DEBE ver dónde aterrizó.
+        const prev = (targetEl as HTMLElement).style.boxShadow;
+        (targetEl as HTMLElement).style.transition = 'box-shadow 0.3s';
+        (targetEl as HTMLElement).style.boxShadow = 'inset 0 0 0 3px var(--accent-primary)';
+        window.setTimeout(() => {
+          (targetEl as HTMLElement).style.boxShadow = prev;
+        }, 1400);
+      } else if (selectedElementId) {
+        // Elemento aún no montado (página virtual lejana): reintenta corto.
+        const t = window.setTimeout(() => {
+          document.getElementById(`paper-elem-${selectedElementId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 350);
+        return () => window.clearTimeout(t);
       }
     }
   }, [selectedElementId]);
@@ -386,26 +435,64 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     }
   }, [scrollTargetId]);
 
+  // ── Marcas de transparencia: mapa elemento → etiqueta (SOLO LECTURA) ──
+  // Escrito por otro agente en localStorage key `wordapa7_marcas_map`.
+  const marcasVisibles = useDocStore((s) => s.marcasVisibles);
+  const [marcasMap, setMarcasMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!marcasVisibles) { setMarcasMap({}); return; }
+    const load = () => {
+      try {
+        const raw = JSON.parse(localStorage.getItem('wordapa7_marcas_map') || '{}');
+        setMarcasMap(raw && typeof raw === 'object' ? raw : {});
+      } catch {
+        setMarcasMap({});
+      }
+    };
+    load();
+    window.addEventListener('storage', load);
+    return () => window.removeEventListener('storage', load);
+  }, [marcasVisibles, doc]);
+
   if (!doc) return null;
 
   const fontFamily = rules.font_family || 'Times New Roman';
 
-  // Algoritmo de paginación virtual respetando salto de página del cuerpo
-  const pages = computePages(doc.elements);
+  // ── Geometría de página: aspect fijo según tamaño (A4 / Letter), nunca
+  // crece con el contenido. Antes la hoja solo tenía minHeight y crecía con
+  // tablas/figuras largas → "páginas larguísimas". ──
+  const PAGE_W = 680;
+  const pageSizeRaw = String((rules as any)?.page_size || 'letter').toLowerCase();
+  const pageRatio = pageSizeRaw.includes('a4') ? 297 / 210 : 11 / 8.5;
+  const PAGE_H = Math.round(PAGE_W * pageRatio); // Letter ≈ 880px · A4 ≈ 962px
+
+    // Algoritmo de paginación virtual respetando salto de página del cuerpo
+    // Capacidad proporcional a la altura real de la hoja (Letter 880 / A4 962)
+    const pages = computePages(doc.elements, Math.max(18, Math.floor((PAGE_H - 96) / 34)));
 
   // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
-  const commentCtx = {
+  const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
+  const commentCtx = proactivas ? {
     ghostCitations: (citationAudit?.ghost_citations || []) as any[],
     orphanReferences: (citationAudit?.orphan_references || []) as any[],
     validationIssues: (validationIssues || []) as any[],
     // Sin auditoría de estilo no se juzga redacción: evita inundar de
     // comentarios ("detecta que como falla") en cada párrafo del documento.
     styleAuditRun: !!reviewResult,
+  } : {
+    ghostCitations: [] as any[],
+    orphanReferences: [] as any[],
+    validationIssues: [] as any[],
+    styleAuditRun: false,
   };
   // Un solo festejo: SOLO si el documento entero está impecable (cero comentarios).
   const positiveMap = new Map<string, boolean>();
+  // Geometría de gutter: SI el documento tiene al menos un comentario, TODAS las
+  // páginas reservan los mismos espaciadores (izq+der) → filas idénticas, hoja
+  // siempre centrada, sin zigzag ni clipping lateral.
+  let docHasComments = false;
   {
     let anyComment = false;
     for (const pageElements of pages) {
@@ -420,6 +507,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         if (h) { positiveMap.set(h.id, true); break; }
       }
     }
+    docHasComments = anyComment;
   }
 
   // ── Gutter de comentarios (estilo Word): burbujas FUERA de la hoja, en una
@@ -512,6 +600,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   return (
     <div
       ref={wrapperRef}
+      className="paper-canvas-scroll"
       style={{
         flex: 1,
         height: '100%',
@@ -523,7 +612,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         alignItems: 'center',
         padding: '24px 16px',
         position: 'relative',
-        scrollbarColor: 'rgba(255,255,255,0.15) transparent',
         overscrollBehavior: 'contain'
       }}
     >
@@ -627,13 +715,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             {/* Abrir/cerrar panel de edición completo */}
             <button
               type="button"
-              onClick={() => useDocStore.setState({ imagePanelOpen: !useDocStore.getState().imagePanelOpen })}
-              aria-pressed={useDocStore.getState().imagePanelOpen}
+              onClick={() => setImagePanelOpen(!imagePanelOpen)}
+              aria-pressed={imagePanelOpen}
               title="Mostrar u ocultar el panel de edición de la imagen"
               style={{
                 display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
-                background: useDocStore.getState().imagePanelOpen ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                color: useDocStore.getState().imagePanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                background: imagePanelOpen ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                color: imagePanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
                 border: '1px solid var(--border-subtle)', borderRadius: '4px', cursor: 'pointer',
               }}>
               <PanelRight size={11} /> Editar panel
@@ -705,19 +793,21 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
           return (
             <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', position: 'relative' }}>
-            {pageCommentElems.length > 0 && <div aria-hidden="true" style={{ width: '250px', flexShrink: 0 }} />}
+            {docHasComments && <div aria-hidden="true" style={{ width: '250px', flexShrink: 0 }} />}
             <div
               style={{
-                width: '680px',
-                minHeight: '880px',
-                backgroundColor: '#ffffff',
+                width: `${PAGE_W}px`,
+                maxWidth: '100%',
+                height: `${PAGE_H}px`,
+                overflow: 'hidden',
+                backgroundColor: 'var(--paper-white)',
                 boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
                 padding: '54px 54px',
                 boxSizing: 'border-box',
                 position: 'relative',
                 fontFamily: fontFamily,
                 fontSize: `${rules.font_size_pt}pt`,
-                color: '#000000',
+                color: 'var(--ink, #000000)',
                 display: 'flex',
                 flexDirection: 'column'
               }}
@@ -729,7 +819,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 fontSize: '10pt',
                 fontFamily: fontFamily,
                 marginBottom: '16px',
-                color: '#000000',
+                color: 'var(--ink, #000000)',
                 minHeight: '20px'
               }}>
                 {doc.apa_format === 'professional' && showPageNumber ? (
@@ -754,7 +844,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               ) : isCoverPage && !portada.use_original_cover ? (
                 <APACoverEditor />
               ) : isCoverPage && coverHeaderTexts.length > 0 && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: '780px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, height: '100%' }}>
                   
                   {/* Badge informativo: la portada original del archivo se conserva
                       en el documento final. Sutil y no intrusivo para que el usuario
@@ -766,9 +856,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                       gap: '4px',
                       alignSelf: 'center',
                       fontSize: '9pt',
-                      color: '#64748b',
-                      backgroundColor: '#f1f5f9',
-                      border: '1px solid #cbd5e1',
+                      color: 'var(--paper-muted)',
+                      backgroundColor: 'var(--paper-alt)',
+                      border: '1px solid var(--paper-line-strong)',
                       borderRadius: '4px',
                       padding: '2px 10px',
                       marginBottom: '10px',
@@ -811,7 +901,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 textAlign: (elem.alignment as any) || 'center',
                                 fontWeight: elem.is_bold ? 'bold' : 'normal',
                                 fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
-                                color: '#0f172a',
+                                color: 'var(--paper-ink)',
                                 cursor: 'pointer'
                               }}
                             >
@@ -831,7 +921,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     textAlign: 'center',
                                     fontWeight: elem.is_bold ? 'bold' : 'normal',
                                     fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
-                                    color: '#0f172a',
+                                    color: 'var(--paper-ink)',
                                     cursor: 'pointer',
                                     whiteSpace: 'pre-line',
                                   }}
@@ -854,7 +944,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                         gap: '12px',
                         alignItems: 'start',
-                        borderLeft: '2px solid #e2e8f0',
+                        borderLeft: '2px solid var(--paper-line)',
                         paddingLeft: '12px'
                       }}>
                         {coverAuthorTexts.map(elem => (
@@ -866,14 +956,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               padding: '4px',
                               borderRadius: '4px',
                               cursor: 'pointer',
-                              backgroundColor: selectedElementId === elem.id ? '#eff6fc' : 'transparent'
+                              backgroundColor: selectedElementId === elem.id ? 'var(--info-mist)' : 'transparent'
                             }}
                           >
                             <p style={{
                               margin: 0,
                               fontSize: '11pt',
                               fontWeight: elem.text.toLowerCase().includes('elaborado') || elem.text.toLowerCase().includes('tutor') ? 'bold' : 'normal',
-                              color: '#0f172a',
+                              color: 'var(--paper-ink)',
                               whiteSpace: 'pre-line'
                             }}>
                               {elem.text}
@@ -898,7 +988,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               margin: 0,
                               fontSize: '11pt',
                               fontWeight: 'bold',
-                              color: '#0f172a',
+                              color: 'var(--paper-ink)',
                               cursor: 'pointer',
                               textAlign: 'left'
                             }}
@@ -919,7 +1009,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               margin: 0,
                               fontSize: '11pt',
                               fontWeight: 'bold',
-                              color: '#0f172a',
+                              color: 'var(--paper-ink)',
                               cursor: 'pointer',
                               textAlign: 'right'
                             }}
@@ -932,7 +1022,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 </div>
               ) : (
                 /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   {pageElements.map((elem) => {
                     const isSelected = selectedElementId === elem.id;
                     const isContextMenuOpen = contextMenuElemId === elem.id;
@@ -955,7 +1045,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     
                     const hasGhostCitation = useDocStore.getState().citationAuditResult?.ghost_citations?.some((c: any) => c.element_id === elem.id);
                     let borderColor = 'transparent';
-                    if (hasGhostCitation) borderColor = '#dc2626';
+                    if (hasGhostCitation) borderColor = 'var(--danger)';
                     
                     if (showAIHeatmap) {
                       const score = elem.ai_score !== undefined ? elem.ai_score : (elem.confidence < 0.5 ? 0.9 : 0.1);
@@ -1016,7 +1106,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         }}
                         style={{
                           position: 'relative',
-                          border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed #dc2626' : '2px solid transparent',
+                          border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed var(--danger)' : '2px solid transparent',
                           borderLeft: isSelected ? '2px solid var(--word-blue)' : aiMarginBorder,
                           borderRadius: '2px',
                           padding: '2px 2px 2px 6px',
@@ -1039,7 +1129,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             position: 'absolute',
                             top: 'calc(100% + 4px)',
                             left: '0',
-                            backgroundColor: '#ffffff',
+                            backgroundColor: 'var(--paper-white)',
                             border: '1px solid var(--border-color)',
                             borderRadius: '4px',
                             padding: '4px 8px',
@@ -1080,11 +1170,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             </button>
                             
                             {/* AI Actions */}
-                            <div style={{ width: '1px', backgroundColor: '#e2e8f0', margin: '0 4px' }} />
+                            <div style={{ width: '1px', backgroundColor: 'var(--paper-line)', margin: '0 4px' }} />
                             {(elem.type === 'image' || elem.type === 'table') && (
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--ok-bg)', color: 'var(--ok-text)', border: '1px solid var(--ok-line)', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleSuggestCaption(elem)}
                               >
                                 <Wand2 size={10} /> Sugerir Leyenda
@@ -1106,7 +1196,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             {(elem.type === 'paragraph' || elem.type === 'heading') && (
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--ok-bg)', color: 'var(--ok-text)', border: '1px solid var(--ok-line)', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleRewriteText(elem)}
                               >
                                 <Wand2 size={10} /> Reescribir Texto
@@ -1283,15 +1373,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               <div style={{
                                 margin: '16px 0 24px 0',
                                 padding: '20px 24px',
-                                backgroundColor: '#f8fafc',
-                                border: '1.5px dashed #94a3b8',
+                                backgroundColor: 'var(--paper-bg)',
+                                border: '1.5px dashed var(--paper-faint)',
                                 borderRadius: '8px',
                                 fontFamily: fontFamily,
                               }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--paper-line)', paddingBottom: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontWeight: 700, fontSize: '13pt', color: '#0f172a' }}>Índice / Tabla de Contenidos</span>
-                                    <span style={{ fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                    <span style={{ fontWeight: 700, fontSize: '13pt', color: 'var(--paper-ink)' }}>Índice / Tabla de Contenidos</span>
+                                    <span style={{ fontSize: '10px', backgroundColor: 'var(--info-sky)', color: 'var(--info-cyan)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
                                       Nativo Word (TOC) con hipervínculos
                                     </span>
                                   </div>
@@ -1304,7 +1394,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     style={{
                                       background: 'none',
                                       border: 'none',
-                                      color: '#ef4444',
+                                      color: 'var(--danger-bright)',
                                       fontSize: '11px',
                                       fontWeight: 600,
                                       cursor: 'pointer',
@@ -1337,27 +1427,27 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                             marginLeft: `${(lvl - 1) * 20}px`,
                                             fontSize: `${rules.font_size_pt - 0.5}pt`,
                                             cursor: 'pointer',
-                                            color: '#1e293b',
+                                            color: 'var(--ink-strong, #1e293b)',
                                             fontWeight: lvl === 1 ? 600 : 400,
                                             padding: '2px 4px',
                                             borderRadius: '4px',
                                             transition: 'background-color 0.15s ease',
                                           }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--paper-line)'; }}
                                           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                                         >
                                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
                                             {title}
                                           </span>
-                                          <span style={{ flex: 1, borderBottom: '1px dotted #94a3b8', margin: '0 8px', minWidth: '20px' }}></span>
-                                          <span style={{ fontSize: '10pt', color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+                                          <span style={{ flex: 1, borderBottom: '1px dotted var(--paper-faint)', margin: '0 8px', minWidth: '20px' }}></span>
+                                          <span style={{ fontSize: '10pt', color: 'var(--paper-muted)', fontVariantNumeric: 'tabular-nums' }}>
                                             {hIdx + 3}
                                           </span>
                                         </div>
                                       );
                                     })}
                                 </div>
-                                <div style={{ marginTop: '14px', fontSize: '10px', color: '#64748b', textAlign: 'center', fontStyle: 'italic' }}>
+                                <div style={{ marginTop: '14px', fontSize: '10px', color: 'var(--paper-muted)', textAlign: 'center', fontStyle: 'italic' }}>
                                   Word COM generará este índice automáticamente con los números de página exactos y enlaces interactivos para PDF.
                                 </div>
                               </div>
@@ -1371,8 +1461,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         {(elem.type === 'image' || elem.image_info) && !elem.is_cover_section && (
                           <div style={{
                             margin: '16px auto', maxWidth: '95%',
-                            border: '1px solid #cbd5e1', borderRadius: '8px',
-                            backgroundColor: '#fafbfc', padding: '10px',
+                            border: '1px solid var(--paper-line-strong)', borderRadius: '8px',
+                            backgroundColor: 'var(--paper-near)', padding: '10px',
                             position: 'relative',
                             display: 'flex', flexDirection: 'column',
                           }}>
@@ -1437,10 +1527,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 minWidth: '120px',
                                 minHeight: '120px',
                                 overflow: 'hidden',
-                                backgroundColor: '#f8fafc',
+                                backgroundColor: 'var(--paper-bg)',
                                 border: selectedElementId === elem.id
                                   ? '2px solid var(--accent-primary)'
-                                  : '1px solid #e2e8f0',
+                                  : '1px solid var(--paper-line)',
                                 borderRadius: '6px',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1496,7 +1586,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             </div>
 
                             {elem.image_info?.note && (
-                              <p style={{ fontSize: '11px', marginTop: '8px', color: '#334155', textAlign: 'left', order: 3 }}>
+                              <p style={{ fontSize: '11px', marginTop: '8px', color: 'var(--paper-slate)', textAlign: 'left', order: 3 }}>
                                 <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
                               </p>
                             )}
@@ -1514,7 +1604,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           <div style={{ margin: '16px 0', width: '100%', overflowX: 'auto' }}>
                             <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
                               Tabla {elem.table_info.table_number}
-                              <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: '#475569', marginLeft: '8px' }}>
+                              <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
                                 · estilo {styleLabel}
                               </span>
                             </p>
@@ -1522,13 +1612,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             <table style={{
                               width: '100%',
                               borderCollapse: 'collapse',
-                              borderTop: `${borderW} solid #000000`,
-                              borderBottom: `${borderW} solid #000000`,
+                              borderTop: `${borderW} solid var(--ink, #000000)`,
+                              borderBottom: `${borderW} solid var(--ink, #000000)`,
                               margin: '8px 0'
                             }}>
                               {elem.table_info.headers && (
                                 <thead>
-                                  <tr style={{ borderBottom: `${borderW} solid #000000` }}>
+                                  <tr style={{ borderBottom: `${borderW} solid var(--ink, #000000)` }}>
                                     {elem.table_info.headers.map((h, i) => (
                                       <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont }}>{h}</th>
                                     ))}
@@ -1546,7 +1636,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               </tbody>
                             </table>
                             {elem.table_info.note && (
-                              <p style={{ fontSize: '11px', marginTop: '6px', color: '#334155' }}>
+                              <p style={{ fontSize: '11px', marginTop: '6px', color: 'var(--paper-slate)' }}>
                                 <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
                               </p>
                             )}
@@ -1556,6 +1646,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                         {/* Comentarios estilo WhatsApp: ahora viven en el gutter
                             lateral (columna derecha fuera de la hoja, como Word). */}
+
+                        {/* Marca de transparencia: etiqueta del cambio APA aplicado */}
+                        {marcasVisibles && marcasMap[elem.id] && (
+                          <ChangeMark label={marcasMap[elem.id]} />
+                        )}
                       </div>
                     );
                   })}
@@ -1565,7 +1660,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             {/* Gutter de comentarios: columna lateral fuera de la hoja (estilo Word).
                 Tope de burbujas por página (MAX_GUTTER) para no inundar; el resto
                 se resume en un chip "+N más". */}
-            {pageCommentElems.length > 0 && (
+            {docHasComments && (
               <div style={{ position: 'relative', width: '250px', flexShrink: 0 }}>
                 {(() => {
                   let shown = 0;
@@ -1582,8 +1677,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         shown += 1;
                         const measured = gutterOffsets[elem.id];
                         const top = typeof measured === 'number' && measured > 0
-                          ? measured
-                          : Math.min(idx * 96, 880 - 84);
+                          ? Math.min(measured, PAGE_H - 84)
+                          : Math.min(idx * 96, PAGE_H - 84);
                         return (
                           <div
                             key={elem.id}
@@ -1603,7 +1698,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                       })}
                       {extra > MAX_GUTTER && (
                         <div style={{
-                          position: 'absolute', top: `${Math.min((MAX_GUTTER + 1) * 96, 880 - 84)}px`, left: 0, width: '100%',
+                          position: 'absolute', top: `${Math.min((MAX_GUTTER + 1) * 96, PAGE_H - 84)}px`, left: 0, width: '100%',
                           fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700,
                           display: 'flex', alignItems: 'center', gap: '5px',
                         }}>
@@ -1627,7 +1722,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               <div
                 aria-hidden="true"
                 style={{
-                  position: 'absolute', left: '680px', top: `${gutterOffsets[hoveredCommentId]}px`,
+                  position: 'absolute', left: `${PAGE_W}px`, top: `${gutterOffsets[hoveredCommentId]}px`,
                   width: '20px', height: 0,
                   borderTop: '1.5px dashed rgba(79,124,255,0.65)',
                   pointerEvents: 'none', zIndex: 20,

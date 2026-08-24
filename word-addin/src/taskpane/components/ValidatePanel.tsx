@@ -157,7 +157,7 @@ export function ValidatePanel({ showToast }: Props) {
         {analyzing ? (
           <><span className="spinner" /> Analizando...</>
         ) : (
-          <>✓ Analizar selección</>
+          <>Analizar selección</>
         )}
       </button>
 
@@ -169,7 +169,7 @@ export function ValidatePanel({ showToast }: Props) {
         {analyzing ? (
           <><span className="spinner" /> Analizando...</>
         ) : (
-          <>📋 Analizar todo el documento</>
+          <>Analizar todo el documento</>
         )}
       </button>
 
@@ -181,7 +181,7 @@ export function ValidatePanel({ showToast }: Props) {
         {formatting ? (
           <><span className="spinner" /> Formateando...</>
         ) : (
-          <>⚙ Aplicar APA 7 a la selección</>
+          <>Aplicar APA 7 a la selección</>
         )}
       </button>
 
@@ -193,7 +193,7 @@ export function ValidatePanel({ showToast }: Props) {
         {formatting ? (
           <><span className="spinner" /> Formateando...</>
         ) : (
-          <>⚙ Formatear todo a APA 7</>
+          <>Formatear todo a APA 7</>
         )}
       </button>
 
@@ -203,9 +203,15 @@ export function ValidatePanel({ showToast }: Props) {
           <div className="field-label">Problemas detectados</div>
           {issues.map((issue, i) => (
             <div key={i} className={`issue issue--${issue.severity}`}>
-              <span className="issue__icon">
-                {issue.severity === 'error' ? '✕' : issue.severity === 'warning' ? '⚠' : 'ℹ'}
-              </span>
+              <span
+                className={`finding-card__dot ${
+                  issue.severity === 'error'
+                    ? 'finding-card__dot--error'
+                    : issue.severity === 'warning'
+                      ? 'finding-card__dot--warn'
+                      : 'finding-card__dot--info'
+                }`}
+              />
               <div className="issue__text">
                 {issue.message}
                 {issue.suggestion && (
@@ -219,9 +225,10 @@ export function ValidatePanel({ showToast }: Props) {
 
       {/* Estado vacío */}
       {issues.length === 0 && score === null && (
-        <div style={{ textAlign: 'center', padding: '20px 12px', color: 'var(--text-tertiary)', fontSize: 11 }}>
-          Seleccioná texto en tu documento y pulsá "Analizar selección"
-          para revisar el cumplimiento de APA 7 en tiempo real.
+        <div className="step-chips step-chips--vertical" aria-label="Cómo validar APA 7">
+          <span className="step-chips__chip"><b>1</b> Seleccioná texto en el documento</span>
+          <span className="step-chips__chip"><b>2</b> Pulsá Analizar selección</span>
+          <span className="step-chips__chip"><b>3</b> Aplicá formato APA 7</span>
         </div>
       )}
     </div>

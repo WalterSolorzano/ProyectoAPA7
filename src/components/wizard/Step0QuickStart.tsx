@@ -4,7 +4,7 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Download, FileUp, Home, Menu, Lock, Lightbulb
+  Download, FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -78,6 +78,64 @@ function getGreeting(): string {
   return 'Buenas noches';
 }
 
+/** DEV: diagnóstico del complemento de Word (sideload System Feed). */
+const AddinDiagnosticCard: React.FC = () => {
+  const [status, setStatus] = useState<api.SideloadStatus | null>(null);
+  const [repairing, setRepairing] = useState(false);
+
+  const refresh = () => {
+    if (typeof api.getSideloadStatus !== 'function') return;
+    api.getSideloadStatus().then(setStatus).catch(() => setStatus(null));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const installed = !!status?.installed;
+  let installedAt = '';
+  try {
+    if (installed && status?.installed_at) installedAt = new Date(status.installed_at).toLocaleString();
+  } catch { /* noop */ }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '14px',
+      padding: '12px 16px', borderRadius: 'var(--radius-lg)',
+      background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+      marginBottom: '20px', maxWidth: '620px', marginInline: 'auto',
+    }}>
+      <Plug size={18} color={installed ? 'var(--color-success)' : 'var(--color-danger)'} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
+          Complemento de Word: {installed ? 'instalado' : 'no instalado'}
+          {installed && status?.up_to_date === false ? ' (desactualizado)' : ''}
+        </div>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: '2px' }}>
+          {installed
+            ? (installedAt ? `System Feed · ${installedAt}` : 'Instalado en System Feed')
+            : 'Ejecutá "Reintentar" y luego cerrá Word completo (revisá la bandeja) y abrilo de nuevo.'}
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={repairing}
+        onClick={() => {
+          setRepairing(true);
+          api.repairSideload()
+            .then(() => useDocStore.getState().showToast('Complemento reinstalado. Cerrá Word y volvé a abrirlo.', 'success'))
+            .catch((e) => useDocStore.getState().showToast(`Fallo reparación: ${String(e)}`, 'error'))
+            .finally(() => { setRepairing(false); refresh(); });
+        }}
+        style={{
+          fontSize: 'var(--text-xs)', fontWeight: 700, fontFamily: 'inherit',
+          padding: '5px 12px', cursor: repairing ? 'wait' : 'pointer',
+          borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent-primary)',
+          background: 'transparent', color: 'var(--accent-primary)',
+        }}
+      >
+        Reintentar instalación
+      </button>
+    </div>
+  );
+};
+
 function timeAgo(dateStr: string): string {
   const d = new Date(dateStr);
   const now = new Date();
@@ -87,78 +145,6 @@ function timeAgo(dateStr: string): string {
   const days = Math.floor(diff / 86400);
   if (days === 1) return 'Ayer';
   return `Hace ${days} días`;
-}
-
-const PromoSlider: React.FC = () => {
-  const [slide, setSlide] = useState(0)
-
-  const slides = [
-    {
-      title: '¡Nuevo Complemento para Word incluido!',
-      desc: 'Ahora podés formatear en vivo sin salir de Microsoft Word. Buscá "WordAPA7" en la cinta de opciones o instalá el archivo manifest.xml si aún no aparece.',
-      icon: <FileText size={48} color="var(--accent-primary)" style={{ opacity: 0.9 }} />,
-      color: 'var(--color-accent-soft)',
-      border: 'var(--accent-primary)'
-    },
-    {
-      title: 'Mejoras de Diseño y Validaciones',
-      desc: 'Interfaz rediseñada más limpia y rápida. Panel derecho unificado, visor jerárquico de títulos y nuevo cruce validador de citas fantasma y referencias huérfanas.',
-      icon: <Lightbulb size={48} color="#e85d04" style={{ opacity: 0.9 }} />,
-      color: 'rgba(232, 93, 4, 0.08)',
-      border: 'rgba(232, 93, 4, 0.6)'
-    }
-  ]
-
-  useEffect(() => {
-    const t = setInterval(() => setSlide(s => (s + 1) % slides.length), 6000)
-    return () => clearInterval(t)
-  }, [])
-
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '20px',
-      maxWidth: '620px',
-      margin: '0 auto 30px',
-      padding: '24px 30px 36px',
-      backgroundColor: slides[slide].color,
-      border: `1px solid ${slides[slide].border}`,
-      borderRadius: 'var(--radius-xl)',
-      boxShadow: 'var(--shadow-md)',
-      transition: 'all 0.4s ease-out',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      <div style={{ flexShrink: 0, transition: 'all 0.3s ease', transform: 'scale(1)' }}>
-         {slides[slide].icon}
-      </div>
-      <div style={{ flex: 1, minHeight: '66px' }}>
-        <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
-          {slides[slide].title}
-        </div>
-        <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5, fontWeight: 500 }}>
-          {slides[slide].desc}
-        </div>
-      </div>
-      
-      {/* Indicadores */}
-      <div style={{ position: 'absolute', bottom: 14, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 8 }}>
-        {slides.map((_, i) => (
-           <button 
-             key={i}
-             onClick={() => setSlide(i)}
-             style={{ 
-               width: 8, height: 8, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
-               background: i === slide ? slides[slide].border : 'var(--text-muted)',
-               opacity: i === slide ? 1 : 0.4, transition: 'all 0.3s'
-             }} 
-             aria-label={`Ver slide ${i + 1}`}
-           />
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export const Step0QuickStart: React.FC = () => {
@@ -190,6 +176,14 @@ export const Step0QuickStart: React.FC = () => {
   // No hay paso intermedio de previsualización. Siempre Modo Guiado (review).
   // CRITICAL: dar feedback al usuario cuando el backend no está listo en lugar
   // de retornar silenciosamente — antes "no hace nada" al arrastrar un archivo.
+  const [scopeFilterOpen, setScopeFilterOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+
+  const doUpload = (file: File) => {
+    uploadFile(file, { profileId: activeProfileId, mode: 'review' });
+  };
+
   const handleUploadFile = (file: File) => {
     if (isLoading) return;
     if (!isBackendReady) {
@@ -203,7 +197,9 @@ export const Step0QuickStart: React.FC = () => {
       useDocStore.getState().showToast('Solo se aceptan archivos .docx', 'warning');
       return;
     }
-    uploadFile(file, { profileId: activeProfileId, mode: 'review' });
+    // Filtro de alcances: decidir ANTES de subir qué se tocará.
+    setPendingFile(file);
+    setScopeFilterOpen(true);
   };
 
   const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,8 +222,7 @@ export const Step0QuickStart: React.FC = () => {
   };
 
   const triggerFilePicker = () => {
-    if (isLoading) return;
-    if (!isBackendReady) {
+    if (isLoading) return;    if (!isBackendReady) {
       useDocStore.getState().showToast(
         'El motor está iniciando. Aguardá unos segundos e intentá de nuevo.',
         'warning'
@@ -271,7 +266,7 @@ export const Step0QuickStart: React.FC = () => {
         {/* Branding: SVG icon + nombre (sin repetir "APA 7") */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <BrandIcon size={20} />
-          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
 
         {/* Divider */}
@@ -287,7 +282,7 @@ export const Step0QuickStart: React.FC = () => {
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-sm)',
             color: 'var(--text-main)',
-            fontSize: '12px',
+            fontSize: 'var(--text-sm)',
             padding: '4px 10px',
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: '6px',
@@ -316,7 +311,7 @@ export const Step0QuickStart: React.FC = () => {
                   padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                   backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
                   border: '1px solid var(--accent-primary)', fontFamily: 'inherit',
-                  fontSize: '11px', fontWeight: 700,
+                  fontSize: 'var(--text-xs)', fontWeight: 700,
                   marginRight: isElectron ? 140 : 0, // reserva para botones nativos
                   ...noDragRegion,
                 }}
@@ -371,7 +366,80 @@ export const Step0QuickStart: React.FC = () => {
       </div>
 
       {/* Menú "Configuraciones" estilo Notion */}
-      {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
+        {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
+
+        {/* ── Filtro de alcances: ¿qué se toca de este Word? ── */}
+        {scopeFilterOpen && pendingFile && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 500, backgroundColor: 'rgba(10,12,24,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}>
+            <div style={{
+              width: '100%', maxWidth: 460, backgroundColor: 'var(--sidebar-bg)',
+              border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xl)',
+              boxShadow: 'var(--shadow-card)', padding: '22px 24px',
+            }}>
+              <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
+                ¿Qué modificamos de "{pendingFile.name}"?
+              </h3>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 14px' }}>
+                Solo se toca lo que elijas. Lo demás queda EXACTAMENTE igual.
+              </p>
+              {[
+                { id: 'texto', label: 'Texto', desc: 'Tipografía, interlineado y sangría' },
+                { id: 'tablas_imagenes', label: 'Tablas e imágenes', desc: 'Numeración Tabla N / Figura N + bordes APA' },
+                { id: 'bibliografia', label: 'Bibliografía', desc: 'Sangría francesa y espaciado APA' },
+              ].map((s) => {
+                const on = selectedScopes.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedScopes((prev) => on ? prev.filter((x) => x !== s.id) : [...prev, s.id])}
+                    style={{
+                      width: '100%', textAlign: 'left', marginBottom: 8, cursor: 'pointer',
+                      fontFamily: 'inherit', padding: '10px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1px solid ${on ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                      background: on ? 'var(--accent-soft)' : 'var(--surface-elevated)',
+                    }}
+                  >
+                    <span style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 700, color: on ? 'var(--accent-primary)' : 'var(--text-main)' }}>
+                      {s.label} {on ? '✓' : ''}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{s.desc}</span>
+                  </button>
+                );
+              })}
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button
+                  type="button"
+                  disabled={selectedScopes.length === 0}
+                  onClick={() => {
+                    useDocStore.getState().setSessionScopes(selectedScopes);
+                    setScopeFilterOpen(false);
+                    doUpload(pendingFile);
+                    useDocStore.getState().showToast(`Se aplicará solo: ${selectedScopes.join(', ')}`, 'info');
+                  }}
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: selectedScopes.length ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 700, background: 'var(--accent-primary)', color: '#fff', border: 'none', opacity: selectedScopes.length ? 1 : 0.5 }}
+                >
+                  Aplicar solo lo elegido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useDocStore.getState().setSessionScopes([]);
+                    setScopeFilterOpen(false);
+                    doUpload(pendingFile);
+                  }}
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+                >
+                  Formato completo APA
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* ── ÁREA PRINCIPAL ─── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '28px 60px 56px' }}>
@@ -385,13 +453,13 @@ export const Step0QuickStart: React.FC = () => {
             color: 'var(--accent-danger)', borderRadius: '8px', fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: '10px',
           }}>
-            <span>⚠️</span>
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
             <span style={{ flex: 1 }}>{error}</span>
             <button
               type="button"
               aria-label="Cerrar error"
               onClick={() => useDocStore.setState({ error: null })}
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '16px', padding: '2px' }}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 'var(--text-lg)', padding: '2px' }}
             >
               ×
             </button>
@@ -401,9 +469,6 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
           <div style={{ maxWidth: '820px', margin: '0 auto' }}>
-            {/* Promo Slider */}
-            <PromoSlider />
-
             {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
             <HomeHero />
 
@@ -420,7 +485,7 @@ export const Step0QuickStart: React.FC = () => {
                   borderTopLeftRadius: '4px',
                   borderRadius: '14px',
                   padding: '10px 14px',
-                  fontSize: '12.5px', fontWeight: 600,
+                  fontSize: 'var(--text-sm)', fontWeight: 600,
                   color: 'var(--text-main)',
                   boxShadow: 'var(--shadow-md)',
                   maxWidth: '320px',
@@ -468,17 +533,17 @@ export const Step0QuickStart: React.FC = () => {
                   }}>
                     <FileUp size={30} color={dragging ? '#fff' : 'var(--accent-primary)'} style={{ transition: 'color 0.2s ease' }} />
                   </div>
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px', letterSpacing: '-0.01em' }}>
+                  <span style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px', letterSpacing: '-0.01em' }}>
                     {isLoading ? 'Procesando tu documento…' : 'Arrastrá tu documento .docx aquí'}
                   </span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                     o hacé clic para seleccionar un archivo
                   </span>
                 </div>
 
                 {/* Selector de perfil de formato (siempre visible, antes de subir) */}
                 <div style={{ marginTop: '22px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px', letterSpacing: '0.02em' }}>
+                  <label style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px', letterSpacing: '0.02em' }}>
                     Perfil de formato
                   </label>
                   <select
@@ -488,7 +553,7 @@ export const Step0QuickStart: React.FC = () => {
                     style={{
                       width: '100%', padding: '11px 14px', borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--border-strong)', backgroundColor: 'var(--canvas-bg)',
-                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '13px', fontWeight: 500,
+                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 500,
                       cursor: isLoading ? 'wait' : 'pointer', transition: 'border-color 0.15s ease',
                     }}
                   >
@@ -510,7 +575,7 @@ export const Step0QuickStart: React.FC = () => {
                     width: '100%', marginTop: '16px', padding: '14px 20px',
                     borderRadius: 'var(--radius-md)', border: 'none', cursor: busy ? 'wait' : 'pointer',
                     backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    fontFamily: 'inherit', fontSize: '14px', fontWeight: 700, letterSpacing: '0.01em',
+                    fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 700, letterSpacing: '0.01em',
                     boxShadow: 'var(--shadow-lg)',
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
                     opacity: busy ? 0.8 : 1,
@@ -542,11 +607,35 @@ export const Step0QuickStart: React.FC = () => {
                   marginTop: '20px', paddingTop: '18px', borderTop: '1px solid var(--border-subtle)',
                 }}>
                   <Lock size={14} color="var(--accent-success)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-muted)' }}>
                     Tu contenido no se modifica ni se pierde. Garantizado.
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* ── T7: Consejos compactos bajo el dropzone ── */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: '10px',
+              padding: '14px 18px',
+              background: 'var(--surface-subtle)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              marginBottom: '40px',
+            }}>
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+                Consejos
+              </span>
+              {[
+                { icon: <MousePointerClick size={14} color="var(--accent-primary)" />, text: 'Arrastra tu .docx aquí o haz clic para buscar' },
+                { icon: <BadgeCheck size={14} color="var(--accent-success)" />, text: 'Funciona con documentos de Word 2010 en adelante' },
+                { icon: <ShieldCheck size={14} color="var(--accent-primary)" />, text: 'Tu archivo original nunca se modifica' },
+              ].map((tip, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ display: 'flex', flexShrink: 0 }}>{tip.icon}</span>
+                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{tip.text}</span>
+                </div>
+              ))}
             </div>
 
             {/* ── ACCIÓN SECUNDARIA: Plantillas descargables ──
@@ -560,20 +649,32 @@ export const Step0QuickStart: React.FC = () => {
               borderBottom: '1px solid var(--border-subtle)',
               marginBottom: '36px',
             }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+              <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
                 ¿Todavía no escribiste nada? Descargá una plantilla
               </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
                 Un .docx con portada y secciones listas: lo abrís en Word y solo completás el contenido.
               </p>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                {TEMPLATES.map(tpl => (
+                {TEMPLATES.map(tpl => {
+                  const activeDoc = useDocStore.getState().doc;
+                  const canApply = !!activeDoc;
+                  return (
                   <button
                     key={tpl.id}
                     type="button"
-                    onClick={() => api.downloadTemplate(activeProfileId, tpl.id)}
-                    title={`Descargar plantilla ${tpl.name}`}
-                    aria-label={`Descargar plantilla ${tpl.name}`}
+                    onClick={() => {
+                      if (canApply && activeDoc) {
+                        // Contextual: con documento cargado aplica la estructura.
+                        api.applyTemplate(activeDoc.session_id, tpl.id)
+                          .then(() => useDocStore.getState().showToast(`Estructura "${tpl.name}" aplicada a tu documento`, 'success'))
+                          .catch((e) => useDocStore.getState().showToast(`No se pudo aplicar: ${String(e)}`, 'error'));
+                      } else {
+                        api.downloadTemplate(activeProfileId, tpl.id);
+                      }
+                    }}
+                    title={canApply ? `Aplicar estructura ${tpl.name} a tu documento` : `Descargar plantilla ${tpl.name}`}
+                    aria-label={canApply ? `Aplicar estructura ${tpl.name}` : `Descargar plantilla ${tpl.name}`}
                     style={{
                       flex: '1 1 220px', maxWidth: '280px', cursor: 'pointer', fontFamily: 'inherit',
                       display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left',
@@ -608,32 +709,36 @@ export const Step0QuickStart: React.FC = () => {
                       )}
                     {/* Nombre + descripción */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                      <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
                         {tpl.name}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                         {tpl.description}
                       </div>
                     </div>
-                    {/* Indicador de descarga */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: 'auto' }}>
-                      <Download size={13} />
-                      Descargar .docx
+                    {/* Indicador contextual */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent-primary)', marginTop: 'auto' }}>
+                      {canApply ? (
+                        <><FileCheck size={13} /> Aplicar a mi documento</>
+                      ) : (
+                        <><Download size={13} /> Descargar .docx</>
+                      )}
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
             {/* Recientes (preview) */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Recientes</h2>
+                <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Recientes</h2>
                 <button
                   type="button"
                   onClick={() => setActiveTab('recientes')}
                   style={{
-                    fontSize: '13px', color: 'var(--accent-primary)', cursor: 'pointer',
+                    fontSize: 'var(--text-sm)', color: 'var(--accent-primary)', cursor: 'pointer',
                     background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
                   }}
                 >
@@ -654,7 +759,7 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── ABRIR ── */}
         {activeTab === 'abrir' && (
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
+            <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Abrir Documento Existente
             </h1>
             <UploadDropzone onFileSelected={(file) => uploadFile(file, { profileId: activeProfileId, mode: 'review' })} isLoading={isLoading || !isBackendReady} />
@@ -664,7 +769,7 @@ export const Step0QuickStart: React.FC = () => {
         {/* ── RECIENTES ── */}
         {activeTab === 'recientes' && (
           <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
+            <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
               Documentos Recientes
             </h1>
             <RecentsList
@@ -721,7 +826,7 @@ const RecentsList: React.FC<{
 }> = ({ sessions, loading, backendReady, recoveringId, onOpen, showEmpty }) => {
   if (!backendReady) {
     return (
-      <Card style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+      <Card style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>
         <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }} />
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         <span style={{ verticalAlign: 'middle' }}>Conectando...</span>
@@ -729,22 +834,22 @@ const RecentsList: React.FC<{
     );
   }
   if (loading) {
-    return <Card style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Cargando documentos recientes...</Card>;
+    return <Card style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>Cargando documentos recientes...</Card>;
   }
   if (sessions.length === 0) {
-    if (!showEmpty) return <Card style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Sin documentos recientes.</Card>;
+    if (!showEmpty) return <Card style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>Sin documentos recientes.</Card>;
     return (
       <Card style={{ textAlign: 'center', padding: '36px 24px', color: 'var(--text-secondary)' }}>
         <Clock size={48} style={{ marginBottom: '16px', opacity: 0.4 }} />
-        <p style={{ fontSize: '16px', margin: '0 0 8px', fontWeight: 600 }}>Sin documentos recientes</p>
-        <p style={{ fontSize: '13px', margin: 0 }}>Los documentos que abras o proceses aparecerán aquí.</p>
+        <p style={{ fontSize: 'var(--text-lg)', margin: '0 0 8px', fontWeight: 600 }}>Sin documentos recientes</p>
+        <p style={{ fontSize: 'var(--text-sm)', margin: 0 }}>Los documentos que abras o proceses aparecerán aquí.</p>
       </Card>
     );
   }
 
   return (
     <>
-      <div style={{ display: 'flex', padding: '8px 12px', color: 'var(--text-secondary)', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border-subtle)' }}>
+      <div style={{ display: 'flex', padding: '8px 12px', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border-subtle)' }}>
         <div style={{ flex: 2 }}>Nombre</div>
         <div style={{ flex: 1 }}>Modificado</div>
       </div>
@@ -773,15 +878,15 @@ const RecentsList: React.FC<{
                 : <FileText size={20} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
               }
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>
+                <div style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-main)' }}>
                   {session.file_name || 'Documento sin nombre'}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                   {session.element_count} elementos · APA {session.apa_format}
                 </div>
               </div>
             </div>
-            <div style={{ flex: 1, fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <div style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
               {session.last_saved ? timeAgo(session.last_saved) : '—'}
             </div>
           </button>

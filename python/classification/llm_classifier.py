@@ -17,9 +17,36 @@ from typing import Any, Dict, List, Optional
 
 from constants import DEFAULT_NIM_MODEL, NVIDIA_NIM_URL
 from models import DocumentModel, ElementModel, ElementType
+from parsing.pre_classifier import (
+    REGEX_BULLET_CHAR,
+    REGEX_BULLET_NUMBERED,
+    REGEX_NUMBERED_HEADING,
+    _estimate_level_by_indent,
+)
 
 NVIDIA_NIM_URL: str = NVIDIA_NIM_URL
 DEFAULT_MODEL: str = DEFAULT_NIM_MODEL
+
+
+def _normalize_llm_list_fields(elem: ElementModel) -> None:
+    """
+    Reaplica la misma normalizacion que el branch manual_char/numbered del
+    pre_classifier cuando un tipo BULLET/NUMBERED_LIST llega desde el cache
+    o el LLM: strip del prefijo, campos derivados y nivel por indentacion.
+    """
+    text = (elem.text or "").strip()
+    if elem.type == ElementType.BULLET:
+        m = REGEX_BULLET_CHAR.match(text)
+        if m:
+            elem.original_char = m.group(1)
+            elem.bullet_source = "manual_char"
+            elem.text = text[m.end():].lstrip()
+        elem.heading_level = _estimate_level_by_indent(elem.left_indent_cm)
+    elif elem.type == ElementType.NUMBERED_LIST:
+        m_num = REGEX_BULLET_NUMBERED.match(text)
+        if m_num and not REGEX_NUMBERED_HEADING.match(text):
+            elem.text = text[m_num.end():].lstrip()
+        elem.heading_level = _estimate_level_by_indent(elem.left_indent_cm)
 
 # ── Provider capacity profiles ──────────────────────────────────────────────
 PROVIDER_CAPACITY = {
@@ -323,9 +350,16 @@ async def classify_document_with_llm(
             cached_type = cache.get(h)
             if cached_type:
                 try:
-                    e.type = ElementType(cached_type)
+                    new_type = ElementType(cached_type)
+                    if new_type != e.type:
+                        e.original_char = None
+                        e.bullet_source = None
+                        e.pre_classifier_rule = None
+                    e.type = new_type
                     e.confidence = 0.95
                     e.needs_review = False
+                    if new_type in (ElementType.BULLET, ElementType.NUMBERED_LIST):
+                        _normalize_llm_list_fields(e)
                 except Exception:
                     need_api.append(e)
             else:
@@ -399,7 +433,14 @@ async def classify_document_with_llm(
                         new_type_str: str = res.get("type", "")
                         if new_type_str:
                             try:
-                                elem.type = ElementType(new_type_str)
+                                new_type = ElementType(new_type_str)
+                                if new_type != elem.type:
+                                    elem.original_char = None
+                                    elem.bullet_source = None
+                                    elem.pre_classifier_rule = None
+                                elem.type = new_type
+                                if new_type in (ElementType.BULLET, ElementType.NUMBERED_LIST):
+                                    _normalize_llm_list_fields(elem)
                             except ValueError:
                                 pass
 

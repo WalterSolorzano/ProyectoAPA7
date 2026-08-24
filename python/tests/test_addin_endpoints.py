@@ -495,3 +495,53 @@ class TestDetectHeadings:
         data = resp.json()
         assert data["suggestions"] == []
         assert data["total"] == 0
+
+
+# ── 13. AI-PROVIDERS ──────────────────────────────────────────────────────────
+
+class TestAIProviders:
+    """GET /api/addin/ai-providers — chips de estado de proveedores de IA."""
+
+    def test_shape_and_count_consistency(self, monkeypatch):
+        """Sin claves en el entorno → todos inactive y count 0."""
+        for key in (
+            "NVIDIA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
+            "CEREBRAS_API_KEY", "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY",
+            "ZENMUX_API_KEY", "GEMINI_API_KEY",
+            "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
+        resp = client.get("/api/addin/ai-providers")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert isinstance(data["providers"], list)
+        assert len(data["providers"]) >= 9
+        assert all(set(p.keys()) == {"name", "active"} for p in data["providers"])
+        assert data["count"] == sum(1 for p in data["providers"] if p["active"])
+        assert data["count"] == 0
+
+    def test_active_provider_when_env_set(self, monkeypatch):
+        """GROQ_API_KEY seteada → chip Groq activo y count ≥ 1."""
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+
+        data = client.get("/api/addin/ai-providers").json()
+        by_name = {p["name"]: p for p in data["providers"]}
+        assert by_name["Groq"]["active"] is True
+        assert data["count"] >= 1
+
+    def test_cloudflare_requires_token_and_account_pair(self, monkeypatch):
+        """Solo CLOUDFLARE_API_TOKEN (sin ACCOUNT_ID) → Cloudflare inactivo."""
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
+        monkeypatch.delenv("CLOUDFLARE_ACCOUNT_ID", raising=False)
+
+        data = client.get("/api/addin/ai-providers").json()
+        cf = next(p for p in data["providers"] if p["name"] == "Cloudflare")
+        assert cf["active"] is False
+
+        monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc")
+        data = client.get("/api/addin/ai-providers").json()
+        cf = next(p for p in data["providers"] if p["name"] == "Cloudflare")
+        assert cf["active"] is True

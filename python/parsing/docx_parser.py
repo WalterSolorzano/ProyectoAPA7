@@ -429,7 +429,17 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
         "departamento", "universidad de", "universidad del",
         "universidad autonoma", "universidad nacional",
         "politecnico", "politécnico",
+        "unan", "univ.", "university", "centro regional", "campus",
     ]
+    # Etiquetas que NUNCA son titulo (van a su campo o se descartan).
+    LABEL_KW = re.compile(
+        r"^\s*(recinto|sede|extensi[óo]n|regi[óo]n|ciudad|municipio|"
+        r"facultad|departamento|carrera|turno|grupo|tema|t[íi]tulo|"
+        r"docente|tutor|estudiante|elaborado\s+por)\b\s*:?",
+        re.IGNORECASE,
+    )
+    GRUPO_KW = re.compile(r"^\s*grupo\b\s*:?\s*(.+)$", re.IGNORECASE)
+    DOCENTE_KW = re.compile(r"^\s*(?:docente|tutor|profesor(?:a)?)\b\s*:?\s*(.*)$", re.IGNORECASE)
     COURSE_KW = [
         "curso", "asignatura", "materia", "seminario", "taller",
         "catedra", "cátedra", "modulo", "módulo",
@@ -450,6 +460,7 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     ]
 
     # ---- Paso 1: Detectar institution ----
+    recinto_candidate: str = ""
     for i, text in remaining_with_idx:
         if i in assigned:
             continue
@@ -458,6 +469,16 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             fields["institution"] = text
             assigned.add(i)
             break
+    # Fallback: "Recinto: X" sin universidad explícita → institution
+    if not fields.get("institution"):
+        for i, text in remaining_with_idx:
+            if i in assigned:
+                continue
+            if re.match(r"^\s*recinto\b", text, re.IGNORECASE):
+                recinto_candidate = re.sub(r"^\s*recinto\s*:?\s*", "", text, flags=re.IGNORECASE).strip()
+                fields["institution"] = recinto_candidate or text
+                assigned.add(i)
+                break
 
     # ---- Paso 2: Detectar course ----
     for i, text in remaining_with_idx:
@@ -466,6 +487,15 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
         text_lower = text.lower()
         if any(kw in text_lower for kw in COURSE_KW):
             fields["course"] = text
+            assigned.add(i)
+            break
+    # Grupo: "Grupo: 5S1" → campo grupo (no compite por título)
+    for i, text in remaining_with_idx:
+        if i in assigned:
+            continue
+        m_g = GRUPO_KW.match(text)
+        if m_g:
+            fields["grupo"] = m_g.group(1).strip()
             assigned.add(i)
             break
 
@@ -505,6 +535,15 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             break
 
     # ---- Paso 5: Detectar title ----
+    # "Tema: X" / "Título: X" → contenido tras label = título directo.
+    for i, text in remaining_with_idx:
+        if i in assigned:
+            continue
+        m_t = re.match(r"^\s*(?:tema|t[íi]tulo)\b\s*:\s*(.+)$", text, re.IGNORECASE)
+        if m_t and len(m_t.group(1).strip()) >= 4:
+            fields["title"] = m_t.group(1).strip()
+            assigned.add(i)
+            break
     # El texto mas largo no asignado (excluyendo carnets, grupos y textos muy cortos)
     unassigned = [
         (i, remaining[i])
@@ -525,12 +564,30 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             continue
         if re.match(r'^(Br\.|Ing\.|Dr\.|Lic\.|M\.Sc\.)', t_stripped, re.IGNORECASE):
             continue
+        # Labels de ubicación/administración JAMÁS son título.
+        if LABEL_KW.match(t_stripped):
+            assigned.add(i)
+            continue
         filtered.append((i, t))
 
     if filtered:
-        # Elegir el texto mas largo (tipicamente el titulo es lo mas extenso)
-        filtered.sort(key=lambda x: len(x[1]), reverse=True)
-        fields["title"] = filtered[0][1]
+        # Preferir candidatos SIN ':' (un título real rara vez abre con label);
+        # dentro de cada grupo, el más largo.
+        no_label = [x for x in filtered if ':' not in x[1][:20]]
+        pool = no_label if no_label else filtered
+        pool.sort(key=lambda x: len(x[1]), reverse=True)
+        fields["title"] = pool[0][1]
+        assigned.add(pool[0][0])
+    else:
+        # "Tema: X" / "Título: X" → el contenido tras el label ES el título.
+        for i, text in remaining_with_idx:
+            if i in assigned:
+                continue
+            m_t = re.match(r"^\s*(?:tema|t[íi]tulo)\b\s*:\s*(.+)$", text, re.IGNORECASE)
+            if m_t and len(m_t.group(1).strip()) >= 4:
+                fields["title"] = m_t.group(1).strip()
+                assigned.add(i)
+                break
     # Si no hay candidatos validos, NO asignar title (permitir fallback a parrafos)
     # El parse_docx_bytes hara el merge con _infer_portada_from_paragraphs
 

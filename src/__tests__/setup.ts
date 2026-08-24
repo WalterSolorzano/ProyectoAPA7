@@ -1,4 +1,15 @@
 import '@testing-library/jest-dom';
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+// Limpieza explícita entre tests: el auto-cleanup de RTL no alcanza para
+// descartar DOM dejado por archivos de test anteriores en el mismo fork
+// (--poolOptions.forks.singleFork comparte el jsdom entre archivos), lo que
+// producía fallos intermitentes "Found multiple elements".
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
 
 // Minimal in-memory IndexedDB mock for idb-keyval in Vitest/jsdom environment
 if (typeof globalThis.indexedDB === 'undefined') {

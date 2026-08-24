@@ -7,6 +7,7 @@ import { DocumentModel, ElementType, APARuleSet, FormatProfile, PortadaData, Por
 import * as api from '../api/backend';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult } from '../api/backend';
 import { setRequestIdListener } from '../api/http';
+import type { ProofreadFinding } from '../types';
 
 /** Un evento del feed de actividad del panel derecho unificado (Layer 4). */
 export interface ActivityEvent {
@@ -270,6 +271,10 @@ interface DocState {
   setApiKey: (key: string) => void;
   setAiProviderConfig: (config: Partial<{ nimUrl: string, useLocal: boolean, providerId: string }>) => void;
   setWizardStep: (step: number) => void;
+  /** Sub-pestaña del paso 2 (Estructura): Títulos | Cuerpo. Global para que
+      acciones del store (p.ej. goToCitation del validador) puedan navegar al cuerpo. */
+  structureTab: 'headings' | 'body';
+  setStructureTab: (tab: 'headings' | 'body') => void;
   setSelectedElementId: (id: string | null) => void;
   setSelectedReferenceId: (id: string | null) => void;
   setShowTemplateDialog: (show: boolean) => void;
@@ -289,6 +294,21 @@ interface DocState {
   setHasUnsavedChanges: (val: boolean) => void;
 
   // Acciones Principales
+  sugerenciasProactivas: boolean;
+  setSugerenciasProactivas: (v: boolean) => void;
+  runProactiveAudits: () => Promise<void>;
+  // Marcas de transparencia (H21): etiquetas junto a cada cambio aplicado.
+  marcasVisibles: boolean;
+  setMarcasVisibles: (v: boolean) => void;
+  // Alcances elegidos en el filtro de importación ([] = formato completo).
+  sessionScopes: string[];
+  setSessionScopes: (s: string[]) => void;
+  // Revisor por lotes (F): hallazgos ortografia/IA/texto pegado.
+  proofreadFindings: ProofreadFinding[];
+  aiIndices: api.AIIndicesSummary | null;
+  runProofreadBatch: () => Promise<void>;
+  clearProofreadFindings: () => void;
+  autoResolveGhosts: () => Promise<void>;
   uploadFile: (file: File, opts?: { profileId?: string; mode?: 'quick' | 'review' }) => Promise<void>;
   startBlankDocument: () => Promise<void>;
   runLLMClassify: () => Promise<void>;
@@ -407,6 +427,21 @@ function triggerDownload(url: string, filename?: string) {
   document.body.removeChild(a);
 }
 
+function ghostKey(t: unknown): string {
+  const s = typeof t === 'string' ? t : String((t as any)?.raw_text || (t as any)?.formatted_apa || JSON.stringify(t));
+  const a = s.replace(/[()]/g,'').split(',')[0]?.trim().toLowerCase() || '';
+  const y = s.match(/\b(19|20)\d{2}\b/)?.[0] || '';
+  return `${a}|${y}`;
+}
+
+export function safeRefText(ref: unknown): string {
+  try {
+    const o = (ref ?? {}) as any;
+    const a = Array.isArray(o.authors) ? o.authors.filter(Boolean).join(', ') : '';
+    return [a, o.year ? `(${o.year})` : '', o.title || ''].filter(Boolean).join(' ').trim();
+  } catch { return ''; }
+}
+
 export const useDocStore = create<DocState>()(
   persist(
     (set, get) => ({
@@ -470,6 +505,10 @@ export const useDocStore = create<DocState>()(
   clearQuickExport: () => set({ pendingQuickExport: false }),
   hasSeenTour: false,
   coverSetupDone: false,
+  sugerenciasProactivas: (() => { try { return localStorage.getItem('wordapa7_proactivas') !== 'false'; } catch { return true; } })(),
+  marcasVisibles: (() => { try { return localStorage.getItem('wordapa7_marcas') !== 'false'; } catch { return true; } })(),
+  proofreadFindings: [],
+  aiIndices: null,
   viewMode: 'edit',
   forceRightPanelOpen: false,
   setForceRightPanelOpen: (open: boolean) => set({ forceRightPanelOpen: open }),
@@ -597,13 +636,90 @@ export const useDocStore = create<DocState>()(
   },
   setLastRequestId: (id) => set({ lastRequestId: id }),
       setWizardStep: (step) => set({ wizardStep: Math.min(4, Math.max(1, step)) }),
-  setSelectedElementId: (id) => set({ selectedElementId: id }),
-  setSelectedReferenceId: (id) => set((state) => ({ selectedReferenceId: id })),
+  structureTab: 'headings',
+  setStructureTab: (tab) => set({ structureTab: tab }),
+  setSelectedElementId: (id) => set((state) => ({
+    selectedElementId: id,
+    selectedReferenceId: id ? null : state.selectedReferenceId,
+  })),
+  setSelectedReferenceId: (id) => set((state) => ({
+    selectedReferenceId: id,
+    selectedElementId: id ? null : state.selectedElementId,
+  })),
   setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
   setTableStyle: (elementId, style) => set((state) => ({ tableStyles: { ...state.tableStyles, [elementId]: style } })),
   setShowFileMenu: (show) => set({ showFileMenu: show }),
   setHasSeenTour: (seen) => set({ hasSeenTour: seen }),
   setCoverSetupDone: (done) => set({ coverSetupDone: done }),
+  setSugerenciasProactivas: (v) => {
+    set({ sugerenciasProactivas: v });
+    try { localStorage.setItem('wordapa7_proactivas', String(v)); } catch { /* noop */ }
+  },
+  setMarcasVisibles: (v) => {
+    set({ marcasVisibles: v });
+    try { localStorage.setItem('wordapa7_marcas', String(v)); } catch { /* noop */ }
+  },
+  sessionScopes: [],
+  setSessionScopes: (s) => set({ sessionScopes: s }),
+  clearProofreadFindings: () => set({ proofreadFindings: [] }),
+
+  // Revisor por lotes (F): local siempre + LLM si hay clave. Silencioso.
+  runProofreadBatch: async () => {
+    const { doc, sugerenciasProactivas } = get();
+    if (!doc || doc.elements.length === 0) return;
+    try {
+      const res = await api.proofreadBatch(doc.session_id);
+      set({ aiIndices: res.ai_indices || null });
+      if (sugerenciasProactivas) {
+        set({ proofreadFindings: res.findings || [] });
+        // Marcas de transparencia: cada elemento marcado explica su motivo.
+        try {
+          const raw = localStorage.getItem('wordapa7_marcas_map');
+          const map = raw ? JSON.parse(raw) : {};
+          const KIND_LABELS: Record<string, string> = {
+            first_person: 'primera persona',
+            ortografia: 'ortografía',
+            ai_phrase: 'frase de IA',
+            pegado: 'texto pegado',
+            muletilla: 'muletilla repetida',
+          };
+          for (const f of res.findings || []) {
+            map[f.element_id] = KIND_LABELS[f.kind] || f.kind;
+          }
+          localStorage.setItem('wordapa7_marcas_map', JSON.stringify(map));
+          window.dispatchEvent(new StorageEvent('storage', { key: 'wordapa7_marcas_map' }));
+        } catch { /* noop */ }
+      }
+    } catch { /* silencioso */ }
+  },
+
+  // Auditorías silenciosas que activan los globos proactivos sin loading global.
+  runProactiveAudits: async () => {
+    const { doc, sugerenciasProactivas, apiKey, aiProviderConfig } = get();
+    if (!sugerenciasProactivas || !doc) return;
+    try {
+      const result = await api.validateCitations(doc.session_id);
+      set({ citationAuditResult: result });
+    } catch { /* silencioso: los globos de citas esperarán la auditoría manual */ }
+    try {
+      const result = await api.runAIReview(doc.session_id);
+      // FILTER_QUE: 'que' aislado NO es problema (falso positivo clasico del LLM)
+      try {
+        const ev = (result as any)?.findings || (result as any)?.issues || [];
+        for (const f of ev as any[]) {
+          if (typeof f?.evidence === 'string' && /^\s*["\u00ab']?que["\u00bb']?\.?\s*$/i.test(f.evidence)) {
+            (f as any)._dismissed = true;
+          }
+          if (typeof f?.message === 'string' && /\bque\b/i.test(f.message) && String(f?.category||'').includes('ai')) {
+            f.message = f.message.replace(/\b"que"\b/gi, 'conector');
+          }
+        }
+      } catch {}
+      set({ reviewResult: result });
+    } catch { /* silencioso: estilo/IA esperarán la revisión manual */ }
+    // Proactivo total: buscar referencias faltantes en Crossref sin molestar.
+    try { await get().autoResolveGhosts(); } catch { /* noop */ }
+  },
   setViewMode: (mode) => set({ viewMode: mode }),
   setPdfPreviewCache: (cache) => set({ pdfPreviewCache: cache }),
 
@@ -677,7 +793,7 @@ export const useDocStore = create<DocState>()(
     const tab = state.tabs[index];
     const tabDoc = state.tabDocs[tab.session_id];
     if (tabDoc) {
-      return { activeTabIndex: index, doc: tabDoc, references: tabDoc.referencias || [], atHome: false };
+      return { activeTabIndex: index, doc: tabDoc, references: tabDoc.referencias || [], atHome: false, selectedElementId: null, selectedReferenceId: null, scrollTargetId: null };
     }
     return { activeTabIndex: index, atHome: false };
   }),
@@ -697,6 +813,9 @@ export const useDocStore = create<DocState>()(
       activeTabIndex: Math.max(0, newIndex),
       doc: newDoc,
       atHome: newDoc ? false : state.atHome,
+      selectedElementId: null,
+      selectedReferenceId: null,
+      scrollTargetId: null,
     };
   }),
 
@@ -719,6 +838,9 @@ export const useDocStore = create<DocState>()(
             atHome: false,
             isLoading: false,
             wizardStep: Math.max(1, state.wizardStep),
+            selectedElementId: null,
+            selectedReferenceId: null,
+            scrollTargetId: null,
           };
         }
         const newTab = { session_id: recovered.session_id, file_name: recovered.file_name };
@@ -735,6 +857,9 @@ export const useDocStore = create<DocState>()(
           history: [recovered],
           historyIndex: 0,
           wizardStep: 1,
+          selectedElementId: null,
+          selectedReferenceId: null,
+          scrollTargetId: null,
         };
       });
     } catch (err: any) {
@@ -924,7 +1049,17 @@ export const useDocStore = create<DocState>()(
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
         get().showToast('Detectamos datos de tu portada y los precargamos', 'info');
       }
+      if (!doc.elements || doc.elements.length === 0) {
+        get().showToast(
+          'El documento se abrió pero no se detectó contenido. Puede estar protegido, corrupto o ser un formato no soportado.',
+          'error'
+        );
+      }
       get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
+      // Globos proactivos: auditorías silenciosas en background
+      get().runProactiveAudits().catch(() => {});
+      // Revisor por lotes (ortografía/IA/pegado): silencioso
+      get().runProofreadBatch().catch(() => {});
 
       // Auto-disparar clasificación LLM en background
       const uncertainCount = doc.elements.filter(
@@ -1348,9 +1483,13 @@ export const useDocStore = create<DocState>()(
           raw_text: data.apa_formatted || doi,
           formatted_apa: data.apa_formatted || doi,
         });
+        get().showToast('Referencia agregada desde DOI', 'success');
+      } else {
+        get().showToast(`No se pudo resolver el DOI (error ${res.status})`, 'error');
       }
     } catch (e) {
       console.error('Error resolving DOI:', e);
+      get().showToast(e instanceof Error ? e.message : 'Error al resolver el DOI', 'error');
     } finally {
       set({ isLoading: false });
     }
@@ -1375,7 +1514,7 @@ export const useDocStore = create<DocState>()(
         };
         get().addReference(newRef);
         const extra = result.candidates.length > 1 ? ` (${result.candidates.length} resultados, se agregó el mejor match)` : '';
-        get().showToast(`Referencia encontrada: ${ref.authors[0]} (${ref.year})${extra}`, 'success');
+        get().showToast(`Referencia encontrada: ${safeRefText(ref) || 'candidato'}${extra}`, 'success');
         get().runCitationAudit();
         set({ isLoading: false });
         return { ...newRef, candidates: result.candidates };
@@ -1454,12 +1593,66 @@ export const useDocStore = create<DocState>()(
     }
   },
 
+  // Auto-resolución proactiva de citas fantasma vía Crossref (silenciosa).
+  autoResolveGhosts: async () => {
+    const { doc, citationAuditResult, references } = get();
+    if (!doc || !citationAuditResult) return;
+    const rawGhosts = citationAuditResult.ghost_citations || [];
+    const seenK = new Set<string>();
+    const uniqGhosts = rawGhosts.filter((g: any) => { const k = ghostKey(g); if (seenK.has(k)) return false; seenK.add(k); return true; });
+    if (rawGhosts.length === 0) return;
+    let added = 0;
+    const MAX_AUTO = 15;
+    for (let i = 0; i < Math.min(uniqGhosts.length, MAX_AUTO); i++) {
+      const g = uniqGhosts[i];
+      const text = typeof g === 'string'
+        ? g
+        : (g as any)?.raw_text || [ (g as any)?.authors?.join(', '), (g as any)?.year ? `(${(g as any).year})` : '' ].filter(Boolean).join(' ');
+      const author = String(text).replace(/[()]/g, '').split(',')[0]?.trim() || '';
+      const year = String(text).match(/\b(19|20)\d{2}\b/)?.[0] || '';
+      if (!author || !year) continue;
+      try {
+        set({ isLoading: false });
+        const result = await api.resolveGhostCitation([author], year);
+        if (result?.found && result.candidates?.[0]) {
+          const ref = result.candidates[0];
+          get().addReference({
+            id: `ghost-auto-${Date.now()}-${i}`,
+            authors: ref.authors, year: ref.year, title: ref.title,
+            source: ref.source, doi_or_url: ref.doi || '',
+            raw_text: ref.formatted_apa, formatted_apa: ref.formatted_apa,
+          });
+          added += 1;
+          get().pushActivityEvent('success', `Referencia agregada automáticamente: ${ref.authors?.[0] ?? ''} (${ref.year ?? ''})`, author);
+        }
+      } catch { /* seguir con la siguiente */ }
+    }
+    if (added > 0) {
+      get().runCitationAudit().catch(() => {});
+      get().showToast(`Se buscaron ${Math.min(uniqGhosts.length, MAX_AUTO)} citas faltantes y se agregaron ${added} referencias`, 'success');
+    } else if (uniqGhosts.length > 0) {
+      get().showToast(`Hay ${rawGhosts.length} citas sin referencia; revísalas en Validación`, 'info');
+    }
+  },
+
   exportDocx: async (tracked = false) => {
-    const { doc, rules, portada, references } = get();
+    const { doc, rules, portada, references, sessionScopes } = get();
     if (!doc) return;
     set({ isLoading: true });
     try {
       const base = getApiBase();
+      // Alcances activos → aplicar SOLO eso sobre el original (garantía).
+      if (!tracked && sessionScopes.length > 0) {
+        try {
+          await api.scopedApply(doc.session_id, sessionScopes);
+          triggerDownload(`${base}/download-scoped/${doc.session_id}`, `Scoped_${doc.file_name}`);
+          set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
+          get().showToast('Exportado con los alcances elegidos', 'success');
+          return;
+        } catch (e: any) {
+          useDocStore.getState().showToast(`Alcances fallaron, exportando completo: ${e.message}`, 'warning');
+        }
+      }
       const endpoint = tracked ? `${base}/generate-tracked` : `${base}/generate`;
       const res = await fetch(endpoint, {
         method: 'POST',

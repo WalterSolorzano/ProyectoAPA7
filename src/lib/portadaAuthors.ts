@@ -36,7 +36,20 @@ export function parseAuthorEntries(raw: string | undefined | null): AuthorEntry[
     pendingName = line;
   }
   if (pendingName) entries.push({ nombre: pendingName, carnet: '' });
-  return entries;
+
+  // Dedupe duro: mismo carnet O mismo nombre normalizado = misma persona.
+  // (Los textboxes duplicados del original llegan dos veces — bug reportado.)
+  const seenCarnets = new Set<string>();
+  const seenNames = new Set<string>();
+  return entries.filter((e) => {
+    const nameKey = e.nombre.toLowerCase().replace(/\s+/g, ' ').trim().replace(/^(br|ing|lic|m\.sc|sr|sra)\.?\s+/i, '');
+    const carnetKey = (e.carnet || '').toLowerCase().replace(/\s+/g, '');
+    if (carnetKey && seenCarnets.has(carnetKey)) return false;
+    if (!carnetKey && seenNames.has(nameKey)) return false;
+    if (carnetKey) seenCarnets.add(carnetKey);
+    if (!carnetKey && !seenNames.has(nameKey)) seenNames.add(nameKey);
+    return true;
+  });
 }
 
 export function serializeAuthorEntries(entries: AuthorEntry[]): string {

@@ -39,16 +39,37 @@ export const ReferencesPanel: React.FC = () => {
     setSelectedReferenceId(id);
   };
 
-  const handleResolveGhost = async (i: number) => {
+  /** El backend puede devolver la cita como string o dict (model_dump). */
+function ghostText(g: unknown): string {
+  if (g == null) return '';
+  if (typeof g === 'string') return g;
+  const o = g as any;
+  return (
+    o.raw_text ||
+    o.formatted_apa ||
+    [o.authors?.join?.(', '), o.year ? `(${o.year})` : '', o.title].filter(Boolean).join(' ').trim() ||
+    o.citation || ''
+  );
+}
+
+const handleResolveGhost = async (i: number) => {
     setResolving(i);
     try {
-      await resolveGhostCitation([String(ghosts[i]).replace(/[()]/g, '').split(',')[0]?.trim() || 'Autor'], String(ghosts[i]).match(/\b(19|20)\d{2}\b/)?.[0] || '');
+      await resolveGhostCitation([ghostText(ghosts[i]).replace(/[()]/g, '').split(',')[0]?.trim() || 'Autor'], String(ghosts[i]).match(/\b(19|20)\d{2}\b/)?.[0] || '');
     } catch {
       useDocStore.getState().showToast('No se pudo resolver esa cita', 'warning');
     } finally {
       setResolving(null);
     }
   };
+
+  // Dedupe visual por (autor, a?o): el backend puede repetir la misma cita N veces.
+  const seenGhost = new Set<string>();
+  const ghostsUnique = ghosts.filter((g: any) => {
+    const s = typeof g === 'string' ? g : String(g?.raw_text || g?.formatted_apa || '');
+    const k = `${s.replace(/[()]/g,'').split(',')[0]?.trim().toLowerCase()}|${s.match(/\b(19|20)\d{2}\b/)?.[0]}`;
+    if (seenGhost.has(k)) return false; seenGhost.add(k); return true;
+  });
 
   const sorted = [...references].sort((a, b) =>
     (a.authors?.[0] || a.title || a.raw_text || '').toLowerCase().localeCompare((b.authors?.[0] || b.title || b.raw_text || '').toLowerCase()),
@@ -108,7 +129,7 @@ export const ReferencesPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', gap: '6px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: ghosts.length > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{ghosts.length}</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: ghosts.length > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{ghostsUnique.length}</div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Citas sin referencia</div>
               </div>
               <div style={{ width: '1px', backgroundColor: 'var(--border-subtle)' }} />
@@ -124,7 +145,7 @@ export const ReferencesPanel: React.FC = () => {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                     <AlertTriangle size={12} color="var(--accent-warning)" style={{ flexShrink: 0 }} />
                     <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {String(g).slice(0, 70)}
+                      {ghostText(g).slice(0, 70)}
                     </span>
                     <button
                       type="button"

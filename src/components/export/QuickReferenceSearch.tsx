@@ -7,6 +7,20 @@ import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { Search, CheckCircle2, Loader2, Plus, AlertTriangle } from 'lucide-react';
 
+/** El backend puede devolver la cita como string o como objeto (model_dump). */
+function ghostText(g: unknown): string {
+  if (g == null) return '';
+  if (typeof g === 'string') return g;
+  const o = g as any;
+  return (
+    o.raw_text ||
+    o.formatted_apa ||
+    [o.authors?.join?.(', '), o.year ? `(${o.year})` : '', o.title].filter(Boolean).join(' ').trim() ||
+    o.citation ||
+    ''
+  );
+}
+
 function parseGhost(raw: string): { authors: string[]; year: string } {
   const text = String(raw || '');
   const yearM = text.match(/\b(19|20)\d{2}\b/);
@@ -42,7 +56,7 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
   useEffect(() => {
     const g = ghosts[index];
     if (g) {
-      const parsed = parseGhost(g);
+      const parsed = parseGhost(ghostText(g));
       setAuthor(parsed.authors[0] || '');
       setYear(parsed.year);
       setMessage(null);
@@ -104,7 +118,7 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
     runCitationAudit().catch(() => {});
   };
 
-  const current = ghosts[index] != null ? String(ghosts[index]) : '';
+  const current = ghosts[index] != null ? ghostText(ghosts[index]) : '';
 
   return (
     <div style={{
@@ -134,7 +148,7 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
             style={{ ...inputStyle, flex: 'none', width: '100%', cursor: 'pointer' }}
           >
             {ghosts.map((g, i) => (
-              <option key={i} value={i}>{String(g).slice(0, 70)}</option>
+              <option key={i} value={i}>{ghostText(g).slice(0, 70)}</option>
             ))}
           </select>
 

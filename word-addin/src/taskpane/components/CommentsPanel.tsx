@@ -18,15 +18,15 @@ interface Props {
   showToast?: (msg: string, type: 'success'|'error'|'info') => void
 }
 
-const TYPE_META: Record<string, { icon: string; tone: 'success' | 'info' | 'warning' | 'error' }> = {
-  citation: { icon: '💬', tone: 'success' },
-  figure: { icon: '🖼️', tone: 'success' },
-  table: { icon: '📊', tone: 'success' },
-  format: { icon: '🔤', tone: 'info' },
-  mascot: { icon: '🦉', tone: 'info' },
-  info: { icon: 'ℹ️', tone: 'info' },
-  summary: { icon: '📑', tone: 'info' },
-  error: { icon: '⚠️', tone: 'error' },
+const TYPE_META: Record<string, { label: string; tone: 'success' | 'info' | 'warning' | 'error' }> = {
+  citation: { label: 'Cita', tone: 'success' },
+  figure: { label: 'Fig', tone: 'success' },
+  table: { label: 'Tab', tone: 'success' },
+  format: { label: 'Fmt', tone: 'info' },
+  mascot: { label: 'W7', tone: 'info' },
+  info: { label: 'Info', tone: 'info' },
+  summary: { label: 'Sum', tone: 'info' },
+  error: { label: 'Error', tone: 'error' },
 }
 
 function timeLabel(t: number): string {
@@ -79,7 +79,7 @@ export function CommentsPanel({ events, onClear, showToast }: Props) {
       <div className="chat__body">
         {events.length === 0 ? (
           <div className="chat__empty">
-            <div className="chat__empty-icon">🦉</div>
+            <div className="chat__empty-icon chat__empty-icon--text">W7</div>
             <div className="chat__empty-title">Aún no hay mensajes</div>
             <div className="chat__empty-text">
               Activá el asistente en vivo y empezá a escribir. Cada cita que pongás,
@@ -94,7 +94,7 @@ export function CommentsPanel({ events, onClear, showToast }: Props) {
             return (
               <div key={`${ev.time}-${i}`} className={`bubble bubble--${meta.tone} ${isMascot ? 'bubble--mascot' : ''}`}>
                 <div className="bubble__content">
-                  <span className="bubble__icon">{meta.icon}</span>
+                  <span className={`bubble__tag bubble__tag--${meta.tone}`}>{meta.label}</span>
                   <div className="bubble__text">
                     {ev.message}
                     {ev.detail && <div className="bubble__detail">{ev.detail}</div>}
@@ -118,8 +118,14 @@ export function CommentsPanel({ events, onClear, showToast }: Props) {
             placeholder="Añadir comentario a la selección..."
             onKeyDown={e => { if (e.key === 'Enter') handleAddComment() }}
           />
-          <button className="btn btn--primary" onClick={handleAddComment} disabled={!commentText.trim() || loading}>
-             {loading ? <span className="spinner" /> : '💬'}
+          <button className="btn btn--primary" onClick={handleAddComment} disabled={!commentText.trim() || loading} aria-label="Insertar comentario">
+             {loading ? <span className="spinner" /> : (
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M22 2L11 13" />
+                 <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+               </svg>
+             )}
           </button>
         </div>
       </div>

@@ -197,7 +197,7 @@ export function HeadingPanel({ showToast }: Props) {
             fontStyle: HEADING_CONFIGS[level].italic ? 'italic' : 'normal',
             textAlign: HEADING_CONFIGS[level].alignment === Word.Alignment.centered ? 'center' : 'left',
             marginLeft: HEADING_CONFIGS[level].indentCm > 0 ? `${HEADING_CONFIGS[level].indentCm}cm` : 0,
-            color: '#000',
+            color: 'var(--text-primary)',
           }}>
             {text || 'Texto del título...'}
           </div>

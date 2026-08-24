@@ -55,10 +55,17 @@ def _normalize_heading(text: Optional[str]) -> str:
 
 
 def _is_references_heading(elem: ElementModel) -> bool:
-    if elem.type != ElementType.HEADING:
+    # Aceptamos HEADING y tambien PARAGRAPH: muchos documentos traen
+    # "REFERENCIAS"/"Bibliografía" como parrafo centrado en negrita que el
+    # pre-clasificador no logra promover a heading.
+    if elem.type not in (ElementType.HEADING, ElementType.PARAGRAPH):
         return False
     norm = _normalize_heading(elem.text)
     if not norm:
+        return False
+    # Un titulo de seccion es corto: evita capturar parrafos que solo
+    # MENCIONEN "referencias" en una frase larga.
+    if len(norm.split()) > 5:
         return False
     if norm in _REFERENCES_HEADINGS:
         return True
@@ -176,6 +183,8 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             refs_heading_level = e.heading_level or 1
 
     if start_idx < 0:
+        print("[REFS] [extract_references] No se encontro heading de "
+              "referencias/bibliografia en el documento")
         return refs
 
     # Recoger entradas hasta encontrar otra seccion top-level
@@ -184,7 +193,18 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
         if _is_section_break_after(e, refs_heading_level):
             break
         if e.type in (ElementType.EMPTY, ElementType.PAGE_BREAK, ElementType.SECTION_BREAK,
-                      ElementType.TABLE, ElementType.IMAGE):
+                      ElementType.IMAGE):
+            continue
+        # Bibliografia dentro de una tabla (formato comun en plantillas
+        # universitarias): cada fila/celda es una entrada candidata.
+        if e.type == ElementType.TABLE:
+            info = getattr(e, "table_info", None)
+            rows = list(getattr(info, "rows", None) or [])
+            for row in rows:
+                for cell in row:
+                    cell_text = (cell or "").strip()
+                    if cell_text and len(cell_text) >= 4:
+                        collected_texts.append(cell_text)
             continue
         # Un heading nivel > refs_heading_level (sub-cabecera tipo "Libros")
         # lo tomamos como separador omitible, no como entrada.
@@ -195,8 +215,18 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             continue
         collected_texts.append(text)
 
+    # Un bloque puede traer VARIAS entradas unidas con saltos de linea (w:br).
+    # Dividir antes de parsear: _parse_single_reference colapsa whitespace y
+    # solo interpretaria la primera entrada, perdiendo el resto.
+    entry_lines: List[str] = []
+    for block in collected_texts:
+        for line in block.split("\n"):
+            line = line.strip()
+            if line and len(line) >= 4:
+                entry_lines.append(line)
+
     seen = set()
-    for raw in collected_texts:
+    for raw in entry_lines:
         key = re.sub(r"\s+", " ", raw.lower()).strip()
         if key in seen:
             continue
@@ -213,5 +243,9 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             doi_or_url=parsed.get("doi_or_url"),
             raw_text=parsed.get("raw_text", raw),
         ))
+
+    if not refs and start_idx >= 0:
+        print(f"[REFS] [extract_references] Heading encontrado en idx={start_idx - 1} "
+              f"pero 0 entradas recolectadas (posible seccion vacia o formato no reconocido)")
 
     return refs

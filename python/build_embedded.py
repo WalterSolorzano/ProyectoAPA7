@@ -189,18 +189,20 @@ def main() -> int:
         zf.extractall(OUTPUT_DIR)
     print(f"  Extraido en: {OUTPUT_DIR}")
 
-    # ── STEP 4: Habilitar site-packages (._pth) ─────────────────────────────
-    print(f"\n[4/9] Configurando site-packages...")
+    # ── STEP 4: Habilitar site-packages y carpeta python (._pth) ───────────
+    print(f"\n[4/9] Configurando site-packages y sys.path...")
     pth_file = OUTPUT_DIR / f"python{tag}._pth"
     if pth_file.exists():
-        # Reescribir el archivo para asegurar que `import site` este activo
+        # Reescribir el archivo para asegurar que `import site`, `python/` y `Lib/site-packages/` estén activos
         pth_file.write_text(
             f"python{tag}.zip\n"
             f".\n"
+            f"python\n"
+            f"Lib/site-packages\n"
             f"import site\n",
             encoding="utf-8",
         )
-        print(f"  {pth_file.name} configurado (site-packages habilitado)")
+        print(f"  {pth_file.name} configurado (site-packages y python habilitados)")
     else:
         print(f"  WARNING: {pth_file.name} no encontrado")
 
@@ -260,7 +262,7 @@ def main() -> int:
     # ── STEP 7: Copiar codigo fuente ────────────────────────────────────────
     print(f"\n[7/9] Copiando codigo fuente de la aplicacion...")
     src_dest = OUTPUT_DIR / "python"
-    shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn)
+    shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True)
     print(f"  Codigo fuente copiado en: {src_dest}")
 
     # Copiar _embedded_payload.json (generado por embed_payload.py)
@@ -277,21 +279,9 @@ def main() -> int:
     for item in list(OUTPUT_DIR.rglob("__pycache__")):
         shutil.rmtree(item, ignore_errors=True)
         removed += 1
-    for item in list(OUTPUT_DIR.rglob("*.pyc")):
-        item.unlink(missing_ok=True)
-        removed += 1
     for item in list(OUTPUT_DIR.rglob("*.pdb")):
         item.unlink(missing_ok=True)
         removed += 1
-    # Remover tests de site-packages
-    sp = OUTPUT_DIR / "Lib" / "site-packages"
-    if sp.exists():
-        for test_dir in sp.glob("*_tests"):
-            shutil.rmtree(test_dir, ignore_errors=True)
-            removed += 1
-        for test_dir in sp.glob("tests"):
-            shutil.rmtree(test_dir, ignore_errors=True)
-            removed += 1
     print(f"  {removed} elementos eliminados")
 
     # ── STEP 9: Verificar ──────────────────────────────────────────────────

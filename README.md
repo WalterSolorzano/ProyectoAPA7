@@ -23,26 +23,103 @@
   <b>Plataforma de alta precisión para transformar documentos universitarios y académicos (<code>.docx</code>) a las normas oficiales APA 7ª Edición manteniendo el 100% del contenido original, diagramación de portada in-place y tablas nativas.</b>
 </p>
 
-[✨ Características](#-características-principales) • [🏗 Arquitectura](#-arquitectura-del-sistema) • [🚀 Instalación](#-instalación-y-ejecución) • [🛡️ Seguridad](#-seguridad-y-variables-de-entorno)
+[📥 Instalación (usuario final)](#-instalación-para-usuario-final) • [✨ Características](#-características-principales) • [🏗 Arquitectura](#-arquitectura-del-sistema) • [🚀 Instalación (desarrollador)](#-instalación-y-ejecución) • [🛡️ Seguridad](#-seguridad-y-variables-de-entorno)
 
 ---
 
 </div>
 
-## 🎨 Paleta de Colores Hexadecimal (#HEX)
+## 📥 Instalación para usuario final
 
-| Componente UI | Código Hexadecimal | Previsualización |
-|---|---|---|
-| **Word Deep Blue** | `#1B365D` | `████████` |
-| **Accent Emerald** | `#10B981` | `████████` |
-| **Cyber Indigo** | `#6366F1` | `████████` |
-| **NVIDIA Green** | `#76B900` | `████████` |
-| **Warning Amber** | `#F59E0B` | `████████` |
-| **Dark Canvas** | `#0F172A` | `████████` |
+> **No necesitás instalar Python, Node.js ni nada extra.** Todo viaja dentro
+> del instalador. Solo descargá el `.exe` y ejecutalo.
+
+### Paso a paso (3 clics + abrir Word)
+
+1. **Descargá** el instalador `WordAPA7 Setup X.X.X.exe` desde la página de
+   [Releases en GitHub](https://github.com/WalterSolorzano/ProyectoAPA7/releases).
+
+2. **Hacé doble clic** en el `.exe` descargado.
+
+3. **SmartScreen de Windows** mostrará un aviso azul que dice
+   *"Windows protegió tu equipo"*. **Esto es normal** y se debe a que el
+   instalador no está firmado con un certificado comercial pago (no queremos
+   que los usuarios paguen por usar la herramienta). Para continuar:
+
+   | Paso | Acción |
+   |------|--------|
+   | 1 | Clic en **"Más información"** |
+   | 2 | Clic en **"Ejecutar de todas formas"** |
+
+   > ℹ️ Este aviso aparece **una sola vez** (la primera vez que descargas el
+   > instalador). No significa que haya un virus; es el comportamiento estándar
+   > de Windows con cualquier instalador descargado de internet que no tiene
+   > un certificado de firma de código comercial.
+
+4. **El instalador hace todo solo** (one-click):
+   - Copia la aplicación y el complemento de Word.
+   - **Registra el complemento automáticamente** en Word (no tenés que hacer
+     nada dentro de Word).
+   - Agrega la opción "Convertir a APA 7" al clic derecho sobre archivos `.docx`.
+   - Configura el arranque automático en segundo plano.
+   - Al terminar, **abre la aplicación automáticamente**.
+
+5. **Abrí Microsoft Word.** Vas a ver una nueva pestaña llamada **"WordAPA7"**
+   en el ribbon, al lado de las demás pestañas.
+
+   > Si Word ya estaba abierto cuando instalaste, **cerralo y volvé a abrirlo**
+   > para que cargue el complemento.
+
+### ¿Qué instala WordAPA7?
+
+| Componente | Ubicación | ¿Requiere admin? |
+|------------|-----------|-----------------|
+| App de escritorio | `%LOCALAPPDATA%\Programs\WordAPA7\` | No |
+| Complemento de Word | `%APPDATA%\WordAPA7\storage\manifest.xml` | No |
+| Backend Python embebido | `resources\python-runtime\` (dentro de la app) | No |
+| Certificado SSL local | `Cert:\CurrentUser\Root` (auto-firmado, silencioso) | No |
+| Entrada de inicio (watcher) | `HKCU\…\Run\WordAPA7Watcher` | No |
+| Menú contextual .docx | `HKCU\…\.docx\shell\WordAPA7` | No |
+
+Todo se instala en el **perfil del usuario actual** (HKCU + LOCALAPPDATA),
+sin requerir permisos de administrador. Ideal para computadoras de
+universidad donde no tenés permisos admin.
+
+### Desinstalación
+
+Desde **Configuración → Aplicaciones → Aplicaciones instaladas**, buscá
+"WordAPA7" y clic en Desinstalar. Se eliminan la app, el complemento de Word,
+el watcher y el certificado SSL. Tus documentos y claves de IA se conservan
+(por si reinstalás).
+
+---
+
+## 🎨 Paleta de Colores y Diseño Oficial (Integración Word 365)
+
+| Componente UI | Código Hexadecimal | Previsualización | Uso |
+|---|---|---|---|
+| **WordAPA7 Brand Blue** | `#4F7CFF` | `████████` | Color de marca, botones principales, selección |
+| **Canvas / Paper White** | `#FFFFFF` | `████████` | Hoja de trabajo, tarjetas elevadas, ribbon |
+| **App Surface / Backdrop** | `#F8F9FA` | `████████` | Fondo de la aplicación y paneles |
+| **Text Primary (Dark)** | `#0F172A` | `████████` | Tipografía principal de alto contraste |
+| **Success Emerald** | `#16A34A` | `████████` | Cumplimiento APA 7, validaciones correctas |
+| **Warning Amber** | `#D97706` | `████████` | Advertencias de estilo o citas |
+| **Danger Red** | `#DC2626` | `████████` | Errores críticos de formato |
 
 ---
 
 ## ✨ Características Principales
+
+### ⚡ Normalizador Proactivo In-Document en Microsoft Word (1 Clic)
+- **Edición 100% en Vivo**: Muta y formatea directamente el documento abierto en Word (`Word.run`) sin necesidad de exportar ni descargar nuevos archivos `.docx`.
+- **Detección Inteligente de Portada**: Identifica y centra la portada de estudiante/profesional sin aplicar sangría de primera línea ni alterar logos universitarios.
+- **Jerarquización Automática de Títulos**: Aplica estilos APA 7 a títulos (H1 centrado en negrita, H2 alineado a la izquierda en negrita, H3 cursiva).
+- **Tablas y Figuras en Vivo**: Limpia líneas verticales, aplica bordes horizontales 0.5pt e inyecta rótulos reglamentarios `Tabla 1...` y `Figura 1...` con notas al pie.
+- **Referencias con Sangría Francesa**: Formatea la sección Referencias al final con *hanging indent* de 1.27 cm e interlineado doble.
+- **Señalización en Word (Highlight & Jump)**: Botón *👁️ Ver en Word* que salta al párrafo exacto y lo resalta temporalmente en amarillo.
+
+### 📌 Ribbon Superior Integrado en Word
+- Grupo **WordAPA7** en la pestaña **Inicio (Home Tab)** visible inmediatamente al abrir cualquier documento, más la pestaña dedicada **WordAPA7** con todas las herramientas.
 
 ### 🛡️ Preservación In-Place de Portadas Universitarias
 - **Modificación Quirúrgica XML**: Mantiene intactos agrupamientos de formas `<wpg:wgp>`, cajas de texto `<wps:txbx>`, logos institucionales y encabezados universitarios sin sobreescribirlos ni borrarlos.
@@ -83,7 +160,7 @@ graph TD
 
 ---
 
-## 🚀 Instalación y Ejecución
+## 🚀 Instalación y Ejecución (Desarrollador)
 
 ### Requisitos Previos
 - **Python**: 3.11 o superior
@@ -92,8 +169,8 @@ graph TD
 
 ### 1. Clonar el Repositorio
 ```bash
-git clone https://github.com/tu-usuario/wordapa7.git
-cd wordapa7
+git clone https://github.com/WalterSolorzano/ProyectoAPA7.git
+cd ProyectoAPA7
 ```
 
 ### 2. Setup Automático (recomendado)
@@ -134,6 +211,24 @@ Edita `.env` con tu API Key opcional de NVIDIA NIM:
 NVIDIA_API_KEY=nvapi-TU_CLAVE_AQUI
 NVIDIA_NIM_MODEL=meta/llama-3.1-70b-instruct
 ```
+
+### 6. Generar el Instalador (Electron)
+```bash
+# 1. Construir el backend Python embebido
+npm run build:backend
+
+# 2. Construir el frontend + add-in de Word
+npm run build
+
+# 3. Empaquetar con electron-builder (genera dist-electron-builder/WordAPA7 Setup X.X.X.exe)
+npx electron-builder --win
+```
+
+El instalador resultante es un `.exe` one-click que:
+- No requiere permisos de administrador (instala en `%LOCALAPPDATA%`).
+- Registra el complemento de Word automáticamente (sideload vía `Wef\Developer`).
+- Instala el certificado SSL autofirmado silenciosamente al arrancar el backend.
+- Muestra el aviso de SmartScreen (inevitable sin certificado comercial).
 
 ## 🔐 Seguridad de Claves de API
 

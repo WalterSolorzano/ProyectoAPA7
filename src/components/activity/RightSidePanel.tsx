@@ -10,7 +10,8 @@ import { ElementInspector } from '../inspector/ElementInspector';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { ReferencesPanel } from '../referencias/ReferencesPanel';
-import { Activity, X, FileText, ListChecks, BookOpen } from 'lucide-react';
+import { OutlineTree } from '../wizard/OutlineTree';
+import { Activity, X, FileText, ListChecks, BookOpen, Map } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   success: <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2714;</span>,
@@ -53,11 +54,11 @@ export const RightSidePanel: React.FC = () => {
     if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
   }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
 
-  // En paso 5 (Referencias) el panel siempre se abre al entrar, porque ahi vive
+  // En paso 4 (Referencias) el panel siempre se abre al entrar, porque ahi vive
   // el editor principal de esa seccion.
   useEffect(() => {
     if (!doc) return;
-    if (wizardStep === 5) setForceRightPanelOpen(true);
+    if (wizardStep === 4) setForceRightPanelOpen(true);
   }, [wizardStep, doc, setForceRightPanelOpen]);
 
   // Guardar ancho en localStorage
@@ -100,7 +101,7 @@ export const RightSidePanel: React.FC = () => {
   const hasReference = !hasSelection && !!selectedReferenceId;
 
   const sectionNames: Record<number, string> = {
-    1: 'Portada', 2: 'Estructura', 3: 'Figuras y tablas', 4: 'Cuerpo', 5: 'Referencias',
+    1: 'Portada', 2: 'Estructura', 3: 'Figuras y tablas', 4: 'Referencias',
   };
   const currentSection = sectionNames[wizardStep] || '';
 
@@ -162,7 +163,7 @@ export const RightSidePanel: React.FC = () => {
           <ElementInspector />
         ) : hasReference ? (
           <ReferenceForm key={selectedReferenceId} />
-        ) : wizardStep === 5 ? (
+        ) : wizardStep === 4 ? (
           <ReferencesPanel />
         ) : (
           <DocumentPanel />
@@ -172,38 +173,66 @@ export const RightSidePanel: React.FC = () => {
   );
 };
 
-// ── Panel "Documento": solo ActionBar + Actividad (sin Resumen ni Revisión IA) ──
+// ── Panel "Documento": ActionBar + tabs [Mapa | Actividad] ──
+// El tab "Mapa" monta OutlineTree (mismo módulo/diseño que el mapa del paso
+// Estructura); se eliminó la implementación duplicada propia.
 
 const DocumentPanel: React.FC = () => {
   const { doc, activityEvents } = useDocStore();
+  const [docTab, setDocTab] = useState<'mapa' | 'actividad'>('mapa');
 
   if (!doc) return null;
 
-  return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <ActionBar />
+  const tabBtn = (id: 'mapa' | 'actividad', label: string, icon: React.ReactNode) => (
+    <button
+      type="button"
+      onClick={() => setDocTab(id)}
+      aria-pressed={docTab === id}
+      title={label}
+      style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+        padding: '6px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+        background: docTab === id ? 'var(--color-accent-soft)' : 'transparent',
+        color: docTab === id ? 'var(--accent-primary)' : 'var(--text-secondary)',
+        border: 'none', borderBottom: docTab === id ? '2px solid var(--accent-primary)' : '2px solid transparent',
+      }}
+    >
+      {icon} {label}
+    </button>
+  );
 
-      {activityEvents.length > 0 && (
-        <div style={{
-          border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-          backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-            <Activity size={15} color="var(--accent-secondary)" />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>Actividad</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {activityEvents.slice(0, 8).map((ev: any) => (
-              <div key={ev.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ flexShrink: 0, marginTop: '1px' }}>{EVENT_ICONS[ev.kind] || EVENT_ICONS.info}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', lineHeight: 1.4 }}>{ev.title}</div>
-                  {ev.detail && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: '2px' }}>{ev.detail}</div>}
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{timeAgo(ev.time)}</div>
-                </div>
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '12px 12px 0 12px', flexShrink: 0 }}>
+        <ActionBar />
+      </div>
+
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, marginTop: '10px' }}>
+        {tabBtn('mapa', 'Mapa', <Map size={13} />)}
+        {tabBtn('actividad', 'Actividad', <Activity size={13} />)}
+      </div>
+
+      {docTab === 'mapa' ? (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <OutlineTree />
+        </div>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {activityEvents.length === 0 && (
+            <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
+              Sin actividad todavía.
+            </div>
+          )}
+          {activityEvents.slice(0, 8).map((ev: any) => (
+            <div key={ev.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ flexShrink: 0, marginTop: '1px' }}>{EVENT_ICONS[ev.kind] || EVENT_ICONS.info}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', lineHeight: 1.4 }}>{ev.title}</div>
+                {ev.detail && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: '2px' }}>{ev.detail}</div>}
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>{timeAgo(ev.time)}</div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

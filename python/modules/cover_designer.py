@@ -267,6 +267,8 @@ def apply_cover_to_document(
     - BUILTIN: genera portada APA 7 con formato predefinido
     """
     paragraphs_before = len(doc.paragraphs)
+    body = doc.element.body
+    children_before = len(list(body))
 
     if cover_template.source_type == "image":
         _apply_image_cover(doc, cover_template, base_dir)
@@ -281,6 +283,12 @@ def apply_cover_to_document(
 
     # Salto de pagina obligatorio despues de la portada
     doc.add_page_break()
+
+    # Los builders anexan al final del cuerpo; mover los elementos recién
+    # creados a la posición 0 para ANTEPONER la portada al contenido existente.
+    new_elements = list(body)[children_before:]
+    for offset, element in enumerate(new_elements):
+        body.insert(offset, element)
 
     # Activar different_first_page_header_footer para que header APA solo aparezca desde pagina 2
     for section in doc.sections:
@@ -431,12 +439,13 @@ def _apply_builtin_cover(
             doc.add_paragraph().paragraph_format.line_spacing = 2.0
 
         if author:
-            p_author = doc.add_paragraph()
-            p_author.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_author.paragraph_format.line_spacing = 2.0
-            r_author = p_author.add_run(author)
-            r_author.font.name = font_name
-            r_author.font.size = font_size
+            for author_line in [ln.strip() for ln in author.split('\n') if ln.strip()]:
+                p_author = doc.add_paragraph()
+                p_author.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_author.paragraph_format.line_spacing = 2.0
+                r_author = p_author.add_run(author_line)
+                r_author.font.name = font_name
+                r_author.font.size = font_size
 
         if institution:
             p_inst = doc.add_paragraph()
@@ -473,12 +482,13 @@ def _apply_builtin_cover(
             doc.add_paragraph().paragraph_format.line_spacing = 2.0
 
         if author:
-            p_a = doc.add_paragraph()
-            p_a.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_a.paragraph_format.line_spacing = 2.0
-            r_a = p_a.add_run(author)
-            r_a.font.name = font_name
-            r_a.font.size = font_size
+            for author_line in [ln.strip() for ln in author.split('\n') if ln.strip()]:
+                p_a = doc.add_paragraph()
+                p_a.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_a.paragraph_format.line_spacing = 2.0
+                r_a = p_a.add_run(author_line)
+                r_a.font.name = font_name
+                r_a.font.size = font_size
 
         if institution:
             p_i = doc.add_paragraph()
@@ -532,7 +542,10 @@ def _generate_student_cover(
     # Datos del autor
     lines = []
     if author:
-        lines.append(author)
+        for _ln in author.split('\n'):
+            _ln = _ln.strip()
+            if _ln:
+                lines.append(_ln)
     if institution:
         lines.append(institution)
     if course:
@@ -583,13 +596,14 @@ def _generate_professional_cover(
     p_sep.paragraph_format.line_spacing = 2.0
 
     if author:
-        p_a = doc.add_paragraph()
-        p_a.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_a.paragraph_format.line_spacing = 2.0
-        p_a.paragraph_format.first_line_indent = Inches(0)
-        r_a = p_a.add_run(author)
-        r_a.font.name = font_name
-        r_a.font.size = font_size
+        for author_line in [ln.strip() for ln in author.split('\n') if ln.strip()]:
+            p_a = doc.add_paragraph()
+            p_a.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_a.paragraph_format.line_spacing = 2.0
+            p_a.paragraph_format.first_line_indent = Inches(0)
+            r_a = p_a.add_run(author_line)
+            r_a.font.name = font_name
+            r_a.font.size = font_size
 
     if institution:
         p_i = doc.add_paragraph()

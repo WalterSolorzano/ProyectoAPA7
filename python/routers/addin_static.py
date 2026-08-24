@@ -39,6 +39,8 @@ Función:
 import os
 import shutil
 import sys
+from datetime import datetime, timezone
+from runtime_flags import use_ssl as _rf_use_ssl
 from pathlib import Path
 from typing import Optional
 
@@ -87,8 +89,8 @@ def _resolve_addin_base_url(request: Optional[Request] = None) -> str:
     # https://localhost:8742/addin con certificado auto-firmado.
     # No usamos request.base_url aquí porque el TestClient de FastAPI
     # produce http://testserver, lo que daría una URL HTTP incorrecta.
-    ssl_disabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "false"
-    if not ssl_disabled:
+    ssl_enabled = _rf_use_ssl()
+    if ssl_enabled:
         return "https://localhost:8742/addin"
 
     # SSL deshabilitado (modo HTTP plano): usar la URL de la petición.
@@ -108,8 +110,8 @@ def _get_backend_api_url() -> str:
     En modo desarrollo HTTPS: ``https://127.0.0.1:8742``.
     """
     public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
-    ssl_disabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() == "false"
-    if not ssl_disabled and not public_url:
+    ssl_enabled = _rf_use_ssl()
+    if ssl_enabled and not public_url:
         return "https://127.0.0.1:8742"
     return os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
 
@@ -135,6 +137,13 @@ def _generate_manifest_to_storage(request: Optional[Request] = None) -> Optional
     xml_content = xml_content.replace(_DEV_ADDIN_URL, addin_base_url)
     for _old_url in _DEV_ADDIN_URLS:
         xml_content = xml_content.replace(_old_url, addin_base_url)
+
+    # Fallback final: hosts desnudos sin ruta /addin (p.ej. <AppDomains>).
+    # Debe correr DESPUÉS de los reemplazos con ruta para no romperlos.
+    if addin_base_url.endswith("/addin"):
+        _bare_host = addin_base_url[: -len("/addin")]
+        for _old_host in ("https://localhost:8742", "http://localhost:8742"):
+            xml_content = xml_content.replace(_old_host, _bare_host)
 
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     manifest_dest = STORAGE_DIR / "manifest.xml"
@@ -498,6 +507,108 @@ async def auto_setup_addin(request: Request) -> dict:
             result["status"] = "partial"
             print(f"[WARN] [ADD-IN] [auto-setup] Error en registro: {e}")
 
+            # ── Paso 2a: caché de Word — claves viejas del Id anterior y Wef local ──
+        # Si el manifiesto cambia de <Id>, Word conserva la app vieja rechazada
+        # en su caché (%LOCAPP%\Microsoft\Office\16.0\Wef) y NUNCA muestra la
+        # nueva. Registramos AMBAS claves (nombre legible + Id actual) y
+        # limpiamos carpetas de caché {GUID} que referencien manifests nuestros.
+        try:
+            manifest_for_cache = STORAGE_DIR / "manifest.xml"
+            reg_path = r"Software\Microsoft\Office\16.0\Wef\Developer"
+            import uuid as _uuid
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_path) as wef_key:
+                winreg.SetValueEx(wef_key, "WordAPA7", 0, winreg.REG_SZ, str(manifest_for_cache))
+                try:
+                    _id_line = ""
+                    for _ln in manifest_for_cache.read_text(encoding="utf-8").splitlines():
+                        if "<Id>" in _ln:
+                            _id_line = _ln.replace("<Id>", "").replace("</Id>", "").strip()
+                            break
+                    if _id_line:
+                        winreg.SetValueEx(wef_key, _id_line, 0, winreg.REG_SZ, str(manifest_for_cache))
+                except Exception:
+                    pass
+            result["steps"]["registry"] = {
+                "status": "ok",
+                "key": f"HKCU\\{reg_path}\\WordAPA7 (+Id)",
+                "value": str(manifest_for_cache),
+            }
+            # Purga de caché local SOLO cuando cambió el Id del manifiesto
+            # (purga en cada request costaba minutos con stores lockeados).
+            marker = STORAGE_DIR / ".wef_purge_marker"
+            try:
+                current_sig = ""
+                if manifest_for_cache.exists():
+                    for _ln in manifest_for_cache.read_text(encoding="utf-8").splitlines():
+                        if "<Id>" in _ln:
+                            current_sig = _ln.strip()
+                            break
+            except Exception:
+                current_sig = ""
+
+            if marker.exists() and marker.read_text(encoding="utf-8", errors="ignore").strip() == current_sig and current_sig:
+                result["steps"]["wef_cache"] = {"status": "ok", "purged": 0, "skipped": "sin cambios"}
+            else:
+                wef_cache = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Office" / "16.0" / "Wef"
+                purged = []
+                if wef_cache.exists():
+                    for sub in list(wef_cache.iterdir()):
+                        name = sub.name.upper()
+                        if sub.is_dir() and name.startswith("{") and name.endswith("}"):
+                            try:
+                                import shutil as _sh
+                                _sh.rmtree(sub, ignore_errors=True)
+                                purged.append(name)
+                            except Exception:
+                                pass
+                    for cache_sub in ("AddinInfo", "AppCommands"):
+                        d = wef_cache / cache_sub
+                        if d.exists():
+                            try:
+                                import shutil as _sh
+                                _sh.rmtree(d, ignore_errors=True)
+                                purged.append(cache_sub)
+                            except Exception:
+                                pass
+                try:
+                    marker.write_text(current_sig, encoding="utf-8")
+                except Exception:
+                    pass
+                result["steps"]["wef_cache"] = {"status": "ok", "purged": len(purged)}
+        except Exception as e:
+            result["steps"]["registry"] = {"status": "error", "reason": str(e)}
+            result["status"] = "partial"
+
+        # ── Paso 2b: Sideload REAL (carpeta System Feed que Word vigila) ──        # El registro Wef\\Developer NO es un mecanismo de descubrimiento de
+        # Office. Word sideloadea complementos de desarrollador leyendo los
+        # .xml sueltos dentro de:
+        #   %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Microsoft Office System Feed\\
+        try:
+            manifest_src = STORAGE_DIR / "manifest.xml"
+            if manifest_src.exists():
+                feed_dir = (
+                    Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+                    / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+                    / "Microsoft Office System Feed"
+                )
+                feed_dir.mkdir(parents=True, exist_ok=True)
+                feed_manifest = feed_dir / "WordAPA7.xml"
+                shutil.copy2(str(manifest_src), str(feed_manifest))
+                result["steps"]["system_feed"] = {
+                    "status": "ok",
+                    "path": str(feed_manifest),
+                }
+                print(f"[ADD-IN] [auto-setup] System Feed: {feed_manifest}")
+            else:
+                result["steps"]["system_feed"] = {
+                    "status": "skipped",
+                    "reason": "no manifest to copy",
+                }
+        except Exception as e:
+            result["steps"]["system_feed"] = {"status": "error", "reason": str(e)}
+            result["status"] = "partial"
+            print(f"[WARN] [ADD-IN] [auto-setup] Error en System Feed: {e}")
+
         # ── Paso 3: Copiar a catálogo compartido (fallback) ────────────
         try:
             catalog_dir = STORAGE_DIR.parent / "catalog"
@@ -553,10 +664,53 @@ async def auto_setup_addin(request: Request) -> dict:
 
     print(f"[ADD-IN] [auto-setup] Completo: {result['summary']}")
 
+    try:
+        from wordapa7_logger import log_event, log_error
+        log_event("backend", "auto_setup", {"summary": result["summary"], "steps": result["steps"]})
+        for step_name, st in result["steps"].items():
+            if st.get("status") == "error":
+                log_error("backend", f"auto_setup_step_{step_name}", Exception(st.get("reason", "")), st)
+    except Exception:
+        pass
+
     return result
 
 
 # ── SSL STATUS Y CONFIG (movidos de main.py para registro antes del catch-all) ─
+
+@router.get("/sideload-status")
+async def get_sideload_status() -> dict:
+    """
+    Estado del sideload real del add-in: presencia del manifiesto en la
+    carpeta System Feed de Windows (la unica que Word descubre como
+    complemento de desarrollador) y coincidencia con el manifiesto actual.
+    """
+    feed_dir = (
+        Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+        / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+        / "Microsoft Office System Feed"
+    )
+    feed_manifest = feed_dir / "WordAPA7.xml"
+    storage_manifest = STORAGE_DIR / "manifest.xml"
+
+    installed = feed_manifest.exists()
+    matches = False
+    mtime: Optional[str] = None
+    if installed:
+        try:
+            mtime = datetime.fromtimestamp(feed_manifest.stat().st_mtime, timezone.utc).isoformat()
+            if storage_manifest.exists():
+                matches = feed_manifest.read_bytes() == storage_manifest.read_bytes()
+        except Exception:
+            pass
+
+    return {
+        "installed": installed,
+        "up_to_date": bool(installed and matches),
+        "path": str(feed_manifest),
+        "installed_at": mtime,
+    }
+
 
 @router.get("/ssl-status")
 async def get_addin_ssl_status():
@@ -583,7 +737,7 @@ async def get_addin_ssl_status():
 
     ssl_active = cert_path.exists() and key_path.exists()
 
-    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+    use_ssl_enabled = _rf_use_ssl()
     addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
 
     if use_ssl_enabled:
@@ -624,7 +778,7 @@ async def get_addin_config():
       - El frontend del Add-in usa esta URL para las llamadas a la API
     """
     addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
-    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not addin_public_url
+    use_ssl = _rf_use_ssl() and not addin_public_url
 
     # Determinar la URL del backend que el frontend debe usar
     if use_ssl:
@@ -645,3 +799,57 @@ async def get_addin_config():
             else "Backend en HTTP plano — configura WORDAPA7_ADDIN_PUBLIC_URL para produccion"
         ),
     }
+
+
+def _setup_trusted_catalog() -> dict:
+    """Catálogo confiable local (método desktop confiable según MS Learn):
+    carpeta + clave HKCU WEF\\TrustedCatalogs; el usuario añade desde
+    Insertar > Mis complementos > CARPETA COMPARTIDA."""
+    import shutil, uuid, winreg
+    result = {"ok": False, "catalog_dir": None, "reg_key": None, "error": None}
+    try:
+        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData/Local"))) / "WordAPA7" / "addin-catalog"
+        base.mkdir(parents=True, exist_ok=True)
+        manifest_src = _addin_dist_dir() / "manifest.xml"
+        if not manifest_src.exists():
+            manifest_src = Path(__file__).resolve().parents[2] / "word-addin" / "dist" / "manifest.xml"
+        if manifest_src.exists():
+            shutil.copy2(manifest_src, base / "manifest.xml")
+            result["catalog_dir"] = str(base)
+            key_path = r"Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-WORDAPA7CAT}"
+            key_path = key_path.replace("WORDAPA7CAT", "0C0FFEED")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as k:
+                winreg.SetValueEx(k, "Url", 0, winreg.REG_SZ, str(base))
+                winreg.SetValueEx(k, "Flags", 0, winreg.REG_DWORD, 1)
+                winreg.SetValueEx(k, "Id", 0, winreg.REG_SZ, "{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}")
+            result["reg_key"] = key_path
+            result["ok"] = True
+    except Exception as exc:
+        result["error"] = str(exc)[:200]
+    return result
+
+
+def _purge_wef_cache_full() -> int:
+    """Purga TOTAL de %LOCALAPPDATA%\\Microsoft\\Office\\16.0\\Wef (bug conocido
+    office-js#6009: caché corrupta → complemento invisible). Con marcador anti-loop."""
+    import shutil as _sh
+    wef = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Office" / "16.0" / "Wef"
+    marker = wef.parent / ".wordapa7_wef_purged"
+    if marker.exists():
+        return -1  # ya purgado esta instalación
+    n = 0
+    if wef.exists():
+        for child in wef.iterdir():
+            try:
+                if child.is_dir():
+                    _sh.rmtree(child, ignore_errors=True)
+                else:
+                    child.unlink(missing_ok=True)
+                n += 1
+            except Exception:
+                pass
+    try:
+        marker.write_text("purged", encoding="utf-8")
+    except Exception:
+        pass
+    return n

@@ -96,6 +96,7 @@ class APARuleSet(BaseModel):
     margins_cm: float = 2.54
 
     # Fuente
+    export_mode: str = "inplace"  # inplace | rebuild
     font_family: str = "Times New Roman"
     font_size_pt: int = 12
 

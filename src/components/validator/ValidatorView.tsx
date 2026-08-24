@@ -10,7 +10,7 @@ import { RefreshCw, CheckCircle2, AlertTriangle, Link2, Sparkles, Loader2, Copy 
 import { toKey, citationSurname, referenceText, refSurnameMatches } from '../../lib/citationMatcher';
 
 export const ValidatorView: React.FC = () => {
-  const { doc, validationIssues, runValidation, isLoading, references, setSelectedElementId, setWizardStep, suggestCitationFix, apiKey } = useDocStore();
+  const { doc, validationIssues, runValidation, isLoading, references, setSelectedElementId, setWizardStep, setStructureTab, suggestCitationFix, apiKey } = useDocStore();
   const [hoveredCitation, setHoveredCitation] = useState<number | null>(null);
   const [hoveredReference, setHoveredReference] = useState<number | null>(null);
   // Estado por cita para corrección IA: { [citIndex]: { loading, result } }
@@ -46,7 +46,9 @@ export const ValidatorView: React.FC = () => {
   const goToCitation = (elementId?: string) => {
     if (!elementId) return;
     setSelectedElementId(elementId);
-    setWizardStep(4); // Cuerpo — el canvas muestra el documento completo
+    // Paso 2 = Estructura; el cuerpo vive en la sub-pestaña 'body' del store.
+    setWizardStep(2);
+    setStructureTab('body');
   };
 
   const errorCount = validationIssues.filter((i) => i.severity === 'error').length;
@@ -54,13 +56,8 @@ export const ValidatorView: React.FC = () => {
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--space-5)' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)', margin: 0 }}>
-            Validador de citas y referencias
-          </h2>
-        </div>
+      {/* Header — solo acciones: el título ya lo pinta la barra del drawer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 'var(--space-4)' }}>
         <button
           type="button"
           className="btn btn-secondary btn-sm"

@@ -1,6 +1,6 @@
 /* WordAPA7 — Full Desktop Application Assembly (Fluent Design with Guided Wizard Flow) */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Map } from 'lucide-react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { needsReview } from './lib/portadaAuthors';
@@ -26,6 +26,7 @@ import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTables
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
 import { EditorRail } from './components/wizard/EditorRail';
+import { StepRail } from './components/wizard/StepRail';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 import { DocumentOutline } from './components/wizard/DocumentOutline';
 
@@ -37,6 +38,7 @@ import { AIBatteryIndicator } from './components/AIBatteryIndicator';
 import { DesignAuditor } from './components/auditor/DesignAuditor';
 import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
+import { ImageEditPanel } from './components/inspector/ImageEditPanel';
 import { syncAllProviderKeys } from './api/backend';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
@@ -101,6 +103,51 @@ const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'heading
   </div>
 );
 
+/** Panel de edición de imagen montado a nivel raíz: visible en cualquier paso
+    del wizard (antes solo existía dentro del paso Figuras y el toggle del canvas
+    quedaba sin efecto en los demás pasos). */
+const ImageEditSidePanel: React.FC = () => {
+  const doc = useDocStore((s) => s.doc);
+  const selectedElementId = useDocStore((s) => s.selectedElementId);
+  const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
+  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
+  if (!doc || !imagePanelOpen || !selectedElementId) return null;
+  const selectedImage = doc.elements.find(
+    (e) => e.id === selectedElementId && e.type === 'image' && !e.is_cover_section
+  );
+  if (!selectedImage) return null;
+  return (
+    <div style={{
+      width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
+      backgroundColor: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
+      overflow: 'hidden',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Panel de edición
+        </span>
+        <button
+          type="button"
+          onClick={() => setImagePanelOpen(false)}
+          title="Ocultar panel"
+          aria-label="Ocultar panel de edición"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '22px', height: '22px', cursor: 'pointer', background: 'transparent',
+            border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)',
+            fontFamily: 'inherit', fontSize: '14px', lineHeight: 1,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <ImageEditPanel elem={selectedImage} />
+      </div>
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const {
     doc,
@@ -121,10 +168,9 @@ export const App: React.FC = () => {
     auditorMode,
     setAuditorMode,
     isBackendReady,
+    structureTab,
+    setStructureTab,
   } = useDocStore();
-
-  // Structure sub-tab: Títulos | Cuerpo (step 2 combines both)
-  const [structureTab, setStructureTab] = useState<'headings' | 'body'>('headings');
 
   // ── Context Menu Integration ──────────────────────────────────────────────
   const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array } | null>(null);
@@ -421,6 +467,8 @@ export const App: React.FC = () => {
       <ProjectTabs />
       
       <div className="app-main" style={{ flex: 1, overflow: 'hidden', display: 'flex', backgroundColor: 'var(--app-bg)', minWidth: 0 }}>
+        {/* Navegación de pasos: lista vertical a la izquierda (solo vistas de edición) */}
+        {viewMode !== 'result' && viewMode !== 'export' && viewMode !== 'native-pdf' && <StepRail />}
         {viewMode === 'result' ? (
           <div key="view-result" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
              <PDFPreview />
@@ -470,7 +518,9 @@ export const App: React.FC = () => {
                   {wizardStep === 4 && <Step5ReferencesWizard />}
                 </div>
               </div>
-              {/* Mapa del documento — panel permanente a la derecha del contenido principal */}
+              {/* Mapa del documento — panel permanente a la derecha del contenido principal.
+                  En el paso 2 (Títulos) ya hay un "Mapa de títulos" propio: no duplicar. */}
+              {wizardStep !== 2 && (
               <div style={{
                 backgroundColor: 'var(--sidebar-bg)',
                 borderLeft: '1px solid var(--border-subtle)',
@@ -488,10 +538,13 @@ export const App: React.FC = () => {
                   <DocumentOutline />
                 </div>
               </div>
+              )}
               <RightSidePanel />
             </div>
           </>
         )}
+        {/* Panel de edición de imagen a nivel raíz: funciona en cualquier paso */}
+        <ImageEditSidePanel />
       </div>
 
       <TemplateDialog />

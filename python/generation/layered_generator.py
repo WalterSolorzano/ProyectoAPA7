@@ -79,6 +79,36 @@ def generate_apa7_from_scratch(
 
     doc = docx.Document()
     apply_page_setup(doc, rules)
+
+    # pgSz determinista: copiar el tamaño del documento original si está
+    # disponible; si no, escribir Letter explícito (evita ambigüedad downstream).
+    try:
+        _src_doc = None
+        for _cand in ("original.docx", doc_model.file_name):
+            if not _cand:
+                continue
+            _cand_path = out_path.parent / _cand
+            if _cand_path.exists():
+                _src_doc = docx.Document(_cand_path)
+                break
+        _new_sec = doc.sections[0] if doc.sections else None
+        if _new_sec is not None:
+            if _src_doc is not None and _src_doc.sections:
+                _src_sec = _src_doc.sections[0]
+                if _src_sec.page_width is not None:
+                    _new_sec.page_width = _src_sec.page_width
+                if _src_sec.page_height is not None:
+                    _new_sec.page_height = _src_sec.page_height
+                try:
+                    _new_sec.orientation = _src_sec.orientation
+                except Exception:
+                    pass
+            else:
+                _new_sec.page_width = Inches(8.5)
+                _new_sec.page_height = Inches(11)
+    except Exception as e:
+        print(f"[LAYERED-GEN] pgSz setup skip: {e}")
+
     update_docx_styles_xml(doc, rules)
 
     running_head = portada.running_head if portada else ""
@@ -129,6 +159,7 @@ def generate_apa7_from_scratch(
     heading_counters: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     numbered_counters: dict[int, int] = {1: 0, 2: 0, 3: 0}
     last_numbered_level = 0
+    cover_block_emitted = bool(portada) or cover_template_applied
 
     def _to_roman(num: int) -> str:
         if num <= 0:
@@ -155,7 +186,7 @@ def generate_apa7_from_scratch(
                     parts.append(str(c))
         return ".".join(parts) + ". " if parts else ""
 
-    for elem in body_elements:
+    for body_idx, elem in enumerate(body_elements):
         elem_type = elem.type
         elem_level = elem.heading_level or 1
         list_lvl = elem.list_level or 1
@@ -178,8 +209,9 @@ def generate_apa7_from_scratch(
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
             prefix = _build_prefix(heading_counters, lvl, level_style)
 
-            # Page break before H1
-            if lvl == 1:
+            # Page break before H1 (skip once si la portada acaba de emitir
+            # su propio salto — evita página en blanco portada→cuerpo)
+            if lvl == 1 and not (body_idx == 0 and cover_block_emitted):
                 doc.add_page_break()
 
             p = doc.add_paragraph()

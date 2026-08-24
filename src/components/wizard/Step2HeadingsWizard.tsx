@@ -5,8 +5,9 @@ import { useDocStore } from '../../store/useDocStore';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { needsReview } from '../../lib/portadaAuthors';
-import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronRight, ChevronLeft, ChevronDown, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose, FoldVertical } from 'lucide-react';
+import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { Badge } from '../ui/wordapa7';
+import { OutlineTree } from './OutlineTree';
 import * as api from '../../api/backend';
 
 const kbdStyle: React.CSSProperties = {
@@ -27,15 +28,6 @@ export const Step2HeadingsWizard: React.FC = () => {
   const [filterMode, setFilterMode] = useState<'revisar' | 'all'>('all');
   const [reviewerCollapsed, setReviewerCollapsed] = useState(false);
   const [outlineCollapsed, setOutlineCollapsed] = useState(false);
-  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(() => {
-    // Por defecto se muestran los títulos de nivel 1 (raíces); los hijos
-    // (nivel 2, 3...) arrancan colapsados para no saturar la vista.
-    const doc = useDocStore.getState().doc;
-    const ids = (doc?.elements || [])
-      .filter((e) => e.type === 'heading' && e.heading_level && e.heading_level > 1)
-      .map((e) => e.id);
-    return new Set(ids);
-  });
   const [toolbarAnchor, setToolbarAnchor] = useState<DOMRect | null>(null);
   const [toolbarElementId, setToolbarElementId] = useState<string | null>(null);
   const [reviewIdx, setReviewIdx] = useState(0);
@@ -106,36 +98,8 @@ export const Step2HeadingsWizard: React.FC = () => {
   const reviewCount = reviewHeadings.length;
   reviewCountRef.current = reviewCount;
 
-  // Construir árbol jerárquico de títulos: hijos = headings con nivel > padre
-  // que no hayan sido "cerrados" por un heading de nivel igual o menor.
-  const outlineTree = useMemo(() => {
-    type Node = { elem: (typeof headings)[number]; children: Node[] };
-    const root: Node[] = [];
-    const stack: Node[] = [];
-    for (const h of headings) {
-      const lvl = h.heading_level || 1;
-      const node: Node = { elem: h, children: [] };
-      // Pop mientras el tope del stack tenga nivel >= al actual
-      while (stack.length && (stack[stack.length - 1].elem.heading_level || 1) >= lvl) {
-        stack.pop();
-      }
-      if (stack.length) {
-        stack[stack.length - 1].children.push(node);
-      } else {
-        root.push(node);
-      }
-      stack.push(node);
-    }
-    return root;
-  }, [headings]);
-
-  const toggleNode = (id: string) => {
-    setCollapsedNodes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  // Construir árbol jerárquico de títulos: vive en OutlineTree.tsx (módulo
+  // compartido con el Mapa del documento del panel derecho).
 
   const reviewHighlightIds = useMemo(() => {
     if (filterMode !== 'revisar') return undefined;
@@ -254,126 +218,30 @@ export const Step2HeadingsWizard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden', minHeight: 0 }}>
-      {/* ── Mapa jerárquico de títulos (IZQUIERDA, árbol colapsable) ── */}
-      {filterMode === 'all' && (() => {
-        const nav = (id: string) => {
-          setSelectedElementId(id);
-          document.getElementById(`paper-elem-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        };
-        const renderNode = (node: any, depth: number): React.ReactNode => {
-          const h = node.elem;
-          const lvl = h.heading_level || 1;
-          const lvlColor = lvl === 1 ? 'var(--accent-primary)' : lvl === 2 ? 'var(--accent-secondary)' : 'var(--color-text-tertiary)';
-          const isSelected = selectedElementId === h.id;
-          const hasChildren = node.children.length > 0;
-          const isCollapsed = collapsedNodes.has(h.id);
-          return (
-            <div key={h.id}>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => nav(h.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav(h.id); } }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', width: '100%',
-                  padding: '4px 6px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-                  background: isSelected ? 'var(--color-accent-soft)' : 'transparent',
-                  border: 'none', borderRadius: 'var(--radius-sm)',
-                  color: isSelected ? 'var(--accent-primary)' : 'var(--color-text-primary)',
-                  paddingLeft: 4 + (depth - 1) * 14,
-                }}
-              >
-                {hasChildren ? (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); toggleNode(h.id); }}
-                    title={isCollapsed ? 'Expandir sección' : 'Colapsar sección'}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', color: 'var(--color-text-secondary)', flexShrink: 0 }}
-                  >
-                    {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                  </button>
-                ) : (
-                  <span style={{ width: 16, flexShrink: 0 }} />
-                )}
-                <span style={{
-                  flexShrink: 0, fontSize: '9px', fontWeight: 700, minWidth: '22px', textAlign: 'center',
-                  padding: '1px 4px', borderRadius: 4,
-                  backgroundColor: lvl === 1 ? 'var(--color-accent-soft)' : 'transparent',
-                  color: lvlColor,
-                }}>
-                  H{lvl}
-                </span>
-                <span style={{
-                  flex: 1, fontSize: lvl === 1 ? '12px' : '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  fontWeight: lvl === 1 ? 700 : 500,
-                }}>
-                  {(h.text || '').trim()}
-                </span>
-                {hasChildren && (
-                  <span style={{ fontSize: '9px', color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
-                    {node.children.length}
-                  </span>
-                )}
-              </div>
-              {hasChildren && !isCollapsed && (
-                <div style={{ marginLeft: 10 }}>
-                  {node.children.map((c: any) => renderNode(c, depth + 1))}
-                </div>
-              )}
-            </div>
-          );
-        };
-        return (
-          <div style={{
-            width: outlineCollapsed ? 40 : 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
-            overflow: 'hidden', transition: 'width 0.2s ease',
-          }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-              {!outlineCollapsed && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>Mapa de títulos</span>}
-              {!outlineCollapsed && <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headings.length}</span>}
-              <button type="button" onClick={() => setOutlineCollapsed((v) => !v)} title={outlineCollapsed ? 'Expandir mapa' : 'Colapsar mapa'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }}>
-                {outlineCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-              </button>
-            </div>
-            {!outlineCollapsed && (
-              <>
-                <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setCollapsedNodes(new Set())}
-                    style={{ flex: 1, fontSize: '10px', padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)' }}
-                  >
-                    Expandir todo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollapsedNodes(new Set(headings.filter((h) => h.heading_level && h.heading_level > 1).map((h) => h.id)))}
-                    style={{ flex: 1, fontSize: '10px', padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
-                  >
-                    <FoldVertical size={11} /> Solo nivel 1
-                  </button>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  {headings.length === 0 && (
-                    <div style={{
-                      padding: '24px 12px', textAlign: 'center', color: 'var(--text-secondary)',
-                      fontSize: '11.5px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-                    }}>
-                      <span style={{ fontSize: '20px' }}>📑</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Sin títulos detectados</span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                        Hacé clic sobre cualquier párrafo en el documento para asignarle nivel H1, H2 o H3.
-                      </span>
-                    </div>
-                  )}
-                  {outlineTree.map((node) => renderNode(node, 1))}
-                </div>
-              </>
-            )}
+      {/* ── Mapa jerárquico de títulos (IZQUIERDA, árbol colapsable) ──
+          Módulo compartido: OutlineTree (mismo diseño que el Mapa del panel derecho) */}
+      {filterMode === 'all' && (
+        <div style={{
+          width: outlineCollapsed ? 40 : 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
+          overflow: 'hidden', transition: 'width 0.2s ease',
+        }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+            {!outlineCollapsed && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>Mapa de títulos</span>}
+            {!outlineCollapsed && <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headings.length}</span>}
+            <button type="button" onClick={() => setOutlineCollapsed((v) => !v)} title={outlineCollapsed ? 'Expandir mapa' : 'Colapsar mapa'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }}>
+              {outlineCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+            </button>
           </div>
-        );
-      })()}
+          {!outlineCollapsed && (
+            <>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <OutlineTree showToolbar />
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Main document area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minWidth: 0 }}>

@@ -149,6 +149,33 @@ export async function getDocumentText(): Promise<string> {
   })
 }
 
+/** OOXML completo del documento activo (para scoped-apply-live). */
+export async function getDocumentOoxml(): Promise<string> {
+  return withWordContext(async (context) => {
+    const body = context.document.body
+    const ooxml = body.getOoxml()
+    await context.sync()
+    return ooxml.value || ''
+  })
+}
+
+/** Dispara la descarga de bytes (docx/pdf base64) desde el panel. */
+export function downloadBase64File(base64: string, filename: string, mime: string): void {
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  const blob = new Blob([bytes], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+
 /** Lee el texto seleccionado actualmente. */
 export async function getSelectedText(): Promise<string> {
   return withWordContext(async (context) => {
@@ -891,7 +918,13 @@ export async function captionUncaptionedTables(): Promise<number> {
 
 // Office.EventType.DocumentChanged no existe en @types/office-js antiguos,
 // pero sí en el host de Word real (valor "documentChanged"). Se castea.
-const DOCUMENT_CHANGED_EVENT = (Office.EventType as any).DocumentChanged as Office.EventType
+// ACCESO PEREZOSO: `Office` no existe durante la evaluación del módulo cuando
+// office.js es el loader local (define el namespace tras traer el runtime del
+// host de forma asíncrona). Resolver en tiempo de uso, nunca al importar.
+function getDocumentChangedEvent(): Office.EventType {
+  const fallback = 'documentChanged' as unknown as Office.EventType
+  return ((Office as any)?.EventType?.DocumentChanged as Office.EventType) ?? fallback
+}
 
 /**
  * Se suscribe al evento DocumentChanged (cualquier cambio de contenido del
@@ -901,6 +934,7 @@ const DOCUMENT_CHANGED_EVENT = (Office.EventType as any).DocumentChanged as Offi
  */
 export function subscribeDocumentChanges(handler: () => void): Unsubscription {
   const wrapped = () => handler()
+  const DOCUMENT_CHANGED_EVENT = getDocumentChangedEvent()
   Office.context.document.addHandlerAsync(DOCUMENT_CHANGED_EVENT, wrapped, (asyncResult: Office.AsyncResult<void>) => {
     if (asyncResult.status !== Office.AsyncResultStatus.Succeeded) {
       // Si el evento no está disponible, el asistente cae a polling.
@@ -909,7 +943,7 @@ export function subscribeDocumentChanges(handler: () => void): Unsubscription {
   })
   return () => {
     try {
-      Office.context.document.removeHandlerAsync(DOCUMENT_CHANGED_EVENT, { handler: wrapped })
+      Office.context.document.removeHandlerAsync(getDocumentChangedEvent(), { handler: wrapped })
     } catch {
       /* ignore */
     }

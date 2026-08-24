@@ -112,7 +112,11 @@ def format_apa_portada(
     # Datos del Autor y Afiliación
     lines = []
     if portada.author:
-        lines.append(portada.author)
+        from modules.portada_normalize import normalize_author_lines
+        for _ln in normalize_author_lines(portada.author).split('\n'):
+            _ln = _ln.strip()
+            if _ln:
+                lines.append(_ln)
     if portada.institution:
         lines.append(portada.institution)
 

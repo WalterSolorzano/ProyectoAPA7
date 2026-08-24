@@ -1,8 +1,7 @@
 /* WordAPA7 — Rail lateral izquierdo del Editor Unificado.
-   - Íconos con ProgressRing: el anillo se llena conforme se resuelven los
-     pendientes de cada etapa (adiós al health-check final que asusta).
-   - DocumentOutline: ahora se renderiza como panel permanente en el lado
-     derecho del layout (ver App.tsx), no como panel flotante aquí.
+   La navegación de pasos vive SOLO en GuidedWizardBar (barra superior) por
+   contrato de chrome único: este rail ya NO duplica el navegador de etapas.
+   Aquí queda únicamente el toggle del Asistente IA (panel derecho).
 
    ORDEN DE ETAPAS (refactor UX):
    1. Portada
@@ -14,9 +13,9 @@
 
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Layout, Type, Image, BookOpen, Download, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
-import { ProgressRing } from './ProgressRing';
+import { Layout, Type, Image, BookOpen, Download } from 'lucide-react';
 
 export const EDITOR_SECTIONS = [
   { id: 1, title: 'Portada', icon: Layout, hint: 'Metadatos de portada' },
@@ -76,21 +75,7 @@ export const getStepProgress = (stepId: number): number => {
 };
 
 export const EditorRail: React.FC = () => {
-  const { wizardStep, setWizardStep, setSelectedReferenceId, setSelectedElementId, forceRightPanelOpen, setForceRightPanelOpen } = useDocStore();
-
-  const goToSection = (id: number) => {
-    // Al cambiar de sección se limpian las selecciones para que el panel
-    // derecho cambie de contexto (no queda "estático" mostrando el inspector
-    // de una imagen mientras el usuario está en Referencias, por ejemplo).
-    setSelectedReferenceId(null);
-    setSelectedElementId(null);
-    if (id === 5) {
-      // "Exportar" abre el túnel de exportación (viewMode='export')
-      useDocStore.getState().openExportTunnel();
-    } else {
-      setWizardStep(id);
-    }
-  };
+  const { setSelectedReferenceId, setSelectedElementId, forceRightPanelOpen, setForceRightPanelOpen } = useDocStore();
 
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'stretch' }}>
@@ -104,36 +89,6 @@ export const EditorRail: React.FC = () => {
           height: '100%',
         }}
       >
-        {EDITOR_SECTIONS.map((section) => {
-          const Icon = section.icon;
-          const isActive = section.id === wizardStep;
-          const progress = getStepProgress(section.id);
-          return (
-            <button
-              key={section.id}
-              type="button"
-              onClick={() => goToSection(section.id)}
-              title={`${section.title} — ${section.hint}`}
-              aria-label={section.title}
-              aria-current={isActive ? 'page' : undefined}
-              style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', border: 'none', background: 'transparent',
-                color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                backgroundColor: isActive ? 'var(--color-accent-soft)' : 'transparent',
-                position: 'relative', flexShrink: 0,
-                transition: 'background 0.15s ease, color 0.15s ease',
-              }}
-              onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
-              onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-            >
-              <ProgressRing progress={progress} size={34} strokeWidth={2.5} style={{ position: 'absolute', inset: 0, margin: 'auto' }} />
-              <Icon size={16} style={{ position: 'relative' }} />
-            </button>
-          );
-        })}
-
         <div style={{ flex: 1 }} />
 
         {/* Asistente IA toggle */}

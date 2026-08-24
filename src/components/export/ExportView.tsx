@@ -188,7 +188,7 @@ export const ExportView: React.FC = () => {
         style={{
           width: '340px',
           maxWidth: '40%',
-          minWidth: '300px',
+          minWidth: 0,
           flexShrink: 0,
           height: '100%',
           display: 'flex',

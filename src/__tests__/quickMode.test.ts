@@ -24,6 +24,7 @@ vi.mock('../api/backend', () => ({
   reorderElements: vi.fn(),
   validateDocument: vi.fn(),
   validateCitations: vi.fn(),
+  runAIReview: vi.fn(),
   bulkAcceptElements: vi.fn(),
   generatePreview: vi.fn(),
   listSessions: vi.fn(),
@@ -98,7 +99,9 @@ describe('useDocStore — Flujo de subida (sin Modo Rápido)', () => {
     // Ya no existe el "auto-aceptar + validar + auditar" del viejo Modo Rápido.
     expect(api.bulkAcceptElements).not.toHaveBeenCalled();
     expect(api.validateDocument).not.toHaveBeenCalled();
-    expect(api.validateCitations).not.toHaveBeenCalled();
+    // Proactivo: tras subir corren auditorías silenciosas (globos WhatsApp).
+    expect(api.validateCitations).toHaveBeenCalledTimes(1);
+    expect(api.runAIReview).toHaveBeenCalledTimes(1);
 
     const state = useDocStore.getState();
     expect(state.isDownloadModalOpen).toBe(false);

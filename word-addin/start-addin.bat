@@ -3,29 +3,22 @@ REM ===========================================================================
 REM  WordAPA7 — Lanzador del Add-in de Word (servidor de desarrollo)
 REM  -------------------------------------------------------------------------
 REM  Por DEFECTO levanta el servidor en http://localhost:3000 (HTTP plano).
-REM  El Add-in se sirve desde aquí en desarrollo.
 REM
-REM  Para desarrollo HTTPS avanzado (cuando Word necesita cargar el panel
-REM  directamente desde :3000 en HTTPS), setear WORDAPA7_USE_SSL=true en .env
-REM  del proyecto raíz antes de ejecutar este script.
+REM  REQUISITO PREVIO: El backend de Python debe estar corriendo
+REM  (ejecuta start.bat en la raiz del proyecto o `python python/main.py`).
 REM
-REM  REQUISITO PREVIO: el backend de Python de WordAPA7 debe estar corriendo
-REM  (ejecutá start.bat en la raíz del proyecto, o `python python/main.py`).
-REM  El add-in se conecta a http://127.0.0.1:8742 para detectar citas y armar
-REM  la bibliografía. Sin backend, el asistente igual funciona en modo local
-REM  (formato APA 7 + numeración de figuras/tablas al pegar).
+REM  OPCIONES PARA CARGAR EL COMPLEMENTO EN WORD:
 REM
-REM  DESPUÉS de ejecutar este script:
-REM    1. Abrí Microsoft Word (Desktop) o Word Online (office.com)
-REM    2. Insertar -> Mis complementos -> Cargar mi complemento (Upload)
-REM    3. Seleccioná el archivo  manifest.xml  de esta carpeta (word-addin)
-REM    4. Se abre el panel "WordAPA7" a la derecha. Listo: escribí o pegá
-REM       imágenes/tablas y el asistente las formatea y numera en APA 7.
+REM  OPCION 1 — Word Online (Recomendado para pruebas rapidas):
+REM    1. Abre un documento en https://office.com (Word en navegador).
+REM    2. Pestana Insertar -> Complementos (o "Mis complementos").
+REM    3. Haz clic en "Cargar mi complemento" (Upload My Add-in).
+REM    4. Selecciona el archivo "manifest.xml" de la carpeta word-addin.
 REM
-REM  MODO PRODUCCIÓN (sin este script):
-REM    En producción, el Add-in se carga desde una URL HTTPS pública y se
-REM    comunica con el backend local en http://127.0.0.1:8742. No se necesita
-REM    este servidor de desarrollo ni certificados locales.
+REM  OPCION 2 — Word Desktop (Windows):
+REM    Abre otra terminal y ejecuta en la carpeta word-addin:
+REM       npx office-addin-debugging start manifest.xml desktop --app word
+REM    O bien usa el mecanismo automatico del instalador de WordAPA7.
 REM ===========================================================================
 
 setlocal
@@ -41,25 +34,18 @@ if not exist "node_modules" (
   )
 )
 
-REM Detectar modo HTTPS
-set "USE_HTTPS=0"
-if exist "..\.env" (
-  findstr /B /I "WORDAPA7_USE_SSL=true" "..\.env" >nul 2>nul
-  if not errorlevel 1 (
-    set "USE_HTTPS=1"
-  )
-)
-
-if "!USE_HTTPS!"=="1" (
-  echo [WordAPA7 Add-in] Iniciando servidor HTTPS en https://localhost:3000 ...
-  echo [WordAPA7 Add-in] Modo: DESARROLLO HTTPS avanzado
-) else (
-  echo [WordAPA7 Add-in] Iniciando servidor HTTP en http://localhost:3000 ...
-  echo [WordAPA7 Add-in] Modo: DESARROLLO HTTP (por defecto, sin certificados)
-)
-
-echo [WordAPA7 Add-in] En Word: Insertar -^> Mis complementos -^> Cargar mi complemento -^> manifest.xml
+echo [WordAPA7 Add-in] Validando manifiesto XML...
+call npx office-addin-manifest validate manifest.xml
 echo.
+
+echo ===========================================================================
+echo  WordAPA7 Add-in Server iniciando en http://localhost:3000
+echo  Para Word Online: Insertar -> Complementos -> Cargar mi complemento -> manifest.xml
+echo  Para depuracion directa en Word Desktop: npx office-addin-debugging start manifest.xml desktop
+echo ===========================================================================
+echo.
+
 call npm run dev
 
 endlocal
+

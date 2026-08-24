@@ -61,6 +61,64 @@ def _clean_existing_page_numbers(doc: docx.Document):
                         p.remove(r)
 
 
+_TOC_LEADER_RE = None  # lazy
+
+
+def refresh_or_flag_existing_toc(doc: docx.Document) -> str | None:
+    """H20: si el documento ya trae índice, NO duplicarlo.
+
+    - TOC nativo de Word (SDT con campo TOC): se deja intacto; Word lo
+      actualiza solo al imprimir/F9. Retorna 'sdt'.
+    - Índice "manual" (líneas con puntos de relleno + número): se REEMPLAZA
+      por un campo TOC real para que Word lo mantenga. Retorna 'legacy'.
+    - Sin índice: retorna None (el generador puede añadir uno si procede).
+    """
+    global _TOC_LEADER_RE
+    if _TOC_LEADER_RE is None:
+        import re as _re
+        _TOC_LEADER_RE = _re.compile(r"^(.{3,120}?)[ \t]*\.{3,}[ \t]*(\d{1,4})\s*$")
+
+    body = doc.element.body
+
+    # 1) SDT nativo
+    for sdt in body.iter(qn("w:sdt")):
+        for instr in sdt.iter(qn("w:instrText")):
+            if "TOC" in (instr.text or ""):
+                return "sdt"
+
+    # 2) Índice manual: bloque >=2 párrafos con leader-dots + número.
+    paras = doc.paragraphs
+    hits: list[int] = []
+    for i, p in enumerate(paras):
+        t = (p.text or "").strip()
+        if t and _TOC_LEADER_RE.match(t):
+            hits.append(i)
+    if len(hits) < 2:
+        return None
+
+    # Contigüidad aproximada (tolera título "Índice"/blancos intercalados).
+    first, last = hits[0], hits[-1]
+    if last - first > len(hits) * 3:
+        return None
+
+    start_p = paras[first]._p
+    end_p = paras[last]._p
+
+    new_p = parse_xml(
+        '<w:p %s><w:fldSimple w:instr=" TOC \\\\o &quot;1-3&quot; \\\\h \\\\z \\\\u ">'
+        '<w:r><w:t>Índice</w:t></w:r></w:fldSimple></w:p>' % nsdecls("w")
+    )
+    start_p.addprevious(new_p)
+
+    cur = start_p
+    while cur is not end_p:
+        nxt = cur.getnext()
+        body.remove(cur)
+        cur = nxt if nxt is not None else end_p
+    body.remove(end_p)
+    return "legacy"
+
+
 def setup_apa_header(doc: docx.Document, format_type: APAFormat, running_head_text: str, rules: APARuleSet):
     """
     Configura el encabezado de las páginas según el tipo APA (Estudiante vs Profesional).

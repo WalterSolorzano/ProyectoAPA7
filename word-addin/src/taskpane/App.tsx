@@ -2,20 +2,8 @@
  * WordAPA7 Add-in — App Principal (Asistente APA 7 en Vivo)
  * =========================================================
  *
- * Panel lateral que vive dentro de Microsoft Word. Implementa el
- * "Asistente en Vivo" que audita el documento en tiempo real:
- *   - Chupa citas y notifica "¡Cita procesada con éxito!"
- *   - Aplica formato APA 7 al vuelo
- *   - Auto-numera figuras y tablas al pegar
- *   - Sugiere bibliografía y portada
- *
- * El asistente se conecta al backend de Python que viaja con el instalador
- * (127.0.0.1:8742). Funciona igual offline (detección local de citas y
- * formato directo vía Office.js).
- *
- * Los botones del Ribbon (10 botones en 4 grupos) abren este panel
- * en la sección correcta usando localStorage como puente de comunicación.
- * Algunos botones también disparan acciones (refresh, build_bibliography).
+ * Panel lateral proactivo integrado en Microsoft Word.
+ * Diseño dark canónico alineado con design-tokens.md.
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -25,94 +13,66 @@ import {
   type AssistantOptions,
   type AssistantCallbacks,
 } from './liveAssistant'
-import { type DocumentStats, formatDocumentAPA7 } from './office/wordHelper'
+import { type DocumentStats, formatDocumentAPA7, getDocumentText } from './office/wordHelper'
 import { LiveAssistantPanel } from './components/LiveAssistantPanel'
-import { CommentsPanel } from './components/CommentsPanel'
 import { ReferencesPanel } from './components/ReferencesPanel'
 import { CoverPagePanel } from './components/CoverPagePanel'
-import { FigurePanel } from './components/FigurePanel'
-import { HeadingPanel } from './components/HeadingPanel'
-import { TablePanel } from './components/TablePanel'
-import { ValidatePanel } from './components/ValidatePanel'
 import { AIPanel } from './components/AIPanel'
-import { WelcomeTour } from './components/WelcomeTour'
-import { backend, OFFLINE_TOAST_MESSAGE } from './api/backend'
+import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
 
-type TabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
-type InsertSection = 'table' | 'figure' | 'heading' | ''
+type TabId = 'auditoria' | 'referencias' | 'portada' | 'ia'
+type LegacyTabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
 type RibbonAction = 'refresh' | 'build_bibliography' | ''
+type AuditStatus = 'idle' | 'running' | 'done'
+
+const LEGACY_TAB_MAP: Record<LegacyTabId, TabId> = {
+  live: 'auditoria',
+  insert: 'auditoria',
+  comments: 'auditoria',
+  references: 'referencias',
+  cover: 'portada',
+  ai: 'ia',
+}
+
+const TABS: Array<{ id: TabId; label: string; icon: string }> = [
+  { id: 'auditoria', label: 'Auditoría', icon: '⚡' },
+  { id: 'referencias', label: 'Referencias', icon: '📚' },
+  { id: 'portada', label: 'Portada', icon: '📄' },
+  { id: 'ia', label: 'IA', icon: '✨' },
+]
+
+function normalizeTab(raw: string): TabId | null {
+  if (TABS.some((t) => t.id === raw)) return raw as TabId
+  return LEGACY_TAB_MAP[raw as LegacyTabId] ?? null
+}
+
+const AUDIT_MAX_CHARS = 200_000
 
 interface ToastState {
   msg: string
-  type: 'success' | 'error' | 'info'
+  type: 'success' | 'error' | 'info' | 'warning'
   id: number
 }
 
-// Claves del puente localStorage (escritas por commands.ts)
 const LS_TAB = 'wordapa7_addin_active_tab'
-const LS_SECTION = 'wordapa7_addin_insert_section'
 const LS_ACTION = 'wordapa7_addin_action'
 
-// ── Iconos SVG inline ────────────────────────────────────────────────────────
-const Icon: React.FC<{ name: string; size?: number }> = ({ name, size = 16 }) => {
-  const icons: Record<string, string> = {
-    live: 'M12 2a10 10 0 100 20 10 10 0 000-20zM5.05 7.5l2.5 1.45a5 5 0 000 6.1L5.05 16.5a8 8 0 010-9zM12 8a4 4 0 110 8 4 4 0 010-8z',
-    insert: 'M12 5v14M5 12h14',
-    book: 'M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z',
-    page: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6',
-    chat: 'M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z',
-    check: 'M5 13l4 4L19 7',
-    alert: 'M12 2L1 22h22L12 2zM12 9v5M12 18v.01',
-    sparkles: 'M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z',
-    table: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18',
-    image: 'M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 11.5l2.5 3 3.5-4.5 4.5 6H5z',
-    heading: 'M6 4v16M6 12h12M18 4v16',
-  }
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d={icons[name] || icons.sparkles} />
-    </svg>
-  )
-}
-
-const OwlMascot: React.FC = () => (
-  <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
-    <ellipse cx="16" cy="17" rx="11" ry="12" fill="var(--accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.5" />
-    <path d="M7 7L5 3L9 5Z" fill="var(--accent-primary)" />
-    <path d="M25 7L27 3L23 5Z" fill="var(--accent-primary)" />
-    <circle cx="12" cy="13" r="3.5" fill="var(--accent-primary)" />
-    <circle cx="20" cy="13" r="3.5" fill="var(--accent-primary)" />
-    <circle cx="12" cy="13" r="1.3" fill="#fff" />
-    <circle cx="20" cy="13" r="1.3" fill="#fff" />
-    <path d="M16 16L14 19L18 19Z" fill="var(--accent-secondary)" />
-  </svg>
-)
-
-const TABS: Array<{ id: TabId; label: string; icon: string }> = [
-  { id: 'live', label: 'En Vivo', icon: 'live' },
-  { id: 'insert', label: 'Insertar', icon: 'insert' },
-  { id: 'references', label: 'Referencias', icon: 'book' },
-  { id: 'cover', label: 'Portada', icon: 'page' },
-  { id: 'comments', label: 'Comentarios', icon: 'chat' },
-  { id: 'ai', label: 'IA', icon: 'sparkles' },
-]
-
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('live')
-  const [insertSection, setInsertSection] = useState<InsertSection>('table')
+  const [activeTab, setActiveTab] = useState<TabId>('auditoria')
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
-  const [events, setEvents] = useState<AssistantEvent[]>([])
   const [stats, setStats] = useState<DocumentStats | null>(null)
   const [citationsCount, setCitationsCount] = useState(0)
   const [mascotMessage, setMascotMessage] = useState<string>('¡Hola! Soy tu asistente APA 7')
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState(true)
   const [options, setOptions] = useState<AssistantOptions>(liveAssistant.getOptions())
   const [toast, setToast] = useState<ToastState | null>(null)
   const [pendingAction, setPendingAction] = useState<RibbonAction>('')
+  const [auditStatus, setAuditStatus] = useState<AuditStatus>('idle')
+  const [auditResult, setAuditResult] = useState<AuditDocumentResult | null>(null)
+  const [auditNotice, setAuditNotice] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setToast({ msg, type, id: Date.now() })
     if (toastTimer.current) clearTimeout(toastTimer.current)
     if (type !== 'error') {
@@ -120,22 +80,16 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  // ── Ejecutar acción del ribbon (refresh, build_bibliography) ─────────────
   const executeRibbonAction = useCallback((action: RibbonAction) => {
     if (!action) return
-
     if (action === 'refresh') {
       showToast('Re-escaneando el documento...', 'info')
       liveAssistant.scanNow()
     }
-
     if (action === 'build_bibliography') {
-      // Navegar a la pestaña de referencias y disparar la acción
-      setActiveTab('references')
+      setActiveTab('referencias')
       setPendingAction('build_bibliography')
     }
-
-    // Limpiar la acción de localStorage para que no se re-ejecute
     try {
       localStorage.removeItem(LS_ACTION)
     } catch {
@@ -143,37 +97,26 @@ export const App: React.FC = () => {
     }
   }, [showToast])
 
-  // ── Puente con el Ribbon: leer localStorage al montar ────────────────────
   useEffect(() => {
+    fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
+    const hb = setInterval(() => fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {}), 60000)
     try {
-      const tab = localStorage.getItem(LS_TAB) as TabId | null
-      if (tab && TABS.some((t) => t.id === tab)) {
-        setActiveTab(tab)
-      }
-      const section = localStorage.getItem(LS_SECTION) as InsertSection | null
-      if (section) {
-        setInsertSection(section)
-      }
+      const tab = localStorage.getItem(LS_TAB)
+      const mapped = tab ? normalizeTab(tab) : null
+      if (mapped) setActiveTab(mapped)
       const action = localStorage.getItem(LS_ACTION) as RibbonAction | null
-      if (action) {
-        setTimeout(() => executeRibbonAction(action), 300)
-      }
+      if (action) setTimeout(() => executeRibbonAction(action), 300)
     } catch {
-      /* localStorage puede no estar disponible */
+      /* ignore */
     }
+    return () => clearInterval(hb)
   }, [executeRibbonAction])
 
-  // ── Puente con el Ribbon: escuchar cambios en localStorage ──────────────
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_TAB && e.newValue) {
-        const tab = e.newValue as TabId
-        if (TABS.some((t) => t.id === tab)) {
-          setActiveTab(tab)
-        }
-      }
-      if (e.key === LS_SECTION) {
-        setInsertSection((e.newValue as InsertSection) || 'table')
+        const mapped = normalizeTab(e.newValue)
+        if (mapped) setActiveTab(mapped)
       }
       if (e.key === LS_ACTION && e.newValue) {
         executeRibbonAction(e.newValue as RibbonAction)
@@ -183,7 +126,6 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('storage', onStorage)
   }, [executeRibbonAction])
 
-  // Verificar conexión con el backend al arrancar
   useEffect(() => {
     let cancelled = false
     const check = async () => {
@@ -202,7 +144,6 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  // Callbacks del asistente en vivo (memoizados como objeto)
   const assistantCallbacks = useMemo<AssistantCallbacks>(
     () => ({
       onEvent: (ev: AssistantEvent) => {
@@ -210,7 +151,6 @@ export const App: React.FC = () => {
           setMascotMessage(ev.message)
           return
         }
-        setEvents((prev) => [...prev.slice(-120), ev])
         if (ev.type === 'citation') {
           setCitationsCount(liveAssistant.getCitationsCount())
         }
@@ -226,7 +166,6 @@ export const App: React.FC = () => {
     [showToast],
   )
 
-  // Iniciar el asistente en vivo al montar
   useEffect(() => {
     liveAssistant.start(assistantCallbacks, {
       autoFormat: true,
@@ -235,7 +174,6 @@ export const App: React.FC = () => {
     })
     setRunning(true)
     setOptions(liveAssistant.getOptions())
-
     return () => {
       liveAssistant.stop()
     }
@@ -259,13 +197,49 @@ export const App: React.FC = () => {
     setOptions(liveAssistant.getOptions())
   }, [])
 
-  const handleScanNow = useCallback(() => {
-    showToast('Auditando el documento...', 'info')
-    liveAssistant.scanNow()
-  }, [showToast])
+  const handleScanNow = useCallback(async () => {
+    if (auditStatus === 'running') return
+    setAuditStatus('running')
+    setAuditNotice(null)
+    try {
+      let text = ''
+      try {
+        text = await getDocumentText()
+      } catch {
+        showToast('No se pudo leer el documento de Word', 'error')
+        setAuditStatus('idle')
+        return
+      }
+      if (!text.trim()) {
+        showToast('El documento está vacío', 'error')
+        setAuditStatus('idle')
+        return
+      }
+      if (text.length > AUDIT_MAX_CHARS) {
+        text = text.slice(0, AUDIT_MAX_CHARS)
+        setAuditNotice(`Documento extenso: auditado hasta ${AUDIT_MAX_CHARS.toLocaleString('es')} caracteres`)
+      }
+      const result = await backend.auditDocument(text)
+      setAuditResult(result)
+      setAuditStatus('done')
+      const errors = result.findings.filter((f) => f.severity === 'error').length
+      const warns = result.findings.filter((f) => f.severity === 'warn').length
+      showToast(
+        result.findings.length === 0
+          ? 'Auditoría completa: 100% APA 7 ✓'
+          : `Auditoría lista: ${errors} error(es), ${warns} aviso(s)`,
+        result.findings.length === 0 ? 'success' : 'info',
+      )
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : ''
+      showToast(msg || OFFLINE_TOAST_MESSAGE, 'error')
+    } finally {
+      setAuditStatus((s) => (s === 'running' ? 'done' : s))
+    }
+  }, [auditStatus, showToast])
 
   const handleFormatAll = useCallback(async () => {
-    showToast('Formateando el documento...', 'info')
+    showToast('Formateando a APA 7...', 'info')
     try {
       await formatDocumentAPA7()
       showToast('Documento formateado a APA 7', 'success')
@@ -274,8 +248,6 @@ export const App: React.FC = () => {
     }
   }, [showToast])
 
-  // Cuando el usuario cambia de pestaña manualmente, limpiar la sección
-  // pendiente del ribbon para no sobrescribir su selección.
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab)
     try {
@@ -285,72 +257,38 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  // ── Mascota contextual: primera vez que se visita cada pestaña ─────────────
-  useEffect(() => {
-    const tabMessages: Partial<Record<TabId, { msg: string; key: string }>> = {
-      insert: { msg: 'Tablas y figuras con numeracion APA. Vos subi, yo me ocupo del formato.', key: 'wordapa7_insert_seen' },
-      references: { msg: 'Escribi (Autor, Año) y los chupo solito.', key: 'wordapa7_refs_seen' },
-      cover: { msg: '5 campos y te hago la portada. Mas facil que pedirte prestado.', key: 'wordapa7_cover_seen' },
-      ai: { msg: 'Selecciona texto y te digo si suena a ChatGPT.', key: 'wordapa7_ai_seen' },
-    }
-
-    const entry = tabMessages[activeTab]
-    if (!entry) return
-
-    try {
-      if (!localStorage.getItem(entry.key)) {
-        localStorage.setItem(entry.key, 'true')
-        setMascotMessage(entry.msg)
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [activeTab])
-
   return (
     <div className="app-container">
-      {/* HEADER */}
+      {/* HEADER COMPACTO Y PROFESIONAL */}
       <div className="app-header">
-        <div className="app-header__logo">W7</div>
-        <div className="app-header__titles">
-          <div className="app-header__title">WordAPA7</div>
-          <div className="app-header__subtitle">Asistente APA 7 en vivo</div>
+        <div className="app-header__brand">
+          <span className="app-header__logo-badge">W7</span>
+          <span className="app-header__title">WordAPA7</span>
         </div>
         <div className="app-header__status">
-          {backendOk === false ? (
-            <button
-              type="button"
-              className="status-badge status-badge--off status-badge--clickable"
-              title={OFFLINE_TOAST_MESSAGE}
-              onClick={() => showToast(OFFLINE_TOAST_MESSAGE, 'error')}
-            >
-              Sin conexión
-            </button>
-          ) : (
-            <span className={`status-badge ${backendOk ? 'status-badge--ok' : 'status-badge--idle'}`}>
-              {backendOk ? 'Online' : '...'}
-            </span>
-          )}
+          <span className={`status-dot ${backendOk ? 'status-dot--online' : backendOk === false ? 'status-dot--offline' : ''}`} />
+          <span>{backendOk ? 'Online' : backendOk === false ? 'Offline' : '...'}</span>
         </div>
       </div>
 
-      {/* TABS */}
+      {/* PESTAÑAS MODERNAS */}
       <div className="tab-bar">
         {TABS.map((t) => (
           <button
             key={t.id}
+            type="button"
             className={`tab ${activeTab === t.id ? 'tab--active' : ''}`}
             onClick={() => handleTabChange(t.id)}
           >
-            <Icon name={t.icon} size={14} />
+            <span>{t.icon}</span>
             <span>{t.label}</span>
           </button>
         ))}
       </div>
 
-      {/* CONTENT */}
+      {/* CONTENIDO PRINCIPAL */}
       <div className="app-content">
-        {activeTab === 'live' && (
+        {activeTab === 'auditoria' && (
           <LiveAssistantPanel
             running={running}
             options={options}
@@ -360,120 +298,45 @@ export const App: React.FC = () => {
             onOptionChange={handleOptionChange}
             onScanNow={handleScanNow}
             onFormatAll={handleFormatAll}
-          />
-        )}
-
-        {activeTab === 'insert' && (
-          <InsertTabContent
+            auditStatus={auditStatus}
+            auditResult={auditResult}
+            auditNotice={auditNotice}
             showToast={showToast}
-            openSection={insertSection}
-            onOpenSection={setInsertSection}
           />
         )}
 
-        {activeTab === 'references' && (
+        {activeTab === 'referencias' && (
           <ReferencesPanel
             showToast={showToast}
             pendingAction={pendingAction}
             onActionConsumed={() => setPendingAction('')}
           />
         )}
-        {activeTab === 'cover' && <CoverPagePanel showToast={showToast} />}
 
-        {activeTab === 'comments' && (
-          <CommentsPanel events={events} onClear={() => setEvents([])} showToast={showToast} />
-        )}
+        {activeTab === 'portada' && <CoverPagePanel showToast={showToast} />}
 
-        {activeTab === 'ai' && <AIPanel showToast={showToast} />}
+        {activeTab === 'ia' && <AIPanel showToast={showToast} />}
+
+        {/* MASCOTA CONSEJERA DISCRETA */}
+        <div className="mascot-bubble" role="status" aria-live="polite">
+          <div className="mascot-bubble__avatar">🦉</div>
+          <div className="mascot-bubble__text">{mascotMessage}</div>
+        </div>
       </div>
 
-      {/* MASCOTA — globo flotante con mensaje rotativo */}
-      <div className="mascot-bubble" role="status" aria-live="polite">
-        <div className="mascot-bubble__avatar"><OwlMascot /></div>
-        <div className="mascot-bubble__text">{mascotMessage}</div>
-      </div>
-
-      {/* TOAST */}
+      {/* TOAST FLOTANTE */}
       {toast && (
         <div className={`toast toast--${toast.type}`} key={toast.id} role="status">
-          <Icon name={toast.type === 'success' ? 'check' : toast.type === 'error' ? 'alert' : 'sparkles'} size={16} />
-          <span>{toast.msg}</span>
+          <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '⚠' : 'ℹ'}</span>
+          <span style={{ flex: 1 }}>{toast.msg}</span>
           {toast.type === 'error' && (
-            <button type="button" className="toast__close" onClick={() => setToast(null)} aria-label="Cerrar">
+            <button type="button" onClick={() => setToast(null)} style={{ color: '#fff', fontSize: 13 }}>
               ✕
             </button>
           )}
         </div>
       )}
-
-      {/* Nota pequena: servicio automatico */}
-      <div className="watcher-note">
-        <span className={`watcher-note__dot ${backendOk ? 'watcher-note__dot--ok' : 'watcher-note__dot--off'}`} />
-        Automático · se inicia al abrir Word
-      </div>
-
-      {/* WELCOME TOUR (primera vez) */}
-      <WelcomeTour />
     </div>
-  )
-}
-
-// ── Pestaña Insertar: figuras, tablas y títulos ──────────────────────────────
-
-const InsertTabContent: React.FC<{
-  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
-  openSection: InsertSection
-  onOpenSection: (s: InsertSection) => void
-}> = ({ showToast, openSection, onOpenSection }) => {
-  return (
-    <>
-      <div className="card">
-        <button className="card__header" onClick={() => onOpenSection(openSection === 'table' ? '' : 'table')}>
-          <span className="card__icon"><Icon name="table" size={14} /></span>
-          <span className="card__title">Tabla APA 7</span>
-          <span className={`chevron ${openSection === 'table' ? 'chevron--open' : ''}`}>▾</span>
-        </button>
-        {openSection === 'table' && (
-          <div className="card__body">
-            <TablePanel showToast={showToast} />
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <button className="card__header" onClick={() => onOpenSection(openSection === 'figure' ? '' : 'figure')}>
-          <span className="card__icon"><Icon name="image" size={14} /></span>
-          <span className="card__title">Figura APA 7</span>
-          <span className={`chevron ${openSection === 'figure' ? 'chevron--open' : ''}`}>▾</span>
-        </button>
-        {openSection === 'figure' && (
-          <div className="card__body">
-            <FigurePanel showToast={showToast} />
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <button className="card__header" onClick={() => onOpenSection(openSection === 'heading' ? '' : 'heading')}>
-          <span className="card__icon"><Icon name="heading" size={14} /></span>
-          <span className="card__title">Título APA 7</span>
-          <span className={`chevron ${openSection === 'heading' ? 'chevron--open' : ''}`}>▾</span>
-        </button>
-        {openSection === 'heading' && (
-          <div className="card__body">
-            <HeadingPanel showToast={showToast} />
-          </div>
-        )}
-      </div>
-
-      {/* Validación rápida dentro de Insertar */}
-      <div className="card">
-        <div className="card__simple-header">Análisis APA 7</div>
-        <div className="card__body">
-          <ValidatePanel showToast={showToast} />
-        </div>
-      </div>
-    </>
   )
 }
 

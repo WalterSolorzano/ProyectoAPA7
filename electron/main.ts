@@ -77,13 +77,14 @@ function sendFileToRenderer(filePath: string) {
   }
 }
 
-async function createWindow() {
+function createWindow() {
   // El tema se sincroniza desde la UI vía IPC 'set-theme' (light por defecto).
   nativeTheme.themeSource = 'light'
 
+  const quickMode = !!findDocxArg(process.argv)
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 768,
+    width: quickMode ? 460 : 1200,
+    height: quickMode ? 720 : 768,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#ffffff',        // --sidebar-bg claro (default de la app)

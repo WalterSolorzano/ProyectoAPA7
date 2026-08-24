@@ -293,11 +293,53 @@ TEMPLATE_ENSAYO = DocumentTemplate(
 
 # ── REGISTRO DE PLANTILLAS ────────────────────────────────────────────────────
 
+TEMPLATE_LIBRO_MATH = DocumentTemplate(
+    name="Libro de Matemáticas",
+    description="Estructura tipo libro universitario: prefacio, capítulos con teoría/ejemplos/ejercicios y soluciones",
+    has_cover_page=True,
+    has_toc=True,
+    has_references=True,
+    sections=[
+        TemplateSection(heading_level=1, suggested_text="Prefacio", required=False),
+        TemplateSection(
+            heading_level=1,
+            suggested_text="Capítulo 1",
+            sub_sections=[
+                TemplateSection(heading_level=2, suggested_text="1.1 Fundamentos teóricos", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="1.2 Ejemplos resueltos", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="1.3 Ejercicios propuestos", page_break_before=False),
+            ],
+        ),
+        TemplateSection(
+            heading_level=1,
+            suggested_text="Capítulo 2",
+            sub_sections=[
+                TemplateSection(heading_level=2, suggested_text="2.1 Desarrollo temático", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="2.2 Ejemplos resueltos", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="2.3 Ejercicios propuestos", page_break_before=False),
+            ],
+        ),
+        TemplateSection(
+            heading_level=1,
+            suggested_text="Capítulo 3",
+            sub_sections=[
+                TemplateSection(heading_level=2, suggested_text="3.1 Desarrollo temático", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="3.2 Ejemplos resueltos", page_break_before=False),
+                TemplateSection(heading_level=2, suggested_text="3.3 Ejercicios propuestos", page_break_before=False),
+            ],
+        ),
+        TemplateSection(heading_level=1, suggested_text="Apéndice A. Tablas y fórmulas"),
+        TemplateSection(heading_level=1, suggested_text="Soluciones a ejercicios seleccionados"),
+        TemplateSection(heading_level=1, suggested_text="Referencias"),
+    ],
+)
+
 AVAILABLE_TEMPLATES: list[DocumentTemplate] = [
     TEMPLATE_TESINA,
     TEMPLATE_INFORME,
     TEMPLATE_IMRYD,
     TEMPLATE_ENSAYO,
+    TEMPLATE_LIBRO_MATH,
 ]
 
 

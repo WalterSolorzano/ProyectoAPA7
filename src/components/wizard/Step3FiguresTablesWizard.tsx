@@ -3,7 +3,6 @@ import { useDocStore } from '../../store/useDocStore';
 import { needsReview } from '../../lib/portadaAuthors';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
-import { ImageEditPanel } from '../inspector/ImageEditPanel';
 import { resolveAssetUrl } from '../../api/backend';
 import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter } from 'lucide-react';
 
@@ -319,37 +318,8 @@ export const Step3FiguresTablesWizard: React.FC = () => {
         <PaperCanvas onElementClick={handleElementClick} />
       </div>
 
-      {/* Panel modular de edición de imagen (tarjetas colapsables verticales) */}
-      {selectedImage && imagePanelOpen && (
-        <div style={{
-          width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-          backgroundColor: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Panel de edición
-            </span>
-            <button
-              type="button"
-              onClick={() => setImagePanelOpen(false)}
-              title="Ocultar panel"
-              aria-label="Ocultar panel de edición"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: '22px', height: '22px', cursor: 'pointer', background: 'transparent',
-                border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)',
-                fontFamily: 'inherit', fontSize: '14px', lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-            <ImageEditPanel elem={selectedImage} />
-          </div>
-        </div>
-      )}
+      {/* El panel de edición de imagen ahora vive a nivel raíz en App.tsx
+          (ImageEditSidePanel) para estar disponible en cualquier paso. */}
 
       <MiniToolbar
         items={imageActions}

@@ -91,145 +91,145 @@ export interface WhatsAppContext {
 const EMPTY_CTX: WhatsAppContext = { ghostCitations: [], orphanReferences: [], validationIssues: [] };
 
 const EMOJI_COMMENTS: ChatLine[] = [
-  { emoji: '🤔', text: 'bro? como quien dice que es esto?' },
-  { emoji: '🧐', text: '¿emojis en el Word? se te salió el ChatGPT, bro' },
-  { emoji: '😅', text: 'eso se ve como copiado del chat jaja' },
-  { emoji: '💀', text: 'brou, los emojis quedaron pegados del WhatsApp' },
-  { emoji: '🤭', text: '¿esto es una tesis o un post de Facebook? jaja' },
+  { emoji: '', text: 'bro? como quien dice que es esto?' },
+  { emoji: '', text: '¿emojis en el Word? se te salió el ChatGPT, bro' },
+  { emoji: '', text: 'eso se ve como copiado del chat jaja' },
+  { emoji: '', text: 'brou, los emojis quedaron pegados del WhatsApp' },
+  { emoji: '', text: '¿esto es una tesis o un post de Facebook? jaja' },
 ];
 
 const TABLE_EMOJI_COMMENTS: ChatLine[] = [
-  { emoji: '😬', text: 'bro? la tabla tiene emojis de checklist, ¿de dónde salió?' },
-  { emoji: '💀', text: 'eso parece una matriz que te pasó el chat, bro' },
-  { emoji: '🤔', text: '¿estos ✓ y ✗ son parte de la norma APA? jaja' },
-  { emoji: '🙈', text: 'la tabla quedó con las marquitas de la IA, brou' },
+  { emoji: '', text: 'bro? la tabla tiene emojis de checklist, ¿de dónde salió?' },
+  { emoji: '', text: 'eso parece una matriz que te pasó el chat, bro' },
+  { emoji: '', text: '¿estos ✓ y ✗ son parte de la norma APA? jaja' },
+  { emoji: '', text: 'la tabla quedó con las marquitas de la IA, brou' },
 ];
 
 const CONCLUSION_COMMENTS: ChatLine[] = [
-  { emoji: '🤔', text: 'otro "en resumen"… seguro se puede decir distinto' },
-  { emoji: '🙂', text: '"en conclusión" aparece seguido, probá otra forma de cerrar' },
-  { emoji: '😅', text: 'ese cierre suena muy de plantilla, dale un toque propio' },
-  { emoji: '🤗', text: 'casi lo dejás tal cual, un pelito de variedad y queda' },
-  { emoji: '🙃', text: '¿"en definitiva"? un sinónimo y queda más natural' },
-  { emoji: '🤖', text: '"en síntesis"… se nota de dónde salió, cambiala un poco' },
+  { emoji: '', text: 'otro "en resumen"… seguro se puede decir distinto' },
+  { emoji: '', text: '"en conclusión" aparece seguido, probá otra forma de cerrar' },
+  { emoji: '', text: 'ese cierre suena muy de plantilla, dale un toque propio' },
+  { emoji: '', text: 'casi lo dejás tal cual, un pelito de variedad y queda' },
+  { emoji: '', text: '¿"en definitiva"? un sinónimo y queda más natural' },
+  { emoji: '', text: '"en síntesis"… se nota de dónde salió, cambiala un poco' },
 ];
 
 const AI_COMMENTS: ChatLine[] = [
-  { emoji: '🤖', text: 'eso de "cabe destacar" suena bastante a generador' },
-  { emoji: '🙃', text: '"es importante destacar"… capaz lo decís más simple' },
-  { emoji: '😅', text: 'brou, esa frase es clásica de texto generado' },
-  { emoji: '🤭', text: 'ese conectivo es muy de robot, otro sonaría más tuyo' },
-  { emoji: '🙂', text: '¿lo redactaste vos o lo ayudó el robot? jaja, un toque más natural' },
-  { emoji: '🌐', text: 'alguien tradujo esto con IA y se nota el "asimismo".' },
-  { emoji: '🤖', text: 'contando cuántos "asimismo" hay en el documento (van 12).' },
+  { emoji: '', text: 'eso de "cabe destacar" suena bastante a generador' },
+  { emoji: '', text: '"es importante destacar"… capaz lo decís más simple' },
+  { emoji: '', text: 'brou, esa frase es clásica de texto generado' },
+  { emoji: '', text: 'ese conectivo es muy de robot, otro sonaría más tuyo' },
+  { emoji: '', text: '¿lo redactaste vos o lo ayudó el robot? jaja, un toque más natural' },
+  { emoji: '', text: 'alguien tradujo esto con IA y se nota el "asimismo".' },
+  { emoji: '', text: 'contando cuántos "asimismo" hay en el documento (van 12).' },
 ];
 
 const GHOST_CITATION_COMMENTS: ChatLine[] = [
-  { emoji: '🫣', text: 'esta cita es de pablito? {author} no aparece en la bibliografía', fill: (e, ctx) => `esta cita es de pablito? ${authorOf(ctx, e)} no aparece en la bibliografía` },
-  { emoji: '🤨', text: 'esa cita de {author} no tiene dueño en las referencias', fill: (e, ctx) => `esa cita de ${authorOf(ctx, e)} no tiene dueño en las referencias` },
-  { emoji: '😅', text: '¿{author} existe o te lo inventaste?', fill: (e, ctx) => `¿${authorOf(ctx, e)} existe o te lo inventaste?` },
-  { emoji: '🙈', text: 'bro, citaste a {author} pero no está en la bibliografía', fill: (e, ctx) => `bro, citaste a ${authorOf(ctx, e)} pero no está en la bibliografía` },
+  { emoji: '', text: 'esta cita es de pablito? {author} no aparece en la bibliografía', fill: (e, ctx) => `esta cita es de pablito? ${authorOf(ctx, e)} no aparece en la bibliografía` },
+  { emoji: '', text: 'esa cita de {author} no tiene dueño en las referencias', fill: (e, ctx) => `esa cita de ${authorOf(ctx, e)} no tiene dueño en las referencias` },
+  { emoji: '', text: '¿{author} existe o te lo inventaste?', fill: (e, ctx) => `¿${authorOf(ctx, e)} existe o te lo inventaste?` },
+  { emoji: '', text: 'bro, citaste a {author} pero no está en la bibliografía', fill: (e, ctx) => `bro, citaste a ${authorOf(ctx, e)} pero no está en la bibliografía` },
 ];
 
 const ORPHAN_COMMENTS: ChatLine[] = [
-  { emoji: '👻', text: 'tienes {n} referencia(s) que nunca citaste en el texto', fill: (_e, ctx) => `tienes ${ctx.orphanReferences.length} referencia(s) que nunca citaste en el texto` },
-  { emoji: '🙃', text: '{n} referencias sin usar… ¿de adorno?', fill: (_e, ctx) => `${ctx.orphanReferences.length} referencias sin usar… ¿de adorno?` },
-  { emoji: '🫠', text: 'algo anda mal: {n} refs que nunca se mencionan', fill: (_e, ctx) => `algo anda mal: ${ctx.orphanReferences.length} refs que nunca se mencionan` },
+  { emoji: '', text: 'tienes {n} referencia(s) que nunca citaste en el texto', fill: (_e, ctx) => `tienes ${ctx.orphanReferences.length} referencia(s) que nunca citaste en el texto` },
+  { emoji: '', text: '{n} referencias sin usar… ¿de adorno?', fill: (_e, ctx) => `${ctx.orphanReferences.length} referencias sin usar… ¿de adorno?` },
+  { emoji: '', text: 'algo anda mal: {n} refs que nunca se mencionan', fill: (_e, ctx) => `algo anda mal: ${ctx.orphanReferences.length} refs que nunca se mencionan` },
 ];
 
 const VALIDATION_COMMENTS: Record<string, ChatLine[]> = {
   figuras: [
-    { emoji: '👀', text: '¿y el número o la leyenda de la figura? profe lo pide' },
-    { emoji: '🖼️', text: 'esta figura no respeta el formato APA, brou' },
+    { emoji: '', text: '¿y el número o la leyenda de la figura? profe lo pide' },
+    { emoji: '', text: 'esta figura no respeta el formato APA, brou' },
   ],
   tablas: [
-    { emoji: '😬', text: 'esa tabla no está en formato APA, brou' },
-    { emoji: '📊', text: '¿título y bordes en la tabla? la profe lo pide' },
+    { emoji: '', text: 'esa tabla no está en formato APA, brou' },
+    { emoji: '', text: '¿título y bordes en la tabla? la profe lo pide' },
   ],
   headings: [
-    { emoji: '🤔', text: 'algo raro con este título, bro' },
-    { emoji: '📑', text: 'este heading no respeta la jerarquía' },
+    { emoji: '', text: 'algo raro con este título, bro' },
+    { emoji: '', text: 'este heading no respeta la jerarquía' },
   ],
   formato: [
-    { emoji: '😐', text: 'che, esto no respeta el formato APA' },
-    { emoji: '✍️', text: 'formato pedido por la profe, brou' },
+    { emoji: '', text: 'che, esto no respeta el formato APA' },
+    { emoji: '', text: 'formato pedido por la profe, brou' },
   ],
-  citas: [{ emoji: '🧐', text: 'esta cita tiene algo raro, brou' }],
-  referencias: [{ emoji: '📚', text: 'esto de la bibliografía no cuadra' }],
-  consistencia: [{ emoji: '⚠️', text: 'inconsistencia por acá, bro' }],
+  citas: [{ emoji: '', text: 'esta cita tiene algo raro, brou' }],
+  referencias: [{ emoji: '', text: 'esto de la bibliografía no cuadra' }],
+  consistencia: [{ emoji: '', text: 'inconsistencia por acá, bro' }],
 };
 
 const SHOUT_COMMENTS: ChatLine[] = [
-  { emoji: '😅', text: '¿lo escribís todo en mayúsculas? el profe lo va a notar' },
-  { emoji: '🙂', text: 'todo en mayúsculas suena a grito, mejor normal' },
-  { emoji: '🔇', text: 'bajá un poco el volumen, no es necesario gritar' },
+  { emoji: '', text: '¿lo escribís todo en mayúsculas? el profe lo va a notar' },
+  { emoji: '', text: 'todo en mayúsculas suena a grito, mejor normal' },
+  { emoji: '', text: 'bajá un poco el volumen, no es necesario gritar' },
 ];
 
 const SPANGLISH_COMMENTS: ChatLine[] = [
-  { emoji: '😅', text: '¿inglés y español en la misma frase? una cosa a la vez' },
-  { emoji: '🙃', text: '¿"the"? estamos en un trabajo en español, ojo con eso' },
-  { emoji: '🫠', text: 'mezcla de idiomas por acá… mejor quedarse en uno' },
+  { emoji: '', text: '¿inglés y español en la misma frase? una cosa a la vez' },
+  { emoji: '', text: '¿"the"? estamos en un trabajo en español, ojo con eso' },
+  { emoji: '', text: 'mezcla de idiomas por acá… mejor quedarse en uno' },
 ];
 
 const DUPLICATE_COMMENTS: ChatLine[] = [
-  { emoji: '😅', text: '¿"la la"? se te pegó el teclado' },
-  { emoji: '🥴', text: 'repetiste "{w}" sin querer, seguro', fill: (e) => `repetiste "${(e.text || '').match(DUPLICATE_RE)?.[1] || 'la'}" sin querer, seguro` },
-  { emoji: '🙈', text: 'ctrl+c y ctrl+v se te fueron de las manos' },
+  { emoji: '', text: '¿"la la"? se te pegó el teclado' },
+  { emoji: '', text: 'repetiste "{w}" sin querer, seguro', fill: (e) => `repetiste "${(e.text || '').match(DUPLICATE_RE)?.[1] || 'la'}" sin querer, seguro` },
+  { emoji: '', text: 'ctrl+c y ctrl+v se te fueron de las manos' },
 ];
 
 const LONG_PARAGRAPH_COMMENTS: ChatLine[] = [
-  { emoji: '😮‍💨', text: 'respirá, es un párrafo larguísimo' },
-  { emoji: '😅', text: 'ese párrafo tiene {n} palabras, capaz conviene dividirlo', fill: (e) => `ese párrafo tiene ${(e.text || '').split(/\s+/).length} palabras, capaz conviene dividirlo` },
-  { emoji: '🫠', text: 'una sola oración de por vida, brou' },
+  { emoji: '', text: 'respirá, es un párrafo larguísimo' },
+  { emoji: '', text: 'ese párrafo tiene {n} palabras, capaz conviene dividirlo', fill: (e) => `ese párrafo tiene ${(e.text || '').split(/\s+/).length} palabras, capaz conviene dividirlo` },
+  { emoji: '', text: 'una sola oración de por vida, brou' },
 ];
 
 const FIRST_PERSON_COMMENTS: ChatLine[] = [
-  { emoji: '🫣', text: '¿"yo" en un paper? en APA se evita' },
-  { emoji: '🤭', text: 'primera persona en un trabajo académico? mejor impersonal' },
-  { emoji: '🙈', text: 'el "yo/nosotros" en la academia no es lo ideal, probá impersonal' },
+  { emoji: '', text: '¿"yo" en un paper? en APA se evita' },
+  { emoji: '', text: 'primera persona en un trabajo académico? mejor impersonal' },
+  { emoji: '', text: 'el "yo/nosotros" en la academia no es lo ideal, probá impersonal' },
 ];
 
 const ACRONYM_COMMENTS: ChatLine[] = [
-  { emoji: '🤔', text: '¿qué es {acr}? definilo en la primera mención', fill: (e) => `¿qué es ${(e.text || '').match(ACRONYM_RE)?.[0] || 'esa sigla'}? definila en la primera mención` },
-  { emoji: '🙂', text: 'abreviatura sin definir, conviene aclararla' },
-  { emoji: '🧐', text: 'sigla misteriosa por acá… ¿su significado?' },
+  { emoji: '', text: '¿qué es {acr}? definilo en la primera mención', fill: (e) => `¿qué es ${(e.text || '').match(ACRONYM_RE)?.[0] || 'esa sigla'}? definila en la primera mención` },
+  { emoji: '', text: 'abreviatura sin definir, conviene aclararla' },
+  { emoji: '', text: 'sigla misteriosa por acá… ¿su significado?' },
 ];
 
 const EXCESS_PUNCT_COMMENTS: ChatLine[] = [
-  { emoji: '😅', text: '¿¡¡?? te emocionaste? un solo signo alcanza' },
-  { emoji: '🙃', text: '¿cuántos signos? tranqui, uno solo' },
+  { emoji: '', text: '¿¡¡?? te emocionaste? un solo signo alcanza' },
+  { emoji: '', text: '¿cuántos signos? tranqui, uno solo' },
 ];
 
 const IMAGE_NO_CAPTION_COMMENTS: ChatLine[] = [
-  { emoji: '👀', text: '¿y la leyenda de la figura?' },
-  { emoji: '🖼️', text: 'figura sin nota, profe lo pide' },
-  { emoji: '🤷', text: 'alguien no le puso título a "Sin título 1" todavía.' },
+  { emoji: '', text: '¿y la leyenda de la figura?' },
+  { emoji: '', text: 'figura sin nota, profe lo pide' },
+  { emoji: '', text: 'alguien no le puso título a "Sin título 1" todavía.' },
 ];
 
 const IMAGE_SOURCE_COMMENTS: ChatLine[] = [
-  { emoji: '📱', text: 'esa imagen pixelada llegó directo de un grupo de WhatsApp.' },
-  { emoji: '😅', text: 'ese gráfico de Excel pegado se ve como se ve, bro.' },
-  { emoji: '🙈', text: 'esto lo sacaste del grupo de la facu, ¿no?' },
-  { emoji: '💀', text: 'brou, este screenshot no engaña a nadie.' },
+  { emoji: '', text: 'esa imagen pixelada llegó directo de un grupo de WhatsApp.' },
+  { emoji: '', text: 'ese gráfico de Excel pegado se ve como se ve, bro.' },
+  { emoji: '', text: 'esto lo sacaste del grupo de la facu, ¿no?' },
+  { emoji: '', text: 'brou, este screenshot no engaña a nadie.' },
 ];
 
 const TABLE_STYLE_COMMENTS: ChatLine[] = [
-  { emoji: '🎨', text: 'esa tabla tiene más colores que un semáforo.' },
-  { emoji: '😬', text: 'tabla arcoíris… la profe pidió APA, no una feria.' },
-  { emoji: '🙃', text: 'los colores de la tabla compiten con el texto, bro.' },
+  { emoji: '', text: 'esa tabla tiene más colores que un semáforo.' },
+  { emoji: '', text: 'tabla arcoíris… la profe pidió APA, no una feria.' },
+  { emoji: '', text: 'los colores de la tabla compiten con el texto, bro.' },
 ];
 
 const COPYPASTE_COMMENTS: ChatLine[] = [
-  { emoji: '😅', text: 'alguien copió y pegó de PDF, se nota.' },
-  { emoji: '🤖', text: 'ctrl+c, ctrl+v, rezar... ese es tu flujo de trabajo, ¿no?' },
-  { emoji: '🫠', text: 'este texto tiene más saltos raros que un PDF mal exportado.' },
+  { emoji: '', text: 'alguien copió y pegó de PDF, se nota.' },
+  { emoji: '', text: 'ctrl+c, ctrl+v, rezar... ese es tu flujo de trabajo, ¿no?' },
+  { emoji: '', text: 'este texto tiene más saltos raros que un PDF mal exportado.' },
 ];
 
 const POSITIVE_COMMENTS: ChatLine[] = [
-  { emoji: '😌', text: 'esta parte está limpia, ni te voy a molestar' },
-  { emoji: '😎', text: 'todo bien por acá, seguí así' },
-  { emoji: '🙂', text: 'no hay nada que corregir, tremendo' },
-  { emoji: '👍', text: 'limpio. ni una queja, bro' },
+  { emoji: '', text: 'esta parte está limpia, ni te voy a molestar' },
+  { emoji: '', text: 'todo bien por acá, seguí así' },
+  { emoji: '', text: 'no hay nada que corregir, tremendo' },
+  { emoji: '', text: 'limpio. ni una queja, bro' },
 ];
 
 // Categorías que van al LLM (las de "criterio"); el resto es biblioteca instantánea
@@ -301,7 +301,7 @@ export function getWhatsAppComment(
       const bad = citations.find((c) => c.error);
       if (bad) {
         return {
-          emoji: '🤓',
+          emoji: '',
           text: `Detecté esta cita: ${bad.raw}. Ojo: ${bad.error}.`,
           kind: 'citation_error',
           match: bad.raw,
@@ -313,7 +313,7 @@ export function getWhatsAppComment(
         const first = citations[0];
         const authorLabel = first.authors.slice(0, 2).join(' y ') || first.raw;
         return {
-          emoji: '✅',
+          emoji: '',
           text: `Cita APA 7 detectada: ${authorLabel} (${first.year}). Está bien formateada.`,
           kind: 'citation_ok',
           match: first.raw,

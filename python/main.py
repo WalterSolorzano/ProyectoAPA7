@@ -17,6 +17,11 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 
+# Asegurar que el directorio de este script esté en sys.path
+_current_dir = str(Path(__file__).resolve().parent)
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
+
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")

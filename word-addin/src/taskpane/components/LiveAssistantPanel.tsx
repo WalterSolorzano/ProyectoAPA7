@@ -1,17 +1,18 @@
-/**
- * WordAPA7 Add-in — Panel del Asistente en Vivo
- * =============================================
- *
- * Control maestro del asistente: encendido/apagado, opciones de automatismo
- * (formato al vuelo, auto-caption, chupar citas), estadísticas rápidas y
- * botón de auditoría manual.
- */
-
-import React from 'react'
+import React, { useState } from 'react'
 import type { AssistantOptions } from '../liveAssistant'
 import type { DocumentStats } from '../office/wordHelper'
+import type { AuditDocumentResult, AuditFinding } from '../api/backend'
+import {
+  autoFormatAllTablesAPA,
+  autoCaptionAllFiguresAPA,
+  highlightAndJumpToParagraph,
+} from '../office/proactiveEngine'
+import {
+  normalizeEntireDocumentAPA7,
+  type NormalizationReport,
+} from '../office/masterNormalizer'
 
-interface Props {
+interface LiveAssistantPanelProps {
   running: boolean
   options: AssistantOptions
   stats: DocumentStats | null
@@ -19,140 +20,277 @@ interface Props {
   onToggle: () => void
   onOptionChange: (key: keyof AssistantOptions, value: boolean | number) => void
   onScanNow: () => void
-  onFormatAll?: () => void
+  onFormatAll: () => void
+  auditStatus: 'idle' | 'running' | 'done'
+  auditResult: AuditDocumentResult | null
+  auditNotice: string | null
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
 }
 
-const SearchIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7" />
-    <path d="M21 21l-4.35-4.35" />
-  </svg>
-)
+export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
+  running,
+  options,
+  stats,
+  citationsCount,
+  onToggle,
+  onOptionChange,
+  onScanNow,
+  auditStatus,
+  auditResult,
+  auditNotice,
+  showToast,
+}) => {
+  const [working, setWorking] = useState<string | null>(null)
+  const [progressMsg, setProgressMsg] = useState<string>('')
+  const [progressPct, setProgressPct] = useState<number>(0)
+  const [lastReport, setLastReport] = useState<NormalizationReport | null>(null)
 
-const SettingsIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-  </svg>
-)
+  // 1-CLIC MASTER: Normaliza todo el documento abierto en Word
+  const handleMasterNormalize = async () => {
+    setWorking('master')
+    setProgressPct(5)
+    setProgressMsg('Iniciando normalización APA 7...')
+    try {
+      const report = await normalizeEntireDocumentAPA7((step, pct) => {
+        setProgressMsg(step)
+        setProgressPct(pct)
+      })
+      setLastReport(report)
+      showToast('¡Documento normalizado a APA 7 exitosamente!', 'success')
+    } catch (err: any) {
+      showToast(err.message || 'Error al normalizar documento en Word', 'error')
+    } finally {
+      setWorking(null)
+      setTimeout(() => {
+        setProgressPct(0)
+        setProgressMsg('')
+      }, 3500)
+    }
+  }
 
-function Toggle({ checked, onChange, label, desc }: {
-  checked: boolean
-  onChange: (v: boolean) => void
-  label: string
-  desc: string
-}) {
+  const handleFormatTables = async () => {
+    setWorking('tables')
+    try {
+      const res = await autoFormatAllTablesAPA()
+      if (res.count === 0) {
+        showToast('No se encontraron tablas en el documento.', 'info')
+      } else {
+        showToast(`¡${res.count} tabla(s) formateadas a APA 7 en Word!`, 'success')
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error al formatear tablas', 'error')
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const handleFormatFigures = async () => {
+    setWorking('figures')
+    try {
+      const res = await autoCaptionAllFiguresAPA()
+      if (res.count === 0) {
+        showToast('No se encontraron imágenes en el documento.', 'info')
+      } else {
+        showToast(`¡${res.count} figura(s) numeradas y centradas en Word!`, 'success')
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error al numerar figuras', 'error')
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const handleJumpToFinding = async (finding: AuditFinding) => {
+    try {
+      const found = await highlightAndJumpToParagraph(
+        finding.where?.paragraph_index,
+        finding.where?.excerpt || finding.message,
+      )
+      if (found) {
+        showToast('Ubicando y resaltando en Word...', 'info')
+      } else {
+        showToast('No se localizó la posición exacta en Word', 'info')
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error al saltar al párrafo', 'error')
+    }
+  }
+
+  const findings = auditResult?.findings || []
+  const errorCount = findings.filter((f) => f.severity === 'error').length
+  const warnCount = findings.filter((f) => f.severity === 'warn').length
+
   return (
-    <label className="toggle-row">
-      <div className="toggle-row__text">
-        <div className="toggle-row__label">{label}</div>
-        <div className="toggle-row__desc">{desc}</div>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        className={`switch ${checked ? 'switch--on' : ''}`}
-        onClick={() => onChange(!checked)}
-      >
-        <span className="switch__thumb" />
-      </button>
-    </label>
-  )
-}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* HERO CARD — ACCIÓN PROACTIVA PRINCIPAL (1 CLIC EN WORD) */}
+      <div className="card card--hero">
+        <div className="card__header">
+          <div className="card__title">
+            <span>🚀 Normalizador Proactivo APA 7</span>
+          </div>
+          <button
+            type="button"
+            className={`btn-sm ${running ? 'btn-success' : 'btn-secondary'}`}
+            onClick={onToggle}
+            title={running ? 'Pausar asistente' : 'Activar asistente'}
+          >
+            {running ? '● En Vivo' : '○ Pausado'}
+          </button>
+        </div>
 
-export function LiveAssistantPanel({
-  running, options, stats, citationsCount, onToggle, onOptionChange, onScanNow, onFormatAll
-}: Props) {
-  return (
-    <div className="live">
-      {/* Big toggle */}
-      <div className={`live__hero ${running ? 'live__hero--on' : ''}`}>
-        <div className="live__hero-left">
-          <div className={`live__pulse ${running ? 'live__pulse--on' : ''}`} />
-          <div>
-            <div className="live__hero-title">
-              {running ? 'Asistente ACTIVO' : 'Asistente pausado'}
+        <p className="card__subtitle">
+          Edita y normaliza tu documento en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía sin descargar nada.
+        </p>
+
+        {/* BARRA DE PROGRESO EN VIVO */}
+        {working === 'master' && (
+          <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)' }}>
+              <span>{progressMsg}</span>
+              <span>{progressPct}%</span>
             </div>
-            <div className="live__hero-sub">
-              {running ? 'Auditando tu documento en tiempo real' : 'Pulsá para empezar a auditar'}
+            <div style={{ height: 6, width: '100%', background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${progressPct}%`, background: 'var(--accent-primary)', transition: 'width 0.3s ease' }} />
             </div>
           </div>
-        </div>
-        <button className={`live__big-toggle ${running ? 'live__big-toggle--on' : ''}`} onClick={onToggle}>
-          {running ? 'ON' : 'OFF'}
-        </button>
-      </div>
+        )}
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <StatBox label="Palabras" value={stats?.words ?? 0} />
-        <StatBox label="Figuras" value={stats?.figures ?? 0} />
-        <StatBox label="Tablas" value={stats?.tables ?? 0} />
-        <StatBox label="Citas" value={citationsCount} highlight />
-      </div>
-
-      {/* Options */}
-      <div className="card">
-        <div className="card__header card__header--static">
-          <span className="card__title">Automatismos</span>
-        </div>
-        <div className="card__body card__body--padded">
-          <Toggle
-            checked={options.autoExtractCitations}
-            onChange={(v) => onOptionChange('autoExtractCitations', v)}
-            label="Chupar citas"
-            desc="Detecta (Autor, Año) y las guarda en la bibliografía"
-          />
-          <Toggle
-            checked={options.autoFormat}
-            onChange={(v) => onOptionChange('autoFormat', v)}
-            label="Formato al vuelo"
-            desc="Times New Roman 12, doble interlineado, sangría 0.5&quot;"
-          />
-          <Toggle
-            checked={options.autoCaption}
-            onChange={(v) => onOptionChange('autoCaption', v)}
-            label="Caption de figuras/tablas"
-            desc="Si pegás una imagen, le pone su &quot;Figura N&quot; + nota"
-          />
-          <Toggle
-            checked={options.autoDetectAI}
-            onChange={(v) => onOptionChange('autoDetectAI', v)}
-            label="Detectar texto de IA"
-            desc="Analiza patrones de IA mientras escribís (muletillas, estructura, etc.)"
-          />
-        </div>
-      </div>
-
-      {/* Manual Actions */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button className="btn btn--primary btn--full" onClick={onScanNow} data-tour="audit-button">
-          <SearchIcon /> Auditar documento ahora
-        </button>
-        {onFormatAll && (
-          <button className="btn btn--secondary btn--full" onClick={onFormatAll}>
-            <SettingsIcon /> Formatear todo el documento a APA 7
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleMasterNormalize}
+            disabled={working !== null}
+            style={{ fontSize: 13, padding: '11px 16px' }}
+          >
+            {working === 'master' ? 'Normalizando en Word...' : '⚡ Normalizar Todo a APA 7 en Vivo'}
           </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onScanNow}
+            disabled={auditStatus === 'running'}
+          >
+            {auditStatus === 'running' ? 'Auditando en tiempo real...' : '🔍 Auditar Documento en Vivo'}
+          </button>
+        </div>
+
+        {/* RESUMEN DEL ÚLTIMO REPORTE DE NORMALIZACIÓN */}
+        {lastReport && (
+          <div style={{ marginTop: 6, padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11.5, color: '#166534', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontWeight: 700 }}>✓ Normalización aplicada en Word:</div>
+            <div>• Portada: {lastReport.coverDetected ? 'Detectada y formateada' : 'Sin portada inicial'}</div>
+            <div>• Títulos: {lastReport.headingsCount} jerarquizados</div>
+            <div>• Tablas: {lastReport.tablesCount} formateadas a APA 7</div>
+            <div>• Referencias: {lastReport.referencesCount} con sangría francesa</div>
+          </div>
         )}
       </div>
 
-      <div className="live__hint">
-        El asistente viene incluido con el instalador de WordAPA7 y se conecta
-        al motor local. Funciona aunque el backend esté offline (detección local
-        de citas + formato APA 7 directo en Word).
-      </div>
-    </div>
-  )
-}
+      {/* STATS DEL DOCUMENTO EN VIVO */}
+      {stats && (
+        <div className="stats-row">
+          <div className="stat-chip">
+            <div className="stat-chip__value">{stats.words}</div>
+            <div className="stat-chip__label">Palabras</div>
+          </div>
+          <div className="stat-chip">
+            <div className="stat-chip__value">{stats.tables}</div>
+            <div className="stat-chip__label">Tablas</div>
+          </div>
+          <div className="stat-chip">
+            <div className="stat-chip__value">{stats.figures || stats.inlinePictures}</div>
+            <div className="stat-chip__label">Figuras</div>
+          </div>
+          <div className="stat-chip">
+            <div className="stat-chip__value">{citationsCount}</div>
+            <div className="stat-chip__label">Citas</div>
+          </div>
+        </div>
+      )}
 
-function StatBox({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
-  return (
-    <div className={`stat-box ${highlight ? 'stat-box--highlight' : ''}`}>
-      <div className="stat-box__value">{value}</div>
-      <div className="stat-box__label">{label}</div>
+      {/* ACCIONES RÁPIDAS DIRECTAS EN WORD */}
+      <div className="card">
+        <div className="card__title">Acciones Directas en Word</div>
+        <div className="proactive-grid">
+          <button
+            type="button"
+            className="proactive-action-card"
+            onClick={handleFormatTables}
+            disabled={working !== null}
+          >
+            <div className="proactive-action-card__icon">📊</div>
+            <div className="proactive-action-card__title">Tablas APA 7</div>
+            <div className="proactive-action-card__desc">Bordes 0.5pt y rótulos Tabla 1, 2...</div>
+          </button>
+
+          <button
+            type="button"
+            className="proactive-action-card"
+            onClick={handleFormatFigures}
+            disabled={working !== null}
+          >
+            <div className="proactive-action-card__icon">🖼️</div>
+            <div className="proactive-action-card__title">Figuras APA 7</div>
+            <div className="proactive-action-card__desc">Centrado y rótulos Figura 1, 2...</div>
+          </button>
+        </div>
+      </div>
+
+      {/* LISTADO DE HALLAZGOS Y SEÑALIZACIÓN EN WORD */}
+      {auditNotice && (
+        <div style={{ fontSize: 11, color: 'var(--accent-warning)', padding: '6px 10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6 }}>
+          {auditNotice}
+        </div>
+      )}
+
+      {auditResult && (
+        <div className="card">
+          <div className="card__header">
+            <div className="card__title">
+              <span>Hallazgos de Auditoría</span>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {findings.length === 0 ? '✓ 0 problemas' : `${errorCount} errores · ${warnCount} avisos`}
+            </span>
+          </div>
+
+          {findings.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '16px 8px', color: 'var(--accent-success)', fontSize: 12.5, fontWeight: 600 }}>
+              ✓ ¡Excelente! El documento cumple con las reglas APA 7 auditadas.
+            </div>
+          ) : (
+            <div className="finding-list">
+              {findings.map((f, idx) => (
+                <div
+                  key={f.id || idx}
+                  className={`finding-item finding-item--${f.severity === 'error' ? 'error' : f.severity === 'warn' ? 'warn' : 'info'}`}
+                >
+                  <div className="finding-item__header">
+                    <span className="finding-item__msg">{f.message}</span>
+                    <span className={`finding-item__badge finding-item__badge--${f.severity}`}>
+                      {f.severity}
+                    </span>
+                  </div>
+
+                  {f.fix && <div className="finding-item__fix">💡 {f.fix}</div>}
+
+                  <div className="finding-item__actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleJumpToFinding(f)}
+                    >
+                      👁️ Ver en Word
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

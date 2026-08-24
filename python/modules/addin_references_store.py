@@ -79,6 +79,19 @@ def citation_key(authors: List[str], year: Optional[str]) -> str:
     return f"{first}|{year or 's.f.'}"
 
 
+def normalize_title_key(title: Optional[str]) -> str:
+    """Normaliza un título para deduplicación: minúsculas, solo alfanumérico, prefijo 40."""
+    if not title:
+        return ""
+    return re.sub(r"[^a-z0-9]", "", title.lower())[:40]
+
+
+def _ref_base_key(key: Optional[str]) -> str:
+    """Parte base (apellido|año) de una clave; ignora el sufijo de título."""
+    parts = str(key or "").split("|")
+    return "|".join(parts[:2])
+
+
 # ── CITAS (in-text) ───────────────────────────────────────────────────────────
 
 def add_citation(
@@ -123,11 +136,14 @@ def add_citation(
 
         # Auto-crear una referencia "fantasma" (draft) para que aparezca en la
         # bibliografía sugerida. El usuario podrá completarla/resolver DOI luego.
+        # La clave incluye el prefijo de título/raw_text normalizado para NO
+        # colapsar dos obras DISTINTAS del mismo autor y año.
         references: List[Dict[str, Any]] = data.setdefault("references", [])
-        if not any(r.get("key") == key for r in references):
+        ghost_key = f"{key}|{normalize_title_key(raw_text)}"
+        if not any(r.get("key") == ghost_key for r in references):
             references.append({
                 "id": f"ref_{uuid.uuid4().hex[:10]}",
-                "key": key,
+                "key": ghost_key,
                 "authors": authors,
                 "year": year,
                 "title": "",
@@ -169,9 +185,36 @@ def save_reference(reference: Dict[str, Any]) -> Dict[str, Any]:
                 return existing
 
         authors = reference.get("authors") or []
+        base_key = citation_key(authors, reference.get("year"))
+        title_norm = normalize_title_key(reference.get("title"))
+
+        # Deduplicación: si ya existe una referencia (completa o borrador) del
+        # mismo autor/año con el mismo título normalizado, ACTUALIZAR en vez de
+        # duplicar la entrada bibliográfica.
+        existing_match = None
+        for r in references:
+            if _ref_base_key(r.get("key")) != base_key:
+                continue
+            if normalize_title_key(r.get("title")) == title_norm:
+                existing_match = r
+                break
+            if title_norm and r.get("is_draft") and not (r.get("title") or "").strip():
+                existing_match = r
+                break
+
+        if existing_match is not None:
+            preserved_id = existing_match.get("id")
+            existing_match.update(reference)
+            existing_match["id"] = preserved_id or f"ref_{uuid.uuid4().hex[:10]}"
+            existing_match["key"] = citation_key(existing_match.get("authors") or [], existing_match.get("year"))
+            existing_match["is_draft"] = False
+            existing_match["formatted_apa"] = _format_apa_reference(existing_match)
+            _save(data)
+            return existing_match
+
         new_ref = {
             "id": ref_id or f"ref_{uuid.uuid4().hex[:10]}",
-            "key": citation_key(authors, reference.get("year")),
+            "key": base_key,
             "authors": authors,
             "year": reference.get("year"),
             "title": reference.get("title", "") or "",

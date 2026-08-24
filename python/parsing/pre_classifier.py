@@ -49,11 +49,12 @@ REGEX_NUMBERED_HEADING = re.compile(
 REGEX_BULLET_CHAR = re.compile(r'^([•●▪◦○▸►→·\-–—\*])\s+')
 
 # Bullet con numero o letra: "1.", "a)", "(1)", etc.
-REGEX_BULLET_NUMBERED = re.compile(r'^(?:\(?\d+[\.\)]|\(?[a-z][\.\)])\s+')
+# OJO: maximo 3 digitos — "(2021)" es un ANO entre parentesis, no un item.
+REGEX_BULLET_NUMBERED = re.compile(r'^(?:\(?\d{1,3}[\.\)]|\(?[a-z][\.\)])\s+')
 
 # Heading 4/5 inline: texto negrita + punto + texto normal en mismo parrafo
 REGEX_INLINE_HEADING = re.compile(
-    r'^([A-ZÁÉÍÓÚÑ][^.]{1,80}\.)\s+([A-ZÁÉÍÓÚÑ].+)$'
+    r'^([A-ZÁÉÍÓÚÑ][^\n.]{1,80}\.)[ \t]+([A-ZÁÉÍÓÚÑ].+)$'
 )
 
 # Caption de tabla: "Tabla 1", "Tabla 1."
@@ -359,7 +360,7 @@ def _apply_toc_validation(elements: List[ElementModel], toc_entries: List[tuple]
         for toc_norm, toc_level in toc_entries:
             if txt_norm == toc_norm:
                 match = True
-            else:
+            elif "\n" not in (elem.text or ""):
                 shorter, longer = (
                     (txt_norm, toc_norm)
                     if len(txt_norm) < len(toc_norm)
@@ -370,6 +371,8 @@ def _apply_toc_validation(elements: List[ElementModel], toc_entries: List[tuple]
                     and len(shorter) / len(longer) >= 0.8
                     and longer.startswith(shorter)
                 )
+            else:
+                match = False
             if match:
                 elem.type = ElementType.HEADING
                 if toc_level and 1 <= toc_level <= 5:
@@ -556,7 +559,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 for kw in HEADING1_KEYWORDS
             ))
         )
-        if is_keyword_heading and (is_centered or all_bold or font_size >= 14):
+        if is_keyword_heading and (is_centered or all_bold or font_size >= 14) and "\n" not in text:
             elem.type = ElementType.HEADING
             elem.heading_level = 1
             # Si el texto es exactamente la keyword, confianza maxima
@@ -617,13 +620,16 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.type = ElementType.BULLET
             elem.original_char = bullet_match.group(1)
             elem.bullet_source = "manual_char"
+            elem.text = text[bullet_match.end():].lstrip()
             elem.heading_level = _estimate_level_by_indent(left_indent)
             elem.confidence = 0.93
             continue
 
         # --- CERTEZA 0.90: Numero/letra de lista manual ---
-        if REGEX_BULLET_NUMBERED.match(text) and not REGEX_NUMBERED_HEADING.match(text):
+        numbered_match = REGEX_BULLET_NUMBERED.match(text)
+        if numbered_match and not REGEX_NUMBERED_HEADING.match(text):
             elem.type = ElementType.NUMBERED_LIST
+            elem.text = text[numbered_match.end():].lstrip()
             elem.heading_level = _estimate_level_by_indent(left_indent)
             elem.confidence = 0.88
             continue
@@ -641,13 +647,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.type = ElementType.BULLET
             elem.bullet_source = "manual_char"
             elem.original_char = text[0]
+            elem.text = text[2:].lstrip()
             elem.heading_level = _estimate_level_by_indent(left_indent)
             elem.confidence = 0.88
             continue
 
         # --- CERTEZA variable: Heading por formato directo ---
         # Heading 1: centrado + negrita + corto + posible MAYUSCULAS
-        if is_centered and all_bold and is_short and not is_italic:
+        if "\n" not in text and is_centered and all_bold and is_short and not is_italic:
             if all_caps:
                 elem.type = ElementType.HEADING
                 elem.heading_level = 1
@@ -679,7 +686,13 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # Heading 5: sangria + negrita + cursiva + termina en punto (inline)
-        if has_indent and all_bold and is_italic and has_period_end and word_count <= 18:
+        # Guard anti-bibliografia: entradas de referencia (cursivas, con anio
+        # entre parentesis) NO son headings aunque el formato coincida.
+        if (
+            has_indent and all_bold and is_italic and has_period_end and word_count <= 18
+            and not re.search(r"\(\d{4}[a-z]?\)", text)
+            and not re.search(r"https?://|doi\.org|Recuperado de", text, re.IGNORECASE)
+        ):
             elem.type = ElementType.HEADING
             elem.heading_level = 5
             elem.confidence = 0.84
@@ -690,7 +703,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # Heading 2: izquierda + negrita + sin cursiva + corto + fuente >= 13pt
         # ponytail: font_size >= 13 gate prevents bold phrases in body text
         # from being falsely classified as Heading 2 (confidence raised from 0.74)
-        if not is_centered and all_bold and not is_italic and is_short and font_size >= 13:
+        if "\n" not in text and not is_centered and all_bold and not is_italic and is_short and font_size >= 13:
             elem.type = ElementType.HEADING
             elem.heading_level = 2
             elem.confidence = 0.80
@@ -1141,6 +1154,22 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 # Marcar que ya procesamos la primera imagen del cuerpo
                 first_body_image = False
 
+                # ── Heurística 4: imagen previa al primer heading de cuerpo y
+                # SIN caption de figura cercano. Los logos institucionales
+                # (universidad, membrete) rara vez traen "Figura N.", así que su
+                # ausencia + posición temprana los distingue de una figura real
+                # del cuerpo (que sí lleva caption). Esto cubre el caso en que el
+                # logo queda justo fuera de portada_boundary y no tiene keywords
+                # ni dimensiones conocidas.
+                if not is_logo and not seen_body_heading:
+                    nearby_fig_caption = any(
+                        REGEX_FIGURE_CAPTION.match((elements[n].text or ""))
+                        for n in range(max(0, idx - 2), min(len(elements), idx + 3))
+                        if n != idx
+                    )
+                    if not nearby_fig_caption:
+                        is_logo = True
+
                 if is_logo:
                     # Tratar como logo de portada: sin número de figura
                     elem.is_cover_section = True
@@ -1161,7 +1190,12 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                             caption_num_match = re.search(r'\d+', neighbor.text)
                             if caption_num_match and int(caption_num_match.group()) == figure_counter:
                                 elem.image_info.caption = neighbor.text
-                                neighbor.type = ElementType.EMPTY  # Consumido como caption
+                                # Solo consumir el vecino si es SOLO el caption.
+                                # Si trae mas contenido unido con saltos de linea
+                                # (ej. "Figura 2.\nNota: ..."), preservarlo: vaciarlo
+                                # destruiria la nota del usuario.
+                                if "\n" not in neighbor.text:
+                                    neighbor.type = ElementType.EMPTY  # Consumido como caption
                                 break
 
             elif elem.type == ElementType.TABLE and elem.table_info:
@@ -1258,6 +1292,12 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # Preservar elementos clasificados con alta confianza en Pasada 1 (bullets, tablas, etc.)
         if elem.confidence >= 0.85 and elem.type not in (ElementType.PARAGRAPH, ElementType.HEADING):
             elem.needs_review = False
+            continue
+
+        # Preservar block quotes ya detectados (confianza 0.80 en Pasada 1):
+        # el scoring multi-criterio convierte citas bold/centradas en headings.
+        if elem.type == ElementType.BLOCK_QUOTE:
+            elem.needs_review = elem.confidence < 0.85
             continue
 
         # Skip non-textual or special elements
@@ -1386,5 +1426,54 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         if elem.type == ElementType.HEADING and elem.heading_level is None:
             elem.heading_level = 1
             elem.needs_review = True
+
+    # ── PASADA 8: Anti-bibliografía ──────────────────────────────────────────
+    # Entradas de referencia (año entre paréntesis o URL/doi) JAMÁS son
+    # headings, sin importar la regla que las capturó (H2/H4/H5).
+    _ref_year = re.compile(r"\(\d{4}[a-z]?\)")
+    _ref_url = re.compile(r"https?://|doi\.org|Recuperado de", re.IGNORECASE)
+    for _el in elements:
+        if _el.type != ElementType.HEADING:
+            continue
+        if (_el.heading_level or 0) < 2:
+            continue
+        _t = (_el.text or "").strip()
+        if not _t or len(_t) > 300:
+            continue
+        if _text_word_count(_t) <= 3:
+            continue
+        if _ref_year.search(_t) or _ref_url.search(_t):
+            _el.type = ElementType.PARAGRAPH
+            _el.needs_review = True
+
+    # ── PASADA 9: Explosión de blob de autores ───────────────────────────────
+    # El párrafo anfitrión de un drawing/textbox puede traer TODA la portada
+    # corrida ("Br. X Carnet: ...Br. Y Carnet:..."). Se separa en un
+    # elemento por línea para que el preview y las columnas funcionen.
+    from modules.portada_normalize import normalize_author_lines as _nal
+
+    _exploded: list[ElementModel] = []
+    for _el in elements:
+        _t = (_el.text or "").strip()
+        if (
+            _el.type == ElementType.PARAGRAPH
+            and "carnet:" in _t.lower()
+            and "br." in _t.lower()
+            and "\n" not in _t
+            and len(_t) > 40
+        ):
+            lines = [ln for ln in _nal(_t).split("\n") if ln.strip()]
+            if len(lines) >= 2:
+                for ln in lines:
+                    _exploded.append(ElementModel(
+                        id=f"{_el.id}-x{len(_exploded)}",
+                        type=ElementType.PARAGRAPH,
+                        text=ln,
+                        is_cover_section=True,
+                        needs_review=False,
+                    ))
+                continue
+        _exploded.append(_el)
+    elements = _exploded
 
     return elements

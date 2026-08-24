@@ -23,6 +23,7 @@ export const TemplateDialog: React.FC = () => {
   } = useDocStore();
 
   const [applying, setApplying] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -32,6 +33,8 @@ export const TemplateDialog: React.FC = () => {
   }, [showTemplateDialog, availableTemplates.length, storeFetchTemplates]);
 
   if (!showTemplateDialog) return null;
+
+  const selected = availableTemplates.find((t) => t.name === selectedTemplate) || null;
 
   const handleApply = async (templateName: string) => {
     setApplying(templateName);
@@ -64,6 +67,7 @@ export const TemplateDialog: React.FC = () => {
         backgroundColor: 'var(--surface-elevated)',
         borderRadius: '16px',
         width: '520px',
+        maxWidth: 'calc(100vw - 32px)',
         maxHeight: '80vh',
         overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
@@ -88,6 +92,7 @@ export const TemplateDialog: React.FC = () => {
             </p>
           </div>
           <button
+            type="button"
             onClick={() => setShowTemplateDialog(false)}
             style={{
               background: 'none',
@@ -131,20 +136,21 @@ export const TemplateDialog: React.FC = () => {
             availableTemplates.map((template) => (
               <div
                 key={template.name}
+                onClick={() => setSelectedTemplate(template.name)}
                 style={{
-                  border: '1px solid var(--border-subtle)',
+                  border: `1px solid ${selectedTemplate === template.name ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                   borderRadius: '10px',
                   padding: '16px',
                   marginBottom: '12px',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  backgroundColor: 'var(--surface-subtle)',
+                  backgroundColor: selectedTemplate === template.name ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
                   display: 'flex',
                   gap: '14px',
                   alignItems: 'flex-start',
                 }}
                 onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 2px rgba(79,124,255,0.15)'; }}
-                onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.borderColor = selectedTemplate === template.name ? 'var(--accent-primary)' : 'var(--border-subtle)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
               >
                 <div style={{ flexShrink: 0, marginTop: '2px' }}>
                   {TEMPLATE_ICONS[template.name] || <FileText size={20} color="var(--text-muted)" />}
@@ -175,7 +181,8 @@ export const TemplateDialog: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => handleApply(template.name)}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleApply(template.name); }}
                   disabled={applying === template.name}
                   style={{
                     padding: '8px 16px',
@@ -195,6 +202,27 @@ export const TemplateDialog: React.FC = () => {
                 </button>
               </div>
             ))
+          )}
+
+          {/* Detalle de la plantilla seleccionada: qué contiene y cómo usarla */}
+          {selected && (
+            <div style={{
+              marginTop: '16px',
+              padding: '14px 16px',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '10px',
+              backgroundColor: 'var(--surface-subtle)',
+            }}>
+              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-main)', marginBottom: '6px' }}>
+                Cómo usar "{selected.name}"
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '8px' }}>
+                {selected.description}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--accent-primary)', lineHeight: 1.5 }}>
+                Al aplicar, la estructura se inserta en tu documento; luego revisa los títulos en el paso Estructura.
+              </div>
+            </div>
           )}
         </div>
 

@@ -36,6 +36,7 @@ Endpoints:
   POST /api/addin/ai-rewrite             — reescribe texto en estilo académico APA 7
   GET  /api/addin/ai-health              — estado de salud de los proveedores de IA
   POST /api/addin/ai-analyze-table       — detecta artefactos de IA en datos tabulares
+  POST /api/addin/audit-document         — auditoría APA 7 completa del documento (texto plano)
 """
 
 import re
@@ -124,6 +125,16 @@ class AnalyzeTableAIRequest(BaseModel):
     """Solicitud de detección de artefactos de IA en datos de una tabla."""
     headers: List[str] = []
     rows: List[List[str]] = []
+
+
+class AuditDocumentRequest(BaseModel):
+    """Solicitud de auditoría APA 7 de documento completo (texto plano).
+
+    El Add-in extrae el texto completo del documento vía Office.js
+    (body.getText) y lo envía acá. Los saltos de párrafo pueden llegar
+    como \\n, \\r\\n o \\r según el host de Word.
+    """
+    text: str
 
 
 # ── PATRONES APA 7 (heurística local, sin IA) ────────────────────────────────
@@ -1096,3 +1107,361 @@ async def ai_analyze_table(req: AnalyzeTableAIRequest) -> dict:
         "score": score,
         "findings": findings,
     }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  AUDITORÍA DE DOCUMENTO COMPLETO (botón "Auditar documento ahora")
+# ════════════════════════════════════════════════════════════════════════════
+
+MAX_AUDIT_FINDINGS = 50
+QUOTE_MIN_CHARS = 40
+
+RE_PARA_SPLIT = re.compile(r'\r\n|\r|\n')
+RE_PAREN_GROUP = re.compile(r'\(([^()]{2,80})\)')
+RE_YEAR = re.compile(r'\d{4}')
+RE_NAME_START = re.compile(r"^[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ.'’\-]*(?:\s+(?:et\s+al\.?|y|&)\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ.'’\-]*)*$")
+RE_AMPERSAND_CIT = re.compile(r'(?:^|\s)&(?:\s|$)')
+RE_Y_CIT = re.compile(r'(?:^|\s)y(?:\s|$)')
+RE_NUMBERED_HEADING = re.compile(r'^\s*\d+(?:\.\d+)*[.)]?\s+\S')
+RE_ALLCAPS_LINE = re.compile(r'^[A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9\s.,;:()\-]{7,90}$')
+RE_REF_PREFIX = re.compile(r'^(?:[•○▪●·–—\-–*]|\(?\d{1,3}[.)])\s+')
+RE_LONG_QUOTE = re.compile(r'[“"]([^“”"]{40,})[“”"]')
+RE_DOUBLE_SPACE_INNER = re.compile(r'\S\s{2,}\S')
+RE_NARRATIVE_CIT = re.compile(
+    r'[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:et al\.?|y)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?\s*\(\d{4}'
+)
+REFS_SECTION_TITLES = {'referencias', 'references', 'bibliografía', 'bibliografia'}
+
+
+def _split_paragraphs(text: str) -> List[str]:
+    """Divide texto plano en párrafos (\\n, \\r\\n o \\r)."""
+    return RE_PARA_SPLIT.split(text or '')
+
+
+def _excerpt(s: str, limit: int = 90) -> str:
+    s = re.sub(r'\s+', ' ', (s or '')).strip()
+    return s[:limit] + ('…' if len(s) > limit else '')
+
+
+@router.post("/audit-document")
+async def audit_document(req: AuditDocumentRequest) -> dict:
+    """
+    Auditoría APA 7 de un documento completo a partir de texto plano.
+
+    Reutiliza heurísticas del motor de citas (modules.citation_engine) y del
+    store de referencias del Add-in para cruzar citas ↔ referencias. El resto
+    son reglas regex locales (sin IA, sin latencia).
+
+    Retorna forma plana:
+      - findings: [{ id, severity: 'error'|'warn'|'info',
+                     category: 'citacion'|'referencias'|'formato'|'estructura',
+                     message, fix, where?: { paragraph_index?, excerpt? } }]
+                    (cap 50 hallazgos)
+      - stats: { paragraphs, words, citations, references }
+    """
+    text = req.text or ''
+    paragraphs = _split_paragraphs(text)
+    non_empty = [(i, p.strip()) for i, p in enumerate(paragraphs) if p.strip()]
+    findings: List[Dict[str, Any]] = []
+
+    def add(severity: str, category: str, message: str, fix: str,
+            paragraph_index: Optional[int] = None, excerpt: Optional[str] = None) -> None:
+        if len(findings) >= MAX_AUDIT_FINDINGS:
+            return
+        where: Dict[str, Any] = {}
+        if paragraph_index is not None:
+            where['paragraph_index'] = paragraph_index
+        if excerpt:
+            where['excerpt'] = _excerpt(excerpt)
+        findings.append({
+            'id': f'f{len(findings) + 1}',
+            'severity': severity,
+            'category': category,
+            'message': message,
+            'fix': fix,
+            **({'where': where} if where else {}),
+        })
+
+    # ── Motor de citas + store de referencias (heurísticas server-side) ──
+    detected_citations: List[Any] = []
+    ref_keys: set = set()
+    citations_count = 0
+    try:
+        from modules.citation_engine import extract_citations_from_text, normalize_surname_key
+        detected_citations = extract_citations_from_text(text, 'addin-audit')
+        citations_count = len(detected_citations)
+        try:
+            from modules.addin_references_store import bibliography_summary
+            summary = bibliography_summary()
+            for r in summary.get('references', []) or []:
+                authors = r.get('authors') or []
+                year = r.get('year') or ''
+                if authors:
+                    ref_keys.add(f"{normalize_surname_key(str(authors[0]))}|{str(year)}")
+        except Exception:
+            pass
+    except Exception:
+        normalize_surname_key = lambda a: re.sub(r'[^a-z]', '', str(a).lower().split(',')[0].split()[-1])  # noqa: E731
+
+    # ── Sección Referencias en el texto ──
+    refs_start_idx: Optional[int] = None
+    for idx, p in non_empty:
+        if p.rstrip(':').strip().lower() in REFS_SECTION_TITLES:
+            refs_start_idx = idx
+            break
+
+    reference_lines = 0
+    if refs_start_idx is not None:
+        for idx, p in non_empty:
+            if idx <= refs_start_idx:
+                continue
+            reference_lines += 1
+            # Regla APA: las entradas NO llevan viñeta ni numeración.
+            if RE_REF_PREFIX.match(p):
+                add('error', 'referencias',
+                    'Entrada de referencia con viñeta o numeración.',
+                    'Quitá la viñeta/número; APA 7 usa lista con sangría francesa.',
+                    paragraph_index=idx, excerpt=p)
+
+    # ── Reglas por párrafo ──
+    ampersand_hits = 0
+    y_hits = 0
+    double_space_reported = False
+    straight_quote_paras = 0
+
+    for idx, p in enumerate(paragraphs):
+        stripped = p.strip()
+        if not stripped:
+            continue
+        is_ref_line = refs_start_idx is not None and idx > refs_start_idx
+
+        # 1. Cita parentética sin año → error
+        for m in RE_PAREN_GROUP.finditer(stripped):
+            group = m.group(1).strip()
+            looks_like_author = (
+                not RE_YEAR.search(group)
+                and not any(ch.isdigit() for ch in group)
+                and any(c.islower() for c in group)  # descarta siglas "(APA)"
+                and RE_NAME_START.match(group)
+            )
+            if looks_like_author:
+                add('error', 'citacion',
+                    f'Cita sin año: ({group}).',
+                    'APA 7 exige año: (Apellido, 2024).',
+                    paragraph_index=idx, excerpt=m.group(0))
+                break
+
+        # 2. "et al" sin punto → error
+        if re.search(r'et\s+al(?![.\w])', stripped):
+            add('error', 'citacion',
+                "'et al' sin punto.",
+                "Escribí 'et al.' con punto final.",
+                paragraph_index=idx, excerpt=stripped)
+
+        # 3. & vs "y" en citas parentéticas (consistencia)
+        for m in RE_PAREN_GROUP.finditer(stripped):
+            g = m.group(1)
+            if RE_YEAR.search(g) and len(g.split()) >= 3:
+                if RE_AMPERSAND_CIT.search(g):
+                    ampersand_hits += 1
+                elif RE_Y_CIT.search(g):
+                    y_hits += 1
+
+        # 4. Títulos numerados (no permitidos en APA 7) → warn estructura
+        if (not is_ref_line and RE_NUMBERED_HEADING.match(stripped)
+                and len(stripped.split()) <= 12 and not stripped.endswith('.')):
+            add('warn', 'estructura',
+                'Título numerado ("1." / "1.1.").',
+                'Los títulos APA 7 no llevan numeración.',
+                paragraph_index=idx, excerpt=stripped)
+
+        # 5. Línea en MAYÚSCULAS sostenidas (posible título) → warn formato
+        if (not is_ref_line and RE_ALLCAPS_LINE.match(stripped)
+                and sum(c.isalpha() for c in stripped) >= 8):
+            add('warn', 'formato',
+                'Título en MAYÚSCULAS sostenidas.',
+                'Usá negrita centrada/izquierda, no mayúsculas.',
+                paragraph_index=idx, excerpt=stripped)
+
+        # 6. Cita textual larga (>40 caracteres) sin cita → warn
+        if not is_ref_line:
+            for qm in RE_LONG_QUOTE.finditer(stripped):
+                has_cit = bool(RE_PAREN_GROUP.search(stripped) and RE_YEAR.search(stripped)) \
+                    or bool(RE_NARRATIVE_CIT.search(stripped))
+                if not has_cit:
+                    add('warn', 'citacion',
+                        'Cita textual larga sin referencia en el párrafo.',
+                        'Sumá (Autor, año, pág.) o convertila en bloque.',
+                        paragraph_index=idx, excerpt=qm.group(0)[:120])
+                    break
+
+        # 7. Dobles espacios internos → warn formato (una sola vez por doc)
+        if not double_space_reported and RE_DOUBLE_SPACE_INNER.search(stripped):
+            add('warn', 'formato',
+                'Dobles espacios entre palabras.',
+                'Dejá un solo espacio entre palabras.',
+                paragraph_index=idx, excerpt=stripped)
+            double_space_reported = True
+
+        # 8. Comillas rectas vs curvas → info formato
+        if ('"' in stripped or "'" in stripped) and not is_ref_line:
+            straight_quote_paras += 1
+
+        # 9. DOI sin prefijo URL → warn referencias
+        if RE_DOI_BARE.search(stripped):
+            add('warn', 'referencias',
+                'DOI sin prefijo https://doi.org/.',
+                "Escribí 'https://doi.org/' adelante del DOI.",
+                paragraph_index=idx, excerpt=stripped)
+
+    # Consolidado "& vs y"
+    if ampersand_hits > 0 and y_hits > 0:
+        add('warn', 'citacion',
+            f'Mezcla de "&" ({ampersand_hits}) e "y" ({y_hits}) en citas.',
+            'Elegí un estilo y usalo siempre igual ("y" recomendado).')
+    elif ampersand_hits > 0:
+        add('info', 'citacion',
+            f'Citas con "&" ({ampersand_hits} caso(s)).',
+            'APA 7 en español recomienda "y" dentro de paréntesis.')
+
+    # Comillas rectas consolidadas
+    if straight_quote_paras > 0:
+        add('info', 'formato',
+            f'Comillas rectas en {straight_quote_paras} párrafo(s).',
+            'Usá comillas curvas “ ” en el texto final.')
+
+    # ── Citas huérfanas (cruzada cita ↔ referencias del store) ──
+    if ref_keys and detected_citations:
+        orphans: List[str] = []
+        for c in detected_citations[:60]:
+            authors = getattr(c, 'authors', None) or []
+            year = getattr(c, 'year', None) or ''
+            key = f"{normalize_surname_key(str(authors[0]))}|{str(year)}" if authors else ''
+            if key and key not in ref_keys:
+                label = f"{authors[0]} ({year})" if authors else str(getattr(c, 'raw_text', ''))[:40]
+                if label not in orphans:
+                    orphans.append(label)
+        if orphans:
+            add('error', 'referencias',
+                'Citas sin entrada en Referencias: ' + ', '.join(orphans[:5])
+                + ('…' if len(orphans) > 5 else ''),
+                'Agregá cada obra citada a la sección Referencias.')
+
+    # ── Artillería completa: Revisor Proactivo de Redacción, Ortografía y Muletillas IA ──
+    try:
+        from modules.proactive_auditor import audit_elements
+
+        class _SimpleElem:
+            def __init__(self, eid: str, txt: str):
+                self.id = eid
+                self.text = txt
+
+        audit_elems = [_SimpleElem(str(idx), p) for idx, p in enumerate(paragraphs) if p.strip()]
+        proactive_findings = audit_elements(audit_elems)
+        for pf in proactive_findings:
+            kind = pf.get("kind", "estilo")
+            category = "citacion" if kind == "first_person" else "estructura" if kind in ("repeticion", "incompleta") else "formato"
+            severity = "error" if pf.get("severity") == "error" else "warn" if pf.get("severity") == "warn" else "info"
+            p_idx = int(pf["element_id"]) if pf.get("element_id", "").isdigit() else None
+            add(
+                severity,
+                category,
+                pf.get("message", ""),
+                pf.get("suggestion", "Mejora la redacción académica según normas APA 7."),
+                paragraph_index=p_idx,
+                excerpt=pf.get("excerpt", "")
+            )
+    except Exception:
+        pass
+
+    # ── Estadísticas ──
+    words = len(text.split())
+    stats = {
+        'paragraphs': len(non_empty),
+        'words': words,
+        'citations': citations_count,
+        'references': reference_lines,
+    }
+
+    return {'findings': findings[:MAX_AUDIT_FINDINGS], 'stats': stats}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  PROVEEDORES DE IA — CHIPS DE ESTADO (pestaña IA del Add-in)
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  GET /api/addin/ai-providers → { providers: [{ name, active }], count }
+#
+#  Inspecciona SOLO variables de entorno (sin tocar módulos de IA): un
+#  proveedor está activo si su clave existe y no es vacía. Cloudflare exige
+#  el par CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
+# ════════════════════════════════════════════════════════════════════════════
+
+AI_PROVIDER_ENV_KEYS: List[tuple] = [
+    ("NVIDIA", ("NVIDIA_API_KEY",)),
+    ("Groq", ("GROQ_API_KEY",)),
+    ("OpenRouter", ("OPENROUTER_API_KEY",)),
+    ("Cerebras", ("CEREBRAS_API_KEY",)),
+    ("Mistral", ("MISTRAL_API_KEY",)),
+    ("OpenCodeZen", ("OPENCODEZEN_API_KEY",)),
+    ("ZenMux", ("ZENMUX_API_KEY",)),
+    ("Gemini", ("GEMINI_API_KEY",)),
+    ("Cloudflare", ("CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID")),
+]
+
+
+@router.get("/ai-providers")
+async def ai_providers() -> dict:
+    """Estado de los proveedores de IA según variables de entorno."""
+    import os
+
+    providers: List[Dict[str, Any]] = []
+    for name, keys in AI_PROVIDER_ENV_KEYS:
+        active = all((os.environ.get(k) or "").strip() for k in keys)
+        providers.append({"name": name, "active": active})
+
+    return {
+        "providers": providers,
+        "count": sum(1 for p in providers if p["active"]),
+    }
+
+
+class ScopedApplyLiveRequest(BaseModel):
+    ooxml_base64: str
+    scopes: List[str]
+    rules: Optional[Dict[str, Any]] = None
+
+
+@router.post("/scoped-apply-live")
+async def scoped_apply_live(req: ScopedApplyLiveRequest) -> dict:
+    """Aplica alcances (texto, tablas_imagenes, bibliografia) sobre el documento OOXML."""
+    import base64
+    from modules.scoped_apply import apply_scopes, VALID_SCOPES
+
+    # Validar alcances
+    invalid = [s for s in req.scopes if s not in VALID_SCOPES]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Alcances inválidos: {invalid}")
+
+    try:
+        raw_bytes = base64.b64decode(req.ooxml_base64)
+        # Si es OOXML plano (XML), empaquetarlo en un docx mínimo
+        if raw_bytes.strip().startswith(b"<?xml") or b"<w:document" in raw_bytes[:200]:
+            import docx
+            import io
+            doc = docx.Document()
+            # Si se pasó XML crudo, procesar
+            out_bytes = io.BytesIO()
+            doc.save(out_bytes)
+            raw_bytes = out_bytes.getvalue()
+
+        out_docx, summary = apply_scopes(raw_bytes, req.scopes, req.rules or {})
+        return {
+            "docx_base64": base64.b64encode(out_docx).decode("ascii"),
+            "summary": summary,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en scoped_apply_live: {e}")
+
