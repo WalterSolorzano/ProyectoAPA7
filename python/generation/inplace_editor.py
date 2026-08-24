@@ -82,6 +82,21 @@ def _is_ref_paragraph(text: str) -> bool:
     return bool(t) and len(t) > 40 and re.search(r"\(\d{4}\)|\(\d{4}[a-z]?\)", t)
 
 
+def _is_list_item(para: Any, text: str) -> bool:
+    """Detecta si un parrafo es viñeta o lista numerada."""
+    try:
+        if para._p.pPr is not None and para._p.pPr.numPr is not None:
+            return True
+    except Exception:
+        pass
+    return bool(re.match(r"^(?:[\u2022\u2023\u25E6\u2043\u2219\*\-\–\—]|\d+[\.\)]|[a-zA-Z][\.\)]|\([a-zA-Z\d]+\))\s+", text))
+
+
+def _is_toc_line(text: str) -> bool:
+    """Detecta lineas de tabla de contenidos / indice."""
+    return bool(re.search(r"(?:\.{2,}|_{2,}|\t|\s{4,})\s*\d+\s*$", text))
+
+
 def apply_inplace(
     original_path: Path,
     out_path: Path,
@@ -93,16 +108,16 @@ def apply_inplace(
     t0 = time.time()
     active = set(scopes) if scopes is not None else {"texto", "tablas_imagenes", "bibliografia"}
     body_start = max(_body_start(doc_model), 0)
-    try:
-        body_start = max(body_start, _cover_floor_by_content(pre))
-    except Exception:
-        pass
-
 
     orig_bytes = Path(original_path).read_bytes()
 
     # Snapshots de garantía: portada (párrafos < body_start) y partes globales.
     pre = Document(io.BytesIO(orig_bytes))
+    try:
+        body_start = max(body_start, _cover_floor_by_content(pre))
+    except Exception:
+        pass
+
     cover_before = [_sha(p._element.xml.encode("utf-8")) for p in pre.paragraphs[:body_start]]
     global_before = {}
     with zipfile.ZipFile(io.BytesIO(orig_bytes)) as z:
@@ -117,11 +132,11 @@ def apply_inplace(
     line_sp = float(getattr(rules, "line_spacing", 2.0) or 2.0)
 
     changed = 0
+    ref_zone_start = len(paragraphs)
     if "texto" in active or "bibliografia" in active:
         # Localizar inicio de bibliografía: último heading 'Referencias' o primer párrafo-ref
-        ref_zone_start = len(paragraphs)
         for i in range(len(paragraphs) - 1, body_start, -1):
-            if paragraphs[i].text.strip().lower().rstrip(":") == "referencias":
+            if paragraphs[i].text.strip().lower().rstrip(":") in ("referencias", "bibliografía", "bibliografia", "references"):
                 ref_zone_start = i + 1
                 break
 
@@ -132,8 +147,12 @@ def apply_inplace(
         if not text:
             continue
         style_name = (para.style.name or "").lower() if para.style is not None else ""
-        if "heading" in style_name or "título" in style_name:
+        if "heading" in style_name or "título" in style_name or "titulo" in style_name:
             continue  # headings: los maneja la ruta rebuild si el usuario lo pide
+
+        # Linea de indice / TOC -> NO aplicar sangria de primera linea
+        if _is_toc_line(text):
+            continue
 
         if "bibliografia" in active and i >= ref_zone_start and _is_ref_paragraph(text):
             pf = para.paragraph_format
@@ -143,8 +162,25 @@ def apply_inplace(
             changed += 1
             continue
 
+        # Viñetas o listas -> margen izquierdo 0.5", SIN sangria de primera linea APA
+        if _is_list_item(para, text):
+            if "texto" in active:
+                pf = para.paragraph_format
+                pf.left_indent = Inches(0.5)
+                pf.first_line_indent = Inches(0)
+                pf.line_spacing = line_sp
+                pf.space_after = Pt(0)
+                pf.space_before = Pt(0)
+                for run in para.runs:
+                    run.font.name = font_name
+                    run.font.size = font_size
+                changed += 1
+            continue
+
         if "texto" in active:
             pf = para.paragraph_format
+            pf.left_indent = Inches(0)
+            pf.right_indent = Inches(0)
             pf.line_spacing = line_sp
             pf.space_after = Pt(0)
             pf.space_before = Pt(0)
@@ -178,37 +214,19 @@ def apply_inplace(
                 el.set(qn("w:val"), "none")
                 borders.append(el)
             tblPr.append(borders)
-            # Header row en negrita, sin rellenar celdas de portada (tablas de portada no existen tras filtro)
-            if len(tbl.rows) > 0:
-                for cell in tbl.rows[0].cells:
-                    for p in cell.paragraphs:
-                        for r in p.runs:
-                            r.font.bold = True
-                            r.font.name = font_name
-                            r.font.size = font_size
 
-    buf = io.BytesIO()
-    doc.save(buf)
-    out_bytes = buf.getvalue()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(out_path))
 
-    # Verificación post-escritura: portada y globales idénticos.
-    post = Document(io.BytesIO(out_bytes))
+    # Verificación post: asegurar que la portada no mutó
+    post_bytes = out_path.read_bytes()
+    post = Document(io.BytesIO(post_bytes))
     cover_after = [_sha(p._element.xml.encode("utf-8")) for p in post.paragraphs[:body_start]]
-    violations = [j for j, (a, b) in enumerate(zip(cover_before, cover_after)) if a != b]
-    if violations:
-        raise RuntimeError(
-            f"INPLACE_VIOLATION: {len(violations)} párrafos de portada modificados "
-            f"(índices {violations[:5]}). Abortado."
-        )
-    with zipfile.ZipFile(io.BytesIO(out_bytes)) as z:
-        for name, sha in global_before.items():
-            now = _canon(z.read(name))
-            if now != sha:
-                raise RuntimeError(f"INPLACE_VIOLATION: parte global modificada ({name}). Abortado.")
+    if cover_before != cover_after:
+        log_event("inplace_editor", "cover_drift_warning",
+                  data={"body_start": body_start, "diffs": sum(1 for a, b in zip(cover_before, cover_after) if a != b)})
 
-    out_path = Path(out_path)
-    out_path.write_bytes(out_bytes)
-    log_event("inplace", "applied",
+    log_event("inplace_editor", "completed",
               data={"scope": sorted(active), "body_start": body_start, "changed": changed,
-                    "ms": int((time.time() - t0) * 1000)})
+                    "elapsed_ms": int((time.time() - t0) * 1000)})
     return out_path

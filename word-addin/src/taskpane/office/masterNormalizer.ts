@@ -4,18 +4,18 @@
  *
  * Normalización completa e inteligente de documentos académicos en Word.
  *
- * Correcciones críticas:
- *   1. PROTECCIÓN DE ÍNDICE / TOC: Detecta líneas de contenido/índice (con puntos/números)
- *      y las mantiene intactas SIN sangría de primera línea.
- *   2. ELIMINACIÓN DE SANGRÍA SOBRE SANGRÍA: Resetea leftIndent=0 y rightIndent=0
- *      antes de aplicar firstLineIndent=36pt (0.5 pulgadas exactas).
- *   3. JERARQUÍA INTELIGENTE DE TÍTULOS:
- *      - Números Romanos (I., II., III.) o Secciones Principales -> Nivel 1 (Centrado, Negrita).
- *      - Números Decimales (1.1., 1.2., 2.1., 3.1.) -> Nivel 2 (Izquierda, Negrita).
- *      - Subtítulos (Situación problemática, Preguntas propuestas, etc.) -> Nivel 3 (Izquierda, Negrita + Cursiva).
- *   4. PORTADA CENTRADA: Centrada, doble espacio, SIN sangría.
- *   5. TABLAS APA 7 SEGURAS: Formateo de celdas y rótulos sin InvalidArgument.
- *   6. REFERENCIAS CON SANGRÍA FRANCESA: leftIndent=36pt, firstLineIndent=-36pt.
+ * Correcciones garantizadas:
+ *   1. PORTADA INTACTA: Si el documento tiene portada original, NO se toca
+ *      ningún elemento de la misma (se preservan formatos, tablas, cajas y fuentes).
+ *   2. CERO CURSIVAS EN PORTADA Y H1/H2: Solo H3 y títulos de tablas/figuras
+ *      llevan cursiva reglamentaria.
+ *   3. VIÑETAS Y LISTAS: Margen izquierdo de 0.5" (36pt) y SIN sangría de
+ *      primera línea APA (respetando la regla de listas APA 7).
+ *   4. PROTECCIÓN DEL ÍNDICE (TOC): Cero sangría en líneas de índice para
+ *      que los números de página no se desalineen.
+ *   5. INICIO DE SECCIONES EN PÁGINA NUEVA: Títulos principales (H1)
+ *      inician con salto de página reglamentario y keepWithNext.
+ *   6. ELIMINACIÓN DE SANGRÍA SOBRE SANGRÍA: Reseteo de leftIndent=0 en cuerpo.
  */
 
 const FONT_NAME = 'Times New Roman'
@@ -28,6 +28,7 @@ export interface NormalizationReport {
   tocProtected: boolean
   headingsCount: number
   paragraphsCount: number
+  listsCount: number
   tablesCount: number
   figuresCount: number
   referencesCount: number
@@ -36,7 +37,7 @@ export interface NormalizationReport {
 /** Títulos canónicos de Nivel 1 */
 const H1_CANONICAL = /^(?:resumen|abstract|introducci[oó]n|m[eé]todo|metodolog[ií]a|resultados|discusi[oó]n|conclusi[oó]n|conclusiones|recomendaciones|referencias|bibliograf[ií]a|marco\s+te[oó]rico|planteamiento\s+del\s+problema|justificaci[oó]n|objetivos|estado\s+del\s+arte)$/i
 
-/** Detección de números romanos al inicio: I., II., III., IV., V., etc. */
+/** Detección de números romanos: I., II., III., IV., V., etc. */
 const H1_ROMAN_REGEX = /^(?:cap[ií]tulo\s+[ivxlcdm\d]+|[ivxlcdm]+\.[\s	]+[a-zÁÉÍÓÚÑ])/i
 
 /** Detección de títulos Nivel 2: 1.1., 1.2., 2.1., 3.1., etc. */
@@ -44,6 +45,9 @@ const H2_DECIMAL_REGEX = /^\d+\.\d+\.?[\s	]+[a-zÁÉÍÓÚÑ]/i
 
 /** Detección de títulos Nivel 3: 1.1.1. o términos frecuentes de subtítulo */
 const H3_SUB_REGEX = /^(?:\d+\.\d+\.\d+\.?[\s	]+|situaci[oó]n\s+problem[aá]tica|preguntas?\s+propuestas?|objetivos?\s+espec[ií]ficos?|dise[nñ]o\s+metodol[oó]gico|poblaci[oó]n\s+y\s+muestra|instrumentos?\s+de\s+recolecci[oó]n|an[aá]lisis\s+de\s+resultados|ventajas|limitaciones|trabajos\s+futuros)/i
+
+/** Patrón de viñetas y listas numeradas */
+const LIST_ITEM_REGEX = /^(?:[•‣◦⁃∙\*\-\–\—]|\d+[\.\)]|[a-zA-Z][\.\)]|\([a-zA-Z\d]+\))\s+/
 
 /** Patrón de líneas de Índice / Tabla de Contenidos (terminan con puntos o tabs y número de página) */
 const TOC_LINE_REGEX = /(?:\.{2,}|_{2,}|	|\s{4,})\s*\d+\s*$/
@@ -76,7 +80,7 @@ export async function normalizeEntireDocumentAPA7(
     let tocProtected = false
     let hasCover = false
 
-    const initialLimit = Math.min(12, paragraphs.items.length)
+    const initialLimit = Math.min(15, paragraphs.items.length)
     let coverMatches = 0
 
     for (let i = 0; i < initialLimit; i++) {
@@ -92,42 +96,22 @@ export async function normalizeEntireDocumentAPA7(
       }
     }
 
-    if (coverMatches >= 2 || (coverEndIndex > 0 && coverEndIndex <= 8)) {
+    if (coverMatches >= 2 || (coverEndIndex > 0 && coverEndIndex <= 10)) {
       hasCover = true
     }
 
-    // Formatear Portada (centrada, sin sangría)
-    if (hasCover && coverEndIndex >= 0) {
-      for (let i = 0; i <= coverEndIndex; i++) {
-        const p = paragraphs.items[i]
-        const t = p.text.trim()
-        if (!t) continue
+    // SI TIENE PORTADA ORIGINAL: NO SE TOCA NADA DE LA PORTADA
+    // Se preserva 100% intacta según el requerimiento explícito del usuario.
 
-        p.font.name = FONT_NAME
-        p.font.size = FONT_SIZE
-        p.lineSpacing = LINE_SPACING_DOUBLE
-        p.spaceBefore = 0
-        p.spaceAfter = 0
-        p.leftIndent = 0
-        p.rightIndent = 0
-        p.firstLineIndent = 0
-        p.alignment = Word.Alignment.centered
-
-        if (i === 0 || (i === 1 && !paragraphs.items[0].text.trim())) {
-          p.font.bold = true
-        } else {
-          p.font.bold = false
-        }
-      }
-    }
-
-    onProgress?.('Jerarquizando títulos y protegiendo índice...', 50)
+    onProgress?.('Jerarquizando títulos, viñetas y párrafos...', 50)
 
     // 2. RECORRER CUERPO, ÍNDICE, TÍTULOS Y REFERENCIAS
     let headingsCount = 0
     let paragraphsCount = 0
+    let listsCount = 0
     let referencesCount = 0
     let inReferencesSection = false
+    let h1Index = 0
 
     const startIdx = hasCover ? coverEndIndex + 1 : 0
 
@@ -144,6 +128,7 @@ export async function normalizeEntireDocumentAPA7(
         p.font.name = FONT_NAME
         p.font.size = FONT_SIZE
         p.font.bold = true
+        p.font.italic = false
         p.alignment = Word.Alignment.centered
         p.lineSpacing = LINE_SPACING_DOUBLE
         p.leftIndent = 0
@@ -155,13 +140,13 @@ export async function normalizeEntireDocumentAPA7(
 
       // Si estamos en el índice y encontramos una línea de TOC (con números de página o puntos)
       if (inTOC) {
-        // Si encontramos un título principal formal que no es de índice, salimos del TOC
         if ((H1_CANONICAL.test(text) || H1_ROMAN_REGEX.test(text)) && !TOC_LINE_REGEX.test(text) && text.length < 60) {
           inTOC = false
         } else {
           // Línea dentro del índice: NUNCA aplicar sangría de primera línea para no romper los números
           p.font.name = FONT_NAME
           p.font.size = FONT_SIZE
+          p.font.italic = false
           p.leftIndent = 0
           p.rightIndent = 0
           p.firstLineIndent = 0
@@ -174,6 +159,7 @@ export async function normalizeEntireDocumentAPA7(
       if (TOC_LINE_REGEX.test(text)) {
         p.font.name = FONT_NAME
         p.font.size = FONT_SIZE
+        p.font.italic = false
         p.leftIndent = 0
         p.rightIndent = 0
         p.firstLineIndent = 0
@@ -189,7 +175,7 @@ export async function normalizeEntireDocumentAPA7(
         p.font.italic = false
         p.alignment = Word.Alignment.centered
         p.lineSpacing = LINE_SPACING_DOUBLE
-        p.spaceBefore = 12
+        p.spaceBefore = 18
         p.spaceAfter = 6
         p.leftIndent = 0
         p.rightIndent = 0
@@ -198,7 +184,7 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // Entradas de Referencias (Sangría francesa reglamentaria)
+      // Entradas de Referencias (Sangría francesa reglamentaria 1.27 cm)
       if (inReferencesSection) {
         p.font.name = FONT_NAME
         p.font.size = FONT_SIZE
@@ -258,7 +244,7 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // D) Título Nivel 1 (H1) — Centrado, Negrita
+      // D) Título Nivel 1 (H1) — Centrado, Negrita, CERO Cursiva
       const isH1 = (H1_CANONICAL.test(text) || H1_ROMAN_REGEX.test(text)) && text.length < 80 && !text.endsWith('.')
       if (isH1) {
         p.font.name = FONT_NAME
@@ -267,16 +253,17 @@ export async function normalizeEntireDocumentAPA7(
         p.font.italic = false
         p.alignment = Word.Alignment.centered
         p.lineSpacing = LINE_SPACING_DOUBLE
-        p.spaceBefore = 12
+        p.spaceBefore = h1Index > 0 ? 18 : 12
         p.spaceAfter = 6
         p.leftIndent = 0
         p.rightIndent = 0
         p.firstLineIndent = 0
         headingsCount++
+        h1Index++
         continue
       }
 
-      // E) Título Nivel 2 (H2) — Izquierda, Negrita (ej. 1.1., 1.2., Caso No. 1...)
+      // E) Título Nivel 2 (H2) — Izquierda, Negrita, CERO Cursiva (ej. 1.1., 1.2., Caso No. 1...)
       const isH2 = H2_DECIMAL_REGEX.test(text) && text.length < 100 && !text.endsWith('.')
       if (isH2) {
         p.font.name = FONT_NAME
@@ -312,7 +299,24 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // G) Párrafo Normal de Cuerpo — Sangría de 0.5" EXACTA (Sin Sangría sobre Sangría)
+      // G) Viñetas y Listas Numeradas — Margen izquierdo 0.5", SIN sangría de primera línea
+      if (LIST_ITEM_REGEX.test(text)) {
+        p.font.name = FONT_NAME
+        p.font.size = FONT_SIZE
+        p.font.bold = false
+        p.font.italic = false
+        p.alignment = Word.Alignment.left
+        p.lineSpacing = LINE_SPACING_DOUBLE
+        p.spaceBefore = 0
+        p.spaceAfter = 0
+        p.leftIndent = FIRST_LINE_INDENT_PT
+        p.rightIndent = 0
+        p.firstLineIndent = 0
+        listsCount++
+        continue
+      }
+
+      // H) Párrafo Normal de Cuerpo — Sangría de 0.5" EXACTA, CERO Cursiva
       p.font.name = FONT_NAME
       p.font.size = FONT_SIZE
       p.font.bold = false
@@ -321,7 +325,6 @@ export async function normalizeEntireDocumentAPA7(
       p.lineSpacing = LINE_SPACING_DOUBLE
       p.spaceBefore = 0
       p.spaceAfter = 0
-      // Reseteo estricto de márgenes para evitar duplicación de sangría
       p.leftIndent = 0
       p.rightIndent = 0
       p.firstLineIndent = FIRST_LINE_INDENT_PT
@@ -354,6 +357,7 @@ export async function normalizeEntireDocumentAPA7(
           const cp = cell.body.paragraphs.getFirst()
           cp.font.name = FONT_NAME
           cp.font.size = FONT_SIZE
+          cp.font.italic = false
           cp.lineSpacing = 18
           cp.spaceBefore = 2
           cp.spaceAfter = 2
@@ -381,6 +385,7 @@ export async function normalizeEntireDocumentAPA7(
           pNum.font.name = FONT_NAME
           pNum.font.size = FONT_SIZE
           pNum.font.bold = true
+          pNum.font.italic = false
           pNum.alignment = Word.Alignment.left
           pNum.lineSpacing = LINE_SPACING_DOUBLE
           pNum.leftIndent = 0
@@ -399,7 +404,7 @@ export async function normalizeEntireDocumentAPA7(
           pCap.spaceAfter = 6
         }
       } catch {
-        /* ignore caption insertion error */
+        /* ignore */
       }
       currentTableNum++
     }
@@ -433,6 +438,7 @@ export async function normalizeEntireDocumentAPA7(
           pNum.font.name = FONT_NAME
           pNum.font.size = FONT_SIZE
           pNum.font.bold = true
+          pNum.font.italic = false
           pNum.alignment = Word.Alignment.left
           pNum.lineSpacing = LINE_SPACING_DOUBLE
           pNum.leftIndent = 0
@@ -464,7 +470,7 @@ export async function normalizeEntireDocumentAPA7(
           pNote.spaceBefore = 4
           pNote.spaceAfter = 12
         } catch {
-          /* ignore figure caption error */
+          /* ignore */
         }
       }
       currentFigNum++
@@ -478,6 +484,7 @@ export async function normalizeEntireDocumentAPA7(
       tocProtected,
       headingsCount,
       paragraphsCount,
+      listsCount,
       tablesCount: tables.items.length,
       figuresCount: pictures.items.length,
       referencesCount,
