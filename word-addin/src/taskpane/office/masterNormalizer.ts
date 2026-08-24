@@ -18,10 +18,10 @@
  *   6. ELIMINACIÓN DE SANGRÍA SOBRE SANGRÍA: Reseteo de leftIndent=0 en cuerpo.
  */
 
-const FONT_NAME = 'Times New Roman'
-const FONT_SIZE = 12
-const LINE_SPACING_DOUBLE = 24
-const FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
+let FONT_NAME = 'Times New Roman'
+let FONT_SIZE = 12
+let LINE_SPACING_DOUBLE = 24
+let FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
 
 export interface NormalizationReport {
   coverDetected: boolean
@@ -72,6 +72,28 @@ export async function normalizeEntireDocumentAPA7(
     context.load(pictures)
     await context.sync()
 
+    // PUENTE AL MOTOR CENTRAL: el backend calibrado decide el piso de portada
+    // y las reglas numericas. Sin backend -> fallback local (nunca bloquea).
+    let serverFloor = -1
+    try {
+      const texts = paragraphs.items.slice(0, 60).map((p) => p.text)
+      const res = await fetch('http://127.0.0.1:8742/api/addin/format-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts }),
+      })
+      if (res.ok) {
+        const plan = await res.json()
+        serverFloor = typeof plan.floor === 'number' ? plan.floor : -1
+        const r = plan.rules || {}
+        if (r.font) FONT_NAME = r.font
+        if (r.size) FONT_SIZE = r.size
+        if (r.line_spacing) LINE_SPACING_DOUBLE = Math.round(r.line_spacing * 12)
+        if (r.first_line_indent_in) FIRST_LINE_INDENT_PT = Math.round(r.first_line_indent_in * 72)
+      }
+      fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
+    } catch { /* offline */ }
+
     onProgress?.('Analizando portada e índice...', 25)
 
     // 1. DETECTAR PORTADA E ÍNDICE
@@ -113,7 +135,9 @@ export async function normalizeEntireDocumentAPA7(
     let inReferencesSection = false
     let h1Index = 0
 
-    const startIdx = hasCover ? coverEndIndex + 1 : 0
+    // El piso central prevalece sobre el regex local
+    let startIdx = hasCover ? coverEndIndex + 1 : 0
+    if (serverFloor > startIdx) startIdx = serverFloor
 
     for (let i = startIdx; i < paragraphs.items.length; i++) {
       const p = paragraphs.items[i]

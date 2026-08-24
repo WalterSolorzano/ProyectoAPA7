@@ -1869,6 +1869,116 @@ async def generate_preview(req: PreviewRequest) -> dict:
         )
 
 
+
+# ????????????????????????? WordAPA7 add-in bridge & infra (2026-08) ?????????????????????????
+try:
+    from modules.word_com import release_word_app as _rwa
+except Exception:
+    _rwa = None
+
+
+@app.on_event("shutdown")
+def _shutdown_word_com() -> None:
+    if _rwa:
+        _rwa(force=False)
+
+
+class ClientLogRequest(BaseModel):
+    component: str = "renderer"
+    event: str
+    data: Optional[dict] = None
+    level: str = "info"
+
+
+@app.post("/api/client-log")
+async def client_log_endpoint(req: ClientLogRequest) -> dict:
+    """Receptor de logs del frontend y del add-in."""
+    from wordapa7_logger import log_event as _lv2, log_error as _le2
+    comp = (req.component or "client").replace("/", "_")[:24]
+    if req.level == "error":
+        _le2(comp, req.event, Exception(str(req.data)), req.data)
+    _lv2(comp, req.event, req.data, level=req.level)
+    return {"ok": True}
+
+
+@app.get("/api/diagnostics")
+async def diagnostics_endpoint() -> dict:
+    from wordapa7_logger import collect_diagnostics
+    return collect_diagnostics()
+
+
+_ADDIN_LAST_SEEN: dict = {}
+
+
+@app.post("/api/addin/heartbeat")
+async def addin_heartbeat() -> dict:
+    import time as _t
+    _ADDIN_LAST_SEEN["ts"] = _t.time()
+    return {"ok": True}
+
+
+@app.get("/api/addin/sideload-status-v2")
+async def addin_sideload_status_v2() -> dict:
+    import time as _t
+    age = None
+    if _ADDIN_LAST_SEEN.get("ts"):
+        age = round(_t.time() - _ADDIN_LAST_SEEN["ts"], 1)
+    return {"installed": True, "heartbeat_age_s": age,
+            "active_in_word": age is not None and age < 120}
+
+
+class OpenLocalReq(BaseModel):
+    path: str
+
+
+@app.post("/api/open-local")
+async def open_local_document(req: OpenLocalReq) -> dict:
+    """Flujo click-derecho: abre un .docx local (misma maquina)."""
+    src = Path(req.path)
+    if not src.exists() or src.suffix.lower() != ".docx":
+        raise HTTPException(status_code=400, detail="Archivo .docx no encontrado")
+    from fastapi import UploadFile as _UF
+    import io as _io
+    _up = _UF(file=_io.BytesIO(src.read_bytes()), filename=src.name)
+    return await upload_docx(_up)
+
+
+class FormatPlanReq(BaseModel):
+    texts: List[str] = []
+
+
+@app.post("/api/addin/format-plan")
+async def addin_format_plan(req: FormatPlanReq) -> dict:
+    """Piso de portada + reglas desde el MOTOR CENTRAL.
+    El add-in ejecuta; nunca decide formato ni limites por su cuenta."""
+    import re as _re
+    from modules.apa_rules import RULES
+
+    def _floor(texts: List[str]) -> int:
+        for i, t in enumerate(texts[:60]):
+            s = (t or "").strip()
+            if not s:
+                continue
+            low = s.lower().rstrip(":")
+            if low in ("introduccion", "introducci?n", "resumen", "abstract") or _re.match(r"^\d+(\.\d+)*\.?\s+\S", s):
+                return i
+            if len(s) > 180 or _re.search(r"\([A-Z??????][^)]{2,40},\s*(19|20)\d{2}\)", s):
+                return i
+        return 0
+
+    return {"floor": _floor(req.texts), "rules": RULES}
+
+
+@app.post("/api/addin/setup-catalog")
+async def addin_setup_catalog() -> dict:
+    from routers.addin_static import _setup_trusted_catalog, _purge_wef_cache_full
+    cat = _setup_trusted_catalog()
+    purged = _purge_wef_cache_full()
+    return {"catalog": cat, "wef_purged": purged}
+
+# ????????????????????????? fin bloque add-in bridge ?????????????????????????
+
+
 @app.post("/api/generate-pdf")
 async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
     """
@@ -1923,7 +2033,8 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
         generated_path=docx_path,
         final_path=final_path,
         preserve_cover=preserve_cover,
-        generate_pdf=True,
+        generate_pdf=True,
+
         rules=rules
     )
 
@@ -2138,6 +2249,42 @@ async def generate_docx(req: GenerateRequest) -> dict:
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
     out_file: Path = out_dir / f"APA7_{doc.file_name}"
 
+    # RUTA IN-PLACE (default): edita el original; portada/secciones intocables
+    export_mode = getattr(rules, "export_mode", "inplace")
+    if export_mode == "inplace":
+        original_path_ip: Path = out_dir / "original.docx"
+        if original_path_ip.exists():
+            try:
+                from generation.inplace_editor import apply_inplace
+                apply_inplace(original_path_ip, out_file, doc, rules, scopes=None)
+                try:
+                    from persistence.idempotency import add_marker_to_docx
+                    marked = add_marker_to_docx(out_file)
+                    if marked is not None and Path(marked).exists():
+                        Path(marked).replace(out_file)
+                except Exception:
+                    pass
+                return {
+                    "success": True,
+                    "download_url": f"/api/download/{req.session_id}",
+                    "file_name": out_file.name,
+                    "mode": "inplace",
+                    "message": "Documento formateado in-place: portada y estructura originales intactas.",
+                }
+            except RuntimeError as rip:
+                try:
+                    from wordapa7_logger import log_event as _lf
+                    _lf("generate", "inplace_fallback_rebuild", data={"reason": str(rip)[:200]})
+                except Exception:
+                    pass
+            except Exception as exc_ip:
+                try:
+                    from wordapa7_logger import log_error as _lg
+                    _lg("generate", "inplace_failed", exc_ip)
+                except Exception:
+                    pass
+
+
     try:
         from persistence.idempotency import add_marker_to_docx
         from services.doc_converter import get_doc_converter
@@ -2160,7 +2307,8 @@ async def generate_docx(req: GenerateRequest) -> dict:
             generated_path=generated_path,
             final_path=final_path,
             preserve_cover=preserve_cover,
-            generate_pdf=False, # El endpoint de PDF se maneja en /api/generate-pdf
+            generate_pdf=False, # El endpoint de PDF se maneja en /api/generate-pdf
+
             rules=rules
         )
 
@@ -3338,6 +3486,15 @@ def _backend_already_running(port: int) -> bool:
         except Exception:
             continue
     return False
+
+
+
+
+def _port_in_use(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        sk.settimeout(0.4)
+        return sk.connect_ex(("127.0.0.1", port)) == 0
 
 
 if __name__ == "__main__":
