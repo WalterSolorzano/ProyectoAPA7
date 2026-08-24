@@ -75,16 +75,24 @@ export async function normalizeEntireDocumentAPA7(
     // PUENTE AL MOTOR CENTRAL: el backend calibrado decide el piso de portada
     // y las reglas numericas. Sin backend -> fallback local (nunca bloquea).
     let serverFloor = -1
+    let serverRoles: Map<number, string> | null = null
+    let serverRefsStart = -1
     try {
-      const texts = paragraphs.items.slice(0, 60).map((p) => p.text)
+      const texts = paragraphs.items.map((p) => p.text)
       const res = await fetch('http://127.0.0.1:8742/api/addin/format-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texts }),
+        body: JSON.stringify({ texts, full: true }),
       })
       if (res.ok) {
         const plan = await res.json()
         serverFloor = typeof plan.floor === 'number' ? plan.floor : -1
+        // Roles decididos por el motor central (oro: nada a medias)
+        try {
+          serverRoles = new Map<number, string>()
+          for (const op of plan.ops || []) serverRoles.set(op.i, op.role)
+          serverRefsStart = typeof plan.refs_start === 'number' ? plan.refs_start : -1
+        } catch {}
         const r = plan.rules || {}
         if (r.font) FONT_NAME = r.font
         if (r.size) FONT_SIZE = r.size
@@ -133,6 +141,7 @@ export async function normalizeEntireDocumentAPA7(
     let listsCount = 0
     let referencesCount = 0
     let inReferencesSection = false
+    if (serverRefsStart > -1) { /* zona real marcada abajo */ }
     let h1Index = 0
 
     // El piso central prevalece sobre el regex local
@@ -144,6 +153,37 @@ export async function normalizeEntireDocumentAPA7(
       const rawText = p.text
       const text = rawText.trim()
       if (!text) continue
+
+      // ?? ROL DEL MOTOR CENTRAL manda sobre heuristica local ????????????????
+      const srvRole = serverRoles?.get(i)
+      if (srvRole === 'cover') continue
+      if (srvRole === 'toc_header' || srvRole === 'toc_line') {
+        p.font.name = FONT_NAME; p.font.size = FONT_SIZE; p.font.bold = srvRole === 'toc_header'
+        p.font.italic = false; p.leftIndent = 0; p.rightIndent = 0; p.firstLineIndent = 0
+        p.alignment = srvRole === 'toc_header' ? Word.Alignment.centered : Word.Alignment.left
+        continue
+      }
+      if (srvRole === 'reference') {
+        p.font.name = FONT_NAME; p.font.size = FONT_SIZE; p.font.italic = false
+        p.leftIndent = 36; p.firstLineIndent = -36; p.lineSpacing = LINE_SPACING_DOUBLE
+        referencesCount++; continue
+      }
+
+      // Titulos: formato canonico dictado por el central (H1 centro negrilla,
+      // H2 izq negrilla, H3 izq negrilla cursiva - APA 7)
+      if (srvRole === 'heading1' || srvRole === 'heading2' || srvRole === 'heading3') {
+        p.font.name = FONT_NAME
+        p.font.size = FONT_SIZE
+        p.font.bold = true
+        p.font.italic = srvRole === 'heading3'
+        p.alignment = srvRole === 'heading1' ? Word.Alignment.centered : Word.Alignment.left
+        p.lineSpacing = LINE_SPACING_DOUBLE
+        p.leftIndent = 0
+        p.rightIndent = 0
+        p.firstLineIndent = 0
+        headingsCount++
+        continue
+      }
 
       // A) Detección de Sección de Índice / Tabla de Contenidos
       if (TOC_HEADER_REGEX.test(text)) {

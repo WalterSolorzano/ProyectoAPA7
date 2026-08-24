@@ -1945,6 +1945,7 @@ async def open_local_document(req: OpenLocalReq) -> dict:
 
 class FormatPlanReq(BaseModel):
     texts: List[str] = []
+    full: bool = False
 
 
 @app.post("/api/addin/format-plan")
@@ -1966,6 +1967,11 @@ async def addin_format_plan(req: FormatPlanReq) -> dict:
                 return i
         return 0
 
+    if req.full:
+        from modules.plan_engine import classify, findings as _findings
+        plan = classify(req.texts)
+        plan["findings"] = _findings(req.texts, plan["floor"])
+        return plan
     return {"floor": _floor(req.texts), "rules": RULES}
 
 
