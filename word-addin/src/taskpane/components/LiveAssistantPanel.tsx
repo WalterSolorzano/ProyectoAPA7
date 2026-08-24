@@ -151,6 +151,10 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           onChange={(e) => localStorage.setItem('wordapa7_jarvis', e.target.checked ? '1':'0')} />
         Jarvis (normaliza mientras escribes)
       </label>
+      <button type="button" style={{ fontSize:11, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:'0 0 6px' }}
+        onClick={() => { try { localStorage.removeItem('wordapa7_locks') } catch {} }}>
+        Reiniciar preferencias aprendidas
+      </button>
       <details style={{ fontSize:11.5, color:'#334155', margin:'4px 0 8px' }}>
         <summary style={{ cursor:'pointer' }}>Vista previa</summary>
         <div style={{ padding:'4px 6px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:6 }}>

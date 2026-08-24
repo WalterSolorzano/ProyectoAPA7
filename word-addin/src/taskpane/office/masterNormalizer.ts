@@ -80,7 +80,7 @@ function _isLocked(key: string, prop: string): boolean {
   return !!_locks()[key]?.[prop]
 }
 /** Detecta si el usuario revirtio una prop que nosotros aplicamos antes. */
-function _detectUserOverride(key: string, prop: string, applied: number, current: number): boolean {
+function _detectUserOverride(key: string, prop: string, applied: any, current: any): boolean {
   const l = _locks()
   if (l[key]?.[prop]) return true
   if (applied !== current && l[key]?.['_applied_' + prop]) {
