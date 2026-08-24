@@ -11,6 +11,17 @@ import {
   normalizeEntireDocumentAPA7,
   type NormalizationReport,
 } from '../office/masterNormalizer'
+import {
+  DocumentTextIcon,
+  TableIcon,
+  ImageIcon,
+  QuoteIcon,
+  ZapIcon,
+  SearchIcon,
+  EyeIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+} from './Icons'
 
 interface LiveAssistantPanelProps {
   running: boolean
@@ -45,7 +56,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
   const [progressPct, setProgressPct] = useState<number>(0)
   const [lastReport, setLastReport] = useState<NormalizationReport | null>(null)
 
-  // 1-CLIC MASTER: Normaliza todo el documento abierto en Word
+  // 1-CLIC MASTER: Normaliza todo el documento en vivo en Word
   const handleMasterNormalize = async () => {
     setWorking('master')
     setProgressPct(5)
@@ -56,7 +67,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         setProgressPct(pct)
       })
       setLastReport(report)
-      showToast('¡Documento normalizado a APA 7 exitosamente!', 'success')
+      showToast('Documento normalizado a APA 7 exitosamente', 'success')
     } catch (err: any) {
       showToast(err.message || 'Error al normalizar documento en Word', 'error')
     } finally {
@@ -73,9 +84,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
     try {
       const res = await autoFormatAllTablesAPA()
       if (res.count === 0) {
-        showToast('No se encontraron tablas en el documento.', 'info')
+        showToast('No se encontraron tablas en el documento', 'info')
       } else {
-        showToast(`¡${res.count} tabla(s) formateadas a APA 7 en Word!`, 'success')
+        showToast(`${res.count} tabla(s) formateadas a APA 7 en Word`, 'success')
       }
     } catch (err: any) {
       showToast(err.message || 'Error al formatear tablas', 'error')
@@ -89,9 +100,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
     try {
       const res = await autoCaptionAllFiguresAPA()
       if (res.count === 0) {
-        showToast('No se encontraron imágenes en el documento.', 'info')
+        showToast('No se encontraron imágenes en el documento', 'info')
       } else {
-        showToast(`¡${res.count} figura(s) numeradas y centradas en Word!`, 'success')
+        showToast(`${res.count} figura(s) numeradas y centradas en Word`, 'success')
       }
     } catch (err: any) {
       showToast(err.message || 'Error al numerar figuras', 'error')
@@ -107,7 +118,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         finding.where?.excerpt || finding.message,
       )
       if (found) {
-        showToast('Ubicando y resaltando en Word...', 'info')
+        showToast('Párrafo localizado y resaltado en Word', 'info')
       } else {
         showToast('No se localizó la posición exacta en Word', 'info')
       }
@@ -122,11 +133,12 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* HERO CARD — ACCIÓN PROACTIVA PRINCIPAL (1 CLIC EN WORD) */}
+      {/* HERO CARD — ACCIÓN PROACTIVA PRINCIPAL (1 CLIC DIRECTO EN WORD) */}
       <div className="card card--hero">
         <div className="card__header">
           <div className="card__title">
-            <span>🚀 Normalizador Proactivo APA 7</span>
+            <ZapIcon size={16} color="var(--accent-primary)" />
+            <span>Normalizador Proactivo APA 7</span>
           </div>
           <button
             type="button"
@@ -134,12 +146,12 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             onClick={onToggle}
             title={running ? 'Pausar asistente' : 'Activar asistente'}
           >
-            {running ? '● En Vivo' : '○ Pausado'}
+            {running ? 'En Vivo' : 'Pausado'}
           </button>
         </div>
 
         <p className="card__subtitle">
-          Edita y normaliza tu documento en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía sin descargar nada.
+          Edita y normaliza tu documento en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía en tiempo real.
         </p>
 
         {/* BARRA DE PROGRESO EN VIVO */}
@@ -161,9 +173,10 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             className="btn btn-primary"
             onClick={handleMasterNormalize}
             disabled={working !== null}
-            style={{ fontSize: 13, padding: '11px 16px' }}
+            style={{ fontSize: 13, padding: '10px 16px' }}
           >
-            {working === 'master' ? 'Normalizando en Word...' : '⚡ Normalizar Todo a APA 7 en Vivo'}
+            <ZapIcon size={15} color="#ffffff" />
+            <span>{working === 'master' ? 'Normalizando en Word...' : 'Normalizar Todo a APA 7 en Vivo'}</span>
           </button>
 
           <button
@@ -172,15 +185,19 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             onClick={onScanNow}
             disabled={auditStatus === 'running'}
           >
-            {auditStatus === 'running' ? 'Auditando en tiempo real...' : '🔍 Auditar Documento en Vivo'}
+            <SearchIcon size={14} />
+            <span>{auditStatus === 'running' ? 'Auditando en tiempo real...' : 'Auditar Documento en Vivo'}</span>
           </button>
         </div>
 
         {/* RESUMEN DEL ÚLTIMO REPORTE DE NORMALIZACIÓN */}
         {lastReport && (
           <div style={{ marginTop: 6, padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11.5, color: '#166534', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontWeight: 700 }}>✓ Normalización aplicada en Word:</div>
-            <div>• Portada: {lastReport.coverDetected ? 'Detectada y formateada' : 'Sin portada inicial'}</div>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircleIcon size={13} color="#16a34a" />
+              <span>Normalización aplicada en Word:</span>
+            </div>
+            <div>• Portada: {lastReport.coverDetected ? 'Detectada y centrada' : 'Sin portada inicial'}</div>
             <div>• Títulos: {lastReport.headingsCount} jerarquizados</div>
             <div>• Tablas: {lastReport.tablesCount} formateadas a APA 7</div>
             <div>• Referencias: {lastReport.referencesCount} con sangría francesa</div>
@@ -188,22 +205,34 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         )}
       </div>
 
-      {/* STATS DEL DOCUMENTO EN VIVO */}
+      {/* STATS DEL DOCUMENTO CON ICONOS CLAROS Y DIFERENCIADOS */}
       {stats && (
         <div className="stats-row">
           <div className="stat-chip">
+            <div className="stat-chip__icon">
+              <DocumentTextIcon size={15} color="var(--accent-primary)" />
+            </div>
             <div className="stat-chip__value">{stats.words}</div>
             <div className="stat-chip__label">Palabras</div>
           </div>
           <div className="stat-chip">
+            <div className="stat-chip__icon">
+              <TableIcon size={15} color="var(--accent-primary)" />
+            </div>
             <div className="stat-chip__value">{stats.tables}</div>
             <div className="stat-chip__label">Tablas</div>
           </div>
           <div className="stat-chip">
+            <div className="stat-chip__icon">
+              <ImageIcon size={15} color="var(--accent-primary)" />
+            </div>
             <div className="stat-chip__value">{stats.figures || stats.inlinePictures}</div>
             <div className="stat-chip__label">Figuras</div>
           </div>
           <div className="stat-chip">
+            <div className="stat-chip__icon">
+              <QuoteIcon size={15} color="var(--accent-primary)" />
+            </div>
             <div className="stat-chip__value">{citationsCount}</div>
             <div className="stat-chip__label">Citas</div>
           </div>
@@ -220,7 +249,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             onClick={handleFormatTables}
             disabled={working !== null}
           >
-            <div className="proactive-action-card__icon">📊</div>
+            <div className="proactive-action-card__icon-box">
+              <TableIcon size={18} color="var(--accent-primary)" />
+            </div>
             <div className="proactive-action-card__title">Tablas APA 7</div>
             <div className="proactive-action-card__desc">Bordes 0.5pt y rótulos Tabla 1, 2...</div>
           </button>
@@ -231,7 +262,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             onClick={handleFormatFigures}
             disabled={working !== null}
           >
-            <div className="proactive-action-card__icon">🖼️</div>
+            <div className="proactive-action-card__icon-box">
+              <ImageIcon size={18} color="var(--accent-primary)" />
+            </div>
             <div className="proactive-action-card__title">Figuras APA 7</div>
             <div className="proactive-action-card__desc">Centrado y rótulos Figura 1, 2...</div>
           </button>
@@ -240,8 +273,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
 
       {/* LISTADO DE HALLAZGOS Y SEÑALIZACIÓN EN WORD */}
       {auditNotice && (
-        <div style={{ fontSize: 11, color: 'var(--accent-warning)', padding: '6px 10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6 }}>
-          {auditNotice}
+        <div style={{ fontSize: 11, color: 'var(--accent-warning)', padding: '6px 10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <AlertCircleIcon size={14} color="var(--accent-warning)" />
+          <span>{auditNotice}</span>
         </div>
       )}
 
@@ -252,13 +286,14 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
               <span>Hallazgos de Auditoría</span>
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {findings.length === 0 ? '✓ 0 problemas' : `${errorCount} errores · ${warnCount} avisos`}
+              {findings.length === 0 ? '0 problemas' : `${errorCount} errores · ${warnCount} avisos`}
             </span>
           </div>
 
           {findings.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '16px 8px', color: 'var(--accent-success)', fontSize: 12.5, fontWeight: 600 }}>
-              ✓ ¡Excelente! El documento cumple con las reglas APA 7 auditadas.
+            <div style={{ textAlign: 'center', padding: '16px 8px', color: 'var(--accent-success)', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <CheckCircleIcon size={16} color="var(--accent-success)" />
+              <span>El documento cumple con las reglas APA 7 auditadas.</span>
             </div>
           ) : (
             <div className="finding-list">
@@ -274,7 +309,12 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
                     </span>
                   </div>
 
-                  {f.fix && <div className="finding-item__fix">💡 {f.fix}</div>}
+                  {f.fix && (
+                    <div className="finding-item__fix" style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                      <span style={{ fontWeight: 600 }}>Sugerencia:</span>
+                      <span>{f.fix}</span>
+                    </div>
+                  )}
 
                   <div className="finding-item__actions">
                     <button
@@ -282,7 +322,8 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
                       className="btn btn-secondary btn-sm"
                       onClick={() => handleJumpToFinding(f)}
                     >
-                      👁️ Ver en Word
+                      <EyeIcon size={13} />
+                      <span>Ver en Word</span>
                     </button>
                   </div>
                 </div>

@@ -2,8 +2,8 @@
  * WordAPA7 Add-in — App Principal (Asistente APA 7 en Vivo)
  * =========================================================
  *
- * Panel lateral proactivo integrado en Microsoft Word.
- * Diseño dark canónico alineado con design-tokens.md.
+ * Panel lateral proactivo integrado en Microsoft Word 365.
+ * Diseño limpio con iconos SVG (cero emojis) y operación 100% in-place.
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -19,6 +19,14 @@ import { ReferencesPanel } from './components/ReferencesPanel'
 import { CoverPagePanel } from './components/CoverPagePanel'
 import { AIPanel } from './components/AIPanel'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
+import {
+  SearchIcon,
+  BookOpenIcon,
+  FileTextIcon,
+  SparklesIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+} from './components/Icons'
 
 type TabId = 'auditoria' | 'referencias' | 'portada' | 'ia'
 type LegacyTabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
@@ -34,11 +42,17 @@ const LEGACY_TAB_MAP: Record<LegacyTabId, TabId> = {
   ai: 'ia',
 }
 
-const TABS: Array<{ id: TabId; label: string; icon: string }> = [
-  { id: 'auditoria', label: 'Auditoría', icon: '⚡' },
-  { id: 'referencias', label: 'Referencias', icon: '📚' },
-  { id: 'portada', label: 'Portada', icon: '📄' },
-  { id: 'ia', label: 'IA', icon: '✨' },
+interface TabDef {
+  id: TabId
+  label: string
+  IconComponent: React.FC<{ size?: number; color?: string }>
+}
+
+const TABS: TabDef[] = [
+  { id: 'auditoria', label: 'Auditoría', IconComponent: SearchIcon },
+  { id: 'referencias', label: 'Referencias', IconComponent: BookOpenIcon },
+  { id: 'portada', label: 'Portada', IconComponent: FileTextIcon },
+  { id: 'ia', label: 'IA', IconComponent: SparklesIcon },
 ]
 
 function normalizeTab(raw: string): TabId | null {
@@ -62,7 +76,7 @@ export const App: React.FC = () => {
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const [stats, setStats] = useState<DocumentStats | null>(null)
   const [citationsCount, setCitationsCount] = useState(0)
-  const [mascotMessage, setMascotMessage] = useState<string>('¡Hola! Soy tu asistente APA 7')
+  const [mascotMessage, setMascotMessage] = useState<string>('Asistente APA 7 activo')
   const [running, setRunning] = useState(true)
   const [options, setOptions] = useState<AssistantOptions>(liveAssistant.getOptions())
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -226,7 +240,7 @@ export const App: React.FC = () => {
       const warns = result.findings.filter((f) => f.severity === 'warn').length
       showToast(
         result.findings.length === 0
-          ? 'Auditoría completa: 100% APA 7 ✓'
+          ? 'Auditoría completa: 100% APA 7'
           : `Auditoría lista: ${errors} error(es), ${warns} aviso(s)`,
         result.findings.length === 0 ? 'success' : 'info',
       )
@@ -271,19 +285,23 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* PESTAÑAS MODERNAS */}
+      {/* PESTAÑAS CON ICONOS SVG (CERO EMOJIS) */}
       <div className="tab-bar">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`tab ${activeTab === t.id ? 'tab--active' : ''}`}
-            onClick={() => handleTabChange(t.id)}
-          >
-            <span>{t.icon}</span>
-            <span>{t.label}</span>
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const Icon = t.IconComponent
+          const isActive = activeTab === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`tab ${isActive ? 'tab--active' : ''}`}
+              onClick={() => handleTabChange(t.id)}
+            >
+              <Icon size={14} color={isActive ? '#ffffff' : 'var(--text-secondary)'} />
+              <span>{t.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* CONTENIDO PRINCIPAL */}
@@ -317,9 +335,11 @@ export const App: React.FC = () => {
 
         {activeTab === 'ia' && <AIPanel showToast={showToast} />}
 
-        {/* MASCOTA CONSEJERA DISCRETA */}
+        {/* NOTIFICACIÓN DISCRETA DEL ASISTENTE */}
         <div className="mascot-bubble" role="status" aria-live="polite">
-          <div className="mascot-bubble__avatar">🦉</div>
+          <div className="mascot-bubble__avatar">
+            <SparklesIcon size={15} color="var(--accent-primary)" />
+          </div>
           <div className="mascot-bubble__text">{mascotMessage}</div>
         </div>
       </div>
@@ -327,10 +347,14 @@ export const App: React.FC = () => {
       {/* TOAST FLOTANTE */}
       {toast && (
         <div className={`toast toast--${toast.type}`} key={toast.id} role="status">
-          <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '⚠' : 'ℹ'}</span>
+          {toast.type === 'success' ? (
+            <CheckCircleIcon size={16} color="var(--accent-success)" />
+          ) : (
+            <AlertCircleIcon size={16} color={toast.type === 'error' ? 'var(--accent-danger)' : 'var(--accent-primary)'} />
+          )}
           <span style={{ flex: 1 }}>{toast.msg}</span>
           {toast.type === 'error' && (
-            <button type="button" onClick={() => setToast(null)} style={{ color: '#fff', fontSize: 13 }}>
+            <button type="button" onClick={() => setToast(null)} style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
               ✕
             </button>
           )}

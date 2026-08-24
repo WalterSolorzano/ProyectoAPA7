@@ -133,14 +133,10 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   WriteRegStr HKCU "Software\Microsoft\Office\16.0\Wef\Developer" "WordAPA7" "$APPDATA\WordAPA7\storage\manifest.xml"
 
   ; ── Watcher ligero en el inicio de Windows ─────────────────────────────
-  ; El watcher es un proceso de bajísimo consumo (~8MB RAM) que:
-  ;   1. Se inicia al iniciar sesión en Windows
-  ;   2. Detecta cuando se abre Microsoft Word
-  ;   3. Arranca el backend Python automáticamente
-  ;   4. Lo detiene cuando se cierra Word (ahorra recursos)
-  ; Usa python.exe (oficial, firmado por PSF) con main.py --watcher.
-  ; El usuario NO tiene que abrir la app Electron ni ejecutar nada manualmente.
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Watcher" '"$INSTDIR\resources\python-runtime\python.exe" "$INSTDIR\resources\python-runtime\python\main.py" --watcher'
+  ; Usa pythonw.exe (subsistema GUI, SIN consola): si usáramos python.exe,
+  ; Windows abriría una ventana negra de cmd al encender la PC — inaceptable
+  ; para un usuario final. El logging va a %APPDATA%\WordAPA7\logs.
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Watcher" '"$INSTDIR\resources\python-runtime\pythonw.exe" "$INSTDIR\resources\python-runtime\python\main.py" --watcher'
 
   ; ── Watcher: NO se arranca durante la instalación ─────────────────────
   ; El watcher se arrancará automáticamente cuando:

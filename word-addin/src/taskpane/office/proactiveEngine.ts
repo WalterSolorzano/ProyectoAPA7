@@ -265,13 +265,7 @@ export async function autoFixAllInDocument(): Promise<{ paragraphs: number; sect
     context.load(paragraphs, 'text')
     await context.sync()
 
-    for (const sec of sections.items) {
-      sec.pageSetup.topMargin = MARGIN_INCH_PT
-      sec.pageSetup.bottomMargin = MARGIN_INCH_PT
-      sec.pageSetup.leftMargin = MARGIN_INCH_PT
-      sec.pageSetup.rightMargin = MARGIN_INCH_PT
-    }
-
+    // 1. Formato de párrafos de cuerpo
     for (const p of paragraphs.items) {
       const text = p.text.trim()
       if (!text) continue

@@ -358,15 +358,6 @@ export async function formatDocumentAPA7(indent = true): Promise<void> {
     context.load(paragraphs)
     await context.sync()
 
-    // Márgenes APA 7 (1 pulgada) en todas las secciones
-    for (const section of sections.items) {
-      const ps = section.pageSetup
-      ps.topMargin = MARGIN_INCH_PT
-      ps.bottomMargin = MARGIN_INCH_PT
-      ps.leftMargin = MARGIN_INCH_PT
-      ps.rightMargin = MARGIN_INCH_PT
-    }
-
     // Formato de párrafos
     for (const para of paragraphs.items) {
       formatParagraphAPA(para, { indent })
@@ -374,18 +365,14 @@ export async function formatDocumentAPA7(indent = true): Promise<void> {
   })
 }
 
-/** Aplica solo márgenes APA 7 (1") a todo el documento. */
+/** Aplica solo formato APA 7 a todo el documento. */
 export async function applyMarginsAPA(): Promise<void> {
   await withWordContext(async (context) => {
-    const sections = context.document.sections
-    context.load(sections)
+    const paragraphs = context.document.body.paragraphs
+    context.load(paragraphs)
     await context.sync()
-    for (const section of sections.items) {
-      const ps = section.pageSetup
-      ps.topMargin = MARGIN_INCH_PT
-      ps.bottomMargin = MARGIN_INCH_PT
-      ps.leftMargin = MARGIN_INCH_PT
-      ps.rightMargin = MARGIN_INCH_PT
+    for (const para of paragraphs.items) {
+      formatParagraphAPA(para, { indent: true })
     }
   })
 }

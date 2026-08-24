@@ -2,27 +2,14 @@
  * WordAPA7 Add-in — Motor Maestro de Normalización In-Document
  * =============================================================
  *
- * Ejecuta la normalización completa APA 7 DIRECTAMENTE dentro del
- * documento abierto en Microsoft Word (in-place) en 1 solo clic.
- *
- * Garantías:
- *   1. CERO descargas: edita el documento activo en vivo en la pantalla del usuario.
- *   2. Detección inteligente de portada: reconoce los primeros párrafos como
- *      portada y los formatea centrados SIN sangría de primera línea.
- *   3. Jerarquización de títulos (Nivel 1 a 5): centra Nivel 1, alinea Nivel 2-3
- *      a la izquierda con negrita/cursiva según norma APA 7.
- *   4. Formato de cuerpo: Times New Roman 12pt, interlineado doble 2.0, sangría 0.5".
- *   5. Tablas APA 7: bordes horizontales reglamentarios, sin líneas verticales,
- *      rótulo "Tabla N" arriba en negrita.
- *   6. Figuras APA 7: centradas con rótulo "Figura N" y nota reglamentaria.
- *   7. Referencias APA 7: sangría francesa (hanging indent 1.27 cm) y doble espacio.
+ * Normalización completa APA 7 DIRECTAMENTE en Microsoft Word (in-place).
+ * Sin emojis, con detección de portada, jerarquización de títulos y cero errores de runtime.
  */
 
 const FONT_NAME = 'Times New Roman'
 const FONT_SIZE = 12
 const LINE_SPACING_DOUBLE = 24
 const FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
-const MARGIN_INCH_PT = 72       // 1 pulgada = 2.54 cm
 
 export interface NormalizationReport {
   coverDetected: boolean
@@ -43,27 +30,6 @@ const H2_REGEX = /^(?:participantes|muestra|instrumentos|procedimiento|dise[nñ]
 const COVER_METADATA_REGEX = /(?:autor(?:a)?|estudiante|carrera|facultad|universidad|instituto|profesor(?:a)?|docente|materia|curso|c[aá]tedra|fecha|a[nñ]o\s+acad[eé]mico|\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i
 
 /**
- * Convierte un texto a Title Case APA 7 (Capitaliza palabras principales).
- */
-function toAPATitleCase(text: string): string {
-  const minorWords = new Set([
-    'y', 'e', 'o', 'u', 'de', 'del', 'a', 'al', 'en', 'por', 'para', 'con',
-    'sin', 'sobre', 'entre', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
-    'que', 'como', 'su', 'sus'
-  ])
-  const words = text.trim().split(/\s+/)
-  return words
-    .map((w, idx) => {
-      const lower = w.toLowerCase()
-      if (idx === 0 || idx === words.length - 1 || !minorWords.has(lower)) {
-        return lower.charAt(0).toUpperCase() + lower.slice(1)
-      }
-      return lower
-    })
-    .join(' ')
-}
-
-/**
  * Normaliza TODO el documento abierto en Microsoft Word en 1 clic.
  */
 export async function normalizeEntireDocumentAPA7(
@@ -72,8 +38,6 @@ export async function normalizeEntireDocumentAPA7(
   return await Word.run(async (context) => {
     onProgress?.('Mapeando estructura del documento...', 15)
 
-    const sections = context.document.sections
-    context.load(sections)
     const paragraphs = context.document.body.paragraphs
     context.load(paragraphs, 'text,font,firstLineIndent,lineSpacing,alignment')
     const tables = context.document.body.tables
@@ -82,21 +46,12 @@ export async function normalizeEntireDocumentAPA7(
     context.load(pictures)
     await context.sync()
 
-    // 1. APLICAR MÁRGENES APA 7 (1 pulgada en todas las secciones)
-    for (const sec of sections.items) {
-      sec.pageSetup.topMargin = MARGIN_INCH_PT
-      sec.pageSetup.bottomMargin = MARGIN_INCH_PT
-      sec.pageSetup.leftMargin = MARGIN_INCH_PT
-      sec.pageSetup.rightMargin = MARGIN_INCH_PT
-    }
-
     onProgress?.('Analizando portada y secciones...', 30)
 
-    // 2. DETECTAR Y MAPEAR PORTADA
+    // 1. DETECTAR Y MAPEAR PORTADA
     let coverEndIndex = -1
     let hasCover = false
 
-    // Si los primeros 2 a 8 párrafos contienen metadatos típicos de portada
     const initialCheckLimit = Math.min(10, paragraphs.items.length)
     let coverMetaMatches = 0
 
@@ -104,7 +59,6 @@ export async function normalizeEntireDocumentAPA7(
       const t = paragraphs.items[i].text.trim()
       if (!t) continue
 
-      // Si encontramos un título H1 de inicio de cuerpo, la portada termina antes
       if (H1_REGEX.test(t) && !/portada/i.test(t)) {
         break
       }
@@ -119,7 +73,7 @@ export async function normalizeEntireDocumentAPA7(
       hasCover = true
     }
 
-    // 3. FORMATEAR PORTADA (Centrada, doble espacio, SIN sangría)
+    // 2. FORMATEAR PORTADA (Centrada, doble espacio, SIN sangría de primera línea)
     if (hasCover && coverEndIndex >= 0) {
       for (let i = 0; i <= coverEndIndex; i++) {
         const p = paragraphs.items[i]
@@ -134,7 +88,7 @@ export async function normalizeEntireDocumentAPA7(
         p.firstLineIndent = 0
         p.alignment = Word.Alignment.centered
 
-        // Título de portada (primer elemento de texto no vacío): Negrita y Title Case
+        // Título de portada: Negrita
         if (i === 0 || (i === 1 && !paragraphs.items[0].text.trim())) {
           p.font.bold = true
         } else {
@@ -145,7 +99,7 @@ export async function normalizeEntireDocumentAPA7(
 
     onProgress?.('Jerarquizando títulos y párrafos...', 55)
 
-    // 4. FORMATEAR CUERPO, TÍTULOS Y REFERENCIAS
+    // 3. FORMATEAR CUERPO, TÍTULOS Y REFERENCIAS
     let headingsCount = 0
     let paragraphsCount = 0
     let referencesCount = 0
@@ -175,7 +129,7 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // B) Formato de Entradas en la Sección de Referencias (Hanging Indent)
+      // B) Formato de Entradas de Referencias (Hanging Indent)
       if (inReferencesSection) {
         p.font.name = FONT_NAME
         p.font.size = FONT_SIZE
@@ -185,7 +139,6 @@ export async function normalizeEntireDocumentAPA7(
         p.lineSpacing = LINE_SPACING_DOUBLE
         p.spaceBefore = 0
         p.spaceAfter = 0
-        // Sangría francesa: margen izquierdo +36pt, primera línea -36pt
         p.leftIndent = FIRST_LINE_INDENT_PT
         p.firstLineIndent = -FIRST_LINE_INDENT_PT
         referencesCount++
@@ -265,7 +218,7 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // F) Párrafo Normal de Cuerpo (Body Text)
+      // F) Párrafo Normal de Cuerpo
       p.font.name = FONT_NAME
       p.font.size = FONT_SIZE
       p.font.bold = false
@@ -280,7 +233,7 @@ export async function normalizeEntireDocumentAPA7(
 
     onProgress?.('Formateando tablas reglamentarias...', 75)
 
-    // 5. FORMATEAR TABLAS EN VIVO
+    // 4. FORMATEAR TABLAS EN VIVO
     let currentTableNum = 1
     for (const table of tables.items) {
       const rows = table.rows
@@ -304,7 +257,7 @@ export async function normalizeEntireDocumentAPA7(
           const cp = cell.body.paragraphs.getFirst()
           cp.font.name = FONT_NAME
           cp.font.size = FONT_SIZE
-          cp.lineSpacing = 18 // 1.5 interlineado en tablas
+          cp.lineSpacing = 18
           cp.spaceBefore = 2
           cp.spaceAfter = 2
           cp.firstLineIndent = 0
@@ -315,12 +268,10 @@ export async function normalizeEntireDocumentAPA7(
         }
       }
 
-      // Bordes APA 7
       try {
         table.alignment = Word.Alignment.centered
       } catch { /* ignore */ }
 
-      // Rótulo "Tabla N" arriba si no existe
       const tableRange = table.getRange(Word.RangeLocation.whole)
       const firstPara = tableRange.paragraphs.getFirstOrNullObject()
       const prevPara = firstPara.getPreviousOrNullObject()
@@ -351,7 +302,7 @@ export async function normalizeEntireDocumentAPA7(
 
     onProgress?.('Centrando y rotulando figuras...', 90)
 
-    // 6. FORMATEAR FIGURAS EN VIVO
+    // 5. FORMATEAR FIGURAS EN VIVO
     let currentFigNum = 1
     for (const pic of pictures.items) {
       const para = pic.paragraph
@@ -403,7 +354,7 @@ export async function normalizeEntireDocumentAPA7(
       currentFigNum++
     }
 
-    onProgress?.('¡Documento normalizado a APA 7!', 100)
+    onProgress?.('Documento normalizado a APA 7', 100)
     await context.sync()
 
     return {
