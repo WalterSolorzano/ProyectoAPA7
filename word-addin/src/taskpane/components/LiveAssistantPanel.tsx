@@ -11,6 +11,7 @@ import {
   normalizeEntireDocumentAPA7,
   type NormalizationReport,
 } from '../office/masterNormalizer'
+import { applyCaptions } from '../office/jarvisLive'
 import { SelectionCriticCard } from './SelectionCriticCard'
 import {
   DocumentTextIcon,
@@ -63,7 +64,8 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
     setProgressPct(5)
     setProgressMsg('Iniciando normalización APA 7...')
     try {
-      const report = await normalizeEntireDocumentAPA7((step, pct) => {
+      try { await applyCaptions() } catch {}
+    const report = await normalizeEntireDocumentAPA7((step, pct) => {
         setProgressMsg(step)
         setProgressPct(pct)
       })
@@ -144,7 +146,18 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             <ZapIcon size={16} color="var(--accent-primary)" />
             <span>Normalizador Global APA 7</span>
           </div>
-          <button
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#0f172a', marginBottom:6 }}>
+        <input type="checkbox" defaultChecked={localStorage.getItem('wordapa7_jarvis') !== '0'}
+          onChange={(e) => localStorage.setItem('wordapa7_jarvis', e.target.checked ? '1':'0')} />
+        Jarvis (normaliza mientras escribes)
+      </label>
+      <details style={{ fontSize:11.5, color:'#334155', margin:'4px 0 8px' }}>
+        <summary style={{ cursor:'pointer' }}>Vista previa</summary>
+        <div style={{ padding:'4px 6px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:6 }}>
+          &laquo;texto actual&hellip;&raquo; &rarr; H2 &middot; negrilla &middot; izquierda
+        </div>
+      </details>
+      <button
             type="button"
             className={`btn-sm ${running ? 'btn-success' : 'btn-secondary'}`}
             onClick={onToggle}

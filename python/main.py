@@ -1948,6 +1948,27 @@ class FormatPlanReq(BaseModel):
     full: bool = False
 
 
+class CaptionsPlanReq(BaseModel):
+    texts: List[str] = []
+    tables: List[int] = []   # indices de tablas (orden documento)
+    figures: List[int] = []  # indices de parrafos con imagen
+
+
+@app.post("/api/addin/captions-plan")
+async def addin_captions_plan(req: CaptionsPlanReq) -> dict:
+    """Que captions FALTAN y con que numero (serie continua, idempotente)."""
+    from modules.captions import scan_existing
+    base = scan_existing(req.texts)
+    nt, nf = base["max_table"], base["max_figure"]
+    ops = []
+    for i in req.tables:
+        nt += 1
+        ops.append({"i": i, "kind": "table", "number": nt})
+    for i in req.figures:
+        nf += 1
+        ops.append({"i": i, "kind": "figure", "number": nf})
+    return {"ops": ops}
+
 @app.post("/api/addin/format-plan")
 async def addin_format_plan(req: FormatPlanReq) -> dict:
     """Piso de portada + reglas desde el MOTOR CENTRAL.

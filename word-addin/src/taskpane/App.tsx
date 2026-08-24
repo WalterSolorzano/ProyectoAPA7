@@ -20,6 +20,7 @@ import { TablesFiguresPanel } from './components/TablesFiguresPanel'
 import { ReferencesPanel } from './components/ReferencesPanel'
 import { CoverPagePanel } from './components/CoverPagePanel'
 import { AIPanel } from './components/AIPanel'
+import { startJarvis, isJarvisOn } from './office/jarvisLive'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
 import {
   SearchIcon,
