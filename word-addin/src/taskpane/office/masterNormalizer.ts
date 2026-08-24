@@ -58,6 +58,46 @@ const TOC_HEADER_REGEX = /^(?:tabla\s+de\s+contenido|contenido|[ií]ndice(?:\s+g
 /** Patrones de metadatos de portada */
 const COVER_METADATA_REGEX = /(?:autor(?:a)?|estudiante|carrera|facultad|universidad|instituto|profesor(?:a)?|docente|materia|curso|c[aá]tedra|fecha|a[nñ]o\s+acad[eé]mico|\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i
 
+
+// ?? Memoria de intenci?n del usuario ????????????????????????????????????????
+// Si el usuario cambia algo que el sistema habia aplicado (quitar sangria
+// francesa, cambiar alineacion, etc.), se registra el bloqueo y NUNCA se
+// vuelve a imponer en ese parrafo. El usuario manda; Jarvis obedece.
+type LockMap = Record<string, Record<string, true>>
+function _locks(): LockMap {
+  try { return JSON.parse(localStorage.getItem('wordapa7_locks') || '{}') } catch { return {} }
+}
+function _saveLocks(l: LockMap): void {
+  try { localStorage.setItem('wordapa7_locks', JSON.stringify(l)) } catch {}
+}
+function _pkey(i: number, text: string): string {
+  let h = 0
+  const t = text.slice(0, 60)
+  for (let c = 0; c < t.length; c++) h = (h * 31 + t.charCodeAt(c)) | 0
+  return `${h}`
+}
+function _isLocked(key: string, prop: string): boolean {
+  return !!_locks()[key]?.[prop]
+}
+/** Detecta si el usuario revirtio una prop que nosotros aplicamos antes. */
+function _detectUserOverride(key: string, prop: string, applied: number, current: number): boolean {
+  const l = _locks()
+  if (l[key]?.[prop]) return true
+  if (applied !== current && l[key]?.['_applied_' + prop]) {
+    l[key] = { ...(l[key] || {}), [prop]: true }
+    _saveLocks(l)
+    return true
+  }
+  if (applied !== current) {
+    // primera vez que vemos diferencia: asumimos usuario (no bloquear aun)
+    l[key] = { ...(l[key] || {}), ['_applied_' + prop]: true as any }
+    _saveLocks(l)
+    return false
+  }
+  return false
+}
+
+
 export async function normalizeEntireDocumentAPA7(
   onProgress?: (step: string, percent: number) => void
 ): Promise<NormalizationReport> {
@@ -164,8 +204,16 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
       if (srvRole === 'reference') {
+        const k = _pkey(i, rawText)
         p.font.name = FONT_NAME; p.font.size = FONT_SIZE; p.font.italic = false
-        p.leftIndent = 36; p.firstLineIndent = -36; p.lineSpacing = LINE_SPACING_DOUBLE
+        if (!_isLocked(k, 'hanging')) {
+          if (_detectUserOverride(k, 'hanging', -36, (p as any).firstLineIndent ?? -36)) {
+            /* usuario la quito: respetamos y no reaplicamos */
+          } else {
+            p.leftIndent = 36; p.firstLineIndent = -36
+          }
+        }
+        p.lineSpacing = LINE_SPACING_DOUBLE
         referencesCount++; continue
       }
 
@@ -380,19 +428,35 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // H) Párrafo Normal de Cuerpo — Sangría de 0.5" EXACTA, CERO Cursiva
-      p.font.name = FONT_NAME
-      p.font.size = FONT_SIZE
-      p.font.bold = false
-      p.font.italic = false
-      p.alignment = Word.Alignment.left
-      p.lineSpacing = LINE_SPACING_DOUBLE
-      p.spaceBefore = 0
-      p.spaceAfter = 0
-      p.leftIndent = 0
-      p.rightIndent = 0
-      p.firstLineIndent = FIRST_LINE_INDENT_PT
-      paragraphsCount++
+      // H) Párrafo Normal de Cuerpo — con memoria de intención del usuario:
+      // si quitó la sangría o cambió la alineación, NO se reimpose.
+      {
+        const k = _pkey(i, rawText)
+        p.font.name = FONT_NAME
+        p.font.size = FONT_SIZE
+        p.font.bold = false
+        p.font.italic = false
+        if (!_isLocked(k, 'align')) {
+          if (_detectUserOverride(k, 'align', Word.Alignment.left, (p as any).alignment ?? Word.Alignment.left)) {
+            /* usuario cambió alineación: respetamos */
+          } else {
+            p.alignment = Word.Alignment.left
+          }
+        }
+        p.lineSpacing = LINE_SPACING_DOUBLE
+        p.spaceBefore = 0
+        p.spaceAfter = 0
+        p.leftIndent = 0
+        p.rightIndent = 0
+        if (!_isLocked(k, 'first_indent')) {
+          if (_detectUserOverride(k, 'first_indent', FIRST_LINE_INDENT_PT, (p as any).firstLineIndent ?? 0)) {
+            /* usuario quitó la sangría: respetamos */
+          } else {
+            p.firstLineIndent = FIRST_LINE_INDENT_PT
+          }
+        }
+        paragraphsCount++
+      }
     }
 
     onProgress?.('Formateando tablas reglamentarias...', 75)
