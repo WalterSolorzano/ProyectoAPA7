@@ -121,7 +121,21 @@ async def heartbeat() -> dict:
 
 @app.get("/api/addin/sideload-status-v2")
 async def sideload_v2() -> dict:
-    return {"installed": True, "active_in_word": True}
+    """Estado HONESTO: core no puede saber si Word cargo el add-in (sin
+    telemetria). Mentir True hace que el chip del taskpane mienta tambien."""
+    manifest = Path(os.environ.get("APPDATA", "")) / "WordAPA7" / "storage" / "manifest.xml"
+    return {"installed": manifest.exists(), "active_in_word": None}
+
+
+@app.get("/api/addin/build-info")
+async def build_info() -> dict:
+    """Anti-stale: el taskpane compara su build con este y avisa si difieren."""
+    return {
+        "mode": "core",
+        "version": "core-1.0",
+        "build_hash": f"core-{int(_STARTED)}",
+        "started_at": _STARTED,
+    }
 
 
 class ClientLogReq(BaseModel):

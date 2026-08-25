@@ -147,6 +147,13 @@ async def lifespan_app(app: FastAPI):
         print(f"[ERROR] [ADD-IN] Error al generar manifest.xml en almacenamiento: {e}")
 
     yield
+    # Shutdown: liberar Word COM heredado del bridge del add-in (antes
+    # @app.on_event("shutdown"), deprecated — migrado al lifespan).
+    if _rwa:
+        try:
+            _rwa(force=False)
+        except Exception as e:
+            print(f"[WARN] release_word_app fallo en shutdown: {e}")
     print("[INFO] Deteniendo LibreOffice service...")
     get_libreoffice_service().stop()
     print("[INFO] Deteniendo Word COM service...")
@@ -169,6 +176,17 @@ _DEFAULT_ALLOWED_ORIGINS = [
     "app://-",
 ]
 
+# Produccion: el add-in puede servirse desde URL publica (WORDAPA7_ADDIN_PUBLIC_URL)
+# y llama al backend local en loopback => su origen debe entrar a la allowlist.
+from urllib.parse import urlparse as _urlparse
+_public_addin = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
+if _public_addin:
+    _p = _urlparse(_public_addin if "//" in _public_addin else "https://" + _public_addin)
+    if _p.netloc:
+        _origin = f"{_p.scheme or 'https'}://{_p.netloc}"
+        if _origin not in _DEFAULT_ALLOWED_ORIGINS:
+            _DEFAULT_ALLOWED_ORIGINS.append(_origin)
+
 
 def _session_rules(doc: DocumentModel, req_rules: Optional[APARuleSet] = None) -> APARuleSet:
     """Reglas de formato: las del request (perfil elegido en el cliente) o, si
@@ -184,7 +202,10 @@ _allowed_origins = (
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # Allowlist explícita (el comentario histórico ya lo prometía). "*" con
+    # credenciales es inválido y expone la API local a cualquier página web
+    # abierta en el navegador del usuario (drive-by CSRF hacia 127.0.0.1).
+    allow_origins=_allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1911,12 +1932,6 @@ except Exception:
     _rwa = None
 
 
-@app.on_event("shutdown")
-def _shutdown_word_com() -> None:
-    if _rwa:
-        _rwa(force=False)
-
-
 class ClientLogRequest(BaseModel):
     component: str = "renderer"
     event: str
@@ -3295,6 +3310,52 @@ async def get_version():
         "build_hash": build_hash,
         "build_time": build_time,
         "stale": build_hash == "unknown",
+    }
+
+
+# ── Contrato add-in: rutas que core_server también expone (TIER_BOTH) ────────
+# Estas vivían SOLO en core_server y el add-in recibía 404 cuando lo servía
+# la app completa (clase de bug detectada por test_addin_contract_parity).
+
+_BOOT_TS = time.time()
+
+
+class AddinScoreReq(BaseModel):
+    texts: List[str] = []
+    tables: int = 0
+    figures: int = 0
+    visual: Optional[dict] = None
+
+
+@app.post("/api/addin/apa-score")
+async def addin_apa_score(req: AddinScoreReq) -> dict:
+    """Score 'qué tan APA está' — misma implementación que core_server."""
+    from modules.apa_score import compute
+    return compute(req.texts, req.tables, req.figures, req.visual)
+
+
+class OpenInWordReq(BaseModel):
+    path: str
+
+
+@app.post("/api/open-in-word")
+async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
+    """Rescate: abre el .docx con su app predeterminada (Word)."""
+    p = (req.path or "").strip()
+    if not p or not Path(p).exists():
+        raise HTTPException(400, "Archivo no encontrado")
+    os.startfile(p)
+    return {"ok": True}
+
+
+@app.get("/api/addin/build-info")
+async def addin_build_info() -> dict:
+    """Anti-stale: el taskpane compara su build con este y avisa si difieren."""
+    return {
+        "mode": "app",
+        "version": "1.0.0",
+        "build_hash": _read_build_hash(),
+        "started_at": _BOOT_TS,
     }
 
 
