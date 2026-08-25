@@ -783,6 +783,7 @@ const RE_TABLE_LABEL = /^Tabla\s+\d+/i
  */
 export async function captionUncaptionedFigures(
   suggestTitle?: (ctx: string) => Promise<string>,
+  opts?: { skip?: (paraText: string) => boolean },
 ): Promise<number> {
   let captioned = 0
   let nextNum = await getNextFigureNumber()
@@ -807,6 +808,10 @@ export async function captionUncaptionedFigures(
       const prev = para.getPreviousOrNullObject()
       if (!prev.isNullObject && RE_FIGURE_LABEL.test(prev.text.trim())) {
         continue // ya tiene caption
+      }
+      // T4 delta-proactivo: zona de portada protegida — sin caption automático
+      if (opts?.skip?.(para.text || '')) {
+        continue
       }
 
       // "Figura N" en negrita (antes de la imagen)
@@ -856,7 +861,9 @@ export async function captionUncaptionedFigures(
  *
  * @returns cantidad de tablas nuevas captionadas.
  */
-export async function captionUncaptionedTables(): Promise<number> {
+export async function captionUncaptionedTables(
+  opts?: { skip?: (paraText: string) => boolean },
+): Promise<number> {
   let captioned = 0
   let nextNum = await getNextTableNumber()
 
@@ -879,6 +886,10 @@ export async function captionUncaptionedTables(): Promise<number> {
       const prevPara = firstPara.getPreviousOrNullObject()
       if (!prevPara.isNullObject && RE_TABLE_LABEL.test(prevPara.text.trim())) {
         continue // ya tiene caption
+      }
+      // T4: portada protegida — juzgar por el primer párrafo de la tabla
+      if (opts?.skip?.(firstPara.text || '')) {
+        continue
       }
 
       // Insertar caption ANTES de la tabla
