@@ -82,17 +82,20 @@ def _cover_guard(doc: docx.Document) -> Dict[str, Any]:
             # cuerpo (estilo Heading, lista, o >=30 palabras).
             fb = _structural_cover(doc)
             if fb:
-                return {"elements": fb, "protected": len(fb), "detected": True}
+                ordered = _ordered_children(doc, fb)
+                return {"elements": fb, "ordered": ordered,
+                        "protected": len(fb), "detected": True}
             return empty
         protected = {paras[i]._p for i in range(body_start)}
         # tablas ubicadas antes del primer párrafo del cuerpo también son zona
-        body_el = doc.element.body
         first_body_p = paras[body_start]._p if body_start < len(paras) else None
         for tbl in doc.tables:
             tbl_el = tbl._tbl
             if first_body_p is not None and _precedes(tbl_el, first_body_p):
                 protected.add(tbl_el)
-        return {"elements": protected, "protected": len(protected), "detected": True}
+        ordered = _ordered_children(doc, protected)
+        return {"elements": protected, "ordered": ordered,
+                "protected": len(protected), "detected": True}
     except Exception:
         return empty
 
@@ -105,6 +108,42 @@ def _precedes(a, b) -> bool:
         if child is a:
             return True
     return False
+
+
+def _ordered_children(doc: docx.Document, members: set) -> list:
+    """Los hijos de body miembros del guard, en orden documental."""
+    return [c for c in doc.element.body if c in members]
+
+
+# ------------------------------------------------- FASE 2.1: SDT opt-in
+def wrap_cover_zone_sdt(doc: docx.Document, guard: Dict[str, Any]) -> bool:
+    """Envuelve la zona de portada en un w:sdt con w:lock='locked'.
+
+    Garantía estructural (evidencia S4): saca los bloques de doc.paragraphs/
+    doc.tables (nuestro pipeline deja de tocarlos) y Word UI respeta el lock.
+    Idempotente: si el primer bloque ya vive dentro de un w:sdt, no re-envuelve.
+    Retorna True si envolvió ahora.
+    """
+    ordered = guard.get("ordered") or []
+    if not ordered or guard.get("sdt_wrapped"):
+        return False
+    first = ordered[0]
+    if etree.QName(first.getparent()).localname == "sdtContent":
+        return False  # ya envuelto por una pasada previa
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    sdt = parse_xml(
+        '<w:sdt %s>'
+        "<w:sdtPr><w:id w:val=\"777777\"/><w:lock w:val=\"locked\"/>"
+        '<w:docPartObj><w:docPartGallery w:val="WordAPA7-Portada"/></w:docPartObj></w:sdtPr>'
+        "<w:sdtContent/></w:sdt>" % nsdecls("w")
+    )
+    content = sdt.find(qn("w:sdtContent"))
+    first.addprevious(sdt)
+    for child in ordered:
+        content.append(child)  # append MUEVE (lxml)
+    return True
 
 
 def _structural_cover(doc: docx.Document) -> set:
@@ -272,6 +311,7 @@ def apply_scopes(file_bytes: bytes, scopes: List[str], rules: Dict[str, Any]) ->
 
     guard = _cover_guard(doc)
     summary["cover_guard"] = _cover_guard_summary(guard)
+    guard["sdt_wrapped"] = False
 
     if "texto" in scopes:
         apply_scope_texto(doc, rules, guard)
@@ -280,6 +320,14 @@ def apply_scopes(file_bytes: bytes, scopes: List[str], rules: Dict[str, Any]) ->
         summary["refs_formateadas"] = apply_scope_bibliografia(doc)
     if "tablas_imagenes" in scopes:
         summary.update(apply_scope_tablas_imagenes(doc, guard))
+
+    # FASE 2.1: blindaje estructural opt-in (nunca sin permiso explícito)
+    if rules.get("cover_protect_sdt"):
+        try:
+            summary["cover_sdt"] = wrap_cover_zone_sdt(doc, guard)
+        except Exception as e:  # honestidad: no falla la exportación por esto
+            summary["cover_sdt"] = False
+            summary["cover_sdt_error"] = repr(e)[:160]
 
     out = io.BytesIO()
     doc.save(out)
