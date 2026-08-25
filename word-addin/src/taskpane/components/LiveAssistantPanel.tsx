@@ -30,13 +30,13 @@ function useSelectionInfo(): { text: string; score: number } | null {
 function SelectionCard() {
   const info = useSelectionInfo()
   if (!info) return null
-  const tone = info.score >= 80 ? '#16a34a' : info.score >= 50 ? '#b8860b' : '#dc2626'
+  const tone = info.score >= 80 ? 'var(--accent-success)' : info.score >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)'
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: '#f8fafc' }}>
-      <div style={{ fontSize: 11.5, color: '#334155', marginBottom: 4 }}>
+    <div style={{ border: '1px solid var(--border-subtle, #e2e8f0)', borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: 'var(--surface-subtle, #f8fafc)' }}>
+      <div style={{ fontSize: 11.5, color: 'var(--text-secondary, #334155)', marginBottom: 4 }}>
         Selección · APA <b style={{ color: tone }}>{info.score}%</b>
       </div>
-      <div style={{ fontSize: 11, color: '#64748b', maxHeight: 34, overflow: 'hidden' }}>{info.text}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted, #64748b)', maxHeight: 34, overflow: 'hidden' }}>{info.text}</div>
     </div>
   )
 }
@@ -50,15 +50,15 @@ type ScoreData = {
 
 function ScoreDonut({ total }: { total: number }) {
   const R = 34, C = 2 * Math.PI * R
-  const color = total >= 85 ? '#16a34a' : total >= 60 ? '#b8860b' : '#dc2626'
+  const color = total >= 85 ? 'var(--accent-success)' : total >= 60 ? 'var(--accent-warning)' : 'var(--accent-danger)'
   return (
     <svg width="86" height="86" viewBox="0 0 86 86">
-      <circle cx="43" cy="43" r={R} fill="none" stroke="#e2e8f0" strokeWidth="9" />
+      <circle cx="43" cy="43" r={R} fill="none" stroke="var(--border-subtle, #e2e8f0)" strokeWidth="9" />
       <circle cx="43" cy="43" r={R} fill="none" stroke={color} strokeWidth="9"
         strokeDasharray={`${(total / 100) * C} ${C}`} strokeLinecap="round"
         transform="rotate(-90 43 43)" />
       <text x="43" y="40" textAnchor="middle" fontSize="20" fontWeight="800" fill={color}>{total}</text>
-      <text x="43" y="56" textAnchor="middle" fontSize="9" fill="#64748b">APA</text>
+      <text x="43" y="56" textAnchor="middle" fontSize="9" fill="var(--text-muted, #64748b)">APA</text>
     </svg>
   )
 }
@@ -66,24 +66,24 @@ function ScoreDonut({ total }: { total: number }) {
 function DocumentScoreCard({ data, onRefresh }: { data: ScoreData | null; onRefresh?: () => void }) {
   if (!data) {
     return (
-      <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 12px', background:'#fff' }}>
+      <div style={{ border:'1px solid var(--border-subtle, #e2e8f0)', borderRadius:10, padding:'10px 12px', background:'var(--surface, #fff)' }}>
         <button type="button" onClick={onRefresh}
-          style={{ width:'100%', padding:'8px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc', fontSize:12.5 }}>
+          style={{ width:'100%', padding:'8px', borderRadius:8, border:'1px solid var(--border-subtle, #e2e8f0)', background:'var(--surface-subtle, #f8fafc)', fontSize:12.5 }}>
           Diagnosticar documento (score APA)
         </button>
       </div>
     )
   }
   return (
-    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 12px', background:'#fff' }}>
+    <div style={{ border:'1px solid var(--border-subtle, #e2e8f0)', borderRadius:10, padding:'10px 12px', background:'var(--surface, #fff)' }}>
       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
         <ScoreDonut total={data.total} />
         <div style={{ flex:1 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'#0f172a' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text-main, #0f172a)' }}>
             {data.band === 'alta' ? 'Muy APA' : data.band === 'media' ? 'Casi APA' : 'Necesita trabajo'}
           </div>
           {(data.top_issues || []).slice(0, 2).map((t) => (
-            <div key={t.id} style={{ fontSize:11, color:'#64748b', marginTop:3 }}>
+            <div key={t.id} style={{ fontSize:11, color:'var(--text-muted, #64748b)', marginTop:3 }}>
               • {t.label}: {t.issue}
             </div>
           ))}
@@ -92,13 +92,13 @@ function DocumentScoreCard({ data, onRefresh }: { data: ScoreData | null; onRefr
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginTop:10 }}>
         {data.categories.map((c) => (
           <div key={c.id}>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, color:'#334155' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, color:'var(--text-secondary, #334155)' }}>
               <span>{c.label}</span>
-              <b style={{ color: c.score >= 80 ? '#16a34a' : c.score >= 50 ? '#b8860b' : '#dc2626' }}>{c.score}</b>
+              <b style={{ color: c.score >= 80 ? 'var(--accent-success)' : c.score >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)' }}>{c.score}</b>
             </div>
-            <div style={{ height:5, background:'#e2e8f0', borderRadius:3, overflow:'hidden' }}>
+            <div style={{ height:5, background:'var(--border-subtle, #e2e8f0)', borderRadius:3, overflow:'hidden' }}>
               <div style={{ height:'100%', width:`${c.score}%`,
-                background: c.score >= 80 ? '#16a34a' : c.score >= 50 ? '#b8860b' : '#dc2626' }} />
+                background: c.score >= 80 ? 'var(--accent-success)' : c.score >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)' }} />
             </div>
           </div>
         ))}
@@ -288,7 +288,7 @@ const findings = auditResult?.findings || []
           <div className="card__title">
             <ZapIcon size={16} color="var(--accent-primary)" />
             <span>Normalizador Global APA 7</span>
-            <span style={{ fontSize:10, color:'#94a3b8', marginLeft:6 }}>build 1.0.62</span>
+            <span style={{ fontSize:10, color:'var(--text-faint, #94a3b8)', marginLeft:6 }}>build 1.0.62</span>
           </div>
           <SelectionCard />
           </div>
@@ -305,7 +305,7 @@ const findings = auditResult?.findings || []
               <span>{progressMsg}</span>
               <span>{progressPct}%</span>
             </div>
-            <div style={{ height: 6, width: '100%', background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 6, width: '100%', background: 'var(--border-subtle, #e2e8f0)', borderRadius: 4, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${progressPct}%`, background: 'var(--accent-primary)', transition: 'width 0.3s ease' }} />
             </div>
           </div>
@@ -319,7 +319,7 @@ const findings = auditResult?.findings || []
             disabled={working !== null}
             style={{ fontSize: 13, padding: '10px 16px' }}
           >
-            <ZapIcon size={15} color="#ffffff" />
+            <ZapIcon size={15} color="var(--surface, var(--surface, #fff)fff)" />
             <span>{working === 'master' ? 'Normalizando en Word...' : 'Normalizar Todo a APA 7 en Vivo'}</span>
           </button>
 
@@ -338,7 +338,7 @@ const findings = auditResult?.findings || []
         {lastReport && (
           <div style={{ marginTop: 6, padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11.5, color: '#166534', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <CheckCircleIcon size={13} color="#16a34a" />
+              <CheckCircleIcon size={13} color="var(--accent-success)" />
               <span>Normalización aplicada en Word:</span>
             </div>
             <div>• Portada: {lastReport.coverDetected ? 'Detectada y centrada' : 'Sin portada inicial'}</div>
@@ -418,7 +418,7 @@ const findings = auditResult?.findings || []
 
       {/* LISTADO DE HALLAZGOS Y SEÑALIZACIÓN EN WORD */}
       {auditNotice && (
-        <div style={{ fontSize: 11, color: 'var(--accent-warning)', padding: '6px 10px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontSize: 11, color: 'var(--accent-warning)', padding: '6px 10px', background: 'var(--surface, #fff)beb', border: '1px solid #fef3c7', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <AlertCircleIcon size={14} color="var(--accent-warning)" />
           <span>{auditNotice}</span>
         </div>

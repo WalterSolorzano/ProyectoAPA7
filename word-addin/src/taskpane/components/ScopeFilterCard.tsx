@@ -100,14 +100,14 @@ const apply = async () => {
             style={{
               width: '100%', textAlign: 'left', marginBottom: 6, cursor: 'pointer',
               fontFamily: 'inherit', padding: '8px 11px', borderRadius: 8,
-              border: `1px solid ${on ? '#4f46e5' : '#d4d4d8'}`,
-              background: on ? '#eef2ff' : '#fff',
+              border: `1px solid ${on ? 'var(--accent-primary)' : 'var(--border-subtle, #d4d4d8)'}`,
+              background: on ? 'var(--surface-subtle, #eef2ff)' : 'var(--surface, #fff)',
             }}
           >
-            <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: on ? '#4f46e5' : '#18181b' }}>
+            <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: on ? 'var(--accent-primary)' : 'var(--text-main, #18181b)' }}>
               {s.label}{on ? ' ✓' : ''}
             </span>
-            <span style={{ display: 'block', fontSize: 11, color: '#71717a' }}>{s.desc}</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted, #71717a)' }}>{s.desc}</span>
           </button>
         )
       })}
@@ -119,7 +119,7 @@ const apply = async () => {
         className="btn-primary-full"
         style={{
           width: '100%', marginTop: 8, padding: '9px 12px', borderRadius: 8,
-          background: '#4f46e5', color: '#fff', fontWeight: 700, fontSize: 13,
+          background: 'var(--accent-primary)', color: 'var(--surface, #fff)', fontWeight: 700, fontSize: 13,
           border: 'none', cursor: selected.length === 0 || busy ? 'wait' : 'pointer',
           opacity: selected.length === 0 && !busy ? 0.5 : 1,
         }}
@@ -134,8 +134,8 @@ const apply = async () => {
           disabled={busy}
           style={{
             width: '100%', marginTop: 6, padding: '8px 12px', borderRadius: 8,
-            background: 'transparent', color: '#4f46e5', fontWeight: 600, fontSize: 12.5,
-            border: '1px solid #4f46e5', cursor: 'pointer',
+            background: 'transparent', color: 'var(--accent-primary)', fontWeight: 600, fontSize: 12.5,
+            border: '1px solid var(--accent-primary)', cursor: 'pointer',
           }}
         >
           También quiero el PDF

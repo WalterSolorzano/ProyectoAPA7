@@ -177,7 +177,7 @@ export const SelectionCriticCard: React.FC<Props> = ({ showToast }) => {
   }
 
   return (
-    <div className="card" style={{ borderLeft: '3px solid var(--accent-primary)', background: '#ffffff' }}>
+    <div className="card" style={{ borderLeft: '3px solid var(--accent-primary)', background: 'var(--surface, var(--surface, #fff)fff)' }}>
       <div className="card__header">
         <div className="card__title" style={{ fontSize: 12.5 }}>
           <ZapIcon size={14} color="var(--accent-primary)" />
@@ -207,7 +207,7 @@ export const SelectionCriticCard: React.FC<Props> = ({ showToast }) => {
             )}
           </div>
 
-          <div style={{ color: 'var(--text-secondary)', lineHeight: 1.35, background: '#f8fafc', padding: '6px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <div style={{ color: 'var(--text-secondary)', lineHeight: 1.35, background: 'var(--surface-subtle, #f8fafc)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-subtle, #e2e8f0)' }}>
             {analysis.critique}
           </div>
 
@@ -219,7 +219,7 @@ export const SelectionCriticCard: React.FC<Props> = ({ showToast }) => {
               disabled={applying}
               style={{ marginTop: 2, padding: '7px 10px', fontSize: 11.5 }}
             >
-              <ZapIcon size={12} color="#ffffff" />
+              <ZapIcon size={12} color="var(--surface, var(--surface, #fff)fff)" />
               <span>{applying ? 'Aplicando...' : analysis.suggestedAction}</span>
             </button>
           )}
