@@ -116,7 +116,7 @@ export const App: React.FC = () => {
       setToast({ msg, type, id: Date.now() })
     return (
       <div style={{ padding: 12, background: '#fafafa', minHeight: '100vh' }}>
-        <ScopeFilterCard showToast={quickToast} />
+        <ScopeFilterCard showToast={quickToast as any} />
         {toast && (
           <div
             style={{
