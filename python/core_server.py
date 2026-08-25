@@ -102,6 +102,18 @@ async def open_in_word(req: OpenWordReq) -> dict:
     _os.startfile(p)  # asociacion del usuario (Word)
     return {"ok": True}
 
+class ScoreReq(BaseModel):
+    texts: List[str] = []
+    tables: int = 0
+    figures: int = 0
+    visual: dict | None = None
+
+
+@app.post("/api/addin/apa-score")
+async def apa_score(req: ScoreReq) -> dict:
+    from modules.apa_score import compute
+    return compute(req.texts, req.tables, req.figures, req.visual)
+
 @app.post("/api/addin/heartbeat")
 async def heartbeat() -> dict:
     return {"ok": True}

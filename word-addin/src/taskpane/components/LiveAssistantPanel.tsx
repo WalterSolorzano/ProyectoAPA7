@@ -41,6 +41,73 @@ function SelectionCard() {
   )
 }
 
+
+type ScoreData = {
+  total: number; band: string
+  categories: { id: string; label: string; icon: string; score: number; issue: string }[]
+  top_issues: { id: string; label: string; issue: string }[]
+}
+
+function ScoreDonut({ total }: { total: number }) {
+  const R = 34, C = 2 * Math.PI * R
+  const color = total >= 85 ? '#16a34a' : total >= 60 ? '#b8860b' : '#dc2626'
+  return (
+    <svg width="86" height="86" viewBox="0 0 86 86">
+      <circle cx="43" cy="43" r={R} fill="none" stroke="#e2e8f0" strokeWidth="9" />
+      <circle cx="43" cy="43" r={R} fill="none" stroke={color} strokeWidth="9"
+        strokeDasharray={`${(total / 100) * C} ${C}`} strokeLinecap="round"
+        transform="rotate(-90 43 43)" />
+      <text x="43" y="40" textAnchor="middle" fontSize="20" fontWeight="800" fill={color}>{total}</text>
+      <text x="43" y="56" textAnchor="middle" fontSize="9" fill="#64748b">APA</text>
+    </svg>
+  )
+}
+
+function DocumentScoreCard({ data, onRefresh }: { data: ScoreData | null; onRefresh?: () => void }) {
+  if (!data) {
+    return (
+      <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 12px', background:'#fff' }}>
+        <button type="button" onClick={onRefresh}
+          style={{ width:'100%', padding:'8px', borderRadius:8, border:'1px solid #e2e8f0', background:'#f8fafc', fontSize:12.5 }}>
+          Diagnosticar documento (score APA)
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div style={{ border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 12px', background:'#fff' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <ScoreDonut total={data.total} />
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#0f172a' }}>
+            {data.band === 'alta' ? 'Muy APA' : data.band === 'media' ? 'Casi APA' : 'Necesita trabajo'}
+          </div>
+          {(data.top_issues || []).slice(0, 2).map((t) => (
+            <div key={t.id} style={{ fontSize:11, color:'#64748b', marginTop:3 }}>
+              • {t.label}: {t.issue}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 14px', marginTop:10 }}>
+        {data.categories.map((c) => (
+          <div key={c.id}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, color:'#334155' }}>
+              <span>{c.label}</span>
+              <b style={{ color: c.score >= 80 ? '#16a34a' : c.score >= 50 ? '#b8860b' : '#dc2626' }}>{c.score}</b>
+            </div>
+            <div style={{ height:5, background:'#e2e8f0', borderRadius:3, overflow:'hidden' }}>
+              <div style={{ height:'100%', width:`${c.score}%`,
+                background: c.score >= 80 ? '#16a34a' : c.score >= 50 ? '#b8860b' : '#dc2626' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+
 import type { DocumentStats } from '../office/wordHelper'
 import type { AuditDocumentResult, AuditFinding } from '../api/backend'
 import {
@@ -171,7 +238,42 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
     }
   }
 
-  const findings = auditResult?.findings || []
+  const [scoreData, setScoreData] = useState<ScoreData | null>(null)
+  const computeScore = async () => {
+    try {
+      await Word.run(async (ctx) => {
+        const ps = ctx.document.body.paragraphs
+        ps.load('text')
+        const tbls = ctx.document.body.tables
+        tbls.load('items')
+        const pics = ctx.document.body.inlinePictures
+        pics.load('items')
+        await ctx.sync()
+        if ((ps as any).isNullObject) return
+        let fontOk = 0, sizeOk = 0, spOk = 0, sampled = 0
+        for (const p of ps.items.slice(0, 60)) p.load('font/name,font/size,lineSpacing')
+        await ctx.sync()
+        for (const p of ps.items.slice(0, 60)) {
+          const t = (p.text || '').trim(); if (!t) continue
+          sampled++
+          if ((p.font as any).name === 'Times New Roman') fontOk++
+          if ((p.font as any).size === 12) sizeOk++
+          if (Math.abs((p as any).lineSpacing - 24) < 1) spOk++
+        }
+        const visual = sampled ? { font_ok: fontOk / sampled, size_ok: sizeOk / sampled,
+          spacing_ok: spOk / sampled } : undefined
+        const res = await fetch('http://127.0.0.1:8742/api/addin/apa-score', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texts: ps.items.map((p) => p.text),
+            tables: (tbls as any).items?.length || 0,
+            figures: (pics as any).items?.length || 0, visual }),
+        })
+        if (res.ok) setScoreData(await res.json())
+      })
+    } catch { /* sin nucleo */ }
+  }
+
+const findings = auditResult?.findings || []
   const errorCount = findings.filter((f) => f.severity === 'error').length
   const warnCount = findings.filter((f) => f.severity === 'warn').length
 
@@ -190,6 +292,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           </div>
           <SelectionCard />
           </div>
+          <DocumentScoreCard data={scoreData} onRefresh={() => void computeScore()} />
 
         <p className="card__subtitle">
           Normaliza el documento completo en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía respetando índices y estructura.
