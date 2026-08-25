@@ -156,7 +156,6 @@ let _stats: DocumentStats | null = null
 let _unsubDoc: (() => void) | null = null
 let _unsubSel: (() => void) | null = null
 let _idleTimer: ReturnType<typeof setInterval> | null = null
-let _backendCheckInterval: ReturnType<typeof setInterval> | null = null
 let _debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // Estado interno del scan
@@ -281,6 +280,14 @@ async function detectAI(docText: string): Promise<void> {
 
 async function scan(): Promise<void> {
   if (!_running || _applying) return
+
+  // ── Verificar backend si está offline (piggyback en el ciclo de scan
+  //    en lugar de tener un setInterval dedicado que duplica el health
+  //    check de App.tsx). App.tsx es la única fuente de verdad del estado
+  //    del backend en la UI; acá solo sincronizamos _backendOnline.
+  if (!_backendOnline) {
+    await checkBackend()
+  }
 
   try {
     // Estadísticas actuales (palabras, imágenes, párrafos)
@@ -435,6 +442,11 @@ export const liveAssistant = {
    * y selección, y comienza a detectar citas, aplicar formato y captionear
    * figuras/tablas automáticamente.
    *
+   * NOTA: el health-check del backend (cada 8s) vive en App.tsx, que es la
+   * única fuente de verdad del estado Online/Offline. Acá solo hacemos un
+   * checkBackend() inicial al arrancar; el scan() piggybacka la detección
+   * si _backendOnline es false (sin setInterval dedicado).
+   *
    * @param callbacks { onEvent, onStats } — receptores de eventos y estadísticas
    * @param options   opciones parciales (autoFormat, autoCaption, autoExtractCitations, autoDetectAI)
    */
@@ -457,11 +469,8 @@ export const liveAssistant = {
       if (_running && _options.autoFormat) debouncedScan()
     })
 
-    // Chequear backend y reintentar periódicamente
+    // Chequear backend inicial (el scan() piggybacka reintentos si está offline)
     checkBackend()
-    _backendCheckInterval = setInterval(() => {
-      if (!_backendOnline) checkBackend()
-    }, 8000)
 
     // Escaneo inicial + rotación de mascota
     debouncedScan()
@@ -475,7 +484,6 @@ export const liveAssistant = {
     if (_unsubDoc) { _unsubDoc(); _unsubDoc = null }
     if (_unsubSel) { _unsubSel(); _unsubSel = null }
     if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null }
-    if (_backendCheckInterval) { clearInterval(_backendCheckInterval); _backendCheckInterval = null }
     stopIdleRotation()
     emitMascot('Asistente en vivo en pausa.')
   },

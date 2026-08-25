@@ -71,9 +71,11 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  // ── Heartbeat: avisa al backend que el add-in está vivo ──
+  // Usa backend.heartbeat() (URL descubierta) en vez de fetch hardcodeado a :8742.
   useEffect(() => {
-    fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
-    const hb = setInterval(() => fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {}), 60000)
+    backend.heartbeat().catch(() => {})
+    const hb = setInterval(() => backend.heartbeat().catch(() => {}), 60000)
     try {
       const tab = localStorage.getItem(LS_TAB)
       if (tab === 'plantillas' || tab === 'asistente') setActiveTab(tab)
@@ -83,6 +85,10 @@ export const App: React.FC = () => {
     return () => clearInterval(hb)
   }, [])
 
+  // ── Único loop de salud: comprueba si el backend responde cada 8s ──
+  // Este es el ÚNICO setInterval de health-check: liveAssistant.ts ya no tiene
+  // el suyo (se eliminó el duplicado). El estado backendOk alimenta el dot de UI
+  // y liveAssistant lo consulta vía backend.health() al iniciar cada scan.
   useEffect(() => {
     let cancelled = false
     const check = async () => {

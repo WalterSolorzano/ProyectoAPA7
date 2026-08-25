@@ -154,8 +154,9 @@ function probeLocalBackend(): Promise<string | null> {
   return Promise.any(probes).catch(() => null)
 }
 
-// Iniciar descubrimiento inmediatamente al cargar
-ensureBaseUrl()
+// El descubrimiento es perezoso: se dispara en la primera llamada real
+// (post/get/del/heartbeat). No pre-calentamos aquí para no generar
+// fan-out de fetch al cargar el módulo.
 
 // == TIPOS COMPARTIDOS ========================================================
 
@@ -408,6 +409,19 @@ export const backend = {
   // -- Endpoints básicos -------------------------------------------------------
 
   health: () => get<{ status: string; version: string }>(`/api/addin/health`),
+
+  /**
+   * Heartbeat best-effort: avisa al backend que el add-in está activo.
+   * Usa la URL descubierta por `ensureBaseUrl()` (no hardcodea :8742).
+   * Nunca lanza: si el backend no responde, se ignora silenciosamente.
+   */
+  async heartbeat(): Promise<void> {
+    try {
+      await post('/api/addin/heartbeat', {})
+    } catch {
+      /* best-effort: el heartbeat no debe romper el add-in */
+    }
+  },
 
   /**
    * Zonas del documento (portada vs cuerpo) según el MODELO DEL PROGRAMA BASE
