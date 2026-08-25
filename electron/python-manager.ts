@@ -249,9 +249,9 @@ export class PythonManager {
       return
     }
 
+    await PythonManager._pickPort()
     return new Promise((resolve, reject) => {
       let command = 'python'
-      await PythonManager._pickPort()
     let args: string[] = []
       let cwd: string | undefined
 
