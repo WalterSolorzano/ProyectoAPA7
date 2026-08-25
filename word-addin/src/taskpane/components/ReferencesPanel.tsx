@@ -262,6 +262,7 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
   }, [showToast])
 
   const [confirmingClear, setConfirmingClear] = useState(false)
+  const [showDrafts, setShowDrafts] = useState(false)
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleClearAll = useCallback(async () => {
