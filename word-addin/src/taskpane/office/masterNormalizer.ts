@@ -7,7 +7,7 @@
  *      (pre_classify_elements via /api/addin/document-zones).
  *      Este motor NO detecta portada por su cuenta: usa el modelo base.
  *   2. PROTECCIÓN ABSOLUTA de la portada: párrafos < body_start_idx
- *      NUNCA se modifican. Sin motor central → NO se reestructura nada.
+ *      NUNCA se modifican. Sin motor central → degrada a formato local.
  *   3. Detección y protección del Índice / Tabla de Contenidos (cero sangría).
  *   4. Títulos Principales (Nivel 1): Centrado Negrita (CERO cursiva).
  *   5. Títulos Nivel 2: Izquierda Negrita (CERO cursiva).
@@ -21,6 +21,7 @@
  */
 
 import { getCoverZones } from './coverGuard'
+import { formatDocumentAPA7 } from './wordHelper'
 
 const FONT_NAME = 'Times New Roman'
 const FONT_SIZE = 12
@@ -38,6 +39,14 @@ export interface NormalizationReport {
   tablesCount: number
   figuresCount: number
   referencesCount: number
+  /**
+   * `true` cuando el motor central (NÚCLEO) no respondió y la normalización
+   * se degradó al formato local (`formatDocumentAPA7`). En ese modo NO se
+   * detecta portada ni se jerarquizan títulos: solo se aplica fuente APA 7,
+   * interlineado doble y sangría. Es un "offline limitado" seguro que NUNCA
+   * adivina la estructura del documento.
+   */
+  fallbackUsed?: boolean
 }
 
 /** Títulos canónicos de Nivel 1 */
@@ -65,14 +74,34 @@ export async function normalizeEntireDocumentAPA7(
   onProgress?: (step: string, percent: number) => void
 ): Promise<NormalizationReport> {
   // ── ZONAS: las define el NÚCLEO (programa base), no este add-in ──
-  // Sin motor central NO se reestructura nada (filosofía CORE_DOWN:
-  // es mejor no actuar que adivinar y destrozar la portada del usuario).
+  // Si el motor central no responde (CORE_DOWN), en lugar de abortar
+  // degradamos al formato local (formatDocumentAPA7): no se detecta
+  // portada ni se jerarquizan títulos, pero al menos se aplica fuente,
+  // interlineado doble y sangría APA 7. Es un "offline limitado" seguro
+  // que NUNCA adivina la portada del usuario.
   onProgress?.('Consultando zonas al motor central...', 8)
   const zones = await getCoverZones(true)
   if (!zones) {
-    throw new Error(
-      'Motor central no disponible: no se reestructura el documento. Abre la app WordAPA7 e inténtalo de nuevo.'
-    )
+    // ── DEGRADACIÓN OFFLINE: motor central caído → formato local ──
+    // No se reestructura la jerarquía ni se protege portada por
+    // adivinación; solo se aplica el formato APA 7 de base (fuente,
+    // interlineado doble, sangría). El reporte lo marca con
+    // fallbackUsed=true para que el panel pueda informar al usuario.
+    onProgress?.('Motor central no disponible. Aplicando formato APA 7 local (modo degradado)...', 50)
+    await formatDocumentAPA7()
+    onProgress?.('Formato APA 7 local aplicado (modo degradado).', 100)
+    return {
+      coverDetected: false,
+      coverParagraphsProtected: 0,
+      tocProtected: false,
+      headingsCount: 0,
+      paragraphsCount: 0,
+      listsCount: 0,
+      tablesCount: 0,
+      figuresCount: 0,
+      referencesCount: 0,
+      fallbackUsed: true,
+    }
   }
   // PISO DURO: nada por debajo de este índice se toca. NUNCA.
   const startIdx = zones.coverDetected ? zones.bodyStartIdx : 0
