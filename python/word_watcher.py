@@ -66,6 +66,62 @@ AUTO_SETUP_DELAY = 3       # delay antes de llamar auto-setup (dar tiempo al man
 AUTO_SETUP_RETRIES = 3     # reintentos de auto-setup
 AUTO_SETUP_RETRY_DELAY = 3  # segundos entre reintentos
 
+# Backoff del supervisor del nucleo: si el backend no levanta, NO reintentar
+# cada 10s eternamente (crash-loop visto en produccion). Escalar 10/30/60s.
+SUPERVISOR_DELAYS = [10, 30, 60]
+
+
+def delay_for_attempt(attempt: int) -> int:
+    """Delay del supervisor para el intento dado, con tope en el ultimo."""
+    return SUPERVISOR_DELAYS[min(max(attempt, 0), len(SUPERVISOR_DELAYS) - 1)]
+
+
+class SupervisorState:
+    """Estado del supervisor: intentos de backoff + proceso que NOSOTROS spawneamos."""
+
+    def __init__(self) -> None:
+        self.attempt = 0
+        self.our_proc: Optional[subprocess.Popen] = None
+
+    def live_proc(self) -> Optional[subprocess.Popen]:
+        """Retorna el proceso solo si sigue vivo; descarta los muertos."""
+        if self.our_proc is not None and self.our_proc.poll() is not None:
+            self.our_proc = None
+        return self.our_proc
+
+    def note_healthy(self) -> None:
+        self.attempt = 0
+
+    def note_spawn_failed(self) -> None:
+        self.attempt += 1
+
+
+def decide_supervisor_action(
+    port_healthy: bool, our_proc: Optional[subprocess.Popen]
+) -> str:
+    """Que hacer en este tick del supervisor.
+
+    - 'adopt': algo ya responde en :8742 (core_server del Run key, Electron,
+      u otro watcher). NUNCA spawnear otro backend encima: pelear por el bind
+      produce [Errno 10048] y crash-loop.
+    - 'spawn': nadie responde; levantar el backend (rastreado en SupervisorState).
+    """
+    if port_healthy:
+        return "adopt"
+    return "spawn"
+
+
+def child_log_file() -> Path:
+    """Archivo de log del backend hijo (stdout+stderr).
+
+    Antes era DEVNULL: los errores de bind morian invisibles y el crash-loop
+    fue indetectable. Ahora todo queda en %APPDATA%\\WordAPA7\\backend-child.log.
+    """
+    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    log_dir = Path(appdata) / "WordAPA7"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / "backend-child.log"
+
 
 # ── DETECCION DE ENTORNO ─────────────────────────────────────────────────────
 
@@ -306,15 +362,19 @@ def start_backend() -> Optional[subprocess.Popen]:
         python_dir = exe_dir / "python"
 
         try:
+            # stdout/stderr a archivo de log (antes DEVNULL: los crashes del
+            # hijo eran invisibles y el crash-loop indetectable).
+            child_log = open(str(child_log_file()), "a", encoding="utf-8", buffering=1)
             proc = subprocess.Popen(
                 [str(python_exe), str(main_script), "--port", str(BACKEND_PORT)],
                 creationflags=0x08000000,  # CREATE_NO_WINDOW
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=child_log,
+                stderr=child_log,
                 cwd=str(python_dir),
                 env={
                     **os.environ,
                     "APP_USERDATA": str(_get_storage_dir().parent),
+                    "PYTHONUNBUFFERED": "1",
                 },
             )
             log.info(
@@ -464,36 +524,42 @@ def run_watcher() -> None:
     log.info(f"  sys.executable: {sys.executable}")
     log.info("=" * 50)
 
-    backend_proc: Optional[subprocess.Popen] = None
+    backend_state = SupervisorState()
     shutdown_timer = 0.0
     auto_setup_done = False
 
-    # ── PRE-CARGA: Iniciar el backend inmediatamente ────────────────────────
-    # El backend se arranca en cuanto el watcher se inicia (en el login de
-    # Windows), NO cuando se detecta Word abierto. Esto evita la race
-    # condition donde Word intenta cargar el add-in antes de que el backend
-    # este listo. El proceso Python del backend consume ~30-50MB; las partes
-    # pesadas (LibreOffice, Word COM) se cargan on-demand dentro del backend.
-    log.info("Iniciando backend inmediatamente (pre-carga para Word)...")
-    backend_proc = start_backend()
-    if backend_proc:
-        time.sleep(BACKEND_STARTUP_WAIT)
-        if is_backend_running():
-            log.info("Backend pre-cargado y listo antes de que Word abra")
-            time.sleep(AUTO_SETUP_DELAY)
-            call_auto_setup()
-            auto_setup_done = True
-        else:
-            log.warning("El backend no respondio tras el startup inicial")
-            backend_proc = None
+    # ── PRE-CARGA: adoptar o iniciar el backend inmediatamente ─────────────
+    # Si algo ya responde en :8742 (core_server del Run key, Electron, una
+    # sesion anterior), se ADOPTA: spawnear otro backend produce conflicto de
+    # bind ([Errno 10048]) y crash-loop.
+    log.info("Pre-carga: verificando si ya hay nucleo en :%d...", BACKEND_PORT)
+    if is_backend_running():
+        log.info("Nucleo ya activo (adoptado, no se spawnea otro)")
+        time.sleep(AUTO_SETUP_DELAY)
+        call_auto_setup()
+        auto_setup_done = True
     else:
-        log.error("No se pudo iniciar el backend en el arranque del watcher")
+        backend_state.our_proc = start_backend()
+        if backend_state.our_proc:
+            time.sleep(BACKEND_STARTUP_WAIT)
+            if is_backend_running():
+                log.info("Backend pre-cargado y listo antes de que Word abra")
+                time.sleep(AUTO_SETUP_DELAY)
+                call_auto_setup()
+                auto_setup_done = True
+            else:
+                log.warning("El backend no respondio tras el startup inicial")
+                backend_state.note_spawn_failed()
+        else:
+            log.error("No se pudo iniciar el backend en el arranque del watcher")
+            backend_state.note_spawn_failed()
 
-    # Supervisor del nucleo: si muere, lo revive (backoff 10/30/60s)
+    # Supervisor del nucleo: adopta si el puerto esta sano; solo spawnea si
+    # NADIE responde; backoff real 10/30/60s (nunca resetear al fallar).
     import threading as _th
     _th.Thread(
         target=_core_supervisor,
-        args=(lambda: backend_proc, lambda: start_backend()),
+        args=(backend_state,),
         daemon=True, name="WordAPA7-core-supervisor",
     ).start()
 
@@ -513,13 +579,17 @@ def run_watcher() -> None:
                     "Word detectado pero el backend no responde — "
                     "recuperacion (posible crash del backend)..."
                 )
-                backend_proc = start_backend()
-                if backend_proc:
+                # Reintentar solo si NUESTRO proc no vive ya (evita duplicar
+                # spawns concurrentes con el supervisor).
+                if backend_state.live_proc() is None:
+                    backend_state.our_proc = start_backend()
+                if backend_state.live_proc() is not None:
                     # Esperar a que arranque
                     time.sleep(BACKEND_STARTUP_WAIT)
                     # Verificar que realmente arranco
                     if is_backend_running():
                         log.info("Backend recuperado correctamente tras crash")
+                        backend_state.note_healthy()
                         # Llamar auto-setup tras un delay
                         time.sleep(AUTO_SETUP_DELAY)
                         if not auto_setup_done:
@@ -527,8 +597,7 @@ def run_watcher() -> None:
                             auto_setup_done = True
                     else:
                         log.warning("El backend no respondio tras el startup wait")
-                        # Reintentar en el proximo ciclo
-                        backend_proc = None
+                        backend_state.note_spawn_failed()
                 else:
                     log.error("No se pudo recuperar el backend")
                 shutdown_timer = 0
@@ -541,10 +610,10 @@ def run_watcher() -> None:
                     if shutdown_timer > 0:
                         log.info("Electron detectado — cancelando shutdown del backend")
                         shutdown_timer = 0
-                elif backend_proc is not None:
+                elif backend_state.live_proc() is not None:
                     # El watcher inicio el backend (pre-carga o recuperacion) —
                     # cuenta regresiva para detenerlo y ahorrar memoria. Si el
-                    # backend lo inicio Electron (backend_proc is None), Electron
+                    # backend lo inicio Electron (live_proc() is None), Electron
                     # gestiona su ciclo de vida y el watcher no debe tocarlo.
                     if shutdown_timer == 0:
                         log.info(
@@ -555,8 +624,8 @@ def run_watcher() -> None:
 
                     if shutdown_timer >= SHUTDOWN_GRACE:
                         log.info("Grace period agotada — deteniendo backend...")
-                        stop_backend(backend_proc)
-                        backend_proc = None
+                        stop_backend(backend_state.live_proc())
+                        backend_state.our_proc = None
                         auto_setup_done = False
                         shutdown_timer = 0
                 # else: backend iniciado por Electron (backend_proc is None) —
@@ -573,7 +642,7 @@ def run_watcher() -> None:
                 # Si el backend lo inicio Electron (backend_proc is None) y
                 # auto-setup aun no se ha llamado, hacerlo ahora. Si ya se hizo
                 # (pre-carga o ciclo anterior), se omite.
-                if not auto_setup_done and backend_proc is None:
+                if not auto_setup_done and backend_state.live_proc() is None:
                     call_auto_setup()
                     auto_setup_done = True
 
@@ -590,8 +659,8 @@ def run_watcher() -> None:
         time.sleep(POLL_INTERVAL)
 
     # Limpieza al salir
-    if backend_proc:
-        stop_backend(backend_proc)
+    if backend_state.live_proc() is not None:
+        stop_backend(backend_state.live_proc())
     log.info("Watcher terminado")
 
 
@@ -601,39 +670,52 @@ if __name__ == "__main__":
     run_watcher()
 
 
-def _core_supervisor(get_proc, spawn_fn):
-    """Revive el nucleo si muere. Backoff 10/30/60s."""
-    import http.client as _hc
-    delays = [10, 30, 60]
-    attempt = 0
+def _core_supervisor(state: SupervisorState):
+    """Supervisor del nucleo: adopta si el puerto esta sano, spawnea solo si
+    nadie responde, con backoff real 10/30/60s que NUNCA se resetea al fallar.
+
+    Bug corregido: la version anterior ignoraba el puerto y re-spawneaba cada
+    10s sin rastrear el proceso — crash-loop eterno "(intento 1)" cuando otro
+    dueno (core_server del Run key) ya ocupaba :8742.
+    """
     while True:
-        time.sleep(delays[min(attempt, len(delays)-1)])
-        proc = get_proc()
-        alive = False
-        if proc is not None and proc.poll() is None:
-            try:
-                conn = _hc.HTTPSConnection("127.0.0.1", 8742, timeout=3, context=_ssl_ctx())
-                conn.request("GET", "/api/version")
-                alive = (conn.getresponse().status == 200)
-            except Exception:
-                alive = False
-        if not alive:
-            log.warning("[WATCHER] Nucleo muerto; reiniciando (intento %d)", attempt+1)
-            try:
-                if proc is not None and proc.poll() is None:
+        time.sleep(delay_for_attempt(state.attempt))
+        try:
+            healthy = is_backend_running()
+            if decide_supervisor_action(healthy, state.our_proc) == "adopt":
+                # Alguien sano en :8742 (aunque no sea nuestro): no tocar.
+                # Solo descartar nuestro proc si murio.
+                state.live_proc()
+                state.note_healthy()
+                continue
+
+            # Puerto muerto: matar nuestro proc zombi si existe (vivo pero
+            # sin responder) antes de spawnear uno nuevo.
+            proc = state.live_proc()
+            if proc is not None:
+                try:
                     proc.terminate()
-            except Exception:
-                pass
-            try:
-                spawn_fn()
-                attempt = 0
-            except Exception as e:
-                log.error("Reinicio fallo: %s", e)
-                attempt += 1
-        else:
-            attempt = 0
+                except Exception:
+                    pass
 
+            new = start_backend()
+            state.our_proc = new
+            if new is None:
+                log.error("[WATCHER] Reinicio fallo: start_backend devolvio None")
+                state.note_spawn_failed()
+                continue
 
-def _ssl_ctx():
-    import ssl as _ssl
-    return _ssl._create_unverified_context()
+            time.sleep(BACKEND_STARTUP_WAIT)
+            if is_backend_running():
+                log.info("[WATCHER] Backend recuperado tras reinicio")
+                state.note_healthy()
+            else:
+                state.note_spawn_failed()
+                log.warning(
+                    "[WATCHER] Backend sigue sin responder; proximo reintento en %ds "
+                    "(ver %s)",
+                    delay_for_attempt(state.attempt), child_log_file(),
+                )
+        except Exception as e:
+            log.error("[WATCHER] Error en supervisor: %s", e)
+            state.note_spawn_failed()

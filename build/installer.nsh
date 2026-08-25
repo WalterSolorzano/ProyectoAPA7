@@ -138,7 +138,6 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   ; para un usuario final. El logging va a %APPDATA%\WordAPA7\logs.
   ; Upgrade: matar herencias de versiones viejas (watcher monolito + verbos)
 DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Watcher"
-DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"
 WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Core" '"$INSTDIR\resources\python-runtime\pythonw.exe" "$INSTDIR\resources\python-runtime\python\core_server.py" --port 8742'
 
   ; ── Watcher: NO se arranca durante la instalación ─────────────────────
