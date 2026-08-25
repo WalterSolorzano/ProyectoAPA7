@@ -145,6 +145,19 @@ Llega al usuario por dos canales simultáneos:
 
 Editar un elemento limpia el cache de comentarios y agenda re-revisión con debounce: la revisión vive, no es un snapshot.
 
+### 6.1 Proactividad del add-in: controlada, no libre (delta 2026-08)
+
+El asistente en vivo ya era ON por defecto (`AssistantOptions` + roamingSettings). El delta seguro añadió las barreras que faltaban:
+
+| Barrera | Mecanismo |
+|---|---|
+| Contexto sin roundtrips | `office/contextAnalyzer.ts`: inferencia pura desde el snapshot del scan; `protected-cover` gana siempre |
+| Idempotencia de sesión | `office/sessionRegistry.ts` (`oncePerSession`, techo 2000); formato con clave `fmt:hash(texto)` — re-formatea solo si cambió |
+| Portada intocable en captions | `captionUncaptionedFigures/Tables({skip})` reciben `isCoverText` del core |
+| CORE_DOWN honesto | Citas sin motor = NO persistir + aviso "Modo limitado" 1× sesión |
+
+Decisión de diseño vigente: **silencio en éxito** (sin toasts por acción automática), NO ampliar formato automático a párrafos, persistencia por roamingSettings sin Command Palette.
+
 ---
 
 ## 7. El add-in: contratos, honestidad y anti-staleness
