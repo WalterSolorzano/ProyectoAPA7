@@ -76,6 +76,18 @@ export const App: React.FC = () => {
   useEffect(() => {
     backend.heartbeat().catch(() => {})
     const hb = setInterval(() => backend.heartbeat().catch(() => {}), 60000)
+    // Anti-stale: identificar el motor que responde y dejarlo trazado
+    // (console + /api/client-log vía interceptor). mode 'core' = limitado.
+    void backend.fetchBuildInfo().then((info) => {
+      if (!info) return
+      const v = (globalThis as unknown as { __APP_VERSION__?: string }).__APP_VERSION__
+      console.info(
+        `[Add-in] Motor ${info.mode} v${info.version} (${info.build_hash ?? 'sin hash'}) — panel v${v ?? '?'}`,
+      )
+      if (info.mode === 'core') {
+        showToast('Núcleo en modo limitado: abrí la app WordAPA7 para todas las funciones.', 'error')
+      }
+    })
     try {
       const tab = localStorage.getItem(LS_TAB)
       if (tab === 'plantillas' || tab === 'asistente') setActiveTab(tab)
@@ -83,7 +95,7 @@ export const App: React.FC = () => {
       /* ignore */
     }
     return () => clearInterval(hb)
-  }, [])
+  }, [showToast])
 
   // ── Único loop de salud: comprueba si el backend responde cada 8s ──
   // Este es el ÚNICO setInterval de health-check: liveAssistant.ts ya no tiene

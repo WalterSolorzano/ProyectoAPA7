@@ -374,32 +374,78 @@ export interface AIProvidersResult {
 
 // == HTTP HELPERS =============================================================
 
+/**
+ * Telemetría de errores best-effort: cada request fallido queda registrado
+ * en %APPDATA%\WordAPA7\logs vía /api/client-log. Antes había 77 catches
+ * silenciosos y los bugs llegaban semanas después por reporte del usuario.
+ * Anti-recursión: si el propio /api/client-log falla, no se reintenta.
+ */
+let _reportingError = false
+function reportClientError(path: string, err: unknown): void {
+  if (_reportingError) return
+  _reportingError = true
+  void (async () => {
+    try {
+      const baseUrl = await ensureBaseUrl()
+      await fetch(`${baseUrl}/api/client-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          component: 'addin-api',
+          event: 'request_failed',
+          level: 'error',
+          data: { path, message: err instanceof Error ? err.message : String(err) },
+        }),
+      })
+    } catch {
+      /* log best-effort: nada que hacer si también falla */
+    } finally {
+      setTimeout(() => { _reportingError = false }, 1500)
+    }
+  })()
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const baseUrl = await ensureBaseUrl()
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Backend ${res.status}: ${err}`)
+  try {
+    const baseUrl = await ensureBaseUrl()
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      throw new Error(`Backend ${res.status}: ${err}`)
+    }
+    return res.json()
+  } catch (err) {
+    reportClientError(path, err)
+    throw err
   }
-  return res.json()
 }
 
 async function get<T>(path: string): Promise<T> {
-  const baseUrl = await ensureBaseUrl()
-  const res = await fetch(`${baseUrl}${path}`)
-  if (!res.ok) throw new Error(`Backend ${res.status}`)
-  return res.json()
+  try {
+    const baseUrl = await ensureBaseUrl()
+    const res = await fetch(`${baseUrl}${path}`)
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
+    return res.json()
+  } catch (err) {
+    reportClientError(path, err)
+    throw err
+  }
 }
 
 async function del<T>(path: string): Promise<T> {
-  const baseUrl = await ensureBaseUrl()
-  const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`Backend ${res.status}`)
-  return res.json()
+  try {
+    const baseUrl = await ensureBaseUrl()
+    const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
+    return res.json()
+  } catch (err) {
+    reportClientError(path, err)
+    throw err
+  }
 }
 
 
@@ -409,6 +455,20 @@ export const backend = {
   // -- Endpoints básicos -------------------------------------------------------
 
   health: () => get<{ status: string; version: string }>(`/api/addin/health`),
+
+  /**
+   * Anti-stale: identidad del motor que responde. `mode: 'core'` = núcleo
+   * lite (capacidad limitada); `'app'` = app completa. Nunca lanza.
+   */
+  async fetchBuildInfo(): Promise<{ mode: 'app' | 'core'; version: string; build_hash?: string } | null> {
+    try {
+      return await get<{ mode: 'app' | 'core'; version: string; build_hash?: string }>(
+        `/api/addin/build-info`,
+      )
+    } catch {
+      return null
+    }
+  },
 
   /**
    * Heartbeat best-effort: avisa al backend que el add-in está activo.
