@@ -49,6 +49,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -74,6 +75,13 @@ SUPERVISOR_DELAYS = [10, 30, 60]
 def delay_for_attempt(attempt: int) -> int:
     """Delay del supervisor para el intento dado, con tope en el ultimo."""
     return SUPERVISOR_DELAYS[min(max(attempt, 0), len(SUPERVISOR_DELAYS) - 1)]
+
+
+# Lock compartido para la decision de spawn: el bucle principal (CASO 1 de
+# run_watcher) y el hilo _core_supervisor pueden querer spawnear a la vez;
+# sin el lock ambos pasan el chequeo "live_proc() is None" concurrentemente
+# y terminan con DOS backends peleando por el bind :8742.
+_spawn_lock = threading.Lock()
 
 
 class SupervisorState:
@@ -365,18 +373,23 @@ def start_backend() -> Optional[subprocess.Popen]:
             # stdout/stderr a archivo de log (antes DEVNULL: los crashes del
             # hijo eran invisibles y el crash-loop indetectable).
             child_log = open(str(child_log_file()), "a", encoding="utf-8", buffering=1)
-            proc = subprocess.Popen(
-                [str(python_exe), str(main_script), "--port", str(BACKEND_PORT)],
-                creationflags=0x08000000,  # CREATE_NO_WINDOW
-                stdout=child_log,
-                stderr=child_log,
-                cwd=str(python_dir),
-                env={
-                    **os.environ,
-                    "APP_USERDATA": str(_get_storage_dir().parent),
-                    "PYTHONUNBUFFERED": "1",
-                },
-            )
+            try:
+                proc = subprocess.Popen(
+                    [str(python_exe), str(main_script), "--port", str(BACKEND_PORT)],
+                    creationflags=0x08000000,  # CREATE_NO_WINDOW
+                    stdout=child_log,
+                    stderr=child_log,
+                    cwd=str(python_dir),
+                    env={
+                        **os.environ,
+                        "APP_USERDATA": str(_get_storage_dir().parent),
+                        "PYTHONUNBUFFERED": "1",
+                    },
+                )
+            finally:
+                # El hijo hereda el handle durante Popen; el padre NO debe
+                # retenerlo (fuga de handles si se repite en crash-loops).
+                child_log.close()
             log.info(
                 f"Backend iniciado (Python embebido): {python_exe} main.py --port {BACKEND_PORT} "
                 f"PID={proc.pid}"
@@ -556,8 +569,7 @@ def run_watcher() -> None:
 
     # Supervisor del nucleo: adopta si el puerto esta sano; solo spawnea si
     # NADIE responde; backoff real 10/30/60s (nunca resetear al fallar).
-    import threading as _th
-    _th.Thread(
+    threading.Thread(
         target=_core_supervisor,
         args=(backend_state,),
         daemon=True, name="WordAPA7-core-supervisor",
@@ -579,10 +591,12 @@ def run_watcher() -> None:
                     "Word detectado pero el backend no responde — "
                     "recuperacion (posible crash del backend)..."
                 )
-                # Reintentar solo si NUESTRO proc no vive ya (evita duplicar
-                # spawns concurrentes con el supervisor).
-                if backend_state.live_proc() is None:
-                    backend_state.our_proc = start_backend()
+                # Reintentar solo si NUESTRO proc no vive ya. Chequeo+spawn
+                # bajo _spawn_lock: el supervisor corre en otro hilo y sin el
+                # lock ambos pueden decidir spawnear simultaneamente.
+                with _spawn_lock:
+                    if backend_state.live_proc() is None:
+                        backend_state.our_proc = start_backend()
                 if backend_state.live_proc() is not None:
                     # Esperar a que arranque
                     time.sleep(BACKEND_STARTUP_WAIT)
@@ -690,16 +704,18 @@ def _core_supervisor(state: SupervisorState):
                 continue
 
             # Puerto muerto: matar nuestro proc zombi si existe (vivo pero
-            # sin responder) antes de spawnear uno nuevo.
-            proc = state.live_proc()
-            if proc is not None:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
+            # sin responder) antes de spawnear uno nuevo. Chequeo+spawn bajo
+            # el MISMO lock del CASO 1: decision atomica entre hilos.
+            with _spawn_lock:
+                proc = state.live_proc()
+                if proc is not None:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
 
-            new = start_backend()
-            state.our_proc = new
+                new = start_backend()
+                state.our_proc = new
             if new is None:
                 log.error("[WATCHER] Reinicio fallo: start_backend devolvio None")
                 state.note_spawn_failed()
