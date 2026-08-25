@@ -14,6 +14,19 @@ import { findAccentAgnostic } from '../../lib/accentMatch';
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
 
+// Dedup de bloques de portada (defensa en profundidad contra textboxes
+// duplicados en el .docx original): colapsa elementos cuyo texto normalizado
+// (minúsculas + espacios colapsados) coincide.
+export function dedupCoverAuthors(elems: ElementModel[]): ElementModel[] {
+  const seen = new Set<string>();
+  return elems.filter((e) => {
+    const key = (e.text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!key) return false;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+
 // ── Marcas de transparencia (ChangeMark) ─────────────────────────────────────
 // Micro-etiqueta gris anclada al borde superior-derecho del elemento. Indica
 // qué transformación APA se aplicó (ej. "sangría aplicada", "Tabla → APA").
@@ -765,9 +778,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           const showPageNumber = !isCoverPage && !hasTocElement;
 
           // Separar elementos de portada en bloques lógicos para renderizado limpio
-          const coverHeaderTexts: ElementModel[] = [];
-          const coverAuthorTexts: ElementModel[] = [];
-          const coverFooterTexts: ElementModel[] = [];
+          let coverHeaderTexts: ElementModel[] = [];
+          let coverAuthorTexts: ElementModel[] = [];
+          let coverFooterTexts: ElementModel[] = [];
           // CHANGE 2: Detect ANY image on the cover page (not just those wider than 2cm)
           const coverLogoImage = pageElements.find(e => (e.is_cover_section || e.type === 'portada_block') && e.image_info && e.image_info.relative_url);
 
@@ -805,6 +818,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               }
             });
           }
+
+          // Defensa en profundidad: colapsar bloques duplicados del original
+          coverHeaderTexts = dedupCoverAuthors(coverHeaderTexts);
+          coverAuthorTexts = dedupCoverAuthors(coverAuthorTexts);
+          coverFooterTexts = dedupCoverAuthors(coverFooterTexts);
 
           // Elementos con comentario en esta página. Si hay gutter de comentarios,
           // se reserva un espaciador simétrico a la IZQUIERDA para que la hoja
