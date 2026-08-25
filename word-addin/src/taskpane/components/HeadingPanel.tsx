@@ -1,226 +1,238 @@
-/**
- * WordAPA7 Add-in — Panel de Títulos (Headings)
- *
- * Permite al usuario:
- *   1. Escribir el texto del título
- *   2. Seleccionar el nivel (1-5) según la jerarquía APA 7
- *   3. Insertarlo con el formato APA 7 correspondiente:
- *      Nivel 1: Centrado, negrita
- *      Nivel 2: Izquierda, negrita
- *      Nivel 3: Izquierda, negrita + cursiva
- *      Nivel 4: Sangría, negrita, en línea con texto
- *      Nivel 5: Sangría, negrita + cursiva, en línea con texto
- */
-
-import React, { useState, useEffect } from 'react'
-import { insertHeadingAPA, HEADING_CONFIGS, getDocumentHeadings, navigateToParagraph, type HeadingItem } from '../office/wordHelper'
-
-const HeadingIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 4v16M18 4v16M6 12h12" />
-  </svg>
-)
-
-const BulbIcon: React.FC<{ size?: number }> = ({ size = 13 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 18h6M10 22h4" />
-    <path d="M12 2a7 7 0 00-4 12.7c.5.4.8 1 .8 1.7V18h6.4v-1.6c0-.7.3-1.3.8-1.7A7 7 0 0012 2z" />
-  </svg>
-)
-
-type HeadingLevel = 1 | 2 | 3 | 4 | 5
+import React, { useState, useEffect, useCallback } from 'react'
+import {
+  getDocumentHeadings,
+  applyHeadingStyle,
+  navigateToParagraph,
+  type HeadingItem,
+} from '../office/wordHelper'
+import { DocumentTextIcon, ZapIcon, EyeIcon, CheckCircleIcon } from './Icons'
 
 interface Props {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
 }
 
-const LEVEL_INFO: Record<HeadingLevel, { label: string; desc: string }> = {
-  1: { label: 'Nivel 1', desc: 'Centrado, negrita' },
-  2: { label: 'Nivel 2', desc: 'Izquierda, negrita' },
-  3: { label: 'Nivel 3', desc: 'Izquierda, negrita + cursiva' },
-  4: { label: 'Nivel 4', desc: 'Sangría, negrita, en línea' },
-  5: { label: 'Nivel 5', desc: 'Sangría, negrita + cursiva, en línea' },
-}
-
-export function HeadingPanel({ showToast }: Props) {
-  const [text, setText] = useState('')
-  const [level, setLevel] = useState<HeadingLevel>(1)
-  const [loading, setLoading] = useState(false)
+export const HeadingPanel: React.FC<Props> = ({ showToast }) => {
   const [headings, setHeadings] = useState<HeadingItem[]>([])
-  const [loadingMap, setLoadingMap] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [applying, setApplying] = useState(false)
 
-  const loadHeadings = async () => {
-    setLoadingMap(true)
-    try {
-      const h = await getDocumentHeadings()
-      setHeadings(h)
-    } catch {
-      // Ignorar errores silentes
-    } finally {
-      setLoadingMap(false)
-    }
-  }
-
-  useEffect(() => {
-    loadHeadings()
-  }, [])
-
-  const handleInsert = async () => {
-    if (!text.trim()) {
-      showToast('Escribí el texto del título', 'error')
-      return
-    }
+  const loadHeadings = useCallback(async () => {
     setLoading(true)
     try {
-      await insertHeadingAPA(text.trim(), level)
-      showToast(`Título nivel ${level} insertado`, 'success')
-      setText('')
-      loadHeadings()
-    } catch (err: any) {
-      showToast(err.message || 'Error al insertar título', 'error')
+      const list = await getDocumentHeadings()
+      setHeadings(list)
+    } catch {
+      /* ignore */
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    loadHeadings()
+  }, [loadHeadings])
+
+  const handleApplyToSelection = async (level: 1 | 2 | 3 | 4 | 5) => {
+    try {
+      await applyHeadingStyle(level)
+      showToast(`Título formateado como Nivel ${level} APA 7`, 'success')
+      loadHeadings()
+    } catch (err: any) {
+      showToast(err.message || 'Error al aplicar nivel de título', 'error')
+    }
   }
 
-  const handleNavigate = async (index: number) => {
+  const handleApplyEntireHierarchy = async () => {
+    setApplying(true)
     try {
-      await navigateToParagraph(index)
+      await Word.run(async (context) => {
+        const paragraphs = context.document.body.paragraphs
+        context.load(paragraphs, 'text')
+        await context.sync()
+
+        for (const p of paragraphs.items) {
+          const text = p.text.trim()
+          if (!text) continue
+
+          // Nivel 1: Capítulos, números romanos o canónicos
+          if (/^(?:cap[ií]tulo\s+[ivxlcdm\d]+|[ivxlcdm]+\.[\s	]+[a-zÁÉÍÓÚÑ]|introducci[oó]n|m[eé]todo|metodolog[ií]a|resultados|discusi[oó]n|conclusiones|referencias)/i.test(text) && text.length < 80) {
+            p.font.name = 'Times New Roman'
+            p.font.size = 12
+            p.font.bold = true
+            p.font.italic = false
+            p.alignment = Word.Alignment.centered
+            p.lineSpacing = 24
+            p.leftIndent = 0
+            p.firstLineIndent = 0
+            p.spaceBefore = 12
+            p.spaceAfter = 6
+            continue
+          }
+
+          // Nivel 2: Decimales (1.1., 1.2., 2.1., etc.)
+          if (/^\d+\.\d+\.?[\s	]+[a-zÁÉÍÓÚÑ]/i.test(text) && text.length < 100) {
+            p.font.name = 'Times New Roman'
+            p.font.size = 12
+            p.font.bold = true
+            p.font.italic = false
+            p.alignment = Word.Alignment.left
+            p.lineSpacing = 24
+            p.leftIndent = 0
+            p.firstLineIndent = 0
+            p.spaceBefore = 12
+            p.spaceAfter = 4
+            continue
+          }
+
+          // Nivel 3: Subtítulos comunes
+          if (/^(?:situaci[oó]n\s+problem[aá]tica|preguntas?\s+propuestas?|objetivos?\s+espec[ií]ficos?|dise[nñ]o\s+metodol[oó]gico|ventajas|limitaciones)/i.test(text)) {
+            p.font.name = 'Times New Roman'
+            p.font.size = 12
+            p.font.bold = true
+            p.font.italic = true
+            p.alignment = Word.Alignment.left
+            p.lineSpacing = 24
+            p.leftIndent = 0
+            p.firstLineIndent = 0
+            p.spaceBefore = 10
+            p.spaceAfter = 4
+          }
+        }
+        await context.sync()
+      })
+      showToast('Jerarquía de títulos APA 7 aplicada en Word', 'success')
+      loadHeadings()
+    } catch (err: any) {
+      showToast(err.message || 'Error al normalizar jerarquía', 'error')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const handleJumpToHeading = async (idx: number) => {
+    try {
+      await navigateToParagraph(idx)
+      showToast('Ubicado en Word', 'info')
     } catch {
-      showToast('No se pudo navegar al título', 'error')
+      /* ignore */
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {headings.length > 0 && (
-        <div className="card">
-          <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="field-label" style={{ marginBottom: 0 }}>Estructura del documento</div>
-            <button className="btn btn--ghost" onClick={loadHeadings} disabled={loadingMap} style={{ padding: '2px 6px', fontSize: 11 }}>
-              ↻ Actualizar
-            </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* TARJETA DE JERARQUÍA AUTOMÁTICA */}
+      <div className="card card--hero">
+        <div className="card__header">
+          <div className="card__title">
+            <DocumentTextIcon size={16} color="var(--accent-primary)" />
+            <span>Jerarquía de Títulos APA 7</span>
           </div>
-          <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto' }}>
-            {loadingMap ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Cargando estructura...</div> : (
-               headings.map(h => (
-                 <div
-                   key={h.index}
-                   onClick={() => handleNavigate(h.index)}
-                   style={{
-                     fontSize: 12,
-                     color: 'var(--text-secondary)',
-                     cursor: 'pointer',
-                     paddingLeft: `${(h.level - 1) * 12}px`,
-                     whiteSpace: 'nowrap',
-                     overflow: 'hidden',
-                     textOverflow: 'ellipsis'
-                   }}
-                   title={h.text}
-                 >
-                   <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginRight: 4 }}>H{h.level}</span>
-                   {h.text}
-                 </div>
-               ))
-            )}
-          </div>
+          <button
+            type="button"
+            className="btn-sm btn-secondary"
+            onClick={loadHeadings}
+            disabled={loading}
+          >
+            {loading ? 'Leyendo...' : 'Actualizar'}
+          </button>
         </div>
-      )}
 
+        <p className="card__subtitle">
+          Detección automática de estructura jerárquica en tu documento: normaliza romanos (I.) como Nivel 1, decimales (1.1.) como Nivel 2 y subtítulos como Nivel 3.
+        </p>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleApplyEntireHierarchy}
+          disabled={applying}
+          style={{ padding: '10px 14px' }}
+        >
+          <ZapIcon size={14} color="#ffffff" />
+          <span>{applying ? 'Aplicando jerarquía...' : 'Aplicar Jerarquía APA 7 a Todo el Documento'}</span>
+        </button>
+      </div>
+
+      {/* ACCIÓN RÁPIDA SOBRE LA SELECCIÓN */}
       <div className="card">
-        <div style={{ padding: '10px 12px' }}>
-          <div className="field-label">Texto del título</div>
-          <input
-            className="field-input"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Ej: Introducción"
-            onKeyDown={(e) => { if (e.key === 'Enter') handleInsert() }}
-          />
+        <div className="card__title" style={{ fontSize: 12.5 }}>Convertir Párrafo Actual en Word:</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => handleApplyToSelection(1)}
+            title="Centrado, Negrita"
+          >
+            Nivel 1 (H1)
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => handleApplyToSelection(2)}
+            title="Izquierda, Negrita"
+          >
+            Nivel 2 (H2)
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => handleApplyToSelection(3)}
+            title="Izquierda, Negrita + Cursiva"
+          >
+            Nivel 3 (H3)
+          </button>
         </div>
       </div>
 
+      {/* ESTRUCTURA DETECTADA EN EL DOCUMENTO */}
       <div className="card">
-        <div style={{ padding: '10px 12px' }}>
-          <div className="field-label">Nivel APA 7</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {([1, 2, 3, 4, 5] as const).map((lvl) => {
-              const config = HEADING_CONFIGS[lvl]
-              const active = level === lvl
-              return (
-                <button
-                  key={lvl}
-                  onClick={() => setLevel(lvl)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-default)'}`,
-                    background: active ? 'var(--accent-soft)' : 'var(--bg-primary)',
-                    color: active ? 'var(--accent-primary)' : 'var(--text-primary)',
-                    fontSize: 12,
-                    fontWeight: active ? 700 : 500,
-                    textAlign: 'left',
-                  }}
-                >
-                  <span style={{ flex: 1 }}>
-                    {LEVEL_INFO[lvl].label}
-                  </span>
-                  <span style={{ fontSize: 10, color: active ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
-                    {LEVEL_INFO[lvl].desc}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+        <div className="card__header">
+          <div className="card__title">Estructura Detectada</div>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+            {headings.length} títulos
+          </span>
         </div>
-      </div>
 
-      {/* Preview del formato */}
-      <div className="card">
-        <div style={{ padding: '10px 12px' }}>
-          <div className="field-label">Vista previa</div>
-          <div style={{
-            padding: '8px 10px',
-            background: 'var(--bg-primary)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-subtle)',
-            fontFamily: 'Times New Roman, serif',
-            fontSize: 12,
-            fontWeight: 'bold',
-            fontStyle: HEADING_CONFIGS[level].italic ? 'italic' : 'normal',
-            textAlign: HEADING_CONFIGS[level].alignment === Word.Alignment.centered ? 'center' : 'left',
-            marginLeft: HEADING_CONFIGS[level].indentCm > 0 ? `${HEADING_CONFIGS[level].indentCm}cm` : 0,
-            color: 'var(--text-primary)',
-          }}>
-            {text || 'Texto del título...'}
+        {headings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '12px 6px', color: 'var(--text-muted)', fontSize: 12 }}>
+            Haz clic en "Actualizar" o usa el botón superior para jerarquizar los títulos de tu documento.
           </div>
-        </div>
-      </div>
-
-      <button
-        className="btn btn--primary btn--full"
-        onClick={handleInsert}
-        disabled={loading || !text.trim()}
-      >
-        {loading ? (
-          <>
-            <span className="spinner" /> Insertando...
-          </>
         ) : (
-          <><HeadingIcon /> Insertar Título APA 7</>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+            {headings.map((h, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 8px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  paddingLeft: (h.level - 1) * 12 + 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                  <span className="finding-item__badge finding-item__badge--info">
+                    N{h.level}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: h.level === 1 ? 700 : 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                    {h.text}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleJumpToHeading(h.index)}
+                  style={{ padding: '3px 6px' }}
+                >
+                  <EyeIcon size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
-      </button>
-
-      <div className="tip-box">
-        <span className="tip-box__icon"><BulbIcon /></span>
-        <span className="tip-box__text">5 niveles según la jerarquía. Elegí según cuán profundo sea tu trabajo.</span>
       </div>
     </div>
   )
