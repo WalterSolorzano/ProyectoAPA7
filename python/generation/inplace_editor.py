@@ -82,6 +82,18 @@ def _is_ref_paragraph(text: str) -> bool:
     return bool(t) and len(t) > 40 and re.search(r"\(\d{4}\)|\(\d{4}[a-z]?\)", t)
 
 
+def _normalize_ref_for_dedup(text: str) -> str:
+    """Normaliza una entrada de bibliografia para dedup in-place: sin
+    prefijo numeral, lowercase, espacios colapsados.
+
+    '6. Hirano, H. (1995) ...' y '7. Hirano, H. (1995) ...' colapsan a la
+    misma key. El bug original: el numeral distinto ('6.' vs '7.') impedia
+    colapsar duplicados en el export in-place.
+    """
+    t = re.sub(r"^\s*\d+[.)]\s+", "", text or "")
+    return re.sub(r"\s+", " ", t.lower()).strip()
+
+
 def _is_list_item(para: Any, text: str) -> bool:
     """Detecta si un parrafo es viñeta o lista numerada."""
     try:
@@ -132,6 +144,8 @@ def apply_inplace(
     line_sp = float(getattr(rules, "line_spacing", 2.0) or 2.0)
 
     changed = 0
+    ref_seen: set[str] = set()
+    removed_refs = 0
     ref_zone_start = len(paragraphs)
     if "texto" in active or "bibliografia" in active:
         # Localizar inicio de bibliografía: último heading 'Referencias' o primer párrafo-ref
@@ -155,6 +169,15 @@ def apply_inplace(
             continue
 
         if "bibliografia" in active and i >= ref_zone_start and _is_ref_paragraph(text):
+            # Dedup de bibliografia in-place: misma referencia con distinto
+            # numeral de lista ('6.' y '7.') se colapsa eliminando el
+            # parrafo duplicado del documento.
+            dedup_key = _normalize_ref_for_dedup(text)
+            if dedup_key in ref_seen:
+                para._element.getparent().remove(para._element)
+                removed_refs += 1
+                continue
+            ref_seen.add(dedup_key)
             pf = para.paragraph_format
             pf.left_indent = Inches(0.5)
             pf.first_line_indent = Inches(-0.5)
@@ -228,5 +251,6 @@ def apply_inplace(
 
     log_event("inplace_editor", "completed",
               data={"scope": sorted(active), "body_start": body_start, "changed": changed,
+                    "removed_refs": removed_refs,
                     "elapsed_ms": int((time.time() - t0) * 1000)})
     return out_path

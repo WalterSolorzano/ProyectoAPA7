@@ -42,6 +42,13 @@ _YEAR_GROUP = re.compile(r"\((19[0-9]\d|20\d{2})\)")
 _YEAR_LOOSE = re.compile(r"\b(19[0-9]\d|20\d{2})\b")
 _URL_DOI = re.compile(r"(https?://\S+|doi:\s*\S+|10\.\d{4,9}/\S+)", re.IGNORECASE)
 
+# Prefijo de lista numerada manual al inicio de una entrada de bibliografia:
+# "6. Hirano, H. (1995)..." / "10. Juran, J. M. (1999)...". El numeral NO es
+# parte de la referencia APA y rompia el dedup de texto crudo (cada linea era
+# "unica" por el numero, dejando 4 copias de Hirano). Se exige un espacio
+# tras el punto/parentesis para no comerse titulos como "5 Pillars".
+_LEADING_NUM_PREFIX = re.compile(r"^\s*\d+[.)]\s+")
+
 
 def _normalize_heading(text: Optional[str]) -> str:
     if not text:
@@ -167,6 +174,52 @@ def _parse_single_reference(raw: str) -> dict:
     }
 
 
+def _strip_numeric_prefix(text: str) -> str:
+    """Quita el prefijo de lista numerada ('6.', '10.') al inicio de la entrada.
+
+    Se conserva el ``raw_text`` original (con prefijo) para edicion; el prefijo
+    solo se elimina para construir la clave de dedup y para parsear autores
+    limpios (evita que '6.' quede pegado al apellido del primer autor).
+    """
+    return _LEADING_NUM_PREFIX.sub("", text or "").strip()
+
+
+def _first_author_surname(authors: List[str]) -> str:
+    """Apellido del primer autor, normalizado a minusculas.
+
+    'Hirano, H.' -> 'hirano'; 'Niebel, B. W.' -> 'niebel'.
+    """
+    if not authors:
+        return ""
+    first = (authors[0] or "").strip()
+    surname = first.split(",")[0].strip()
+    # Por si quedo un resto de prefijo numeral pegado al apellido.
+    surname = _LEADING_NUM_PREFIX.sub("", surname + " ").strip()
+    return surname.lower()
+
+
+def _normalize_title_key(title: str) -> str:
+    """Titulo normalizado a alfanumerico minuscula, primeros 40 caracteres."""
+    norm = re.sub(r"[^a-z0-9]+", "", (title or "").lower())
+    return norm[:40]
+
+
+def _semantic_dedup_key(parsed: dict, raw_clean: str) -> str:
+    """Clave de dedup semantica: apellido + anio + titulo normalizado.
+
+    Si no se puede parsear autor/ano/titulo, se cae al texto crudo sin el
+    prefijo numeral (``raw_clean``) colapsado y en minusculas.
+    """
+    authors = parsed.get("authors") or []
+    year = parsed.get("year")
+    title = parsed.get("title") or ""
+    surname = _first_author_surname(authors)
+    norm_title = _normalize_title_key(title)
+    if surname and year and norm_title:
+        return f"{surname}|{year}|{norm_title}"
+    return re.sub(r"\s+", " ", raw_clean.lower()).strip()
+
+
 def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
     """Localiza la seccion de referencias y devuelve la lista de ReferenciaModel."""
     refs: List[ReferenciaModel] = []
@@ -232,15 +285,20 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
                 continue
             entry_lines.append(line)
 
+    # Dedup SEMANTICO: la clave es apellido + anio + titulo normalizado, no el
+    # texto crudo. Antes se usaba el texto crudo (lower + whitespace), lo que
+    # dejaba duplicados como '6. Hirano (1995)...' y '7. Hirano (1995)...' como
+    # entradas distintas porque solo diferian en el prefijo numeral de lista.
     seen = set()
     for raw in entry_lines:
-        key = re.sub(r"\s+", " ", raw.lower()).strip()
+        raw_clean = _strip_numeric_prefix(raw)  # para parseo/clave; raw se conserva
+        parsed = _parse_single_reference(raw_clean)
+        if not parsed:
+            continue
+        key = _semantic_dedup_key(parsed, raw_clean)
         if key in seen:
             continue
         seen.add(key)
-        parsed = _parse_single_reference(raw)
-        if not parsed:
-            continue
         refs.append(ReferenciaModel(
             id=f"ref-{uuid.uuid4().hex[:8]}",
             authors=parsed.get("authors", []),
@@ -248,7 +306,7 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             title=parsed.get("title", ""),
             source=parsed.get("source", ""),
             doi_or_url=parsed.get("doi_or_url"),
-            raw_text=parsed.get("raw_text", raw),
+            raw_text=raw.strip(),
         ))
 
     if not refs and start_idx >= 0:
