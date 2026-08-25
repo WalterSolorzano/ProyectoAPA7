@@ -20,6 +20,7 @@ import { TablesFiguresPanel } from './components/TablesFiguresPanel'
 import { ReferencesPanel } from './components/ReferencesPanel'
 import { CoverPagePanel } from './components/CoverPagePanel'
 import { AIPanel } from './components/AIPanel'
+import { ScopeFilterCard } from './components/ScopeFilterCard'
 import { startJarvis, isJarvisOn } from './office/jarvisLive'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
 import {
@@ -92,6 +93,46 @@ export const App: React.FC = () => {
   const [auditResult, setAuditResult] = useState<AuditDocumentResult | null>(null)
   const [auditNotice, setAuditNotice] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Núcleo vivo: heartbeat + Jarvis pasivo + modo rápido (click derecho) ──
+  const isQuickMode = useMemo(
+    () =>
+      new URLSearchParams(window.location.search).has('quick') ||
+      localStorage.getItem('wordapa7_addin_quick') === '1',
+    [],
+  )
+  useEffect(() => {
+    fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
+    const iv = setInterval(
+      () => fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {}),
+      60000,
+    )
+    try { if (isJarvisOn()) startJarvis() } catch {}
+    return () => clearInterval(iv)
+  }, [])
+
+  if (isQuickMode) {
+    const quickToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning') =>
+      setToast({ msg, type, id: Date.now() })
+    return (
+      <div style={{ padding: 12, background: '#fafafa', minHeight: '100vh' }}>
+        <ScopeFilterCard showToast={quickToast} />
+        {toast && (
+          <div
+            style={{
+              marginTop: 10, padding: '8px 12px', borderRadius: 8,
+              background:
+                toast.type === 'error' ? '#fee2e2' : toast.type === 'success' ? '#dcfce7' : '#e0e7ff',
+              color: '#18181b', fontSize: 12.5,
+            }}
+          >
+            {toast.msg}
+          </div>
+        )}
+      </div>
+    )
+  }
+
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setToast({ msg, type, id: Date.now() })
