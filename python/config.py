@@ -60,6 +60,33 @@ else:
 
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Guard compartido por /api/open-in-word en AMBOS motores (main.py y
+# core_server.py): deben rechazar exactamente lo mismo.
+OPEN_IN_WORD_REJECT_MSG = "Solo se permiten .docx del almacenamiento de WordAPA7"
+
+
+def validate_open_in_word_path(raw_path: str) -> Path:
+    """Guard de seguridad para /api/open-in-word (criterio único compartido).
+
+    Resuelve la ruta recibida y exige:
+      1. sufijo ``.docx`` (case-insensitive)
+      2. que resuelva DENTRO de STORAGE_DIR del proceso
+
+    Lanza ValueError(OPEN_IN_WORD_REJECT_MSG) si viola el guard. La validación
+    de contención va ANTES de consultar existencia en disco: así no se filtra
+    información sobre archivos fuera del almacenamiento.
+    """
+    raw = (raw_path or "").strip()
+    p = Path(raw)
+    if not raw or p.suffix.lower() != ".docx":
+        raise ValueError(OPEN_IN_WORD_REJECT_MSG)
+    resolved = p.resolve()
+    try:
+        resolved.relative_to(STORAGE_DIR.resolve())
+    except ValueError:
+        raise ValueError(OPEN_IN_WORD_REJECT_MSG) from None
+    return resolved
+
 
 def get_apa7_template_path() -> Path:
     """Ruta del documento base APA 7 (apa7_template.docx).

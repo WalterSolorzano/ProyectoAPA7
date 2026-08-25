@@ -94,12 +94,19 @@ class OpenWordReq(BaseModel):
 
 @app.post("/api/open-in-word")
 async def open_in_word(req: OpenWordReq) -> dict:
-    """Rescate: abre el .docx con su app predeterminada (Word)."""
+    """Rescate: abre un .docx del almacenamiento con su app predeterminada (Word).
+
+    Guard idéntico al monolito (config.validate_open_in_word_path): solo
+    se permiten .docx dentro de STORAGE_DIR del proceso."""
     import os as _os
-    p = req.path
-    if not p or not Path(p).exists():
+    from config import validate_open_in_word_path
+    try:
+        target = validate_open_in_word_path(req.path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not target.exists():
         raise HTTPException(400, "Archivo no encontrado")
-    _os.startfile(p)  # asociacion del usuario (Word)
+    _os.startfile(str(target))  # asociacion del usuario (Word)
     return {"ok": True}
 
 class ScoreReq(BaseModel):
@@ -123,7 +130,10 @@ async def heartbeat() -> dict:
 async def sideload_v2() -> dict:
     """Estado HONESTO: core no puede saber si Word cargo el add-in (sin
     telemetria). Mentir True hace que el chip del taskpane mienta tambien."""
-    manifest = Path(os.environ.get("APPDATA", "")) / "WordAPA7" / "storage" / "manifest.xml"
+    # Lectura POR-REQUEST de APPDATA (no cachear en import): permite aislar
+    # en tests vía monkeypatch.setenv y refleja cambios de entorno.
+    appdata = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+    manifest = appdata / "WordAPA7" / "storage" / "manifest.xml"
     return {"installed": manifest.exists(), "active_in_word": None}
 
 
@@ -192,7 +202,8 @@ async def resolve_ghost(req: CiteReq) -> dict:
 
 
 def _tls_pair() -> tuple[str, str] | None:
-    base = Path(os.environ.get("APPDATA", "")) / "WordAPA7" / "storage" / "ssl"
+    appdata = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+    base = appdata / "WordAPA7" / "storage" / "ssl"
     pem, key = base / "localhost.pem", base / "localhost-key.pem"
     return (str(pem), str(key)) if pem.exists() and key.exists() else None
 

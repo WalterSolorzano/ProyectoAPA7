@@ -3340,11 +3340,18 @@ class OpenInWordReq(BaseModel):
 
 @app.post("/api/open-in-word")
 async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
-    """Rescate: abre el .docx con su app predeterminada (Word)."""
-    p = (req.path or "").strip()
-    if not p or not Path(p).exists():
+    """Rescate: abre un .docx del almacenamiento con su app predeterminada (Word).
+
+    Guard idéntico al core_server (config.validate_open_in_word_path): solo
+    se permiten .docx dentro de STORAGE_DIR del proceso."""
+    from config import validate_open_in_word_path
+    try:
+        target = validate_open_in_word_path(req.path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if not target.exists():
         raise HTTPException(400, "Archivo no encontrado")
-    os.startfile(p)
+    os.startfile(str(target))
     return {"ok": True}
 
 
