@@ -21,8 +21,11 @@ import path from 'path'
 // Determinar si se debe usar HTTPS (desarrollo avanzado).
 const useHttps = process.env.WORDAPA7_USE_SSL === 'true'
 
+const __APP_VERSION__ = "1.0.61"
+
 export default defineConfig({
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(__APP_VERSION__) },
   plugins: [
     react(),
     // mkcert solo se activa en modo desarrollo HTTPS avanzado.

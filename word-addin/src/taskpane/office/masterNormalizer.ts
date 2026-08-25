@@ -111,6 +111,9 @@ export async function normalizeEntireDocumentAPA7(
     const pictures = context.document.body.inlinePictures
     context.load(pictures)
     await context.sync()
+    // Colecciones vacias lanzan isNullObject al leer items
+    const tItems = (tables as any).isNullObject ? [] : tables.items
+    const pItems = (pictures as any).isNullObject ? [] : pictures.items
 
     // PUENTE AL MOTOR CENTRAL: el backend calibrado decide el piso de portada
     // y las reglas numericas. Sin backend -> fallback local (nunca bloquea).

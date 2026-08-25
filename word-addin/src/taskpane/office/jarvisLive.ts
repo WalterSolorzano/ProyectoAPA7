@@ -14,6 +14,7 @@ let jarvisOn = localStorage.getItem('wordapa7_jarvis') !== '0'
 let busy = false
 let lastHash = ''
 let lastTexts: string[] = []
+const appliedCaps = new Set<string>()
 
 export function isJarvisOn(): boolean {
   return jarvisOn
@@ -31,8 +32,10 @@ function hashOf(texts: string[]): string {
 async function getTexts(): Promise<string[]> {
   return await Word.run(async (ctx) => {
     const ps = ctx.document.body.paragraphs
+    ps.load('items')
     ctx.load(ps, 'text')
     await ctx.sync()
+    if ((ps as any).isNullObject) return []
     return ps.items.map((p) => p.text)
   })
 }
@@ -94,9 +97,13 @@ export async function applyCaptions(): Promise<void> {
       body: JSON.stringify({ texts, tables: tablesIdx, figures: figuresIdx }),
     })
     if (!res.ok) return
-    const plan = await res.json()
+        const plan = await res.json()
 
-    for (const op of plan.ops || []) {
+    type CapOp = { i: number; kind: string; number: number }
+    for (const op of (plan.ops || []) as CapOp[]) {
+      const dedupeKey = `${op.kind}${op.number}`
+      if ((appliedCaps as Set<string>).has(dedupeKey)) continue
+      appliedCaps.add(dedupeKey)
       const label = op.kind === 'table' ? `Tabla ${op.number}` : `Figura ${op.number}`
       try {
         if (op.kind === 'table' && tbls.items[op.i]) {

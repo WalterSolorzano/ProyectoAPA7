@@ -1,3 +1,4 @@
+declare const __APP_VERSION__: string
 import React, { useState } from 'react'
 import type { AssistantOptions } from '../liveAssistant'
 
@@ -186,6 +187,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           <div className="card__title">
             <ZapIcon size={16} color="var(--accent-primary)" />
             <span>Normalizador Global APA 7</span>
+            <span style={{ fontSize:10, color:'#94a3b8', marginLeft:6 }}>build {__APP_VERSION__}</span>
           </div>
           <SelectionCard />
       <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#0f172a' }}>

@@ -834,7 +834,7 @@ def _purge_wef_cache_full() -> int:
     office-js#6009: caché corrupta → complemento invisible). Con marcador anti-loop."""
     import shutil as _sh
     wef = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Office" / "16.0" / "Wef"
-    marker = wef.parent / ".wordapa7_wef_purged"
+    marker = wef.parent / ('.wordapa7_wef_purged_' + _build_stamp())
     if marker.exists():
         return -1  # ya purgado esta instalación
     n = 0
@@ -853,3 +853,12 @@ def _purge_wef_cache_full() -> int:
     except Exception:
         pass
     return n
+
+def _build_stamp() -> str:
+    """Huella del dist actual: cambia => proximo arranque purga Wef (Word recarga taskpane)."""
+    import hashlib
+    d = _addin_dist_dir()
+    h = hashlib.md5()
+    for p in sorted(d.rglob('*.js')):
+        h.update(str(p.stat().st_mtime_ns).encode())
+    return h.hexdigest()[:10]
