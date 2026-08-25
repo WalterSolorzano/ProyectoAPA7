@@ -1,9 +1,10 @@
 /**
- * WordAPA7 Add-in — App Principal (Asistente APA 7 en Vivo)
- * =========================================================
+ * WordAPA7 Add-in — Asistente Proactivo Unificado en Word
+ * =======================================================
  *
- * Panel lateral proactivo integrado en Microsoft Word 365.
- * Vistas dedicadas para cada función del Ribbon, cero emojis y crítico activo en vivo.
+ * Navegación simplificada en 2 modos:
+ *   1. Asistente APA 7 en Vivo (Cockpit unificado)
+ *   2. Biblioteca de Plantillas Académicas
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -15,38 +16,17 @@ import {
 } from './liveAssistant'
 import { type DocumentStats, formatDocumentAPA7, getDocumentText } from './office/wordHelper'
 import { LiveAssistantPanel } from './components/LiveAssistantPanel'
-import { HeadingPanel } from './components/HeadingPanel'
-import { TablesFiguresPanel } from './components/TablesFiguresPanel'
-import { ReferencesPanel } from './components/ReferencesPanel'
-import { CoverPagePanel } from './components/CoverPagePanel'
-import { AIPanel } from './components/AIPanel'
-import { ScopeFilterCard } from './components/ScopeFilterCard'
-import { startJarvis, isJarvisOn } from './office/jarvisLive'
+import { TemplatesPanel } from './components/TemplatesPanel'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
 import {
-  SearchIcon,
-  DocumentTextIcon,
-  TableIcon,
-  BookOpenIcon,
+  ZapIcon,
   FileTextIcon,
-  SparklesIcon,
   CheckCircleIcon,
   AlertCircleIcon,
+  SparklesIcon,
 } from './components/Icons'
 
-type TabId = 'auditoria' | 'titulos' | 'tablas' | 'referencias' | 'portada' | 'ia'
-type LegacyTabId = 'live' | 'insert' | 'references' | 'cover' | 'comments' | 'ai'
-type RibbonAction = 'refresh' | 'build_bibliography' | ''
-type AuditStatus = 'idle' | 'running' | 'done'
-
-const LEGACY_TAB_MAP: Record<LegacyTabId, TabId> = {
-  live: 'auditoria',
-  insert: 'tablas',
-  comments: 'auditoria',
-  references: 'referencias',
-  cover: 'portada',
-  ai: 'ia',
-}
+type TabId = 'asistente' | 'plantillas'
 
 interface TabDef {
   id: TabId
@@ -55,18 +35,9 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'auditoria', label: 'Auditoría', IconComponent: SearchIcon },
-  { id: 'titulos', label: 'Títulos', IconComponent: DocumentTextIcon },
-  { id: 'tablas', label: 'Tablas', IconComponent: TableIcon },
-  { id: 'referencias', label: 'Citas', IconComponent: BookOpenIcon },
-  { id: 'portada', label: 'Portada', IconComponent: FileTextIcon },
-  { id: 'ia', label: 'IA', IconComponent: SparklesIcon },
+  { id: 'asistente', label: 'Asistente APA 7', IconComponent: ZapIcon },
+  { id: 'plantillas', label: 'Plantillas', IconComponent: FileTextIcon },
 ]
-
-function normalizeTab(raw: string): TabId | null {
-  if (TABS.some((t) => t.id === raw)) return raw as TabId
-  return LEGACY_TAB_MAP[raw as LegacyTabId] ?? null
-}
 
 const AUDIT_MAX_CHARS = 200_000
 
@@ -77,62 +48,20 @@ interface ToastState {
 }
 
 const LS_TAB = 'wordapa7_addin_active_tab'
-const LS_ACTION = 'wordapa7_addin_action'
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('auditoria')
+  const [activeTab, setActiveTab] = useState<TabId>('asistente')
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const [stats, setStats] = useState<DocumentStats | null>(null)
   const [citationsCount, setCitationsCount] = useState(0)
-  const [mascotMessage, setMascotMessage] = useState<string>('Asistente APA 7 activo')
+  const [mascotMessage, setMascotMessage] = useState<string>('Asistente APA 7 activo en Word')
   const [running, setRunning] = useState(true)
   const [options, setOptions] = useState<AssistantOptions>(liveAssistant.getOptions())
   const [toast, setToast] = useState<ToastState | null>(null)
-  const [pendingAction, setPendingAction] = useState<RibbonAction>('')
-  const [auditStatus, setAuditStatus] = useState<AuditStatus>('idle')
+  const [auditStatus, setAuditStatus] = useState<'idle' | 'running' | 'done'>('idle')
   const [auditResult, setAuditResult] = useState<AuditDocumentResult | null>(null)
   const [auditNotice, setAuditNotice] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ── Núcleo vivo: heartbeat + Jarvis pasivo + modo rápido (click derecho) ──
-  const isQuickMode = useMemo(
-    () =>
-      new URLSearchParams(window.location.search).has('quick') ||
-      localStorage.getItem('wordapa7_addin_quick') === '1',
-    [],
-  )
-  useEffect(() => {
-    fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
-    const iv = setInterval(
-      () => fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {}),
-      60000,
-    )
-    try { if (isJarvisOn()) startJarvis() } catch {}
-    return () => clearInterval(iv)
-  }, [])
-
-  if (isQuickMode) {
-    const quickToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning') =>
-      setToast({ msg, type, id: Date.now() })
-    return (
-      <div style={{ padding: 12, background: '#fafafa', minHeight: '100vh' }}>
-        <ScopeFilterCard showToast={quickToast as any} />
-        {toast && (
-          <div
-            style={{
-              marginTop: 10, padding: '8px 12px', borderRadius: 8,
-              background:
-                toast.type === 'error' ? '#fee2e2' : toast.type === 'success' ? '#dcfce7' : '#e0e7ff',
-              color: '#18181b', fontSize: 12.5,
-            }}
-          >
-            {toast.msg}
-          </div>
-        )}
-      </div>
-    )
-  }
-
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setToast({ msg, type, id: Date.now() })
@@ -142,51 +71,17 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  const executeRibbonAction = useCallback((action: RibbonAction) => {
-    if (!action) return
-    if (action === 'refresh') {
-      showToast('Re-escaneando el documento...', 'info')
-      liveAssistant.scanNow()
-    }
-    if (action === 'build_bibliography') {
-      setActiveTab('referencias')
-      setPendingAction('build_bibliography')
-    }
-    try {
-      localStorage.removeItem(LS_ACTION)
-    } catch {
-      /* ignore */
-    }
-  }, [showToast])
-
   useEffect(() => {
     fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
     const hb = setInterval(() => fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {}), 60000)
     try {
       const tab = localStorage.getItem(LS_TAB)
-      const mapped = tab ? normalizeTab(tab) : null
-      if (mapped) setActiveTab(mapped)
-      const action = localStorage.getItem(LS_ACTION) as RibbonAction | null
-      if (action) setTimeout(() => executeRibbonAction(action), 300)
+      if (tab === 'plantillas' || tab === 'asistente') setActiveTab(tab)
     } catch {
       /* ignore */
     }
     return () => clearInterval(hb)
-  }, [executeRibbonAction])
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === LS_TAB && e.newValue) {
-        const mapped = normalizeTab(e.newValue)
-        if (mapped) setActiveTab(mapped)
-      }
-      if (e.key === LS_ACTION && e.newValue) {
-        executeRibbonAction(e.newValue as RibbonAction)
-      }
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [executeRibbonAction])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -216,16 +111,10 @@ export const App: React.FC = () => {
         if (ev.type === 'citation') {
           setCitationsCount(liveAssistant.getCitationsCount())
         }
-        if (ev.type === 'citation' || ev.type === 'figure' || ev.type === 'table' || ev.type === 'error') {
-          showToast(
-            ev.message,
-            ev.tone === 'error' ? 'error' : ev.tone === 'success' ? 'success' : 'info',
-          )
-        }
       },
       onStats: (s: DocumentStats) => setStats(s),
     }),
-    [showToast],
+    [],
   )
 
   useEffect(() => {
@@ -279,7 +168,7 @@ export const App: React.FC = () => {
       }
       if (text.length > AUDIT_MAX_CHARS) {
         text = text.slice(0, AUDIT_MAX_CHARS)
-        setAuditNotice(`Documento extenso: auditado hasta ${AUDIT_MAX_CHARS.toLocaleString('es')} caracteres`)
+        setAuditNotice(`Documento extenso auditado hasta ${AUDIT_MAX_CHARS.toLocaleString('es')} caracteres`)
       }
       const result = await backend.auditDocument(text)
       setAuditResult(result)
@@ -333,7 +222,7 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* PESTAÑAS DEDICADAS (CERO EMOJIS) */}
+      {/* PESTAÑAS PRINCIPALES */}
       <div className="tab-bar">
         {TABS.map((t) => {
           const Icon = t.IconComponent
@@ -354,7 +243,7 @@ export const App: React.FC = () => {
 
       {/* CONTENIDO PRINCIPAL */}
       <div className="app-content">
-        {activeTab === 'auditoria' && (
+        {activeTab === 'asistente' && (
           <LiveAssistantPanel
             running={running}
             options={options}
@@ -371,26 +260,12 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'titulos' && <HeadingPanel showToast={showToast} />}
-
-        {activeTab === 'tablas' && <TablesFiguresPanel showToast={showToast} />}
-
-        {activeTab === 'referencias' && (
-          <ReferencesPanel
-            showToast={showToast}
-            pendingAction={pendingAction}
-            onActionConsumed={() => setPendingAction('')}
-          />
-        )}
-
-        {activeTab === 'portada' && <CoverPagePanel showToast={showToast} />}
-
-        {activeTab === 'ia' && <AIPanel showToast={showToast} />}
+        {activeTab === 'plantillas' && <TemplatesPanel showToast={showToast} />}
 
         {/* NOTIFICACIÓN DISCRETA DEL ASISTENTE */}
         <div className="mascot-bubble" role="status" aria-live="polite">
           <div className="mascot-bubble__avatar">
-            <SparklesIcon size={15} color="var(--accent-primary)" />
+            <SparklesIcon size={14} color="var(--accent-primary)" />
           </div>
           <div className="mascot-bubble__text">{mascotMessage}</div>
         </div>
@@ -400,9 +275,9 @@ export const App: React.FC = () => {
       {toast && (
         <div className={`toast toast--${toast.type}`} key={toast.id} role="status">
           {toast.type === 'success' ? (
-            <CheckCircleIcon size={16} color="var(--accent-success)" />
+            <CheckCircleIcon size={15} color="var(--accent-success)" />
           ) : (
-            <AlertCircleIcon size={16} color={toast.type === 'error' ? 'var(--accent-danger)' : 'var(--accent-primary)'} />
+            <AlertCircleIcon size={15} color={toast.type === 'error' ? 'var(--accent-danger)' : 'var(--accent-primary)'} />
           )}
           <span style={{ flex: 1 }}>{toast.msg}</span>
           {toast.type === 'error' && (

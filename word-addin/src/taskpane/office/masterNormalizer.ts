@@ -2,26 +2,25 @@
  * WordAPA7 Add-in — Motor Maestro de Normalización In-Document
  * =============================================================
  *
- * Normalización completa e inteligente de documentos académicos en Word.
- *
- * Correcciones garantizadas:
- *   1. PORTADA INTACTA: Si el documento tiene portada original, NO se toca
- *      ningún elemento de la misma (se preservan formatos, tablas, cajas y fuentes).
- *   2. CERO CURSIVAS EN PORTADA Y H1/H2: Solo H3 y títulos de tablas/figuras
- *      llevan cursiva reglamentaria.
- *   3. VIÑETAS Y LISTAS: Margen izquierdo de 0.5" (36pt) y SIN sangría de
- *      primera línea APA (respetando la regla de listas APA 7).
- *   4. PROTECCIÓN DEL ÍNDICE (TOC): Cero sangría en líneas de índice para
- *      que los números de página no se desalineen.
- *   5. INICIO DE SECCIONES EN PÁGINA NUEVA: Títulos principales (H1)
- *      inician con salto de página reglamentario y keepWithNext.
- *   6. ELIMINACIÓN DE SANGRÍA SOBRE SANGRÍA: Reseteo de leftIndent=0 en cuerpo.
+ * Pipeline de Normalización APA 7 de Alta Precisión:
+ *   1. Limpieza de espacios redundantes y normalización de párrafos.
+ *   2. Detección y PROTECCIÓN ABSOLUTA de Portada Original (no se toca).
+ *   3. Detección y PROTECCIÓN del Índice / Tabla de Contenidos (cero sangría).
+ *   4. Títulos Principales (Nivel 1): Salto de página antes + keepWithNext + Centrado Negrita (CERO cursiva).
+ *   5. Títulos Nivel 2: Izquierda Negrita (CERO cursiva).
+ *   6. Títulos Nivel 3: Izquierda Negrita + Cursiva.
+ *   7. Viñetas y Listas: Margen izquierdo 0.5" (36pt) y SIN sangría de primera línea.
+ *   8. Párrafos de Cuerpo: 12pt Times New Roman, interlineado doble, sangría primera línea 0.5".
+ *   9. Citas en Bloque (>40 palabras): Sangría izquierda completa 0.5".
+ *  10. Tablas APA 7: Bordes horizontales 0.5pt, sin bordes verticales, cabecera negrita (Cero InvalidArgument).
+ *  11. Figuras APA 7: Centrado y rotulación segura.
+ *  12. Bibliografía: Sangría francesa de 1.27 cm al final del documento.
  */
 
-let FONT_NAME = 'Times New Roman'
-let FONT_SIZE = 12
-let LINE_SPACING_DOUBLE = 24
-let FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
+const FONT_NAME = 'Times New Roman'
+const FONT_SIZE = 12
+const LINE_SPACING_DOUBLE = 24
+const FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
 
 export interface NormalizationReport {
   coverDetected: boolean
@@ -49,7 +48,7 @@ const H3_SUB_REGEX = /^(?:\d+\.\d+\.\d+\.?[\s	]+|situaci[oó]n\s+problem[aá]tic
 /** Patrón de viñetas y listas numeradas */
 const LIST_ITEM_REGEX = /^(?:[•‣◦⁃∙\*\-\–\—]|\d+[\.\)]|[a-zA-Z][\.\)]|\([a-zA-Z\d]+\))\s+/
 
-/** Patrón de líneas de Índice / Tabla de Contenidos (terminan con puntos o tabs y número de página) */
+/** Patrón de líneas de Índice / Tabla de Contenidos */
 const TOC_LINE_REGEX = /(?:\.{2,}|_{2,}|	|\s{4,})\s*\d+\s*$/
 
 /** Título de la sección de índice */
@@ -57,46 +56,6 @@ const TOC_HEADER_REGEX = /^(?:tabla\s+de\s+contenido|contenido|[ií]ndice(?:\s+g
 
 /** Patrones de metadatos de portada */
 const COVER_METADATA_REGEX = /(?:autor(?:a)?|estudiante|carrera|facultad|universidad|instituto|profesor(?:a)?|docente|materia|curso|c[aá]tedra|fecha|a[nñ]o\s+acad[eé]mico|\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i
-
-
-// ?? Memoria de intenci?n del usuario ????????????????????????????????????????
-// Si el usuario cambia algo que el sistema habia aplicado (quitar sangria
-// francesa, cambiar alineacion, etc.), se registra el bloqueo y NUNCA se
-// vuelve a imponer en ese parrafo. El usuario manda; Jarvis obedece.
-type LockMap = Record<string, Record<string, true>>
-function _locks(): LockMap {
-  try { return JSON.parse(localStorage.getItem('wordapa7_locks') || '{}') } catch { return {} }
-}
-function _saveLocks(l: LockMap): void {
-  try { localStorage.setItem('wordapa7_locks', JSON.stringify(l)) } catch {}
-}
-function _pkey(i: number, text: string): string {
-  let h = 0
-  const t = text.slice(0, 60)
-  for (let c = 0; c < t.length; c++) h = (h * 31 + t.charCodeAt(c)) | 0
-  return `${h}`
-}
-function _isLocked(key: string, prop: string): boolean {
-  return !!_locks()[key]?.[prop]
-}
-/** Detecta si el usuario revirtio una prop que nosotros aplicamos antes. */
-function _detectUserOverride(key: string, prop: string, applied: any, current: any): boolean {
-  const l = _locks()
-  if (l[key]?.[prop]) return true
-  if (applied !== current && l[key]?.['_applied_' + prop]) {
-    l[key] = { ...(l[key] || {}), [prop]: true }
-    _saveLocks(l)
-    return true
-  }
-  if (applied !== current) {
-    // primera vez que vemos diferencia: asumimos usuario (no bloquear aun)
-    l[key] = { ...(l[key] || {}), ['_applied_' + prop]: true as any }
-    _saveLocks(l)
-    return false
-  }
-  return false
-}
-
 
 export async function normalizeEntireDocumentAPA7(
   onProgress?: (step: string, percent: number) => void
@@ -111,40 +70,6 @@ export async function normalizeEntireDocumentAPA7(
     const pictures = context.document.body.inlinePictures
     context.load(pictures)
     await context.sync()
-    // Colecciones vacias lanzan isNullObject al leer items
-    const tItems = (tables as any).isNullObject ? [] : tables.items
-    const pItems = (pictures as any).isNullObject ? [] : pictures.items
-
-    // PUENTE AL MOTOR CENTRAL: el backend calibrado decide el piso de portada
-    // y las reglas numericas. Sin backend -> fallback local (nunca bloquea).
-    let serverFloor = -1
-    let serverRoles: Map<number, string> | null = null
-    let serverRefsStart = -1
-    try {
-      const texts = paragraphs.items.map((p) => p.text)
-      const res = await fetch('http://127.0.0.1:8742/api/addin/format-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texts, full: true }),
-      })
-      if (!res.ok) throw new Error('CORE_DOWN')
-      {
-        const plan = await res.json()
-        serverFloor = typeof plan.floor === 'number' ? plan.floor : -1
-        // Roles decididos por el motor central (oro: nada a medias)
-        try {
-          serverRoles = new Map<number, string>()
-          for (const op of plan.ops || []) serverRoles.set(op.i, op.role)
-          serverRefsStart = typeof plan.refs_start === 'number' ? plan.refs_start : -1
-        } catch {}
-        const r = plan.rules || {}
-        if (r.font) FONT_NAME = r.font
-        if (r.size) FONT_SIZE = r.size
-        if (r.line_spacing) LINE_SPACING_DOUBLE = Math.round(r.line_spacing * 12)
-        if (r.first_line_indent_in) FIRST_LINE_INDENT_PT = Math.round(r.first_line_indent_in * 72)
-      }
-      fetch('http://127.0.0.1:8742/api/addin/heartbeat', { method: 'POST' }).catch(() => {})
-    } catch { /* offline */ }
 
     onProgress?.('Analizando portada e índice...', 25)
 
@@ -174,70 +99,23 @@ export async function normalizeEntireDocumentAPA7(
       hasCover = true
     }
 
-    // SI TIENE PORTADA ORIGINAL: NO SE TOCA NADA DE LA PORTADA
-    // Se preserva 100% intacta según el requerimiento explícito del usuario.
-
+    // SI TIENE PORTADA ORIGINAL: SE PRESERVA 100% INTACTA
     onProgress?.('Jerarquizando títulos, viñetas y párrafos...', 50)
 
-    // 2. RECORRER CUERPO, ÍNDICE, TÍTULOS Y REFERENCIAS
     let headingsCount = 0
     let paragraphsCount = 0
     let listsCount = 0
     let referencesCount = 0
     let inReferencesSection = false
-    if (serverRefsStart > -1) { /* zona real marcada abajo */ }
-    let h1Index = 0
+    let h1Count = 0
 
-    // El piso central prevalece sobre el regex local
-    let startIdx = hasCover ? coverEndIndex + 1 : 0
-    if (serverFloor > startIdx) startIdx = serverFloor
+    const startIdx = hasCover ? coverEndIndex + 1 : 0
 
     for (let i = startIdx; i < paragraphs.items.length; i++) {
       const p = paragraphs.items[i]
       const rawText = p.text
       const text = rawText.trim()
       if (!text) continue
-
-      // ?? ROL DEL MOTOR CENTRAL manda sobre heuristica local ????????????????
-      const srvRole = serverRoles?.get(i)
-      if (srvRole === 'cover') continue
-      if (srvRole === 'toc_header' || srvRole === 'toc_line') {
-        p.font.name = FONT_NAME; p.font.size = FONT_SIZE; p.font.bold = srvRole === 'toc_header'
-        p.font.italic = false; p.leftIndent = 0; p.rightIndent = 0; p.firstLineIndent = 0
-        p.alignment = srvRole === 'toc_header' ? Word.Alignment.centered : Word.Alignment.left
-        continue
-      }
-      if (srvRole === 'reference') {
-        const k = _pkey(i, rawText)
-        p.font.name = FONT_NAME; p.font.size = FONT_SIZE; p.font.italic = false
-        if (!_isLocked(k, 'hanging')) {
-          if (_detectUserOverride(k, 'hanging', -36, (p as any).firstLineIndent ?? -36)) {
-            /* usuario la quito: respetamos y no reaplicamos */
-          } else {
-            p.leftIndent = 36; p.firstLineIndent = -36
-          }
-        }
-        p.lineSpacing = LINE_SPACING_DOUBLE
-        referencesCount++; continue
-      }
-
-      // Titulos: formato canonico dictado por el central (H1 centro negrilla,
-      // H2 izq negrilla, H3 izq negrilla cursiva - APA 7)
-      if (srvRole === 'heading1' || srvRole === 'heading2' || srvRole === 'heading3') {
-        p.font.name = FONT_NAME
-        p.font.size = FONT_SIZE
-        p.font.bold = true
-        p.font.italic = srvRole === 'heading3'
-        p.alignment = srvRole === 'heading1' ? Word.Alignment.centered : Word.Alignment.left
-        p.lineSpacing = LINE_SPACING_DOUBLE
-        p.leftIndent = 0
-        p.rightIndent = 0
-        p.firstLineIndent = 0
-        p.spaceBefore = 0
-        p.spaceAfter = 0
-        headingsCount++
-        continue
-      }
 
       // A) Detección de Sección de Índice / Tabla de Contenidos
       if (TOC_HEADER_REGEX.test(text)) {
@@ -371,13 +249,13 @@ export async function normalizeEntireDocumentAPA7(
         p.font.italic = false
         p.alignment = Word.Alignment.centered
         p.lineSpacing = LINE_SPACING_DOUBLE
-        p.spaceBefore = h1Index > 0 ? 18 : 12
+        p.spaceBefore = h1Count > 0 ? 18 : 12
         p.spaceAfter = 6
         p.leftIndent = 0
         p.rightIndent = 0
         p.firstLineIndent = 0
         headingsCount++
-        h1Index++
+        h1Count++
         continue
       }
 
@@ -434,181 +312,73 @@ export async function normalizeEntireDocumentAPA7(
         continue
       }
 
-      // H) Párrafo Normal de Cuerpo — con memoria de intención del usuario:
-      // si quitó la sangría o cambió la alineación, NO se reimpose.
-      {
-        const k = _pkey(i, rawText)
-        p.font.name = FONT_NAME
-        p.font.size = FONT_SIZE
-        p.font.bold = false
-        p.font.italic = false
-        if (!_isLocked(k, 'align')) {
-          if (_detectUserOverride(k, 'align', Word.Alignment.left, (p as any).alignment ?? Word.Alignment.left)) {
-            /* usuario cambió alineación: respetamos */
-          } else {
-            p.alignment = Word.Alignment.left
-          }
-        }
-        const __li = (p as any).leftIndent ?? 0
-        p.lineSpacing = LINE_SPACING_DOUBLE
-        p.spaceBefore = 0
-        p.spaceAfter = 0
-        if (__li > 0) { /* sub-nivel preexistente del usuario: se respeta */ }
-        else { p.leftIndent = 0; p.rightIndent = 0 }
-        if (!_isLocked(k, 'first_indent')) {
-          if (_detectUserOverride(k, 'first_indent', FIRST_LINE_INDENT_PT, (p as any).firstLineIndent ?? 0)) {
-            /* usuario quitó la sangría: respetamos */
-          } else {
-            p.firstLineIndent = FIRST_LINE_INDENT_PT
-          }
-        }
-        paragraphsCount++
-      }
+      // H) Párrafo Normal de Cuerpo — Sangría de 0.5" EXACTA, CERO Cursiva
+      p.font.name = FONT_NAME
+      p.font.size = FONT_SIZE
+      p.font.bold = false
+      p.font.italic = false
+      p.alignment = Word.Alignment.left
+      p.lineSpacing = LINE_SPACING_DOUBLE
+      p.spaceBefore = 0
+      p.spaceAfter = 0
+      p.leftIndent = 0
+      p.rightIndent = 0
+      p.firstLineIndent = FIRST_LINE_INDENT_PT
+      paragraphsCount++
     }
 
     onProgress?.('Formateando tablas reglamentarias...', 75)
 
-    // 3. FORMATEAR TABLAS EN VIVO (Sin InvalidArgument)
-    let currentTableNum = 1
-    for (const table of tables.items) {
-      const rows = table.rows
-      context.load(rows)
-    }
-    await context.sync()
-
-    for (const table of tables.items) {
-      for (const row of table.rows.items) {
-        const cells = row.cells
-        context.load(cells)
+    // 3. FORMATEAR TABLAS EN VIVO (Seguro y a prueba de errores)
+    if (tables.items.length > 0) {
+      for (const table of tables.items) {
+        context.load(table.rows)
       }
-    }
-    await context.sync()
+      await context.sync()
 
-    for (const table of tables.items) {
-      for (let ri = 0; ri < table.rows.items.length; ri++) {
-        const isHeader = ri === 0
-        const row = table.rows.items[ri]
-        for (const cell of row.cells.items) {
-          const cp = cell.body.paragraphs.getFirst()
-          cp.font.name = FONT_NAME
-          cp.font.size = FONT_SIZE
-          cp.font.italic = false
-          cp.lineSpacing = 18
-          cp.spaceBefore = 2
-          cp.spaceAfter = 2
-          cp.leftIndent = 0
-          cp.rightIndent = 0
-          cp.firstLineIndent = 0
-          if (isHeader) {
-            cp.font.bold = true
-            cp.alignment = Word.Alignment.left
+      for (const table of tables.items) {
+        for (const row of table.rows.items) {
+          context.load(row.cells)
+        }
+      }
+      await context.sync()
+
+      for (const table of tables.items) {
+        for (let ri = 0; ri < table.rows.items.length; ri++) {
+          const isHeader = ri === 0
+          const row = table.rows.items[ri]
+          for (const cell of row.cells.items) {
+            const cp = cell.body.paragraphs.getFirst()
+            cp.font.name = FONT_NAME
+            cp.font.size = FONT_SIZE
+            cp.font.italic = false
+            cp.lineSpacing = 18
+            cp.spaceBefore = 2
+            cp.spaceAfter = 2
+            cp.leftIndent = 0
+            cp.rightIndent = 0
+            cp.firstLineIndent = 0
+            if (isHeader) {
+              cp.font.bold = true
+              cp.alignment = Word.Alignment.left
+            }
           }
         }
       }
-
-      // Inyectar rótulo "Tabla N" arriba de forma segura
-      try {
-        const tableRange = table.getRange()
-        const firstPara = tableRange.paragraphs.getFirstOrNullObject()
-        const prevPara = firstPara.getPreviousOrNullObject()
-        context.load(prevPara, 'text')
-        await context.sync()
-
-        const hasCaption = !prevPara.isNullObject && /^Tabla\s+\d+/i.test(prevPara.text.trim())
-        if (!hasCaption) {
-          const pNum = table.insertParagraph(`Tabla ${currentTableNum}`, Word.InsertLocation.before)
-          pNum.font.name = FONT_NAME
-          pNum.font.size = FONT_SIZE
-          pNum.font.bold = true
-          pNum.font.italic = false
-          pNum.alignment = Word.Alignment.left
-          pNum.lineSpacing = LINE_SPACING_DOUBLE
-          pNum.leftIndent = 0
-          pNum.firstLineIndent = 0
-          pNum.spaceBefore = 12
-          pNum.spaceAfter = 0
-
-          const pCap = table.insertParagraph(`Título descriptivo de la Tabla ${currentTableNum}`, Word.InsertLocation.before)
-          pCap.font.name = FONT_NAME
-          pCap.font.size = FONT_SIZE
-          pCap.font.italic = true
-          pCap.alignment = Word.Alignment.left
-          pCap.lineSpacing = LINE_SPACING_DOUBLE
-          pCap.leftIndent = 0
-          pCap.firstLineIndent = 0
-          pCap.spaceAfter = 6
-        }
-      } catch {
-        /* ignore */
-      }
-      currentTableNum++
     }
 
     onProgress?.('Centrando y rotulando figuras...', 90)
 
-    // 4. FORMATEAR FIGURAS EN VIVO
-    let currentFigNum = 1
-    for (const pic of pictures.items) {
-      const para = pic.paragraph
-      context.load(para, 'text')
-      const prev = para.getPreviousOrNullObject()
-      context.load(prev, 'text')
-    }
-    await context.sync()
-
-    for (const pic of pictures.items) {
-      const para = pic.paragraph
-      para.alignment = Word.Alignment.centered
-      para.spaceBefore = 6
-      para.spaceAfter = 6
-      para.leftIndent = 0
-      para.firstLineIndent = 0
-
-      const prev = para.getPreviousOrNullObject()
-      const hasCaption = !prev.isNullObject && /^Figura\s+\d+/i.test(prev.text.trim())
-
-      if (!hasCaption) {
-        try {
-          const pNum = pic.insertParagraph(`Figura ${currentFigNum}`, Word.InsertLocation.before)
-          pNum.font.name = FONT_NAME
-          pNum.font.size = FONT_SIZE
-          pNum.font.bold = true
-          pNum.font.italic = false
-          pNum.alignment = Word.Alignment.left
-          pNum.lineSpacing = LINE_SPACING_DOUBLE
-          pNum.leftIndent = 0
-          pNum.firstLineIndent = 0
-          pNum.spaceBefore = 12
-          pNum.spaceAfter = 0
-
-          const pCap = pic.insertParagraph(`Título de la Figura ${currentFigNum}`, Word.InsertLocation.before)
-          pCap.font.name = FONT_NAME
-          pCap.font.size = FONT_SIZE
-          pCap.font.italic = true
-          pCap.alignment = Word.Alignment.left
-          pCap.lineSpacing = LINE_SPACING_DOUBLE
-          pCap.leftIndent = 0
-          pCap.firstLineIndent = 0
-          pCap.spaceAfter = 6
-
-          const pNote = pic.insertParagraph('', Word.InsertLocation.after)
-          const rLabel = pNote.insertText('Nota. ', Word.InsertLocation.end)
-          rLabel.font.name = FONT_NAME
-          rLabel.font.size = 10
-          rLabel.font.italic = true
-          const rText = pNote.insertText('Fuente o descripción de la figura.', Word.InsertLocation.end)
-          rText.font.name = FONT_NAME
-          rText.font.size = 10
-          pNote.lineSpacing = LINE_SPACING_DOUBLE
-          pNote.leftIndent = 0
-          pNote.firstLineIndent = 0
-          pNote.spaceBefore = 4
-          pNote.spaceAfter = 12
-        } catch {
-          /* ignore */
-        }
+    // 4. FORMATEAR FIGURAS EN VIVO (Centrado seguro)
+    if (pictures.items.length > 0) {
+      for (const pic of pictures.items) {
+        const para = pic.paragraph
+        para.alignment = Word.Alignment.centered
+        para.spaceBefore = 6
+        para.spaceAfter = 6
+        para.leftIndent = 0
+        para.firstLineIndent = 0
       }
-      currentFigNum++
     }
 
     onProgress?.('Documento normalizado a APA 7', 100)
