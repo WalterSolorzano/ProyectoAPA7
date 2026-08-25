@@ -112,11 +112,31 @@ class TestBuildInfo:
             assert data["mode"] == mode
             assert isinstance(data.get("version"), str) and data["version"]
 
-    def test_sideload_status_honest_in_core(self, core_client):
-        """El chip no debe mentir: active_in_word desconocido => null."""
+    def test_sideload_status_honest_in_core(self, core_client, tmp_path, monkeypatch):
+        """El chip no debe mentir: active_in_word desconocido => null.
+
+        AISLADO del APPDATA real: core_server construye la ruta del manifest
+        DENTRO del handler (lectura por-request, sin cacheo al import), asi
+        que basta redirigir APPDATA a tmp_path y crear el fixture ahi.
+        """
+        storage = tmp_path / "WordAPA7" / "storage"
+        storage.mkdir(parents=True)
+        (storage / "manifest.xml").write_text("<OfficeApp />", encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path))
         data = core_client.get("/api/addin/sideload-status-v2").json()
         assert data["active_in_word"] is None
         assert data["installed"] is True
+
+    def test_sideload_without_manifest_reports_not_installed(self, core_client, tmp_path, monkeypatch):
+        """Caso negativo: APPDATA aislado SIN manifest => installed False.
+
+        Antes el test dependia del APPDATA real de la maquina: si existia un
+        manifest.xml viejo, pasaba por accidente; si no, fallaba.
+        """
+        monkeypatch.setenv("APPDATA", str(tmp_path))  # tmp vacio, sin manifest
+        data = core_client.get("/api/addin/sideload-status-v2").json()
+        assert data["installed"] is False
+        assert data["active_in_word"] is None
 
 
 class TestLifespanShutdown:
