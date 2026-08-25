@@ -1,7 +1,8 @@
-/* WordAPA7 — Rail lateral izquierdo del Editor Unificado.
-   La navegación de pasos vive SOLO en GuidedWizardBar (barra superior) por
-   contrato de chrome único: este rail ya NO duplica el navegador de etapas.
-   Aquí queda únicamente el toggle del Asistente IA (panel derecho).
+/* WordAPA7 — Helpers de progreso por etapa.
+   D1: el componente EditorRail (columna de 52px con el botón estrella del
+   Asistente IA) fue eliminado. El toggle vive ahora en RightSidePanel.
+   Este archivo conserva solo los helpers puros usados por la UI:
+   EDITOR_SECTIONS y getStepProgress.
 
    ORDEN DE ETAPAS (refactor UX):
    1. Portada
@@ -11,9 +12,7 @@
    5. Exportar
 */
 
-import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Sparkles } from 'lucide-react';
 import { needsReview } from '../../lib/portadaAuthors';
 import { Layout, Type, Image, BookOpen, Download } from 'lucide-react';
 
@@ -73,51 +72,3 @@ export const getStepProgress = (stepId: number): number => {
 
   return 0;
 };
-
-export const EditorRail: React.FC = () => {
-  const { setSelectedReferenceId, setSelectedElementId, forceRightPanelOpen, setForceRightPanelOpen } = useDocStore();
-
-  return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'stretch' }}>
-      <div
-        style={{
-          width: '52px', flexShrink: 0,
-          backgroundColor: 'var(--sidebar-bg)',
-          borderRight: '1px solid var(--border-subtle)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          paddingTop: '8px', gap: '2px', overflowY: 'auto',
-          height: '100%',
-        }}
-      >
-        <div style={{ flex: 1 }} />
-
-        {/* Asistente IA toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedReferenceId(null);
-            setSelectedElementId(null);
-            setForceRightPanelOpen(!forceRightPanelOpen);
-          }}
-          title={forceRightPanelOpen ? 'Ocultar Asistente IA' : 'Asistente IA (Herramientas de revisión)'}
-          aria-label="Asistente IA"
-          aria-expanded={forceRightPanelOpen}
-          style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', border: 'none', background: 'transparent',
-            color: forceRightPanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-            marginBottom: '4px', flexShrink: 0,
-            transition: 'color 0.15s ease',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-        >
-          <Sparkles size={16} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export default EditorRail;
