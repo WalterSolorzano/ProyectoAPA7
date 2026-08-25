@@ -4,6 +4,11 @@
    derecho (ReferencesPanel). El validador completo se abre como drawer NO
    bloqueante sobre el canvas.
 
+   F4: El drawer del validador ahora se monta a nivel raíz en App.tsx
+   (ValidatorDrawer), por lo que puede abrirse desde cualquier paso del
+   wizard. Este componente solo conserva el aviso de "sin bibliografía"
+   y el auto-scroll a la sección de referencias.
+
    Si el documento NO tiene un encabezado de Referencias/Bibliografía, no
    enviamos al usuario a un elemento aleatorio (el último del documento).
    En su lugar mostramos un aviso claro y dejamos el panel derecho abierto
@@ -12,8 +17,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { PaperCanvas } from '../layout/PaperCanvas';
-import { ValidatorView } from '../validator/ValidatorView';
-import { X, BookOpen } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
 const isRefHeading = (txt: string): boolean => {
   const n = (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -21,8 +25,6 @@ const isRefHeading = (txt: string): boolean => {
 };
 
 export const Step5ReferencesWizard: React.FC = () => {
-  const validatorOpen = useDocStore((s) => s.validatorOpen);
-  const setValidatorOpen = useDocStore((s) => s.setValidatorOpen);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
   const setForceRightPanelOpen = useDocStore((s) => s.setForceRightPanelOpen);
   // Suscripción reactiva al documento: si el usuario agrega un encabezado de
@@ -65,14 +67,9 @@ export const Step5ReferencesWizard: React.FC = () => {
           role="status"
           aria-live="polite"
           style={{
-            position: 'absolute',
-            top: 14,
-            left: 14,
-            zIndex: 30,
+            position: 'absolute', top: 14, left: 14, zIndex: 30,
             maxWidth: 'min(440px, calc(100% - 28px))',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 12,
+            display: 'flex', alignItems: 'flex-start', gap: 12,
             padding: '12px 14px',
             backgroundColor: 'var(--surface-elevated)',
             border: '1px solid var(--border-subtle)',
@@ -83,12 +80,8 @@ export const Step5ReferencesWizard: React.FC = () => {
         >
           <span
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              width: 34,
-              height: 34,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, width: 34, height: 34,
               borderRadius: 'var(--radius-md)',
               backgroundColor: 'rgba(79,124,255,0.10)',
               color: 'var(--accent-primary)',
@@ -110,38 +103,8 @@ export const Step5ReferencesWizard: React.FC = () => {
         </div>
       )}
 
-      {/* Validador como drawer no bloqueante (el canvas sigue a la vista) */}
-      {validatorOpen && (
-        <div style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0,
-          width: 'min(640px, 64%)', zIndex: 40,
-          display: 'flex', flexDirection: 'column',
-          backgroundColor: 'var(--sidebar-bg)',
-          borderLeft: '1px solid var(--border-subtle)',
-          boxShadow: '-10px 0 28px rgba(0,0,0,0.25)',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '9px 14px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
-          }}>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', flex: 1 }}>
-              Validador de citas y referencias
-            </span>
-            <button
-              type="button"
-              onClick={() => setValidatorOpen(false)}
-              aria-label="Cerrar validador"
-              title="Cerrar (Esc)"
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            <ValidatorView />
-          </div>
-        </div>
-      )}
+      {/* F4: El drawer del validador ahora vive en App.tsx (ValidatorDrawer)
+          y se puede abrir desde cualquier paso del wizard. */}
     </div>
   );
 };

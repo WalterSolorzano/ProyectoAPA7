@@ -24,7 +24,7 @@ import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
-import { EditorRail } from './components/wizard/EditorRail';
+// D1: EditorRail removed — the Sparkles toggle now lives inside RightSidePanel
 import { StepRail } from './components/wizard/StepRail';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 
@@ -38,6 +38,9 @@ import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
 import { ImageEditPanel } from './components/inspector/ImageEditPanel';
 import { syncAllProviderKeys } from './api/backend';
+// F4: ValidatorView drawer ahora vive a nivel raiz (abrible desde cualquier paso)
+import { ValidatorView } from './components/validator/ValidatorView';
+import { X } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
    1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
@@ -141,6 +144,48 @@ const ImageEditSidePanel: React.FC = () => {
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <ImageEditPanel elem={selectedImage} />
+      </div>
+    </div>
+  );
+};
+
+/** F4: Drawer del validador global — montado a nivel raíz para que se pueda
+    abrir desde cualquier paso del wizard (antes solo existía en Step5). */
+const ValidatorDrawer: React.FC = () => {
+  const validatorOpen = useDocStore((s) => s.validatorOpen);
+  const setValidatorOpen = useDocStore((s) => s.setValidatorOpen);
+  if (!validatorOpen) return null;
+  return (
+    <div
+      data-testid="validator-drawer"
+      style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 'min(640px, 64%)', zIndex: 1000,
+        display: 'flex', flexDirection: 'column',
+        backgroundColor: 'var(--sidebar-bg)',
+        borderLeft: '1px solid var(--border-subtle)',
+        boxShadow: '-10px 0 28px rgba(0,0,0,0.25)',
+      }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '9px 14px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
+      }}>
+        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', flex: 1 }}>
+          Validador de citas y referencias
+        </span>
+        <button
+          type="button"
+          onClick={() => setValidatorOpen(false)}
+          aria-label="Cerrar validador"
+          title="Cerrar (Esc)"
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <ValidatorView />
       </div>
     </div>
   );
@@ -495,8 +540,8 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : wizardStep === 1 ? (
+          /* D1: EditorRail removed — RightSidePanel handles the assistant toggle */
           <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
-            <EditorRail />
             <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
               <CoverEditorPanel />
             </div>
@@ -505,9 +550,9 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : (
+          /* D1: EditorRail removed — RightSidePanel handles the assistant toggle */
           <>
             <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
-              <EditorRail />
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
                 <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
@@ -539,6 +584,8 @@ export const App: React.FC = () => {
       <AIBatteryIndicator />
       {doc && <MascotBubble />}
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
+      {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
+      {doc && <ValidatorDrawer />}
     </div>
   );
 };

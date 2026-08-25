@@ -2,7 +2,11 @@
    Forma parte del layout flex: cuando se abre, empuja el documento
    hacia la izquierda en lugar de flotar encima.
    - ActionBar + Inspector según contexto.
-   - Sin bloques de "Resumen" ni "Revision IA" repetidos. */
+   - Sin bloques de "Resumen" ni "Revision IA" repetidos.
+
+   D1: El toggle del Asistente IA (Sparkles) vive en este panel, no en una
+   columna separada de 52px (EditorRail fue eliminado). Cuando el panel está
+   cerrado se muestra una franja colapsada de 40px con el botón Sparkles. */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
@@ -11,7 +15,7 @@ import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { ReferencesPanel } from '../referencias/ReferencesPanel';
 import { OutlineTree } from '../wizard/OutlineTree';
-import { Activity, X, FileText, ListChecks, BookOpen, Map } from 'lucide-react';
+import { Activity, X, FileText, ListChecks, BookOpen, Map, Sparkles } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   success: <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2714;</span>,
@@ -36,10 +40,33 @@ const MIN_WIDTH = 260;
 const MAX_WIDTH = 620;
 const LOCAL_STORAGE_KEY = 'wordapa7-inspector-width';
 
+/** Botón Sparkles reutilizable: toggle del Asistente IA (panel derecho). */
+const SparklesToggle: React.FC<{ open: boolean; onClick: () => void }> = ({ open, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={open ? 'Ocultar Asistente IA' : 'Asistente IA (Herramientas de revisión)'}
+    aria-label="Asistente IA"
+    aria-expanded={open}
+    style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      width: '28px', height: '28px', borderRadius: 'var(--radius-sm)',
+      cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit',
+      color: open ? 'var(--accent-primary)' : 'var(--text-secondary)',
+      flexShrink: 0, transition: 'color 0.15s ease',
+    }}
+    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
+    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+  >
+    <Sparkles size={15} />
+  </button>
+);
+
 export const RightSidePanel: React.FC = () => {
   const {
     forceRightPanelOpen, setForceRightPanelOpen,
     selectedElementId, selectedReferenceId, doc, wizardStep,
+    setSelectedElementId, setSelectedReferenceId,
   } = useDocStore();
 
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -95,7 +122,32 @@ export const RightSidePanel: React.FC = () => {
     };
   }, [isResizing]);
 
-  if (!forceRightPanelOpen) return null;
+  // ── D1: Estado colapsado — franja delgada con el toggle Sparkles ──
+  // Cuando el panel está cerrado, mostramos una franja de 40px con el botón
+  // Sparkles para que el usuario pueda reabrirlo. Reemplaza la columna
+  // EditorRail de 52px que existía antes.
+  if (!forceRightPanelOpen) {
+    return (
+      <div
+        style={{
+          width: '40px', flexShrink: 0, height: '100%',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          backgroundColor: 'var(--sidebar-bg)',
+          borderLeft: '1px solid var(--border-subtle)',
+          paddingTop: '10px',
+        }}
+      >
+        <SparklesToggle
+          open={false}
+          onClick={() => {
+            setSelectedReferenceId(null);
+            setSelectedElementId(null);
+            setForceRightPanelOpen(true);
+          }}
+        />
+      </div>
+    );
+  }
 
   const hasSelection = !!selectedElementId && !!doc;
   const hasReference = !hasSelection && !!selectedReferenceId;
@@ -147,6 +199,15 @@ export const RightSidePanel: React.FC = () => {
           {hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
         </span>
         <div style={{ flex: 1 }} />
+        {/* D1: Toggle del Asistente IA integrado en el header */}
+        <SparklesToggle
+          open={true}
+          onClick={() => {
+            setSelectedReferenceId(null);
+            setSelectedElementId(null);
+            setForceRightPanelOpen(false);
+          }}
+        />
         <button
           type="button"
           onClick={() => setForceRightPanelOpen(false)}

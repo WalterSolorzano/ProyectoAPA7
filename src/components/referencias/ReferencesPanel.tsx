@@ -63,7 +63,7 @@ const handleResolveGhost = async (i: number) => {
     }
   };
 
-  // Dedupe visual por (autor, a?o): el backend puede repetir la misma cita N veces.
+  // Dedupe visual por (autor, año): el backend puede repetir la misma cita N veces.
   const seenGhost = new Set<string>();
   const ghostsUnique = ghosts.filter((g: any) => {
     const s = typeof g === 'string' ? g : String(g?.raw_text || g?.formatted_apa || '');
@@ -109,21 +109,26 @@ const handleResolveGhost = async (i: number) => {
           <Link2 size={13} color="var(--accent-secondary)" />
           <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Validación</span>
           <div style={{ flex: 1 }} />
-          {!citationAuditResult && (
-            <button type="button" onClick={() => runCitationAudit()} className="btn btn-ghost btn-sm" style={{ fontSize: '10px' }}>
-              Validar citas
-            </button>
-          )}
-          {citationAuditResult && (
-            <button type="button" onClick={() => setValidatorOpen(true)} className="btn btn-ghost btn-sm" style={{ fontSize: '10px', color: 'var(--accent-primary)' }}>
-              Ver validador
-            </button>
-          )}
+          {/* F4: El botón "Abrir validador" siempre está disponible.
+              Si no hay auditoría previa, la dispara al abrir. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!citationAuditResult) {
+                runCitationAudit();
+              }
+              setValidatorOpen(true);
+            }}
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: '10px', color: 'var(--accent-primary)' }}
+          >
+            Abrir validador
+          </button>
         </div>
 
         {!citationAuditResult ? (
           <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Corré una auditoría para cruzar las citas del texto contra la bibliografía.
+            Abre el validador para correr una auditoría y cruzar las citas del texto contra la bibliografía.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
