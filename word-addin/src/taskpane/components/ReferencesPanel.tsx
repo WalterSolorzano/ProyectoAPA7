@@ -429,7 +429,7 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
                     onClick={() => removeRef(ref.id)}
                     title="Eliminar referencia"
                   >
-                    ✕
+                    X
                   </button>
                 </div>
               </div>

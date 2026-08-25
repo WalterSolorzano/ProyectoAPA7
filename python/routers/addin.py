@@ -1079,7 +1079,7 @@ async def ai_analyze_table(req: AnalyzeTableAIRequest) -> dict:
 
     Usa ``analyze_table_cells`` del detector de IA, que examina encabezados
     y filas buscando señales típicas de contenido pegado desde chat/IA:
-      - Emojis y símbolos de checklist (✅ ❌ ✔ ✘) en celdas
+      - Emojis y símbolos de checklist ( X  ) en celdas
       - Múltiples punto y coma en celdas (texto pegado de web)
       - Otros artefactos de copia
 

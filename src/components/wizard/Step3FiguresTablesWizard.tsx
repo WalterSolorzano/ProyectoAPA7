@@ -177,7 +177,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                 style={{ border: 'none', outline: 'none', flex: 1, minWidth: 0, fontSize: '11px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit' }}
               />
               {query && (
-                <button type="button" onClick={() => setQuery('')} aria-label="Limpiar búsqueda" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' }}>✕</button>
+                <button type="button" onClick={() => setQuery('')} aria-label="Limpiar búsqueda" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' }}>X</button>
               )}
             </div>
             <button
@@ -234,7 +234,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
               padding: '36px 16px', textAlign: 'center', color: 'var(--text-secondary)',
               fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
             }}>
-              <span style={{ fontSize: '28px' }}>{subTab === 'figures' ? '🖼️' : '📊'}</span>
+              <span style={{ fontSize: '28px' }}>{subTab === 'figures' ? '️' : ''}</span>
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
                 {currentItems.length === 0
                   ? `No se detectaron ${subTab === 'figures' ? 'figuras' : 'tablas'}`

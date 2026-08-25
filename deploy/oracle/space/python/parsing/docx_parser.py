@@ -976,7 +976,7 @@ def parse_docx_bytes(
             except Exception:
                 pass
 
-            # 🔥 Detectar parrafos dentro del rango de un campo TOC de Word
+            #  Detectar parrafos dentro del rango de un campo TOC de Word
             # (detectado por _detect_toc_paragraph_indices en el pre-scan)
             is_toc_paragraph: bool = child_idx in toc_paragraph_indices
 

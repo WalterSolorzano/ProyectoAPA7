@@ -405,7 +405,7 @@ export const Step0QuickStart: React.FC = () => {
                     }}
                   >
                     <span style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 700, color: on ? 'var(--accent-primary)' : 'var(--text-main)' }}>
-                      {s.label} {on ? '✓' : ''}
+                      {s.label} {on ? '' : ''}
                     </span>
                     <span style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{s.desc}</span>
                   </button>

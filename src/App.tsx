@@ -138,7 +138,7 @@ const ImageEditSidePanel: React.FC = () => {
             fontFamily: 'inherit', fontSize: '14px', lineHeight: 1,
           }}
         >
-          ✕
+          X
         </button>
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>

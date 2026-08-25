@@ -28,14 +28,14 @@ const EXTRA_HERO: Phrase[] = [
 function getTimeBadge(now: Date): string {
   const h = now.getHours();
   const day = now.getDay();
-  if (h >= 1 && h < 5) return '🌙 hora pico';
-  if (day === 0 && h >= 17) return '📚 entrega dominical';
-  if (day === 5 && h >= 15) return '🛡️ modo viernes';
+  if (h >= 1 && h < 5) return ' hora pico';
+  if (day === 0 && h >= 17) return ' entrega dominical';
+  if (day === 5 && h >= 15) return ' modo viernes';
   if (day === 1 && h < 9) return '⏰ lunes temprano';
-  if (day === 6 && h < 12) return '☕ mañana sabatina';
-  if (day >= 2 && day <= 4 && h >= 22) return '🌙 entre semana';
-  if (h >= 23) return '🌙 tras medianoche';
-  return '🕒 hora local';
+  if (day === 6 && h < 12) return ' mañana sabatina';
+  if (day >= 2 && day <= 4 && h >= 22) return ' entre semana';
+  if (h >= 23) return ' tras medianoche';
+  return ' hora local';
 }
 
 /** Frases de contexto horario únicas (además de las de getTimeSlotPhrases). */
@@ -59,9 +59,9 @@ function buildPool(): Phrase[] {
   const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: fmtPhrase(t.replace(/…$/, '')), tag: 'procesando' }));
   const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste' }));
   const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato APA' }));
-  const ai: Phrase[] = AI_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'ai', badge: '🤖 modo IA' }));
-  const wordhell: Phrase[] = WORD_HELL_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'wordhell', badge: '📐 infierno Word' }));
-  const student: Phrase[] = STUDENT_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'student', badge: '☕ modo café' }));
+  const ai: Phrase[] = AI_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'ai', badge: ' modo IA' }));
+  const wordhell: Phrase[] = WORD_HELL_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'wordhell', badge: ' infierno Word' }));
+  const student: Phrase[] = STUDENT_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'student', badge: ' modo café' }));
 
   return [...timePhrases, ...EXTRA_HERO, ...process, ...jokes, ...facts, ...ai, ...wordhell, ...student];
 }

@@ -399,7 +399,7 @@ export const ExportView: React.FC = () => {
                     {refsCount} referencias en bibliografía con sangría francesa.
                     {ghostCount > 0 && (
                       <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-medium)', display: 'block', marginTop: '4px' }}>
-                        ⚠️ {ghostCount} cita{ghostCount === 1 ? '' : 's'} en el texto sin entrada en bibliografía.
+                         {ghostCount} cita{ghostCount === 1 ? '' : 's'} en el texto sin entrada en bibliografía.
                       </span>
                     )}
                   </div>

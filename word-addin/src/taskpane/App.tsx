@@ -407,7 +407,7 @@ export const App: React.FC = () => {
           <span style={{ flex: 1 }}>{toast.msg}</span>
           {toast.type === 'error' && (
             <button type="button" onClick={() => setToast(null)} style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-              ✕
+              X
             </button>
           )}
         </div>

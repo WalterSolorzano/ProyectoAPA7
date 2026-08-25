@@ -23,7 +23,7 @@ export const ReviewStatusBadge: React.FC<ReviewStatusBadgeProps> = ({ confidence
         display: 'inline-flex', alignItems: 'center', gap: '4px',
         whiteSpace: 'nowrap',
       }} title="Has editado este elemento manualmente. El sistema respeta tus cambios.">
-        <span style={{ fontSize: '12px', lineHeight: 1 }}>✏️</span>
+        <span style={{ fontSize: '12px', lineHeight: 1 }}>️</span>
         <span>Editado</span>
       </span>
     );
@@ -39,7 +39,7 @@ export const ReviewStatusBadge: React.FC<ReviewStatusBadgeProps> = ({ confidence
         display: 'inline-flex', alignItems: 'center', gap: '4px',
         whiteSpace: 'nowrap',
       }} title="Por favor revisa este elemento y confirma su tipo.">
-        <span style={{ fontSize: '12px', lineHeight: 1 }}>⚠️</span>
+        <span style={{ fontSize: '12px', lineHeight: 1 }}></span>
         <span>Revisar</span>
       </span>
     );

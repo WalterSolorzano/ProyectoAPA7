@@ -208,9 +208,9 @@ const ANIMATION_BY_CATEGORY: Record<Tip['category'], string> = {
 
 // Etiqueta de "modo" para los sets temáticos (chiste -> comentario con badge).
 const MODE_LABEL: Partial<Record<Tip['category'], string>> = {
-  ai: "🤖 Modo: te atrapé usando IA",
-  wordhell: '📐 Modo: el infierno de Word y APA 7',
-  student: '☕ Modo: agotamiento estudiantil',
+  ai: " Modo: te atrapé usando IA",
+  wordhell: ' Modo: el infierno de Word y APA 7',
+  student: ' Modo: agotamiento estudiantil',
 };
 
 // Tiempo que cada frase permanece visible. Las de "arte" (honestidad de espera)
@@ -468,7 +468,7 @@ export const LoadingTips: React.FC = () => {
       <div className={`tip-comment tip-comment-${size}`} key={tip.text}>
         {label && <span className="tip-comment-badge">{label}</span>}
         <span className="tip-comment-text">
-          <span className="tip-comment-marker" aria-hidden="true">💬</span>
+          <span className="tip-comment-marker" aria-hidden="true"></span>
           {tip.text}
         </span>
       </div>

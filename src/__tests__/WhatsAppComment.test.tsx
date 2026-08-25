@@ -37,7 +37,7 @@ const AUDITED_CTX = { ...NO_CTX, styleAuditRun: true };
 
 describe('getWhatsAppComment — IA / emojis', () => {
   it('detects checklist emoji in paragraph text', () => {
-    const c = getWhatsAppComment(mkElem({ text: '✅ Cumple con las normas ✅' }), NO_CTX);
+    const c = getWhatsAppComment(mkElem({ text: '\u2705 Cumple con las normas \u274c' }), NO_CTX);
     expect(c).not.toBeNull();
     expect(c!.kind).toBe('emoji');
   });
@@ -46,7 +46,7 @@ describe('getWhatsAppComment — IA / emojis', () => {
     const c = getWhatsAppComment(
       mkElem({
         type: 'table',
-        table_info: { element_id: 't1', headers: ['C', 'C'], rows: [['A', '✅']], caption: '', table_number: 1 } as any,
+        table_info: { element_id: 't1', headers: ['C', 'C'], rows: [['A', '\u2705']], caption: '', table_number: 1 } as any,
       }),
       NO_CTX,
     );
@@ -168,11 +168,11 @@ describe('WhatsAppComment component', () => {
   afterEach(() => { vi.useRealTimers(); });
 
   it('shows the typing indicator first, then the message', () => {
-    const { container, rerender } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: '✅ Cumple con las normas' })} />);
+    const { container, rerender } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: '\u2705 Cumple con las normas' })} />);
     // En typing: la colita aún no existe y hay "escribiendo…"
     expect(screen.getByText(/escribiendo/i)).toBeTruthy();
     act(() => { vi.advanceTimersByTime(2200); });
-    rerender(<WhatsAppComment elem={mkElem({ id: 'x', text: '✅ Cumple con las normas' })} />);
+    rerender(<WhatsAppComment elem={mkElem({ id: 'x', text: '\u2705 Cumple con las normas' })} />);
     expect(screen.queryByText(/escribiendo/i)).toBeNull();
     expect(container.querySelector('.wa-tail')).toBeTruthy();
   });

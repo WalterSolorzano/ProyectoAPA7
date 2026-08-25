@@ -105,7 +105,7 @@ const apply = async () => {
             }}
           >
             <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: on ? 'var(--accent-primary)' : 'var(--text-main, #18181b)' }}>
-              {s.label}{on ? ' ✓' : ''}
+              {s.label}{on ? ' ' : ''}
             </span>
             <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted, #71717a)' }}>{s.desc}</span>
           </button>

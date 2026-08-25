@@ -15,7 +15,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-# Emojis / símbolos de checklist (✅❌✔✘☑ etc.) que sobreviven al pegado de chat/IA
+# Emojis / símbolos de checklist (X etc.) que sobreviven al pegado de chat/IA
 EMOJI_CHECKLIST_RE = re.compile(
     r'[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u2764\u2714\u2718\u2705\u274C\u2611]'
 )
@@ -248,7 +248,7 @@ def _detect_copy_artifacts(text: str) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Detecta artefactos de copia de ChatGPT / páginas web que sobreviven al pegado
     en Word y delatan contenido generado o copiado:
-    - Emojis y simbolos de checklist (✅ ❌ ✔ ✘ ⭐)
+    - Emojis y simbolos de checklist ( X   ⭐)
     - Marcadores Markdown (###, **negrita**, ```, >)
     - Doble guion / guiones largos pegados (--, —, – )
     - Listas inline tipo "1)" "a)" copiadas de chat
@@ -268,7 +268,7 @@ def _detect_copy_artifacts(text: str) -> Tuple[float, List[Dict[str, Any]]]:
         findings.append({
             "pattern": "copy_emoji",
             "severity": "MEDIUM" if len(emoji_matches) >= 3 else "LOW",
-            "detail": f"{len(emoji_matches)} emoji(s)/simbolo(s) de checklist (✅❌✔✘) en el texto — tipico de contenido copiado de chat/IA",
+            "detail": f"{len(emoji_matches)} emoji(s)/simbolo(s) de checklist (X) en el texto — tipico de contenido copiado de chat/IA",
             "count": len(emoji_matches),
             "phrase": emoji_matches[0].group(0),
         })
@@ -555,7 +555,7 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
 def analyze_table_cells(headers: List[str], rows: List[List[str]]) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Analiza celdas de una tabla buscando artefactos de copia web/IA que no
-    aparecen en párrafos: emojis de checklist (✅❌), múltiples punto y coma,
+    aparecen en párrafos: emojis de checklist (X), múltiples punto y coma,
     marcadores. Retorna (score 0-1, findings).
     """
     cells: List[str] = []
@@ -564,7 +564,7 @@ def analyze_table_cells(headers: List[str], rows: List[List[str]]) -> Tuple[floa
         cells.extend([str(c) for c in row if str(c).strip()])
 
     # IMPORTANTE: NO filtrar por longitud antes del análisis de emojis —
-    # los símbolos de checklist (✅❌) son celdas de 1 carácter.
+    # los símbolos de checklist (X) son celdas de 1 carácter.
     if not cells:
         return 0.0, []
 
@@ -584,9 +584,9 @@ def analyze_table_cells(headers: List[str], rows: List[List[str]]) -> Tuple[floa
         findings.append({
             "pattern": "table_emoji",
             "severity": "HIGH" if emoji_total >= 3 else "MEDIUM",
-            "detail": f"{emoji_total} símbolo(s) de checklist (✅❌✔✘) en {emoji_cells} celda(s) de la tabla — matriz copiada de chat/IA",
+            "detail": f"{emoji_total} símbolo(s) de checklist (X) en {emoji_cells} celda(s) de la tabla — matriz copiada de chat/IA",
             "count": emoji_total,
-            "phrase": "✅",
+            "phrase": "",
         })
 
     semi_cells = sum(1 for c in cells if str(c).count(";") >= 2)

@@ -148,7 +148,7 @@ export const StepperItem: React.FC<{
         flexShrink: 0,
       }}
     >
-      {complete ? '✓' : number}
+      {complete ? '' : number}
     </div>
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>

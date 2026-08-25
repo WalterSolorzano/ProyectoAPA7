@@ -844,13 +844,13 @@ def generate_apa7_docx(
                         portada_date=p_date,
                     )
                     cover_template_applied = True
-                    print(f"[COVER-DESIGNER] ✅ Portada '{cover_template_id}' aplicada. Parrafos agregados: {paragraphs_added}")
+                    print(f"[COVER-DESIGNER]  Portada '{cover_template_id}' aplicada. Parrafos agregados: {paragraphs_added}")
                 else:
-                    print(f"[COVER-DESIGNER] ❌ Plantilla '{cover_template_id}' NO encontrada en la lista de templates")
+                    print(f"[COVER-DESIGNER] X Plantilla '{cover_template_id}' NO encontrada en la lista de templates")
                     print(f"[COVER-DESIGNER] Templates disponibles: {[t.name for t in templates]}")
             except Exception as e:
                 import traceback
-                print(f"[COVER-DESIGNER] ❌ Error aplicando cover designer: {e}")
+                print(f"[COVER-DESIGNER] X Error aplicando cover designer: {e}")
                 traceback.print_exc()
 
     # 4. Portada sintética (si no existe archivo original o el usuario la solicitó explícitamente)
@@ -1369,7 +1369,7 @@ def generate_apa7_docx(
         else:
             p = doc.add_paragraph()
 
-        # 🔥 PAGE BREAK LOGIC (BUG 1 FIX)
+        #  PAGE BREAK LOGIC (BUG 1 FIX)
         needs_break = False
         force_text = (elem.original_text or elem.text or "")
 

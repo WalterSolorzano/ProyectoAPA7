@@ -101,7 +101,7 @@ const EMOJI_COMMENTS: ChatLine[] = [
 const TABLE_EMOJI_COMMENTS: ChatLine[] = [
   { emoji: '', text: 'bro? la tabla tiene emojis de checklist, ¿de dónde salió?' },
   { emoji: '', text: 'eso parece una matriz que te pasó el chat, bro' },
-  { emoji: '', text: '¿estos ✓ y ✗ son parte de la norma APA? jaja' },
+  { emoji: '', text: '¿estos  y  son parte de la norma APA? jaja' },
   { emoji: '', text: 'la tabla quedó con las marquitas de la IA, brou' },
 ];
 

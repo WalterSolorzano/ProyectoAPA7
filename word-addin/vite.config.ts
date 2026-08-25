@@ -13,7 +13,7 @@ import path from 'path'
 // directamente desde :3000 en HTTPS), setear WORDAPA7_USE_SSL=true en .env.
 // Esto activa vite-plugin-mkcert que genera certificados de desarrollo.
 //
-// ⚠️ base: './' — CRÍTICO: los assets deben usar paths RELATIVOS porque
+//  base: './' — CRÍTICO: los assets deben usar paths RELATIVOS porque
 // el backend sirve el add-in bajo /addin/ (no en la raíz /).  Sin esto,
 // Vite genera <script src="/taskpane.js"> que se resuelve a la raíz del
 // servidor y el panel queda en blanco dentro de Word.

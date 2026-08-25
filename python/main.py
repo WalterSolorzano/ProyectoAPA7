@@ -155,7 +155,7 @@ app = FastAPI(title="WordAPA7 API", version="1.0.0", lifespan=lifespan_app)
 from services.lo_service import get_libreoffice_service
 
 # CORS middleware para desarrollo con Vite.
-# ⚠️ Antes se usaba allow_origins=["*"] con allow_credentials=True, lo cual
+#  Antes se usaba allow_origins=["*"] con allow_credentials=True, lo cual
 # es inseguro y viola la especificación CORS. Ahora se restringe a orígenes
 # explícitos configurables vía WORDAPA7_ALLOWED_ORIGINS (CSV), con defaults
 # seguros para desarrollo local (Vite# Enable CORS for the local Vite dev server and the Electron packaged app
@@ -1325,12 +1325,12 @@ async def api_chat_comment(req: ChatCommentRequest) -> dict:
     }.get(req.kind, "algo sospechoso en el trabajo académico")
 
     examples = req.examples or [
-        "¿por qué gritás? 😂",
-        "¿spanglish? 😅",
-        "esta cita es de pablito? 🫣",
-        "bro, los emojis quedaron pegados del chat 💀",
-        "respirá, bro, es un párrafo larguísimo 😮‍💨",
-        "ese cierre lo escribió el robot, se nota 🤖",
+        "¿por qué gritás? ",
+        "¿spanglish? ",
+        "esta cita es de pablito? ",
+        "bro, los emojis quedaron pegados del chat ",
+        "respirá, bro, es un párrafo larguísimo ‍",
+        "ese cierre lo escribió el robot, se nota ",
     ]
 
     examples_str = "\n".join(f"- {ex}" for ex in examples[:6])

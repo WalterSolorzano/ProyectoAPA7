@@ -171,7 +171,7 @@ export const AIPanel: React.FC<Props> = ({ showToast }) => {
           <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
             {selResult.findings.length === 0 ? (
               <div style={{ color: 'var(--accent-success)', fontWeight: 600 }}>
-                ✓ No se detectaron patrones típicos de IA en el texto seleccionado.
+                 No se detectaron patrones típicos de IA en el texto seleccionado.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

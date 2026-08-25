@@ -171,7 +171,7 @@ def build_sidebar() -> None:
     draw.rounded_rectangle([px0, py0 + 3, px1, py1 + 3], radius=17, fill=YELLOW_DEEP)
     draw.rounded_rectangle([px0, py0, px1, py1], radius=17, fill=YELLOW)
 
-    # Alineación exacta del grupo "docx  ➜  APA 7"
+    # Alineación exacta del grupo "docx    APA 7"
     gap = 9
     arrow_w = 24
     w_docx = draw.textlength("docx", font=font_ribbon)

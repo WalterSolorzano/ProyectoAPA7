@@ -282,7 +282,17 @@ def main() -> int:
     for item in list(OUTPUT_DIR.rglob("*.pdb")):
         item.unlink(missing_ok=True)
         removed += 1
-    print(f"  {removed} elementos eliminados")
+    # ── STEP 8b: Reasegurar ._pth ──────────────────────────────────────────
+    pth_file = OUTPUT_DIR / f"python{tag}._pth"
+    if pth_file.exists():
+        pth_file.write_text(
+            f"python{tag}.zip\n"
+            f".\n"
+            f"python\n"
+            f"Lib/site-packages\n"
+            f"import site\n",
+            encoding="utf-8",
+        )
 
     # ── STEP 9: Verificar ──────────────────────────────────────────────────
     print(f"\n[9/9] Verificando instalacion...")

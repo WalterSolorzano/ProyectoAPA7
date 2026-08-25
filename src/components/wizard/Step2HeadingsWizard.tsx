@@ -304,7 +304,7 @@ export const Step2HeadingsWizard: React.FC = () => {
         </div>
 
         {/* Document canvas.
-            ⚠️ NO usar overflowY:'auto' ni padding aquí — PaperCanvas ya tiene su
+             NO usar overflowY:'auto' ni padding aquí — PaperCanvas ya tiene su
             propio contenedor de scroll (overflowY:'auto' + padding). Si anidamos
             otro scrollable, scrollIntoView() solo mueve el contenedor interno y
             el autoscroll se "bloquea" porque el contenedor externo nunca se

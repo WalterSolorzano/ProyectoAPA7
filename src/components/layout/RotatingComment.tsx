@@ -2,7 +2,7 @@
  * Muestra las frases de la biblioteca (chistes, modos temáticos, curiosidades
  * APA) en lugares donde la pantalla de carga no llega: el usuario las ve
  * mientras trabaja, no solo esperando. Van en estilo "comentario" (burbuja
- * sutil + 💬 + cursiva), sin comillas.
+ * sutil +  + cursiva), sin comillas.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -40,7 +40,7 @@ export const RotatingComment: React.FC<RotatingCommentProps> = ({ intervalMs = 1
       className="rotating-comment"
       title={text}
     >
-      <span className="rotating-comment-marker" aria-hidden="true">💬</span>
+      <span className="rotating-comment-marker" aria-hidden="true"></span>
       <span className="rotating-comment-text">{text}</span>
     </span>
   );

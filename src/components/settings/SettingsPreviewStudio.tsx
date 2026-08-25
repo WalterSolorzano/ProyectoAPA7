@@ -164,7 +164,7 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
               <button type="button" className="btn btn-primary btn-sm" onClick={handleSaveProfile}
                 style={{ padding: '0 14px', borderRadius: '10px', flexShrink: 0 }}>Guardar</button>
             </div>
-            {saved && <p style={{ fontSize: '11px', color: 'var(--accent-secondary)', marginTop: '8px' }}>✓ {saved}</p>}
+            {saved && <p style={{ fontSize: '11px', color: 'var(--accent-secondary)', marginTop: '8px' }}> {saved}</p>}
             {portadaProfiles.length > 0 && (
               <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px' }}>
                 {portadaProfiles.length} plantilla(s) de portada guardada(s).
@@ -540,12 +540,12 @@ const AddinStatusCard: React.FC = () => {
     success: {
       icon: <CheckCircle2 size={15} />,
       color: 'var(--accent-success, #22c55e)',
-      label: '✓ Complemento registrado',
+      label: ' Complemento registrado',
     },
     error: {
       icon: <AlertCircle size={15} />,
       color: 'var(--accent-danger, #ef4444)',
-      label: '⚠ No se pudo registrar',
+      label: ' No se pudo registrar',
     },
     unavailable: {
       icon: <AlertCircle size={15} />,

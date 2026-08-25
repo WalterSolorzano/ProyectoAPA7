@@ -257,7 +257,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           kind: 'citation',
           severity: hasIssue ? 'HIGH' : 'OK',
           title: hasIssue
-            ? `Cita detectada · ⚠ ${c.error}`
+            ? `Cita detectada ·  ${c.error}`
             : `Cita detectada · ${c.authors.join(', ')} (${c.year}) — formato APA 7 correcto`,
         });
       }
