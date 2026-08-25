@@ -54,6 +54,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
   onToggle,
   onOptionChange,
   onScanNow,
+  onFormatAll,
   auditStatus,
   auditResult,
   auditNotice,
@@ -77,7 +78,11 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         setProgressPct(pct)
       })
       setLastReport(report)
-      showToast('Documento normalizado a APA 7 con éxito', 'success')
+      if ((report as any).fallbackUsed) {
+        showToast('Motor central no disponible: se aplicó formato APA 7 local limitado.', 'info')
+      } else {
+        showToast('Documento normalizado a APA 7 con éxito', 'success')
+      }
     } catch (err: any) {
       showToast(err.message || 'Error al normalizar documento en Word', 'error')
     } finally {
@@ -210,6 +215,20 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           >
             <ZapIcon size={15} color="#ffffff" />
             <span>{working === 'master' ? 'Normalizando en Word...' : 'Normalizar Todo a APA 7 en Vivo'}</span>
+          </button>
+
+          {/* FORMATEAR (MODO LOCAL): aplica APA 7 local sin el motor central.
+              No detecta portada ni jerarquiza títulos; solo aplica fuente,
+              interlineado doble y sangría APA 7 (offline limitado seguro). */}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onFormatAll}
+            disabled={working !== null}
+            title="Aplica formato APA 7 básico localmente (Times New Roman, interlineado, sangría) sin el motor central"
+          >
+            <DocumentTextIcon size={13} />
+            <span>Formatear (modo local)</span>
           </button>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
