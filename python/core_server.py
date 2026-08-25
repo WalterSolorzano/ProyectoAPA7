@@ -88,6 +88,20 @@ async def captions_plan(req: CaptionsReq) -> dict:
     return {"ops": ops}
 
 
+class OpenWordReq(BaseModel):
+    path: str
+
+
+@app.post("/api/open-in-word")
+async def open_in_word(req: OpenWordReq) -> dict:
+    """Rescate: abre el .docx con su app predeterminada (Word)."""
+    import os as _os
+    p = req.path
+    if not p or not Path(p).exists():
+        raise HTTPException(400, "Archivo no encontrado")
+    _os.startfile(p)  # asociacion del usuario (Word)
+    return {"ok": True}
+
 @app.post("/api/addin/heartbeat")
 async def heartbeat() -> dict:
     return {"ok": True}

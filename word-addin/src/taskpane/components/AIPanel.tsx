@@ -224,7 +224,7 @@ function ProviderChips({ showToast }: { showToast: Props['showToast'] }) {
           ))}
         </div>
         {providers.count === 0 && (
-          <div className="hint">Sin claves de IA. Configuralas en Ajustes de la app WordAPA7.</div>
+          <div className="hint">Modo local activo: reglas integradas.</div>
         )}
       </div>
     </div>

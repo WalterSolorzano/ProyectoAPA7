@@ -1,5 +1,46 @@
 import React, { useState } from 'react'
 import type { AssistantOptions } from '../liveAssistant'
+
+function useSelectionInfo(): { text: string; score: number } | null {
+  const [info, setInfo] = useState<{ text: string; score: number } | null>(null)
+  React.useEffect(() => {
+    let dead = false
+    const iv = setInterval(() => {
+      if (dead) return
+      Word.run(async (ctx) => {
+        try {
+          const sel = ctx.document.getSelection()
+          sel.load(['text', 'font/size', 'font/name', 'font/italic'])
+          await ctx.sync()
+          const t = (sel.text || '').trim()
+          if (t.length < 3) { setInfo(null); return }
+          let score = 100
+          if ((sel.font as any).name && sel.font.name !== 'Times New Roman') score -= 30
+          if ((sel.font as any).size && sel.font.size !== 12) score -= 20
+          if ((sel.font as any).italic) score -= 10
+          setInfo({ text: t.slice(0, 140), score: Math.max(0, score) })
+        } catch { /* fuera de Word */ }
+      }).catch(() => {})
+    }, 1600)
+    return () => { dead = true; clearInterval(iv) }
+  }, [])
+  return info
+}
+
+function SelectionCard() {
+  const info = useSelectionInfo()
+  if (!info) return null
+  const tone = info.score >= 80 ? '#16a34a' : info.score >= 50 ? '#b8860b' : '#dc2626'
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: '#f8fafc' }}>
+      <div style={{ fontSize: 11.5, color: '#334155', marginBottom: 4 }}>
+        Selección · APA <b style={{ color: tone }}>{info.score}%</b>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', maxHeight: 34, overflow: 'hidden' }}>{info.text}</div>
+    </div>
+  )
+}
+
 import type { DocumentStats } from '../office/wordHelper'
 import type { AuditDocumentResult, AuditFinding } from '../api/backend'
 import {
@@ -146,7 +187,8 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             <ZapIcon size={16} color="var(--accent-primary)" />
             <span>Normalizador Global APA 7</span>
           </div>
-          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#0f172a', marginBottom:6 }}>
+          <SelectionCard />
+      <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#0f172a' }}>
         <input type="checkbox" defaultChecked={localStorage.getItem('wordapa7_jarvis') !== '0'}
           onChange={(e) => localStorage.setItem('wordapa7_jarvis', e.target.checked ? '1':'0')} />
         Jarvis (normaliza mientras escribes)

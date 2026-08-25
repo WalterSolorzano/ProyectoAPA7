@@ -24,12 +24,24 @@ export const ScopeFilterCard: React.FC<{ showToast?: (msg: string, tone?: ToastT
   React.useEffect(() => {
     const p = localStorage.getItem('wordapa7_quick_open');
     if (!p) return;
+    try { localStorage.setItem('wordapa7_quick_open_path', p) } catch {}
     localStorage.removeItem('wordapa7_quick_open');
     fetch('http://127.0.0.1:8742/api/open-local', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ path: p }) })
       .then(r => r.json())
       .then(d => { if (d?.session_id) showToast?.('Documento cargado. Elige qu? corregir.', 'info'); })
-      .catch(() => showToast?.('No se pudo cargar el documento', 'error'));
+      .catch(() => { setLoadFailed(true); showToast?.('No se pudo cargar el documento', 'error') });
   }, []); // eslint-disable-line
+
+const [loadFailed, setLoadFailed] = React.useState(false)
+
+const reopenInWord = async () => {
+    const p = localStorage.getItem('wordapa7_quick_open_path')
+    if (!p) return
+    try {
+      await fetch('http://127.0.0.1:8742/api/open-in-word', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ path: p }) })
+      showToast?.('Abierto en Word', 'success')
+    } catch { showToast?.('Necesitas la app WordAPA7 abierta', 'error') }
+  }
 
 const apply = async () => {
     try { (window as any).clearQuickFlag?.() } catch {}

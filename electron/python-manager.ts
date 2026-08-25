@@ -19,6 +19,24 @@ function getFreePort(): Promise<number> {
 export class PythonManager {
   private static pythonProcess: ChildProcess | null = null
   public static port: number = 8742
+
+  /** Si el nucleo permanente vive en 8742, la app completa usa 8743. */
+  private static async _pickPort(): Promise<void> {
+    for (const proto of ['https', 'http']) {
+      try {
+        const ctl = new AbortController();
+        setTimeout(() => ctl.abort(), 1200);
+        const r = await fetch(`${proto}://127.0.0.1:8742/api/version`, { signal: ctl.signal });
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          if (j && j.mode === 'core') { PythonManager.port = 8743; return }
+          // monolito viejo en 8742: respetarlo y salir (ya hay backend)
+          PythonManager.port = 8742; return
+        }
+      } catch { /* siguiente proto */ }
+    }
+    PythonManager.port = 8742
+  }
   private static restartCount: number = 0
   private static readonly MAX_RESTARTS = 5
   private static stopped = false
@@ -233,7 +251,8 @@ export class PythonManager {
 
     return new Promise((resolve, reject) => {
       let command = 'python'
-      let args: string[] = []
+      await PythonManager._pickPort()
+    let args: string[] = []
       let cwd: string | undefined
 
       if (app.isPackaged) {
