@@ -246,7 +246,8 @@ def _find_backend_executable() -> Optional[str]:
         # Python embebido: python.exe + main.py
         exe_dir = Path(sys.executable).parent
         python_exe = exe_dir / "python.exe"
-        main_script = exe_dir / "python" / "main.py"
+        core = exe_dir / "python" / "core_server.py"
+        main_script = core if core.exists() else exe_dir / "python" / "main.py"
         if python_exe.exists() and main_script.exists():
             return f'"{python_exe}" "{main_script}"'
         return None
@@ -488,6 +489,14 @@ def run_watcher() -> None:
     else:
         log.error("No se pudo iniciar el backend en el arranque del watcher")
 
+    # Supervisor del nucleo: si muere, lo revive (backoff 10/30/60s)
+    import threading as _th
+    _th.Thread(
+        target=_core_supervisor,
+        args=(lambda: backend_proc, lambda: start_backend()),
+        daemon=True, name="WordAPA7-core-supervisor",
+    ).start()
+
     while True:
         try:
             word_open = is_word_running()
@@ -590,3 +599,41 @@ def run_watcher() -> None:
 
 if __name__ == "__main__":
     run_watcher()
+
+
+def _core_supervisor(get_proc, spawn_fn):
+    """Revive el nucleo si muere. Backoff 10/30/60s."""
+    import http.client as _hc
+    delays = [10, 30, 60]
+    attempt = 0
+    while True:
+        time.sleep(delays[min(attempt, len(delays)-1)])
+        proc = get_proc()
+        alive = False
+        if proc is not None and proc.poll() is None:
+            try:
+                conn = _hc.HTTPSConnection("127.0.0.1", 8742, timeout=3, context=_ssl_ctx())
+                conn.request("GET", "/api/version")
+                alive = (conn.getresponse().status == 200)
+            except Exception:
+                alive = False
+        if not alive:
+            log.warning("[WATCHER] Nucleo muerto; reiniciando (intento %d)", attempt+1)
+            try:
+                if proc is not None and proc.poll() is None:
+                    proc.terminate()
+            except Exception:
+                pass
+            try:
+                spawn_fn()
+                attempt = 0
+            except Exception as e:
+                log.error("Reinicio fallo: %s", e)
+                attempt += 1
+        else:
+            attempt = 0
+
+
+def _ssl_ctx():
+    import ssl as _ssl
+    return _ssl._create_unverified_context()

@@ -136,7 +136,7 @@ BrandingText "WordAPA7 · Formato APA 7 automático · Impulsada por IA"
   ; Usa pythonw.exe (subsistema GUI, SIN consola): si usáramos python.exe,
   ; Windows abriría una ventana negra de cmd al encender la PC — inaceptable
   ; para un usuario final. El logging va a %APPDATA%\WordAPA7\logs.
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Watcher" '"$INSTDIR\resources\python-runtime\pythonw.exe" "$INSTDIR\resources\python-runtime\python\main.py" --watcher'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Core" '"$INSTDIR\resources\python-runtime\pythonw.exe" "$INSTDIR\resources\python-runtime\python\core_server.py" --port 8742'
 
   ; ── Watcher: NO se arranca durante la instalación ─────────────────────
   ; El watcher se arrancará automáticamente cuando:

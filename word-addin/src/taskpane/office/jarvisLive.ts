@@ -163,7 +163,7 @@ async function insertReference(apa: string): Promise<void> {
     let target: Word.Paragraph | null = null
     let inRefs = false
     for (const p of ps.items) {
-      if (p.text.trim().toLowerCase() === 'referencias') {
+      if (/^(?:referencias|bibliograf[i?]a|bibliography)$/i.test(p.text.trim())) {
         inRefs = true
         target = p
         continue

@@ -610,43 +610,55 @@ export async function insertBibliographyAPA(text: string): Promise<void> {
 
     const refs = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
 
-    // ¿Ya existe una sección "Referencias"?
+    // ── ZONA EXISTENTE: respetar "Bibliografía"/"Referencias"/"References" ──
+    // El usuario manda: si ya tiene su sección poblada, NUNCA se borra ni se
+    // duplica. Solo se AÑADEN las referencias que falten (dedupe por autor-año).
+    const SECTION_RE = /^(?:referencias|bibliograf[ií]a|bibliography|works cited)$/i
     let titlePara: Word.Paragraph | null = null
     for (const p of paragraphs.items) {
-      if (p.text.trim().toLowerCase() === 'referencias') {
+      if (SECTION_RE.test(p.text.trim())) {
         titlePara = p
         break
       }
     }
 
+    const styleRef = (pRef: Word.Paragraph) => {
+      applyFont(pRef.font)
+      pRef.alignment = Word.Alignment.left
+      pRef.lineSpacing = LINE_SPACING_DOUBLE
+      pRef.leftIndent = FIRST_LINE_INDENT_PT // 0.5"
+      pRef.firstLineIndent = -FIRST_LINE_INDENT_PT // sangría francesa
+      pRef.spaceAfter = 0
+      pRef.spaceBefore = 0
+    }
+    const keyOf = (line: string) =>
+      line.replace(/[()]/g, '').split(',')[0]?.trim().toLowerCase() +
+      '|' + (line.match(/\b(19|20)\d{2}\b/)?.[0] || '')
+
     if (titlePara) {
-      // Reaplicar formato APA al título y borrar lo que sigue
-      applyFont(titlePara.font)
-      titlePara.font.bold = true
-      titlePara.alignment = Word.Alignment.centered
-      titlePara.lineSpacing = LINE_SPACING_DOUBLE
-      titlePara.spaceAfter = 0
-
-      const afterRange = titlePara.getRange(Word.RangeLocation.after)
-      afterRange.delete()
-      await context.sync()
-
-      let prev: Word.Paragraph = titlePara
+      // Recolectar entradas existentes de la zona (hasta el próximo heading)
+      const existingKeys = new Set<string>()
+      let last: Word.Paragraph = titlePara
+      let inZone = true
+      for (let i = paragraphs.items.indexOf(titlePara) + 1; i < paragraphs.items.length; i++) {
+        const t = paragraphs.items[i].text.trim()
+        if (!t) continue
+        if (SECTION_RE.test(t) || /^[ivx]+\.\s/i.test(t)) { break }
+        existingKeys.add(keyOf(t))
+        last = paragraphs.items[i]
+      }
+      // Añadir SOLO las que faltan — lo del usuario queda intacto
+      let prev: Word.Paragraph = last
       for (const ref of refs) {
+        if (existingKeys.has(keyOf(ref))) continue
         const pRef = prev.insertParagraph(ref, Word.InsertLocation.after)
-        applyFont(pRef.font)
-        pRef.alignment = Word.Alignment.left
-        pRef.lineSpacing = LINE_SPACING_DOUBLE
-        pRef.leftIndent = FIRST_LINE_INDENT_PT // 0.5"
-        pRef.firstLineIndent = -FIRST_LINE_INDENT_PT // sangría francesa
-        pRef.spaceAfter = 0
-        pRef.spaceBefore = 0
+        styleRef(pRef)
         prev = pRef
       }
       return
     }
 
-    // No existe: salto de página + título al final
+    // No existe ninguna zona: crear al final (solo refs reales, sin placeholders)
     body.insertBreak(Word.BreakType.page, Word.InsertLocation.end)
     const pTitle = body.insertParagraph('Referencias', Word.InsertLocation.end)
     applyFont(pTitle.font)
@@ -657,14 +669,9 @@ export async function insertBibliographyAPA(text: string): Promise<void> {
 
     let prev: Word.Paragraph = pTitle
     for (const ref of refs) {
+      if (/\[Completar|\(borrador\)/i.test(ref)) continue // jamás basura
       const pRef = prev.insertParagraph(ref, Word.InsertLocation.after)
-      applyFont(pRef.font)
-      pRef.alignment = Word.Alignment.left
-      pRef.lineSpacing = LINE_SPACING_DOUBLE
-      pRef.leftIndent = FIRST_LINE_INDENT_PT
-      pRef.firstLineIndent = -FIRST_LINE_INDENT_PT
-      pRef.spaceAfter = 0
-      pRef.spaceBefore = 0
+      styleRef(pRef)
       prev = pRef
     }
   })

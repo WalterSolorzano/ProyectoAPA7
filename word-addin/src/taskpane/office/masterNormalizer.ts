@@ -124,7 +124,8 @@ export async function normalizeEntireDocumentAPA7(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texts, full: true }),
       })
-      if (res.ok) {
+      if (!res.ok) throw new Error('CORE_DOWN')
+      {
         const plan = await res.json()
         serverFloor = typeof plan.floor === 'number' ? plan.floor : -1
         // Roles decididos por el motor central (oro: nada a medias)
@@ -229,6 +230,8 @@ export async function normalizeEntireDocumentAPA7(
         p.leftIndent = 0
         p.rightIndent = 0
         p.firstLineIndent = 0
+        p.spaceBefore = 0
+        p.spaceAfter = 0
         headingsCount++
         continue
       }
@@ -443,11 +446,12 @@ export async function normalizeEntireDocumentAPA7(
             p.alignment = Word.Alignment.left
           }
         }
+        const __li = (p as any).leftIndent ?? 0
         p.lineSpacing = LINE_SPACING_DOUBLE
         p.spaceBefore = 0
         p.spaceAfter = 0
-        p.leftIndent = 0
-        p.rightIndent = 0
+        if (__li > 0) { /* sub-nivel preexistente del usuario: se respeta */ }
+        else { p.leftIndent = 0; p.rightIndent = 0 }
         if (!_isLocked(k, 'first_indent')) {
           if (_detectUserOverride(k, 'first_indent', FIRST_LINE_INDENT_PT, (p as any).firstLineIndent ?? 0)) {
             /* usuario quitó la sangría: respetamos */
