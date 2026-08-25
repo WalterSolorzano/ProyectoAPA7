@@ -549,5 +549,134 @@ class COMPostProcessor:
         # coincidente. Neutralizado como no-op exitoso.
         return True
 
+    # ── FASE 3.1: gate de paginación/overflow (evidencia EVALUACION S5) ────
+
+    def audit_pagination(self, docx_path: Path, expected_pages: int | None = None,
+                         timeout_s: float = 45.0) -> dict:
+        """Verifica paginación real renderizada por Word y señales de overflow.
+
+        Estado honesto: si Word/COM no está disponible devuelve
+        {"available": False, ...} en vez de fallar la exportación.
+        Mide: páginas reales, portada>1 página (si hay headings), shapes que
+        exceden el área usable, tablas partidas, desviación vs esperado.
+        """
+        if not self.is_windows or not docx_path.exists():
+            return {"available": False, "reason": "COM o archivo no disponible",
+                    "warnings": [], "pages": None}
+
+        import concurrent.futures
+        import time as _t
+
+        def _job() -> dict:
+            import pythoncom
+            pythoncom.CoInitialize()
+            word = None
+            doc = None
+            t0 = _t.perf_counter()
+            try:
+                from services.word_com_service import get_word_com_service
+                word = get_word_com_service().word
+                if not word:
+                    raise RuntimeError("Word COM no disponible")
+                word.Visible = False
+                word.DisplayAlerts = 0
+
+                doc = word.Documents.Open(str(docx_path.resolve()), ConfirmConversions=False,
+                                          AddToRecentFiles=False, ReadOnly=True)
+                # PID capturable solo con documento abierto (ActiveWindow existe)
+                try:
+                    self.current_word_pid = self._pid_from_hwnd(word.ActiveWindow.Hwnd)
+                except Exception:
+                    self.current_word_pid = None
+
+                doc.Repaginate()
+                res: dict = {"available": True, "status": "ok", "pages": int(doc.ComputeStatistics(2)),
+                             "warnings": []}
+                ps = doc.Sections(1).PageSetup
+                usable_w = float(ps.PageWidth - ps.LeftMargin - ps.RightMargin)
+                usable_h = float(ps.PageHeight - ps.TopMargin - ps.BottomMargin)
+
+                # Portada > 1 página (primera heading nivel 1 como inicio de cuerpo)
+                for p in doc.Paragraphs:
+                    try:
+                        if int(p.OutlineLevel) == 1:
+                            body_start_page = int(p.Range.Information(3))
+                            if body_start_page > 2:
+                                res["warnings"].append(
+                                    f"La portada ocupa {body_start_page - 1} páginas (>1)")
+                            break
+                    except Exception:
+                        continue
+
+                # Shapes fuera del área usable
+                overflow_shapes = 0
+                for shp in doc.Shapes:
+                    try:
+                        if float(shp.Height) > usable_h + 2 or float(shp.Width) > usable_w + 2:
+                            overflow_shapes += 1
+                    except Exception:
+                        continue
+                for ishp in doc.InlineShapes:
+                    try:
+                        if float(ishp.Height) > usable_h + 2:
+                            overflow_shapes += 1
+                    except Exception:
+                        continue
+                if overflow_shapes:
+                    res["warnings"].append(f"{overflow_shapes} figura(s) exceden el área imprimible")
+
+                # Tablas más anchas que la página
+                wide_tables = 0
+                for i in range(1, doc.Tables.Count + 1):
+                    try:
+                        if float(doc.Tables(i).Range.Information(5)) > usable_w + 2:  # wdHorizontalPosition
+                            wide_tables += 1
+                    except Exception:
+                        continue
+                if wide_tables:
+                    res["warnings"].append(f"{wide_tables} tabla(s) exceden el ancho imprimible")
+
+                if expected_pages is not None and res["pages"] != int(expected_pages):
+                    res["warnings"].append(
+                        f"Páginas reales ({res['pages']}) difieren del esperado ({expected_pages})")
+                res["elapsed_ms"] = round((_t.perf_counter() - t0) * 1000)
+                return res
+            except Exception as e:
+                logger.warning(f"[COM PostProcessor] audit_pagination fallo: {e}")
+                return {"available": False, "reason": str(e)[:200], "warnings": [],
+                        "pages": None}
+            finally:
+                if doc is not None:
+                    try:
+                        doc.Close(SaveChanges=False)
+                    except Exception:
+                        pass
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            return executor.submit(_job).result(timeout=timeout_s)
+        except concurrent.futures.TimeoutError:
+            self._kill_orphan_winword_processes()
+            return {"available": False, "reason": f"Timeout COM ({timeout_s}s)",
+                    "warnings": ["Auditoría de paginación cancelada por timeout"],
+                    "pages": None}
+        finally:
+            executor.shutdown(wait=False)
+
+    @staticmethod
+    def _pid_from_hwnd(hwnd) -> int | None:
+        """PID del proceso dueño de la ventana de Word (para kill quirúrgico)."""
+        try:
+            import ctypes
+            pid = ctypes.c_ulong()
+            ctypes.windll.user32.GetWindowThreadProcessId(int(hwnd), ctypes.byref(pid))
+            return pid.value or None
+        except Exception:
+            return None
+
 def get_com_post_processor() -> COMPostProcessor:
     return COMPostProcessor()

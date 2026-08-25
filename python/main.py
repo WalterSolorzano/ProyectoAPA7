@@ -234,6 +234,9 @@ from routers import proofread
 
 app.include_router(proofread.router)
 
+from routers import pagination as pagination_router
+app.include_router(pagination_router.router)
+
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
 def api_error(status_code: int, detail: str, error_type: str = "validation_error") -> JSONResponse:

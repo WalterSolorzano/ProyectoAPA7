@@ -491,6 +491,40 @@ class ReferenciaModel(BaseModel):
     cited_count: int = 0
     never_cited: bool = False
 
+    # FASE 3.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S3)
+    def to_csl_json(self) -> dict:
+        """Conversión CSL-JSON estándar (interoperabilidad Zotero/Mendeley).
+
+        El render final sigue siendo el formateador propio; esto solo
+        estructura los datos. Autores "Apellido, Nombre" se separan; si no hay
+        coma, se trata como autor corporativo (family completo, literal=True).
+        """
+        authors = []
+        for a in self.authors or []:
+            a_clean = (a or "").strip()
+            if not a_clean:
+                continue
+            if "," in a_clean:
+                family, _, given = a_clean.partition(",")
+                authors.append({"family": family.strip(), "given": given.strip()})
+            else:
+                authors.append({"family": a_clean, "literal": True})
+        issued = {"date-parts": [[int(self.year[:4])]]} if (self.year or "").strip()[:4].isdigit() else {"raw": self.year or "s.f."}
+        csl: dict = {
+            "id": self.id,
+            "type": "article-journal",
+            "title": self.title or self.raw_text[:120],
+            "author": authors,
+            "issued": issued,
+        }
+        if self.source:
+            csl["container-title"] = self.source
+        if self.doi_or_url:
+            csl["DOI"] = self.doi_or_url if str(self.doi_or_url).lower().startswith("10.") else None
+            csl["URL"] = None if str(self.doi_or_url).lower().startswith("10.") else str(self.doi_or_url)
+            csl = {k: v for k, v in csl.items() if v is not None}
+        return csl
+
 
 class ValidationIssueModel(BaseModel):
     rule_id: str
