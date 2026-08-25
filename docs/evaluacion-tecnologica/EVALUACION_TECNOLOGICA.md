@@ -64,3 +64,23 @@ Uso hoy (grep): `insertOoxml/getOoxml/search/ranges` en figureCaptions/highlight
 | 4 | SDT opt-in portada | blindaje estructural | bajo | FASE 2.1 |
 | 5 | Gate COM paginación | síntoma overflow sin medir | medio | FASE 3.1 |
 | 6 | CSL-JSON intermedio | interoperabilidad/dedup | bajo-medio | FASE 3.2 |
+
+---
+
+## RESULTADOS POST-IMPLEMENTACIÓN (misma batería, código corregido)
+
+| Criterio medible | ANTES | DESPUÉS | Commit |
+|---|---|---|---|
+| Round-trip portada intacta (scope texto+tablas, 5 variantes) | **0/5** `zone_identical` | **5/5** ✅ (218/26/31/25/25 ms) | 09a1db8 |
+| Secuestro numId (viñeta hereda decimal del usuario) | `misformat=true` | **`false`** ✅ (ruta productiva `format_bullet_item`) | 9674822 |
+| Symbol/Wingdings in-place preservado | ✅ ya funcionaba | ✅ se mantiene | — |
+| Protección estructural opt-in (`cover_protect_sdt`) inexistente → idempotente + contenido byte-igual + oculta de iteradores | — | ✅ tests test_cover_sdt.py | e952156 |
+| Verificación paginación real (Word renderizado) inexistente → endpoint + overflow detectado en doc real (imagen 35cm ⇒ ≥2 págs + warning) | — | ✅ test integración Word real | 6deec77 |
+| CSL-JSON intermedio (autores split/corporativo/s.f./DOI vs URL) | — | ✅ 4 tests, render propio intacto | 6deec77 |
+
+**Decisiones documentadas (no reinventar):**
+- S6 List API add-in: el add-in NO crea listas hoy → N/A, no se implementa feature nueva.
+- 3.3 UI de portada: YA EXISTE (`APACoverEditor.tsx`, `CoverEditorPanel.tsx`, wizard paso 1). El toggle "proteger" queda expuesto vía `rules.cover_protect_sdt` para que la UI existente lo wire cuando corresponda.
+- OpenXmlValidator (.NET): pospuesto — requiere dependencia nueva (aprobación explícita); el gate COM cubre el síntoma usuario.
+
+**Suite**: pytest 409 passed / 14 skipped · tsc root limpio · vitest raíz y add-in intactos (sin cambios TS este sprint).
