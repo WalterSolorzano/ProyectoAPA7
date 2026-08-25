@@ -346,8 +346,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       const contextText = ctx.join('\n') || elem.text || '';
       const apiKey = useDocStore.getState().apiKey;
       const suggestion = await suggestCaption(doc.session_id, elem.id, contextText, apiKey);
-      const newImageInfo = { ...elem.image_info, caption: suggestion };
-      useDocStore.getState().updateElementImage(elem.id, newImageInfo);
+      if (elem.type === 'table') {
+        const newTableInfo = { ...(elem.table_info || {}), caption: suggestion };
+        useDocStore.getState().updateElementTable(elem.id, newTableInfo);
+      } else {
+        const newImageInfo = { ...elem.image_info, caption: suggestion };
+        useDocStore.getState().updateElementImage(elem.id, newImageInfo);
+      }
       useDocStore.getState().showToast('Leyenda sugerida aplicada', 'success');
     } catch (err: any) {
       useDocStore.getState().showToast(err.message || 'Error al sugerir leyenda', 'error');
@@ -651,9 +656,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       {/* Barra contextual de imagen (estilo Word: aparece al seleccionar una figura) */}
       {!readOnly && doc && selectedElementId && (() => {
         const selElem = doc.elements.find(e => e.id === selectedElementId);
-        if (!selElem || selElem.type !== 'image' || !selElem.image_info) return null;
+        // C5: Show the contextual bar for images AND tables.
+        if (!selElem || (selElem.type !== 'image' && selElem.type !== 'table')) return null;
         const img = selElem.image_info;
-        const rot = img.rotation || 0;
+        const rot = img?.rotation || 0;
+        const isImage = selElem.type === 'image' && !!img;
         return (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
@@ -663,9 +670,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             fontSize: '11px', color: 'var(--text-secondary)', boxShadow: 'var(--shadow-md)',
           }}>
             <span style={{ fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ImageIcon size={13} /> Imagen seleccionada
+              <ImageIcon size={13} /> {isImage ? 'Imagen' : 'Tabla'} seleccionada
             </span>
             <span style={{ color: 'var(--text-muted)' }}>|</span>
+            {/* C5: Rotación + Ancho solo para imágenes */}
+            {isImage && (
+            <>
             {/* Rotación */}
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               Rotar:
@@ -693,26 +703,36 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 style={{ width: '56px', padding: '2px 4px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
               /> cm
             </label>
-            {/* Leyenda */}
+            </>
+            )}
+            {/* C5: Leyenda — funciona para imágenes (image_info.caption) y tablas (table_info.caption) */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: '120px' }}>
               Leyenda
               <input type="text"
-                value={img.caption || ''}
-                onChange={(e) => useDocStore.getState().updateElementImage(selElem.id, { caption: e.target.value })}
-                placeholder="Escribí la leyenda de la figura..."
+                value={(isImage ? img.caption : selElem.table_info?.caption) || ''}
+                onChange={(e) => {
+                  if (isImage) {
+                    useDocStore.getState().updateElementImage(selElem.id, { caption: e.target.value });
+                  } else {
+                    const ti = selElem.table_info || {};
+                    useDocStore.getState().updateElementTable(selElem.id, { ...ti, caption: e.target.value });
+                  }
+                }}
+                placeholder={isImage ? "Escribí la leyenda de la figura..." : "Escribí el título de la tabla..."}
                 style={{ flex: 1, padding: '3px 6px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
               />
             </label>
-            {/* Sugerir con IA */}
+            {/* C5: Sugerir con IA — visible para imágenes Y tablas */}
             <button type="button"
               onClick={() => handleSuggestCaption(selElem)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
                 background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer',
               }}>
-              <Wand2 size={11} /> Sugerir IA
+              <Wand2 size={11} /> Sugerir leyenda IA
             </button>
-            {/* Abrir/cerrar panel de edición completo */}
+            {/* C5: Panel de edición completo — solo para imágenes */}
+            {isImage && (
             <button
               type="button"
               onClick={() => setImagePanelOpen(!imagePanelOpen)}
@@ -726,6 +746,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               }}>
               <PanelRight size={11} /> Editar panel
             </button>
+            )}
           </div>
         );
       })()}

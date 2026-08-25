@@ -40,7 +40,14 @@ const ES_STOP = new Set(['de', 'el', 'la', 'los', 'las', 'y', 'que', 'en',
   'por', 'para', 'con', 'del', 'una', 'un', 'se', 'su', 'al']);
 
 const FIRST_PERSON_RE = /\b(yo|nosotros|nosotras|nuestro|nuestra|m[íi]|me)\b/i;
-const DUPLICATE_RE = /(?<!\p{L})(\p{L}{3,})\s+\1(?!\p{L})/iu;
+// E4: el mínimo baja a 2 letras para atrapar typos reales del teclado como
+// "de de" y "la la". El guard de DUP_STOPWORDS (abajo) evita los falsos
+// positivos de stopwords muy frecuentes ("que que", "se se").
+const DUPLICATE_RE = /(?<!\p{L})(\p{L}{2,})\s+\1(?!\p{L})/iu;
+/** Stopwords cuyas repeticiones suelen ser falsos positivos (no typos del
+ *  teclado). "de"/"la" quedan FUERA de esta lista: su repetición SÍ es un
+ *  error real que hay que marcar. */
+const DUP_STOPWORDS = new Set(['que', 'se']);
 const ACRONYM_RE = /\b(?:[A-ZÁÉÍÓÚÑ]\.){2,}/;
 const EXCESS_PUNCT_RE = /[!?]{2,}/;
 
@@ -55,6 +62,20 @@ function normalize(text: string): string {
 function findMatch(text: string, re: RegExp): string | null {
   const m = (text || '').match(re);
   return m ? m[0] : null;
+}
+
+/** Primer duplicado de palabra cuyo término NO sea una stopword muy común
+ *  (ej. "que que", "se se"). Bajar DUPLICATE_RE a 2 letras atrapa "de de" y
+ *  "la la"; este guard evita los falsos positivos de "que/se".
+ *  Devuelve el fragmento repetido y la palabra original (con su capitalización). */
+function findDuplicateWord(text: string): { match: string; word: string } | null {
+  const re = new RegExp(DUPLICATE_RE.source, 'giu');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text || '')) !== null) {
+    const word = m[1].toLowerCase();
+    if (!DUP_STOPWORDS.has(word)) return { match: m[0], word: m[1] };
+  }
+  return null;
 }
 
 function isSpanglish(text: string): boolean {
@@ -173,7 +194,7 @@ const SPANGLISH_COMMENTS: ChatLine[] = [
 
 const DUPLICATE_COMMENTS: ChatLine[] = [
   { emoji: '', text: '¿"la la"? se te pegó el teclado' },
-  { emoji: '', text: 'repetiste "{w}" sin querer, seguro', fill: (e) => `repetiste "${(e.text || '').match(DUPLICATE_RE)?.[1] || 'la'}" sin querer, seguro` },
+  { emoji: '', text: 'repetiste "{w}" sin querer, seguro', fill: (e) => `repetiste "${findDuplicateWord(e.text || '')?.word || 'la'}" sin querer, seguro` },
   { emoji: '', text: 'ctrl+c y ctrl+v se te fueron de las manos' },
 ];
 
@@ -257,7 +278,7 @@ function authorOf(ctx: WhatsAppContext, elem: ElementModel): string {
     const parts = String(a).split(',');
     return parts[0]?.trim() || a;
   }
-  const raw = String(g?.raw_text || '').match(/^([A-Za-zÁÉÍÓÚÑáéíóúñ'’\s\-&]+?)\s*\(/);
+  const raw = String(g?.raw_text || '').match(/^([A-Za-zÁÉÍÓÚÑáéíóúñ''\s\-&]+?)\s*\(/);
   return raw ? raw[1].trim() : 'ese autor';
 }
 
@@ -386,10 +407,11 @@ export function getWhatsAppComment(
       const enWord = text.split(/[^a-zA-ZÁÉÍÓÚÑáéíóúñ]+/i).find((w) => w && EN_STOP.has(w.toLowerCase()));
       return { emoji: l.emoji, text: l.text, kind: 'spanglish', match: enWord ? accentMatchSlice(text, enWord) : undefined };
     }
-    if (DUPLICATE_RE.test(text)) {
+    // E4: duplicados de 2+ letras con guard de stopwords ("que", "se").
+    const dup = findDuplicateWord(text);
+    if (dup) {
       const l = pickByElement(DUPLICATE_COMMENTS, elem.id, nonce);
-      const dup = findMatch(text, DUPLICATE_RE) || undefined;
-      return { emoji: l.emoji, text: l.fill ? l.fill(elem, ctx) : l.text, kind: 'duplicate', match: dup };
+      return { emoji: l.emoji, text: l.fill ? l.fill(elem, ctx) : l.text, kind: 'duplicate', match: dup.match };
     }
     if (text.split(/\s+/).length > 60 && !/[.!?]/.test(text.slice(0, Math.floor(text.length * 0.6)))) {
       const l = pickByElement(LONG_PARAGRAPH_COMMENTS, elem.id, nonce);

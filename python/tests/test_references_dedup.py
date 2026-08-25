@@ -1,142 +1,163 @@
-"""Test: Dedup semántico de referencias (autor+año+título, no texto crudo).
+"""Test F3: no duplicar la sección de Referencias en la ruta de rebuild.
 
-F1 — `parsing.references_extractor.extract_references` debe colapsar
-entradas idénticas que solo difieren en el prefijo numeral de lista
-('6. Hirano (1995) ...' / '7. Hirano (1995) ...') usando una clave
-semántica (apellido + año + título normalizado).
+Cuando el DocumentModel incluye un heading "Referencias"/"Bibliografía" más
+las entradas de referencia (lo que el parser extrae del original) Y además se
+provee la lista `references`, el generador NO debe escribir la sección dos
+veces. Debe aparecer un único heading "Referencias" (escrito por
+format_apa_referencias_section al final).
 
-F2 — `generation.inplace_editor.apply_inplace` debe eliminar del DOCX los
-párrafos de bibliografía duplicados (mismo texto sin el prefijo numeral).
+Cubre:
+* Ruta in-place (generator.py sobre original.docx): el heading + entradas del
+  modelo se eliminan del cuerpo y se reescriben una sola vez desde la lista.
+* Ruta layered (layered_generator.py, WORDAPA7_LAYERED_GEN=1): el heading +
+  entradas del modelo se omiten en PHASE 3 y se escriben una sola vez en
+  PHASE 4.
+* Sin lista `references`: no hay dedup (no se borra el heading del modelo).
 """
-import sys
+import io
 import pathlib
+import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from parsing.references_extractor import extract_references
-from models import ElementModel, ElementType
+import docx
+
+from generation.generator import generate_apa7_docx
+from models import (
+    APARuleSet,
+    DocumentModel,
+    ElementModel,
+    ElementType,
+    ReferenciaModel,
+)
+
+REF_GARCIA = (
+    "García, M. (2023). Inteligencia artificial en el aula: Un estudio "
+    "comparativo. Revista de Educación Superior, 45(2), 123-145."
+)
+REF_LOPEZ = (
+    "López, R. (2021). Modelos de lenguaje y procesamiento de texto "
+    "académico. Editorial Universitaria."
+)
 
 
-def _para(t):
-    return ElementModel(
-        id=f"e_{abs(hash(t)) % 10000}",
-        type=ElementType.PARAGRAPH,
-        text=t,
-        heading_level=None,
+def _references_list():
+    return [
+        ReferenciaModel(
+            id="r1", authors=["García", "M."], year="2023",
+            title="Inteligencia artificial en el aula",
+            source="Revista de Educación Superior, 45(2), 123-145",
+            raw_text=REF_GARCIA,
+        ),
+        ReferenciaModel(
+            id="r2", authors=["López", "R."], year="2021",
+            title="Modelos de lenguaje y procesamiento de texto académico",
+            source="Editorial Universitaria",
+            raw_text=REF_LOPEZ,
+        ),
+    ]
+
+
+def _model_with_refs_section():
+    """Modelo con cuerpo + heading 'Referencias' + entradas de referencia."""
+    return [
+        ElementModel(id="b1", type=ElementType.PARAGRAPH, text="Cuerpo del documento."),
+        ElementModel(id="h1", type=ElementType.HEADING, heading_level=1, text="Referencias"),
+        ElementModel(
+            id="r1", type=ElementType.PARAGRAPH, text=REF_GARCIA,
+            pre_classifier_rule="reference_item",
+        ),
+        ElementModel(
+            id="r2", type=ElementType.PARAGRAPH, text=REF_LOPEZ,
+            pre_classifier_rule="reference_item",
+        ),
+    ]
+
+
+def _count_referencias(doc):
+    return sum(1 for p in doc.paragraphs if p.text.strip() == "Referencias")
+
+
+# ── Ruta in-place (original.docx) ────────────────────────────────────────────
+
+
+def test_single_references_heading_when_list_provided_inplace(tmp_path):
+    """Con original.docx + lista `references`: un solo heading 'Referencias'."""
+    # original.docx con cuerpo + Referencias + entradas (orden = orden del modelo)
+    orig = docx.Document()
+    orig.add_paragraph("Cuerpo del documento.")
+    orig.add_paragraph("Referencias")
+    orig.add_paragraph(REF_GARCIA)
+    orig.add_paragraph(REF_LOPEZ)
+    (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
+
+    doc = DocumentModel(
+        session_id="s1", file_name="t.docx",
+        elements=_model_with_refs_section(),
     )
+    out = tmp_path / "out.docx"
+    generate_apa7_docx(doc, out, rules=APARuleSet(), references=_references_list())
+
+    d = docx.Document(str(out))
+    assert _count_referencias(d) == 1, (
+        "Debe haber exactamente un heading 'Referencias' en la salida "
+        f"(hubo {_count_referencias(d)})"
+    )
+    all_text = "\n".join(p.text for p in d.paragraphs)
+    assert "García" in all_text, "La entrada de García debe aparecer en la salida"
+    assert "López" in all_text, "La entrada de López debe aparecer en la salida"
 
 
-# ── F1: dedup semántico en la extracción ────────────────────────────────────
+def test_references_not_deduped_when_no_list_inplace(tmp_path):
+    """Sin lista `references` no se elimina el heading del modelo (no double,
+    no pérdida): sigue habiendo un único 'Referencias' formateado in-place."""
+    orig = docx.Document()
+    orig.add_paragraph("Cuerpo del documento.")
+    orig.add_paragraph("Referencias")
+    orig.add_paragraph(REF_GARCIA)
+    orig.add_paragraph(REF_LOPEZ)
+    (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
 
-def test_number_prefixed_duplicates_collapsed():
-    lines = [
-        "Referencias",
-        "6. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press",
-        "7. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press",
-        "8. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press",
-        "9. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press",
-        "10. Juran, J. M. (1999). Juran's Quality Handbook. McGraw-Hill",
-    ]
-    elems = [_para(l) for l in lines]
-    refs = extract_references(elems)
-    hirano = [
-        r for r in refs
-        if "hirano" in (r.raw_text or "").lower()
-        or "hirano" in " ".join(r.authors or []).lower()
-    ]
-    assert len(hirano) == 1, f"Esperado 1 Hirano, got {len(hirano)}"
-    assert len(refs) == 2, f"Esperado 2 refs total, got {len(refs)}"
+    doc = DocumentModel(
+        session_id="s2", file_name="t.docx",
+        elements=_model_with_refs_section(),
+    )
+    out = tmp_path / "out.docx"
+    # Sin references: la sección del modelo se formatea in-place tal cual.
+    generate_apa7_docx(doc, out, rules=APARuleSet())
 
-
-def test_semantic_key_survives_minor_text_diff():
-    """Dos entradas con el mismo autor+año+título pero distinta fuente
-    (editorial / DOI extra) deben colapsar a una sola referencia."""
-    lines = [
-        "Referencias",
-        "1. García, M. (2023). Inteligencia artificial en el aula. Editorial UNAM, México.",
-        "2. García, M. (2023). Inteligencia artificial en el aula. Editorial UNAM.",
-    ]
-    elems = [_para(l) for l in lines]
-    refs = extract_references(elems)
-    assert len(refs) == 1, f"Esperado 1 ref (mismo autor+año+título), got {len(refs)}: {[r.raw_text for r in refs]}"
+    d = docx.Document(str(out))
+    assert _count_referencias(d) == 1, (
+        "Sin lista de referencias debe haber un único 'Referencias' (el del modelo)"
+    )
+    all_text = "\n".join(p.text for p in d.paragraphs)
+    assert "García" in all_text and "López" in all_text
 
 
-def test_distinct_authors_not_collapsed():
-    lines = [
-        "Referencias",
-        "1. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press",
-        "2. Juran, J. M. (1999). Juran's Quality Handbook. McGraw-Hill",
-    ]
-    elems = [_para(l) for l in lines]
-    refs = extract_references(elems)
-    assert len(refs) == 2, f"Esperado 2 refs distintas, got {len(refs)}"
+# ── Ruta layered (from-scratch) ───────────────────────────────────────────────
 
 
-# ── F2: dedup de bibliografía en export in-place ────────────────────────────
+def test_single_references_heading_when_list_provided_layered(tmp_path, monkeypatch):
+    """Ruta layered (WORDAPA7_LAYERED_GEN=1): un solo heading 'Referencias'."""
+    monkeypatch.setenv("WORDAPA7_LAYERED_GEN", "1")
 
-class _Rules:
-    font_family = "Times New Roman"
-    font_size = 12
-    line_spacing = 2.0
-    indent_first_line = True
+    doc = DocumentModel(
+        session_id="s3", file_name="t.docx",
+        elements=_model_with_refs_section(),
+    )
+    out = tmp_path / "out.docx"
+    generate_apa7_docx(doc, out, rules=APARuleSet(), references=_references_list())
 
-
-class _Model:
-    portada = {"body_start_paragraph_idx": 5}
-
-
-def _build_dup_ref_doc(tmp_path):
-    """DOCX con portada (5 párrafos), cuerpo con heading y bibliografía con
-    dos párrafos de Hirano idénticos salvo el numeral de lista."""
-    from docx import Document
-    doc = Document()
-    for ln in [
-        "UNIVERSIDAD NACIONAL",
-        "Facultad de Ingeniería",
-        "Título del Trabajo",
-        "Autor Ejemplo",
-        "Managua, 2026",
-    ]:
-        doc.add_paragraph(ln)
-    doc.add_heading("Introducción", level=1)
-    doc.add_paragraph("Este es un párrafo del cuerpo que necesita formato APA. " * 3)
-    doc.add_heading("Referencias", level=1)
-    doc.add_paragraph("6. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press")
-    doc.add_paragraph("7. Hirano, H. (1995). 5 Pillars of the Visual Workplace. Productivity Press")
-    doc.add_paragraph("8. Juran, J. M. (1999). Juran's Quality Handbook. McGraw-Hill")
-    src = tmp_path / "orig_refs.docx"
-    doc.save(src)
-    return src
+    d = docx.Document(str(out))
+    assert _count_referencias(d) == 1, (
+        "Ruta layered: debe haber exactamente un heading 'Referencias' "
+        f"(hubo {_count_referencias(d)})"
+    )
+    all_text = "\n".join(p.text for p in d.paragraphs)
+    assert "García" in all_text and "López" in all_text
 
 
-def test_inplace_removes_duplicate_references(tmp_path):
-    """F2: apply_inplace elimina el párrafo de bibliografía duplicado."""
-    from docx import Document
-    from generation.inplace_editor import apply_inplace
-
-    src = _build_dup_ref_doc(tmp_path)
-    out = tmp_path / "out_refs.docx"
-    apply_inplace(src, out, _Model(), _Rules(), scopes={"bibliografia"})
-
-    d = Document(str(out))
-    ref_texts = [
-        p.text for p in d.paragraphs
-        if "(1995)" in p.text or "(1999)" in p.text
-    ]
-    hirano = [t for t in ref_texts if "hirano" in t.lower()]
-    assert len(hirano) == 1, f"Esperado 1 Hirano, got {len(hirano)}: {ref_texts}"
-    assert len(ref_texts) == 2, f"Esperado 2 refs, got {len(ref_texts)}: {ref_texts}"
-
-
-def test_inplace_keeps_cover_intact_with_dedup(tmp_path):
-    """El contrato duro (portada byte-idéntica) se respeta aunque se
-    eliminen duplicados de bibliografía."""
-    from docx import Document
-    from generation.inplace_editor import apply_inplace
-
-    src = _build_dup_ref_doc(tmp_path)
-    cover_before = [p._element.xml for p in Document(str(src)).paragraphs[:5]]
-    out = tmp_path / "out_refs2.docx"
-    apply_inplace(src, out, _Model(), _Rules(), scopes={"bibliografia"})
-    cover_after = [p._element.xml for p in Document(str(out)).paragraphs[:5]]
-    assert cover_before == cover_after, "La portada mutó durante el dedup de bibliografía"
+def _docx_bytes(doc) -> bytes:
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()

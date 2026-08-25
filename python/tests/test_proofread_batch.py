@@ -184,6 +184,9 @@ class TestAIReviewProactiveAuditor:
                 "Se esperaba un hallazgo de palabra duplicada fusionado en "
                 f"ai-review, se obtuvo: {all_findings}"
             )
+        finally:
+            _cleanup_session(sid)
+
 
     def test_ai_review_response_shape(self):
         """ai-review mantiene el shape esperado por el frontend."""

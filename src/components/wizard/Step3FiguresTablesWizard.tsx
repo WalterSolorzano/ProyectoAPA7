@@ -4,7 +4,7 @@ import { needsReview } from '../../lib/portadaAuthors';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { resolveAssetUrl } from '../../api/backend';
-import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter } from 'lucide-react';
+import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter, Sparkles, Loader2 } from 'lucide-react';
 
 export const Step3FiguresTablesWizard: React.FC = () => {
   const [subTab, setSubTab] = useState<'figures' | 'tables'>('figures');
@@ -19,6 +19,10 @@ export const Step3FiguresTablesWizard: React.FC = () => {
   const selectedElementId = useDocStore((s) => s.selectedElementId);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
+  // C6: Auto-caption all button
+  const autoCaptionAll = useDocStore((s) => s.autoCaptionAll);
+  const isLoading = useDocStore((s) => s.isLoading);
+  const [autoCaptionLoading, setAutoCaptionLoading] = useState(false);
 
   const [toolbarAnchor, setToolbarAnchor] = useState<DOMRect | null>(null);
   const [toolbarElementId, setToolbarElementId] = useState<string | null>(null);
@@ -106,6 +110,34 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text-primary)', flex: 1 }}>
               Figuras y tablas ({figures.length + tables.length})
             </span>
+            {/* C6: Leyendas IA para todo */}
+            {(figures.length + tables.length) > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setAutoCaptionLoading(true);
+                  try {
+                    await autoCaptionAll();
+                  } finally {
+                    setAutoCaptionLoading(false);
+                  }
+                }}
+                disabled={autoCaptionLoading || isLoading}
+                title="Sugerir leyendas APA 7 con IA para todas las figuras y tablas sin título"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                  fontSize: '11px', fontWeight: 600, cursor: (autoCaptionLoading || isLoading) ? 'wait' : 'pointer',
+                  fontFamily: 'inherit', borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--color-accent-soft)',
+                  border: '1px solid var(--accent-primary)',
+                  color: 'var(--accent-primary)',
+                }}
+              >
+                {autoCaptionLoading
+                  ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Generando…</>
+                  : <><Sparkles size={12} /> Leyendas IA para todo</>}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setListCollapsed(true)}

@@ -27,7 +27,13 @@ from models import (
 from modules.cover_designer import CoverTemplate, apply_cover_to_document, list_cover_templates
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
-from parsing.pre_classifier import REGEX_FIGURE_CAPTION
+from parsing.pre_classifier import (
+    REGEX_FIGURE_CAPTION,
+    REFERENCE_ORG_PATTERN,
+    REFERENCE_PATTERN,
+    REFERENCE_TITLE_PATTERN,
+    REFERENCE_URL_PATTERN,
+)
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
@@ -300,6 +306,48 @@ def _strip_existing_numbering(text: str) -> str:
     return text
 
 
+
+# ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
+
+_REF_SECTION_HEADINGS = {
+    "referencias",
+    "bibliografia",                    # "Bibliografía" normalizado (sin tilde)
+    "referencias bibliograficas",      # "Referencias bibliográficas"
+}
+
+
+def _normalize_accent_simple(text: str) -> str:
+    """Elimina acentos/diacríticos para comparación insensible a tildes."""
+    import unicodedata
+    nfkd = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _is_references_section_heading(elem) -> bool:
+    """True si ``elem`` es un heading que abre la sección de Referencias/Bibliografía."""
+    if elem is None or elem.type != ElementType.HEADING:
+        return False
+    raw = _strip_existing_numbering((elem.text or "")).strip().rstrip(".:; ")
+    if not raw:
+        return False
+    return _normalize_accent_simple(raw.lower()) in _REF_SECTION_HEADINGS
+
+
+def _is_reference_entry_text(text: str) -> bool:
+    """True si ``text`` parece una entrada de referencia APA (autor, año, DOI/URL)."""
+    if not text:
+        return False
+    t = text.strip()
+    if not t:
+        return False
+    return bool(
+        REFERENCE_PATTERN.match(t)
+        or REFERENCE_URL_PATTERN.match(t)
+        or REFERENCE_TITLE_PATTERN.match(t)
+        or REFERENCE_ORG_PATTERN.match(t)
+    )
+
+
 # ponytail: removed _find_matching_paragraph_idx — text fingerprint matching
 # was inserting page breaks at wrong positions when model text ≠ paragraph text.
 # doc_model.elements order ALREADY matches doc.paragraphs[cover_paragraph_count:] order
@@ -471,6 +519,67 @@ def _usable_width_cm(section) -> float | None:
     return usable_in * 2.54 if usable_in is not None else None
 
 
+def _usable_height_cm(section) -> float | None:
+    """Alto utilizable de la sección (página − márgenes) en centímetros, o None.
+
+    Útil para limitar la altura de imágenes que excedan el área imprimible
+    de la página y evitar que una figura se desborde verticalmente.
+    """
+    try:
+        if (section is None or section.page_height is None
+                or section.top_margin is None or section.bottom_margin is None):
+            return None
+        return float((section.page_height - section.top_margin - section.bottom_margin) / 360000)
+    except Exception:
+        return None
+
+
+def _clamp_image_height_to_page(img_p, doc) -> None:
+    """Escala proporcionalmente la imagen para que su altura no exceda el
+    alto utilizable de la página (page_height − top_margin − bottom_margin).
+
+    Actúa sobre el ``wp:extent`` del drawing y el ``a:ext`` interno del
+    ``pic:spPr/a:xfrm`` para que la renderización coincida. Solo reduce;
+    si la imagen ya cabe, no la toca.
+    """
+    try:
+        section = doc.sections[0] if (doc is not None and doc.sections) else None
+        if section is None:
+            return
+        ph = section.page_height
+        tm = section.top_margin
+        bm = section.bottom_margin
+        if ph is None or tm is None or bm is None:
+            return
+        usable_emu = int(ph) - int(tm) - int(bm)
+        if usable_emu <= 0:
+            return
+    except Exception:
+        return
+
+    for drawing in img_p._element.iter(qn('w:drawing')):
+        extents = list(drawing.iter(qn('wp:extent')))
+        if not extents:
+            continue
+        extent = extents[0]
+        try:
+            cx = int(extent.get('cx', '0') or '0')
+            cy = int(extent.get('cy', '0') or '0')
+        except (ValueError, TypeError):
+            continue
+        if cy <= 0 or cy <= usable_emu:
+            continue
+        scale = usable_emu / cy
+        new_cy = usable_emu
+        new_cx = max(1, int(cx * scale))
+        for ext in extents:
+            ext.set('cx', str(new_cx))
+            ext.set('cy', str(new_cy))
+        for a_ext in drawing.iter(qn('a:ext')):
+            a_ext.set('cx', str(new_cx))
+            a_ext.set('cy', str(new_cy))
+
+
 def _apply_image_design_style(
     p,
     img_elem: ElementModel,
@@ -551,6 +660,10 @@ def _apply_image_design_style(
                 pass
 
     p.paragraph_format.first_line_indent = Inches(0)
+
+    # D3: evitar que la imagen (y su caption pegado) se partan entre dos páginas.
+    p.paragraph_format.keep_together = True
+    p.paragraph_format.widow_control = True
 
 
 # ─── REHIDRATACIÓN DE ANCLAS / ENLACES / NOTAS (POST-PROCESO) ────────────────
@@ -1210,6 +1323,9 @@ def generate_apa7_docx(
     except Exception:
         pass
 
+    # F3: estado de deduplicación de la sección de Referencias.
+    _in_references_section = False
+
     for item in doc_model.elements:
         elem = ElementModel.model_validate(item) if isinstance(item, dict) else item
         elem_type = elem.type
@@ -1230,6 +1346,39 @@ def generate_apa7_docx(
                     table_count_processed += 1
                     used_table_indices.add(table_count_processed - 1)
             continue
+
+        # F3: Deduplicación de la sección de Referencias.
+        # Cuando se provee la lista ``references``, el título "Referencias" y las
+        # entradas de referencia ya presentes en el documento original NO se
+        # reformatean in-place: se eliminan del cuerpo para que
+        # format_apa_referencias_section() los reescriba una sola vez al final
+        # (evita una segunda sección "Referencias" duplicada).
+        if references:
+            if not _in_references_section and _is_references_section_heading(elem):
+                _in_references_section = True
+            if _in_references_section:
+                _is_ref_content = (
+                    (elem_type == ElementType.HEADING and _is_references_section_heading(elem))
+                    or getattr(elem, "pre_classifier_rule", "") == "reference_item"
+                    or _is_reference_entry_text(elem.text or "")
+                )
+                if _is_ref_content or not (elem.text or "").strip():
+                    # Eliminar el párrafo existente correspondiente (solo
+                    # elementos de texto que consumen p_idx; tablas/imágenes
+                    # y saltos no tocan el índice de párrafos).
+                    if elem_type not in (ElementType.TABLE, ElementType.IMAGE,
+                                         ElementType.PAGE_BREAK, ElementType.SECTION_BREAK):
+                        if p_idx < len(existing_paragraphs):
+                            _p_rm = existing_paragraphs[p_idx]
+                            p_idx += 1
+                            _el_rm = _p_rm._element
+                            _par_rm = _el_rm.getparent()
+                            if _par_rm is not None:
+                                _par_rm.remove(_el_rm)
+                    continue
+                # Contenido no referencial tras la sección (p.ej. "Anexos"):
+                # salir del modo dedup y procesarlo normalmente.
+                _in_references_section = False
 
         # ── CASO ESPECIAL: TABLA EXISTENTE (FORMATO ATÓMICO IN-PLACE + ETIQUETA PEGUERA) ──
         if elem_type == ElementType.TABLE:
@@ -1313,6 +1462,9 @@ def generate_apa7_docx(
 
                 # 🆕 DESIGN STYLE: Apply design_style formatting
                 _apply_image_design_style(img_p, elem, rules)
+
+                # D4: limitar la altura de la imagen al alto utilizable de la página.
+                _clamp_image_height_to_page(img_p, doc)
 
                 if in_cover:
                     in_cover = False
@@ -1409,11 +1561,16 @@ def generate_apa7_docx(
                 numbered_counters = {1: 0, 2: 0, 3: 0}
                 last_numbered_level = 0
 
-            # Auto-numeración persistente de headings
-            heading_counters[lvl] = heading_counters.get(lvl, 0) + 1
-            # Resetear contadores de niveles inferiores
-            for lower_lvl in range(lvl + 1, 6):
-                heading_counters[lower_lvl] = 0
+            # APA 7: el heading que abre la sección "Referencias"/"Bibliografía"
+            # NO lleva numeración (es una sección especial al final del documento).
+            _is_refs_h = _is_references_section_heading(elem)
+
+            # Auto-numeración persistente de headings (excepto el de Referencias)
+            if not _is_refs_h:
+                heading_counters[lvl] = heading_counters.get(lvl, 0) + 1
+                # Resetear contadores de niveles inferiores
+                for lower_lvl in range(lvl + 1, 6):
+                    heading_counters[lower_lvl] = 0
 
             # Detectar estilo de numeracion especifico para este nivel
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
@@ -1427,8 +1584,8 @@ def generate_apa7_docx(
                 elif detected_style == 'roman':
                     level_style = 'roman'
 
-            # Construir prefijo numerico
-            number_prefix = _build_heading_prefix(heading_counters, lvl, level_style)
+            # Construir prefijo numerico (vacío para el heading de Referencias)
+            number_prefix = "" if _is_refs_h else _build_heading_prefix(heading_counters, lvl, level_style)
 
             # Strip existing numbering from text before adding programmatic prefix
             raw_text = elem.text or p.text

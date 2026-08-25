@@ -182,6 +182,52 @@ def _convert_inline_to_anchor(drawing_elem, width_emu: int, height_emu: int,
     drawing_elem.replace(inline, anchor)
 
 
+def _usable_height_emu(doc) -> int | None:
+    """Alto utilizable de la página (page_height − top − bottom) en EMU, o None."""
+    try:
+        section = doc.sections[0] if (doc is not None and doc.sections) else None
+        if section is None:
+            return None
+        ph = section.page_height
+        tm = section.top_margin
+        bm = section.bottom_margin
+        if ph is None or tm is None or bm is None:
+            return None
+        usable = int(ph) - int(tm) - int(bm)
+        return usable if usable > 0 else None
+    except Exception:
+        return None
+
+
+def _clamp_picture_height_to_page(p_img, doc) -> None:
+    """Escala proporcionalmente la imagen para que su altura no exceda el alto
+    utilizable de la página (evita desbordamiento vertical)."""
+    usable_emu = _usable_height_emu(doc)
+    if not usable_emu:
+        return
+    for drawing in p_img._element.iter(qn('w:drawing')):
+        extents = list(drawing.iter(qn('wp:extent')))
+        if not extents:
+            continue
+        extent = extents[0]
+        try:
+            cx = int(extent.get('cx', '0') or '0')
+            cy = int(extent.get('cy', '0') or '0')
+        except (ValueError, TypeError):
+            continue
+        if cy <= 0 or cy <= usable_emu:
+            continue
+        scale = usable_emu / cy
+        new_cy = usable_emu
+        new_cx = max(1, int(cx * scale))
+        for ext in extents:
+            ext.set('cx', str(new_cx))
+            ext.set('cy', str(new_cy))
+        for a_ext in drawing.iter(qn('a:ext')):
+            a_ext.set('cx', str(new_cx))
+            a_ext.set('cy', str(new_cy))
+
+
 def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSet):
     """
     Inserta la imagen en el documento con estructura APA 7 configurable.
@@ -256,6 +302,9 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
         rotation = int(getattr(img_data, "rotation", 0) or 0)
         if rotation:
             _apply_image_rotation(run_element, rotation)
+
+        # D4: limitar la altura de la imagen al alto utilizable de la página.
+        _clamp_picture_height_to_page(p_img, doc)
 
         # Texto alternativo (accesibilidad) — se escribe en el drawing y el docProps
         alt_text = (getattr(img_data, "alt_text", "") or "").strip()

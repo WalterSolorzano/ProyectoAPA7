@@ -5,9 +5,8 @@ import { useDocStore } from '../../store/useDocStore';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { needsReview } from '../../lib/portadaAuthors';
-import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { Badge } from '../ui/wordapa7';
-import { OutlineTree } from './OutlineTree';
 import * as api from '../../api/backend';
 
 const kbdStyle: React.CSSProperties = {
@@ -27,7 +26,6 @@ export const Step2HeadingsWizard: React.FC = () => {
   const { doc, updateElementType, setSelectedElementId, selectedElementId, showToast } = useDocStore();
   const [filterMode, setFilterMode] = useState<'revisar' | 'all'>('all');
   const [reviewerCollapsed, setReviewerCollapsed] = useState(false);
-  const [outlineCollapsed, setOutlineCollapsed] = useState(false);
   const [toolbarAnchor, setToolbarAnchor] = useState<DOMRect | null>(null);
   const [toolbarElementId, setToolbarElementId] = useState<string | null>(null);
   const [reviewIdx, setReviewIdx] = useState(0);
@@ -98,8 +96,9 @@ export const Step2HeadingsWizard: React.FC = () => {
   const reviewCount = reviewHeadings.length;
   reviewCountRef.current = reviewCount;
 
-  // Construir árbol jerárquico de títulos: vive en OutlineTree.tsx (módulo
-  // compartido con el Mapa del documento del panel derecho).
+  // El árbol jerárquico de títulos ya NO se renderiza acá (D2): se unificó en
+  // el "Mapa del documento" que vive bajo el StepRail (visible en pasos 2-4).
+  // Step2 queda con solo el lienzo + el Revisor secuencial.
 
   const reviewHighlightIds = useMemo(() => {
     if (filterMode !== 'revisar') return undefined;
@@ -218,31 +217,6 @@ export const Step2HeadingsWizard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden', minHeight: 0 }}>
-      {/* ── Mapa jerárquico de títulos (IZQUIERDA, árbol colapsable) ──
-          Módulo compartido: OutlineTree (mismo diseño que el Mapa del panel derecho) */}
-      {filterMode === 'all' && (
-        <div style={{
-          width: outlineCollapsed ? 40 : 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
-          overflow: 'hidden', transition: 'width 0.2s ease',
-        }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-            {!outlineCollapsed && <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>Mapa de títulos</span>}
-            {!outlineCollapsed && <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headings.length}</span>}
-            <button type="button" onClick={() => setOutlineCollapsed((v) => !v)} title={outlineCollapsed ? 'Expandir mapa' : 'Colapsar mapa'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }}>
-              {outlineCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-            </button>
-          </div>
-          {!outlineCollapsed && (
-            <>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <OutlineTree />
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
       {/* Main document area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minWidth: 0 }}>
         {/* Top filter bar */}

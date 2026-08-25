@@ -11,6 +11,7 @@ import {
   PreviewResponse,
   LLMProgressState,
   ImageModel,
+  TableModel,
 } from '../types';
 import { useDocStore } from '../store/useDocStore';
 import { getApiBase, getApiBaseAsync, fetchWithTrace } from './http';
@@ -152,8 +153,7 @@ export interface ProofreadBatchResponse {
 /** Revisor por lotes: ortografía + frases IA + texto pegado (local+LLM). */
 export async function proofreadBatch(sessionId: string): Promise<ProofreadBatchResponse> {
   const res = await fetchWithTrace(`${getApiBase()}/proofread-batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -234,8 +234,7 @@ export async function classifyWithLLM(
   }
 
   const res = await fetchWithTrace(`${getApiBase()}/classify/${sessionId}`, {
-    method: 'POST',
-    body: formData,
+    method: 'POST', body: formData,
   });
 
   if (!res.ok) {
@@ -251,7 +250,8 @@ export async function updateElement(
   type: ElementType,
   headingLevel?: number,
   text?: string,
-  equation?: Record<string, any>
+  equation?: Record<string, any>,
+  tableInfo?: Partial<TableModel>,
 ): Promise<DocumentModel> {
   const res = await fetchWithTrace(`${getApiBase()}/update-element`, {
     method: 'POST',
@@ -263,6 +263,7 @@ export async function updateElement(
       heading_level: headingLevel ?? 1,
       text,
       ...(equation ? { equation } : {}),
+      ...(tableInfo ? { table_info: tableInfo } : {}),
     }),
   });
 
@@ -291,6 +292,29 @@ export async function updateElementImage(
   return res.json();
 }
 
+/** C2: Persiste cambios de table_info (caption, note, table_number, etc.) via el
+ *  endpoint unificado /update-element enviando el campo table_info. */
+export async function updateElementTable(
+  sessionId: string,
+  elementId: string,
+  tableInfo: Partial<TableModel>
+): Promise<DocumentModel> {
+  const res = await fetchWithTrace(`${getApiBase()}/update-element`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      element_id: elementId,
+      type: 'table' as ElementType,
+      heading_level: 1,
+      table_info: tableInfo,
+    }),
+  });
+
+  if (!res.ok) throw new Error('Error al actualizar tabla');
+  return res.json();
+}
+
 export async function replaceImageFile(
   sessionId: string,
   elementId: string,
@@ -299,8 +323,7 @@ export async function replaceImageFile(
   const form = new FormData();
   form.append('file', file);
   const res = await fetchWithTrace(`${getApiBase()}/replace-image/${sessionId}/${elementId}`, {
-    method: 'POST',
-    body: form,
+    method: 'POST', body: form,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
@@ -431,19 +454,11 @@ export async function generatePreviewPdf(
   const res = await fetchWithTrace(`${getApiBase()}/preview-pages/${sessionId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      session_id: sessionId,
-      rules,
-      portada,
-      references
-    }),
+    body: JSON.stringify({ session_id: sessionId, rules, portada, references }),
   });
   const data = await res.json();
   if (data.status === 'pdf') {
-     return {
-         status: 'ok',
-         download_url: data.pdf_url
-     };
+     return { status: 'ok', download_url: data.pdf_url };
   }
   return data;
 }
@@ -909,14 +924,28 @@ export async function resolveGhostCitation(
   return res.json();
 }
 
+/** C3: Envía el schema correcto que espera el backend:
+ *  { element_type, text, rules_applied, confidence, session_id?, element_id?, question?, api_key? }.
+ *  Antes enviaba `{ id, question }` que no coincidía con ExplainElementRequest. */
 export async function explainElement(
-  elementId: string,
-  question: string,
+  sessionId: string,
+  element: { id: string; type: string; text?: string; confidence?: number; pre_classifier_rule?: string; llm_reasoning?: string },
+  question?: string,
+  apiKey?: string,
 ): Promise<{ explanation?: string }> {
   const res = await fetchWithTrace(`${getApiBase()}/ai/explain-element`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: elementId, question }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      element_id: element.id,
+      element_type: element.type || '',
+      text: element.text || '',
+      rules_applied: element.pre_classifier_rule || element.llm_reasoning || '',
+      confidence: element.confidence ?? 0,
+      question: question || '',
+      api_key: apiKey,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);

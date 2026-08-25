@@ -22,6 +22,12 @@ from models import (
 )
 from modules.portada_module import format_apa_portada
 from modules.referencias_module import format_apa_referencias_section
+from parsing.pre_classifier import (
+    REFERENCE_ORG_PATTERN,
+    REFERENCE_PATTERN,
+    REFERENCE_TITLE_PATTERN,
+    REFERENCE_URL_PATTERN,
+)
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
 from generation.document_structure import setup_apa_header
@@ -35,6 +41,42 @@ from generation.style_engine import (
     update_docx_styles_xml,
 )
 from generation.table_engine import format_apa_table
+
+
+# ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
+
+_REF_SECTION_HEADINGS = {"referencias", "bibliografia", "referencias bibliograficas"}
+
+
+def _normalize_accent_simple(text: str) -> str:
+    """Elimina acentos/diacríticos para comparación insensible a tildes."""
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
+
+
+def _is_references_section_heading(elem) -> bool:
+    """True si ``elem`` es un heading que abre la sección de Referencias/Bibliografía."""
+    if elem is None or elem.type != ElementType.HEADING:
+        return False
+    raw = (elem.text or "").strip().rstrip(".:; ")
+    if not raw:
+        return False
+    return _normalize_accent_simple(raw.lower()) in _REF_SECTION_HEADINGS
+
+
+def _is_reference_entry_text(text: str) -> bool:
+    """True si ``text`` parece una entrada de referencia APA (autor, año, DOI/URL)."""
+    if not text:
+        return False
+    t = text.strip()
+    if not t:
+        return False
+    return bool(
+        REFERENCE_PATTERN.match(t)
+        or REFERENCE_URL_PATTERN.match(t)
+        or REFERENCE_TITLE_PATTERN.match(t)
+        or REFERENCE_ORG_PATTERN.match(t)
+    )
 
 
 def generate_apa7_from_scratch(
@@ -186,6 +228,9 @@ def generate_apa7_from_scratch(
                     parts.append(str(c))
         return ".".join(parts) + ". " if parts else ""
 
+    # F3: estado de deduplicación de la sección de Referencias.
+    _in_references_section = False
+
     for body_idx, elem in enumerate(body_elements):
         elem_type = elem.type
         elem_level = elem.heading_level or 1
@@ -194,6 +239,24 @@ def generate_apa7_from_scratch(
         if elem_type == ElementType.PAGE_BREAK:
             doc.add_page_break()
             continue
+
+        # F3: Deduplicación de la sección de Referencias.
+        # Cuando se provee la lista ``references``, el título "Referencias" y las
+        # entradas de referencia del modelo NO se reescriben aquí: se omite su
+        # generación para que format_apa_referencias_section() los escriba una
+        # sola vez en PHASE 4 (evita una sección "Referencias" duplicada).
+        if references:
+            if not _in_references_section and _is_references_section_heading(elem):
+                _in_references_section = True
+            if _in_references_section:
+                _is_ref_content = (
+                    (elem_type == ElementType.HEADING and _is_references_section_heading(elem))
+                    or getattr(elem, "pre_classifier_rule", "") == "reference_item"
+                    or _is_reference_entry_text(elem.text or "")
+                )
+                if _is_ref_content or not (elem.text or "").strip():
+                    continue
+                _in_references_section = False
 
         if elem_type == ElementType.HEADING:
             lvl = elem.heading_level or 1

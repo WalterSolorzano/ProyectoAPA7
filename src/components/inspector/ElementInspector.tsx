@@ -1,14 +1,13 @@
-/* WordAPA7 � Element Inspector (Tabs: Info / Estilo / Avanzado)
-   Incluye el EDITOR DE PORTADA redise�ado: estrategia en chips, asistente IA
+/* WordAPA7 — Element Inspector (Tabs: Info / Estilo / Avanzado)
+   Incluye el EDITOR DE PORTADA rediseñado: estrategia en chips, asistente IA
    visible y lista de autores limpia. */
 
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ElementType, APARuleSet } from '../../types';
-import { Info, MessageCircle, Wand2, Sigma, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { Info, MessageCircle, Wand2, Sigma, Sparkles, PanelRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { explainElement, suggestCaption } from '../../api/backend';
-import { ImageEditPanel } from './ImageEditPanel';
 
 /** Botón "Sugerir leyenda con IA": acceso visible desde el inspector
     (antes solo existía en el menú contextual del clic derecho y nadie lo hallaba). */
@@ -31,7 +30,11 @@ const SuggestCaptionButton: React.FC<{ elem: any }> = ({ elem }) => {
       const suggestion = await suggestCaption(
         doc.session_id, elem.id, ctx.join('\n'), useDocStore.getState().apiKey,
       );
-      useDocStore.getState().updateElementImage(elem.id, { ...(elem.image_info || {}), caption: suggestion });
+      if (elem.type === 'image') {
+        useDocStore.getState().updateElementImage(elem.id, { ...(elem.image_info || {}), caption: suggestion });
+      } else if (elem.type === 'table') {
+        useDocStore.getState().updateElementTable(elem.id, { ...(elem.table_info || {}), caption: suggestion });
+      }
       useDocStore.getState().showToast('Leyenda sugerida aplicada', 'success');
     } catch (err: any) {
       useDocStore.getState().showToast(err.message || 'Error al sugerir leyenda', 'error');
@@ -59,11 +62,11 @@ const SuggestCaptionButton: React.FC<{ elem: any }> = ({ elem }) => {
 };
 
 const APA_HEADING_RULES: Record<number, string> = {
-  1: 'Nivel 1: Centrado, Negrita, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
-  2: 'Nivel 2: Alineado a la Izquierda, Negrita, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
-  3: 'Nivel 3: Alineado a la Izquierda, Negrita y Cursiva, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
-  4: 'Nivel 4: Sangr�a de 1.27 cm, Negrita, Termina en punto. El texto contin�a en la misma l�nea.',
-  5: 'Nivel 5: Sangr�a de 1.27 cm, Negrita y Cursiva, Termina en punto. El texto contin�a en la misma l�nea.',
+  1: 'Nivel 1: Centrado, Negrita, Caso Título. El texto empieza en un nuevo párrafo.',
+  2: 'Nivel 2: Alineado a la Izquierda, Negrita, Caso Título. El texto empieza en un nuevo párrafo.',
+  3: 'Nivel 3: Alineado a la Izquierda, Negrita y Cursiva, Caso Título. El texto empieza en un nuevo párrafo.',
+  4: 'Nivel 4: Sangría de 1.27 cm, Negrita, Termina en punto. El texto continúa en la misma línea.',
+  5: 'Nivel 5: Sangría de 1.27 cm, Negrita y Cursiva, Termina en punto. El texto continúa en la misma línea.',
 };
 
 const TYPE_OPTIONS: { value: ElementType; label: string }[] = [
@@ -82,12 +85,13 @@ type TabId = 'info' | 'style' | 'advanced';
 
 export const ElementInspector: React.FC = () => {
   const { doc, selectedElementId, updateElementType, portada, setPortada } = useDocStore();
+  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
 
   if (!doc) return null;
 
   const selectedElem = doc.elements.find((e) => e.id === selectedElementId) || null;
-  // Solo un elemento de portada expl�cito abre la vista de portada; el editor
-  // completo vive en el paso Portada (CoverEditorPanel) � ac� solo redirige.
+  // Solo un elemento de portada explícito abre la vista de portada; el editor
+  // completo vive en el paso Portada (CoverEditorPanel) — acá solo redirige.
   const isPortadaElem = selectedElem?.type === 'portada_block';
 
   const triggerUpdate = () => {
@@ -128,7 +132,7 @@ export const ElementInspector: React.FC = () => {
       }}>
         {[
           { id: 'info', label: 'Info', icon: <Info size={13} /> },
-          ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuaci�n', icon: <Sigma size={13} /> }] : []),
+          ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuación', icon: <Sigma size={13} /> }] : []),
         ].map((tab) => (
               <TabsTrigger
                 key={tab.id}
@@ -159,6 +163,7 @@ export const ElementInspector: React.FC = () => {
               <InfoTab
                 selectedElem={selectedElem}
                 triggerUpdate={triggerUpdate}
+                setImagePanelOpen={setImagePanelOpen}
               />
             </TabsContent>
             {selectedElem?.type === 'equation' && (
@@ -197,7 +202,7 @@ export const ElementInspector: React.FC = () => {
       {!selectedElem && !isPortadaElem && (
         <div className="inspector-content" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            Seleccion� un elemento del documento para ver sus detalles.
+            Seleccioná un elemento del documento para ver sus detalles.
           </span>
         </div>
       )}
@@ -225,17 +230,25 @@ export const ElementInspector: React.FC = () => {
             <MessageCircle size={14} color="var(--text-muted)" />
             <input
               type="text"
-              placeholder="�Por qu� se clasific� as�?"
+              placeholder="¿Por qué se clasificó así?"
               style={{ border: 'none', outline: 'none', fontSize: '11px', flex: 1, width: '100%', backgroundColor: 'transparent', color: 'var(--text-main)' }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                    const val = e.currentTarget.value;
-                     if (val.trim() && selectedElem) {
+                     if (val.trim() && selectedElem && doc) {
                       e.currentTarget.value = '';
-                     explainElement(selectedElem.id, val.trim()).then(() => {
-                       useDocStore.getState().showToast('Explicaci�n IA solicitada', 'info');
+                     // C3: Pasar los datos del elemento al backend (schema correcto)
+                     explainElement(doc.session_id, {
+                       id: selectedElem.id,
+                       type: selectedElem.type,
+                       text: selectedElem.text,
+                       confidence: selectedElem.confidence,
+                       pre_classifier_rule: selectedElem.pre_classifier_rule,
+                       llm_reasoning: selectedElem.llm_reasoning,
+                     }, val.trim(), useDocStore.getState().apiKey).then(() => {
+                       useDocStore.getState().showToast('Explicación IA solicitada', 'info');
                      }).catch((err: any) => {
-                       useDocStore.getState().showToast(err?.message || 'Error al solicitar explicaci�n IA', 'error');
+                       useDocStore.getState().showToast(err?.message || 'Error al solicitar explicación IA', 'error');
                      });
                    }
                 }
@@ -249,23 +262,19 @@ export const ElementInspector: React.FC = () => {
 };
 
 
-// -- SUB-COMPONENTES DE PESTA�AS ----------------------------------------------
+// -- SUB-COMPONENTES DE PESTAÑAS ----------------------------------------------
 
-const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ selectedElem, triggerUpdate }) => (
+const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImagePanelOpen: (open: boolean) => void }> = ({ selectedElem, triggerUpdate, setImagePanelOpen }) => {
+  const updateElementTable = useDocStore((s) => s.updateElementTable);
+  return (
   <>
+    {/* C4: Solo el selector de tipo compacto (sin badge "Tipo de Elemento") */}
     <div className="inspector-section">
       <label className="inspector-label">Tipo de Elemento</label>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <span style={{
-          padding: '4px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', color: '#fff',
-          backgroundColor: selectedElem.type === 'heading' ? 'var(--accent-primary)' : selectedElem.type === 'paragraph' ? 'var(--accent-secondary)' : 'var(--text-muted)'
-        }}>
-          {selectedElem.type.toUpperCase()}
-        </span>
-        <select
-          className="form-select"
-          style={{ flex: 1 }}
-          value={selectedElem.type}
+      <select
+        className="form-select"
+        style={{ width: '100%' }}
+        value={selectedElem.type}
         onChange={(e) => {
           const newType = e.target.value as ElementType;
           selectedElem.type = newType;
@@ -275,13 +284,12 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
         {TYPE_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
-        </select>
-      </div>
+      </select>
     </div>
 
     {selectedElem.type === 'heading' && (
       <div className="inspector-section">
-        <label className="inspector-label">Nivel de Jerarqu�a APA 7</label>
+        <label className="inspector-label">Nivel de Jerarquía APA 7</label>
         <select
           className="form-select"
           value={selectedElem.heading_level || 1}
@@ -300,37 +308,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Estado de revisi�n */}
-    <div className="inspector-section">
-      <label className="inspector-label">Estado</label>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {selectedElem.is_user_modified ? (
-          <span style={{
-            fontSize: '11px', fontWeight: 600,
-            backgroundColor: 'rgba(250,173,20,0.14)', color: 'var(--accent-warning)',
-            padding: '4px 10px', borderRadius: '4px',
-            border: '1px solid rgba(250,173,20,0.4)',
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>Editado manualmente</span>
-        ) : selectedElem.needs_review || selectedElem.confidence < 0.85 ? (
-          <span style={{
-            fontSize: '11px', fontWeight: 600,
-            backgroundColor: 'rgba(255,77,79,0.12)', color: 'var(--accent-danger)',
-            padding: '4px 10px', borderRadius: '4px',
-            border: '1px solid rgba(255,77,79,0.4)',
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>Requiere revisi�n</span>
-        ) : (
-          <span style={{
-            fontSize: '11px', fontWeight: 600,
-            backgroundColor: 'rgba(82,196,26,0.12)', color: 'var(--accent-success)',
-            padding: '4px 10px', borderRadius: '4px',
-            border: '1px solid rgba(82,196,26,0.35)',
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>Clasificado</span>
-        )}
-      </div>
-    </div>
+    {/* C4: Sección "Estado" eliminada (era ruido visual sin valor accional) */}
 
     {/* Contenido del texto */}
     <div className="inspector-section">
@@ -355,7 +333,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
           <button
             type="button"
             onClick={async () => {
-              const instruction = window.prompt('Instrucci�n de reescritura (ej: hazlo m�s formal, elimina muletillas, resume):');
+              const instruction = window.prompt('Instrucción de reescritura (ej: hazlo más formal, elimina muletillas, resume):');
               if (instruction === null) return;
               const aiLoading = useDocStore.getState().isLoading;
               if (aiLoading) return;
@@ -377,7 +355,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
               background: 'var(--word-blue-light)', color: 'var(--word-blue)',
               border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
             }}
-            title="Reescribir este p�rrafo con IA seg�n una instrucci�n"
+            title="Reescribir este párrafo con IA según una instrucción"
           >
             <Wand2 size={13} /> Reescribir texto
           </button>
@@ -385,19 +363,31 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Image: editor de imagen embebido en el inspector (una sola UI, sin
-        mensajes sobre "panel a la izquierda" que no coincidía con la realidad)
-        + acceso visible a "Sugerir leyenda con IA" (antes solo vía clic derecho). */}
+    {/* C1: Image — botón para abrir el panel lateral (ImageEditSidePanel en App.tsx),
+        en lugar de un editor de imagen embebido que duplicaba la UI. */}
     {selectedElem.type === 'image' && (
       <div className="inspector-section" style={{ paddingBottom: 0 }}>
         <SuggestCaptionButton elem={selectedElem} />
-        <ImageEditPanel elem={selectedElem} />
+        <button
+          type="button"
+          onClick={() => setImagePanelOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            width: '100%', padding: '7px 10px', marginBottom: '8px', fontSize: '11px', fontWeight: 600,
+            background: 'var(--surface-subtle)', color: 'var(--text-secondary)',
+            border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+          }}
+          title="Abrir el panel de edición de imagen a la derecha"
+        >
+          <PanelRight size={13} /> Abrir panel de edición
+        </button>
       </div>
     )}
 
-    {/* Table info */}
+    {/* C2: Table info — usa updateElementTable para persistir los cambios */}
     {selectedElem.type === 'table' && (
       <div className="inspector-section">
+        <SuggestCaptionButton elem={selectedElem} />
         <label className="inspector-label" style={{ fontWeight: 700, color: 'var(--word-blue)' }}>
           Propiedades de la Tabla APA 7
         </label>
@@ -410,8 +400,10 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
               style={{ fontSize: '11px' }}
               value={selectedElem.table_info?.table_number || 1}
               onChange={(e) => {
-                if (selectedElem.table_info) selectedElem.table_info.table_number = parseInt(e.target.value) || 1;
-                triggerUpdate();
+                updateElementTable(selectedElem.id, {
+                  ...selectedElem.table_info,
+                  table_number: parseInt(e.target.value) || 1,
+                });
               }}
             />
           </div>
@@ -423,8 +415,10 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
               style={{ fontSize: '11px' }}
               value={selectedElem.table_info?.caption || ''}
               onChange={(e) => {
-                if (selectedElem.table_info) selectedElem.table_info.caption = e.target.value;
-                triggerUpdate();
+                updateElementTable(selectedElem.id, {
+                  ...selectedElem.table_info,
+                  caption: e.target.value,
+                });
               }}
               placeholder="Ej: Resumen Estadistico"
             />
@@ -437,8 +431,10 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
               style={{ fontSize: '11px' }}
               value={selectedElem.table_info?.note || ''}
               onChange={(e) => {
-                if (selectedElem.table_info) selectedElem.table_info.note = e.target.value;
-                triggerUpdate();
+                updateElementTable(selectedElem.id, {
+                  ...selectedElem.table_info,
+                  note: e.target.value,
+                });
               }}
               placeholder="Ej: Datos recopilados en el periodo 2024-2026."
             />
@@ -447,7 +443,8 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
   </>
-);
+  );
+};
 
 
 const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ selectedElem, triggerUpdate }) => {
@@ -469,20 +466,20 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
     <>
       <div className="inspector-section">
         <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>
-          Esta es una ecuaci�n de Word (OMML). El contenido matem�tico se preserva
-          intacto; aqu� configuras su presentaci�n en el documento APA.
+          Esta es una ecuación de Word (OMML). El contenido matemático se preserva
+          intacto; aquí configuras su presentación en el documento APA.
         </div>
-        <label className="inspector-label">Ecuaci�n detectada</label>
+        <label className="inspector-label">Ecuación detectada</label>
         <div style={{
           fontSize: '11px', color: 'var(--text-main)', backgroundColor: 'var(--app-bg)',
           padding: '6px 8px', borderRadius: '4px', fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'nowrap',
         }}>
-          {selectedElem.text || '[Ecuaci�n OMML]'}
+          {selectedElem.text || '[Ecuación OMML]'}
         </div>
       </div>
 
       <div className="inspector-section">
-        <label className="inspector-label">Numeraci�n de ecuaci�n</label>
+        <label className="inspector-label">Numeración de ecuación</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="checkbox"
@@ -490,12 +487,12 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
             onChange={(e) => update({ show_number: e.target.checked })}
             style={{ accentColor: 'var(--word-blue)' }}
           />
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mostrar n�mero</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mostrar número</span>
         </div>
 
         {eq.show_number && (
           <>
-            <label className="inspector-label" style={{ marginTop: '8px' }}>Formato del n�mero</label>
+            <label className="inspector-label" style={{ marginTop: '8px' }}>Formato del número</label>
             <select
               className="form-select"
               value={eq.number_format || '(1)'}
@@ -504,28 +501,28 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
               <option value="(1)">(1)</option>
               <option value="[1]">[1]</option>
               <option value="1.">1.</option>
-              <option value="(1.1)">(1.1) � con cap�tulo</option>
-              <option value="Ecuaci�n {n}">Ecuaci�n {eq.number || '1'}</option>
+              <option value="(1.1)">(1.1) — con capítulo</option>
+              <option value="Ecuación {n}">Ecuación {eq.number || '1'}</option>
             </select>
 
-            <label className="inspector-label" style={{ marginTop: '8px' }}>N�mero (opcional)</label>
+            <label className="inspector-label" style={{ marginTop: '8px' }}>Número (opcional)</label>
             <input
               type="text"
               className="form-control"
               style={{ fontSize: '11px' }}
-              placeholder="Auto (1, 2, 3...) � escribe un n�mero para fijarlo"
+              placeholder="Auto (1, 2, 3...) — escribe un número para fijarlo"
               value={eq.number || ''}
               onChange={(e) => update({ number: e.target.value || undefined })}
             />
             <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '3px' }}>
-              Vac�o = numeraci�n autom�tica secuencial en el orden del documento.
+              Vacío = numeración automática secuencial en el orden del documento.
             </p>
           </>
         )}
       </div>
 
       <div className="inspector-section">
-        <label className="inspector-label">Alineaci�n</label>
+        <label className="inspector-label">Alineación</label>
         <div style={{ display: 'flex', gap: '6px' }}>
           {[
             { value: 'left', label: 'Izquierda' },
@@ -552,8 +549,8 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           ))}
         </div>
         <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          APA 7 no fija una regla estricta; por convenci�n las ecuaciones se centran
-          y el n�mero va al margen derecho.
+          APA 7 no fija una regla estricta; por convención las ecuaciones se centran
+          y el número va al margen derecho.
         </p>
       </div>
 
@@ -570,7 +567,7 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           <option value="Calibri">Calibri</option>
         </select>
 
-        <label className="inspector-label" style={{ marginTop: '8px' }}>Tama�o (pt)</label>
+        <label className="inspector-label" style={{ marginTop: '8px' }}>Tamaño (pt)</label>
         <select
           className="form-select"
           value={eq.font_size_pt || 12}
@@ -581,7 +578,7 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           ))}
         </select>
         <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Aplica solo al n�mero y texto de apoyo; el XML de la ecuaci�n se mantiene intacto.
+          Aplica solo al número y texto de apoyo; el XML de la ecuación se mantiene intacto.
         </p>
       </div>
     </>

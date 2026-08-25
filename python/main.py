@@ -484,6 +484,7 @@ class UpdateElementRequest(BaseModel):
     text: Optional[str] = None
     image_info: Optional[dict] = None
     equation: Optional[dict] = None
+    table_info: Optional[dict] = None
 
 
 class DetectSimilarRequest(BaseModel):
@@ -536,6 +537,10 @@ class ExplainElementRequest(BaseModel):
     rules_applied: str = ""
     confidence: float = 0.0
     api_key: Optional[str] = None
+    # C3: campos de compatibilidad enviados por el frontend
+    session_id: Optional[str] = None
+    element_id: Optional[str] = None
+    question: str = ""
 
 
 class RewriteTextRequest(BaseModel):
@@ -1125,6 +1130,26 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
                         if hasattr(img, k):
                             setattr(img, k, v)
                     elem.image_info = img
+
+            # Actualizar campos de table_info si se proporcionan
+            if req.table_info is not None:
+                if hasattr(elem, 'table_info') and elem.table_info is not None:
+                    for k, v in req.table_info.items():
+                        if hasattr(elem.table_info, k):
+                            setattr(elem.table_info, k, v)
+                elif hasattr(elem, 'table_info') and elem.table_info is None:
+                    from models import TableModel
+                    tbl = TableModel(
+                        element_id=req.element_id,
+                        headers=[],
+                        rows=[],
+                        caption="",
+                        table_number=1,
+                    )
+                    for k, v in req.table_info.items():
+                        if hasattr(tbl, k):
+                            setattr(tbl, k, v)
+                    elem.table_info = tbl
 
             # Actualizar configuración de ecuación (presentación, no el XML OMML)
             if req.equation is not None:

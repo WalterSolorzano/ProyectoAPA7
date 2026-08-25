@@ -227,7 +227,7 @@ describe('R3: Structural Revision Panel (Step2HeadingsWizard)', () => {
   });
 
   it('renders headings in document view and shows filter toggles', () => {
-    render(React.createElement(Step2HeadingsWizard));
+    const { container } = render(React.createElement(Step2HeadingsWizard));
 
     // The document title is visible
     expect(screen.getByText('Estructura (2 títulos)')).toBeDefined();
@@ -236,17 +236,21 @@ describe('R3: Structural Revision Panel (Step2HeadingsWizard)', () => {
     expect(screen.getByRole('button', { name: 'Revisar (2)' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Ver todos (2)' })).toBeDefined();
 
-    // Headings appear: the current reviewer heading (first dubious) is shown
-    expect(screen.getAllByText('Título Nivel 2').length).toBeGreaterThan(0);
+    // Headings appear in the document canvas. The preview adds a numbering
+    // prefix to the visible text (e.g. "0.1. Título Nivel 2"), so we assert
+    // presence by the element id instead of an exact text match.
+    expect(container.querySelectorAll('[id^="paper-elem-h_lvl"]').length).toBeGreaterThan(0);
   });
 
-  it('shows the left-side heading map by default; sequential reviewer appears in Revisar mode', () => {
+  it('does not show a duplicate heading map (unified in StepRail); sequential reviewer appears in Revisar mode', () => {
     render(React.createElement(Step2HeadingsWizard));
 
-    // "Ver todos" is the default: the left-side heading map is visible
+    // "Ver todos" is the default
     const todosBtn = screen.getByRole('button', { name: 'Ver todos (2)' });
     expect(todosBtn).toBeDefined();
-    expect(screen.getByText('Mapa de títulos')).toBeDefined();
+    // El "Mapa de títulos" se unificó en el StepRail (visible en pasos 2-4):
+    // ya no se duplica dentro de Step2.
+    expect(screen.queryByText('Mapa de títulos')).toBeNull();
 
     // The reviewer header should NOT be visible yet
     expect(screen.queryByText('Revisor de títulos')).toBeNull();

@@ -139,6 +139,24 @@ describe('getWhatsAppComment — estilo de redacción', () => {
     expect(c!.kind).toBe('duplicate');
   });
 
+  it('detects "de de" as a 2-letter duplicate (DUPLICATE_RE bajado a 2 letras)', () => {
+    const c = getWhatsAppComment(mkElem({ text: 'El análisis de de la muestra resultó ser concluyente en este estudio.' }), AUDITED_CTX);
+    expect(c).not.toBeNull();
+    expect(c!.kind).toBe('duplicate');
+  });
+
+  it('detects "la la" as a 2-letter duplicate', () => {
+    const c = getWhatsAppComment(mkElem({ text: 'El resultado de la la prueba fue positivo durante el ensayo.' }), AUDITED_CTX);
+    expect(c).not.toBeNull();
+    expect(c!.kind).toBe('duplicate');
+  });
+
+  it('does NOT flag "que que" (stopword guard evita falsos positivos)', () => {
+    // "que" es stopword muy frecuente: su repetición no se reporta como duplicado.
+    const c = getWhatsAppComment(mkElem({ text: 'El dato que que se registró fue válido para el análisis.' }), AUDITED_CTX);
+    expect(c).toBeNull();
+  });
+
   it('detects first person', () => {
     const c = getWhatsAppComment(mkElem({ text: 'Nosotros realizamos el experimento y luego yo analicé los resultados de la investigación' }), AUDITED_CTX);
     expect(c).not.toBeNull();

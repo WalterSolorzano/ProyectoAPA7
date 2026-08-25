@@ -315,6 +315,7 @@ interface DocState {
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
+  updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
   replaceImage: (elementId: string, file: File) => Promise<void>;
   reorderElements: (elementIds: string[]) => Promise<void>;
   acceptHighConfidenceElements: () => Promise<void>;
@@ -324,6 +325,8 @@ interface DocState {
   runQuickFix: () => Promise<void>;
   insertTocElement: () => void;
   removeTocElement: () => void;
+  /** C6: Sugiere leyendas IA para todas las figuras y tablas sin caption. */
+  autoCaptionAll: () => Promise<void>;
 
   // Undo/Redo
   undo: () => void;
@@ -1306,7 +1309,8 @@ export const useDocStore = create<DocState>()(
       pushHistory(updated);
       set({ doc: updated });
     } catch (err: any) {
-      console.error('Error updating element:', err);
+      // C7: Show visible error toast instead of silent console.error
+      get().showToast(err?.message || 'Error al actualizar elemento', 'error');
     }
   },
 
@@ -1318,7 +1322,22 @@ export const useDocStore = create<DocState>()(
       pushHistory(updated);
       set({ doc: updated });
     } catch (err: any) {
-      console.error('Error updating image:', err);
+      // C7: Show visible error toast instead of silent console.error
+      get().showToast(err?.message || 'Error al actualizar imagen', 'error');
+    }
+  },
+
+  // C2: Persist table_info changes (caption, note, table_number, etc.) via the
+  // backend updateElementTable endpoint so they survive regeneration.
+  updateElementTable: async (elementId, tableInfo) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    try {
+      const updated = await api.updateElementTable(doc.session_id, elementId, tableInfo);
+      pushHistory(updated);
+      set({ doc: updated });
+    } catch (err: any) {
+      get().showToast(err?.message || 'Error al actualizar tabla', 'error');
     }
   },
 
@@ -1439,6 +1458,61 @@ export const useDocStore = create<DocState>()(
     get().pushHistory(doc);
     set({ doc: { ...doc, elements: next } });
     get().showToast('Índice eliminado del documento.', 'info');
+  },
+
+  // C6: Auto-generate captions for all images and tables that lack one.
+  // Iterates sequentially with error protection per element.
+  autoCaptionAll: async () => {
+    const { doc, apiKey } = get();
+    if (!doc) return;
+    const targets = doc.elements.filter((e) => {
+      if (e.type === 'image' && !e.is_cover_section) {
+        return !e.image_info?.caption?.trim();
+      }
+      if (e.type === 'table') {
+        return !e.table_info?.caption?.trim();
+      }
+      return false;
+    });
+    if (targets.length === 0) {
+      get().showToast('Todas las figuras y tablas ya tienen leyenda', 'info');
+      return;
+    }
+    get().pushActivityEvent('info', `Generando ${targets.length} leyenda(s) con IA…`);
+    let success = 0;
+    let errors = 0;
+    for (const elem of targets) {
+      try {
+        const idx = doc.elements.findIndex((e) => e.id === elem.id);
+        const ctx: string[] = [];
+        for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+          const e = doc.elements[i];
+          if (e.id === elem.id) continue;
+          if (e.type === 'paragraph' || e.type === 'heading' || e.type === 'bullet' || e.type === 'numbered_list') {
+            const t = (e.text || '').trim();
+            if (t) ctx.push(t);
+          }
+        }
+        const contextText = ctx.join('\n') || elem.text || '';
+        const suggestion = await api.suggestCaption(doc.session_id, elem.id, contextText, apiKey);
+        if (elem.type === 'image') {
+          await get().updateElementImage(elem.id, { ...(elem.image_info || {}), caption: suggestion });
+        } else if (elem.type === 'table') {
+          await get().updateElementTable(elem.id, { ...(elem.table_info || {}), caption: suggestion });
+        }
+        success++;
+      } catch (err: any) {
+        errors++;
+        // Continue with next element; don't abort the batch
+      }
+    }
+    if (errors === 0) {
+      get().pushActivityEvent('success', `${success} leyenda(s) generada(s) con IA`);
+      get().showToast(`${success} leyenda(s) generada(s) con IA`, 'success');
+    } else {
+      get().pushActivityEvent('warning', `${success} leyenda(s) generada(s), ${errors} error(es)`);
+      get().showToast(`${success} generadas, ${errors} con error`, 'warning');
+    }
   },
 
   setRules: (newRules) => set((state) => ({ rules: { ...state.rules, ...newRules } })),

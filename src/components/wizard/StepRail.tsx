@@ -7,8 +7,13 @@ import { OutlineTree } from './OutlineTree';
  * StepRail — navegación de pasos como lista vertical a la izquierda.
  * Reemplaza la barra superior de tabs (decisión de producto: la lista
  * lateral es más clara y deja la barra superior solo con acciones globales).
- * Debajo de los pasos (solo pasos 3 y 4) vive el "Mapa del documento",
+ * Debajo de los pasos (solo pasos 2, 3 y 4) vive el "Mapa del documento",
  * colapsable, para no quitarle ancho a la UI principal.
+ *
+ * El mapa se unificó (D2): ahora también aparece en el paso 2 (Estructura),
+ * así que el panel "Mapa de títulos" que antes vivía dentro de Step2 ya no
+ * se duplica — StepRail es el único dueño del árbol de títulos en todos los
+ * pasos donde tiene sentido (2, 3 y 4).
  */
 
 const STEPS = [
@@ -26,7 +31,7 @@ export function StepRail() {
   const coverSetupDone = useDocStore((s) => s.coverSetupDone);
   const [mapOpen, setMapOpen] = useState(true);
 
-  const showMap = wizardStep === 3 || wizardStep === 4;
+  const showMap = wizardStep === 2 || wizardStep === 3 || wizardStep === 4;
 
   const elements = doc?.elements || [];
   const pendingHeadings = elements.filter((e) => e.type === 'heading' && e.needs_review).length;

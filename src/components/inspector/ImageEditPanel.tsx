@@ -123,17 +123,34 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
 
   const setProp = (p: string, v: any) => updateElementImage(elem.id, { [p]: v });
 
+  // C7: Debounce (280ms) on width/height inputs to avoid flooding the backend
+  // with a request on every keystroke while the user types.
+  const debounceTimerW = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceTimerH = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const DEBOUNCE_MS = 280;
+
   const setWidth = (w: number) => {
-    if (constrain) updateElementImage(elem.id, { width_cm: w, height_cm: Math.round((w / aspectRatio) * 10) / 10 });
-    else updateElementImage(elem.id, { width_cm: w });
+    if (debounceTimerW.current) clearTimeout(debounceTimerW.current);
+    debounceTimerW.current = setTimeout(() => {
+      if (constrain) updateElementImage(elem.id, { width_cm: w, height_cm: Math.round((w / aspectRatio) * 10) / 10 });
+      else updateElementImage(elem.id, { width_cm: w });
+    }, DEBOUNCE_MS);
   };
   const setHeight = (h: number) => {
-    if (constrain) updateElementImage(elem.id, { height_cm: h, width_cm: Math.round((h * aspectRatio) * 10) / 10 });
-    else updateElementImage(elem.id, { height_cm: h });
+    if (debounceTimerH.current) clearTimeout(debounceTimerH.current);
+    debounceTimerH.current = setTimeout(() => {
+      if (constrain) updateElementImage(elem.id, { height_cm: h, width_cm: Math.round((h * aspectRatio) * 10) / 10 });
+      else updateElementImage(elem.id, { height_cm: h });
+    }, DEBOUNCE_MS);
   };
-  const restoreSize = () => updateElementImage(elem.id, {
-    width_cm: originalWidth, height_cm: originalHeight, width_inches: null, height_inches: null,
-  });
+  const restoreSize = () => {
+    // Immediate (no debounce) for the restore button
+    if (debounceTimerW.current) clearTimeout(debounceTimerW.current);
+    if (debounceTimerH.current) clearTimeout(debounceTimerH.current);
+    updateElementImage(elem.id, {
+      width_cm: originalWidth, height_cm: originalHeight, width_inches: null, height_inches: null,
+    });
+  };
 
   const replaceFile = async (file: File) => {
     if (!doc) return;
