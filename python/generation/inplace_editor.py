@@ -144,6 +144,9 @@ def apply_inplace(
     line_sp = float(getattr(rules, "line_spacing", 2.0) or 2.0)
 
     changed = 0
+    # Capa de defensa (no raiz): la causa del duplicado es la extraccion;
+    # test raiz: tests/test_references_dedup.py. Este dedup in-place cubre
+    # documentos que YA llegan con bibliografia duplicada.
     ref_seen: set[str] = set()
     removed_refs = 0
     ref_zone_start = len(paragraphs)

@@ -207,6 +207,9 @@ def _normalize_title_key(title: str) -> str:
 def _semantic_dedup_key(parsed: dict, raw_clean: str) -> str:
     """Clave de dedup semantica: apellido + anio + titulo normalizado.
 
+    RAIZ del bug "Hirano x4": el dedup anterior usaba texto crudo (con
+    prefijo numeral) — test raiz: tests/test_references_dedup.py.
+
     Si no se puede parsear autor/ano/titulo, se cae al texto crudo sin el
     prefijo numeral (``raw_clean``) colapsado y en minusculas.
     """
