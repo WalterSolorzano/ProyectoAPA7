@@ -3172,6 +3172,7 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
     # 1b) Auditor proactivo: palabras duplicadas, texto pegado, primera
     #     persona, muletillas, ortografia local.  Fusiona hallazgos locales
     #     (sin red ni API key) en los parrafos ya analizados por la IA.
+    _unmatched_findings: list[dict] = []
     try:
         from modules.proactive_auditor import audit_elements as _audit_elements
         _pa_findings = _audit_elements(doc_model.elements)
@@ -3180,6 +3181,15 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
         for _f in _pa_findings:
             _p = _para_by_id.get(_f.get("element_id"))
             if _p is None:
+                # El párrafo ya no existe (editado/borrado durante la sesión):
+                # conservar el hallazgo en vez de perderlo silenciosamente.
+                _unmatched_findings.append({
+                    "element_id": _f.get("element_id"),
+                    "phrase": _f.get("excerpt", ""),
+                    "phrases": [],
+                    "detail": _f.get("message", ""),
+                    "severity": _SEV_MAP.get(_f.get("severity", "info"), "LOW"),
+                })
                 continue
             _p["findings"].append({
                 "phrase": _f.get("excerpt", ""),
@@ -3256,6 +3266,7 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
         "spelling_count": spelling_count,
         "spelling_status": spelling_status,
         "paragraphs": paragraphs,
+        "unmatched_findings": _unmatched_findings,
         "table_signals": table_signals,
         "document_signals": doc_signals,
     }

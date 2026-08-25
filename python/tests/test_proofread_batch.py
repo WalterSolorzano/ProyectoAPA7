@@ -209,3 +209,42 @@ class TestAIReviewProactiveAuditor:
             assert "ai_score" in p
         finally:
             _cleanup_session(sid)
+
+    def test_unmatched_proactive_findings_exposed(self, monkeypatch):
+        """Hallazgos del auditor con element_id desconocido NO se pierden.
+
+        Si un párrafo fue editado/borrado durante la sesión, el finding del
+        proactive_auditor debe volver bajo 'unmatched_findings' (misma forma
+        que el hallazgo fusionado + element_id), no desaparecer.
+        """
+        from modules import proactive_auditor
+
+        sid = _make_test_session([
+            "Texto suficientemente largo para pasar el umbral del analisis IA."
+        ])
+        fake = [{
+            "element_id": "parrafo-borrado",
+            "excerpt": "final final",
+            "message": "Palabra duplicada detectada",
+            "severity": "warn",
+        }]
+        monkeypatch.setattr(proactive_auditor, "audit_elements", lambda els: fake)
+        try:
+            resp = client.post(f"/api/ai-review/{sid}")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "unmatched_findings" in data
+            assert len(data["unmatched_findings"]) == 1
+            f = data["unmatched_findings"][0]
+            assert f["element_id"] == "parrafo-borrado"
+            assert f["phrase"] == "final final"
+            assert f["detail"] == "Palabra duplicada detectada"
+            assert f["severity"] == "MEDIUM"  # warn → MEDIUM via _SEV_MAP
+            # Y no se coló dentro de ningún párrafo real:
+            for p in data["paragraphs"]:
+                assert all(
+                    "duplicada" not in fr.get("detail", "")
+                    for fr in p.get("findings", [])
+                )
+        finally:
+            _cleanup_session(sid)
