@@ -20,12 +20,17 @@ describe('backend.heartbeat', () => {
     expect(heartbeatCalls.length).toBeGreaterThan(0)
   })
 
-  it('no lanza si el backend está caído (best-effort)', async () => {
+  it('best-effort: aun con la red caida intenta el latido contra /api/addin/heartbeat', async () => {
     fetchSpy = vi.fn().mockRejectedValue(new Error('Network error'))
     global.fetch = fetchSpy as any
     vi.resetModules()
     const { backend } = await import('./backend')
-    // No debe lanzar
-    await expect(backend.heartbeat()).resolves.not.toThrow()
+    // No lanza (best-effort)...
+    await backend.heartbeat()
+    // ...y además deja evidencia: fetch fue invocado con la ruta del latido
+    const beatCalls = fetchSpy.mock.calls.filter((c: any[]) =>
+      /\/api\/addin\/heartbeat/.test(String(c[0])),
+    )
+    expect(beatCalls.length).toBeGreaterThan(0)
   })
 })
