@@ -24,8 +24,11 @@ import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
+from lxml import etree
 
 VALID_SCOPES = ("texto", "tablas_imagenes", "bibliografia")
+
+W_NS = W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _REFS_HEADING = re.compile(
     r"^\s*(referencias|bibliograf[íi]a|references|works cited)\b", re.IGNORECASE
@@ -36,8 +39,107 @@ def _body_xml(doc: docx.Document) -> str:
     return doc.element.body.xml
 
 
+# ------------------------------------------------------------- portada guard
+# FASE 1.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S4,
+# area1.json B_roundtrip zone_identical=false 5/5). Los scopes 'texto' y
+# 'tablas_imagenes' dañaban la portada (sangría V2, reformateo de tablas V3).
+# Guard: reutiliza el MISMO detector del parser (pre_classify_elements, fuente
+# única usada por /api/addin/document-zones) y protege párrafos + tablas de la
+# zona. SDT-wrapped covers ya son invisibles para doc.paragraphs.
+
+
+def _cover_guard(doc: docx.Document) -> Dict[str, Any]:
+    """Detecta la zona de portada y devuelve elementos XML protegidos.
+
+    Retorna {"elements": set[lxml element], "protected": int, "detected": bool}.
+    Nunca lanza: si el detector falla, protege nada (comportamiento previo)
+    y lo reporta en "detected" — honestidad de estado.
+    """
+    empty = {"elements": set(), "protected": 0, "detected": False}
+    try:
+        from parsing.pre_classifier import pre_classify_elements
+        from models import ElementModel, ElementType
+
+        paras = list(doc.paragraphs)
+        if not paras:
+            return empty
+        elems = [
+            ElementModel(
+                id=f"guard-{i}",
+                type=ElementType.PARAGRAPH,
+                text=(p.text or "").strip(),
+                original_text=(p.text or "").strip(),
+            )
+            for i, p in enumerate(paras)
+        ]
+        classified = pre_classify_elements(elems)
+        is_cover = [bool(getattr(e, "is_cover_section", False)) for e in classified]
+        body_start = next((i for i, c in enumerate(is_cover) if not c), len(is_cover))
+        if body_start == 0:
+            # V1 (area1.json C_zones): el clasificador falla con portadas
+            # estructurales (tabla/textbox/flotante primero). Capa estructural:
+            # portada = bloques líderes ANTES del primer párrafo con señal de
+            # cuerpo (estilo Heading, lista, o >=30 palabras).
+            fb = _structural_cover(doc)
+            if fb:
+                return {"elements": fb, "protected": len(fb), "detected": True}
+            return empty
+        protected = {paras[i]._p for i in range(body_start)}
+        # tablas ubicadas antes del primer párrafo del cuerpo también son zona
+        body_el = doc.element.body
+        first_body_p = paras[body_start]._p if body_start < len(paras) else None
+        for tbl in doc.tables:
+            tbl_el = tbl._tbl
+            if first_body_p is not None and _precedes(tbl_el, first_body_p):
+                protected.add(tbl_el)
+        return {"elements": protected, "protected": len(protected), "detected": True}
+    except Exception:
+        return empty
+
+
+def _precedes(a, b) -> bool:
+    """True si el elemento a aparece antes que b entre los hijos de body."""
+    for child in a.getparent():
+        if child is b:
+            return False
+        if child is a:
+            return True
+    return False
+
+
+def _structural_cover(doc: docx.Document) -> set:
+    """Bloques líderes hasta la primera señal de cuerpo (Heading/lista/parrafo
+    largo). Devuelve set vacío si no hay señal (evita proteger el doc entero)."""
+    protected: set = set()
+    for child in doc.element.body:
+        tag = etree.QName(child).localname
+        if tag == "p":
+            style_el = child.find(f"{{{W_NS}}}pPr/{{{W_NS}}}pStyle")
+            style_val = style_el.get(f"{{{W_NS}}}val") if style_el is not None else ""
+            text = "".join(t.text or "" for t in child.iter(f"{{{W_NS}}}t"))
+            words = len(text.split())
+            is_body_signal = (
+                style_val.lower().startswith("heading")
+                or style_val in ("Title", "Subtitle")
+                or words >= 30
+                or _REFS_HEADING.match(text or "")
+            )
+            if is_body_signal:
+                return protected
+            protected.add(child)
+        elif tag == "tbl":
+            protected.add(child)
+        else:
+            break  # sectPr u otro cierre: fin de zona candidata
+    return set()  # nunca hubo señal de cuerpo: no arriesgar
+
+
+def _cover_guard_summary(guard: Dict[str, Any]) -> Dict[str, Any]:
+    return {"protected": guard.get("protected", 0), "detected": guard.get("detected", False)}
+
+
 # ------------------------------------------------------------------ texto
-def apply_scope_texto(doc: docx.Document, rules: Dict[str, Any]) -> None:
+def apply_scope_texto(doc: docx.Document, rules: Dict[str, Any], guard: Dict[str, Any] | None = None) -> None:
     """Estilos globales + sangría. No crea/borra/mueve contenido."""
     from generation.style_engine import update_docx_styles_xml
 
@@ -53,7 +155,10 @@ def apply_scope_texto(doc: docx.Document, rules: Dict[str, Any]) -> None:
     except Exception:
         pass
     indent_cm = float(rules.get("first_line_indent_cm", 1.27))
+    protected = (guard or {}).get("elements") or set()
     for p in doc.paragraphs:
+        if p._p in protected:
+            continue
         pf = p.paragraph_format
         if pf.first_line_indent is None:
             pf.first_line_indent = Cm(indent_cm)
@@ -85,14 +190,17 @@ def parse_borders():
     return parse_xml(xml)
 
 
-def apply_scope_tablas_imagenes(doc: docx.Document) -> Dict[str, int]:
+def apply_scope_tablas_imagenes(doc: docx.Document, guard: Dict[str, Any] | None = None) -> Dict[str, int]:
     """Numera tablas (caption arriba) y figuras (caption abajo). Solo inserta
     párrafos nuevos adyacentes; jamás edita párrafos existentes."""
     counts = {"tablas": 0, "figuras": 0}
+    protected = (guard or {}).get("elements") or set()
 
     # --- Tablas: caption ARRIBA ---
     t_idx = 0
     for tbl in doc.tables:
+        if tbl._tbl in protected:
+            continue  # tabla de portada: intocable
         t_idx += 1
         anchor = tbl._tbl
         new_p = copy.deepcopy(anchor.getprevious() if anchor.getprevious() is not None else anchor)
@@ -111,6 +219,8 @@ def apply_scope_tablas_imagenes(doc: docx.Document) -> Dict[str, int]:
     f_idx = 0
     body_paras = list(doc.paragraphs)
     for i, p in enumerate(body_paras):
+        if p._p in protected:
+            continue  # imagen de portada: sin caption automática
         if p._p.findall(".//" + qn("w:drawing")):
             f_idx += 1
             from docx.oxml import OxmlElement
@@ -160,13 +270,16 @@ def apply_scopes(file_bytes: bytes, scopes: List[str], rules: Dict[str, Any]) ->
     doc = docx.Document(io.BytesIO(file_bytes))
     summary: Dict[str, Any] = {"scopes": list(scopes)}
 
+    guard = _cover_guard(doc)
+    summary["cover_guard"] = _cover_guard_summary(guard)
+
     if "texto" in scopes:
-        apply_scope_texto(doc, rules)
+        apply_scope_texto(doc, rules, guard)
         summary["texto"] = True
     if "bibliografia" in scopes:
         summary["refs_formateadas"] = apply_scope_bibliografia(doc)
     if "tablas_imagenes" in scopes:
-        summary.update(apply_scope_tablas_imagenes(doc))
+        summary.update(apply_scope_tablas_imagenes(doc, guard))
 
     out = io.BytesIO()
     doc.save(out)
