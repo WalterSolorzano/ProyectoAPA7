@@ -208,6 +208,11 @@ from routers import addin_static
 
 app.include_router(addin_static.router)
 
+# ── PROOFREAD BATCH ROUTER (revisor proactivo: ortografia/IA/pegado) ──────────
+from routers import proofread
+
+app.include_router(proofread.router)
+
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
 def api_error(status_code: int, detail: str, error_type: str = "validation_error") -> JSONResponse:
@@ -3123,6 +3128,27 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
             flagged += 1
         score_sum += ai_score
         score_n += 1
+
+    # 1b) Auditor proactivo: palabras duplicadas, texto pegado, primera
+    #     persona, muletillas, ortografia local.  Fusiona hallazgos locales
+    #     (sin red ni API key) en los parrafos ya analizados por la IA.
+    try:
+        from modules.proactive_auditor import audit_elements as _audit_elements
+        _pa_findings = _audit_elements(doc_model.elements)
+        _para_by_id = {p["element_id"]: p for p in paragraphs}
+        _SEV_MAP = {"info": "LOW", "warn": "MEDIUM", "error": "HIGH"}
+        for _f in _pa_findings:
+            _p = _para_by_id.get(_f.get("element_id"))
+            if _p is None:
+                continue
+            _p["findings"].append({
+                "phrase": _f.get("excerpt", ""),
+                "phrases": [],
+                "detail": _f.get("message", ""),
+                "severity": _SEV_MAP.get(_f.get("severity", "info"), "LOW"),
+            })
+    except Exception as _ex:
+        logger.warning(f"Error fusionando hallazgos del auditor proactivo: {_ex}")
 
     # 2) Ortografía sobre el .docx original (Word COM)
     spelling_status = "not_run"

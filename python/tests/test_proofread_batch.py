@@ -1,0 +1,208 @@
+"""Tests del endpoint /api/proofread-batch y la integración del
+proactive_auditor en /api/ai-review.
+
+E1 — /api/proofread-batch:
+  Acepta textos sueltos (tests / add-in) o un session_id (frontend).
+  Devuelve { findings, used_llm, ai_indices } — el shape que espera el
+  frontend (ProofreadBatchResponse en backend.ts).
+
+E2 — /api/ai-review:
+  Tras el análisis de IA por párrafo, fusiona hallazgos del auditor
+  proactivo local (palabras duplicadas, texto pegado, etc.) en los
+  findings de cada párrafo.
+"""
+import sys
+import uuid
+from pathlib import Path
+
+# Asegurar que el directorio ``python`` esté en el path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from fastapi.testclient import TestClient
+
+from main import app  # noqa: E402
+
+# Cliente in-process (sin context manager → sin lifespan events).
+client = TestClient(app)
+
+# ── Helpers de sesión de prueba ──────────────────────────────────────────────
+
+from config import STORAGE_DIR  # noqa: E402
+from models import (  # noqa: E402
+    APAFormat,
+    DocumentModel,
+    ElementModel,
+    ElementType,
+)
+from persistence.session_manager import delete_session, save_session_state  # noqa: E402
+
+
+def _make_test_session(texts: list[str]) -> str:
+    """Crea y persiste una sesión de prueba con párrafos, retorna el session_id."""
+    sid = f"test-pr-{uuid.uuid4().hex[:8]}"
+    elements = [
+        ElementModel(id=f"e{i}", type=ElementType.PARAGRAPH, text=t)
+        for i, t in enumerate(texts)
+    ]
+    doc = DocumentModel(
+        session_id=sid,
+        file_name="test_proofread.docx",
+        apa_format=APAFormat.STUDENT,
+        elements=elements,
+    )
+    save_session_state(doc, STORAGE_DIR)
+    return sid
+
+
+def _cleanup_session(sid: str) -> None:
+    """Elimina la sesión de prueba de la BD (idempotente)."""
+    try:
+        delete_session(sid, STORAGE_DIR)
+    except Exception:
+        pass
+
+
+# ── E1: /api/proofread-batch ─────────────────────────────────────────────────
+
+
+class TestProofreadBatch:
+    """Revisor por lotes: ortografía + frases IA + texto pegado (local)."""
+
+    def test_duplicate_word_detected(self):
+        """POST con un texto que tiene palabra duplicada → finding sobre 'duplic'."""
+        resp = client.post(
+            "/api/proofread-batch",
+            json={"texts": ["El resultado final final fue claro."]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        findings = data["findings"]
+        dup = [
+            f for f in findings
+            if "duplic" in f.get("message", "").lower()
+        ]
+        assert len(dup) >= 1, (
+            f"Se esperaba un hallazgo de palabra duplicada, se obtuvo: {findings}"
+        )
+
+    def test_response_shape(self):
+        """La respuesta debe tener findings (list), used_llm (bool) y ai_indices."""
+        resp = client.post(
+            "/api/proofread-batch",
+            json={"texts": ["El resultado final final fue claro."]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "findings" in data
+        assert "used_llm" in data
+        assert isinstance(data["findings"], list)
+        assert isinstance(data["used_llm"], bool)
+        # ai_indices puede ser null (texto corto) o un dict con score/zone.
+        assert "ai_indices" in data
+
+    def test_empty_texts(self):
+        """POST con texts vacío → findings vacíos y status 200."""
+        resp = client.post("/api/proofread-batch", json={"texts": []})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["findings"] == []
+        assert data["used_llm"] is False
+
+    def test_finding_has_proofread_finding_fields(self):
+        """Cada finding debe tener element_id, start, end, kind, message."""
+        resp = client.post(
+            "/api/proofread-batch",
+            json={"texts": ["El resultado final final fue claro."]},
+        )
+        assert resp.status_code == 200
+        findings = resp.json()["findings"]
+        assert len(findings) > 0
+        for f in findings:
+            assert "element_id" in f
+            assert "start" in f
+            assert "end" in f
+            assert "kind" in f
+            assert "message" in f
+            assert "source" in f
+
+    def test_session_based_proofread(self):
+        """POST con session_id → audita los párrafos de la sesión."""
+        sid = _make_test_session(["El resultado final final fue claro y conciso."])
+        try:
+            resp = client.post(
+                "/api/proofread-batch",
+                json={"session_id": sid},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            dup = [
+                f for f in data["findings"]
+                if "duplic" in f.get("message", "").lower()
+            ]
+            assert len(dup) >= 1, (
+                f"Se esperaba hallazgo de duplicada en modo sesión: {data['findings']}"
+            )
+        finally:
+            _cleanup_session(sid)
+
+    def test_session_not_found(self):
+        """POST con session_id inexistente → 404."""
+        resp = client.post(
+            "/api/proofread-batch",
+            json={"session_id": "nonexistent-session-xyz"},
+        )
+        assert resp.status_code == 404
+
+
+# ── E2: /api/ai-review + proactive_auditor ────────────────────────────────────
+
+
+class TestAIReviewProactiveAuditor:
+    """El revisor IA fusiona hallazgos del proactive_auditor (palabras duplicadas)."""
+
+    def test_duplicate_word_in_ai_review(self):
+        """ai-review con un párrafo con palabra duplicada → finding con 'duplic'."""
+        sid = _make_test_session([
+            "El resultado final final fue claro y conciso "
+            "para todos los participantes del estudio."
+        ])
+        try:
+            resp = client.post(f"/api/ai-review/{sid}")
+            assert resp.status_code == 200
+            data = resp.json()
+
+            # Recopilar todos los findings de todos los párrafos.
+            all_findings: list[dict] = []
+            for p in data.get("paragraphs", []):
+                all_findings.extend(p.get("findings", []))
+
+            dup = [
+                f for f in all_findings
+                if "duplic" in f.get("detail", "").lower()
+            ]
+            assert len(dup) >= 1, (
+                "Se esperaba un hallazgo de palabra duplicada fusionado en "
+                f"ai-review, se obtuvo: {all_findings}"
+            )
+
+    def test_ai_review_response_shape(self):
+        """ai-review mantiene el shape esperado por el frontend."""
+        sid = _make_test_session([
+            "El resultado final final fue claro y conciso "
+            "para todos los participantes del estudio."
+        ])
+        try:
+            resp = client.post(f"/api/ai-review/{sid}")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "session_id" in data
+            assert "paragraphs" in data
+            assert isinstance(data["paragraphs"], list)
+            assert len(data["paragraphs"]) >= 1
+            p = data["paragraphs"][0]
+            assert "element_id" in p
+            assert "findings" in p
+            assert "spelling" in p
+            assert "ai_score" in p
+        finally:
+            _cleanup_session(sid)
