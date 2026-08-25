@@ -3,10 +3,13 @@
  * =============================================================
  *
  * Pipeline de Normalización APA 7 de Alta Precisión:
- *   1. Limpieza de espacios redundantes y normalización de párrafos.
- *   2. Detección y PROTECCIÓN ABSOLUTA de Portada Original (no se toca).
- *   3. Detección y PROTECCIÓN del Índice / Tabla de Contenidos (cero sangría).
- *   4. Títulos Principales (Nivel 1): Salto de página antes + keepWithNext + Centrado Negrita (CERO cursiva).
+ *   1. Zonas (portada/cuerpo) definidas por el NÚCLEO Python
+ *      (pre_classify_elements via /api/addin/document-zones).
+ *      Este motor NO detecta portada por su cuenta: usa el modelo base.
+ *   2. PROTECCIÓN ABSOLUTA de la portada: párrafos < body_start_idx
+ *      NUNCA se modifican. Sin motor central → NO se reestructura nada.
+ *   3. Detección y protección del Índice / Tabla de Contenidos (cero sangría).
+ *   4. Títulos Principales (Nivel 1): Centrado Negrita (CERO cursiva).
  *   5. Títulos Nivel 2: Izquierda Negrita (CERO cursiva).
  *   6. Títulos Nivel 3: Izquierda Negrita + Cursiva.
  *   7. Viñetas y Listas: Margen izquierdo 0.5" (36pt) y SIN sangría de primera línea.
@@ -17,6 +20,8 @@
  *  12. Bibliografía: Sangría francesa de 1.27 cm al final del documento.
  */
 
+import { getCoverZones } from './coverGuard'
+
 const FONT_NAME = 'Times New Roman'
 const FONT_SIZE = 12
 const LINE_SPACING_DOUBLE = 24
@@ -24,6 +29,8 @@ const FIRST_LINE_INDENT_PT = 36 // 0.5 pulgadas = 1.27 cm
 
 export interface NormalizationReport {
   coverDetected: boolean
+  /** Cantidad de párrafos de portada protegidos (no se tocó ninguno). */
+  coverParagraphsProtected: number
   tocProtected: boolean
   headingsCount: number
   paragraphsCount: number
@@ -34,7 +41,7 @@ export interface NormalizationReport {
 }
 
 /** Títulos canónicos de Nivel 1 */
-const H1_CANONICAL = /^(?:resumen|abstract|introducci[oó]n|m[eé]todo|metodolog[ií]a|resultados|discusi[oó]n|conclusi[oó]n|conclusiones|recomendaciones|referencias|bibliograf[ií]a|marco\s+te[oó]rico|planteamiento\s+del\s+problema|justificaci[oó]n|objetivos|estado\s+del\s+arte)$/i
+const H1_CANONICAL = /^(?:resumen|abstract|introducci[oó]n|antecedentes|m[eé]todo|metodolog[ií]a|resultados|discusi[oó]n|conclusi[oó]n|conclusiones|recomendaciones|referencias|bibliograf[ií]a|marco\s+te[oó]rico|planteamiento\s+del\s+problema|justificaci[oó]n|objetivos|estado\s+del\s+arte)$/i
 
 /** Detección de números romanos: I., II., III., IV., V., etc. */
 const H1_ROMAN_REGEX = /^(?:cap[ií]tulo\s+[ivxlcdm\d]+|[ivxlcdm]+\.[\s	]+[a-zÁÉÍÓÚÑ])/i
@@ -54,12 +61,23 @@ const TOC_LINE_REGEX = /(?:\.{2,}|_{2,}|	|\s{4,})\s*\d+\s*$/
 /** Título de la sección de índice */
 const TOC_HEADER_REGEX = /^(?:tabla\s+de\s+contenido|contenido|[ií]ndice(?:\s+general|\s+de\s+tablas|\s+de\s+figuras)?)$/i
 
-/** Patrones de metadatos de portada */
-const COVER_METADATA_REGEX = /(?:autor(?:a)?|estudiante|carrera|facultad|universidad|instituto|profesor(?:a)?|docente|materia|curso|c[aá]tedra|fecha|a[nñ]o\s+acad[eé]mico|\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i
-
 export async function normalizeEntireDocumentAPA7(
   onProgress?: (step: string, percent: number) => void
 ): Promise<NormalizationReport> {
+  // ── ZONAS: las define el NÚCLEO (programa base), no este add-in ──
+  // Sin motor central NO se reestructura nada (filosofía CORE_DOWN:
+  // es mejor no actuar que adivinar y destrozar la portada del usuario).
+  onProgress?.('Consultando zonas al motor central...', 8)
+  const zones = await getCoverZones(true)
+  if (!zones) {
+    throw new Error(
+      'Motor central no disponible: no se reestructura el documento. Abre la app WordAPA7 e inténtalo de nuevo.'
+    )
+  }
+  // PISO DURO: nada por debajo de este índice se toca. NUNCA.
+  const startIdx = zones.coverDetected ? zones.bodyStartIdx : 0
+  const coverParagraphsProtected = startIdx
+
   return await Word.run(async (context) => {
     onProgress?.('Mapeando estructura del documento...', 10)
 
@@ -71,36 +89,16 @@ export async function normalizeEntireDocumentAPA7(
     context.load(pictures)
     await context.sync()
 
-    onProgress?.('Analizando portada e índice...', 25)
+    onProgress?.(
+      zones.coverDetected
+        ? `Portada protegida (${coverParagraphsProtected} párrafos intocables)...`
+        : 'Sin portada: procesando desde el inicio...',
+      25
+    )
 
-    // 1. DETECTAR PORTADA E ÍNDICE
-    let coverEndIndex = -1
+    // 1. PORTADA YA RESUELTA POR EL NÚCLEO (piso duro aplicado arriba)
     let inTOC = false
     let tocProtected = false
-    let hasCover = false
-
-    const initialLimit = Math.min(15, paragraphs.items.length)
-    let coverMatches = 0
-
-    for (let i = 0; i < initialLimit; i++) {
-      const t = paragraphs.items[i].text.trim()
-      if (!t) continue
-
-      if (TOC_HEADER_REGEX.test(t) || H1_CANONICAL.test(t) || H1_ROMAN_REGEX.test(t)) {
-        break
-      }
-      if (COVER_METADATA_REGEX.test(t)) {
-        coverMatches++
-        coverEndIndex = i
-      }
-    }
-
-    if (coverMatches >= 2 || (coverEndIndex > 0 && coverEndIndex <= 10)) {
-      hasCover = true
-    }
-
-    // SI TIENE PORTADA ORIGINAL: SE PRESERVA 100% INTACTA
-    onProgress?.('Jerarquizando títulos, viñetas y párrafos...', 50)
 
     let headingsCount = 0
     let paragraphsCount = 0
@@ -109,7 +107,7 @@ export async function normalizeEntireDocumentAPA7(
     let inReferencesSection = false
     let h1Count = 0
 
-    const startIdx = hasCover ? coverEndIndex + 1 : 0
+    onProgress?.('Jerarquizando títulos, viñetas y párrafos...', 50)
 
     for (let i = startIdx; i < paragraphs.items.length; i++) {
       const p = paragraphs.items[i]
@@ -385,7 +383,8 @@ export async function normalizeEntireDocumentAPA7(
     await context.sync()
 
     return {
-      coverDetected: hasCover,
+      coverDetected: zones.coverDetected,
+      coverParagraphsProtected,
       tocProtected,
       headingsCount,
       paragraphsCount,

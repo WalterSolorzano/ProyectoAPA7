@@ -167,6 +167,12 @@ def _extract_paragraph_text_with_footnotes(p_element) -> tuple[str, list[int]]:
         # Omitir eliminaciones de Track Changes (y su w:delText asociado)
         if local in ('del', 'delText'):
             return
+        # Omitir la rama mc:Fallback: Word guarda el MISMO contenido del
+        # textbox en mc:Choice (DrawingML) y mc:Fallback (VML legacy). Leer
+        # ambas produce el texto de la portada DOBLADO y sin separadores
+        # (ej: "Br. NombreCarnet: 2022-0215IBr. NombreCarnet: ...").
+        if local == 'Fallback':
+            return
         if local == 't' and el.text:
             out.append(el.text)
         elif local == 'tab':

@@ -70,6 +70,11 @@ class NextNumberRequest(BaseModel):
     document_text: str
 
 
+class DocumentZonesRequest(BaseModel):
+    """Párrafos del documento en vivo (Office.js) para detectar zonas."""
+    paragraphs: List[str]
+
+
 # ── SCHEMAS: Asistente en Vivo ───────────────────────────────────────────────
 
 class ExtractCitationsRequest(BaseModel):
@@ -184,6 +189,70 @@ def _issue(category: str, severity: str, message: str, suggestion: str) -> dict:
 async def addin_health() -> dict:
     """Health check del backend para el Add-in."""
     return {"status": "ok", "version": "1.0.0"}
+
+
+@router.post("/document-zones")
+async def document_zones(req: DocumentZonesRequest) -> dict:
+    """
+    Zonas del documento según el MODELO DEL PROGRAMA BASE (pre_classifier).
+
+    Fuente única de verdad para la zona de portada: el Add-in NO vuelve a
+    inventar detección propia (su heurística interna fallaba con portadas UNI
+    de Br./Carnet/Grupo y editaba la portada que el usuario mandó a respetar).
+
+    Retorna:
+      - cover_detected: bool
+      - body_start_idx: primer índice FUERA de la portada (piso duro)
+      - is_cover: [bool] por párrafo
+      - cover_texts: textos (trim) de los párrafos de portada, para guards
+        por texto en operaciones "al vuelo" sobre el párrafo bajo el cursor.
+    """
+    from models import ElementModel, ElementType
+    from parsing.pre_classifier import pre_classify_elements
+
+    paragraphs = [p or "" for p in req.paragraphs]
+    if not paragraphs:
+        return {
+            "cover_detected": False,
+            "body_start_idx": 0,
+            "is_cover": [],
+            "cover_texts": [],
+        }
+
+    # Alineación índice↔párrafo: conservar también los vacíos.
+    elements = [
+        ElementModel(
+            id=f"zone-{i}",
+            type=ElementType.PARAGRAPH,
+            text=t.strip(),
+            original_text=t.strip(),
+        )
+        for i, t in enumerate(paragraphs)
+    ]
+
+    try:
+        classified = pre_classify_elements(elements)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudieron clasificar las zonas: {e}")
+
+    is_cover = [bool(getattr(e, "is_cover_section", False)) for e in classified]
+    body_start = len(is_cover)
+    for i, c in enumerate(is_cover):
+        if not c:
+            body_start = i
+            break
+    cover_texts = [
+        (paragraphs[i] or "").strip()
+        for i, c in enumerate(is_cover)
+        if c and (paragraphs[i] or "").strip()
+    ]
+
+    return {
+        "cover_detected": any(is_cover),
+        "body_start_idx": body_start,
+        "is_cover": is_cover,
+        "cover_texts": cover_texts,
+    }
 
 
 @router.post("/analyze-selection")

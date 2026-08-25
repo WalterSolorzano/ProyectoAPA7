@@ -75,7 +75,9 @@ from generation.generator import generate_apa7_docx
 from generation.layered_generator import generate_apa7_from_scratch
 from generation.templates import (
     TEMPLATE_ENSAYO,
+    TEMPLATE_IMRYD,
     TEMPLATE_INFORME,
+    TEMPLATE_LIBRO_MATH,
     TEMPLATE_TESINA,
     DocumentTemplate,
 )
@@ -716,6 +718,8 @@ _TEMPLATE_ID_MAP: dict[str, DocumentTemplate] = {
     "essay": TEMPLATE_ENSAYO,
     "report": TEMPLATE_INFORME,
     "thesis": TEMPLATE_TESINA,
+    "imryd": TEMPLATE_IMRYD,
+    "math_book": TEMPLATE_LIBRO_MATH,
 }
 
 
@@ -2510,6 +2514,63 @@ class ApplyTemplateRequest(BaseModel):
     session_id: str
     template_name: str
     numbering_style: str = "decimal"  # "decimal" | "roman"
+
+
+class CreateFromTemplateRequest(BaseModel):
+    template_id: str
+    profile_id: str = "apa7"
+
+
+@app.post("/api/create-from-template")
+async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> DocumentModel:
+    """
+    Crea una NUEVA sesión de trabajo a partir de una plantilla de estructura:
+    genera el DocumentModel con los títulos de la plantilla, lo persiste como
+    sesión y lo devuelve con el mismo shape que /api/upload. Así el usuario
+    puede "usar" la plantilla sin tener un documento previo.
+    """
+    profile = get_profile(req.profile_id)
+    template = _TEMPLATE_ID_MAP.get(req.template_id)
+    if template is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plantilla desconocida: {req.template_id}.",
+        )
+
+    elements: list[ElementModel] = []
+
+    def _add_sections(sections) -> None:
+        for section in sections:
+            elements.append(
+                ElementModel(
+                    id=f"tpl-{req.template_id}-{len(elements)}",
+                    type=ElementType.HEADING,
+                    heading_level=section.heading_level,
+                    text=section.suggested_text,
+                    original_text=section.suggested_text,
+                    confidence=1.0,
+                    is_cover_section=False,
+                    needs_review=False,
+                )
+            )
+            _add_sections(section.sub_sections)
+
+    _add_sections(template.sections)
+
+    fmt = profile.cover_apa_format
+    apa_format = APAFormat.PROFESSIONAL if fmt == "professional" else APAFormat.STUDENT
+
+    doc = DocumentModel(
+        session_id=f"sess-{uuid.uuid4().hex[:12]}",
+        file_name=f"{template.name.split('(')[0].strip()}.docx",
+        apa_format=apa_format,
+        profile_id=profile.profile_id,
+        elements=elements,
+        apa_rules=profile.rules.model_copy(deep=True),
+    )
+
+    save_session_state(doc, STORAGE_DIR)
+    return doc
 
 
 @app.post("/api/apply-template")

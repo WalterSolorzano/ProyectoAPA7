@@ -1,23 +1,69 @@
-﻿/* WordAPA7 — Element Inspector (Tabs: Info / Estilo / Avanzado)
-   Incluye el EDITOR DE PORTADA rediseñado: estrategia en chips, asistente IA
+/* WordAPA7 � Element Inspector (Tabs: Info / Estilo / Avanzado)
+   Incluye el EDITOR DE PORTADA redise�ado: estrategia en chips, asistente IA
    visible y lista de autores limpia. */
 
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { useRosterStore } from '../../store/useRosterStore';
 import { ElementType, APARuleSet } from '../../types';
-import { FileText, Info, MessageCircle, GripVertical, ArrowUp, ArrowDown, Wand2, Trash2, Sigma, Sparkles, UserCheck, Lock, Image as ImageIcon } from 'lucide-react';
+import { Info, MessageCircle, Wand2, Sigma, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { parseAuthorEntries, serializeAuthorEntries, requestAuthorHighlight, AuthorEntry } from '../../lib/portadaAuthors';
-import { explainElement } from '../../api/backend';
+import { explainElement, suggestCaption } from '../../api/backend';
 import { ImageEditPanel } from './ImageEditPanel';
 
+/** Botón "Sugerir leyenda con IA": acceso visible desde el inspector
+    (antes solo existía en el menú contextual del clic derecho y nadie lo hallaba). */
+const SuggestCaptionButton: React.FC<{ elem: any }> = ({ elem }) => {
+  const [loading, setLoading] = React.useState(false);
+  const doc = useDocStore((s) => s.doc);
+
+  const run = async () => {
+    if (!doc) return;
+    setLoading(true);
+    try {
+      const idx = doc.elements.findIndex((e: any) => e.id === elem.id);
+      const ctx: string[] = [];
+      for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+        const e: any = doc.elements[i];
+        if (e.id === elem.id) continue;
+        const t = (e.text || '').trim();
+        if (t) ctx.push(t);
+      }
+      const suggestion = await suggestCaption(
+        doc.session_id, elem.id, ctx.join('\n'), useDocStore.getState().apiKey,
+      );
+      useDocStore.getState().updateElementImage(elem.id, { ...(elem.image_info || {}), caption: suggestion });
+      useDocStore.getState().showToast('Leyenda sugerida aplicada', 'success');
+    } catch (err: any) {
+      useDocStore.getState().showToast(err.message || 'Error al sugerir leyenda', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={run}
+      disabled={loading}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+        width: '100%', padding: '7px 10px', marginBottom: '8px', fontSize: '11px', fontWeight: 600,
+        background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+        border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+      }}
+      title="La IA propone una leyenda APA 7 a partir del texto alrededor de la figura"
+    >
+      <Sparkles size={13} /> {loading ? 'Sugiriendo…' : 'Sugerir leyenda con IA'}
+    </button>
+  );
+};
+
 const APA_HEADING_RULES: Record<number, string> = {
-  1: 'Nivel 1: Centrado, Negrita, Caso Título. El texto empieza en un nuevo párrafo.',
-  2: 'Nivel 2: Alineado a la Izquierda, Negrita, Caso Título. El texto empieza en un nuevo párrafo.',
-  3: 'Nivel 3: Alineado a la Izquierda, Negrita y Cursiva, Caso Título. El texto empieza en un nuevo párrafo.',
-  4: 'Nivel 4: Sangría de 1.27 cm, Negrita, Termina en punto. El texto continúa en la misma línea.',
-  5: 'Nivel 5: Sangría de 1.27 cm, Negrita y Cursiva, Termina en punto. El texto continúa en la misma línea.',
+  1: 'Nivel 1: Centrado, Negrita, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
+  2: 'Nivel 2: Alineado a la Izquierda, Negrita, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
+  3: 'Nivel 3: Alineado a la Izquierda, Negrita y Cursiva, Caso T�tulo. El texto empieza en un nuevo p�rrafo.',
+  4: 'Nivel 4: Sangr�a de 1.27 cm, Negrita, Termina en punto. El texto contin�a en la misma l�nea.',
+  5: 'Nivel 5: Sangr�a de 1.27 cm, Negrita y Cursiva, Termina en punto. El texto contin�a en la misma l�nea.',
 };
 
 const TYPE_OPTIONS: { value: ElementType; label: string }[] = [
@@ -39,8 +85,10 @@ export const ElementInspector: React.FC = () => {
 
   if (!doc) return null;
 
-  const selectedElem = doc.elements.find((e) => e.id === selectedElementId) || doc.elements[0];
-  const isPortadaElem = selectedElem?.type === 'portada_block' || doc.elements.indexOf(selectedElem) < 8;
+  const selectedElem = doc.elements.find((e) => e.id === selectedElementId) || null;
+  // Solo un elemento de portada expl�cito abre la vista de portada; el editor
+  // completo vive en el paso Portada (CoverEditorPanel) � ac� solo redirige.
+  const isPortadaElem = selectedElem?.type === 'portada_block';
 
   const triggerUpdate = () => {
     if (selectedElem) {
@@ -80,7 +128,7 @@ export const ElementInspector: React.FC = () => {
       }}>
         {[
           { id: 'info', label: 'Info', icon: <Info size={13} /> },
-          ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuación', icon: <Sigma size={13} /> }] : []),
+          ...(selectedElem?.type === 'equation' ? [{ id: 'equation', label: 'Ecuaci�n', icon: <Sigma size={13} /> }] : []),
         ].map((tab) => (
               <TabsTrigger
                 key={tab.id}
@@ -126,8 +174,31 @@ export const ElementInspector: React.FC = () => {
       )}
 
       {isPortadaElem && (
-        <div className="inspector-content" style={{ flex: 1, overflowY: 'auto' }}>
-          <PortadaEditor portada={portada} setPortada={setPortada} />
+        <div className="inspector-content" style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', textAlign: 'center' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>Esto es parte de la portada</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            La portada se edita completa en su propio paso, sin tocar el resto del documento.
+          </span>
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().setWizardStep(1)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px',
+              fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              background: 'var(--accent-primary)', color: '#fff', border: 'none',
+              borderRadius: 'var(--radius-sm)',
+            }}
+          >
+            Ir al paso Portada
+          </button>
+        </div>
+      )}
+
+      {!selectedElem && !isPortadaElem && (
+        <div className="inspector-content" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Seleccion� un elemento del documento para ver sus detalles.
+          </span>
         </div>
       )}
 
@@ -154,17 +225,17 @@ export const ElementInspector: React.FC = () => {
             <MessageCircle size={14} color="var(--text-muted)" />
             <input
               type="text"
-              placeholder="¿Por qué se clasificó así?"
+              placeholder="�Por qu� se clasific� as�?"
               style={{ border: 'none', outline: 'none', fontSize: '11px', flex: 1, width: '100%', backgroundColor: 'transparent', color: 'var(--text-main)' }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                    const val = e.currentTarget.value;
-                   if (val.trim()) {
-                     e.currentTarget.value = '';
+                     if (val.trim() && selectedElem) {
+                      e.currentTarget.value = '';
                      explainElement(selectedElem.id, val.trim()).then(() => {
-                       useDocStore.getState().showToast('Explicación IA solicitada', 'info');
+                       useDocStore.getState().showToast('Explicaci�n IA solicitada', 'info');
                      }).catch((err: any) => {
-                       useDocStore.getState().showToast(err?.message || 'Error al solicitar explicación IA', 'error');
+                       useDocStore.getState().showToast(err?.message || 'Error al solicitar explicaci�n IA', 'error');
                      });
                    }
                 }
@@ -178,7 +249,7 @@ export const ElementInspector: React.FC = () => {
 };
 
 
-// ── SUB-COMPONENTES DE PESTAÑAS ──────────────────────────────────────────────
+// -- SUB-COMPONENTES DE PESTA�AS ----------------------------------------------
 
 const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ selectedElem, triggerUpdate }) => (
   <>
@@ -210,7 +281,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
 
     {selectedElem.type === 'heading' && (
       <div className="inspector-section">
-        <label className="inspector-label">Nivel de Jerarquía APA 7</label>
+        <label className="inspector-label">Nivel de Jerarqu�a APA 7</label>
         <select
           className="form-select"
           value={selectedElem.heading_level || 1}
@@ -229,7 +300,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Estado de revisión */}
+    {/* Estado de revisi�n */}
     <div className="inspector-section">
       <label className="inspector-label">Estado</label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -248,7 +319,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
             padding: '4px 10px', borderRadius: '4px',
             border: '1px solid rgba(255,77,79,0.4)',
             display: 'inline-flex', alignItems: 'center', gap: '4px',
-          }}>Requiere revisión</span>
+          }}>Requiere revisi�n</span>
         ) : (
           <span style={{
             fontSize: '11px', fontWeight: 600,
@@ -284,7 +355,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
           <button
             type="button"
             onClick={async () => {
-              const instruction = window.prompt('Instrucción de reescritura (ej: hazlo más formal, elimina muletillas, resume):');
+              const instruction = window.prompt('Instrucci�n de reescritura (ej: hazlo m�s formal, elimina muletillas, resume):');
               if (instruction === null) return;
               const aiLoading = useDocStore.getState().isLoading;
               if (aiLoading) return;
@@ -306,7 +377,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
               background: 'var(--word-blue-light)', color: 'var(--word-blue)',
               border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
             }}
-            title="Reescribir este párrafo con IA según una instrucción"
+            title="Reescribir este p�rrafo con IA seg�n una instrucci�n"
           >
             <Wand2 size={13} /> Reescribir texto
           </button>
@@ -314,33 +385,15 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
       </div>
     )}
 
-    {/* Image: editor de imagen embebido directamente en el panel contextual.
-       Cuando el panel de edición ya está abierto en el paso Figuras (imagePanelOpen),
-       no duplicar la UI: solo indicamos que está activo en el panel izquierdo. */}
-    {selectedElem.type === 'image' && (() => {
-      const imagePanelOpen = useDocStore.getState().imagePanelOpen;
-      if (imagePanelOpen) {
-        return (
-          <div className="inspector-section" style={{ padding: '14px', textAlign: 'center' }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              padding: '12px', borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(79,124,255,0.08)', border: '1px solid rgba(79,124,255,0.2)',
-            }}>
-              <ImageIcon size={16} color="var(--accent-primary)" />
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                La edición completa está abierta en el <strong>Panel de edición</strong> a la izquierda.
-              </span>
-            </div>
-          </div>
-        );
-      }
-      return (
-        <div className="inspector-section" style={{ paddingBottom: 0 }}>
-          <ImageEditPanel elem={selectedElem} />
-        </div>
-      );
-    })()}
+    {/* Image: editor de imagen embebido en el inspector (una sola UI, sin
+        mensajes sobre "panel a la izquierda" que no coincidía con la realidad)
+        + acceso visible a "Sugerir leyenda con IA" (antes solo vía clic derecho). */}
+    {selectedElem.type === 'image' && (
+      <div className="inspector-section" style={{ paddingBottom: 0 }}>
+        <SuggestCaptionButton elem={selectedElem} />
+        <ImageEditPanel elem={selectedElem} />
+      </div>
+    )}
 
     {/* Table info */}
     {selectedElem.type === 'table' && (
@@ -397,409 +450,6 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ s
 );
 
 
-// ── PORTADA EDITOR (autores independientes + biblioteca + asistente IA) ──────
-
-const COVER_MODES = [
-  { value: 'keep_original', label: 'No tocar portada', desc: 'Conserva 100% intacta' },
-  { value: 'keep_design_update_data', label: 'Mantener diseño, corregir datos', desc: 'Edición in-place de nombres o títulos' },
-  { value: 'generate_apa7_template', label: 'Generar portada APA 7', desc: 'Formato estándar centrado APA 7' },
-  { value: 'generate_uni_cover', label: 'Portada de mi universidad (UNI)', desc: 'Logo, autores con carnet, docente, grupo y lugar' },
-];
-
-/** Normaliza la lista de autores: una línea por autor, mayúscula inicial, sin números. */
-function normalizeAuthors(raw: string): string {
-  const lines = (raw || '')
-    .split(/[\n;]/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (let l of lines) {
-    l = l
-      .replace(/^\s*\d+\s*[.)-]\s*/, '')
-      .replace(/^(br\.|br\.?|bach\.|ing\.|lic\.|m\.?g?\.?|dr\.)\s+/i, '')
-      .trim();
-    if (!l) continue;
-    l = l.replace(/\b([a-záéíóúñ])([a-záéíóúñ]*)\b/g, (_m, first: string, rest: string) => {
-      return first.toUpperCase() + rest.toLowerCase();
-    });
-    const key = l.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      out.push(l);
-    }
-  }
-  return out.join('\n');
-}
-
-const PortadaEditor: React.FC<{ portada: any; setPortada: any }> = ({ portada, setPortada }) => {
-  const { integrantes, addIntegrante } = useRosterStore();
-  const [search, setSearch] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [newNombre, setNewNombre] = useState('');
-  const [newCarnet, setNewCarnet] = useState('');
-  const [iaBusy, setIaBusy] = useState(false);
-  const dragIndex = useRef<number | null>(null);
-
-  const authors = parseAuthorEntries(portada.author || '');
-
-  const commitAuthors = (next: AuthorEntry[]) => {
-    setPortada({ author: serializeAuthorEntries(next) });
-  };
-
-  const addAuthor = (a: AuthorEntry) => {
-    const already = authors.some(
-      (x) => x.nombre.toLowerCase() === a.nombre.toLowerCase()
-    );
-    if (already) return;
-    commitAuthors([...authors, a]);
-    addIntegrante(a.nombre, a.carnet);
-  };
-
-  const updateAuthor = (idx: number, patch: Partial<AuthorEntry>) => {
-    const next = authors.map((a, i) => (i === idx ? { ...a, ...patch } : a));
-    commitAuthors(next);
-  };
-
-  const removeAuthor = (idx: number) => {
-    commitAuthors(authors.filter((_, i) => i !== idx));
-  };
-
-  const moveAuthor = (idx: number, delta: -1 | 1) => {
-    const next = [...authors];
-    const target = idx + delta;
-    if (target < 0 || target >= next.length) return;
-    [next[idx], next[target]] = [next[target], next[idx]];
-    commitAuthors(next);
-  };
-
-  const handleDragStart = (e: React.DragEvent, a: AuthorEntry) => {
-    e.dataTransfer.setData('text/plain', serializeAuthorEntries([a]));
-    e.dataTransfer.effectAllowed = 'copy';
-  };
-
-  const filteredStudents = integrantes.filter(
-    (s) =>
-      !authors.some((a) => a.nombre.toLowerCase() === s.nombre.toLowerCase()) &&
-      (s.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (s.carnet || '').toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const cmode = (portada as any).cover_mode ?? 'keep_original';
-  const isLocked = cmode === 'keep_original';
-
-  // Asistente IA: normaliza la lista de autores en un clic (local, instantáneo)
-  const handleAICorrectAuthors = () => {
-    const normalized = normalizeAuthors(portada.author || '');
-    setPortada({ author: normalized });
-    useDocStore.getState().showToast('Autores normalizados: mayúsculas y una línea por autor', 'success');
-  };
-
-  // Asistente IA: reescribe la lista de autores con el LLM (si hay key)
-  const handleAIRewriteAuthors = async () => {
-    const doc = useDocStore.getState().doc;
-    const apiKey = useDocStore.getState().apiKey;
-    if (!doc) return;
-    setIaBusy(true);
-    try {
-      const { rewriteText } = await import('../../api/backend');
-      const coverElem = doc.elements.find((e) => e.type === 'portada_block' || e.is_cover_section) || doc.elements[0];
-      if (!coverElem) return;
-      const instruction = 'Corrige esta lista de autores de una portada: un autor por línea, apellido y nombres en mayúscula inicial, sin numeración, sin títulos (Br., Ing.). Responde solo con los autores.';
-      const res = await rewriteText(doc.session_id, coverElem.id, portada.author || '', instruction, apiKey);
-      if (res) {
-        setPortada({ author: normalizeAuthors(res) });
-        useDocStore.getState().showToast('Portada corregida con IA', 'success');
-      }
-    } catch (err: any) {
-      useDocStore.getState().showToast(err?.message || 'Error al corregir con IA. Sin API key configurada.', 'warning');
-    } finally {
-      setIaBusy(false);
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Asistente IA — siempre visible y prominente */}
-      <div style={{
-        border: '1px solid rgba(79,124,255,0.35)',
-        borderRadius: 'var(--radius-lg)',
-        background: 'linear-gradient(135deg, rgba(79,124,255,0.12), rgba(79,124,255,0.04))',
-        padding: '12px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <Sparkles size={16} color="var(--accent-primary)" />
-          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Asistente IA</span>
-          <span style={{
-            fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px',
-            color: 'var(--accent-primary)', backgroundColor: 'rgba(79,124,255,0.15)',
-            borderRadius: '999px', padding: '2px 8px',
-          }}>Nuevo</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={handleAICorrectAuthors}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'inherit',
-              padding: '8px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 600,
-              background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-              border: '1px solid rgba(79,124,255,0.35)', textAlign: 'left',
-            }}
-            title="Corrige mayúsculas, quita numeración y títulos, deja un autor por línea"
-          >
-            <UserCheck size={14} /> Corregir formato de autores
-          </button>
-          <button
-            type="button"
-            onClick={handleAIRewriteAuthors}
-            disabled={iaBusy}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', cursor: iaBusy ? 'wait' : 'pointer', fontFamily: 'inherit',
-              padding: '8px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 600,
-              background: 'var(--accent-primary)', color: '#fff',
-              border: 'none', opacity: iaBusy ? 0.7 : 1, textAlign: 'left',
-            }}
-            title="Reescribe la lista de autores con el LLM (requiere API key de IA)"
-          >
-            <Wand2 size={14} /> {iaBusy ? 'Corrigiendo…' : 'Corregir con IA'}
-          </button>
-        </div>
-      </div>
-
-      {/* Estrategia de portada */}
-      <div>
-        <label className="form-label" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
-          Estrategia de la Hoja de Portada
-        </label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {COVER_MODES.map((mode) => {
-            const isSel = cmode === mode.value;
-            return (
-              <button
-                key={mode.value}
-                type="button"
-                onClick={() => setPortada({ cover_mode: mode.value, use_original_cover: mode.value === 'keep_original' || mode.value === 'keep_design_update_data' })}
-                aria-pressed={isSel}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                  padding: '8px 10px', borderRadius: '8px',
-                  border: `1px solid ${isSel ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                  backgroundColor: isSel ? 'rgba(79,124,255,0.14)' : 'rgba(255,255,255,0.02)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span style={{
-                  width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
-                  border: `2px solid ${isSel ? 'var(--accent-primary)' : 'var(--text-muted)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {isSel && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-primary)' }} />}
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: '11px', fontWeight: isSel ? 700 : 600, color: isSel ? 'var(--text-main)' : 'var(--text-secondary)' }}>
-                    {mode.label}
-                  </span>
-                  <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)' }}>{mode.desc}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {isLocked && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'rgba(79,124,255,0.1)', border: '1px solid rgba(79,124,255,0.25)',
-          borderRadius: '8px', padding: '8px 10px', fontSize: '11px', color: 'var(--accent-primary)', fontWeight: 600,
-        }}>
-          <Lock size={13} /> Portada protegida: el sistema no la modificará. Elegí otra estrategia para editar datos.
-        </div>
-      )}
-
-      {/* Autores */}
-      <div style={{ opacity: isLocked ? 0.5 : 1, pointerEvents: isLocked ? 'none' : 'auto' }}>
-        <label className="form-label" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          Integrantes / Autores
-          <button
-            type="button"
-            onClick={() => setAdding(!adding)}
-            style={{ background: 'rgba(79,124,255,0.14)', border: '1px solid rgba(79,124,255,0.4)', color: 'var(--text-main)', borderRadius: '8px', fontSize: '10px', padding: '3px 8px', cursor: 'pointer' }}
-          >
-            {adding ? 'Cerrar biblioteca' : '+ De biblioteca'}
-          </button>
-        </label>
-
-        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '8px' }}>
-          Título, institución, curso, docente y fecha se editan <strong>directamente sobre la hoja</strong>.
-          Este panel gestiona el contenido y orden de los autores.
-        </div>
-
-        {/* Biblioteca de estudiantes */}
-        {adding && (
-          <div style={{ marginBottom: '10px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: '8px', background: 'rgba(255,255,255,0.03)' }}>
-            <input
-              type="text"
-              className="form-control"
-              style={{ fontSize: '11px', marginBottom: '6px' }}
-              placeholder="Buscar por nombre o carnet…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {filteredStudents.length === 0 && (
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sin estudiantes disponibles.</span>
-              )}
-              {filteredStudents.map((s) => (
-                <div
-                  key={s.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, { nombre: s.nombre, carnet: s.carnet || '' })}
-                  onClick={() => addAuthor({ nombre: s.nombre, carnet: s.carnet || '' })}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px',
-                    padding: '6px 8px', borderRadius: '8px', cursor: 'pointer',
-                    border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.04)',
-                    fontSize: '11px', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(79,124,255,0.16)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-                >
-                  <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{s.nombre}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '10px', flexShrink: 0 }}>{s.carnet ? `Carnet: ${s.carnet}` : 'sin carnet'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Lista de autores independientes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          {authors.length === 0 && (
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Aún no hay integrantes. Agregá desde la biblioteca o manualmente.</span>
-          )}
-          {authors.map((a, idx) => (
-            <div
-              key={idx}
-              onDragOver={(e) => {
-                if (dragIndex.current === null || dragIndex.current === idx) return;
-                e.preventDefault();
-                const next = [...authors];
-                const [moved] = next.splice(dragIndex.current, 1);
-                next.splice(idx, 0, moved);
-                dragIndex.current = idx;
-                commitAuthors(next);
-              }}
-              onClick={() => requestAuthorHighlight(idx)}
-              title="Ver en la hoja"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '6px 8px', borderRadius: '8px',
-                border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.04)',
-                cursor: 'pointer',
-              }}
-            >
-              <span
-                draggable
-                onDragStart={(e) => { dragIndex.current = idx; e.dataTransfer.setData('text/plain', String(idx)); e.dataTransfer.effectAllowed = 'move'; }}
-                onDragEnd={() => { dragIndex.current = null; }}
-                title="Arrastrar para reordenar"
-                style={{ cursor: 'grab', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: '2px' }}
-              >
-                <GripVertical size={14} />
-              </span>
-              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{idx + 1}.</span>
-              <div style={{ flex: 1, minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ fontSize: '11px', marginBottom: '3px' }}
-                  value={a.nombre}
-                  onChange={(e) => updateAuthor(idx, { nombre: e.target.value })}
-                  placeholder="Br. Nombre Apellido"
-                />
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ fontSize: '10px' }}
-                  value={a.carnet}
-                  onChange={(e) => updateAuthor(idx, { carnet: e.target.value })}
-                  placeholder="Carnet (ej: 2023-0451U)"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); moveAuthor(idx, -1); }}
-                disabled={idx === 0}
-                title="Subir"
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '3px', flexShrink: 0 }}
-              >
-                <ArrowUp size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); moveAuthor(idx, 1); }}
-                disabled={idx === authors.length - 1}
-                title="Bajar"
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '3px', flexShrink: 0 }}
-              >
-                <ArrowDown size={12} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); removeAuthor(idx); }}
-                title="Quitar integrante"
-                style={{ background: 'none', border: 'none', color: 'var(--accent-danger)', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Agregar manual */}
-        <div style={{ marginTop: '8px', display: 'flex', gap: '4px' }}>
-          <input
-            type="text"
-            className="form-control"
-            style={{ fontSize: '11px' }}
-            placeholder="Br. Nombre Apellido"
-            value={newNombre}
-            onChange={(e) => setNewNombre(e.target.value)}
-          />
-          <input
-            type="text"
-            className="form-control"
-            style={{ fontSize: '11px', maxWidth: '110px' }}
-            placeholder="Carnet"
-            value={newCarnet}
-            onChange={(e) => setNewCarnet(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (newNombre.trim()) {
-                addAuthor({ nombre: newNombre.trim(), carnet: newCarnet.trim() });
-                setNewNombre(''); setNewCarnet('');
-              }
-            }}
-            style={{ background: 'rgba(79,124,255,0.14)', border: '1px solid rgba(79,124,255,0.4)', color: 'var(--text-main)', borderRadius: '8px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
-          >
-            +
-          </button>
-        </div>
-        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '3px' }}>
-          Arrastrá el asa para reordenar, usá las flechas, o hacé clic en la fila para localizar al autor en la hoja.
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-// ── PESTAÑA ECUACIÓN ──────────────────────────────────────────────────────────
-
 const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = ({ selectedElem, triggerUpdate }) => {
   const eq = selectedElem.equation || {
     show_number: false,
@@ -819,20 +469,20 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
     <>
       <div className="inspector-section">
         <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>
-          Esta es una ecuación de Word (OMML). El contenido matemático se preserva
-          intacto; aquí configuras su presentación en el documento APA.
+          Esta es una ecuaci�n de Word (OMML). El contenido matem�tico se preserva
+          intacto; aqu� configuras su presentaci�n en el documento APA.
         </div>
-        <label className="inspector-label">Ecuación detectada</label>
+        <label className="inspector-label">Ecuaci�n detectada</label>
         <div style={{
           fontSize: '11px', color: 'var(--text-main)', backgroundColor: 'var(--app-bg)',
           padding: '6px 8px', borderRadius: '4px', fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'nowrap',
         }}>
-          {selectedElem.text || '[Ecuación OMML]'}
+          {selectedElem.text || '[Ecuaci�n OMML]'}
         </div>
       </div>
 
       <div className="inspector-section">
-        <label className="inspector-label">Numeración de ecuación</label>
+        <label className="inspector-label">Numeraci�n de ecuaci�n</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <input
             type="checkbox"
@@ -840,12 +490,12 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
             onChange={(e) => update({ show_number: e.target.checked })}
             style={{ accentColor: 'var(--word-blue)' }}
           />
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mostrar número</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Mostrar n�mero</span>
         </div>
 
         {eq.show_number && (
           <>
-            <label className="inspector-label" style={{ marginTop: '8px' }}>Formato del número</label>
+            <label className="inspector-label" style={{ marginTop: '8px' }}>Formato del n�mero</label>
             <select
               className="form-select"
               value={eq.number_format || '(1)'}
@@ -854,28 +504,28 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
               <option value="(1)">(1)</option>
               <option value="[1]">[1]</option>
               <option value="1.">1.</option>
-              <option value="(1.1)">(1.1) — con capítulo</option>
-              <option value="Ecuación {n}">Ecuación {eq.number || '1'}</option>
+              <option value="(1.1)">(1.1) � con cap�tulo</option>
+              <option value="Ecuaci�n {n}">Ecuaci�n {eq.number || '1'}</option>
             </select>
 
-            <label className="inspector-label" style={{ marginTop: '8px' }}>Número (opcional)</label>
+            <label className="inspector-label" style={{ marginTop: '8px' }}>N�mero (opcional)</label>
             <input
               type="text"
               className="form-control"
               style={{ fontSize: '11px' }}
-              placeholder="Auto (1, 2, 3...) — escribe un número para fijarlo"
+              placeholder="Auto (1, 2, 3...) � escribe un n�mero para fijarlo"
               value={eq.number || ''}
               onChange={(e) => update({ number: e.target.value || undefined })}
             />
             <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '3px' }}>
-              Vacío = numeración automática secuencial en el orden del documento.
+              Vac�o = numeraci�n autom�tica secuencial en el orden del documento.
             </p>
           </>
         )}
       </div>
 
       <div className="inspector-section">
-        <label className="inspector-label">Alineación</label>
+        <label className="inspector-label">Alineaci�n</label>
         <div style={{ display: 'flex', gap: '6px' }}>
           {[
             { value: 'left', label: 'Izquierda' },
@@ -902,8 +552,8 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           ))}
         </div>
         <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          APA 7 no fija una regla estricta; por convención las ecuaciones se centran
-          y el número va al margen derecho.
+          APA 7 no fija una regla estricta; por convenci�n las ecuaciones se centran
+          y el n�mero va al margen derecho.
         </p>
       </div>
 
@@ -920,7 +570,7 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           <option value="Calibri">Calibri</option>
         </select>
 
-        <label className="inspector-label" style={{ marginTop: '8px' }}>Tamaño (pt)</label>
+        <label className="inspector-label" style={{ marginTop: '8px' }}>Tama�o (pt)</label>
         <select
           className="form-select"
           value={eq.font_size_pt || 12}
@@ -931,7 +581,7 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
           ))}
         </select>
         <p style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Aplica solo al número y texto de apoyo; el XML de la ecuación se mantiene intacto.
+          Aplica solo al n�mero y texto de apoyo; el XML de la ecuaci�n se mantiene intacto.
         </p>
       </div>
     </>

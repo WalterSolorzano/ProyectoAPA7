@@ -1,7 +1,6 @@
 /* WordAPA7 — Full Desktop Application Assembly (Fluent Design with Guided Wizard Flow) */
 
 import React, { useEffect, useRef } from 'react';
-import { Map } from 'lucide-react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { needsReview } from './lib/portadaAuthors';
 import { UnifiedToolbar } from './components/toolbar/UnifiedToolbar';
@@ -28,7 +27,6 @@ import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard
 import { EditorRail } from './components/wizard/EditorRail';
 import { StepRail } from './components/wizard/StepRail';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
-import { DocumentOutline } from './components/wizard/DocumentOutline';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
@@ -516,30 +514,13 @@ export const App: React.FC = () => {
                   {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
                   {wizardStep === 3 && <Step3FiguresTablesWizard />}
                   {wizardStep === 4 && <Step5ReferencesWizard />}
+                  {wizardStep === 5 && <ExportView />}
                 </div>
               </div>
-              {/* Mapa del documento — panel permanente a la derecha del contenido principal.
-                  En el paso 2 (Títulos) ya hay un "Mapa de títulos" propio: no duplicar. */}
-              {wizardStep !== 2 && (
-              <div style={{
-                backgroundColor: 'var(--sidebar-bg)',
-                borderLeft: '1px solid var(--border-subtle)',
-                width: 220, flexShrink: 0, height: '100%',
-                overflow: 'hidden', display: 'flex', flexDirection: 'column',
-              }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '7px',
-                  padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
-                }}>
-                  <Map size={13} color="var(--accent-primary)" />
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Mapa del documento</span>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                  <DocumentOutline />
-                </div>
-              </div>
-              )}
-              <RightSidePanel />
+              {/* Mapa del documento: vive bajo el StepRail (izquierda) para no
+                  quitarle ancho a la UI principal (p. ej. bibliografía).
+                  En Exportar (paso 5) se oculta: la cabina ya tiene preview. */}
+              {wizardStep !== 5 && <RightSidePanel />}
             </div>
           </>
         )}

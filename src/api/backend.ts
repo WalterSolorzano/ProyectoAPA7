@@ -805,6 +805,23 @@ export async function applyTemplate(
   return res.json();
 }
 
+/** Crea una NUEVA sesión a partir de una plantilla de estructura (sin documento previo). */
+export async function createFromTemplate(
+  templateId: string,
+  profileId: string = 'apa7'
+): Promise<any> {
+  const res = await fetchWithTrace(`${getApiBase()}/create-from-template`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template_id: templateId, profile_id: profileId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al crear documento desde plantilla');
+  }
+  return res.json();
+}
+
 // ── COVER DESIGNER API ──────────────────────────────────────────────────────
 
 export interface CoverTemplateInfo {

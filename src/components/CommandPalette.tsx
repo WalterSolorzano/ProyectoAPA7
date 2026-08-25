@@ -43,6 +43,7 @@ export const CommandPalette: React.FC = () => {
     { id: 'goto-figuras', label: 'Ir a Figuras y Tablas', shortcut: 'Ctrl+3', icon: null, action: () => { setWizardStep(3); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['figuras', 'tablas', 'imagenes', 'figures', 'tables'] },
     { id: 'goto-cuerpo', label: 'Ir a Cuerpo y Formato', shortcut: 'Ctrl+2', icon: null, action: () => { setWizardStep(2); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['cuerpo', 'formato', 'sangria', 'parrafo'] },
     { id: 'goto-referencias', label: 'Ir a Referencias y Validación', shortcut: 'Ctrl+4', icon: null, action: () => { setWizardStep(4); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['referencias', 'bibliografia', 'apa', 'validacion', 'citas'] },
+    { id: 'goto-exportar', label: 'Ir a Exportar (paso final)', shortcut: 'Ctrl+5', icon: FileDown, action: () => { setWizardStep(5); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['exportar', 'export', 'descargar', 'final', 'entrega'] },
 
     { id: 'download-docx', label: 'Descargar DOCX', shortcut: 'Ctrl+S', icon: FileDown, action: () => { exportDocx(false); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'docx', 'word'] },
     { id: 'download-pdf', label: 'Descargar PDF', shortcut: 'Ctrl+Shift+S', icon: FileText, action: () => { exportPdf(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'pdf'] },

@@ -409,6 +409,17 @@ export const backend = {
 
   health: () => get<{ status: string; version: string }>(`/api/addin/health`),
 
+  /**
+   * Zonas del documento (portada vs cuerpo) según el MODELO DEL PROGRAMA BASE
+   * (pre_classifier del core). Fuente única de verdad: el add-in NO detecta
+   * portada por su cuenta. Offline → lanza (el que llama decide abortar).
+   */
+  documentZones: (paragraphs: string[]) =>
+    post<{ cover_detected: boolean; body_start_idx: number; is_cover: boolean[]; cover_texts: string[] }>(
+      `/api/addin/document-zones`,
+      { paragraphs },
+    ),
+
   scopedApplyLive: (ooxml_base64: string, scopes: string[]) =>
     post<{ docx_base64: string; pdf_base64?: string; summary: Record<string, unknown> }>(
       `/api/addin/scoped-apply-live`,

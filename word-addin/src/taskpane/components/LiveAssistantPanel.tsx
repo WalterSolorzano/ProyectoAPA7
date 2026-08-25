@@ -184,7 +184,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         </div>
 
         <p className="card__subtitle">
-          Normaliza y corrige tu trabajo en vivo dentro de Word: conserva tu portada original intacta, protege índices, jerarquiza títulos (H1 en página nueva) y formatea sangrías y tablas.
+          Formato APA 7 en vivo. Tu portada queda intacta, siempre.
         </p>
 
         {/* BARRA DE PROGRESO DE NORMALIZACIÓN */}
@@ -194,7 +194,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
               <span>{progressMsg}</span>
               <span>{progressPct}%</span>
             </div>
-            <div style={{ height: 6, width: '100%', background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 6, width: '100%', background: 'var(--border-subtle, #e2e8f0)', borderRadius: 4, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${progressPct}%`, background: 'var(--accent-primary)', transition: 'width 0.3s ease' }} />
             </div>
           </div>
@@ -235,19 +235,37 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           </div>
         </div>
 
-        {/* REPORTE RESUMIDO DEL ÚLTIMO PROCESO */}
+        {/* REPORTE COMPACTO DEL ÚLTIMO PROCESO (chips, no párrafos) */}
         {lastReport && (
-          <div style={{ marginTop: 6, padding: '8px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 11.5, color: '#166534', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <CheckCircleIcon size={13} color="#16a34a" />
-              <span>Normalización completada con éxito:</span>
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--accent-success, #16a34a)' }}>
+              <CheckCircleIcon size={13} color="var(--accent-success, #16a34a)" />
+              <span>Normalización completada</span>
             </div>
-            <div>• Portada: {lastReport.coverDetected ? 'Detectada y conservada intacta' : 'Sin portada'}</div>
-            <div>• Índice: {lastReport.tocProtected ? 'Protegido sin sangría' : 'Sin índice'}</div>
-            <div>• Títulos: {lastReport.headingsCount} jerarquizados a APA 7</div>
-            <div>• Viñetas/Listas: {lastReport.listsCount} con margen de 0.5"</div>
-            <div>• Tablas: {lastReport.tablesCount} formateadas a APA 7</div>
-            <div>• Referencias: {lastReport.referencesCount} con sangría francesa</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {[
+                lastReport.coverDetected
+                  ? `Portada intacta (${lastReport.coverParagraphsProtected})`
+                  : 'Sin portada',
+                lastReport.tocProtected ? 'Índice protegido' : 'Sin índice',
+                `${lastReport.headingsCount} títulos`,
+                `${lastReport.listsCount} listas`,
+                `${lastReport.tablesCount} tablas`,
+                `${lastReport.referencesCount} refs`,
+              ].map((chip) => (
+                <div
+                  key={chip}
+                  style={{
+                    fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)',
+                    background: 'var(--surface-subtle, #f8fafc)', border: '1px solid var(--border-subtle, #e2e8f0)',
+                    borderRadius: 5, padding: '3px 7px', textAlign: 'center',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {chip}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -265,7 +283,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         </div>
 
         <p className="card__subtitle">
-          Extrae todas las citas (Autor, Año) detectadas en tu documento y genera la lista de referencias en orden alfabético con sangría francesa reglamentaria al final del archivo.
+          Citas (Autor, Año) → referencias alfabéticas con sangría francesa.
         </p>
 
         <button

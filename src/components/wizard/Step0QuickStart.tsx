@@ -4,7 +4,7 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  Download, FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug
+  FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -638,9 +638,9 @@ export const Step0QuickStart: React.FC = () => {
               ))}
             </div>
 
-            {/* ── ACCIÓN SECUNDARIA: Plantillas descargables ──
-                Rediseñado: tarjetas limpias con fondo elevado, iconos con
-                color de fondo sutil, tipografía refinada. */}
+            {/* ── ACCIÓN SECUNDARIA: Plantillas para USAR ──
+                Sin documento: crean una sesión nueva con la estructura.
+                Con documento: aplican la estructura al actual. Nunca descargan. */}
             <div style={{
               marginLeft: '-60px', marginRight: '-60px',
               padding: '32px 60px 36px',
@@ -650,10 +650,10 @@ export const Step0QuickStart: React.FC = () => {
               marginBottom: '36px',
             }}>
               <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                ¿Todavía no escribiste nada? Descargá una plantilla
+                ¿Todavía no escribiste nada? Empezá con una plantilla
               </h2>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
-                Un .docx con portada y secciones listas: lo abrís en Word y solo completás el contenido.
+                Creamos tu documento con las secciones listas: solo completás el contenido.
               </p>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 {TEMPLATES.map(tpl => {
@@ -670,11 +670,12 @@ export const Step0QuickStart: React.FC = () => {
                           .then(() => useDocStore.getState().showToast(`Estructura "${tpl.name}" aplicada a tu documento`, 'success'))
                           .catch((e) => useDocStore.getState().showToast(`No se pudo aplicar: ${String(e)}`, 'error'));
                       } else {
-                        api.downloadTemplate(activeProfileId, tpl.id);
+                        // Sin documento: la plantilla CREA el documento de trabajo.
+                        useDocStore.getState().createFromTemplate(tpl.id);
                       }
                     }}
-                    title={canApply ? `Aplicar estructura ${tpl.name} a tu documento` : `Descargar plantilla ${tpl.name}`}
-                    aria-label={canApply ? `Aplicar estructura ${tpl.name}` : `Descargar plantilla ${tpl.name}`}
+                    title={canApply ? `Aplicar estructura ${tpl.name} a tu documento` : `Usar plantilla ${tpl.name} (crea tu documento)`}
+                    aria-label={canApply ? `Aplicar estructura ${tpl.name}` : `Usar plantilla ${tpl.name}`}
                     style={{
                       flex: '1 1 220px', maxWidth: '280px', cursor: 'pointer', fontFamily: 'inherit',
                       display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left',
@@ -721,7 +722,7 @@ export const Step0QuickStart: React.FC = () => {
                       {canApply ? (
                         <><FileCheck size={13} /> Aplicar a mi documento</>
                       ) : (
-                        <><Download size={13} /> Descargar .docx</>
+                        <><FileCheck size={13} /> Usar esta estructura</>
                       )}
                     </div>
                   </button>

@@ -522,8 +522,13 @@ export const LoadingTips: React.FC = () => {
       <LoadingProgressBar />
       <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite">
         <div className="loading-minimal-inner">
-          <div className="loading-minimal-spinner" aria-hidden="true" />
+          {/* Mascota viva arriba: cara + animación según la categoría del tip,
+              para que la espera larga se sienta activa, no colgada. */}
+          <div className={mascotAnim} style={{ lineHeight: 0 }}>
+            <DocumentMascot size={104} expression={mascotExpr} />
+          </div>
           <div className="loading-minimal-title">{message}</div>
+          <StageRail llmStatus={llmStatus} />
           <div className="loading-minimal-tip" key={tip.text}>{tip.text}</div>
         </div>
       </div>

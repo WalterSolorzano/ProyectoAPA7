@@ -1,11 +1,14 @@
-import React from 'react';
-import { FileText, ListTree, Image as ImageIcon, AlignLeft, BookOpen, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileText, ListTree, Image as ImageIcon, AlignLeft, BookOpen, Check, Map, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
+import { OutlineTree } from './OutlineTree';
 
 /**
  * StepRail — navegación de pasos como lista vertical a la izquierda.
  * Reemplaza la barra superior de tabs (decisión de producto: la lista
  * lateral es más clara y deja la barra superior solo con acciones globales).
+ * Debajo de los pasos (solo pasos 3 y 4) vive el "Mapa del documento",
+ * colapsable, para no quitarle ancho a la UI principal.
  */
 
 const STEPS = [
@@ -13,6 +16,7 @@ const STEPS = [
   { step: 2, label: 'Estructura', Icon: ListTree },
   { step: 3, label: 'Figuras', Icon: ImageIcon },
   { step: 4, label: 'Referencias', Icon: BookOpen },
+  { step: 5, label: 'Exportar', Icon: Download },
 ] as const;
 
 export function StepRail() {
@@ -20,6 +24,9 @@ export function StepRail() {
   const setWizardStep = useDocStore((s) => s.setWizardStep);
   const doc = useDocStore((s) => s.doc);
   const coverSetupDone = useDocStore((s) => s.coverSetupDone);
+  const [mapOpen, setMapOpen] = useState(true);
+
+  const showMap = wizardStep === 3 || wizardStep === 4;
 
   const elements = doc?.elements || [];
   const pendingHeadings = elements.filter((e) => e.type === 'heading' && e.needs_review).length;
@@ -127,6 +134,54 @@ export function StepRail() {
           </button>
         );
       })}
+
+      {showMap && (
+        <div
+          style={{
+            marginTop: '8px',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setMapOpen((v) => !v)}
+            title={mapOpen ? 'Cerrar mapa del documento' : 'Abrir mapa del documento'}
+            aria-expanded={mapOpen}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '6px 10px',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              borderRadius: 'var(--radius-sm)',
+              textAlign: 'left',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-subtle)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <Map size={13} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+              Mapa del documento
+            </span>
+            {mapOpen
+              ? <ChevronUp size={13} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
+              : <ChevronDown size={13} color="var(--text-secondary)" style={{ flexShrink: 0 }} />}
+          </button>
+          {mapOpen && (
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <OutlineTree />
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 }

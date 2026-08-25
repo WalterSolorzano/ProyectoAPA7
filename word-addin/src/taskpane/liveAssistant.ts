@@ -27,11 +27,13 @@ import {
   subscribeSelectionChanges,
   getDocumentText,
   getDocumentStats,
+  getCurrentParagraphText,
   applyAPA7ToCurrentParagraph,
   captionUncaptionedFigures,
   captionUncaptionedTables,
   type DocumentStats,
 } from './office/wordHelper'
+import { getCoverZones, isCoverText } from './office/coverGuard'
 import { extractCitations, citationKey, summarizeCitations } from './citationDetector'
 import { backend } from './api/backend'
 
@@ -343,10 +345,16 @@ async function scan(): Promise<void> {
     }
 
     // ── 2. FORMATO AL VUELO ──
+    // Guard de portada (modelo del programa base): si el cursor está en un
+    // párrafo de la portada, NO se formatea. Sin zonas del core → no actuar.
     if (_options.autoFormat) {
       try {
         _applying = true
-        await applyAPA7ToCurrentParagraph()
+        const zones = await getCoverZones()
+        const curText = zones ? await getCurrentParagraphText() : ''
+        if (zones && !isCoverText(curText, zones)) {
+          await applyAPA7ToCurrentParagraph()
+        }
       } catch {
         /* no crítico */
       } finally {

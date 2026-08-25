@@ -186,6 +186,16 @@ export async function getSelectedText(): Promise<string> {
   })
 }
 
+/** Texto del párrafo donde está el cursor (para guards de portada). */
+export async function getCurrentParagraphText(): Promise<string> {
+  return withWordContext(async (context) => {
+    const para = context.document.getSelection().paragraphs.getFirst()
+    para.load('text')
+    await context.sync()
+    return para.text
+  })
+}
+
 /**
  * Lee todos los párrafos del documento como array de strings.
  * Útil para detección de headings y análisis de estructura.

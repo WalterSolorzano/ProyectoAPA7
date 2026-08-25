@@ -285,6 +285,9 @@ export function getWhatsAppComment(
   nonce = 0,
 ): WhatsAppCommentData | null {
   if (!elem) return null;
+  // Portada intocable: ni comentarios. El logo no necesita "leyenda" y los
+  // metadatos (carnets, fechas) no son citas. Cero ruido sobre la portada.
+  if ((elem as any).is_cover_section) return null;
   const text = elem.text || '';
 
   const ghost = ctx.ghostCitations?.find((c) => c.element_id === elem.id);

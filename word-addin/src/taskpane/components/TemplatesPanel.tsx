@@ -23,7 +23,7 @@ const TEMPLATES: AcademicTemplate[] = [
     id: 'tesis',
     title: 'Tesis de Grado / Proyecto de Titulación',
     category: 'Tesis Universitaria',
-    description: 'Estructura universitaria completa con 5 capítulos reglamentarios, portada institucional, índice, marco teórico, metodología, resultados y referencias.',
+    description: '5 capítulos reglamentarios: portada, índice, marco teórico, metodología, resultados y referencias.',
     pagesEstimate: '30-80 páginas',
     structure: [
       'Portada Institucional',
@@ -194,7 +194,7 @@ export const TemplatesPanel: React.FC<Props> = ({ showToast }) => {
         </div>
 
         <p className="card__subtitle">
-          Plantillas académicas estandarizadas listas para usar. Selecciona una plantilla para insertar su estructura completa directamente en tu documento de Word.
+          Elige una estructura y se inserta lista en tu documento.
         </p>
 
         {/* SELECTOR DE PLANTILLAS */}
@@ -209,7 +209,7 @@ export const TemplatesPanel: React.FC<Props> = ({ showToast }) => {
                   padding: '10px 12px',
                   borderRadius: 6,
                   border: isSel ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                  background: isSel ? '#f0f4ff' : '#ffffff',
+                  background: isSel ? 'var(--accent-soft, #f0f4ff)' : 'var(--surface, #ffffff)',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',

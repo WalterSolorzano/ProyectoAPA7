@@ -218,12 +218,19 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
     # Un bloque puede traer VARIAS entradas unidas con saltos de linea (w:br).
     # Dividir antes de parsear: _parse_single_reference colapsa whitespace y
     # solo interpretaria la primera entrada, perdiendo el resto.
+    # Ademas: si el titulo "Bibliografia"/"Referencias" venia pegado al primer
+    # bloque (un solo parrafo con salto blando), esa linea se descarta aqui
+    # para que no aparezca como parte de la primera entrada.
     entry_lines: List[str] = []
     for block in collected_texts:
         for line in block.split("\n"):
             line = line.strip()
-            if line and len(line) >= 4:
-                entry_lines.append(line)
+            if not line or len(line) < 4:
+                continue
+            line_norm = _normalize_heading(line)
+            if line_norm in _REFERENCES_HEADINGS or any(line_norm.startswith(k) for k in _REFERENCES_HEADINGS):
+                continue
+            entry_lines.append(line)
 
     seen = set()
     for raw in entry_lines:

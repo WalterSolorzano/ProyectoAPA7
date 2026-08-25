@@ -311,6 +311,7 @@ interface DocState {
   autoResolveGhosts: () => Promise<void>;
   uploadFile: (file: File, opts?: { profileId?: string; mode?: 'quick' | 'review' }) => Promise<void>;
   startBlankDocument: () => Promise<void>;
+  createFromTemplate: (templateId: string) => Promise<void>;
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
@@ -635,7 +636,7 @@ export const useDocStore = create<DocState>()(
     }, DURATIONS[type]);
   },
   setLastRequestId: (id) => set({ lastRequestId: id }),
-      setWizardStep: (step) => set({ wizardStep: Math.min(4, Math.max(1, step)) }),
+      setWizardStep: (step) => set({ wizardStep: Math.min(5, Math.max(1, step)) }),
   structureTab: 'headings',
   setStructureTab: (tab) => set({ structureTab: tab }),
   setSelectedElementId: (id) => set((state) => ({
@@ -1104,6 +1105,39 @@ export const useDocStore = create<DocState>()(
     }
   },
 
+  createFromTemplate: async (templateId) => {
+    set({ isLoading: true, error: null });
+    try {
+      let doc = await api.createFromTemplate(templateId, get().activeProfileId);
+      doc = migrateDocument(doc);
+      const prof = get().profiles.find((p) => p.profile_id === (doc.profile_id || get().activeProfileId));
+      set((state) => {
+        const newTab = { session_id: doc.session_id, file_name: doc.file_name };
+        const newTabs = [...state.tabs, newTab];
+        const newTabDocs = { ...state.tabDocs, [doc.session_id]: doc };
+        return {
+          doc,
+          references: doc.referencias || [],
+          rules: prof ? prof.rules : state.rules,
+          activeProfileId: prof ? prof.profile_id : state.activeProfileId,
+          isLoading: false,
+          tabs: newTabs,
+          activeTabIndex: newTabs.length - 1,
+          tabDocs: newTabDocs,
+          history: [doc],
+          historyIndex: 0,
+          coverSetupDone: false,
+          atHome: false,
+          wizardStep: 1,
+        };
+      });
+      get().showToast('Documento creado desde la plantilla: completá la portada y escribí.', 'success');
+    } catch (err: any) {
+      set({ error: err.message || 'Error al crear documento desde plantilla', isLoading: false });
+      get().showToast(err?.message || 'No se pudo crear el documento desde la plantilla', 'error');
+    }
+  },
+
   // Undo/Redo
   pushHistory: (doc) => set((state) => {
     const newHistory = state.history.slice(0, state.historyIndex + 1);
@@ -1496,7 +1530,9 @@ export const useDocStore = create<DocState>()(
   },
 
   resolveGhostCitation: async (authors: string[], year: string) => {
-    set({ isLoading: true });
+    // NOTA: sin isLoading global — el overlay fullscreen de carga tapaba toda
+    // la UI (parecía "volver al menú de carga"). El panel ya muestra su propio
+    // spinner por ítem (ReferencesPanel.resolving).
     try {
       const result = await api.resolveGhostCitation(authors, year);
       if (result.found && result.candidates && result.candidates.length > 0) {
@@ -1516,15 +1552,12 @@ export const useDocStore = create<DocState>()(
         const extra = result.candidates.length > 1 ? ` (${result.candidates.length} resultados, se agregó el mejor match)` : '';
         get().showToast(`Referencia encontrada: ${safeRefText(ref) || 'candidato'}${extra}`, 'success');
         get().runCitationAudit();
-        set({ isLoading: false });
         return { ...newRef, candidates: result.candidates };
       }
       get().showToast(`No se encontró referencia para "${authors.join(' ')} (${year})" en Crossref`, 'warning');
-      set({ isLoading: false });
       return null;
     } catch (err: any) {
       get().showToast(err.message || 'Error al buscar referencia', 'error');
-      set({ isLoading: false });
       return null;
     }
   },
@@ -1736,3 +1769,4 @@ export const useDocStore = create<DocState>()(
 // Rompe el ciclo de importación backend.ts ↔ store: el tracing de X-Request-ID
 // se registra como listener en http.ts en vez de importar el store desde la API.
 setRequestIdListener((id) => useDocStore.getState().setLastRequestId(id));
+

@@ -177,7 +177,7 @@ export const SelectionCriticCard: React.FC<Props> = ({ showToast }) => {
   }
 
   return (
-    <div className="card" style={{ borderLeft: '3px solid var(--accent-primary)', background: 'var(--surface, var(--surface, #fff)fff)' }}>
+    <div className="card" style={{ borderLeft: '3px solid var(--accent-primary)' }}>
       <div className="card__header">
         <div className="card__title" style={{ fontSize: 12.5 }}>
           <ZapIcon size={14} color="var(--accent-primary)" />
@@ -219,7 +219,7 @@ export const SelectionCriticCard: React.FC<Props> = ({ showToast }) => {
               disabled={applying}
               style={{ marginTop: 2, padding: '7px 10px', fontSize: 11.5 }}
             >
-              <ZapIcon size={12} color="var(--surface, var(--surface, #fff)fff)" />
+              <ZapIcon size={12} color="#ffffff" />
               <span>{applying ? 'Aplicando...' : analysis.suggestedAction}</span>
             </button>
           )}
