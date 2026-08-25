@@ -10,6 +10,7 @@ Dos capas de auditoría:
    - Headings numerados (1., 2., 2.1.) — no permitidos en APA 7
    - Referencias antes del cuerpo del documento
    - Figuras/tablas sin caption
+   - Imágenes que desbordan la página (overflow/bleed) — altura > página útil
    - Citas huérfanas (en texto pero sin referencia en bibliografía)
 
 2. LLM global (audit_document_structure) — enriquece con IA cuando hay API key.
@@ -65,7 +66,8 @@ def audit_document_heuristic(doc_model: Any) -> DocAuditResult:
     - Headings numerados (1., 2., 2.1.) — no APA 7 — APA 7 §2.27
     - Referencias antes del cuerpo — APA 7 §2.4
     - Figuras/tablas sin caption — APA 7 §7.10
-    - Citas huérfanas (en texto pero sin referencia) — APA 7 §8.4
+    - Imágenes que desbordan la página (overflow/bleed) — APA 7 §7.22
+    - Citas huérfanas (en texto sin referencia) — APA 7 §8.4
     """
     try:
         from models import ElementType
@@ -206,6 +208,32 @@ def audit_document_heuristic(doc_model: Any) -> DocAuditResult:
             f"{tables_without_caption} tabla(s) sin título: "
             "APA 7 §7.10 requiere 'Tabla N' + título breve sobre la tabla"
         )
+
+    # ── 5b. Imágenes que desbordan la página (overflow / bleed) ───────────────
+    # APA 7 (§7.22) exige que cada figura entre completa en una sola página. En
+    # A4 con márgenes estándar (~2.54 cm) la altura útil ronda los 24 cm; si una
+    # imagen la supera, Word la corta o la empuja a la página siguiente y rompe
+    # el diseño. Se advierte al usuario para que la reduzca o la divida. Se
+    # omite el logotipo/elementos de portada (is_cover_section) porque esos no
+    # siguen el flujo del cuerpo.
+    PAGE_USABLE_H_CM = 24.0
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if hasattr(elem, 'type') and hasattr(elem.type, 'value'):
+            t = str(elem.type.value).lower()
+        if t != 'image':
+            continue
+        if getattr(elem, 'is_cover_section', False):
+            continue
+        info = getattr(elem, 'image_info', None)
+        if not info:
+            continue
+        h_cm = getattr(info, 'height_cm', 0) or 0
+        if h_cm > PAGE_USABLE_H_CM:
+            format_suggestions.append(
+                f"La figura mide {h_cm} cm de alto y no cabe en una pagina "
+                f"(max ~{PAGE_USABLE_H_CM:.0f} cm). Reduzcala o divídala."
+            )
 
     # ── 6. Citas huérfanas (en texto sin referencia en bibliografía) ──────────
     citas = getattr(doc_model, 'citas_intext', None) or []
