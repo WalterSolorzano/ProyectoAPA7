@@ -21,9 +21,6 @@ Office.onReady((info) => {
   Office.actions.associate('passAPAQuick', passAPAQuick)
 
   // Grupo 2: Insertar APA 7
-  Office.actions.associate('insertTableAPA', handleInsertTable)
-  Office.actions.associate('insertFigureAPA', handleInsertFigure)
-  Office.actions.associate('insertHeadingAPA', handleInsertHeading)
 
   // Grupo 3: Referencias
   Office.actions.associate('openReferences', openReferencesPanel)
@@ -98,47 +95,6 @@ async function refreshDocument(event: Office.AddinCommands.Event) {
 }
 
 // ── GRUPO 2: INSERTAR APA 7 DIRECTO EN WORD ─────────────────────────────────
-
-async function handleInsertTable(event: Office.AddinCommands.Event) {
-  try {
-    await openTaskpane('tablas')
-    await insertTableAPA(
-      {
-        caption: 'Título descriptivo de la Tabla',
-        headers: ['Variable', 'Grupo Control (n=30)', 'Grupo Experimental (n=30)', 'p-valor'],
-        rows: [
-          ['Edad (años)', '24.5 ± 3.2', '25.1 ± 2.8', '0.452'],
-          ['Puntaje Pre-test', '14.2 ± 2.1', '13.9 ± 2.4', '0.618'],
-        ],
-        note: 'Nota. *p < 0.05 nivel de significancia.',
-      },
-      1,
-    )
-  } catch (e) {
-    console.error('[WordAPA7 Ribbon] Error insertando tabla', e)
-  } finally {
-    event.completed()
-  }
-}
-
-async function handleInsertFigure(event: Office.AddinCommands.Event) {
-  try {
-    await openTaskpane('tablas')
-  } finally {
-    event.completed()
-  }
-}
-
-async function handleInsertHeading(event: Office.AddinCommands.Event) {
-  try {
-    await openTaskpane('titulos')
-    await applyHeadingStyle(1)
-  } catch (e) {
-    console.error('[WordAPA7 Ribbon] Error aplicando heading', e)
-  } finally {
-    event.completed()
-  }
-}
 
 // ── GRUPO 3: REFERENCIAS ────────────────────────────────────────────────────
 

@@ -189,30 +189,7 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             <span style={{ fontSize:10, color:'#94a3b8', marginLeft:6 }}>build 1.0.62</span>
           </div>
           <SelectionCard />
-      <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#0f172a' }}>
-        <input type="checkbox" defaultChecked={localStorage.getItem('wordapa7_jarvis') !== '0'}
-          onChange={(e) => localStorage.setItem('wordapa7_jarvis', e.target.checked ? '1':'0')} />
-        Jarvis (normaliza mientras escribes)
-      </label>
-      <button type="button" style={{ fontSize:11, color:'#64748b', background:'none', border:'none', cursor:'pointer', padding:'0 0 6px' }}
-        onClick={() => { try { localStorage.removeItem('wordapa7_locks') } catch {} }}>
-        Reiniciar preferencias aprendidas
-      </button>
-      <details style={{ fontSize:11.5, color:'#334155', margin:'4px 0 8px' }}>
-        <summary style={{ cursor:'pointer' }}>Vista previa</summary>
-        <div style={{ padding:'4px 6px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:6 }}>
-          &laquo;texto actual&hellip;&raquo; &rarr; H2 &middot; negrilla &middot; izquierda
-        </div>
-      </details>
-      <button
-            type="button"
-            className={`btn-sm ${running ? 'btn-success' : 'btn-secondary'}`}
-            onClick={onToggle}
-            title={running ? 'Pausar asistente' : 'Activar asistente'}
-          >
-            {running ? 'En Vivo' : 'Pausado'}
-          </button>
-        </div>
+          </div>
 
         <p className="card__subtitle">
           Normaliza el documento completo en vivo dentro de Word: portada, títulos, sangrías, tablas y bibliografía respetando índices y estructura.

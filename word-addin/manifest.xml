@@ -196,55 +196,13 @@
                 </Icon>
 
                 <!-- Tabla -->
-                <Control xsi:type="Button" id="WordAPA7.InsertTable">
-                  <Label resid="WordAPA7.InsertTable.Label" />
-                  <Supertip>
-                    <Title resid="WordAPA7.InsertTable.Label" />
-                    <Description resid="WordAPA7.InsertTable.Supertip" />
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.Table.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.Table.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.Table.80" />
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>insertTableAPA</FunctionName>
-                  </Action>
-                </Control>
+                
 
                 <!-- Figura -->
-                <Control xsi:type="Button" id="WordAPA7.InsertFigure">
-                  <Label resid="WordAPA7.InsertFigure.Label" />
-                  <Supertip>
-                    <Title resid="WordAPA7.InsertFigure.Label" />
-                    <Description resid="WordAPA7.InsertFigure.Supertip" />
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.Figure.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.Figure.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.Figure.80" />
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>insertFigureAPA</FunctionName>
-                  </Action>
-                </Control>
+                
 
                 <!-- Titulo -->
-                <Control xsi:type="Button" id="WordAPA7.InsertHeading">
-                  <Label resid="WordAPA7.InsertHeading.Label" />
-                  <Supertip>
-                    <Title resid="WordAPA7.InsertHeading.Label" />
-                    <Description resid="WordAPA7.InsertHeading.Supertip" />
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="WordAPA7.Icon.Heading.16" />
-                    <bt:Image size="32" resid="WordAPA7.Icon.Heading.32" />
-                    <bt:Image size="80" resid="WordAPA7.Icon.Heading.80" />
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>insertHeadingAPA</FunctionName>
-                  </Action>
-                </Control>
+                
               </Group>
 
               <!-- ================================================================ -->

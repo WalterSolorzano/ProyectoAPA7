@@ -294,7 +294,13 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
       </div>
 
       <div className="card">
-        <div className="card__simple-header">Bibliografía sugerida (APA 7)</div>
+        <div className="card__simple-header">Bibliografía</div>
+        {drafts > 0 && (
+          <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:11.5, color:'#64748b', margin:'4px 12px 0' }}>
+            <input type="checkbox" checked={showDrafts} onChange={(e) => setShowDrafts(e.target.checked)} />
+            Mostrar incompletas ({drafts})
+          </label>
+        )}
         <div className="card__body">
           <div className="stats-grid stats-grid--compact">
             <div className="stat-box">
@@ -389,27 +395,17 @@ export function ReferencesPanel({ showToast, pendingAction, onActionConsumed }: 
         </div>
       )}
 
-      {/* Preview de la bibliografía */}
-      {bibText && (
-        <div className="card">
-          <div className="card__simple-header">Vista previa</div>
-          <div className="card__body">
-            <pre className="bib-preview">{bibText}</pre>
-          </div>
-        </div>
-      )}
-
-      {/* Lista de referencias */}
+            {/* Lista de referencias */}
       {references.length > 0 && (
         <div className="card">
           <div className="card__simple-header">Referencias detectadas</div>
           <div className="card__body">
-            {references.map((ref) => (
+            {references.filter((r) => showDrafts || !r.is_draft).map((ref) => (
               <div key={ref.id} className="ref-item">
-                <div className="ref-item__text">{ref.formatted_apa || ref.raw_text || '(sin formato)'}</div>
+                <div className="ref-item__text">{(ref.formatted_apa || ref.raw_text || '').replace(/\[Completar[^\]]*\]\.?\s*\(?borrador\)?/gi,'').trim() || 'Referencia incompleta ? Editar para completar'}</div>
                 <div className="ref-item__meta">
                   {ref.is_draft ? (
-                    <span className="badge badge--warning">borrador</span>
+                    <span className="badge badge--warning">incompleta</span>
                   ) : (
                     <span className="badge badge--success">completa</span>
                   )}
