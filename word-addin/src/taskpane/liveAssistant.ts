@@ -34,6 +34,8 @@ import {
   type DocumentStats,
 } from './office/wordHelper'
 import { getCoverZones, isCoverText } from './office/coverGuard'
+import { oncePerSession } from './office/sessionRegistry'
+import { contextFromScan } from './office/contextAnalyzer'
 import { extractCitations, citationKey, summarizeCitations } from './citationDetector'
 import { backend } from './api/backend'
 
@@ -325,7 +327,8 @@ async function scan(): Promise<void> {
           emit('citation', '¡Cita procesada con éxito!', summary.join(', '))
           emitMascot(pick(MASCOT_SUCCESS))
 
-          // Persistir en el backend (si está disponible)
+          // Persistir en el backend (si está disponible). CORE_DOWN: sin motor
+          // NO se persiste nada; aviso honesto una vez por sesión.
           if (_backendOnline) {
             try {
               const res = await backend.extractCitations(docText)
@@ -336,6 +339,9 @@ async function scan(): Promise<void> {
             } catch {
               /* fallo silencioso: ya notificamos localmente */
             }
+          } else if (oncePerSession('offline-cite-hint')) {
+            emit('info', 'Modo limitado (motor caído)',
+              'Las citas se detectaron localmente pero NO se persisten hasta que la app WordAPA7 esté corriendo.')
           }
         }
 
@@ -359,7 +365,15 @@ async function scan(): Promise<void> {
         _applying = true
         const zones = await getCoverZones()
         const curText = zones ? await getCurrentParagraphText() : ''
-        if (zones && !isCoverText(curText, zones)) {
+        const isCover = !zones || isCoverText(curText, zones)
+        // T1: contexto inferido SIN roundtrips nuevos (datos del scan)
+        const ctx = contextFromScan({ currentParagraphText: curText, isCover })
+        if (isCover) {
+          // T3/T4: avisar UNA vez por sesión por qué no se formatea
+          if (oncePerSession('coverfmt-blocked')) {
+            emit('info', 'Portada protegida', `Contexto=${ctx.kind}: el asistente no escribe en la portada.`)
+          }
+        } else if (oncePerSession(`fmt:${_hash(curText)}`)) {
           await applyAPA7ToCurrentParagraph()
         }
       } catch {
@@ -379,6 +393,8 @@ async function scan(): Promise<void> {
       if (newPics || (newContent && _lastInlinePicCount > 0)) {
         try {
           _applying = true
+          const zonesC = await getCoverZones()
+          const skipCover = zonesC ? (t: string) => isCoverText(t, zonesC) : undefined
           const figs = await captionUncaptionedFigures(async (ctx) => {
             // sugerencia de título vía backend; si no hay, cadena genérica
             if (_backendOnline && ctx.trim()) {
@@ -390,8 +406,8 @@ async function scan(): Promise<void> {
               }
             }
             return ''
-          })
-          const tabs = await captionUncaptionedTables()
+          }, { skip: skipCover })
+          const tabs = await captionUncaptionedTables({ skip: skipCover })
           if (figs > 0) {
             emit('figure', `Figura(s) numerada(s) automáticamente`, `${figs} imagen(es) con caption APA 7`)
             emitMascot(pick(MASCOT_FIGURE))
@@ -424,6 +440,13 @@ async function scan(): Promise<void> {
   } catch (err) {
     emit('error', 'Error en el escaneo en vivo', String(err))
   }
+}
+
+/** Hash djb2 corto para claves de idempotencia por sesión (T3). */
+function _hash(s: string): string {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
 }
 
 function debouncedScan(): void {
