@@ -43,7 +43,7 @@ import { ValidatorView } from './components/validator/ValidatorView';
 import { ExpressQuickTransformModal } from './components/quick/ExpressQuickTransformModal';
 import { DocumentAIChat } from './components/chat/DocumentAIChat';
 import { StressTestModal } from './components/test/StressTestModal';
-import { X } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
    1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
@@ -194,23 +194,96 @@ const ValidatorDrawer: React.FC = () => {
   );
 };
 
-/** Drawer del Copiloto Editorial IA (Edición en vivo en lenguaje natural). */
-const LiveChatDrawer: React.FC = () => {
+/** Ventana Flotante del Copiloto Editorial IA (Edición en vivo en lenguaje natural). */
+const LiveChatFloatingCard: React.FC = () => {
   const liveChatOpen = useDocStore((s) => s.liveChatOpen);
   const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
-  if (!liveChatOpen) return null;
+  const doc = useDocStore((s) => s.doc);
+  const atHome = useDocStore((s) => s.atHome);
+  const citationAudit = useDocStore((s) => s.citationAuditResult);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+
+  if (atHome || !doc) return null;
+
+  const issueCount = (citationAudit?.ghost_citations?.length || 0) + (proofreadFindings.length > 0 ? 1 : 0);
+
+  if (!liveChatOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setLiveChatOpen(true)}
+        title="Abrir Copiloto Editorial IA"
+        data-copilot-btn="true"
+        style={{
+          position: 'fixed',
+          bottom: '68px',
+          right: '20px',
+          zIndex: 990,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 16px',
+          borderRadius: '999px',
+          background: 'var(--accent-primary)',
+          border: 'none',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.22)',
+          color: '#ffffff',
+          fontSize: '13px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,0,0,0.28)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.22)';
+        }}
+      >
+        <Sparkles size={14} />
+        <span>Copiloto IA</span>
+        {issueCount > 0 && (
+          <span style={{
+            fontSize: '10px',
+            fontWeight: 800,
+            background: 'rgba(255,255,255,0.25)',
+            color: '#ffffff',
+            padding: '2px 7px',
+            borderRadius: '999px',
+          }}>
+            {issueCount}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div
       style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: 'min(480px, 90%)', zIndex: 1000,
-        display: 'flex', flexDirection: 'column',
-        backgroundColor: 'var(--sidebar-bg)',
+        position: 'fixed',
+        top: '48px',
+        right: 0,
+        bottom: 0,
+        width: '420px',
+        maxWidth: '90vw',
+        zIndex: 900,
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--surface-elevated)',
         borderLeft: '1px solid var(--border-subtle)',
-        boxShadow: '-10px 0 28px rgba(0,0,0,0.25)',
+        boxShadow: '-8px 0 32px rgba(0,0,0,0.14)',
+        overflow: 'hidden',
+        transition: 'transform 0.22s ease',
       }}
     >
-      <DocumentAIChat onClose={() => setLiveChatOpen(false)} />
+      <DocumentAIChat
+        onClose={() => setLiveChatOpen(false)}
+        onMinimize={() => setLiveChatOpen(false)}
+      />
     </div>
   );
 };
@@ -241,17 +314,6 @@ export const App: React.FC = () => {
   } = useDocStore();
 
   const stressTestModalOpen = useDocStore((s) => s.stressTestModalOpen);
-  const hasAutoOpenedChatRef = React.useRef(false);
-
-  // Auto-abrir Copiloto IA al cargar un documento nuevo (Opción B: minimizable)
-  useEffect(() => {
-    if (doc && !hasAutoOpenedChatRef.current) {
-      hasAutoOpenedChatRef.current = true;
-      useDocStore.getState().setLiveChatOpen(true);
-    } else if (!doc) {
-      hasAutoOpenedChatRef.current = false;
-    }
-  }, [doc]);
 
   // ── Resizable Left Sidebar (Portada / Wizards) ────────────────────────────
   const [leftSidebarWidth, setLeftSidebarWidth] = React.useState<number>(() => {
@@ -294,22 +356,38 @@ export const App: React.FC = () => {
   const [quickModalData, setQuickModalData] = React.useState<{ fileName: string; buffer?: Uint8Array; filePath?: string } | null>(null);
 
   const processPendingOSFile = () => {
-    const data = pendingOSFile.current;
-    if (!data) return;
-    pendingOSFile.current = null;
+    try {
+      const data = pendingOSFile.current;
+      if (!data || !data.buffer) return;
+      pendingOSFile.current = null;
 
-    const ab = new ArrayBuffer(data.buffer.byteLength);
-    new Uint8Array(ab).set(data.buffer);
-    const file = new File(
-      [ab],
-      data.fileName,
-      { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
-    );
+      let ab: ArrayBuffer;
+      const raw = data.buffer as any;
+      if (raw instanceof ArrayBuffer) {
+        ab = raw;
+      } else if (raw.buffer && raw.buffer instanceof ArrayBuffer) {
+        ab = raw.buffer.slice(raw.byteOffset, raw.byteOffset + (raw.byteLength ?? raw.length ?? 0));
+      } else if (typeof raw === 'object') {
+        const arr = new Uint8Array(Object.values(raw));
+        ab = arr.buffer;
+      } else {
+        ab = new ArrayBuffer(0);
+      }
 
-    if (!data.isQuick) {
-      useDocStore.getState().showToast(`Abriendo "${data.fileName}" desde el menú contextual…`, 'info');
+      const file = new File(
+        [ab],
+        data.fileName || 'documento.docx',
+        { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+      );
+
+      if (!data.isQuick) {
+        useDocStore.getState().showToast(`Abriendo "${file.name}"…`, 'info');
+      }
+      useDocStore.getState().uploadFile(file);
+    } catch (err) {
+      console.error('[App] Error al procesar archivo desde el SO:', err);
+      useDocStore.getState().showToast('Error al abrir el documento. Intenta seleccionarlo desde el editor.', 'error');
     }
-    useDocStore.getState().uploadFile(file);
   };
 
   useEffect(() => {
@@ -706,8 +784,8 @@ export const App: React.FC = () => {
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
-      {/* Copiloto Editorial IA (Edición en vivo) */}
-      {doc && <LiveChatDrawer />}
+      {/* Copiloto Editorial IA (Ventana flotante / píldora) */}
+      {doc && <LiveChatFloatingCard />}
       {/* Modal de Banco de Pruebas y Estrés */}
       {stressTestModalOpen && (
         <StressTestModal onClose={() => useDocStore.getState().setStressTestModalOpen(false)} />

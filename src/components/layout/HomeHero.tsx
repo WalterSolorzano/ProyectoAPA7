@@ -5,7 +5,6 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Zap, GitBranch } from 'lucide-react';
 import { PROCESS_VERBS, JOKES, APA_FACTS, AI_JOKES, WORD_HELL_JOKES, STUDENT_JOKES } from './LoadingTips';
 import { getTimeSlotPhrases } from '../../lib/studentJokes';
 
@@ -70,42 +69,35 @@ function pickRandom<T>(arr: T[]): T {
 }
 
 const TAG_COLOR: Record<string, string> = {
-  contexto: 'var(--accent-warning)',
-  'hora-especial': '#e85d04',
-  inicio: 'var(--accent-primary)',
+  contexto: 'var(--text-main)',
+  'hora-especial': 'var(--accent-primary)',
+  inicio: 'var(--text-main)',
   procesando: 'var(--accent-primary)',
-  chiste: 'var(--accent-secondary)',
-  dato: 'var(--accent-success)',
-  ai: 'var(--accent-danger)',
-  wordhell: 'var(--accent-warning)',
-  student: '#e85d04',
+  chiste: 'var(--text-main)',
+  dato: 'var(--accent-primary)',
+  ai: 'var(--accent-primary)',
+  wordhell: 'var(--text-main)',
+  student: 'var(--text-main)',
 };
 
 const BADGE_COLOR: Record<string, string> = {
-  'hora-especial': '#e85d04',
+  'hora-especial': 'var(--accent-primary)',
   ai: 'var(--accent-danger)',
   wordhell: 'var(--accent-warning)',
-  student: '#e85d04',
+  student: 'var(--accent-primary)',
 };
 
-/** Tres pilares de producto — iconos nativos de la app, sin decir lo obvio. */
-const PILLARS = [
-  {
-    icon: <BookOpen size={14} strokeWidth={2} />,
-    label: 'Portada, cuerpo y referencias',
-    color: 'var(--accent-primary)',
-  },
-  {
-    icon: <Zap size={14} strokeWidth={2} />,
-    label: 'Corrección sin tocar tu contenido',
-    color: 'var(--accent-success)',
-  },
-  {
-    icon: <GitBranch size={14} strokeWidth={2} />,
-    label: 'Citas, DOI y referencias cruzadas',
-    color: 'var(--accent-primary)',
-  },
-];
+const getEffectClass = (tag: string): string => {
+  switch (tag) {
+    case 'ai': return 'hero-phrase-base hero-fx-ai';
+    case 'chiste': return 'hero-phrase-base hero-fx-chiste';
+    case 'hora-especial':
+    case 'student': return 'hero-phrase-base hero-fx-academic';
+    case 'wordhell': return 'hero-phrase-base hero-fx-punch';
+    case 'dato': return 'hero-phrase-base hero-fx-clarity';
+    default: return 'hero-phrase-base hero-fx-editorial';
+  }
+};
 
 export const HomeHero: React.FC = () => {
   const poolRef = useRef<Phrase[]>(buildPool());
@@ -128,99 +120,53 @@ export const HomeHero: React.FC = () => {
 
   const color = TAG_COLOR[phrase.tag] || 'var(--text-main)';
   const badgeColor = BADGE_COLOR[phrase.tag];
+  const effectClass = getEffectClass(phrase.tag);
 
   return (
-    <div style={{ textAlign: 'center', padding: '6px 0 18px' }}>
-      {/* Frase principal rotatoria — altura fija para que el layout no salte */}
+    <div style={{ textAlign: 'center', padding: '10px 0 20px' }}>
+      {/* Frase principal rotatoria con efecto tipográfico contextual de alta definición */}
       <div
         key={fadeKey}
-        className="hero-phrase-in"
+        className={effectClass}
         style={{
-          fontSize: '36px',
+          fontSize: 'clamp(34px, 4.6vw, 52px)',
           fontWeight: 900,
-          lineHeight: 1.18,
-          letterSpacing: '-0.02em',
+          lineHeight: 1.15,
+          letterSpacing: '-0.025em',
           color,
           margin: '0 auto',
-          maxWidth: '860px',
-          minHeight: '86px',
+          maxWidth: '920px',
+          minHeight: '100px',
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
           fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-          textShadow: '0 2px 6px rgba(128,128,128,0.18)',
         }}
       >
         {phrase.text}
       </div>
 
-      {/* Badge temático opcional (hora-especial, ai, wordhell, student) */}
+      {/* Badge temático opcional */}
       {badgeColor && phrase.badge && (
         <span
           style={{
             display: 'inline-block',
-            marginTop: '10px',
-            fontSize: '10px',
+            marginTop: '12px',
+            fontSize: '11px',
             fontWeight: 800,
             textTransform: 'uppercase',
             letterSpacing: '0.6px',
             color: '#fff',
             backgroundColor: badgeColor,
             borderRadius: '999px',
-            padding: '3px 12px',
+            padding: '4px 14px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}
         >
           {phrase.badge}
         </span>
       )}
-
-      {/* Subtítulo — concreto, sin repetir lo que ya dice el nombre de la app */}
-      <p
-        style={{
-          fontSize: '14px',
-          color: 'var(--text-secondary)',
-          margin: '14px auto 18px',
-          maxWidth: '600px',
-          lineHeight: 1.6,
-          fontWeight: 500,
-        }}
-      >
-        Ajustamos márgenes, jerarquía de títulos, sangría, interlineado y referencias
-        para que entregues con confianza.
-      </p>
-
-      {/* Tres pilares de producto */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
-          flexWrap: 'wrap',
-        }}
-      >
-        {PILLARS.map((p) => (
-          <div
-            key={p.label}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '5px 12px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface-elevated)',
-              border: '1px solid var(--border-subtle)',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <span style={{ color: p.color, display: 'flex', alignItems: 'center' }}>{p.icon}</span>
-            <span>{p.label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

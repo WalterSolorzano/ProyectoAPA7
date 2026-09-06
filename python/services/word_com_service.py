@@ -71,6 +71,14 @@ class WordCOMService:
 
         word.Visible = False
         word.DisplayAlerts = 0
+        try:
+            word.WindowState = 2  # wdWindowStateMinimize
+        except Exception:
+            pass
+        try:
+            word.ShowStartupDialog = False
+        except Exception:
+            pass
         self._word = word
 
         try:

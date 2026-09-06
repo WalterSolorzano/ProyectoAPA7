@@ -822,8 +822,19 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             # Validar que no haya elementos de portada (Docente, Carnet, etc.) inmediatamente después
             subsequent_cover = False
             for forward_elem in elements[idx + 1: idx + 8]:
+                f_words = (forward_elem.text or "").split()
+                if not f_words:
+                    continue
+                # Párrafos sustanciales del cuerpo (> 10 palabras) no son metadatos de portada
+                if len(f_words) > 10:
+                    continue
                 f_txt = _normalize_accent((forward_elem.text or "").lower())
-                if any(ck in f_txt for ck in ["docente", "carnet", "elaborado por", "grupo", "tutor", "managua", "nicaragua"]):
+                # Metadatos inequívocos de portada en líneas cortas (<= 10 palabras)
+                if any(ck in f_txt for ck in ["docente", "carnet", "carne:", "elaborado por", "grupo", "tutor", "carrera:", "facultad"]):
+                    subsequent_cover = True
+                    break
+                # Ciudad / país solo si la línea es ultra corta (<= 5 palabras)
+                if len(f_words) <= 5 and any(ck in f_txt for ck in ["managua", "nicaragua"]):
                     subsequent_cover = True
                     break
             if not subsequent_cover:
@@ -1074,6 +1085,43 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 portada_boundary = structural_break
             else:
                 portada_boundary = min(page1_boundary_override, 20)
+
+    # Expandir portada_boundary si los elementos inmediatamente contiguos
+    # son metadatos de portada (ej. "Recinto", "Fecha de entrega", docente, logos,
+    # carnet, sección de carátula) y aún no ha comenzado ningún heading o cuerpo real.
+    if portada_boundary is not None and portada_boundary > 0:
+        while portada_boundary < len(elements):
+            next_elem = elements[portada_boundary]
+            next_txt = (next_elem.text or "").strip()
+
+            # Elementos vacíos en la zona de portada
+            if not next_txt and not next_elem.image_info and not next_elem.table_info:
+                if next_elem.type in (ElementType.SECTION_BREAK, ElementType.PAGE_BREAK):
+                    portada_boundary += 1
+                    break
+                portada_boundary += 1
+                continue
+
+            # Si es un salto de sección o página que delimita la carátula
+            if next_elem.type in (ElementType.SECTION_BREAK, ElementType.PAGE_BREAK):
+                portada_boundary += 1
+                break
+
+            next_norm = _normalize_accent(next_txt.lower())
+            # Si es un heading con keyword de cuerpo, es el fin de la portada
+            if any(kw in next_norm for kw in _expanded_body_kws) or "heading" in (next_elem.style_name or "").lower():
+                break
+            if next_elem.type == ElementType.HEADING and len(next_txt.split()) <= 10:
+                has_cover_kw = any(pat.search(next_norm) for pat in cover_kw_patterns)
+                if not has_cover_kw:
+                    break
+            # Señales claras de metadatos de portada
+            has_kw = any(pat.search(next_norm) for pat in cover_kw_patterns)
+            starts_cover = next_txt.startswith(("Recinto", "Fecha", "Docente", "Elaborado", "Tutor", "Carnet", "Carne", "Grupo", "Br.", "Ing.", "Lic.", "Dr.", "Mg."))
+            if (has_kw or starts_cover) and len(next_txt.split()) < 35:
+                portada_boundary += 1
+            else:
+                break
 
     # ── Variables de estado para detección de logo de portada ──────────────
     # El portada_boundary a veces NO incluye el logo de la universidad, lo

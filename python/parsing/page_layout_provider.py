@@ -92,6 +92,10 @@ class COMPageLayoutProvider(PageLayoutProvider):
 
             word.Visible = False
             word.DisplayAlerts = 0
+            try:
+                word.WindowState = 2
+            except Exception:
+                pass
 
             doc = word.Documents.Open(
                 str(docx_path.resolve()),

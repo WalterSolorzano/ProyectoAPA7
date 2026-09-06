@@ -142,49 +142,35 @@ def build_sidebar() -> None:
     img = v3_gradient(w, h, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
     draw = ImageDraw.Draw(img)
 
-    # Círculos decorativos en tonos de marca (profundidad, nada de blanco)
-    draw.ellipse([-42, 214, 64, 320], fill=(30, 62, 172))
-    draw.ellipse([108, -34, 238, 96], fill=(63, 100, 214))
-    draw.ellipse([122, 252, 206, 336], fill=(28, 58, 158))
-    draw.ellipse([-26, 36, 44, 106], fill=(63, 100, 214))
+    # Círculos decorativos suaves en tonos de marca
+    draw.ellipse([-30, 220, 50, 310], fill=(30, 62, 172))
+    draw.ellipse([115, -25, 220, 85], fill=(63, 100, 214))
+    draw.ellipse([125, 260, 195, 330], fill=(28, 58, 158))
 
     # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 32, 136, 152], radius=26, outline=FRAME, width=3)
+    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=FRAME, width=2)
 
     # Mascota grande
     s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 92 - 32 * s, mouth="excited")
+    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="excited")
 
-    # Título + tagline con Baloo 2 y sombra para dar profundidad
-    font_title = baloo("800", 34)
-    font_tag = baloo("600", 16)
+    # Título + tagline con Baloo 2
+    font_title = baloo("800", 30)
+    font_tag = baloo("600", 14)
     title = "WordAPA7"
     tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 170), title, font_title, WHITE, shadow=(23, 51, 148), offset=(0, 3))
-    tag = "Formato APA 7"
+    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(23, 51, 148), offset=(0, 2))
+    tag = "Edición Editorial"
     tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 224), tag, font=font_tag, fill=SOFT)
+    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=SOFT)
 
-    # ── Cinta "docx -> APA 7" (sombra + píldora amarilla + flecha dibujada) ──
-    font_ribbon = baloo("800", 16)
-    px0, py0, px1, py1 = 14, 260, 150, 294
-    draw.rounded_rectangle([px0, py0 + 3, px1, py1 + 3], radius=17, fill=YELLOW_DEEP)
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=17, fill=YELLOW)
-
-    # Alineación exacta del grupo "docx    APA 7"
-    gap = 9
-    arrow_w = 24
-    w_docx = draw.textlength("docx", font=font_ribbon)
-    w_apa = draw.textlength("APA 7", font=font_ribbon)
-    total = w_docx + gap * 2 + arrow_w + w_apa
-    cx = 82
-    x = cx - total / 2
-    y_text = py0 + (py1 - py0 - 16) / 2
-    draw.text((x, y_text), "docx", font=font_ribbon, fill=NAVY)
-    ax1 = x + w_docx + gap
-    ax2 = ax1 + arrow_w
-    draw_arrow(draw, ax1, y_text + 8, ax2, NAVY, width=3)
-    draw.text((ax2 + gap, y_text), "APA 7", font=font_ribbon, fill=NAVY)
+    # Píldora de marca elegante y minimalista
+    font_badge = baloo("700", 12)
+    px0, py0, px1, py1 = 18, 256, 146, 288
+    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(45, 82, 205), outline=FRAME, width=1)
+    badge_txt = "Normas APA 7ma Ed."
+    tw_b = draw.textlength(badge_txt, font=font_badge)
+    draw.text(((w - tw_b) / 2, py0 + 6), badge_txt, font=font_badge, fill=WHITE)
 
     img.convert("RGB").save(ROOT / "installerSidebar.bmp", "BMP")
     print("[assets] installerSidebar.bmp generado")
@@ -197,45 +183,38 @@ def build_uninstaller_sidebar() -> None:
     UN_MID = (30, 41, 59)       # slate-800
     UN_BOTTOM = (15, 23, 42)    # slate-900
     UN_FRAME = (148, 163, 184)  # slate-400
-    UN_PILL = (241, 245, 249)   # slate-100
-    UN_PILL_SHADOW = (203, 213, 225)
 
     img = v3_gradient(w, h, UN_TOP, UN_MID, UN_BOTTOM)
     draw = ImageDraw.Draw(img)
 
     # Círculos decorativos en tonos slate profundos
-    draw.ellipse([-42, 214, 64, 320], fill=(20, 30, 48))
-    draw.ellipse([108, -34, 238, 96], fill=(40, 53, 75))
-    draw.ellipse([122, 252, 206, 336], fill=(18, 26, 42))
-    draw.ellipse([-26, 36, 44, 106], fill=(40, 53, 75))
+    draw.ellipse([-30, 220, 50, 310], fill=(20, 30, 48))
+    draw.ellipse([115, -25, 220, 85], fill=(40, 53, 75))
 
     # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 32, 136, 152], radius=26, outline=UN_FRAME, width=2)
+    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=UN_FRAME, width=2)
 
     # Mascota con expresión tranquila
     s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 92 - 32 * s, mouth="happy")
+    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="happy")
 
     # Título + tagline de desinstalación con Baloo 2
-    font_title = baloo("800", 32)
-    font_tag = baloo("600", 15)
+    font_title = baloo("800", 30)
+    font_tag = baloo("600", 14)
     title = "WordAPA7"
     tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 170), title, font_title, WHITE, shadow=(10, 15, 30), offset=(0, 2))
-    tag = "Desinstalación"
+    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(10, 15, 30), offset=(0, 2))
+    tag = "Desinstalador"
     tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 222), tag, font=font_tag, fill=(203, 213, 225))
+    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=(203, 213, 225))
 
-    # Píldora de estado "Limpieza del Sistema"
-    font_ribbon = baloo("700", 13)
-    px0, py0, px1, py1 = 14, 260, 150, 294
-    draw.rounded_rectangle([px0, py0 + 3, px1, py1 + 3], radius=17, fill=UN_PILL_SHADOW)
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=17, fill=UN_PILL)
-
-    pill_text = "Limpieza de Sistema"
-    tw_pill = draw.textlength(pill_text, font=font_ribbon)
-    y_text = py0 + (py1 - py0 - 14) / 2
-    draw.text(((w - tw_pill) / 2, y_text), pill_text, font=font_ribbon, fill=(30, 41, 59))
+    # Píldora de estado sobria
+    font_badge = baloo("700", 12)
+    px0, py0, px1, py1 = 18, 256, 146, 288
+    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(20, 30, 48), outline=UN_FRAME, width=1)
+    pill_text = "Limpieza Segura"
+    tw_pill = draw.textlength(pill_text, font=font_badge)
+    draw.text(((w - tw_pill) / 2, py0 + 6), pill_text, font=font_badge, fill=(241, 245, 249))
 
     img.convert("RGB").save(ROOT / "uninstallerSidebar.bmp", "BMP")
     print("[assets] uninstallerSidebar.bmp diferenciado generado")

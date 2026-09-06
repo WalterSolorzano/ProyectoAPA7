@@ -27,40 +27,52 @@
 ; electron-builder), por lo que los caracteres acentuados, flechas (→) y
 ; comillas angulares («») se muestran correctamente. Cero emojis.
 ;
-; Las defines de WELCOME se conservan para el modo oneClick: false.
-; Con oneClick: true solo se muestra la página de finalización (FINISHPAGE).
+; ── Definiciones de texto MUI2 (Installer & Uninstaller) ─────────────────
+!define MUI_WELCOMEPAGE_TITLE "WordAPA7 · Edición Editorial"
+!define MUI_WELCOMEPAGE_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
 
-!define MUI_WELCOMEPAGE_TITLE "Bienvenido a WordAPA7"
-!define MUI_WELCOMEPAGE_TEXT "WordAPA7 convierte tus documentos de Word (.docx) al formato APA 7ma edición.$\r$\n$\r$\nEste instalador configurará automáticamente dos componentes esenciales:$\r$\n$\r$\n1. Aplicación de Escritorio WordAPA7: Editor inteligente con diagnóstico en vivo, normalizador por capas y exportación APA 7.$\r$\n$\r$\n2. Complemento Oficial para Microsoft Word: Panel lateral interactivo integrado dentro de Word con autocaption de tablas/figuras, citas en bloque y sangría francesa.$\r$\n$\r$\nConfiguración automática incluida:$\r$\n   - Registro del complemento en el catálogo seguro de Office.$\r$\n   - Opción «Convertir a APA 7 con WordAPA7» en el menú contextual de Windows.$\r$\n   - Certificado de seguridad local para comunicación cifrada con Word.$\r$\n$\r$\nSe recomienda cerrar Microsoft Word antes de continuar."
+!define MUI_TEXT_WELCOMEINFO_TITLE "WordAPA7 · Edición Editorial"
+!define MUI_TEXT_WELCOMEINFO_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
 
-; ── Página de finalización (única página visible con oneClick: true) ──────
-; Este es el ÚNICO texto que el usuario ve durante la instalación one-click.
-; Explica que el complemento ya está instalado y qué hacer con Word.
-!define MUI_FINISHPAGE_TITLE "WordAPA7 y Complemento de Word listos"
-!define MUI_FINISHPAGE_TEXT "La aplicación y el complemento oficial de Word han quedado instalados.$\r$\n$\r$\nAl presionar Terminar, WordAPA7 se abrirá automáticamente.$\r$\n$\r$\nInstrucciones para el Complemento de Word:$\r$\n   - El complemento queda registrado automáticamente en Microsoft Word.$\r$\n   - Al abrir Word, encontrarás la pestaña «WordAPA7» en la cinta superior.$\r$\n   - Si Word estaba abierto, cerralo y volvé a abrirlo para cargar la pestaña.$\r$\n   - En caso de requerir vinculación manual: Insertar → Mis complementos → CARPETA COMPARTIDA → WordAPA7.$\r$\n$\r$\nPresioná Terminar para iniciar WordAPA7."
+; ── Página de finalización ──────────────────────────────────────────────────
+!define MUI_FINISHPAGE_TITLE "Listo para usar"
+!define MUI_FINISHPAGE_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
 
-!define MUI_ABORTWARNING_TEXT "¿Estás seguro de que deseas cancelar la instalación de WordAPA7?"
+!define MUI_TEXT_FINISH_TITLE "Listo para usar"
+!define MUI_TEXT_FINISH_INFO_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
 
-!define MUI_UNWELCOMEPAGE_TITLE "Desinstalar WordAPA7 y Complemento"
-!define MUI_UNWELCOMEPAGE_TEXT "Este asistente desinstalará WordAPA7 y todos sus módulos de tu equipo:$\r$\n$\r$\n1. Aplicación de escritorio WordAPA7.$\r$\n2. Complemento oficial para Microsoft Word (claves de registro y catálogo seguro).$\r$\n3. Certificados locales y accesos directos del sistema.$\r$\n$\r$\nImportante: Tus documentos personales (.docx) no se modificarán ni eliminarán.$\r$\n$\r$\n¿Deseas proceder con la desinstalación?"
+!define MUI_ABORTWARNING_TEXT "¿Deseas cancelar la instalación de WordAPA7?"
+
+; ── Desinstalador ──────────────────────────────────────────────────────────
+!define MUI_UNWELCOMEPAGE_TITLE "Desinstalar WordAPA7"
+!define MUI_UNWELCOMEPAGE_TEXT "Se removerá la aplicación y la integración con Microsoft Word de tu equipo.$\r$\n$\r$\nTus documentos personales (.docx) no se verán afectados.$\r$\n$\r$\n¿Deseas continuar con la desinstalación?"
+
+!define MUI_UNTEXT_WELCOME_INFO_TITLE "Desinstalar WordAPA7"
+!define MUI_UNTEXT_WELCOME_INFO_TEXT "Se removerá la aplicación y la integración con Microsoft Word de tu equipo.$\r$\n$\r$\nTus documentos personales (.docx) no se verán afectados.$\r$\n$\r$\n¿Deseas continuar con la desinstalación?"
+
+!define MUI_UNTEXT_CONFIRM_TITLE "Confirmar desinstalación"
+!define MUI_UNTEXT_CONFIRM_SUBTITLE "Se removerán los componentes del sistema"
 
 !define MUI_UNFINISHPAGE_TITLE "Desinstalación completada"
-!define MUI_UNFINISHPAGE_TEXT "WordAPA7 y su complemento para Microsoft Word fueron desinstalados correctamente de tu sistema."
+!define MUI_UNFINISHPAGE_TEXT "WordAPA7 y su integración con Microsoft Word fueron desinstalados correctamente."
+
+!define MUI_UNTEXT_FINISH_INFO_TITLE "Desinstalación completada"
+!define MUI_UNTEXT_FINISH_INFO_TEXT "WordAPA7 y su integración con Microsoft Word fueron desinstalados correctamente."
 
 ; ── Identidad visual (accent #4f7cff, tokens de design-tokens.md) ─────────
-BrandingText "WordAPA7 · Formato APA 7 Automático"
+BrandingText "WordAPA7 · Edición Editorial"
 
-; Fondo de las páginas en tono azul claro de marca (nada de blanco plano) con
-; texto en azul marino de alto contraste.
+; Fondo de las páginas en tono azul claro de marca con texto en azul marino
 !define MUI_BGCOLOR "DEE7FF"
 !define MUI_TEXTCOLOR "14213D"
 
-; Barra de progreso de la instalación en azul de marca
+; Barra de progreso fluida y cabeceras limpias
 !define MUI_INSTFILESPAGE_COLORS "14213d 4f7cff"
-!define MUI_INSTFILESPAGE_PROGRESSBAR "colored"
+!define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
+!define MUI_PAGE_HEADER_TEXT "Instalando componentes"
+!define MUI_PAGE_HEADER_SUBTEXT "Configuración automática en tu equipo"
 
 ; Página de bienvenida con la sidebar de marca
-; (solo se muestra si oneClick: false; con oneClick: true no se llama)
 !macro customWelcomePage
   !insertmacro MUI_PAGE_WELCOME
 !macroend
@@ -111,7 +123,7 @@ BrandingText "WordAPA7 · Formato APA 7 Automático"
   nsExec::Exec 'cmd /c tasklist /FI "IMAGENAME eq WINWORD.EXE" /NH | find /i "WINWORD.EXE" >nul && exit 1 || exit 0'
   Pop $0
   StrCmpS $0 "1" 0 word_check_done
-    MessageBox MB_YESNO|MB_ICONEXCLAMATION "Microsoft Word está abierto.$\r$\n$\r$\nPara que el complemento WordAPA7 aparezca en Word, es necesario cerrar Word y volver a abrirlo después de la instalación.$\r$\n$\r$\n¿Querés que lo cerremos ahora? (Word te pedirá guardar los cambios sin guardar)" IDNO word_check_done
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION "Microsoft Word está en ejecución.$\r$\n$\r$\nPara habilitar la pestaña oficial es necesario cerrarlo brevemente.$\r$\n$\r$\n¿Deseas cerrarlo ahora? (Podrás guardar los cambios pendientes)" IDNO word_check_done
     ; Cierre graceful (sin /F): Word puede mostrar el diálogo "guardar cambios".
     nsExec::Exec 'taskkill /IM WINWORD.EXE'
     Pop $0
@@ -159,7 +171,7 @@ WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "WordAPA7Core" 
   ; Escribir a HKCR requeriría admin y fallaría silencioso para estudiantes.
 WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert" "" "Convertir a APA 7 con WordAPA7"
 WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert" "Icon" "$INSTDIR\WordAPA7.exe"
-WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert\command" "" '"$INSTDIR\WordAPA7.exe" --quick "%1"'
+WriteRegStr HKCU "Software\Classes\Word.Document.12\shell\WordAPA7Convert\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
 
   ; ── Catálogo confiable del complemento, listo ANTES del primer arranque ──
   ; Copia del manifest + clave TrustedCatalogs para que Word lo liste en

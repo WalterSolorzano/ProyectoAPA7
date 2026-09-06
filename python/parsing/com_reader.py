@@ -58,6 +58,13 @@ class COMReader:
             if not word:
                 return {"error": "Word COM initialization failed"}
 
+            try:
+                word.DisplayAlerts = 0
+                word.Visible = False
+                word.WindowState = 2
+            except Exception:
+                pass
+
             doc = word.Documents.Open(
                 str(Path(docx_path).resolve()),
                 ConfirmConversions=False,
@@ -398,10 +405,15 @@ def enrich_document_from_com(doc_model: Any, original_docx_path: str | Path) -> 
             diag["cover_ratio"] = cover_info.get("ratio", 0)
 
             # Corregir is_cover_section en los elementos
+            # REGLA ESTRICTA: COM nunca debe desmarcar elementos que pre_classifier
+            # ya identificó como portada o portada_block. COM solo puede confirmar o expandir.
+            effective_end = max(end_idx, old_body_start or 0)
+            doc_model.portada["body_start_paragraph_idx"] = effective_end
+
             corrected = 0
             for i, elem in enumerate(doc_model.elements):
-                was_cover = elem.is_cover_section
-                should_be_cover = i < end_idx
+                was_cover = elem.is_cover_section or (getattr(elem, "type", None) in ("portada_block",))
+                should_be_cover = was_cover or (i < end_idx)
                 elem.is_cover_section = should_be_cover
                 if was_cover != should_be_cover:
                     corrected += 1

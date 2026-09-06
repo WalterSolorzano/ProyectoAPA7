@@ -56,26 +56,26 @@ export function StepRail() {
     <nav
       aria-label="Pasos del asistente"
       style={{
-        width: '200px',
+        width: '240px',
         flexShrink: 0,
         height: '100%',
         overflowY: 'auto',
         borderRight: '1px solid var(--border-subtle)',
         backgroundColor: 'var(--sidebar-bg)',
-        padding: '12px 8px',
+        padding: '14px 10px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '2px',
       }}
     >
       <div
         style={{
           fontSize: '10px',
           fontWeight: 800,
-          letterSpacing: '0.08em',
+          letterSpacing: '0.1em',
           textTransform: 'uppercase',
           color: 'var(--text-secondary)',
-          padding: '4px 10px 8px',
+          padding: '4px 12px 10px',
         }}
       >
         Pasos
@@ -93,15 +93,15 @@ export function StepRail() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '9px',
-              padding: '8px 10px',
+              gap: '10px',
+              padding: '10px 12px',
               borderRadius: 'var(--radius-sm)',
               border: active ? '1px solid var(--accent-primary)' : '1px solid transparent',
               background: active ? 'var(--color-accent-soft)' : 'transparent',
               color: active ? 'var(--accent-primary)' : 'var(--text-main)',
               cursor: 'pointer',
               textAlign: 'left',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: active ? 700 : 500,
               transition: 'background 0.12s',
             }}
@@ -112,7 +112,7 @@ export function StepRail() {
               if (!active) e.currentTarget.style.background = 'transparent';
             }}
           >
-            <Icon size={14} style={{ flexShrink: 0 }} />
+            <Icon size={15} style={{ flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
             {done ? (
               <Check size={13} color="var(--accent-success)" style={{ flexShrink: 0 }} />

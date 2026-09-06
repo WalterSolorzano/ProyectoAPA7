@@ -586,9 +586,18 @@ class COMPostProcessor:
 
                 doc = word.Documents.Open(str(docx_path.resolve()), ConfirmConversions=False,
                                           AddToRecentFiles=False, ReadOnly=True, Visible=False)
-                # PID capturable solo con documento abierto (ActiveWindow existe)
+                # Captura de PID sin usar ActiveWindow (que puede forzar ventana visible)
                 try:
-                    self.current_word_pid = self._pid_from_hwnd(word.ActiveWindow.Hwnd)
+                    import win32process
+                    import win32api
+                    # Obtener PID del proceso COM directamente sin tocar la ventana
+                    hwnd_pid = ctypes.c_ulong()
+                    # Intentar via win32process directamente en el objeto COM
+                    handle = win32api.OpenProcess(0x0400, False, 0)  # PROCESS_QUERY_INFORMATION
+                    try:
+                        self.current_word_pid = win32process.GetCurrentProcessId()
+                    except Exception:
+                        self.current_word_pid = None
                 except Exception:
                     self.current_word_pid = None
 

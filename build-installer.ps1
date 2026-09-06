@@ -28,17 +28,35 @@ $archiveFile = "dist-electron-builder\wordapa7-$appVersion-x64.nsis.7z"
 $installerPath = "dist-electron-builder\WordAPA7 Setup $appVersion.exe"
 
 # Kill any leftover processes
-Get-Process WordAPA7,electron,7za -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process WordAPA7,electron,7za,python,pythonw,WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 2
 
-# Clean output directory
-if (Test-Path dist-electron-builder) { Remove-Item -Recurse -Force dist-electron-builder }
+# Clean output directory with retry loop
+if (Test-Path dist-electron-builder) {
+    for ($i = 0; $i -lt 5; $i++) {
+        try {
+            Remove-Item -Recurse -Force dist-electron-builder -ErrorAction Stop
+            break
+        } catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
 New-Item -ItemType Directory -Path dist-electron-builder | Out-Null
+
+Write-Output "=== STEP 0: Packaging AI API keys and syncing Python runtime ==="
+& python "$projectDir\python\embed_payload.py"
+& python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; print('Payload and Python sources synchronized to dist-python.')"
+
 Write-Output "=== STEP 1: Building unpacked app (--dir) ==="
 
 # Step 1: Build unpacked app
 $out = & cmd /c "npx electron-builder --win --dir --config electron-builder.yml 2>&1"
 Write-Output $out
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: electron-builder --dir failed with exit code $LASTEXITCODE"
+    exit 1
+}
 
 # Check if WordAPA7.exe exists (Defender might have quarantined it)
 $exePath = "dist-electron-builder\win-unpacked\WordAPA7.exe"

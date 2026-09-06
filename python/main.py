@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -640,6 +641,12 @@ async def health_check() -> HealthResponse:
     return HealthResponse(status="ok", version="1.0.0")
 
 
+@app.get("/api/version")
+async def get_version_endpoint() -> dict:
+    """Retorna la versión del backend para detección de protocolo y readiness."""
+    return {"version": "1.0.0", "mode": "main", "status": "ok"}
+
+
 @app.post("/api/check-idempotency")
 async def check_idempotency_endpoint(file: UploadFile = File(...)) -> dict:
     """
@@ -934,8 +941,11 @@ async def upload_docx(
         original_path = session_dir / "original.docx"
         try:
             from parsing.com_reader import enrich_document_from_com
-            com_diag = await asyncio.to_thread(
-                enrich_document_from_com, doc_model, str(original_path)
+            com_diag = await asyncio.wait_for(
+                asyncio.to_thread(
+                    enrich_document_from_com, doc_model, str(original_path)
+                ),
+                timeout=8.0
             )
             if com_diag.get("cover_corrected"):
                 logger.info(
@@ -946,6 +956,8 @@ async def upload_docx(
                 logger.info(
                     f"[COM Enrich] Headings corregidos: {com_diag.get('heading_corrected')}/{com_diag.get('headings_checked')}"
                 )
+        except asyncio.TimeoutError:
+            logger.warning("[COM Enrich] Timeout de 8s en Word COM; continuando de forma segura con el modelo nativo")
         except Exception as e:
             logger.warning(f"[COM Enrich] Falló enriquecimiento COM (no crítico): {e}")
 
@@ -1069,6 +1081,59 @@ async def bulk_accept_endpoint(req: BulkAcceptRequest) -> DocumentModel:
         if elem.id in target_ids:
             elem.needs_review = False
             elem.auto_applied = True
+            elem.is_user_modified = True
+            elem.confidence = 1.0
+
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
+class NormalizeHeadingsRequest(BaseModel):
+    session_id: str
+
+
+@app.post("/api/normalize-headings")
+async def normalize_headings_endpoint(req: NormalizeHeadingsRequest) -> DocumentModel:
+    """
+    Normaliza automáticamente la jerarquía de títulos del documento según APA 7.
+    - Secciones estándar (Resumen, Introducción, etc.) -> Nivel 1
+    - Numeración (1. -> 1, 1.1 -> 2, 1.1.1 -> 3, etc.)
+    - Corrige saltos de nivel y marca todos como aprobados.
+    """
+    doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+
+    LEVEL1_PATTERNS = re.compile(
+        r"^(resumen|abstract|introducci[oó]n|m[eé]todo|metodolog[ií]a|resultados|discusi[oó]n|conclusiones?|recomendaciones?|referencias|bibliograf[ií]a|anexos?|ap[eé]ndices?)$",
+        re.I
+    )
+
+    last_level = 1
+    for elem in doc.elements:
+        if elem.type != ElementType.HEADING or elem.is_cover_section:
+            continue
+
+        text = (elem.text or "").strip()
+        clean_text = re.sub(r"^\d+(\.\d+)*\s*", "", text).strip().lower()
+
+        num_match = re.match(r"^(\d+(?:\.\d+)*)", text)
+        if num_match:
+            parts = [p for p in num_match.group(1).split(".") if p]
+            level = min(len(parts), 5)
+        elif LEVEL1_PATTERNS.match(clean_text):
+            level = 1
+        else:
+            level = elem.heading_level if elem.heading_level in (1, 2, 3, 4, 5) else 2
+
+        if level > last_level + 1:
+            level = last_level + 1
+
+        elem.heading_level = level
+        elem.needs_review = False
+        elem.is_user_modified = True
+        elem.confidence = 1.0
+        last_level = level
 
     save_session_state(doc, STORAGE_DIR)
     return doc

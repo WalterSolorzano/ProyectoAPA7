@@ -22,6 +22,9 @@ export const APAScoreCard: React.FC = () => {
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
   const setWizardStep = useDocStore((s) => s.setWizardStep);
 
+  const citationAudit = useDocStore((s) => s.citationAuditResult);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+
   const stats = useMemo(() => {
     if (!doc || !doc.elements) {
       return { score: 100, items: [], warnings: [] };
@@ -29,83 +32,115 @@ export const APAScoreCard: React.FC = () => {
 
     const elements = doc.elements;
     const headings = elements.filter((e) => e.type === 'heading');
-    const figures = elements.filter((e) => e.type === 'image');
+    const figures = elements.filter((e) => e.type === 'image' && !e.is_cover_section);
     const tables = elements.filter((e) => e.type === 'table');
-    const paragraphs = elements.filter((e) => e.type === 'paragraph');
     const refs = doc.referencias || [];
 
-    const unreviewedHeadings = headings.filter((e) => e.needs_review);
-    const unreviewedFigures = figures.filter((e) => e.needs_review);
-    const unreviewedTables = tables.filter((e) => e.needs_review);
+    const uncaptionedFigures = figures.filter((f) => !f.image_info?.caption);
+    const uncaptionedTables = tables.filter((t) => !t.table_info?.caption);
+    const ghostCitations = citationAudit?.ghost_citations || [];
+    const orphanRefs = citationAudit?.orphan_references || [];
 
-    const warnings: Array<{ id: string; label: string; elementId?: string; step: number }> = [];
+    const warnings: Array<{ id: string; label: string; penalty: number; elementId?: string; step: number }> = [];
 
-    unreviewedHeadings.forEach((h) => {
+    // 1. Portada
+    const hasCover = portada.use_original_cover || (portada.title && portada.author);
+    if (!hasCover) {
       warnings.push({
-        id: `h_${h.id}`,
-        label: `Título sin confirmar: "${(h.text || '').slice(0, 30)}..."`,
-        elementId: h.id,
-        step: 2,
+        id: 'warn_cover',
+        label: 'Portada incompleta (faltan título o autor)',
+        penalty: 10,
+        step: 1,
+      });
+    }
+
+    // 2. Citas y Referencias
+    if (refs.length === 0 && elements.length > 5) {
+      warnings.push({
+        id: 'warn_norefs',
+        label: 'Sin lista de referencias bibliográficas',
+        penalty: 15,
+        step: 4,
+      });
+    }
+
+    ghostCitations.slice(0, 4).forEach((g: any, idx: number) => {
+      warnings.push({
+        id: `warn_ghost_${idx}`,
+        label: `Cita sin referencia: "${g.citation_text || g.author || 'cita'}"`,
+        penalty: 5,
+        step: 4,
       });
     });
 
-    unreviewedFigures.forEach((f) => {
+    // 3. Tablas y figuras
+    uncaptionedTables.forEach((t) => {
       warnings.push({
-        id: `f_${f.id}`,
-        label: `Figura sin leyenda APA 7 confirmada`,
-        elementId: f.id,
-        step: 3,
-      });
-    });
-
-    unreviewedTables.forEach((t) => {
-      warnings.push({
-        id: `t_${t.id}`,
-        label: `Tabla sin estilo APA 7 confirmado`,
+        id: `warn_tbl_${t.id}`,
+        label: 'Tabla sin título en cursiva o nota APA 7',
+        penalty: 5,
         elementId: t.id,
         step: 3,
       });
     });
 
-    // Cálculo ponderado de cumplimiento (0 a 100)
-    let score = 100;
-    if (warnings.length > 0) {
-      score = Math.max(65, 100 - warnings.length * 5);
+    uncaptionedFigures.forEach((f) => {
+      warnings.push({
+        id: `warn_fig_${f.id}`,
+        label: 'Figura sin rótulo ni pie de figura',
+        penalty: 5,
+        elementId: f.id,
+        step: 3,
+      });
+    });
+
+    // 4. Redacción / Estilo
+    if (proofreadFindings.length > 0) {
+      warnings.push({
+        id: 'warn_proofread',
+        label: `${proofreadFindings.length} detalle(s) de redacción o estilo informal`,
+        penalty: Math.min(10, proofreadFindings.length * 2),
+        step: 2,
+      });
     }
+
+    // Cálculo ponderado estricto
+    const totalPenalty = warnings.reduce((acc, w) => acc + w.penalty, 0);
+    const score = Math.max(25, 100 - totalPenalty);
 
     const items = [
       {
         title: 'Portada',
-        status: portada.use_original_cover || (portada.title && portada.author) ? 'ok' : 'warn',
-        detail: portada.use_original_cover ? 'Original protegida' : 'Formato APA 7 Estudiante',
+        status: hasCover ? 'ok' : 'warn',
+        detail: portada.use_original_cover ? 'Original protegida' : hasCover ? 'Completada APA 7' : 'Faltan metadatos',
         icon: FileText,
         step: 1,
       },
       {
         title: 'Estructura & Títulos',
-        status: unreviewedHeadings.length === 0 ? 'ok' : 'warn',
-        detail: `${headings.length} títulos detectados (${unreviewedHeadings.length} pendientes)`,
+        status: headings.length > 0 ? 'ok' : 'warn',
+        detail: `${headings.length} títulos detectados`,
         icon: ListTree,
         step: 2,
       },
       {
         title: 'Tablas & Figuras',
-        status: unreviewedFigures.length === 0 && unreviewedTables.length === 0 ? 'ok' : 'warn',
-        detail: `${tables.length} tablas, ${figures.length} figuras`,
+        status: uncaptionedFigures.length === 0 && uncaptionedTables.length === 0 ? 'ok' : 'warn',
+        detail: `${tables.length} tablas (${uncaptionedTables.length} sin rotular) · ${figures.length} figuras (${uncaptionedFigures.length} sin rotular)`,
         icon: ImageIcon,
         step: 3,
       },
       {
-        title: 'Referencias',
-        status: refs.length > 0 ? 'ok' : 'info',
-        detail: `${refs.length} fuentes bibliográficas`,
+        title: 'Citas & Referencias',
+        status: ghostCitations.length === 0 && refs.length > 0 ? 'ok' : 'warn',
+        detail: `${refs.length} referencias · ${ghostCitations.length} citas huérfanas`,
         icon: BookOpen,
         step: 4,
       },
     ];
 
     return { score, items, warnings };
-  }, [doc, portada]);
+  }, [doc, portada, citationAudit, proofreadFindings]);
 
   if (!doc) return null;
 
@@ -252,7 +287,7 @@ export const APAScoreCard: React.FC = () => {
                 <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-warning, #f59e0b)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Avisos para revisión ({stats.warnings.length})
                 </div>
-                <div style={{ maxHeight: '120px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {stats.warnings.map((w) => (
                     <button
                       key={w.id}
@@ -277,6 +312,9 @@ export const APAScoreCard: React.FC = () => {
                     >
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, paddingRight: '6px' }}>
                         {w.label}
+                      </span>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-danger, #ef4444)', backgroundColor: 'var(--surface-subtle, #f3f4f6)', padding: '1px 5px', borderRadius: '4px', marginRight: '6px', flexShrink: 0 }}>
+                        -{w.penalty}%
                       </span>
                       <ArrowUpRight size={12} color="var(--accent-primary, #4f7cff)" style={{ flexShrink: 0 }} />
                     </button>

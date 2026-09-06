@@ -17,7 +17,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
 import { getSizeComment, getTimeOfWeekComment, getFilenameComment } from '../../lib/studentJokes';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Sparkles } from 'lucide-react';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
 
@@ -249,38 +249,74 @@ const CATEGORY_SEQUENCE: Tip['category'][] = [
   'process', 'jokes', 'apa', 'ai', 'jokes', 'wordhell', 'student', 'apa', 'ai',
 ];
 
-// Barra de progreso indeterminada fija en el techo de la pantalla (3px azul).
-// Refuerza visualmente que el sistema está trabajando mientras se ve el inicio.
-const LoadingProgressBar: React.FC = () => (
-  <div className="loading-progress" role="presentation" aria-hidden="true">
-    <div className="loading-progress-bar" />
+// Metadatos visuales de categoría (color de marca y etiqueta profesional, sin emojis)
+const CATEGORY_META: Record<Tip['category'], { label: string; color: string; bg: string }> = {
+  process:  { label: 'Procesamiento Activo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },
+  apa:      { label: 'Normas APA 7ma Edición', color: 'var(--accent-success, #10b981)', bg: 'rgba(16, 185, 129, 0.12)' },
+  ai:       { label: 'Detección Editorial IA', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
+  llm:      { label: 'Modelos Inteligentes', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
+  wordhell: { label: 'Optimizador de Word', color: 'var(--accent-warning, #f59e0b)', bg: 'rgba(245, 158, 11, 0.12)' },
+  student:  { label: 'Comunidad Estudiantil', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)' },
+  jokes:    { label: 'Pausa Académica', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)' },
+  honest:   { label: 'Análisis Profundo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },
+};
+
+// Cápsula de progreso interactiva con pulso y gradiente de diseño propio
+const CustomProgressCapsule: React.FC = () => (
+  <div style={{
+    width: '100%',
+    maxWidth: '340px',
+    height: '8px',
+    backgroundColor: 'var(--surface-subtle, rgba(0,0,0,0.06))',
+    borderRadius: '999px',
+    padding: '2px',
+    boxSizing: 'border-box',
+    border: '1px solid var(--border-subtle, rgba(0,0,0,0.08))',
+    position: 'relative',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+  }}>
+    <div
+      className="custom-loader-track"
+      style={{
+        height: '100%',
+        minWidth: '35%',
+        background: 'linear-gradient(90deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
+        borderRadius: '999px',
+        boxShadow: '0 0 10px rgba(79, 124, 255, 0.4)',
+      }}
+    />
   </div>
 );
 
-// Riel de etapas: Analizar → Clasificar → Aplicar. Muestra qué fase está
-// ocurriendo para que el usuario sepa que el sistema avanza (no está colgado).
+// Riel de etapas personalizado con arquitectura de 3 fases editoriales
 const StageRail: React.FC<{ llmStatus?: string }> = ({ llmStatus }) => {
   const classifying = llmStatus === 'processing';
   const steps = [
-    { label: 'Analizar', state: classifying ? 'done' : 'active' },
-    { label: 'Clasificar', state: classifying ? 'active' : 'pending' },
-    { label: 'Aplicar', state: 'pending' },
+    { label: 'Lectura', sub: 'Extracción de estilos', state: classifying ? 'done' : 'active' },
+    { label: 'Estructura', sub: 'Títulos y citas', state: classifying ? 'active' : 'pending' },
+    { label: 'APA 7', sub: 'Normalización total', state: 'pending' },
   ];
   return (
-    <div className="loading-stage-rail" role="status" aria-label="Progreso del procesamiento">
+    <div className="custom-stage-container" role="status" aria-label="Fases del procesamiento">
       {steps.map((s, i) => (
         <React.Fragment key={s.label}>
-          {i > 0 && <span className="loading-stage-line" />}
-          <span className={`loading-stage-item ${s.state}`}>
-            <span className="loading-stage-dot">
+          {i > 0 && <div className={`custom-stage-connector ${steps[i - 1].state === 'done' ? 'active' : ''}`} />}
+          <div className={`custom-stage-card ${s.state}`}>
+            <div className="custom-stage-icon">
               {s.state === 'done' ? (
-                <Check size={10} strokeWidth={3} />
+                <Check size={11} strokeWidth={3} />
               ) : s.state === 'active' ? (
-                <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
-              ) : null}
-            </span>
-            {s.label}
-          </span>
+                <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--text-muted)' }} />
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+              <span className="custom-stage-title">{s.label}</span>
+              <span className="custom-stage-sub">{s.sub}</span>
+            </div>
+          </div>
         </React.Fragment>
       ))}
     </div>
@@ -482,17 +518,19 @@ export const LoadingTips: React.FC = () => {
   // todos modos": entrar al inicio con el backend caído no tiene salida).
   if (!isBackendReady) {
     return (
-      <>
-        <LoadingProgressBar />
-        <div className="loading-tips-fullscreen" role="status" aria-live="polite">
-          <div className="loading-tips-fullscreen-inner">
-            <div className={mascotAnim} style={{ lineHeight: 0 }}>
+      <div className="loading-tips-fullscreen" role="status" aria-live="polite">
+        <div className="loading-tips-fullscreen-inner" style={{ gap: '16px' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="mascot-ambient-halo" />
+            <div className={mascotAnim} style={{ lineHeight: 0, position: 'relative', zIndex: 2 }}>
               <DocumentMascot size={128} expression={mascotExpr} />
             </div>
-            <div className="loading-tips-fullscreen-title">{message}</div>
-            <StageRail llmStatus={llmStatus} />
-            {renderTipComment('lg')}
-            <div className="loading-tips-dots"><span /><span /><span /></div>
+          </div>
+          <div className="loading-tips-fullscreen-title">{message}</div>
+          <CustomProgressCapsule />
+          <StageRail llmStatus={llmStatus} />
+          {renderTipComment('lg')}
+          <div className="loading-tips-dots"><span /><span /><span /></div>
 
           {connectingSecs >= 12 && (
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
@@ -512,27 +550,57 @@ export const LoadingTips: React.FC = () => {
             </div>
           )}
         </div>
-        </div>
-      </>
+      </div>
     );
   }
 
+
   return (
-    <>
-      <LoadingProgressBar />
-      <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite">
-        <div className="loading-minimal-inner">
-          {/* Mascota viva arriba: cara + animación según la categoría del tip,
-              para que la espera larga se sienta activa, no colgada. */}
-          <div className={mascotAnim} style={{ lineHeight: 0 }}>
-            <DocumentMascot size={104} expression={mascotExpr} />
+    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite">
+      <div className="loading-minimal-inner" style={{ maxWidth: '620px', gap: '20px' }}>
+        {/* Mascota viva con halo de ambientación suave */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="mascot-ambient-halo" />
+          <div className={mascotAnim} style={{ lineHeight: 0, position: 'relative', zIndex: 2 }}>
+            <DocumentMascot size={108} expression={mascotExpr} />
           </div>
+        </div>
+
+        {/* Título de estado + Barra Cápsula de diseño propio */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%' }}>
           <div className="loading-minimal-title">{message}</div>
-          <StageRail llmStatus={llmStatus} />
-          <div className="loading-minimal-tip" key={tip.text}>{tip.text}</div>
+          <CustomProgressCapsule />
+        </div>
+
+        {/* Fases del procesamiento editorial */}
+        <StageRail llmStatus={llmStatus} />
+
+        {/* Tarjeta de consejos editoriales y normas APA 7 */}
+        <div className="custom-loading-card">
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '11px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: 'var(--accent-primary, #4f7cff)',
+            backgroundColor: 'rgba(79, 124, 255, 0.08)',
+            padding: '4px 12px',
+            borderRadius: '999px',
+            marginBottom: '10px',
+            border: '1px solid rgba(79, 124, 255, 0.18)',
+          }}>
+            <Sparkles size={12} />
+            Criterio Editorial APA 7
+          </div>
+          <div className="loading-minimal-tip" key={tip.text}>
+            «{tip.text}»
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

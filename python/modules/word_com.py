@@ -25,6 +25,7 @@ def get_word_app():
         try:
             _app.Visible = False
             _app.DisplayAlerts = 0
+            _app.WindowState = 2
         except Exception:
             pass
         try:

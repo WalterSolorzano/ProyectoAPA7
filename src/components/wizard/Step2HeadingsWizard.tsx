@@ -5,7 +5,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { needsReview } from '../../lib/portadaAuthors';
-import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, ChevronRight, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, ChevronRight, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose, Sparkles } from 'lucide-react';
 import { Badge } from '../ui/wordapa7';
 import * as api from '../../api/backend';
 
@@ -154,16 +154,16 @@ export const Step2HeadingsWizard: React.FC = () => {
 
   const handleApproveAll = async () => {
     const s = useDocStore.getState();
-    const highConf = (s.doc?.elements || []).filter(
-      (e) => e.confidence >= 0.85 && !e.is_user_modified && e.type !== 'empty'
-    );
-    if (highConf.length === 0) {
-      showToast('No hay elementos de alta confianza por aprobar', 'info');
-      return;
-    }
-    await s.acceptHighConfidenceElements();
-    showToast(`${highConf.length} elementos de alta confianza aprobados`, 'success');
+    await s.approveAllHeadings();
+    setFilterMode('all');
   };
+
+  const handleAutoNormalizeHierarchy = async () => {
+    const s = useDocStore.getState();
+    await s.autoNormalizeHeadings();
+    setFilterMode('all');
+  };
+
 
   const applyToAll = useCallback((level: number) => {
     const ids = multiCount > 1 ? [...multiSelectedIds] : [toolbarElementId];
@@ -265,7 +265,7 @@ export const Step2HeadingsWizard: React.FC = () => {
           <button
             type="button"
             onClick={handleApproveAll}
-            title="Marcar como revisados todos los elementos auto-clasificados con confianza alta"
+            title="Marcar como revisados y aprobados todos los títulos del documento"
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -276,6 +276,65 @@ export const Step2HeadingsWizard: React.FC = () => {
             <CheckCircle2 size={13} /> Aprobar todos
           </button>
         </div>
+
+        {/* Banner de Acción Rápida para resolver títulos pendientes en 1 clic */}
+        {reviewCount > 0 && (
+          <div style={{
+            margin: '8px 16px 0 16px',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            backgroundColor: 'var(--surface-elevated)',
+            border: '1px solid var(--accent-warning, #f59e0b)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+            boxShadow: '0 2px 6px rgba(245, 158, 11, 0.08)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {reviewCount} título{reviewCount > 1 ? 's' : ''} pendiente{reviewCount > 1 ? 's' : ''} de validación en la estructura
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                  Puedes normalizar o aprobar todos en un solo clic sin tener que ir uno a uno.
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleAutoNormalizeHierarchy}
+                title="Ajusta automáticamente los niveles 1, 2 y 3 según el estándar APA 7"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 12px', fontSize: '12px', fontWeight: 600,
+                  backgroundColor: 'rgba(79, 124, 255, 0.10)', color: 'var(--accent-primary)',
+                  border: '1px solid rgba(79, 124, 255, 0.3)', borderRadius: '6px', cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <Sparkles size={13} /> Auto-organizar jerarquía APA 7
+              </button>
+              <button
+                type="button"
+                onClick={handleApproveAll}
+                title="Valida y aprueba todos los títulos del documento para retirar los avisos"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 12px', fontSize: '12px', fontWeight: 700,
+                  backgroundColor: 'var(--accent-primary)', color: '#ffffff',
+                  border: 'none', borderRadius: '6px', cursor: 'pointer',
+                  fontFamily: 'inherit', boxShadow: '0 2px 6px rgba(79, 124, 255, 0.25)',
+                }}
+              >
+                <CheckCircle2 size={13} /> Validar y aprobar todos ({reviewCount})
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Document canvas.
              NO usar overflowY:'auto' ni padding aquí — PaperCanvas ya tiene su

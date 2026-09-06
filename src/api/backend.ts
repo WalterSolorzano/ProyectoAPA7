@@ -1157,3 +1157,22 @@ export async function fetchProactiveElementDiagnosis(
 export function getSampleDocumentUrl(docType: string): string {
   return `${getApiBase()}/test/sample-documents/${docType}`;
 }
+
+export async function normalizeHeadings(sessionId: string): Promise<DocumentModel> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/normalize-headings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) {
+    let msg = 'Error al normalizar jerarquía de títulos';
+    try {
+      const err = await res.json();
+      msg = err.detail || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+

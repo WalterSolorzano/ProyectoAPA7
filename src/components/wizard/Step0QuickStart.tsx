@@ -25,43 +25,98 @@ const BrandIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
   </svg>
 );
 
-// ── PLANTILLAS OFICIALES APA 7 (Estructuras académicas verificadas) ──────────
+// ── MICRO-ILUSTRACIONES VECTORIALES EXCLUSIVAS PARA PLANTILLAS APA 7 ──────
+const ImrydArticleIllustration = () => (
+  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
+    <path d="M12 11H36" stroke="var(--accent-primary)" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M12 17H26" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Dual column */}
+    <path d="M12 23H22" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M12 27H22" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M12 31H20" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M26 23H36" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M26 27H36" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M26 31H32" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Micro badge DOI */}
+    <rect x="12" y="36" width="14" height="4" rx="2" fill="var(--color-accent-soft)" />
+    <path d="M14 38H24" stroke="var(--accent-primary)" strokeWidth="1" strokeLinecap="round" />
+  </svg>
+);
+
+const ThesisBadgeIllustration = () => (
+  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="7" y="5" width="34" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
+    <circle cx="24" cy="18" r="7" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.5" />
+    {/* Insignia ribbon */}
+    <path d="M21 24L18 33L24 30L30 33L27 24" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.2" strokeLinejoin="round" />
+    <path d="M14 37H34" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const EssayBadgeIllustration = () => (
+  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="6" y="5" width="36" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
+    <line x1="14" y1="5" x2="14" y2="43" stroke="var(--border-subtle)" strokeWidth="1" strokeDasharray="2 2" />
+    <path d="M18 12H34" stroke="var(--text-main)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M18 18H32" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M18 24H36" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M18 30H28" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Pen nib */}
+    <path d="M36 30L30 36L28 41L33 39L39 33L36 30Z" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" strokeLinejoin="round" />
+  </svg>
+);
+
+const TechnicalReportIllustration = () => (
+  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
+    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
+    <path d="M12 10H24" stroke="var(--text-main)" strokeWidth="2" strokeLinecap="round" />
+    {/* Bars */}
+    <rect x="12" y="16" width="24" height="14" rx="2" fill="var(--surface-elevated)" stroke="var(--border-subtle)" strokeWidth="1" />
+    <rect x="15" y="24" width="4" height="4" rx="1" fill="var(--accent-primary)" />
+    <rect x="22" y="20" width="4" height="8" rx="1" fill="var(--accent-primary)" />
+    <rect x="29" y="18" width="4" height="10" rx="1" fill="var(--accent-primary)" />
+    <path d="M12 35H36" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+// ── PLANTILLAS OFICIALES APA 7 (Estructuras académicas con micro-ilustración propia) ──────────
 const TEMPLATES = [
   {
     id: 'imryd',
     name: 'Artículo Científico (IMRyD)',
     badge: 'Revistas & Papers',
+    purpose: 'Para someter a revistas indexadas (Scopus / WoS)',
     description: 'Estructura estándar de publicación: Introducción, Métodos, Resultados y Discusión.',
     sections: ['Introducción', 'Métodos', 'Resultados', 'Discusión', 'Referencias'],
-    icon: <FileText size={20} color="var(--accent-primary)" />,
-    iconBg: 'rgba(79, 124, 255, 0.12)',
+    illustration: <ImrydArticleIllustration />,
   },
   {
     id: 'thesis',
     name: 'Tesis / Monografía',
     badge: 'Grado & Posgrado',
+    purpose: 'Normas de titulación y comités de grado universitario',
     description: 'Estructura académica de titulación: Marco Teórico, Metodología, Resultados y Conclusiones.',
     sections: ['Portada Estudiante', 'Resumen', 'Marco Teórico', 'Metodología', 'Conclusiones'],
-    icon: <GraduationCap size={20} color="#8b5cf6" />,
-    iconBg: 'rgba(139, 92, 246, 0.12)',
+    illustration: <ThesisBadgeIllustration />,
   },
   {
     id: 'essay',
     name: 'Ensayo Académico',
     badge: 'Análisis & Crítica',
+    purpose: 'Ensayos de curso, argumentación y análisis crítico',
     description: 'Desarrollo argumentativo: Introducción, Tesis central, Cuerpo analítico y Referencias.',
     sections: ['Introducción', 'Desarrollo Temático', 'Conclusiones', 'Referencias'],
-    icon: <BookOpen size={20} color="var(--accent-success)" />,
-    iconBg: 'rgba(16, 185, 129, 0.12)',
+    illustration: <EssayBadgeIllustration />,
   },
   {
     id: 'report',
     name: 'Informe Técnico',
     badge: 'Reportes & Lab',
+    purpose: 'Reportes ejecutivos, prácticas profesionales y laboratorio',
     description: 'Reporte formal: Resumen Ejecutivo, Metodología, Resultados y Recomendaciones.',
     sections: ['Resumen Ejecutivo', 'Metodología', 'Resultados', 'Recomendaciones'],
-    icon: <Layers size={20} color="#f59e0b" />,
-    iconBg: 'rgba(245, 158, 11, 0.12)',
+    illustration: <TechnicalReportIllustration />,
   },
 ];
 
@@ -347,27 +402,51 @@ export const Step0QuickStart: React.FC = () => {
         <NavItem icon={<FolderOpen size={22} />} label="Abrir" active={activeTab === 'abrir'} onClick={() => setActiveTab('abrir')} />
         <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
 
-        {/* Configuraciones — único punto de acceso a ajustes (el botón
-            duplicado del top bar fue eliminado por redundante) */}
-        <div style={{ marginTop: 'auto', paddingBottom: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+        {/* Configuraciones — único punto de acceso a ajustes */}
+        <div style={{ marginTop: 'auto', width: '100%', paddingBottom: '16px' }}>
           <button
             type="button"
+            aria-label="Configuraciones"
             onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
             aria-expanded={settingsMenuOpen}
-            title="Configuraciones"
+            title="Configuración general y de IA"
             style={{
-              background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'none',
-              border: '1px solid ' + (settingsMenuOpen ? 'var(--accent-primary)' : 'var(--border-subtle)'),
-              borderRadius: '8px',
+              width: '100%',
+              padding: '12px 0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'transparent',
+              border: 'none',
+              borderLeft: settingsMenuOpen ? '3px solid var(--accent-primary)' : '3px solid transparent',
+              fontFamily: 'inherit',
+              transition: 'all 0.15s ease',
               color: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              cursor: 'pointer', padding: '7px', display: 'flex',
             }}
+            onMouseEnter={e => { if (!settingsMenuOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
+            onMouseLeave={e => { if (!settingsMenuOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
           >
-            <Settings2 size={18} />
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--surface-elevated)',
+              color: settingsMenuOpen ? '#ffffff' : 'var(--text-main)',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+              transition: 'all 0.15s ease',
+            }}>
+              <Settings2 size={22} />
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.02em' }}>
+              Ajustes
+            </span>
           </button>
-          <span style={{ fontSize: '8px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3, fontWeight: 600 }}>
-            Configuraciones
-          </span>
         </div>
       </div>
 
@@ -478,34 +557,56 @@ export const Step0QuickStart: React.FC = () => {
             {/* Hero Editorial Académico */}
             <HomeHero />
 
-            {/* ── ACCIÓN PRIMARIA: Dropzone Editorial Fluent 2 ── */}
-            <div style={{ marginBottom: '36px' }}>
+            {/* ── ACCIÓN PRIMARIA: Focus Dropzone Editorial Fluent ── */}
+            <div style={{
+              background: 'var(--surface-elevated)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: 'var(--shadow-card)',
+              overflow: 'hidden',
+              marginBottom: '32px',
+            }}>
+              {/* Barra superior integrada: Selector de perfil sutil */}
               <div style={{
-                background: 'var(--surface-elevated)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-xl)',
-                padding: '28px 32px',
-                boxShadow: 'var(--shadow-card)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 24px',
+                borderBottom: '1px solid var(--border-subtle)',
+                background: 'var(--surface-subtle)',
+                flexWrap: 'wrap',
+                gap: '12px',
               }}>
-                {/* Selector de perfil de formato */}
-                <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-                  <div>
-                    <label style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '2px' }}>
-                      Norma y Perfil Editorial
-                    </label>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                      Ajusta portada, márgenes y reglas tipográficas según tu nivel académico
-                    </span>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShieldCheck size={15} color="var(--accent-primary)" />
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '0.01em' }}>
+                    Norma APA 7ma Edición
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    · Motor editorial local
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label htmlFor="apa-profile-select" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Perfil:
+                  </label>
                   <select
+                    id="apa-profile-select"
                     value={activeProfileId}
                     onChange={(e) => setActiveProfile(e.target.value)}
                     disabled={isLoading}
                     style={{
-                      minWidth: '240px', padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-strong)', backgroundColor: 'var(--canvas-bg)',
-                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
-                      cursor: isLoading ? 'wait' : 'pointer', transition: 'border-color 0.15s ease',
+                      padding: '5px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--surface-elevated)',
+                      color: 'var(--text-main)',
+                      fontFamily: 'inherit',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: isLoading ? 'wait' : 'pointer',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     }}
                   >
                     {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
@@ -515,61 +616,76 @@ export const Step0QuickStart: React.FC = () => {
                     ))}
                   </select>
                 </div>
+              </div>
 
-                {/* Zona interactiva: arrastrar o hacer clic */}
-                <div
-                  onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                  onClick={triggerFilePicker}
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Seleccionar o arrastrar documento .docx"
-                  onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); triggerFilePicker(); } }}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    minHeight: '190px', cursor: busy ? 'wait' : 'pointer',
-                    border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-strong)',
-                    borderRadius: 'var(--radius-lg)', transition: 'all 0.2s ease',
-                    backgroundColor: dragging ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                    transform: dragging ? 'scale(1.005)' : 'scale(1)',
-                    pointerEvents: busy ? 'none' : 'auto',
-                    padding: '24px',
-                  }}
-                >
-                  <div style={{
-                    width: '56px', height: '56px', borderRadius: 'var(--radius-full)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: dragging ? 'var(--accent-primary)' : 'var(--color-accent-soft)',
-                    marginBottom: '14px', transition: 'all 0.2s ease',
-                  }}>
-                    <FileUp size={28} color={dragging ? '#fff' : 'var(--accent-primary)'} style={{ transition: 'color 0.2s ease' }} />
-                  </div>
-                  <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
-                    {isLoading ? 'Analizando documento…' : 'Arrastrá tu documento Word (.docx) aquí'}
-                  </span>
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                    o hacé clic para explorar tus archivos locales
-                  </span>
+              {/* Zona interactiva de arrastrar o hacer clic */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                onClick={triggerFilePicker}
+                role="button"
+                tabIndex={0}
+                aria-label="Seleccionar o arrastrar documento .docx"
+                onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); triggerFilePicker(); } }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '36px 24px 30px',
+                  cursor: busy ? 'wait' : 'pointer',
+                  backgroundColor: dragging ? 'var(--color-accent-soft)' : 'transparent',
+                  transition: 'all 0.2s ease',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
+              >
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: dragging ? 'var(--accent-primary)' : 'var(--color-accent-soft)',
+                  marginBottom: '16px',
+                  transition: 'all 0.25s ease',
+                  boxShadow: dragging ? '0 0 0 6px var(--color-accent-soft)' : 'none',
+                }}>
+                  <FileUp size={28} color={dragging ? '#fff' : 'var(--accent-primary)'} />
                 </div>
 
-                {/* Botón Convertir — CTA principal */}
+                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '6px', textAlign: 'center' }}>
+                  {isLoading ? 'Analizando documento…' : 'Arrastrá tu documento Word (.docx) aquí'}
+                </div>
+
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', textAlign: 'center', maxWidth: '460px' }}>
+                  Ajuste automático de portada, títulos jerárquicos, márgenes, tablas, figuras y referencias sin alterar tu texto original.
+                </div>
+
+                {/* Botón de acción principal integrado */}
                 <button
                   type="button"
-                  onClick={triggerFilePicker}
+                  onClick={(e) => { e.stopPropagation(); triggerFilePicker(); }}
                   disabled={busy}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    width: '100%', marginTop: '16px', padding: '12px 20px',
-                    borderRadius: 'var(--radius-md)', border: 'none', cursor: busy ? 'wait' : 'pointer',
-                    backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 700, letterSpacing: '0.01em',
-                    boxShadow: 'var(--shadow-md)',
-                    transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
-                    opacity: busy ? 0.8 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '11px 26px',
+                    borderRadius: 'var(--radius-lg)',
+                    border: 'none',
+                    cursor: busy ? 'wait' : 'pointer',
+                    backgroundColor: 'var(--accent-primary)',
+                    color: '#ffffff',
+                    fontFamily: 'inherit',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    boxShadow: '0 4px 14px rgba(79, 124, 255, 0.28)',
+                    transition: 'all 0.15s ease',
                   }}
-                  onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'var(--accent-primary-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-primary)'; e.currentTarget.style.transform = 'none'; }}
+                  onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 124, 255, 0.36)'; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(79, 124, 255, 0.28)'; }}
                 >
                   {isLoading ? (
                     <>
@@ -584,45 +700,45 @@ export const Step0QuickStart: React.FC = () => {
                   ) : (
                     <>
                       <FileUp size={16} />
-                      Estandarizar Documento APA 7
+                      Seleccionar archivo Word (.docx)
                     </>
                   )}
                 </button>
+              </div>
 
-                {/* Mensaje de garantía */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)',
-                }}>
-                  <ShieldCheck size={14} color="var(--accent-success)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                    Procesamiento local y privado. El texto de tu documento original nunca se pierde ni se altera.
-                  </span>
-                </div>
+              {/* Mensaje de garantía al pie de la dropzone */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: 'var(--surface-subtle)',
+              }}>
+                <BadgeCheck size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  Procesamiento local y privado. El texto de tu documento original nunca se pierde ni se altera.
+                </span>
               </div>
             </div>
 
-            {/* ── ACCIÓN SECUNDARIA: Plantillas Oficiales APA 7 ── */}
-            <div style={{
-              padding: '24px',
-              backgroundColor: 'var(--surface-elevated)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-xl)',
-              marginBottom: '36px',
-            }}>
-              <div style={{ marginBottom: '18px' }}>
-                <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px' }}>
-                  ¿Iniciando un proyecto nuevo? Comenzá con una plantilla oficial APA 7
-                </h2>
-                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
-                  Estructuras académicas con títulos jerárquicos y pautas de redacción listas para completar.
-                </p>
+            {/* ── ACCIÓN SECUNDARIA: Plantillas Oficiales APA 7 (Tarjetas Esbeltas y Claras) ── */}
+            <div style={{ marginBottom: '36px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
+                <div>
+                  <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px' }}>
+                    Plantillas Oficiales APA 7
+                  </h2>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                    Estructuras académicas listas para redactar con jerarquía y portada normalizada.
+                  </p>
+                </div>
               </div>
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: '14px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                gap: '12px',
               }}>
                 {TEMPLATES.map(tpl => {
                   const activeDoc = useDocStore.getState().doc;
@@ -631,54 +747,69 @@ export const Step0QuickStart: React.FC = () => {
                     <div
                       key={tpl.id}
                       style={{
-                        display: 'flex', flexDirection: 'column',
-                        padding: '16px', borderRadius: 'var(--radius-lg)',
-                        background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-                        transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                        padding: '14px 16px',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--surface-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-strong)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                        e.currentTarget.style.transform = 'none';
                       }}
                     >
-                      {/* Cabecera de tarjeta: Icono + Badge */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <div style={{
-                          width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0,
-                          background: tpl.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {tpl.icon}
-                        </div>
-                        <span style={{
-                          fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)',
-                          background: 'var(--color-accent-soft)', padding: '2px 8px', borderRadius: '999px',
-                        }}>
-                          {tpl.badge}
-                        </span>
+                      {/* Micro-ilustración */}
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '10px',
+                        flexShrink: 0,
+                        background: 'var(--surface-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid var(--border-subtle)',
+                      }}>
+                        {tpl.illustration}
                       </div>
 
-                      {/* Nombre y descripción */}
-                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
-                        {tpl.name}
-                      </div>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 10px', flex: 1 }}>
-                        {tpl.description}
-                      </p>
-
-                      {/* Chips de secciones */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '14px' }}>
-                        {tpl.sections.map((sec, idx) => (
-                          <span
-                            key={idx}
-                            style={{
-                              fontSize: '9.5px', fontWeight: 600, color: 'var(--text-secondary)',
-                              background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                              padding: '1px 6px', borderRadius: '4px',
-                            }}
-                          >
-                            {sec}
+                      {/* Información central */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {tpl.name}
                           </span>
-                        ))}
+                          <span style={{
+                            fontSize: '9.5px',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)',
+                            background: 'var(--surface-subtle)',
+                            padding: '1px 6px',
+                            borderRadius: '999px',
+                            border: '1px solid var(--border-subtle)',
+                            flexShrink: 0,
+                          }}>
+                            {tpl.badge}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tpl.purpose}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tpl.description}
+                        </div>
                       </div>
 
-                      {/* Botones de acción */}
-                      <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+                      {/* Acciones compactas */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -690,14 +821,24 @@ export const Step0QuickStart: React.FC = () => {
                               useDocStore.getState().createFromTemplate(tpl.id);
                             }
                           }}
+                          title={canApply ? "Aplica esta jerarquía al documento actual" : "Crea un documento en blanco con esta estructura"}
                           style={{
-                            flex: 1, padding: '7px 10px', borderRadius: 'var(--radius-sm)',
-                            background: 'var(--accent-primary)', color: '#fff', border: 'none',
-                            fontSize: 'var(--text-xs)', fontWeight: 700, fontFamily: 'inherit',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                            padding: '7px 12px',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--accent-primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            boxShadow: '0 2px 6px rgba(79, 124, 255, 0.25)',
                           }}
                         >
-                          <FileCheck size={12} /> {canApply ? 'Aplicar' : 'Abrir en Editor'}
+                          <FileCheck size={13} /> {canApply ? 'Aplicar' : 'Escribir'}
                         </button>
                         <button
                           type="button"
@@ -706,15 +847,25 @@ export const Step0QuickStart: React.FC = () => {
                             window.open(downloadUrl, '_blank');
                             useDocStore.getState().showToast(`Descargando plantilla .docx (${tpl.name})`, 'info');
                           }}
-                          title="Descargar archivo Word .docx formateado con estilos APA 7"
+                          title="Descargar archivo editable para Microsoft Word (.docx)"
+                          aria-label={`Descargar plantilla Word ${tpl.name}`}
                           style={{
-                            padding: '7px 10px', borderRadius: 'var(--radius-sm)',
-                            background: 'var(--surface-elevated)', color: 'var(--text-main)',
-                            border: '1px solid var(--border-subtle)', fontSize: 'var(--text-xs)', fontWeight: 600,
-                            fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--surface-subtle)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease',
                           }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
                         >
-                          <Download size={12} /> .docx
+                          <Download size={14} />
                         </button>
                       </div>
                     </div>

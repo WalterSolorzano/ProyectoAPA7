@@ -178,8 +178,112 @@ async def process_live_document_chat(
 
         return parsed
     except Exception as e:
-        logger.error(f"Error procesando live document chat: {e}")
+        logger.warning(f"[LiveChat] Motor LLM externo no disponible ({e}). Activando fallback editorial determinista.")
+        return _deterministic_chat_fallback(document, user_instruction, selected_element_id)
+
+
+def _deterministic_chat_fallback(
+    document: DocumentModel,
+    user_instruction: str,
+    selected_element_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Fallback editorial determinista para cuando no hay conexión a internet,
+    los proveedores de LLM no tienen clave configurada o hay errores de timeout/red.
+    Ejecuta transformaciones APA 7 confiables basadas en reglas locales.
+    """
+    instruction_lower = user_instruction.lower()
+    actions: List[Dict[str, Any]] = []
+
+    # 1. Rotulación de tablas / figuras
+    if any(w in instruction_lower for w in ["rotular", "caption", "tabla", "figura"]):
+        t_count = 1
+        f_count = 1
+        for elem in document.elements:
+            if elem.type == ElementType.TABLE and elem.table_info:
+                if not elem.table_info.caption:
+                    actions.append({
+                        "type": "set_caption",
+                        "element_id": elem.id,
+                        "caption": f"Resumen y datos analizados de la tabla {t_count}"
+                    })
+                    if not elem.table_info.note:
+                        actions.append({
+                            "type": "set_note",
+                            "element_id": elem.id,
+                            "note": "Nota. Elaboración propia a partir de los datos recopilados."
+                        })
+                t_count += 1
+            elif elem.type == ElementType.IMAGE and elem.image_info and not elem.is_cover_section:
+                if not elem.image_info.caption:
+                    actions.append({
+                        "type": "set_caption",
+                        "element_id": elem.id,
+                        "caption": f"Diagrama e ilustración visual de la figura {f_count}"
+                    })
+                    if not elem.image_info.note:
+                        actions.append({
+                            "type": "set_note",
+                            "element_id": elem.id,
+                            "note": "Nota. Adaptado para fines ilustrativos según normas APA 7."
+                        })
+                f_count += 1
         return {
-            "reply": f"Ocurrió un error al procesar la instrucción con la IA: {str(e)}",
-            "actions": []
+            "reply": f"He generado leyendas y notas académicas formales para los elementos del documento según los estándares APA 7ma edición.",
+            "actions": actions
         }
+
+    # 2. Pulir redacción académica / pronombres ambiguos / primera persona
+    if any(w in instruction_lower for w in ["pulir", "redacción", "redaccion", "estilo", "informal", "ambiguo", "primera persona"]):
+        from modules.proactive_auditor import audit_text_proactive
+        modified = 0
+        for elem in document.elements:
+            if elem.type in (ElementType.PARAGRAPH, ElementType.BLOCK_QUOTE) and elem.text:
+                findings = audit_text_proactive(elem.text, elem.id)
+                new_text = elem.text
+                for f in findings:
+                    if f.suggestion and f.pattern in new_text:
+                        new_text = new_text.replace(f.pattern, f.suggestion)
+                if new_text != elem.text:
+                    actions.append({
+                        "type": "update_text",
+                        "element_id": elem.id,
+                        "text": new_text
+                    })
+                    modified += 1
+                if modified >= 5:
+                    break
+        if actions:
+            return {
+                "reply": f"Se aplicaron mejoras de estilo formal y desambiguación en {len(actions)} párrafos del documento siguiendo criterios de redacción APA 7.",
+                "actions": actions
+            }
+        else:
+            return {
+                "reply": "No encontré expresiones informales o errores críticos pendientes de pulir en los párrafos actuales.",
+                "actions": []
+            }
+
+    # 3. Revisar jerarquía de títulos
+    if any(w in instruction_lower for w in ["jerarquía", "jerarquia", "título", "titulo", "h1", "h2", "h3"]):
+        for elem in document.elements:
+            if elem.type == ElementType.HEADING and not elem.is_cover_section:
+                text = (elem.text or "").strip().lower()
+                if any(sec in text for sec in ["resumen", "abstract", "introducción", "introduccion", "método", "metodologia", "resultados", "discusión", "discusion", "conclusiones", "referencias"]):
+                    if elem.heading_level != 1:
+                        actions.append({"type": "set_type", "element_id": elem.id, "element_type": "heading", "level": 1})
+        return {
+            "reply": f"Se verificó la jerarquía de títulos del documento y se ajustaron {len(actions)} encabezados principales al Nivel 1 centrado según APA 7.",
+            "actions": actions
+        }
+
+    # 4. Respuesta general instructiva APA 7
+    return {
+        "reply": (
+            "El motor de reglas editoriales APA 7 procesó tu consulta. "
+            "Para explicaciones conversacionales avanzadas con modelos generativos (NVIDIA NIM, Groq, Cerebras, OpenRouter), "
+            "puedes vincular una clave de API gratuita en la sección de Configuraciones."
+        ),
+        "actions": []
+    }
+

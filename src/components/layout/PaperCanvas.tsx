@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
@@ -28,8 +28,57 @@ export function dedupCoverAuthors(elems: ElementModel[]): ElementModel[] {
   });
 }
 
+export interface CoverAuthorCard {
+  name: string;
+  meta: string;
+  originalElemId: string;
+}
+
+export function parseCoverAuthorCards(elem: ElementModel): CoverAuthorCard[] {
+  if (!elem.text) return [];
+  const lines = elem.text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const cards: CoverAuthorCard[] = [];
+  let currentName = '';
+  let currentMeta = '';
+  lines.forEach((line) => {
+    if (/^(Br\.|Ing\.|Lic\.|Msc\.|Dr\.|Docente|Tutor|Prof\.)/i.test(line)) {
+      if (currentName) {
+        cards.push({ name: currentName, meta: currentMeta, originalElemId: elem.id });
+        currentMeta = '';
+      }
+      const m = line.match(/(Carnet:.*|Grupo:.*)/i);
+      if (m) {
+        currentName = line.slice(0, m.index).trim();
+        currentMeta = m[1].trim();
+      } else {
+        currentName = line;
+      }
+    } else if (/^(Carnet|Grupo|ID):/i.test(line)) {
+      currentMeta = currentMeta ? `${currentMeta} · ${line}` : line;
+    } else {
+      if (currentName && !currentMeta) {
+        currentMeta = line;
+      } else if (currentName) {
+        currentMeta += ` ${line}`;
+      } else {
+        currentName = line;
+      }
+    }
+  });
+  if (currentName) {
+    cards.push({ name: currentName, meta: currentMeta, originalElemId: elem.id });
+  }
+  return cards;
+}
+
+export function isCoverAuthorElement(elem: ElementModel): boolean {
+  if (!elem.text) return false;
+  const t = elem.text.trim();
+  return /\b(Br\.|Ing\.|Lic\.|Carnet:)\b/i.test(t) || /Carnet:\s*\d+/i.test(t);
+}
+
 // ── Marcas de transparencia (ChangeMark) ─────────────────────────────────────
-// Micro-etiqueta gris anclada al borde superior-derecho del elemento. Indica
+// Micro-etiqueta gris renderizada arriba del elemento sin tapar el texto. Indica
 // qué transformación APA se aplicó (ej. "sangría aplicada", "Tabla → APA").
 // Solo lectura: el mapa vive en localStorage (key wordapa7_marcas_map) y lo
 // escribe otro agente. No editable, pointer-events none.
@@ -38,39 +87,44 @@ const ChangeMark: React.FC<{ label: string }> = ({ label }) => {
   const displayLabel = isAmbig ? 'Pronombre ambiguo' : label;
   
   return (
-    <span
-      className="change-mark"
-      title={`Cambio aplicado: ${displayLabel}`}
+    <div
       style={{
-        position: 'absolute',
-        top: 2,
-        right: 2,
-        zIndex: 40,
-        maxWidth: 'calc(100% - 8px)',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        fontSize: '11px',
-        fontWeight: isAmbig ? 700 : 600,
-        lineHeight: 1.35,
-        padding: '2px 8px',
-        borderRadius: 'var(--radius-sm, 6px)',
-        border: isAmbig ? '1px solid var(--accent-warning, #f59e0b)' : '1px solid var(--border-subtle)',
-        backgroundColor: isAmbig ? 'rgba(245, 158, 11, 0.16)' : 'var(--surface-elevated)',
-        color: isAmbig ? 'var(--accent-warning, #d97706)' : 'var(--text-main)',
-        boxShadow: 'var(--shadow-sm)',
-        pointerEvents: 'none',
-        userSelect: 'none',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        width: '100%',
+        marginBottom: '3px',
       }}
     >
-      {isAmbig && (
-        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
-      )}
-      {displayLabel}
-    </span>
+      <span
+        className="change-mark"
+        title={`Cambio aplicado: ${displayLabel}`}
+        style={{
+          maxWidth: 'calc(100% - 8px)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: '11px',
+          fontWeight: isAmbig ? 700 : 600,
+          lineHeight: 1.35,
+          padding: '2px 8px',
+          borderRadius: 'var(--radius-sm, 6px)',
+          border: isAmbig ? '1px solid var(--accent-warning, #f59e0b)' : '1px solid var(--border-subtle)',
+          backgroundColor: isAmbig ? 'rgba(245, 158, 11, 0.16)' : 'var(--surface-elevated)',
+          color: isAmbig ? 'var(--accent-warning, #d97706)' : 'var(--text-main)',
+          boxShadow: 'var(--shadow-sm)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        {isAmbig && (
+          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
+        )}
+        {displayLabel}
+      </span>
+    </div>
   );
 };
 
@@ -1030,9 +1084,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 style={{
                   width: `${PAGE_W}px`,
                   maxWidth: '100%',
-                  minHeight: `${PAGE_H}px`,
-                  height: isCoverPage ? `${PAGE_H}px` : undefined,
-                  overflow: isCoverPage ? 'hidden' : undefined,
+                  height: `${PAGE_H}px`,
+                  overflow: 'hidden',
                   backgroundColor: 'var(--paper-white, #ffffff)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
                   padding: '54px 54px',
@@ -1077,7 +1130,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 ) : isCoverPage && !portada.use_original_cover ? (
                   <APACoverEditor />
                 ) : isCoverPage && (coverHeaderTexts.length > 0 || coverAuthorTexts.length > 0 || coverFooterTexts.length > 0 || !!coverLogoImage || pageElements.some(e => e.is_cover_section || e.type === 'portada_block')) ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, padding: '4px 0' }}>
 
                     {/* Badge sutil: portada original conservada */}
                     {portada.use_original_cover && (
@@ -1087,12 +1140,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         gap: '4px',
                         alignSelf: 'center',
                         fontSize: '8pt',
-                        color: 'var(--paper-muted)',
-                        backgroundColor: 'var(--paper-alt)',
-                        border: '1px solid var(--paper-line-strong)',
+                        color: 'var(--text-muted, #6b7280)',
+                        backgroundColor: 'var(--surface-subtle, #f3f4f6)',
+                        border: '1px solid var(--border-subtle, #e5e7eb)',
                         borderRadius: '4px',
                         padding: '1px 8px',
-                        marginBottom: '8px',
+                        marginBottom: '4px',
                         fontStyle: 'italic',
                       }}>
                         Portada original conservada
@@ -1101,19 +1154,154 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                     {/* Logo institucional (si existe) */}
                     {coverLogoImage?.image_info?.relative_url && (
-                      <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                      <div style={{ textAlign: 'center', marginBottom: '6px' }}>
                         <img
                           src={resolveAssetUrl(coverLogoImage.image_info.relative_url)}
                           alt="Logo"
-                          style={{ maxHeight: '100px', maxWidth: '300px', objectFit: 'contain' }}
+                          style={{ maxHeight: '80px', maxWidth: '280px', objectFit: 'contain' }}
                         />
                       </div>
                     )}
 
-                    {/* Renderizado secuencial de TODOS los elementos de portada en orden original */}
-                    {pageElements
-                      .filter(e => (e.is_cover_section || e.type === 'portada_block') && !e.image_info)
-                      .map(elem => {
+                    {/* Renderizado secuencial de TODOS los elementos de portada en orden original con grilla para autores */}
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-evenly' }}>
+                    {(() => {
+                      const rawCoverElements = pageElements
+                        .filter(e => (e.is_cover_section || e.type === 'portada_block') && !e.image_info);
+
+                      type CoverGroup =
+                        | { kind: 'single'; elem: ElementModel }
+                        | { kind: 'author_grid'; elems: ElementModel[]; cards: CoverAuthorCard[] };
+
+                      const coverGroups: CoverGroup[] = [];
+                      let pendingAuthorElems: ElementModel[] = [];
+
+                      const flushAuthors = () => {
+                        if (pendingAuthorElems.length > 0) {
+                          const allCards = pendingAuthorElems.flatMap(parseCoverAuthorCards);
+                          if (allCards.length > 1) {
+                            coverGroups.push({ kind: 'author_grid', elems: [...pendingAuthorElems], cards: allCards });
+                          } else {
+                            pendingAuthorElems.forEach((e) => coverGroups.push({ kind: 'single', elem: e }));
+                          }
+                          pendingAuthorElems = [];
+                        }
+                      };
+
+                      rawCoverElements.forEach((elem) => {
+                        if (isCoverAuthorElement(elem)) {
+                          pendingAuthorElems.push(elem);
+                        } else {
+                          flushAuthors();
+                          coverGroups.push({ kind: 'single', elem });
+                        }
+                      });
+                      flushAuthors();
+
+                      return coverGroups.map((group, gIdx) => {
+                        if (group.kind === 'author_grid') {
+                          const editingElem = group.elems.find((e) => e.id === editingCoverElemId);
+                          if (editingElem) {
+                            return (
+                              <div key={`author-edit-${editingElem.id}`} style={{ width: '100%', margin: '4px 0' }}>
+                                <textarea
+                                  autoFocus
+                                  value={editingCoverText}
+                                  onChange={(e) => setEditingCoverText(e.target.value)}
+                                  onBlur={() => {
+                                    if (editingCoverText !== editingElem.text) {
+                                      useDocStore.getState().updateElementText(editingElem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (editingCoverText !== editingElem.text) {
+                                        useDocStore.getState().updateElementText(editingElem.id, editingCoverText);
+                                      }
+                                      setEditingCoverElemId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingCoverElemId(null);
+                                    }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    fontFamily: fontFamily,
+                                    fontSize: '10pt',
+                                    border: '2px solid var(--accent-primary)',
+                                    borderRadius: '6px',
+                                    padding: '6px 8px',
+                                    background: 'var(--paper-white, #ffffff)',
+                                    color: 'var(--paper-ink, #111827)',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                    boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.2)',
+                                    minHeight: '60px',
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+
+                          const colCount = Math.min(group.cards.length, 4);
+                          return (
+                            <div
+                              key={`author-group-${gIdx}`}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+                                gap: '16px',
+                                width: '100%',
+                                margin: '8px 0',
+                                padding: '4px 0',
+                              }}
+                            >
+                              {group.cards.map((card, cIdx) => (
+                                <div
+                                  key={`${card.originalElemId}-${cIdx}`}
+                                  title="Doble clic para editar datos de autor"
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    const orig = group.elems.find((x) => x.id === card.originalElemId);
+                                    if (orig) {
+                                      setEditingCoverElemId(orig.id);
+                                      setEditingCoverText(orig.text || '');
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedElementId(card.originalElemId);
+                                  }}
+                                  style={{
+                                    textAlign: 'center',
+                                    padding: '6px 8px',
+                                    borderRight:
+                                      (cIdx + 1) % colCount !== 0 && cIdx !== group.cards.length - 1
+                                        ? '1px solid var(--border-subtle, rgba(0,0,0,0.15))'
+                                        : 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    backgroundColor: selectedElementId === card.originalElemId ? 'rgba(79,124,255,0.08)' : 'transparent',
+                                    transition: 'background-color 0.12s ease',
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 'bold', fontSize: '10pt', color: 'var(--paper-ink, #111827)', lineHeight: 1.3 }}>
+                                    {card.name}
+                                  </div>
+                                  {card.meta && (
+                                    <div style={{ fontSize: '9pt', color: 'var(--paper-slate, #64748b)', marginTop: '3px', lineHeight: 1.25 }}>
+                                      {card.meta}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        const elem = group.elem;
                         const isEditing = editingCoverElemId === elem.id;
                         const isSelected = selectedElementId === elem.id;
                         const align = (elem.alignment as any) || 'center';
@@ -1201,8 +1389,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             {elem.text}
                           </p>
                         );
-                      })
-                    }
+                      });
+                    })()}
+                    </div>
                   </div>
               ) : (
                 /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
@@ -1396,6 +1585,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           }}>
                             <Loader2 size={20} className="animate-spin" color="var(--word-blue)" />
                           </div>
+                        )}
+
+                        {/* Marca de transparencia: etiqueta del cambio APA aplicado arriba del párrafo */}
+                        {marcasVisibles && marcasMap[elem.id] && (
+                          <ChangeMark label={marcasMap[elem.id]} />
                         )}
 
                         {editingId === elem.id && elem.type !== 'image' ? (
@@ -1651,6 +1845,36 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             display: 'flex', flexDirection: 'column',
                           }}>
                             {/* Número de figura + caption (order: arriba=0, abajo=2) */}
+                            {!showFigureLabel && (
+                              <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center' }}>
+                                <button
+                                  className="btn btn-xs"
+                                  title="Generar leyenda APA 7 para esta figura"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    padding: '6px 14px',
+                                    borderRadius: 'var(--radius-sm, 6px)',
+                                    backgroundColor: 'var(--accent-primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 8px rgba(79,124,255,0.30)',
+                                    fontFamily: 'inherit',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSuggestCaption(elem);
+                                  }}
+                                >
+                                  <Wand2 size={13} />
+                                  Generar leyenda APA 7
+                                </button>
+                              </div>
+                            )}
                             {showFigureLabel && (
                               <div style={{ marginBottom: '8px', order: captionPosition === 'above' ? 0 : 2 }}>
                                 <p style={{ fontWeight: 'bold', textAlign: 'left', margin: '0 0 2px 0', fontSize: '11pt' }}>
@@ -1785,26 +2009,59 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           const cellFont = isCompact ? '9pt' : isExpanded ? '12pt' : '11pt';
                           const styleLabel = tableStyle === 'compact' ? 'Compacto' : tableStyle === 'expanded' ? 'Expandido' : 'Estándar';
                           return (
-                          <div style={{ margin: '16px 0', width: '100%', overflowX: 'auto' }}>
-                            <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>
-                              Tabla {elem.table_info.table_number}
-                              <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
-                                · estilo {styleLabel}
-                              </span>
-                            </p>
+                          <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2px 0' }}>
+                              <p style={{ fontWeight: 'bold', margin: 0 }}>
+                                Tabla {elem.table_info.table_number || 1}
+                                <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
+                                  · estilo {styleLabel}
+                                </span>
+                              </p>
+                              {(!elem.table_info.caption || elem.table_info.caption.trim() === '') && (
+                                <button
+                                  className="btn btn-xs"
+                                  title="Generar leyenda APA 7 para esta tabla"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    padding: '4px 12px',
+                                    borderRadius: 'var(--radius-sm, 6px)',
+                                    backgroundColor: 'var(--accent-primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSuggestCaption(elem);
+                                  }}
+                                >
+                                  <Wand2 size={11} />
+                                  Generar leyenda
+                                </button>
+                              )}
+                            </div>
                             {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
                             <table style={{
                               width: '100%',
+                              maxWidth: '100%',
                               borderCollapse: 'collapse',
+                              tableLayout: 'auto',
                               borderTop: `${borderW} solid var(--ink, #000000)`,
                               borderBottom: `${borderW} solid var(--ink, #000000)`,
-                              margin: '8px 0'
+                              margin: '8px 0',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word',
                             }}>
                               {elem.table_info.headers && (
                                 <thead>
                                   <tr style={{ borderBottom: `${borderW} solid var(--ink, #000000)` }}>
                                     {elem.table_info.headers.map((h, i) => (
-                                      <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont }}>{h}</th>
+                                      <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -1813,7 +2070,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 {elem.table_info.rows.map((row, rIdx) => (
                                   <tr key={rIdx}>
                                     {row.map((cell, cIdx) => (
-                                      <td key={cIdx} style={{ padding: cellPad, fontSize: cellFont }}>{cell}</td>
+                                      <td key={cIdx} style={{ padding: cellPad, fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{cell}</td>
                                     ))}
                                   </tr>
                                 ))}
@@ -1830,11 +2087,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                         {/* Comentarios estilo WhatsApp: ahora viven en el gutter
                             lateral (columna derecha fuera de la hoja, como Word). */}
-
-                        {/* Marca de transparencia: etiqueta del cambio APA aplicado */}
-                        {marcasVisibles && marcasMap[elem.id] && (
-                          <ChangeMark label={marcasMap[elem.id]} />
-                        )}
                       </div>
                     );
                   })}

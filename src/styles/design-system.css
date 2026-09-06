@@ -1635,3 +1635,209 @@ html, body {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.85); }
 }
+
+/* ════════════ CUSTOM PROPRIETARY LOADING EXPERIENCE ════════════ */
+.mascot-ambient-halo {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 124, 255, 0.2) 0%, rgba(124, 58, 237, 0) 70%);
+  animation: pulse-dot 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes track-shimmer {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+
+.custom-loader-track {
+  position: relative;
+  overflow: hidden;
+  animation: custom-loader-pulse 2.2s ease-in-out infinite;
+}
+
+.custom-loader-track::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: track-shimmer 1.8s infinite;
+}
+
+@keyframes custom-loader-pulse {
+  0%, 100% { width: 35%; }
+  50% { width: 85%; }
+}
+
+.custom-stage-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-elevated, #ffffff);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 16px;
+  padding: 8px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+.custom-stage-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.custom-stage-card.active {
+  background: rgba(79, 124, 255, 0.08);
+}
+
+.custom-stage-card.active .custom-stage-title {
+  color: var(--accent-primary, #4f7cff);
+  font-weight: 700;
+}
+
+.custom-stage-card.done .custom-stage-title {
+  color: var(--accent-success, #10b981);
+}
+
+.custom-stage-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-subtle, #f3f4f6);
+  color: var(--text-muted, #9ca3af);
+  flex-shrink: 0;
+}
+
+.custom-stage-card.active .custom-stage-icon {
+  background: var(--accent-primary, #4f7cff);
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(79, 124, 255, 0.4);
+}
+
+.custom-stage-card.done .custom-stage-icon {
+  background: var(--accent-success, #10b981);
+  color: #ffffff;
+}
+
+.custom-stage-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-main, #1a1a2e);
+  line-height: 1.2;
+}
+
+.custom-stage-sub {
+  font-size: 9.5px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.2;
+}
+
+.custom-stage-connector {
+  width: 20px;
+  height: 2px;
+  background: var(--border-subtle, #e5e7eb);
+  border-radius: 1px;
+}
+
+.custom-stage-connector.active {
+  background: var(--accent-success, #10b981);
+}
+
+.custom-loading-card {
+  width: 100%;
+  background: var(--surface-elevated, #ffffff);
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 18px;
+  padding: 18px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ════════════ HERO PHRASE CONTEXTUAL TYPOGRAPHIC ANIMATIONS ════════════ */
+@keyframes hero-fx-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-fx-ai-shimmer {
+  0%, 100% {
+    opacity: 0.95;
+    letter-spacing: -0.025em;
+  }
+  50% {
+    opacity: 1;
+    letter-spacing: -0.020em;
+    text-shadow: 0 0 12px rgba(79, 124, 255, 0.18);
+  }
+}
+
+@keyframes hero-fx-chiste-bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.012);
+  }
+}
+
+@keyframes hero-fx-academic-breathe {
+  0%, 100% {
+    letter-spacing: -0.028em;
+  }
+  50% {
+    letter-spacing: -0.018em;
+  }
+}
+
+.hero-phrase-base {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.hero-fx-editorial {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.hero-fx-ai {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both, hero-fx-ai-shimmer 4s ease-in-out infinite;
+}
+
+.hero-fx-chiste {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both, hero-fx-chiste-bounce 5s ease-in-out infinite;
+}
+
+.hero-fx-academic {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both, hero-fx-academic-breathe 6s ease-in-out infinite;
+}
+
+.hero-fx-punch {
+  animation: hero-fx-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.hero-fx-clarity {
+  animation: hero-fx-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  text-shadow: 0 0 8px rgba(56, 160, 23, 0.12);
+}
+

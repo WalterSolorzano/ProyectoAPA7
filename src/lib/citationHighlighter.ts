@@ -23,9 +23,9 @@ const REGEX_PAREN =
   /\(\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:[a-záéíóúñA-ZÁÉÍÓÚÑ]+|\[[A-ZÁÉÍÓÚÑ]{2,}\]))*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:,\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*(?:\s+et\s+al\.?)?)\s*,\s*(\d{4}[a-z]?)(?:\s*,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\s*\)/gi;
 
 // Patrón narrativa: García (2023), García y López (2023), OIT (2007), La OIT (2007)
-// Acepta artículo "La"/"El"/"Los"/"Las" antepuesto a la sigla/autor.
+// y apellido compuesto con iniciales como Según Skaf Rehihil, T. (2025)
 const REGEX_NARR =
-  /\b(?:[Ll][oa]s?)?\s*((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+(?:de|del|la|el|los|las|y|e|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*|[A-ZÁÉÍÓÚÑ]{2,6})(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\)/gi;
+  /\b(?:según|de acuerdo con|como señala|como indica|para|[Ll][oa]s?)?\s*((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*,\s*[A-ZÁÉÍÓÚÑ]\.?)?(?:\s+(?:de|del|la|el|los|las|y|e|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*|[A-ZÁÉÍÓÚÑ]{2,6})(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*(\d+(?:[–\-]\d+)?))?\)/gi;
 
 const EXCLUDED_TERMS = [
   'vease', 'ver', 'figura', 'tabla', 'cuadro', 'anexo', 'apendice',

@@ -30,11 +30,11 @@ async function _detectProtocol(port: number): Promise<'https' | 'http'> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 2000);
-    const res = await fetch(`https://127.0.0.1:${port}/api/version`, {
+    const res = await fetch(`https://127.0.0.1:${port}/api/health`, {
       signal: ctrl.signal,
     });
     clearTimeout(timer);
-    if (res.ok) {
+    if (res.ok || res.status === 200 || res.status === 404) {
       _backendProtocol = 'https';
       console.log('[http] Backend detectado: HTTPS');
       return 'https';
@@ -47,11 +47,11 @@ async function _detectProtocol(port: number): Promise<'https' | 'http'> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 2000);
-    const res = await fetch(`http://127.0.0.1:${port}/api/version`, {
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
       signal: ctrl.signal,
     });
     clearTimeout(timer);
-    if (res.ok) {
+    if (res.ok || res.status === 200 || res.status === 404) {
       _backendProtocol = 'http';
       console.log('[http] Backend detectado: HTTP');
       return 'http';

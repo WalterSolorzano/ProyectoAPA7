@@ -12,6 +12,7 @@ import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
 import { parseAuthorEntries } from '../../lib/portadaAuthors';
+import { resolveAssetUrl } from '../../api/backend';
 import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle, Download, Loader2,
@@ -1026,18 +1027,37 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
 
   const renderOriginalElem = (elem: any, idx: number) => {
     if (elem.type === 'table') {
+      const rows = elem.table_info?.rows || elem.rows || [];
       return (
-        <div key={idx} style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Tabla</span>
-          {elem.rows && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>{elem.rows.length} filas</div>}
+        <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+            Tabla original (sin formato)
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #d1d5db' }}>
+            <tbody>
+              {rows.slice(0, 4).map((r: any, rIdx: number) => (
+                <tr key={rIdx}>
+                  {(r.cells || r || []).map((c: any, cIdx: number) => (
+                    <td key={cIdx} style={{ border: '1px solid #d1d5db', padding: '3px 6px', color: 'var(--text-main)' }}>
+                      {typeof c === 'string' ? c : c.text || ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 4 && <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>+{rows.length - 4} filas adicionales</div>}
         </div>
       );
     }
     if (elem.type === 'image') {
       return (
-        <div key={idx} style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Figura</span>
-          {elem.image_info?.figure_number ? <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>N.° {elem.image_info.figure_number}</span> : null}
+        <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>Figura original</div>
+          {elem.image_info?.relative_url && (
+            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt="Figura" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+          )}
+          {elem.text && <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{elem.text}</div>}
         </div>
       );
     }
@@ -1046,8 +1066,8 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
         fontFamily: 'Arial, sans-serif',
         fontSize: elem.type === 'heading' ? '14px' : '11.5px',
         fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
-        color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.35,
-        padding: '4px 8px', borderRadius: '4px',
+        color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.35,
+        padding: '5px 8px', borderRadius: '4px',
         backgroundColor: 'var(--surface-subtle)',
       }}>
         {elem.text || ''}
@@ -1057,18 +1077,64 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
 
   const renderApaElem = (elem: any, idx: number) => {
     if (elem.type === 'table') {
+      const rows = elem.table_info?.rows || elem.rows || [];
+      const tableNum = elem.table_info?.table_number || (idx + 1);
+      const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
       return (
-        <div key={idx} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(79,124,255,0.3)', backgroundColor: 'rgba(79,124,255,0.04)' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Tabla APA 7</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin bordes verticales • Encabezado en negrita</div>
+        <div key={idx} style={{ padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontWeight: 'bold', color: '#111827' }}>
+            Tabla {tableNum}
+          </div>
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontStyle: 'italic', color: '#111827', marginBottom: '6px' }}>
+            {title}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Times New Roman', serif", fontSize: '10.5pt', borderTop: '2px solid #111827', borderBottom: '2px solid #111827' }}>
+            {rows.length > 0 && (
+              <thead>
+                <tr style={{ borderBottom: '1px solid #111827' }}>
+                  {(rows[0].cells || rows[0] || []).map((c: any, cIdx: number) => (
+                    <th key={cIdx} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: '#111827' }}>
+                      {typeof c === 'string' ? c : c.text || ''}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rows.slice(1, 5).map((r: any, rIdx: number) => (
+                <tr key={rIdx}>
+                  {(r.cells || r || []).map((c: any, cIdx: number) => (
+                    <td key={cIdx} style={{ padding: '3px 8px', color: '#111827' }}>
+                      {typeof c === 'string' ? c : c.text || ''}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '9.5pt', fontStyle: 'italic', color: '#374151', marginTop: '6px' }}>
+            <strong>Nota.</strong> Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.
+          </div>
         </div>
       );
     }
     if (elem.type === 'image') {
+      const figNum = elem.image_info?.figure_number || 1;
+      const caption = elem.image_info?.caption || 'Ilustración del proceso';
       return (
-        <div key={idx} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(79,124,255,0.3)', backgroundColor: 'rgba(79,124,255,0.04)' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Figura APA 7</span>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Leyenda debajo • Numerada</div>
+        <div key={idx} style={{ padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontWeight: 'bold', color: '#111827' }}>
+            Figura {figNum}
+          </div>
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontStyle: 'italic', color: '#111827', marginBottom: '4px' }}>
+            {caption}
+          </div>
+          {elem.image_info?.relative_url && (
+            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain', margin: '4px 0' }} />
+          )}
+          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '9.5pt', fontStyle: 'italic', color: '#374151', marginTop: '4px' }}>
+            <strong>Nota.</strong> Presentación gráfica formal APA 7 con alineación y resolución óptima.
+          </div>
         </div>
       );
     }
