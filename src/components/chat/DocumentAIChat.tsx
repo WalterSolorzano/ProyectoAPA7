@@ -90,10 +90,7 @@ function buildProactiveGreeting(doc: any, citationAudit: any, proofreadFindings:
   }
 
   if (uncaptionedTables > 0 || uncaptionedFigures > 0) {
-    const parts: string[] = [];
-    if (uncaptionedTables > 0) parts.push(uncaptionedTables === 1 ? 'una tabla' : `${uncaptionedTables} tablas`);
-    if (uncaptionedFigures > 0) parts.push(uncaptionedFigures === 1 ? 'una figura' : `${uncaptionedFigures} figuras`);
-    issues.push(`${parts.join(' y ')} no ${parts.length > 1 ? 'tienen' : 'tiene'} leyenda en formato APA 7.`);
+    issues.push('Encontré tablas y figuras que no tienen leyenda en formato APA 7.');
     chips.push({
       label: 'Generar leyendas APA 7',
       prompt: 'Genera títulos en cursiva y notas descriptivas en formato APA 7 para las tablas y figuras del documento.',

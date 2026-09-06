@@ -262,29 +262,26 @@ const LiveChatFloatingCard: React.FC = () => {
   }
 
   return (
-    <div
+    <aside
+      aria-label="Copiloto Editorial IA"
       style={{
-        position: 'fixed',
-        top: '48px',
-        right: 0,
-        bottom: 0,
-        width: '420px',
-        maxWidth: '90vw',
-        zIndex: 900,
+        width: '330px',
+        flexShrink: 0,
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--surface-elevated)',
         borderLeft: '1px solid var(--border-subtle)',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.14)',
+        boxShadow: '-4px 0 16px rgba(0,0,0,0.06)',
         overflow: 'hidden',
-        transition: 'transform 0.22s ease',
+        zIndex: 20,
       }}
     >
       <DocumentAIChat
         onClose={() => setLiveChatOpen(false)}
         onMinimize={() => setLiveChatOpen(false)}
       />
-    </div>
+    </aside>
   );
 };
 
@@ -769,6 +766,8 @@ export const App: React.FC = () => {
         )}
         {/* Panel de edición de imagen a nivel raíz: funciona en cualquier paso */}
         <ImageEditSidePanel />
+        {/* Copiloto Editorial IA: acoplado en el flex row si está abierto, o píldora si está cerrado */}
+        {doc && <LiveChatFloatingCard />}
       </div>
 
       <TemplateDialog />
@@ -784,8 +783,7 @@ export const App: React.FC = () => {
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
-      {/* Copiloto Editorial IA (Ventana flotante / píldora) */}
-      {doc && <LiveChatFloatingCard />}
+
       {/* Modal de Banco de Pruebas y Estrés */}
       {stressTestModalOpen && (
         <StressTestModal onClose={() => useDocStore.getState().setStressTestModalOpen(false)} />
