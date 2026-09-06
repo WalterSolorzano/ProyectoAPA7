@@ -78,7 +78,8 @@ class COMPostProcessor:
                     doc = word.Documents.Open(
                         str(final_path.resolve()),
                         ConfirmConversions=False,
-                        AddToRecentFiles=False
+                        AddToRecentFiles=False,
+                        Visible=False,
                     )
 
                     # 3. Borrar de pág 2 en adelante
@@ -99,7 +100,8 @@ class COMPostProcessor:
                     doc = word.Documents.Open(
                         str(final_path.resolve()),
                         ConfirmConversions=False,
-                        AddToRecentFiles=False
+                        AddToRecentFiles=False,
+                        Visible=False,
                     )
 
                 # 5. Aplicar estilos APA con el motor real de Word.
@@ -473,7 +475,8 @@ class COMPostProcessor:
                     str(docx_path.resolve()),
                     ConfirmConversions=False,
                     AddToRecentFiles=False,
-                    ReadOnly=True
+                    ReadOnly=True,
+                    Visible=False,
                 )
 
                 # 1. Chequeo de "Referencias Bibliográficas" en nueva página
@@ -582,7 +585,7 @@ class COMPostProcessor:
                 word.DisplayAlerts = 0
 
                 doc = word.Documents.Open(str(docx_path.resolve()), ConfirmConversions=False,
-                                          AddToRecentFiles=False, ReadOnly=True)
+                                          AddToRecentFiles=False, ReadOnly=True, Visible=False)
                 # PID capturable solo con documento abierto (ActiveWindow existe)
                 try:
                     self.current_word_pid = self._pid_from_hwnd(word.ActiveWindow.Hwnd)

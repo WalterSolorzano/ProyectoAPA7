@@ -510,8 +510,19 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.pre_classifier_rule = "reference_item"
             continue
 
+        # Descriptores de campo con dos puntos (ej. "Edad: 35 años", "Acceso al producto: Principalmente...")
+        # son párrafos de cuerpo descriptivo, nunca encabezados APA 7.
+        is_labeled_desc = bool(re.match(r'^[A-ZÁÉÍÓÚÑa-záéíóúñ\s]{2,35}:\s+\S', text)) and word_count > 5
+        if is_labeled_desc:
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.88
+            elem.pre_classifier_rule = "labeled_field_paragraph"
+            continue
+
         # --- CERTEZA 1.0: Estilo de Word explicito ---
         if "heading" in style_name or "titulo" in style_name or "título" in style_name:
+            if not _apply_native_heading_length_guard(elem, word_count):
+                continue
             elem.type = ElementType.HEADING
             match_lvl = re.search(r'\d', style_name)
             if match_lvl:
@@ -715,7 +726,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # MISMO parrafo (negrita + punto + texto normal). Patron definido pero
         # nunca activado antes. Solo si el inicio es negrita y es corto.
         inline_match = REGEX_INLINE_HEADING.match(text)
-        if inline_match and is_bold and word_count <= 20 and not is_centered:
+        if inline_match and is_bold and word_count <= 20 and not is_centered and ":" not in inline_match.group(1) and not text.rstrip().endswith(":"):
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.80

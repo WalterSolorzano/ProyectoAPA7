@@ -20,11 +20,19 @@ async def validate_spelling_and_grammar(docx_path: str) -> Dict[str, Any]:
         if not word:
             return {"spelling_errors": [], "grammar_errors_count": 0, "status": "com_error"}
 
+        try:
+            word.Visible = False
+            word.DisplayAlerts = 0
+            word.ScreenUpdating = False
+        except Exception:
+            pass
+
         doc = word.Documents.Open(
-            str(docx_path),
+            FileName=str(docx_path),
             ConfirmConversions=False,
             ReadOnly=True,
-            AddToRecentFiles=False
+            AddToRecentFiles=False,
+            Visible=False
         )
 
         spelling_errors = []

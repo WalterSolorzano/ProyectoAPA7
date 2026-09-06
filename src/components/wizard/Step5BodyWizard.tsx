@@ -19,7 +19,7 @@ const KIND_LABELS: Record<string, string> = {
   ai_phrase: 'Frase IA',
   pegado: 'Texto pegado',
   muletilla: 'Muletilla',
-  repeticion: 'Repetici?n',
+  repeticion: 'Repetición',
   incompleta: 'Idea incompleta',
   persona: 'Mezcla de persona',
   ambigua: 'Pronombre ambiguo',
@@ -34,7 +34,7 @@ const KIND_TONES: Record<string, string> = {
   repeticion: 'var(--color-warning)',
   incompleta: 'var(--color-danger)',
   persona: 'var(--color-warning)',
-  ambigua: 'var(--text-secondary)',
+  ambigua: 'var(--accent-warning, #f59e0b)',
 };
 
 /** Registra marca de transparencia para el elemento modificado (H21). */

@@ -98,6 +98,7 @@ class COMPageLayoutProvider(PageLayoutProvider):
                 ConfirmConversions=False,
                 ReadOnly=True,           # NUNCA abrir para escritura
                 AddToRecentFiles=False,  # No contaminar historial del usuario
+                Visible=False,
             )
             t0 = time.time()
             doc.Repaginate()  # CRÍTICO: fuerza cálculo de paginación

@@ -557,7 +557,23 @@ export const useDocStore = create<DocState>()(
     (set, get) => ({
   doc: null,
   apiKey: (() => {
-    try { return localStorage.getItem('wordapa7-provider-key:NVIDIA_API_KEY') || ''; } catch { return ''; }
+    try {
+      const providers = [
+        'NVIDIA_API_KEY',
+        'GROQ_API_KEY',
+        'OPENROUTER_API_KEY',
+        'CEREBRAS_API_KEY',
+        'MISTRAL_API_KEY',
+        'OPENCODEZEN_API_KEY',
+        'ZENMUX_API_KEY',
+        'GEMINI_API_KEY',
+      ];
+      for (const p of providers) {
+        const val = localStorage.getItem(`wordapa7-provider-key:${p}`);
+        if (val && val.trim()) return val.trim();
+      }
+      return '';
+    } catch { return ''; }
   })(),
   // Consentimiento explícito para enviar contenido a un LLM en la nube.
   llmCloudConsent: false,

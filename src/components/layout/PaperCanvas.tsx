@@ -33,34 +33,46 @@ export function dedupCoverAuthors(elems: ElementModel[]): ElementModel[] {
 // qué transformación APA se aplicó (ej. "sangría aplicada", "Tabla → APA").
 // Solo lectura: el mapa vive en localStorage (key wordapa7_marcas_map) y lo
 // escribe otro agente. No editable, pointer-events none.
-const ChangeMark: React.FC<{ label: string }> = ({ label }) => (
-  <span
-    className="change-mark"
-    title={`Cambio aplicado: ${label}`}
-    style={{
-      position: 'absolute',
-      top: 2,
-      right: 2,
-      zIndex: 40,
-      maxWidth: 'calc(100% - 8px)',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      fontSize: '11px',
-      lineHeight: 1.35,
-      padding: '1px 7px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border-subtle)',
-      backgroundColor: 'var(--surface-elevated)',
-      color: 'var(--text-secondary)',
-      boxShadow: 'var(--shadow-sm)',
-      pointerEvents: 'none',
-      userSelect: 'none',
-    }}
-  >
-    {label}
-  </span>
-);
+const ChangeMark: React.FC<{ label: string }> = ({ label }) => {
+  const isAmbig = label.toLowerCase().includes('ambig');
+  const displayLabel = isAmbig ? 'Pronombre ambiguo' : label;
+  
+  return (
+    <span
+      className="change-mark"
+      title={`Cambio aplicado: ${displayLabel}`}
+      style={{
+        position: 'absolute',
+        top: 2,
+        right: 2,
+        zIndex: 40,
+        maxWidth: 'calc(100% - 8px)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize: '11px',
+        fontWeight: isAmbig ? 700 : 600,
+        lineHeight: 1.35,
+        padding: '2px 8px',
+        borderRadius: 'var(--radius-sm, 6px)',
+        border: isAmbig ? '1px solid var(--accent-warning, #f59e0b)' : '1px solid var(--border-subtle)',
+        backgroundColor: isAmbig ? 'rgba(245, 158, 11, 0.16)' : 'var(--surface-elevated)',
+        color: isAmbig ? 'var(--accent-warning, #d97706)' : 'var(--text-main)',
+        boxShadow: 'var(--shadow-sm)',
+        pointerEvents: 'none',
+        userSelect: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+      }}
+    >
+      {isAmbig && (
+        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
+      )}
+      {displayLabel}
+    </span>
+  );
+};
 
 export const computePages = (elements: ElementModel[], maxUnits = 30): ElementModel[][] => {
   const pages: ElementModel[][] = [];
@@ -560,9 +572,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     ghostCitations: (citationAudit?.ghost_citations || []) as any[],
     orphanReferences: (citationAudit?.orphan_references || []) as any[],
     validationIssues: (validationIssues || []) as any[],
-    // Sin auditoría de estilo no se juzga redacción: evita inundar de
-    // comentarios ("detecta que como falla") en cada párrafo del documento.
-    styleAuditRun: !!reviewResult,
+    // Si hay auditoría manual o hallazgos del revisor en segundo plano, habilitar comentarios
+    styleAuditRun: !!reviewResult || ((useDocStore.getState().proofreadFindings || []).length > 0),
   } : {
     ghostCitations: [] as any[],
     orphanReferences: [] as any[],
@@ -589,7 +600,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         if (h) { positiveMap.set(h.id, true); break; }
       }
     }
-    docHasComments = anyComment;
+    docHasComments = anyComment || positiveMap.size > 0;
   }
 
   // ── Gutter de comentarios (estilo Word): burbujas FUERA de la hoja, en una
@@ -1020,6 +1031,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   width: `${PAGE_W}px`,
                   maxWidth: '100%',
                   minHeight: `${PAGE_H}px`,
+                  height: isCoverPage ? `${PAGE_H}px` : undefined,
+                  overflow: isCoverPage ? 'hidden' : undefined,
                   backgroundColor: 'var(--paper-white, #ffffff)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
                   padding: '54px 54px',
@@ -1064,61 +1077,53 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 ) : isCoverPage && !portada.use_original_cover ? (
                   <APACoverEditor />
                 ) : isCoverPage && (coverHeaderTexts.length > 0 || coverAuthorTexts.length > 0 || coverFooterTexts.length > 0 || !!coverLogoImage || pageElements.some(e => e.is_cover_section || e.type === 'portada_block')) ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, height: '100%' }}>
-                  
-                  {/* Badge informativo: la portada original del archivo se conserva
-                      en el documento final. Sutil y no intrusivo para que el usuario
-                      sepa que VE la portada original, no una versión regenerada. */}
-                  {portada.use_original_cover && (
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      alignSelf: 'center',
-                      fontSize: '9pt',
-                      color: 'var(--paper-muted)',
-                      backgroundColor: 'var(--paper-alt)',
-                      border: '1px solid var(--paper-line-strong)',
-                      borderRadius: '4px',
-                      padding: '2px 10px',
-                      marginBottom: '10px',
-                      fontStyle: 'italic',
-                    }}>
-                      Portada original conservada
-                    </div>
-                  )}
-                  
-                  {/* Encabezado: Logo + Universidad/Título */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+
+                    {/* Badge sutil: portada original conservada */}
+                    {portada.use_original_cover && (
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        alignSelf: 'center',
+                        fontSize: '8pt',
+                        color: 'var(--paper-muted)',
+                        backgroundColor: 'var(--paper-alt)',
+                        border: '1px solid var(--paper-line-strong)',
+                        borderRadius: '4px',
+                        padding: '1px 8px',
+                        marginBottom: '8px',
+                        fontStyle: 'italic',
+                      }}>
+                        Portada original conservada
+                      </div>
+                    )}
+
+                    {/* Logo institucional (si existe) */}
                     {coverLogoImage?.image_info?.relative_url && (
-                      <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                      <div style={{ textAlign: 'center', marginBottom: '10px' }}>
                         <img
                           src={resolveAssetUrl(coverLogoImage.image_info.relative_url)}
-                          alt="Logo Universidad"
-                          style={{ maxHeight: '110px', maxWidth: '320px', objectFit: 'contain' }}
+                          alt="Logo"
+                          style={{ maxHeight: '100px', maxWidth: '300px', objectFit: 'contain' }}
                         />
                       </div>
                     )}
-                    {/* Separar textos institucionales de nombres cortos para distribuirlos horizontalmente */}
-                    {(() => {
-                      const INSTITUTIONAL_KW = ['universidad', 'recinto', 'facultad', 'tema', 'trabajo', 'asignatura', 'curso', 'departamento', 'carrera', 'ingenier', 'licenc', 'unidad academica', 'asignatura'];
-                      const isNameLike = (txt: string) => {
-                        const lower = (txt || '').toLowerCase();
-                        return (txt || '').trim().length <= 80 && !INSTITUTIONAL_KW.some(kw => lower.includes(kw));
-                      };
-                      const institutionalTexts = coverHeaderTexts.filter(e => !isNameLike(e.text || ''));
-                      const nameLikeTexts = coverHeaderTexts.filter(e => isNameLike(e.text || ''));
-                      
-                      const renderCoverEditable = (elem: ElementModel, defaultAlign: string = 'center', defaultBold?: boolean) => {
+
+                    {/* Renderizado secuencial de TODOS los elementos de portada en orden original */}
+                    {pageElements
+                      .filter(e => (e.is_cover_section || e.type === 'portada_block') && !e.image_info)
+                      .map(elem => {
                         const isEditing = editingCoverElemId === elem.id;
                         const isSelected = selectedElementId === elem.id;
-                        const align = (elem.alignment as any) || defaultAlign;
-                        const bold = defaultBold !== undefined ? defaultBold : (elem.is_bold || false);
-                        const fontSize = elem.font_size ? `${elem.font_size}pt` : '12pt';
+                        const align = (elem.alignment as any) || 'center';
+                        const bold = elem.is_bold || false;
+                        const fontSize = elem.font_size ? `${elem.font_size}pt` : '11pt';
+                        if (!elem.text?.trim()) return null;
 
                         if (isEditing) {
                           return (
-                            <div key={elem.id} style={{ width: '100%', margin: '2px 0' }}>
+                            <div key={elem.id} style={{ width: '100%', margin: '1px 0' }}>
                               <textarea
                                 autoFocus
                                 value={editingCoverText}
@@ -1148,13 +1153,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   textAlign: align,
                                   border: '2px solid var(--accent-primary)',
                                   borderRadius: '6px',
-                                  padding: '4px 8px',
+                                  padding: '3px 8px',
                                   background: 'var(--paper-white, #ffffff)',
                                   color: 'var(--paper-ink, #111827)',
                                   resize: 'vertical',
                                   outline: 'none',
                                   boxSizing: 'border-box',
-                                  boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.25)',
+                                  boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.2)',
+                                  minHeight: '28px',
                                 }}
                               />
                             </div>
@@ -1165,7 +1171,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           <p
                             key={elem.id}
                             id={`paper-elem-${elem.id}`}
-                            title="Doble clic para editar texto"
+                            title="Doble clic para editar"
                             onDoubleClick={(e) => {
                               e.stopPropagation();
                               setEditingCoverElemId(elem.id);
@@ -1186,276 +1192,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               padding: '2px 6px',
                               borderRadius: '4px',
                               whiteSpace: 'pre-line',
-                              transition: 'background-color 0.15s ease, border-color 0.15s ease',
-                              backgroundColor: isSelected ? 'var(--info-mist, rgba(79,124,255,0.12))' : 'transparent',
+                              lineHeight: 1.4,
+                              transition: 'background-color 0.12s ease, border-color 0.12s ease',
+                              backgroundColor: isSelected ? 'rgba(79,124,255,0.10)' : 'transparent',
                               border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
                             }}
                           >
                             {elem.text}
                           </p>
                         );
-                      };
-
-                      return (
-                        <>
-                          {/* Textos institucionales (universidad, tema, etc.) — verticales, centrados */}
-                          {institutionalTexts.map(elem => renderCoverEditable(elem, (elem.alignment as any) || 'center'))}
-                          {/* Nombres cortos — distribuidos horizontalmente como en el documento original */}
-                          {nameLikeTexts.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px 24px', marginTop: '12px', maxWidth: '100%' }}>
-                              {nameLikeTexts.map(elem => renderCoverEditable(elem, 'center'))}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                      })
+                    }
                   </div>
-
-                  {/* Bloque Autores: Grilla de Columnas Limpia */}
-                  {coverAuthorTexts.length > 0 && (
-                    <div style={{ width: '100%', margin: '20px 0' }}>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                        gap: '12px',
-                        alignItems: 'start',
-                        borderLeft: '2px solid var(--paper-line)',
-                        paddingLeft: '12px'
-                      }}>
-                        {coverAuthorTexts.map(elem => {
-                          const isEditing = editingCoverElemId === elem.id;
-                          const isSelected = selectedElementId === elem.id;
-                          if (isEditing) {
-                            return (
-                              <div key={elem.id} style={{ padding: '4px' }}>
-                                <textarea
-                                  autoFocus
-                                  value={editingCoverText}
-                                  onChange={(e) => setEditingCoverText(e.target.value)}
-                                  onBlur={() => {
-                                    if (editingCoverText !== elem.text) {
-                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                    }
-                                    setEditingCoverElemId(null);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      if (editingCoverText !== elem.text) {
-                                        useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                      }
-                                      setEditingCoverElemId(null);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingCoverElemId(null);
-                                    }
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    fontFamily: fontFamily,
-                                    fontSize: '11pt',
-                                    border: '2px solid var(--accent-primary)',
-                                    borderRadius: '6px',
-                                    padding: '4px',
-                                    background: 'var(--paper-white, #ffffff)',
-                                    color: 'var(--paper-ink, #111827)',
-                                    resize: 'vertical',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                  }}
-                                />
-                              </div>
-                            );
-                          }
-                          return (
-                            <div
-                              key={elem.id}
-                              id={`paper-elem-${elem.id}`}
-                              title="Doble clic para editar autor"
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingCoverElemId(elem.id);
-                                setEditingCoverText(elem.text || '');
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedElementId(elem.id);
-                                onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
-                              }}
-                              style={{
-                                padding: '4px',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
-                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
-                              }}
-                            >
-                              <p style={{
-                                margin: 0,
-                                fontSize: '11pt',
-                                fontWeight: elem.text.toLowerCase().includes('elaborado') || elem.text.toLowerCase().includes('tutor') ? 'bold' : 'normal',
-                                color: 'var(--paper-ink)',
-                                whiteSpace: 'pre-line'
-                              }}>
-                                {elem.text}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Pie de Portada: Docente/Grupo & Fecha/Lugar */}
-                  <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto', paddingTop: '16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      {coverFooterTexts
-                        .filter(e => !e.text.toLowerCase().includes('managua') && !e.text.toLowerCase().includes('nicaragua') && !/\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
-                        .map(elem => {
-                          const isEditing = editingCoverElemId === elem.id;
-                          const isSelected = selectedElementId === elem.id;
-                          if (isEditing) {
-                            return (
-                              <textarea
-                                key={elem.id}
-                                autoFocus
-                                value={editingCoverText}
-                                onChange={(e) => setEditingCoverText(e.target.value)}
-                                onBlur={() => {
-                                  if (editingCoverText !== elem.text) {
-                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                  }
-                                  setEditingCoverElemId(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (editingCoverText !== elem.text) {
-                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                    }
-                                    setEditingCoverElemId(null);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingCoverElemId(null);
-                                  }
-                                }}
-                                style={{
-                                  fontFamily: fontFamily,
-                                  fontSize: '11pt',
-                                  fontWeight: 'bold',
-                                  border: '2px solid var(--accent-primary)',
-                                  borderRadius: '4px',
-                                  padding: '2px 4px',
-                                  background: 'var(--paper-white, #ffffff)',
-                                  color: 'var(--paper-ink, #111827)',
-                                  outline: 'none',
-                                }}
-                              />
-                            );
-                          }
-                          return (
-                            <p
-                              key={elem.id}
-                              id={`paper-elem-${elem.id}`}
-                              title="Doble clic para editar"
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingCoverElemId(elem.id);
-                                setEditingCoverText(elem.text || '');
-                              }}
-                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                              style={{
-                                margin: 0,
-                                fontSize: '11pt',
-                                fontWeight: 'bold',
-                                color: 'var(--paper-ink)',
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                padding: '1px 4px',
-                                borderRadius: '4px',
-                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
-                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
-                              }}
-                            >
-                              {elem.text}
-                            </p>
-                          );
-                        })}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
-                      {coverFooterTexts
-                        .filter(e => e.text.toLowerCase().includes('managua') || e.text.toLowerCase().includes('nicaragua') || /\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
-                        .map(elem => {
-                          const isEditing = editingCoverElemId === elem.id;
-                          const isSelected = selectedElementId === elem.id;
-                          if (isEditing) {
-                            return (
-                              <textarea
-                                key={elem.id}
-                                autoFocus
-                                value={editingCoverText}
-                                onChange={(e) => setEditingCoverText(e.target.value)}
-                                onBlur={() => {
-                                  if (editingCoverText !== elem.text) {
-                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                  }
-                                  setEditingCoverElemId(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (editingCoverText !== elem.text) {
-                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                    }
-                                    setEditingCoverElemId(null);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingCoverElemId(null);
-                                  }
-                                }}
-                                style={{
-                                  fontFamily: fontFamily,
-                                  fontSize: '11pt',
-                                  fontWeight: 'bold',
-                                  textAlign: 'right',
-                                  border: '2px solid var(--accent-primary)',
-                                  borderRadius: '4px',
-                                  padding: '2px 4px',
-                                  background: 'var(--paper-white, #ffffff)',
-                                  color: 'var(--paper-ink, #111827)',
-                                  outline: 'none',
-                                }}
-                              />
-                            );
-                          }
-                          return (
-                            <p
-                              key={elem.id}
-                              id={`paper-elem-${elem.id}`}
-                              title="Doble clic para editar"
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingCoverElemId(elem.id);
-                                setEditingCoverText(elem.text || '');
-                              }}
-                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                              style={{
-                                margin: 0,
-                                fontSize: '11pt',
-                                fontWeight: 'bold',
-                                color: 'var(--paper-ink)',
-                                cursor: 'pointer',
-                                textAlign: 'right',
-                                padding: '1px 4px',
-                                borderRadius: '4px',
-                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
-                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
-                              }}
-                            >
-                              {elem.text}
-                            </p>
-                          );
-                        })}
-                    </div>
-                  </div>
-                </div>
               ) : (
                 /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>

@@ -240,6 +240,19 @@ export const App: React.FC = () => {
     setStructureTab,
   } = useDocStore();
 
+  const stressTestModalOpen = useDocStore((s) => s.stressTestModalOpen);
+  const hasAutoOpenedChatRef = React.useRef(false);
+
+  // Auto-abrir Copiloto IA al cargar un documento nuevo (Opción B: minimizable)
+  useEffect(() => {
+    if (doc && !hasAutoOpenedChatRef.current) {
+      hasAutoOpenedChatRef.current = true;
+      useDocStore.getState().setLiveChatOpen(true);
+    } else if (!doc) {
+      hasAutoOpenedChatRef.current = false;
+    }
+  }, [doc]);
+
   // ── Resizable Left Sidebar (Portada / Wizards) ────────────────────────────
   const [leftSidebarWidth, setLeftSidebarWidth] = React.useState<number>(() => {
     try {
@@ -696,7 +709,7 @@ export const App: React.FC = () => {
       {/* Copiloto Editorial IA (Edición en vivo) */}
       {doc && <LiveChatDrawer />}
       {/* Modal de Banco de Pruebas y Estrés */}
-      {useDocStore((s) => s.stressTestModalOpen) && (
+      {stressTestModalOpen && (
         <StressTestModal onClose={() => useDocStore.getState().setStressTestModalOpen(false)} />
       )}
     </div>

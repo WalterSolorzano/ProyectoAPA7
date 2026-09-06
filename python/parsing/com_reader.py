@@ -63,6 +63,7 @@ class COMReader:
                 ConfirmConversions=False,
                 AddToRecentFiles=False,
                 ReadOnly=True,
+                Visible=False,
             )
 
             result["cover"] = self._read_cover(doc)

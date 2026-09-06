@@ -1003,74 +1003,139 @@ export const ExportView: React.FC = () => {
 };
 
 const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
-  const elements = doc?.elements || [];
+  const elements = (doc?.elements || []).filter((e: any) => e.type !== 'empty' && e.type !== 'page_break');
+  const leftScrollRef = React.useRef<HTMLDivElement>(null);
+  const rightScrollRef = React.useRef<HTMLDivElement>(null);
+  const syncingRef = React.useRef(false);
+
+  const onScrollLeft = () => {
+    if (syncingRef.current || !leftScrollRef.current || !rightScrollRef.current) return;
+    syncingRef.current = true;
+    const ratio = leftScrollRef.current.scrollTop / Math.max(1, leftScrollRef.current.scrollHeight - leftScrollRef.current.clientHeight);
+    rightScrollRef.current.scrollTop = ratio * Math.max(1, rightScrollRef.current.scrollHeight - rightScrollRef.current.clientHeight);
+    requestAnimationFrame(() => { syncingRef.current = false; });
+  };
+
+  const onScrollRight = () => {
+    if (syncingRef.current || !leftScrollRef.current || !rightScrollRef.current) return;
+    syncingRef.current = true;
+    const ratio = rightScrollRef.current.scrollTop / Math.max(1, rightScrollRef.current.scrollHeight - rightScrollRef.current.clientHeight);
+    leftScrollRef.current.scrollTop = ratio * Math.max(1, leftScrollRef.current.scrollHeight - leftScrollRef.current.clientHeight);
+    requestAnimationFrame(() => { syncingRef.current = false; });
+  };
+
+  const renderOriginalElem = (elem: any, idx: number) => {
+    if (elem.type === 'table') {
+      return (
+        <div key={idx} style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Tabla</span>
+          {elem.rows && <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>{elem.rows.length} filas</div>}
+        </div>
+      );
+    }
+    if (elem.type === 'image') {
+      return (
+        <div key={idx} style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Figura</span>
+          {elem.image_info?.figure_number ? <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>N.° {elem.image_info.figure_number}</span> : null}
+        </div>
+      );
+    }
+    return (
+      <div key={idx} style={{
+        fontFamily: 'Arial, sans-serif',
+        fontSize: elem.type === 'heading' ? '14px' : '11.5px',
+        fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
+        color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.35,
+        padding: '4px 8px', borderRadius: '4px',
+        backgroundColor: 'var(--surface-subtle)',
+      }}>
+        {elem.text || ''}
+      </div>
+    );
+  };
+
+  const renderApaElem = (elem: any, idx: number) => {
+    if (elem.type === 'table') {
+      return (
+        <div key={idx} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(79,124,255,0.3)', backgroundColor: 'rgba(79,124,255,0.04)' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Tabla APA 7</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin bordes verticales • Encabezado en negrita</div>
+        </div>
+      );
+    }
+    if (elem.type === 'image') {
+      return (
+        <div key={idx} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid rgba(79,124,255,0.3)', backgroundColor: 'rgba(79,124,255,0.04)' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Figura APA 7</span>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>Leyenda debajo • Numerada</div>
+        </div>
+      );
+    }
+    const isHeading = elem.type === 'heading';
+    const isRef = elem.type === 'reference';
+    const textIndent = (!isHeading && !isRef) ? '1.27cm' : undefined;
+    const paddingLeft = isRef ? '1.27cm' : '8px';
+    return (
+      <div key={idx} style={{
+        fontFamily: "'Times New Roman', serif",
+        fontSize: '12pt',
+        lineHeight: 2.0,
+        color: 'var(--paper-ink, #111827)',
+        textAlign: isHeading && (elem.heading_level === 1 || !elem.heading_level) ? 'center' : 'left',
+        fontWeight: isHeading ? 'bold' : 'normal',
+        fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
+        textIndent,
+        paddingLeft,
+        borderLeft: '2px solid rgba(79, 124, 255, 0.25)',
+        paddingRight: '8px',
+      }}>
+        {elem.text || ''}
+      </div>
+    );
+  };
+
   return (
     <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
       {/* Columna Izquierda: Original */}
       <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)', height: '100%', overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Original (Sin Formato APA 7)
+            Original
           </span>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Márgenes y alineaciones variables</span>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Sin formato APA 7</span>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: 'var(--canvas-bg)' }}>
-          {elements.map((elem: any, idx: number) => {
-            if (elem.type === 'empty') return null;
-            return (
-              <div key={idx} style={{
-                fontFamily: 'Arial, sans-serif', fontSize: elem.type === 'heading' ? '14px' : '11.5px',
-                fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
-                color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.35,
-                padding: '4px 8px', borderRadius: '4px',
-                backgroundColor: 'var(--surface-subtle)',
-              }}>
-                {elem.text}
-              </div>
-            );
-          })}
+        <div
+          ref={leftScrollRef}
+          onScroll={onScrollLeft}
+          style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--canvas-bg)' }}
+        >
+          {elements.map((elem: any, idx: number) => renderOriginalElem(elem, idx))}
         </div>
       </div>
 
-      {/* Columna Derecha: Estandarizado APA 7 */}
+      {/* Columna Derecha: APA 7 estandarizado */}
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', backgroundColor: 'var(--color-accent-soft)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'rgba(79,124,255,0.06)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Sparkles size={13} color="var(--accent-primary)" />
             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Estandarizado APA 7ma Edición
+              Estandarizado APA 7
             </span>
           </div>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-success)' }}>Márgenes 2.54cm • Sangría 1.27cm • Interlineado 2.0</span>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-success)' }}>Márgenes 2.54 cm • Sangría 1.27 cm • Doble espacio</span>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'var(--paper-white)' }}>
-          {elements.map((elem: any, idx: number) => {
-            if (elem.type === 'empty') return null;
-            const isHeading = elem.type === 'heading';
-            const isRef = elem.type === 'reference' || (elem.text && /^\s*\[?\d+\]?|[A-Z][a-z]+, [A-Z]/.test(elem.text));
-            return (
-              <div key={idx} style={{
-                fontFamily: "'Times New Roman', serif",
-                fontSize: '12pt',
-                lineHeight: 2.0,
-                color: 'var(--ink, #000)',
-                textAlign: isHeading && elem.heading_level === 1 ? 'center' : 'left',
-                fontWeight: isHeading ? 'bold' : 'normal',
-                fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
-                textIndent: !isHeading && !isRef ? '1.27cm' : undefined,
-                paddingLeft: isRef ? '1.27cm' : undefined,
-                marginLeft: isRef ? '-1.27cm' : undefined,
-                borderLeft: '2px solid rgba(79, 124, 255, 0.35)',
-                padding: '2px 8px',
-              }}>
-                {elem.text}
-              </div>
-            );
-          })}
+        <div
+          ref={rightScrollRef}
+          onScroll={onScrollRight}
+          style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--paper-white, #ffffff)' }}
+        >
+          {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
         </div>
       </div>
     </div>
   );
 };
+
 
 export default ExportView;
