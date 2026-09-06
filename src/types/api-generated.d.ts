@@ -90,6 +90,11 @@ export interface AuditDocumentRequest {
   text: string
 }
 
+export interface Body_audit_pagination_api_audit_pagination_post {
+  file: string
+  expected_pages?: null | number
+}
+
 export interface Body_check_idempotency_endpoint_api_check_idempotency_post {
   file: string
 }
@@ -409,6 +414,14 @@ export interface ImageModel {
   anchor_pos_v?: string | null
 }
 
+export interface LiveChatRequest {
+  session_id: string
+  user_instruction: string
+  selected_element_id?: string | null
+  history?: Array<Record<string, unknown>> | null
+  api_key?: string | null
+}
+
 export interface LoadingTipRequest {
   category?: string | null
   phase?: string | null
@@ -453,6 +466,17 @@ export interface PreviewRequest {
   rules?: APARuleSet | null
   portada?: PortadaData | null
   references?: Array<ReferenciaModel> | null
+}
+
+export interface ProactiveCaptionsRequest {
+  session_id: string
+  api_key?: string | null
+}
+
+export interface ProactiveDiagnoseRequest {
+  session_id: string
+  element_id: string
+  api_key?: string | null
 }
 
 export interface ProofreadRequest {

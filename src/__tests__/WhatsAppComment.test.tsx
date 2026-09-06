@@ -185,13 +185,10 @@ describe('WhatsAppComment component', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('shows the typing indicator first, then the message', () => {
-    const { container, rerender } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: '\u2705 Cumple con las normas' })} />);
-    // En typing: la colita aún no existe y hay "escribiendo…"
-    expect(screen.getByText(/escribiendo/i)).toBeTruthy();
-    act(() => { vi.advanceTimersByTime(2200); });
-    rerender(<WhatsAppComment elem={mkElem({ id: 'x', text: '\u2705 Cumple con las normas' })} />);
-    expect(screen.queryByText(/escribiendo/i)).toBeNull();
+  it('renders library comments instantly with structured category and tail', () => {
+    const { container } = render(<WhatsAppComment elem={mkElem({ id: 'x', text: '\u2705 Cumple con las normas' })} />);
+    expect(container.querySelector('.wa-bubble')).toBeTruthy();
+    expect(container.querySelector('.wa-bubble-header')).toBeTruthy();
     expect(container.querySelector('.wa-tail')).toBeTruthy();
   });
 

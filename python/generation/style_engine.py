@@ -309,6 +309,8 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
     p.paragraph_format.line_spacing = rules.line_spacing
     p.paragraph_format.space_before = Pt(rules.space_before_pt)
     p.paragraph_format.space_after = Pt(rules.space_after_pt)
+    p.paragraph_format.keep_with_next = True
+    p.paragraph_format.widow_control = True
 
     if preserve_text:
         for r in p.runs:

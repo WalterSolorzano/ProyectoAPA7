@@ -411,6 +411,29 @@ export async function applyHeadingStyle(level: 1 | 2 | 3 | 4 | 5): Promise<void>
   })
 }
 
+/**
+ * Aplica formato de Cita en Bloque (>40 palabras) según APA 7 §8.25:
+ *   - Sangría izquierda completa de 1.27 cm (0.5 pulgadas)
+ *   - Interlineado doble
+ *   - Sin sangría de primera línea adicional
+ *   - Sin comillas alrededor
+ */
+export async function applyBlockQuoteStyle(): Promise<void> {
+  await withWordContext(async (context) => {
+    const paragraphs = context.document.getSelection().paragraphs
+    context.load(paragraphs)
+    await context.sync()
+    for (const para of paragraphs.items) {
+      applyFont(para.font)
+      para.lineSpacing = LINE_SPACING_DOUBLE
+      para.firstLineIndent = 0
+      para.leftIndent = cmToPt(1.27)
+      para.spaceBefore = 0
+      para.spaceAfter = 0
+    }
+  })
+}
+
 // ── INSERCIÓN DE ELEMENTOS APA 7 ─────────────────────────────────────────────
 
 /**
@@ -566,6 +589,62 @@ export async function insertFigureAPA(data: FigureData, figureNumber: number): P
 }
 
 /**
+ * Inserta un bloque reglamentario de Rótulo, Título y Nota APA 7 en el cursor:
+ * - Tabla N o Figura N en negrita (alineado a la izquierda)
+ * - Título descriptivo en cursiva
+ * - Nota reglamentaria (Nota. ...) en 10pt con "Nota." en cursiva
+ */
+export async function insertCaptionAndNoteAtCursor(
+  type: 'figure' | 'table',
+  number: number,
+  title: string,
+  note?: string,
+): Promise<void> {
+  await withWordContext(async (context) => {
+    const sel = context.document.getSelection()
+    const labelPrefix = type === 'figure' ? 'Figura' : 'Tabla'
+
+    // 1. Rótulo en negrita
+    const pLabel = sel.insertParagraph(`${labelPrefix} ${number}`, Word.InsertLocation.after)
+    applyFont(pLabel.font)
+    pLabel.font.bold = true
+    pLabel.alignment = Word.Alignment.left
+    pLabel.lineSpacing = LINE_SPACING_DOUBLE
+    pLabel.spaceBefore = 6
+    pLabel.spaceAfter = 0
+
+    // 2. Título en cursiva
+    let lastP: Word.Paragraph = pLabel
+    if (title && title.trim()) {
+      const pTitle = pLabel.insertParagraph(title.trim(), Word.InsertLocation.after)
+      applyFont(pTitle.font)
+      pTitle.font.italic = true
+      pTitle.alignment = Word.Alignment.left
+      pTitle.lineSpacing = LINE_SPACING_DOUBLE
+      pTitle.spaceBefore = 0
+      pTitle.spaceAfter = 6
+      lastP = pTitle
+    }
+
+    // 3. Nota al pie
+    if (note && note.trim()) {
+      const pNote = lastP.insertParagraph('', Word.InsertLocation.after)
+      const cleanNote = note.trim().replace(/^Nota\.\s*/i, '')
+      const rLabel = pNote.insertText('Nota. ', Word.InsertLocation.end)
+      rLabel.font.italic = true
+      applyFont(rLabel.font, 10)
+      const rText = pNote.insertText(cleanNote, Word.InsertLocation.end)
+      applyFont(rText.font, 10)
+      pNote.alignment = Word.Alignment.left
+      pNote.lineSpacing = LINE_SPACING_DOUBLE
+      pNote.spaceBefore = 4
+      pNote.spaceAfter = 6
+    }
+  })
+}
+
+
+/**
  * Inserta un heading APA 7 en la selección/cursor con el nivel indicado.
  */
 export async function insertHeadingAPA(text: string, level: 1 | 2 | 3 | 4 | 5): Promise<void> {
@@ -600,6 +679,23 @@ export async function insertCitationAtCursor(citation: string): Promise<void> {
   await withWordContext(async (context) => {
     const sel = context.document.getSelection()
     sel.insertText(citation, Word.InsertLocation.replace)
+  })
+}
+
+/**
+ * Inserta una referencia individual con sangría francesa APA 7 en el cursor o al final de la selección.
+ */
+export async function insertReferenceAtCursor(referenceText: string): Promise<void> {
+  await withWordContext(async (context) => {
+    const selection = context.document.getSelection()
+    const p = selection.insertParagraph(referenceText.trim(), Word.InsertLocation.after)
+    applyFont(p.font)
+    p.alignment = Word.Alignment.left
+    p.lineSpacing = LINE_SPACING_DOUBLE
+    p.leftIndent = FIRST_LINE_INDENT_PT // 0.5"
+    p.firstLineIndent = -FIRST_LINE_INDENT_PT // sangría francesa
+    p.spaceAfter = 0
+    p.spaceBefore = 0
   })
 }
 
@@ -660,6 +756,7 @@ export async function insertBibliographyAPA(text: string): Promise<void> {
       // Añadir SOLO las que faltan — lo del usuario queda intacto
       let prev: Word.Paragraph = last
       for (const ref of refs) {
+        if (/\[Completar|\(borrador\)/i.test(ref)) continue // jamás basura
         if (existingKeys.has(keyOf(ref))) continue
         const pRef = prev.insertParagraph(ref, Word.InsertLocation.after)
         styleRef(pRef)

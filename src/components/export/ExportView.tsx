@@ -16,11 +16,11 @@ import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle, Download, Loader2,
   Sparkles, Eye, ZoomIn, ZoomOut, Check,
-  BookOpen, Layers, Image as ImageIcon, Table, Bot
+  BookOpen, Layers, Image as ImageIcon, Table, Bot, Columns2
 } from 'lucide-react';
 
 type Format = 'docx' | 'pdf' | 'latex';
-type PreviewMode = 'canvas' | 'pdf';
+type PreviewMode = 'canvas' | 'diff' | 'pdf';
 
 const FORMATS: {
   id: Format;
@@ -843,6 +843,35 @@ export const ExportView: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setPreviewMode('diff')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-semibold)',
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
+                border: 'none',
+                ...(previewMode === 'diff'
+                  ? {
+                      backgroundColor: 'var(--color-bg-surface)',
+                      color: 'var(--color-accent)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }
+                  : {
+                      backgroundColor: 'transparent',
+                      color: 'var(--color-text-secondary)',
+                    }),
+              }}
+            >
+              <Columns2 size={13} />
+              <span>Comparador Antes / Después</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setPreviewMode('pdf')}
               style={{
                 display: 'flex',
@@ -948,17 +977,7 @@ export const ExportView: React.FC = () => {
           )}
         </header>
 
-        {/* Contenedor del Lienzo
-            — overflow: 'hidden' para evitar scroll anidado: PaperCanvas tiene su
-              propio overflowY: 'auto' y maneja el scroll internamente.
-            — display: 'flex', flexDirection: 'column' para que PaperCanvas pueda
-              usar flex: 1 y obtener una altura restringida que active su scroll.
-            — Sin padding: PaperCanvas ya aplica su propio padding interno
-              ('24px 16px'). El padding del padre causaba un conflicto de scroll al
-              reducir el área visible y desplazar el contenido. Se eliminó para que
-              el componente hijo controle totalmente su propia área desplazable.
-            — Se eliminó justifyContent: 'center' (era un no-op con flex:1 y
-              causaba el conflicto de scroll reportado). */}
+        {/* Contenedor del Lienzo */}
         <div
           style={{
             flex: 1,
@@ -971,12 +990,85 @@ export const ExportView: React.FC = () => {
         >
           {previewMode === 'canvas' ? (
             <PaperCanvas />
+          ) : previewMode === 'diff' ? (
+            <SplitDiffPreview doc={doc} />
           ) : (
             <ReactPDFPreview />
           )}
         </div>
       </main>
 
+    </div>
+  );
+};
+
+const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
+  const elements = doc?.elements || [];
+  return (
+    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
+      {/* Columna Izquierda: Original */}
+      <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)', height: '100%', overflow: 'hidden' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Original (Sin Formato APA 7)
+          </span>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Márgenes y alineaciones variables</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: 'var(--canvas-bg)' }}>
+          {elements.map((elem: any, idx: number) => {
+            if (elem.type === 'empty') return null;
+            return (
+              <div key={idx} style={{
+                fontFamily: 'Arial, sans-serif', fontSize: elem.type === 'heading' ? '14px' : '11.5px',
+                fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
+                color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.35,
+                padding: '4px 8px', borderRadius: '4px',
+                backgroundColor: 'var(--surface-subtle)',
+              }}>
+                {elem.text}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Columna Derecha: Estandarizado APA 7 */}
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: 'var(--color-accent-soft)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={13} color="var(--accent-primary)" />
+            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Estandarizado APA 7ma Edición
+            </span>
+          </div>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-success)' }}>Márgenes 2.54cm • Sangría 1.27cm • Interlineado 2.0</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'var(--paper-white)' }}>
+          {elements.map((elem: any, idx: number) => {
+            if (elem.type === 'empty') return null;
+            const isHeading = elem.type === 'heading';
+            const isRef = elem.type === 'reference' || (elem.text && /^\s*\[?\d+\]?|[A-Z][a-z]+, [A-Z]/.test(elem.text));
+            return (
+              <div key={idx} style={{
+                fontFamily: "'Times New Roman', serif",
+                fontSize: '12pt',
+                lineHeight: 2.0,
+                color: 'var(--ink, #000)',
+                textAlign: isHeading && elem.heading_level === 1 ? 'center' : 'left',
+                fontWeight: isHeading ? 'bold' : 'normal',
+                fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
+                textIndent: !isHeading && !isRef ? '1.27cm' : undefined,
+                paddingLeft: isRef ? '1.27cm' : undefined,
+                marginLeft: isRef ? '-1.27cm' : undefined,
+                borderLeft: '2px solid rgba(79, 124, 255, 0.35)',
+                padding: '2px 8px',
+              }}>
+                {elem.text}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

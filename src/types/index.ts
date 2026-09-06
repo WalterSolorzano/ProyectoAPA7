@@ -452,8 +452,14 @@ export interface GenerateResponse {
 }
 
 export interface PreviewResponse {
-  html: string;
+  status?: string;
+  session_id?: string;
+  download_url?: string;
+  output_file?: string;
+  saved_path?: string;
+  html?: string;
 }
+
 
 export interface ProofreadFinding {
   element_id: string;

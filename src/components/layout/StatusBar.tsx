@@ -98,11 +98,11 @@ export const StatusBar: React.FC = () => {
           padding: '4px 12px',
         }}
       >
-        {/* ── BOTÓN ÚNICO: Asistente (sugerencias + panel contextual) ── */}
+        {/* ── BOTÓN ÚNICO: Auditoría y Sugerencias ── */}
         <button
           type="button"
           onClick={openSuggestions}
-          title={suggestionCount > 0 ? `${suggestionCount} sugerencias pendientes — clic para verlas` : 'Abrir panel del asistente'}
+          title={suggestionCount > 0 ? `${suggestionCount} sugerencias pendientes — clic para verlas` : 'Abrir panel de sugerencias y auditoría'}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: suggestionCount > 0 ? 'var(--accent-primary)' : 'transparent',
@@ -114,8 +114,8 @@ export const StatusBar: React.FC = () => {
             boxShadow: suggestionCount > 0 ? 'var(--shadow-sm)' : 'none',
           }}
         >
-          <Sparkles size={15} />
-          <span>Asistente</span>
+          <Sparkles size={14} />
+          <span>Auditoría</span>
           {(suggestionCount > 0 || activityUnseen > 0) && (
             <span style={{
               minWidth: '18px', height: '18px', borderRadius: '999px',
@@ -165,7 +165,7 @@ export const StatusBar: React.FC = () => {
           <RotatingComment />
         </div>
 
-        {/* Derecha: zoom + descargar */}
+        {/* Derecha: zoom + diagnóstico */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
           <button type="button" onClick={() => setZoomLevel(zoomLevel - 10)} title="Reducir zoom" style={{ ...GHOST_BTN, border: 'none', padding: '3px 5px' }}>
             <ZoomOut size={13} />
@@ -185,39 +185,12 @@ export const StatusBar: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => useDocStore.getState().openExportTunnel()}
-          disabled={!doc}
-          title="Abrir menú de exportación: Word APA 7, PDF, con control de cambios"
-          style={{
-            ...GHOST_BTN,
-            borderColor: 'var(--accent-primary)',
-            color: 'var(--accent-primary)',
-            fontWeight: 700,
-          }}
-        >
-          <Download size={13} />
-          <span>Descargar</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setIsNIMDiagnosticsOpen(true)}
           style={{ ...GHOST_BTN, border: 'none', padding: '3px 5px' }}
           title={apiKey ? 'Motor IA activo — ver diagnóstico' : 'Modo reglas locales — ver diagnóstico'}
         >
           <Cpu size={13} color={apiKey ? 'var(--accent-secondary)' : 'var(--accent-warning)'} />
         </button>
-
-        <span
-          style={{
-            fontSize: '9px', fontWeight: 700, color: 'var(--accent-primary)',
-            backgroundColor: 'var(--accent-soft)', border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-sm)', padding: '2px 7px', letterSpacing: '0.02em',
-            flexShrink: 0,
-          }}
-        >
-          APA 7
-        </span>
       </footer>
 
       <NIMDiagnosticsModal

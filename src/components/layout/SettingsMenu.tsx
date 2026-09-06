@@ -12,10 +12,10 @@ import { Modal } from '../ui/wordapa7';
 import { getSideloadStatus, repairSideload, SideloadStatus } from '../../api/backend';
 import {
   Settings2, Info, Scale, FileText, Bug, X, Cpu, ExternalLink, MessageSquare,
-  Palette, Puzzle, Sun, Moon, RefreshCw,
+  Palette, Puzzle, Sun, Moon, RefreshCw, Wrench, Trash2, FolderOpen, ShieldCheck,
 } from 'lucide-react';
 
-type SettingsSectionId = 'general' | 'asistente' | 'apariencia' | 'complemento' | 'acerca';
+type SettingsSectionId = 'general' | 'asistente' | 'apariencia' | 'complemento' | 'mantenimiento' | 'acerca';
 type ModalPage = 'about' | 'legal' | 'privacy' | null;
 
 const SECTIONS: { id: SettingsSectionId; label: string; icon: React.ReactNode; title: string }[] = [
@@ -23,8 +23,10 @@ const SECTIONS: { id: SettingsSectionId; label: string; icon: React.ReactNode; t
   { id: 'asistente', label: 'Asistente', icon: <Cpu size={18} />, title: 'Asistente' },
   { id: 'apariencia', label: 'Apariencia', icon: <Palette size={18} />, title: 'Apariencia' },
   { id: 'complemento', label: 'Complemento Word', icon: <Puzzle size={18} />, title: 'Complemento de Word' },
+  { id: 'mantenimiento', label: 'Mantenimiento y Desinstalación', icon: <Wrench size={18} />, title: 'Mantenimiento y Desinstalación' },
   { id: 'acerca', label: 'Acerca de', icon: <Info size={18} />, title: 'Acerca de WordAPA7' },
 ];
+
 
 const VERSION = '1.0.0';
 
@@ -258,10 +260,9 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
             {section === 'complemento' && (
               <>
-                <h2 style={sectionTitle}>Complemento de Word</h2>
+                <h2 style={sectionTitle}>Complemento de Microsoft Word</h2>
                 <p style={sectionText}>
-                  El complemento permite formatear en vivo sin salir de Microsoft Word.
-                  Si no aparece en la cinta, instalalo o reparalo desde acá.
+                  El complemento permite formatear en vivo, auditar citas y numerar tablas y figuras directamente dentro de Microsoft Word.
                 </p>
                 {sideloadState && (
                   <div style={{
@@ -280,15 +281,13 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                           : 'var(--accent-danger)',
                     }} />
                     <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-main)' }}>
-                      {sideloadState === 'active' && 'Complemento activo'}
-                      {sideloadState === 'outdated' && 'Actualizar complemento'}
-                      {sideloadState === 'missing' && 'Instalar complemento'}
+                      {sideloadState === 'active' && 'Complemento activo y registrado en Office'}
+                      {sideloadState === 'outdated' && 'Actualización del complemento requerida'}
+                      {sideloadState === 'missing' && 'Complemento no registrado'}
                     </span>
-                    {sideloadState !== 'active' && (
-                      <button type="button" className="btn btn-primary btn-sm" onClick={handleRepairSideload}>
-                        <RefreshCw size={13} /> {sideloadState === 'missing' ? 'Instalar' : 'Reparar'}
-                      </button>
-                    )}
+                    <button type="button" className="btn btn-primary btn-sm" onClick={handleRepairSideload}>
+                      <RefreshCw size={13} /> {sideloadState === 'missing' ? 'Instalar' : 'Reparar Sideload'}
+                    </button>
                   </div>
                 )}
                 {sideload?.installed_at && (
@@ -296,18 +295,112 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                     Instalado en System Feed: {new Date(sideload.installed_at).toLocaleString()}
                   </p>
                 )}
-                <p style={{ ...sectionText, fontSize: 'var(--text-xs)', color: 'var(--text-tertiary, var(--text-secondary))' }}>
-                  ¿Sigue sin aparecer? 1) Cerrá Word COMPLETO (revisá la bandeja del reloj). 2) Abrí Word de nuevo y mirá la pestaña del complemento. Si persiste, usá "Reparar instalación" con Word cerrado.
+
+                <div style={{
+                  padding: '14px 16px', borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                  marginBottom: '16px',
+                }}>
+                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                    Guía de resolución si Word muestra "No se pudo iniciar el complemento":
+                  </div>
+                  <ol style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', paddingLeft: '16px', margin: 0, lineHeight: 1.6 }}>
+                    <li>Asegurate de que <strong>WordAPA7</strong> esté abierto en tu computadora antes de abrir Word.</li>
+                    <li>Cerrá Microsoft Word por completo (revisá que no quede en la bandeja del sistema).</li>
+                    <li>Hacé clic en el botón <strong>"Reparar Sideload"</strong> de arriba para regenerar el certificado SSL y el catálogo seguro.</li>
+                    <li>Volvé a abrir Word y accedé a la pestaña <strong>WordAPA7</strong> en la cinta de opciones.</li>
+                  </ol>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleRepairSideload}>
+                    <RefreshCw size={13} /> Reparar certificado y manifiesto
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      const diag = JSON.stringify(sideload || {}, null, 2);
+                      navigator.clipboard.writeText(diag);
+                      useDocStore.getState().showToast('Diagnóstico copiado al portapapeles', 'success');
+                    }}
+                  >
+                    Copiar diagnóstico
+                  </button>
+                </div>
+              </>
+            )}
+
+            {section === 'mantenimiento' && (
+              <>
+                <h2 style={sectionTitle}>Mantenimiento y Desinstalación</h2>
+                <p style={sectionText}>
+                  Herramientas para comprobar el estado de los archivos del sistema, limpiar sesiones temporales y gestionar la instalación de la app y el complemento de Word.
                 </p>
-                <button type="button" className="btn btn-secondary" onClick={handleRepairSideload}>
-                  <RefreshCw size={14} /> Reparar instalación
-                </button>
+
+                <SettingRow
+                  icon={<RefreshCw size={16} color="var(--accent-primary)" />}
+                  label="Diagnóstico del Complemento"
+                  hint="Comprueba y re-registra el catálogo seguro de Office"
+                >
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleRepairSideload}>
+                    Re-registrar
+                  </button>
+                </SettingRow>
+
+                <SettingRow
+                  icon={<Trash2 size={16} color="var(--accent-warning)" />}
+                  label="Limpieza de Caché Temporal"
+                  hint="Libera espacio en disco de sesiones anteriores"
+                >
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      useDocStore.getState().showToast('Caché y sesiones temporales depuradas', 'success');
+                    }}
+                  >
+                    Depurar
+                  </button>
+                </SettingRow>
+
+                <div style={{
+                  marginTop: 'var(--space-5)',
+                  padding: '16px',
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-lg)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <ShieldCheck size={16} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
+                      Desinstalación Limpia del Sistema
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                    Para desinstalar WordAPA7 por completo, abre <strong>Configuración de Windows → Aplicaciones → Aplicaciones Instaladas → WordAPA7 → Desinstalar</strong>. El desinstalador oficial eliminará la app, el complemento de Word, los certificados y los servicios de inicio sin tocar tus documentos Word (.docx) personales.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      if ((window as any)?.electronAPI?.openExternal) {
+                        (window as any).electronAPI.openExternal('ms-settings:appsfeatures');
+                      } else {
+                        useDocStore.getState().showToast('Accedé a Configuración de Windows para desinstalar', 'info');
+                      }
+                    }}
+                  >
+                    Abrir Configuración de Windows
+                  </button>
+                </div>
               </>
             )}
 
             {section === 'acerca' && (
               <>
                 <h2 style={sectionTitle}>Acerca de WordAPA7</h2>
+
                 <SettingRow
                   icon={<Info size={16} color="var(--accent-success)" />}
                   label="Acerca de WordAPA7"

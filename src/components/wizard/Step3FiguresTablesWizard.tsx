@@ -4,7 +4,7 @@ import { needsReview } from '../../lib/portadaAuthors';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { resolveAssetUrl } from '../../api/backend';
-import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter, Sparkles, Loader2 } from 'lucide-react';
+import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter, Sparkles, Loader2, ChevronRight } from 'lucide-react';
 
 export const Step3FiguresTablesWizard: React.FC = () => {
   const [subTab, setSubTab] = useState<'figures' | 'tables'>('figures');
@@ -346,8 +346,37 @@ export const Step3FiguresTablesWizard: React.FC = () => {
           flex:1 + height:100% properly constrain its height and handle its own
           scrolling. Previously overflowY:'auto' here created a nested-scroll
           conflict with PaperCanvas's own overflowY:'auto'. */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <PaperCanvas onElementClick={handleElementClick} />
+        {/* Botón de acción rápida: Siguiente etapa */}
+        <div style={{
+          position: 'absolute', bottom: 20, right: 24, zIndex: 30,
+          display: 'flex', gap: '8px',
+        }}>
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().setWizardStep(4)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 18px',
+              backgroundColor: 'var(--accent-primary)',
+              color: '#ffffff',
+              borderRadius: '999px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(79, 124, 255, 0.35)',
+              fontFamily: 'inherit',
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <span>Siguiente: Referencias</span>
+            <ChevronRight size={16} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
 
       {/* El panel de edición de imagen ahora vive a nivel raíz en App.tsx

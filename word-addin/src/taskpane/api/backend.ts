@@ -603,4 +603,18 @@ export const backend = {
   /** POST /api/addin/ai-analyze-table → analiza los datos de una tabla. */
   analyzeAITable: (headers: string[], rows: string[][]) =>
     post<AIAnalysisResult>(`/api/addin/ai-analyze-table`, { headers, rows }),
+
+  // -- Bibliografía y Crossref Ghostwriter ------------------------------------
+
+  /** POST /api/resolve-doi → resuelve un DOI via Crossref. */
+  resolveDoi: (doi: string) =>
+    post<{ doi: string; formatted: string | null; error?: string }>(`/api/resolve-doi`, { doi }),
+
+  /** POST /api/resolve-ghost-citation → busca candidatos en Crossref por autor y año. */
+  searchGhostCitation: (authors: string[], year: string) =>
+    post<{ found: boolean; candidates: Array<{ doi?: string; title?: string; authors?: string[]; year?: string; formatted_apa?: string; journal?: string }>; total_results: number }>(
+      `/api/resolve-ghost-citation`,
+      { authors, year },
+    ),
 }
+

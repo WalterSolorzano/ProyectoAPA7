@@ -5,7 +5,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { needsReview } from '../../lib/portadaAuthors';
-import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Heading1, Heading2, Heading3, Pilcrow, Undo2, ChevronLeft, ChevronRight, SkipForward, CheckCircle2, ListOrdered, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { Badge } from '../ui/wordapa7';
 import * as api from '../../api/backend';
 
@@ -283,11 +283,40 @@ export const Step2HeadingsWizard: React.FC = () => {
             otro scrollable, scrollIntoView() solo mueve el contenedor interno y
             el autoscroll se "bloquea" porque el contenedor externo nunca se
             desplaza. */}
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', position: 'relative' }}>
           <PaperCanvas
             onElementClick={handleElementClick}
             reviewHighlightIds={reviewHighlightIds}
           />
+          {/* Botón de acción rápida: Siguiente etapa */}
+          <div style={{
+            position: 'absolute', bottom: 20, right: 24, zIndex: 30,
+            display: 'flex', gap: '8px',
+          }}>
+            <button
+              type="button"
+              onClick={() => useDocStore.getState().setWizardStep(3)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 18px',
+                backgroundColor: 'var(--accent-primary)',
+                color: '#ffffff',
+                borderRadius: '999px',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(79, 124, 255, 0.35)',
+                fontFamily: 'inherit',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <span>Siguiente: Figuras y tablas</span>
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
       </div>
 

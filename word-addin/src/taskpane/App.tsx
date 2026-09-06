@@ -76,17 +76,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     backend.heartbeat().catch(() => {})
     const hb = setInterval(() => backend.heartbeat().catch(() => {}), 60000)
-    // Anti-stale: identificar el motor que responde y dejarlo trazado
-    // (console + /api/client-log vía interceptor). mode 'core' = limitado.
+    // Anti-stale: identificar el motor que responde y registrar en consola
     void backend.fetchBuildInfo().then((info) => {
       if (!info) return
       const v = (globalThis as unknown as { __APP_VERSION__?: string }).__APP_VERSION__
       console.info(
         `[Add-in] Motor ${info.mode} v${info.version} (${info.build_hash ?? 'sin hash'}) — panel v${v ?? '?'}`,
       )
-      if (info.mode === 'core') {
-        showToast('Núcleo en modo limitado: abrí la app WordAPA7 para todas las funciones.', 'error')
-      }
     })
     try {
       const tab = localStorage.getItem(LS_TAB)
@@ -226,6 +222,13 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  const healthScore = useMemo(() => {
+    if (!auditResult) return null
+    const errors = auditResult.findings.filter((f) => f.severity === 'error').length
+    const warns = auditResult.findings.filter((f) => f.severity === 'warn').length
+    return Math.max(0, Math.min(100, 100 - (errors * 15 + warns * 5)))
+  }, [auditResult])
+
   return (
     <div className="app-container">
       {/* HEADER COMPACTO Y PROFESIONAL */}
@@ -233,6 +236,37 @@ export const App: React.FC = () => {
         <div className="app-header__brand">
           <span className="app-header__logo-badge">W7</span>
           <span className="app-header__title">WordAPA7</span>
+          {healthScore !== null && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: 10,
+                background:
+                  healthScore >= 90
+                    ? 'rgba(22, 163, 74, 0.12)'
+                    : healthScore >= 70
+                    ? 'rgba(234, 179, 8, 0.12)'
+                    : 'rgba(239, 68, 68, 0.12)',
+                color:
+                  healthScore >= 90
+                    ? 'var(--accent-success, #16a34a)'
+                    : healthScore >= 70
+                    ? 'var(--accent-warning, #d97706)'
+                    : 'var(--accent-danger, #ef4444)',
+                border: `1px solid ${
+                  healthScore >= 90
+                    ? 'rgba(22, 163, 74, 0.3)'
+                    : healthScore >= 70
+                    ? 'rgba(234, 179, 8, 0.3)'
+                    : 'rgba(239, 68, 68, 0.3)'
+                }`,
+              }}
+            >
+              APA 7 • {healthScore}%
+            </span>
+          )}
         </div>
         <div className="app-header__status">
           <span className={`status-dot ${backendOk ? 'status-dot--online' : backendOk === false ? 'status-dot--offline' : ''}`} />

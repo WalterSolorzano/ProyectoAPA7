@@ -175,6 +175,11 @@ def _extract_paragraph_text_with_footnotes(p_element) -> tuple[str, list[int]]:
             return
         if local == 't' and el.text:
             out.append(el.text)
+        elif local == 'p':
+            # Separar párrafos anidados (ej. dentro de un w:txbxContent)
+            # para no concatenar texto sin espacios
+            if out and not out[-1].endswith('\n'):
+                out.append('\n')
         elif local == 'tab':
             out.append('\t')
         elif local in ('br', 'cr'):

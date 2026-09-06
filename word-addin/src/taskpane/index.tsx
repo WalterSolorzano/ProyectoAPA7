@@ -30,7 +30,7 @@ function mountApp(isWordHost: boolean) {
             textAlign: 'center',
             fontWeight: 500,
           }}>
-            ℹ️ Vista previa del Add-in (Modo Standalone / Navegador).
+            Vista previa del Add-in (Modo Standalone / Navegador).
           </div>
         )}
         <App />

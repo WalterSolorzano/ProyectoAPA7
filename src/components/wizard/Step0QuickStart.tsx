@@ -4,13 +4,12 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug
+  FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
 import { SettingsMenu } from '../layout/SettingsMenu';
-import { DocumentMascot, getMascotExpression } from '../layout/DocumentMascot';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
@@ -26,36 +25,43 @@ const BrandIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
   </svg>
 );
 
-// ── PLANTILLAS DE ESTRUCTURA DESCARGABLES (variantes dentro del perfil) ──────
+// ── PLANTILLAS OFICIALES APA 7 (Estructuras académicas verificadas) ──────────
 const TEMPLATES = [
   {
-    id: 'essay',
-    name: 'Ensayo',
-    description: 'Introducción, desarrollo, conclusiones y referencias',
-    icon: <FileText size={22} color="var(--accent-success)" />,
-    iconBg: 'rgba(56, 160, 23, 0.12)',
-  },
-  {
-    id: 'report',
-    name: 'Informe Técnico',
-    description: 'Resumen ejecutivo, metodología, resultados y anexos',
-    icon: <BookOpen size={22} color="var(--accent-primary)" />,
+    id: 'imryd',
+    name: 'Artículo Científico (IMRyD)',
+    badge: 'Revistas & Papers',
+    description: 'Estructura estándar de publicación: Introducción, Métodos, Resultados y Discusión.',
+    sections: ['Introducción', 'Métodos', 'Resultados', 'Discusión', 'Referencias'],
+    icon: <FileText size={20} color="var(--accent-primary)" />,
     iconBg: 'rgba(79, 124, 255, 0.12)',
   },
   {
     id: 'thesis',
     name: 'Tesis / Monografía',
-    description: 'Marco teórico, metodología, resultados y conclusiones',
-    icon: <GraduationCap size={22} color="var(--accent-primary)" />,
-    iconBg: 'rgba(79, 124, 255, 0.12)',
+    badge: 'Grado & Posgrado',
+    description: 'Estructura académica de titulación: Marco Teórico, Metodología, Resultados y Conclusiones.',
+    sections: ['Portada Estudiante', 'Resumen', 'Marco Teórico', 'Metodología', 'Conclusiones'],
+    icon: <GraduationCap size={20} color="#8b5cf6" />,
+    iconBg: 'rgba(139, 92, 246, 0.12)',
   },
   {
-    id: 'math_book',
-    name: 'Libro de Matemáticas',
-    description: 'Diseño tipo libro universitario: cajas de colores, fórmulas numeradas (PDF)',
-    icon: <BookOpen size={22} color="#E67E22" />,
-    iconBg: 'rgba(230, 126, 34, 0.12)',
-    thumbnail: '/assets/math_book_thumbnail.jpg'
+    id: 'essay',
+    name: 'Ensayo Académico',
+    badge: 'Análisis & Crítica',
+    description: 'Desarrollo argumentativo: Introducción, Tesis central, Cuerpo analítico y Referencias.',
+    sections: ['Introducción', 'Desarrollo Temático', 'Conclusiones', 'Referencias'],
+    icon: <BookOpen size={20} color="var(--accent-success)" />,
+    iconBg: 'rgba(16, 185, 129, 0.12)',
+  },
+  {
+    id: 'report',
+    name: 'Informe Técnico',
+    badge: 'Reportes & Lab',
+    description: 'Reporte formal: Resumen Ejecutivo, Metodología, Resultados y Recomendaciones.',
+    sections: ['Resumen Ejecutivo', 'Metodología', 'Resultados', 'Recomendaciones'],
+    icon: <Layers size={20} color="#f59e0b" />,
+    iconBg: 'rgba(245, 158, 11, 0.12)',
   },
 ];
 
@@ -468,43 +474,48 @@ export const Step0QuickStart: React.FC = () => {
 
         {/* ── INICIO ── */}
         {activeTab === 'inicio' && (
-          <div style={{ maxWidth: '820px', margin: '0 auto' }}>
-            {/* Hero: mascota + H1 rotatorio (frases cambiantes) + subtítulo */}
+          <div style={{ maxWidth: '880px', margin: '0 auto' }}>
+            {/* Hero Editorial Académico */}
             <HomeHero />
 
-            {/* Mascota asomándose sobre el dropzone (hero) + globo */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '-14px', position: 'relative', zIndex: 5 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
-                <div className="doc-mascot-alive" style={{ lineHeight: 0 }}>
-                  <DocumentMascot size={86} expression={getMascotExpression()} />
-                </div>
-                <div style={{
-                  position: 'relative',
-                  backgroundColor: 'var(--surface-elevated)',
-                  border: '1px solid var(--border-subtle)',
-                  borderTopLeftRadius: '4px',
-                  borderRadius: '14px',
-                  padding: '10px 14px',
-                  fontSize: 'var(--text-sm)', fontWeight: 600,
-                  color: 'var(--text-main)',
-                  boxShadow: 'var(--shadow-md)',
-                  maxWidth: '320px',
-                  lineHeight: 1.4,
-                }}>
-                  ¡{greeting}! Tirame ese Word desordenado, yo me encargo.
-                </div>
-              </div>
-            </div>
-
-            {/* ── ACCIÓN PRIMARIA: Dropzone premium + perfil + Convertir ── */}
-            <div style={{ marginBottom: '40px' }}>
+            {/* ── ACCIÓN PRIMARIA: Dropzone Editorial Fluent 2 ── */}
+            <div style={{ marginBottom: '36px' }}>
               <div style={{
                 background: 'var(--surface-elevated)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-xl)',
-                padding: '32px',
+                padding: '28px 32px',
                 boxShadow: 'var(--shadow-card)',
               }}>
+                {/* Selector de perfil de formato */}
+                <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                  <div>
+                    <label style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', display: 'block', marginBottom: '2px' }}>
+                      Norma y Perfil Editorial
+                    </label>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      Ajusta portada, márgenes y reglas tipográficas según tu nivel académico
+                    </span>
+                  </div>
+                  <select
+                    value={activeProfileId}
+                    onChange={(e) => setActiveProfile(e.target.value)}
+                    disabled={isLoading}
+                    style={{
+                      minWidth: '240px', padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-strong)', backgroundColor: 'var(--canvas-bg)',
+                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+                      cursor: isLoading ? 'wait' : 'pointer', transition: 'border-color 0.15s ease',
+                    }}
+                  >
+                    {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
+                      <option key={p.profile_id} value={p.profile_id}>
+                        {p.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Zona interactiva: arrastrar o hacer clic */}
                 <div
                   onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
@@ -517,86 +528,63 @@ export const Step0QuickStart: React.FC = () => {
                   onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !busy) { e.preventDefault(); triggerFilePicker(); } }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    minHeight: '200px', cursor: busy ? 'wait' : 'pointer',
+                    minHeight: '190px', cursor: busy ? 'wait' : 'pointer',
                     border: dragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-strong)',
                     borderRadius: 'var(--radius-lg)', transition: 'all 0.2s ease',
                     backgroundColor: dragging ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                    transform: dragging ? 'scale(1.01)' : 'scale(1)',
+                    transform: dragging ? 'scale(1.005)' : 'scale(1)',
                     pointerEvents: busy ? 'none' : 'auto',
+                    padding: '24px',
                   }}
                 >
                   <div style={{
-                    width: '64px', height: '64px', borderRadius: 'var(--radius-full)',
+                    width: '56px', height: '56px', borderRadius: 'var(--radius-full)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     backgroundColor: dragging ? 'var(--accent-primary)' : 'var(--color-accent-soft)',
-                    marginBottom: '18px', transition: 'all 0.2s ease',
+                    marginBottom: '14px', transition: 'all 0.2s ease',
                   }}>
-                    <FileUp size={30} color={dragging ? '#fff' : 'var(--accent-primary)'} style={{ transition: 'color 0.2s ease' }} />
+                    <FileUp size={28} color={dragging ? '#fff' : 'var(--accent-primary)'} style={{ transition: 'color 0.2s ease' }} />
                   </div>
-                  <span style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px', letterSpacing: '-0.01em' }}>
-                    {isLoading ? 'Procesando tu documento…' : 'Arrastrá tu documento .docx aquí'}
+                  <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                    {isLoading ? 'Analizando documento…' : 'Arrastrá tu documento Word (.docx) aquí'}
                   </span>
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                    o hacé clic para seleccionar un archivo
+                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                    o hacé clic para explorar tus archivos locales
                   </span>
                 </div>
 
-                {/* Selector de perfil de formato (siempre visible, antes de subir) */}
-                <div style={{ marginTop: '22px' }}>
-                  <label style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px', letterSpacing: '0.02em' }}>
-                    Perfil de formato
-                  </label>
-                  <select
-                    value={activeProfileId}
-                    onChange={(e) => setActiveProfile(e.target.value)}
-                    disabled={isLoading}
-                    style={{
-                      width: '100%', padding: '11px 14px', borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-strong)', backgroundColor: 'var(--canvas-bg)',
-                      color: 'var(--text-main)', fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 500,
-                      cursor: isLoading ? 'wait' : 'pointer', transition: 'border-color 0.15s ease',
-                    }}
-                  >
-                    {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
-                      <option key={p.profile_id} value={p.profile_id}>
-                        {p.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Botón Convertir — CTA principal, ancho completo, color de acento */}
+                {/* Botón Convertir — CTA principal */}
                 <button
                   type="button"
                   onClick={triggerFilePicker}
                   disabled={busy}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    width: '100%', marginTop: '16px', padding: '14px 20px',
+                    width: '100%', marginTop: '16px', padding: '12px 20px',
                     borderRadius: 'var(--radius-md)', border: 'none', cursor: busy ? 'wait' : 'pointer',
                     backgroundColor: 'var(--accent-primary)', color: '#fff',
-                    fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 700, letterSpacing: '0.01em',
-                    boxShadow: 'var(--shadow-lg)',
+                    fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 700, letterSpacing: '0.01em',
+                    boxShadow: 'var(--shadow-md)',
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
                     opacity: busy ? 0.8 : 1,
                   }}
-                  onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'var(--accent-primary-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-primary)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; }}
+                  onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'var(--accent-primary-hover)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-primary)'; e.currentTarget.style.transform = 'none'; }}
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                      Procesando…
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      Procesando documento…
                     </>
                   ) : !isBackendReady ? (
                     <>
-                      <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                      Conectando…
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      Iniciando motor editorial…
                     </>
                   ) : (
                     <>
-                      <FileUp size={18} />
-                      Convertir a APA 7
+                      <FileUp size={16} />
+                      Estandarizar Documento APA 7
                     </>
                   )}
                 </button>
@@ -604,128 +592,132 @@ export const Step0QuickStart: React.FC = () => {
                 {/* Mensaje de garantía */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  marginTop: '20px', paddingTop: '18px', borderTop: '1px solid var(--border-subtle)',
+                  marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)',
                 }}>
-                  <Lock size={14} color="var(--accent-success)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-muted)' }}>
-                    Tu contenido no se modifica ni se pierde. Garantizado.
+                  <ShieldCheck size={14} color="var(--accent-success)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                    Procesamiento local y privado. El texto de tu documento original nunca se pierde ni se altera.
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* ── T7: Consejos compactos bajo el dropzone ── */}
+            {/* ── ACCIÓN SECUNDARIA: Plantillas Oficiales APA 7 ── */}
             <div style={{
-              display: 'flex', flexDirection: 'column', gap: '10px',
-              padding: '14px 18px',
-              background: 'var(--surface-subtle)',
+              padding: '24px',
+              backgroundColor: 'var(--surface-elevated)',
               border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-lg)',
-              marginBottom: '40px',
-            }}>
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
-                Consejos
-              </span>
-              {[
-                { icon: <MousePointerClick size={14} color="var(--accent-primary)" />, text: 'Arrastra tu .docx aquí o haz clic para buscar' },
-                { icon: <BadgeCheck size={14} color="var(--accent-success)" />, text: 'Funciona con documentos de Word 2010 en adelante' },
-                { icon: <ShieldCheck size={14} color="var(--accent-primary)" />, text: 'Tu archivo original nunca se modifica' },
-              ].map((tip, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ display: 'flex', flexShrink: 0 }}>{tip.icon}</span>
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{tip.text}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* ── ACCIÓN SECUNDARIA: Plantillas para USAR ──
-                Sin documento: crean una sesión nueva con la estructura.
-                Con documento: aplican la estructura al actual. Nunca descargan. */}
-            <div style={{
-              marginLeft: '-60px', marginRight: '-60px',
-              padding: '32px 60px 36px',
-              backgroundColor: 'var(--sidebar-bg)',
-              borderTop: '1px solid var(--border-subtle)',
-              borderBottom: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-xl)',
               marginBottom: '36px',
             }}>
-              <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                ¿Todavía no escribiste nada? Empezá con una plantilla
-              </h2>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 16px' }}>
-                Creamos tu documento con las secciones listas: solo completás el contenido.
-              </p>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ marginBottom: '18px' }}>
+                <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 4px' }}>
+                  ¿Iniciando un proyecto nuevo? Comenzá con una plantilla oficial APA 7
+                </h2>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
+                  Estructuras académicas con títulos jerárquicos y pautas de redacción listas para completar.
+                </p>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '14px',
+              }}>
                 {TEMPLATES.map(tpl => {
                   const activeDoc = useDocStore.getState().doc;
                   const canApply = !!activeDoc;
                   return (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => {
-                      if (canApply && activeDoc) {
-                        // Contextual: con documento cargado aplica la estructura.
-                        api.applyTemplate(activeDoc.session_id, tpl.id)
-                          .then(() => useDocStore.getState().showToast(`Estructura "${tpl.name}" aplicada a tu documento`, 'success'))
-                          .catch((e) => useDocStore.getState().showToast(`No se pudo aplicar: ${String(e)}`, 'error'));
-                      } else {
-                        // Sin documento: la plantilla CREA el documento de trabajo.
-                        useDocStore.getState().createFromTemplate(tpl.id);
-                      }
-                    }}
-                    title={canApply ? `Aplicar estructura ${tpl.name} a tu documento` : `Usar plantilla ${tpl.name} (crea tu documento)`}
-                    aria-label={canApply ? `Aplicar estructura ${tpl.name}` : `Usar plantilla ${tpl.name}`}
-                    style={{
-                      flex: '1 1 220px', maxWidth: '280px', cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left',
-                      padding: '16px', borderRadius: 'var(--radius-lg)',
-                      background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                      transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                      (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
-                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)';
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.transform = 'none';
-                      (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                      (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
-                    }}
-                  >
-                    {tpl.thumbnail ? (
+                    <div
+                      key={tpl.id}
+                      style={{
+                        display: 'flex', flexDirection: 'column',
+                        padding: '16px', borderRadius: 'var(--radius-lg)',
+                        background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                        transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                      }}
+                    >
+                      {/* Cabecera de tarjeta: Icono + Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                         <div style={{
-                          width: '100%', height: '120px', borderRadius: 'var(--radius-md)',
-                          backgroundImage: `url(${tpl.thumbnail})`, backgroundSize: 'cover', backgroundPosition: 'top',
-                          border: '1px solid var(--border-subtle)', marginBottom: '4px'
-                        }} />
-                      ) : (
-                        <div style={{
-                          width: '40px', height: '40px', borderRadius: 'var(--radius-md)', flexShrink: 0,
+                          width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0,
                           background: tpl.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                           {tpl.icon}
                         </div>
-                      )}
-                    {/* Nombre + descripción */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                        <span style={{
+                          fontSize: '10px', fontWeight: 700, color: 'var(--accent-primary)',
+                          background: 'var(--color-accent-soft)', padding: '2px 8px', borderRadius: '999px',
+                        }}>
+                          {tpl.badge}
+                        </span>
+                      </div>
+
+                      {/* Nombre y descripción */}
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
                         {tpl.name}
                       </div>
-                      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 10px', flex: 1 }}>
                         {tpl.description}
+                      </p>
+
+                      {/* Chips de secciones */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '14px' }}>
+                        {tpl.sections.map((sec, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              fontSize: '9.5px', fontWeight: 600, color: 'var(--text-secondary)',
+                              background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
+                              padding: '1px 6px', borderRadius: '4px',
+                            }}
+                          >
+                            {sec}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Botones de acción */}
+                      <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (canApply && activeDoc) {
+                              api.applyTemplate(activeDoc.session_id, tpl.id)
+                                .then(() => useDocStore.getState().showToast(`Estructura "${tpl.name}" aplicada al documento`, 'success'))
+                                .catch((e) => useDocStore.getState().showToast(`No se pudo aplicar: ${String(e)}`, 'error'));
+                            } else {
+                              useDocStore.getState().createFromTemplate(tpl.id);
+                            }
+                          }}
+                          style={{
+                            flex: 1, padding: '7px 10px', borderRadius: 'var(--radius-sm)',
+                            background: 'var(--accent-primary)', color: '#fff', border: 'none',
+                            fontSize: 'var(--text-xs)', fontWeight: 700, fontFamily: 'inherit',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                          }}
+                        >
+                          <FileCheck size={12} /> {canApply ? 'Aplicar' : 'Abrir en Editor'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const downloadUrl = `${api.getApiBase()}/template-docx?template_id=${encodeURIComponent(tpl.id)}&profile_id=${encodeURIComponent(activeProfileId)}`;
+                            window.open(downloadUrl, '_blank');
+                            useDocStore.getState().showToast(`Descargando plantilla .docx (${tpl.name})`, 'info');
+                          }}
+                          title="Descargar archivo Word .docx formateado con estilos APA 7"
+                          style={{
+                            padding: '7px 10px', borderRadius: 'var(--radius-sm)',
+                            background: 'var(--surface-elevated)', color: 'var(--text-main)',
+                            border: '1px solid var(--border-subtle)', fontSize: 'var(--text-xs)', fontWeight: 600,
+                            fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+                          }}
+                        >
+                          <Download size={12} /> .docx
+                        </button>
                       </div>
                     </div>
-                    {/* Indicador contextual */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent-primary)', marginTop: 'auto' }}>
-                      {canApply ? (
-                        <><FileCheck size={13} /> Aplicar a mi documento</>
-                      ) : (
-                        <><FileCheck size={13} /> Usar esta estructura</>
-                      )}
-                    </div>
-                  </button>
                   );
                 })}
               </div>

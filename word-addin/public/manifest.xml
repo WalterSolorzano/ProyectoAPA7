@@ -48,12 +48,6 @@
     <Hosts>
       <Host xsi:type="Document">
         <DesktopFormFactor>
-          <GetStarted>
-            <Title resid="WordAPA7.GetStarted.Title" />
-            <Description resid="WordAPA7.GetStarted.Description" />
-            <LearnMoreUrl resid="WordAPA7.LearnMoreUrl" />
-          </GetStarted>
-
           <FunctionFile resid="WordAPA7.Commands.Url" />
 
           <ExtensionPoint xsi:type="PrimaryCommandSurface">

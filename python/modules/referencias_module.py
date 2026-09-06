@@ -1,4 +1,4 @@
-﻿"""
+"""
 WordAPA7 â€” Modulo de Referencias Bibliograficas APA 7
 
 Genera y formatea la seccion de Referencias:

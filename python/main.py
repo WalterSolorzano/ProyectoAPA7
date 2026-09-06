@@ -117,10 +117,6 @@ from services.word_com_service import get_word_com_service
 
 @asynccontextmanager
 async def lifespan_app(app: FastAPI):
-    print("[INFO] Arrancando LibreOffice service...")
-    get_libreoffice_service().start()
-    print("[INFO] Arrancando Word COM service...")
-    get_word_com_service().start()
     # Limpieza inicial de sesiones expiradas al arrancar el servidor (P1.4).
     # maybe_run_gc está acelerado (GC_INTERVAL_SECONDS) y es seguro llamarlo aquí.
     try:
@@ -580,8 +576,27 @@ class RewriteVariationsRequest(BaseModel):
     session_id: str
     element_id: str
     text: str
-    instruction: str = "Reescribe en estilo académico APA 7, eliminando muletillas de IA."
+    instruction: str = "Reescribe el párrafo en tono académico formal sin muletillas de IA."
     n: int = 3
+    api_key: Optional[str] = None
+
+
+class LiveChatRequest(BaseModel):
+    session_id: str
+    user_instruction: str
+    selected_element_id: Optional[str] = None
+    history: Optional[List[dict]] = None
+    api_key: Optional[str] = None
+
+
+class ProactiveCaptionsRequest(BaseModel):
+    session_id: str
+    api_key: Optional[str] = None
+
+
+class ProactiveDiagnoseRequest(BaseModel):
+    session_id: str
+    element_id: str
     api_key: Optional[str] = None
 
 
@@ -1331,6 +1346,123 @@ async def api_rewrite_variations(req: RewriteVariationsRequest) -> dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/live-chat")
+async def api_live_chat(req: LiveChatRequest) -> dict:
+    """
+    Asistente conversacional en vivo: interpreta instrucciones en lenguaje natural
+    y devuelve una respuesta explicativa junto con acciones estructuradas (DSL)
+    para editar el DocumentModel de forma atómica y segura.
+    """
+    doc = session_manager.get_session(req.session_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    from modules.ai_document_editor import process_live_document_chat
+    try:
+        result = await process_live_document_chat(
+            document=doc,
+            user_instruction=req.user_instruction,
+            selected_element_id=req.selected_element_id,
+            history=req.history,
+            api_key=req.api_key,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/proactive-captions")
+async def api_proactive_captions(req: ProactiveCaptionsRequest) -> dict:
+    """
+    Analiza en segundo plano las figuras y tablas del documento y sugiere
+    automáticamente títulos descriptivos en cursiva y notas APA 7.
+    """
+    doc = session_manager.get_session(req.session_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    from modules.ai_proactive_captioner import analyze_document_proactive_captions
+    try:
+        suggestions = await analyze_document_proactive_captions(
+            document=doc,
+            api_key=req.api_key,
+        )
+        return {"suggestions": suggestions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/proactive-diagnose")
+async def api_proactive_diagnose(req: ProactiveDiagnoseRequest) -> dict:
+    """
+    Diagnostica de forma proactiva un elemento del documento y formula una
+    propuesta de corrección académica lista para aplicar con 1 clic.
+    """
+    doc = session_manager.get_session(req.session_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    elem = next((e for e in doc.elements if e.id == req.element_id), None)
+    if not elem:
+        raise HTTPException(status_code=404, detail="Elemento no encontrado")
+
+    from modules.ai_proactive_reviewer import diagnose_element_with_ai
+    try:
+        diagnosis = await diagnose_element_with_ai(
+            elem=elem,
+            api_key=req.api_key,
+        )
+        return {"proposal": diagnosis}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/test/sample-documents")
+async def api_get_sample_documents() -> dict:
+    """Retorna la lista de documentos de prueba y estrés disponibles."""
+    return {
+        "samples": [
+            {
+                "id": "citations",
+                "name": "Citas Complejas y Bibliografía",
+                "desc": "Citas parentéticas, narrativas, 3+ autores (et al.), secundarias, citas fantasma y referencias huérfanas.",
+            },
+            {
+                "id": "headings",
+                "name": "Jerarquía de Títulos y Estructura",
+                "desc": "Títulos desordenados (H1 -> H3 -> H2), numeración romana/arábiga y detección de encabezados.",
+            },
+            {
+                "id": "tables_figures",
+                "name": "Tablas y Figuras sin Formato",
+                "desc": "Tablas estadísticas sin formato APA y párrafos contextuales para auto-captioning.",
+            },
+        ]
+    }
+
+
+@app.get("/api/test/sample-documents/{doc_type}")
+async def api_download_sample_document(doc_type: str):
+    """Genera y descarga el documento de prueba seleccionado."""
+    from tools.stress_doc_generator import (
+        generate_stress_citations_doc,
+        generate_stress_headings_and_structure_doc,
+        generate_stress_tables_and_figures_doc,
+    )
+    if doc_type == "citations":
+        path = generate_stress_citations_doc()
+    elif doc_type == "headings":
+        path = generate_stress_headings_and_structure_doc()
+    elif doc_type == "tables_figures":
+        path = generate_stress_tables_and_figures_doc()
+    else:
+        raise HTTPException(status_code=404, detail="Tipo de documento de prueba no encontrado")
+
+    return FileResponse(
+        path,
+        filename=f"stress_{doc_type}.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @app.post("/api/ai/chat-comment")
@@ -2287,6 +2419,29 @@ async def get_preview_pdf(session_id: str) -> FileResponse:
         )
     return FileResponse(pdf_path, media_type="application/pdf")
 
+def _safe_output_path(target_path: Path) -> Path:
+    """Verifica si el archivo está bloqueado por Word en Windows y devuelve una ruta escribible."""
+    if not target_path.exists():
+        return target_path
+    try:
+        with open(target_path, "a+b"):
+            pass
+        return target_path
+    except (PermissionError, OSError):
+        stem = target_path.stem
+        parent = target_path.parent
+        for i in range(1, 100):
+            cand = parent / f"{stem}_v{i}.docx"
+            if not cand.exists():
+                return cand
+            try:
+                with open(cand, "a+b"):
+                    return cand
+            except (PermissionError, OSError):
+                continue
+        import time
+        return parent / f"{stem}_{int(time.time())}.docx"
+
 
 @app.post("/api/export-latex/{session_id}")
 async def export_latex_endpoint(session_id: str):
@@ -2326,11 +2481,13 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
     rules: APARuleSet = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
-    out_file: Path = out_dir / f"APA7_{doc.file_name}"
+    raw_out_file: Path = out_dir / f"APA7_{doc.file_name}"
+    out_file: Path = _safe_output_path(raw_out_file)
 
     # RUTA IN-PLACE (default): edita el original; portada/secciones intocables
     export_mode = getattr(rules, "export_mode", "inplace")
-    if export_mode == "inplace":
+    use_orig_cover = req.portada is None or getattr(req.portada, "use_original_cover", True)
+    if export_mode == "inplace" and use_orig_cover:
         original_path_ip: Path = out_dir / "original.docx"
         if original_path_ip.exists():
             try:
@@ -2382,25 +2539,20 @@ async def generate_docx(req: GenerateRequest) -> dict:
         # Inyectar Post-Processor Dual Engine
         final_path = out_dir / f"Final_{doc.file_name}"
         success, pdf_path = doc_converter.process_and_convert(
-            original_path=original_path,
-            generated_path=generated_path,
-            final_path=final_path,
-            preserve_cover=preserve_cover,
-            generate_pdf=False, # El endpoint de PDF se maneja en /api/generate-pdf
-
-            rules=rules
+            docx_in=generated_path,
+            docx_out=final_path,
+            original_docx=original_path,
+            rules=rules,
+            post_processor=None,
+            generate_pdf=False
         )
 
         if success and final_path.exists():
-            # Si COM tuvo éxito, el archivo oficial es final_path
-            # Lo renombramos a APA7_...
-            final_path.replace(generated_path)
+            generated_path = final_path
 
         # Agregar marcador de idempotencia al DOCX generado
         try:
-            with open(generated_path, "rb") as f:
-                generated_bytes = f.read()
-            marked_bytes = add_marker_to_docx(generated_bytes)
+            marked_bytes = add_marker_to_docx(generated_path.read_bytes())
             with open(generated_path, "wb") as f:
                 f.write(marked_bytes)
         except Exception:
@@ -2408,7 +2560,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
         return {
             "download_url": f"/api/download/{req.session_id}",
-            "filename": f"APA7_{doc.file_name}",
+            "filename": out_file.name,
         }
     except Exception as e:
         print(f"[ERROR] Error generando DOCX: {e}")
@@ -2424,7 +2576,7 @@ async def download_generated_docx(session_id: str) -> FileResponse:
     Descarga el archivo generado.
     """
     out_dir: Path = STORAGE_DIR / "sessions" / session_id
-    files: list = list(out_dir.glob("APA7_*.docx"))
+    files: list = sorted(list(out_dir.glob("APA7_*.docx")), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
         raise HTTPException(
             status_code=404,
@@ -2569,13 +2721,49 @@ class CreateFromTemplateRequest(BaseModel):
     profile_id: str = "apa7"
 
 
+def _get_section_guide_text(heading_text: str) -> str:
+    h = heading_text.lower().strip()
+    if "índice" in h or "tabla de contenido" in h:
+        return "La tabla de contenidos se genera de forma automática a partir de los títulos y subtítulos del documento."
+    if "introducción" in h:
+        return "Esta sección presenta el planteamiento general del trabajo, los antecedentes teóricos más relevantes, la justificación de la investigación y los objetivos específicos que guían el estudio."
+    if "antecedente" in h:
+        return "Se revisan las investigaciones previas nacionales e internacionales directamente relacionadas con el objeto de estudio, destacando sus aportes y vacíos de conocimiento."
+    if "problema" in h:
+        return "Describe con claridad la situación problemática observada, su delimitación contextual y la formulación formal de la pregunta principal de investigación."
+    if "objetivo" in h:
+        return "Establece el objetivo general y los objetivos específicos que delimitan el alcance analítico y metodológico del proyecto."
+    if "justificación" in h:
+        return "Expone la relevancia teórica, metodológica y práctica del estudio, argumentando el valor añadido de sus resultados para la comunidad académica."
+    if "marco teórico" in h or "marco conceptual" in h:
+        return "Desarrolla las teorías, modelos y conceptos fundamentales que sustentan el análisis. Las citas en el texto deben seguir el formato APA 7 (Apellido, Año)."
+    if "metodología" in h or "método" in h:
+        return "Describe detalladamente el enfoque de investigación, el diseño metodológico, la población, muestra y las técnicas e instrumentos de recolección de datos."
+    if "tipo de investigación" in h:
+        return "Especifica el paradigma, nivel (descriptivo, correlacional, explicativo) y diseño (experimental o no experimental) adoptado en el estudio."
+    if "población" in h or "muestra" in h:
+        return "Define las características de la unidad de análisis, los criterios de inclusión/exclusión y el método de muestreo probabilístico o no probabilístico."
+    if "instrumento" in h:
+        return "Describe las herramientas de medición o recolección de datos empleadas, detallando sus propiedades de validez y confiabilidad."
+    if "resultado" in h:
+        return "Presenta de manera objetiva los hallazgos empíricos obtenidos. Incluya tablas y figuras numeradas secuencialmente conforme a las directrices APA 7ma Edición."
+    if "discusión" in h:
+        return "Interpreta y contrasta los resultados alcanzados con las hipótesis planteadas y los hallazgos de investigaciones previas citadas en el marco teórico."
+    if "conclusión" in h or "conclusiones" in h:
+        return "Sintetiza las principales conclusiones derivadas del estudio, responde a los objetivos planteados y propone recomendaciones para futuras líneas de investigación."
+    if "referencia" in h:
+        return "Lista alfabética de todas las fuentes citadas en el texto, con sangría francesa de 1.27 cm (0.5 in) e interlineado doble según Normas APA 7."
+    if "resumen" in h:
+        return "Párrafo único sin sangría de entre 150 y 250 palabras que sintetiza el objetivo, metodología, resultados principales y conclusiones del trabajo."
+    return f"Desarrollo académico correspondiente a la sección de {heading_text}, estructurado con interlineado doble, sangría de primera línea de 1.27 cm y tipografía uniforme APA 7."
+
+
 @app.post("/api/create-from-template")
 async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> DocumentModel:
     """
     Crea una NUEVA sesión de trabajo a partir de una plantilla de estructura:
-    genera el DocumentModel con los títulos de la plantilla, lo persiste como
-    sesión y lo devuelve con el mismo shape que /api/upload. Así el usuario
-    puede "usar" la plantilla sin tener un documento previo.
+    genera el DocumentModel con los títulos de la plantilla y párrafos guía,
+    lo persiste como sesión y lo devuelve con el mismo shape que /api/upload.
     """
     profile = get_profile(req.profile_id)
     template = _TEMPLATE_ID_MAP.get(req.template_id)
@@ -2589,6 +2777,7 @@ async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> Docum
 
     def _add_sections(sections) -> None:
         for section in sections:
+            # 1. Título estructurado
             elements.append(
                 ElementModel(
                     id=f"tpl-{req.template_id}-{len(elements)}",
@@ -2601,6 +2790,19 @@ async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> Docum
                     needs_review=False,
                 )
             )
+            # 2. Párrafo guía explicativo de la sección
+            guide_text = _get_section_guide_text(section.suggested_text)
+            elements.append(
+                ElementModel(
+                    id=f"tpl-{req.template_id}-{len(elements)}",
+                    type=ElementType.PARAGRAPH,
+                    text=guide_text,
+                    original_text=guide_text,
+                    confidence=1.0,
+                    is_cover_section=False,
+                    needs_review=False,
+                )
+            )
             _add_sections(section.sub_sections)
 
     _add_sections(template.sections)
@@ -2608,12 +2810,33 @@ async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> Docum
     fmt = profile.cover_apa_format
     apa_format = APAFormat.PROFESSIONAL if fmt == "professional" else APAFormat.STUDENT
 
+    sample_refs = [
+        ReferenceModel(
+            raw_text="Hernández-Sampieri, R., & Mendoza, C. P. (2018). Metodología de la investigación: Las rutas cuantitativa, cualitativa y mixta. McGraw-Hill Education.",
+            authors=["Hernández-Sampieri, R.", "Mendoza, C. P."],
+            year=2018,
+            title="Metodología de la investigación: Las rutas cuantitativa, cualitativa y mixta",
+            source="McGraw-Hill Education",
+            entry_type="book",
+        ),
+        ReferenceModel(
+            raw_text="American Psychological Association. (2020). Publication manual of the American Psychological Association (7th ed.). https://doi.org/10.1037/0000165-000",
+            authors=["American Psychological Association"],
+            year=2020,
+            title="Publication manual of the American Psychological Association",
+            source="American Psychological Association",
+            doi="10.1037/0000165-000",
+            entry_type="book",
+        ),
+    ]
+
     doc = DocumentModel(
         session_id=f"sess-{uuid.uuid4().hex[:12]}",
         file_name=f"{template.name.split('(')[0].strip()}.docx",
         apa_format=apa_format,
         profile_id=profile.profile_id,
         elements=elements,
+        referencias=sample_refs,
         apa_rules=profile.rules.model_copy(deep=True),
     )
 

@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
@@ -70,8 +70,9 @@ function sendFileToRenderer(filePath: string) {
   try {
     const buffer = fs.readFileSync(filePath)
     const fileName = path.basename(filePath)
-    mainWindow.webContents.send('open-file-from-os', { fileName, buffer })
-    log('info', 'context-menu', `File sent to renderer: ${fileName} (${buffer.length} bytes)`)
+    const isQuick = process.argv.includes('--quick') || !!findDocxArg(process.argv)
+    mainWindow.webContents.send('open-file-from-os', { fileName, buffer, isQuick, filePath })
+    log('info', 'context-menu', `File sent to renderer: ${fileName} (${buffer.length} bytes, isQuick: ${isQuick})`)
   } catch (err) {
     log('error', 'context-menu', `Failed to read file: ${filePath}`, { error: String(err) })
   }
@@ -81,10 +82,12 @@ function createWindow() {
   // El tema se sincroniza desde la UI vía IPC 'set-theme' (light por defecto).
   nativeTheme.themeSource = 'light'
 
-  const quickMode = !!findDocxArg(process.argv)
+  const quickMode = !!findDocxArg(process.argv) || process.argv.includes('--quick')
   mainWindow = new BrowserWindow({
-    width: quickMode ? 460 : 1200,
-    height: quickMode ? 720 : 768,
+    width: quickMode ? 440 : 1200,
+    height: quickMode ? 600 : 768,
+    resizable: !quickMode,
+    center: true,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#ffffff',        // --sidebar-bg claro (default de la app)
@@ -220,6 +223,26 @@ if (!gotTheLock) {
 
     ipcMain.on('get-backend-port', (event) => {
       event.returnValue = PythonManager.port
+    })
+
+    ipcMain.on('expand-to-full-editor', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setResizable(true)
+        mainWindow.setSize(1200, 768)
+        mainWindow.center()
+      }
+    })
+
+    ipcMain.on('show-item-in-folder', (_event, filePath) => {
+      if (filePath && typeof filePath === 'string') {
+        shell.showItemInFolder(filePath)
+      }
+    })
+
+    ipcMain.on('open-path', (_event, filePath) => {
+      if (filePath && typeof filePath === 'string') {
+        shell.openPath(filePath)
+      }
     })
 
     ipcMain.on('open-external', (_event, url: string) => {

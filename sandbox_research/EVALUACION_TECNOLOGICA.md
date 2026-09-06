@@ -1,343 +1,493 @@
-# EVALUACIÓN TECNOLÓGICA COMPARATIVA — WordAPA7
-
-**Fecha:** 2026-01-07  
-**Metodología:** Benchmarks empíricos sobre corpus sintético + corpus real del proyecto.  
-**Objetivo:** Determinar si cada subsistema usa la mejor herramienta disponible, con evidencia cuantitativa.
-
----
-
-## SUBSISTEMA 1 — Manipulación de OOXML (parsing + escritura)
-
-### Tecnología actual
-`python-docx 1.2.0` + `lxml 6.1.1` directo para partes no soportadas.
-
-### Métrica de cobertura: ratio de fallback a lxml crudo
-
-| Métrica | Valor | Fuente |
-|---|---|---|
-| Total operaciones lxml crudo (OxmlElement/parse_xml/qn) | 300 | `grep -rn` en generation/, modules/, parsing/ |
-| Total operaciones API nativa python-docx | 627 | `grep -rn` en generation/, modules/, parsing/ |
-| **Ratio de fallback a lxml** | **32.4%** | 300 / (300 + 627) |
-| LOC total del motor | 13,808 | `wc -l` |
-
-**Desglose por categoría de operación (python-docx NO soporta nativamente):**
-
-| Operación | Hits lxml | ¿API nativa python-docx? |
-|---|---|---|
-| Campos/códigos de campo (fldChar, instrText) | 47 | NO |
-| Notas al pie/endnotes | 44 | NO |
-| Hipervínculos (w:hyperlink) | 42 | Parcial (add_hyperlink no crea w:hyperlink OOXML real) |
-| Numeración (w:numPr, numId) | 32 | NO |
-| Drawing/anchor (wp:anchor, wp:inline) | 25 | Parcial (solo inline) |
-| Section breaks (w:sectPr) | 23 | Parcial (add_section pero no custom sectPr) |
-| Bordes de tabla (tblBorders) | 11 | Parcial |
-| settings.xml (updateFields) | 9 | NO |
-| Bookmarks (w:bookmarkStart/End) | 7 | NO |
-| Bordes de párrafo (pBdr) | 7 | NO |
-| Content controls (w:sdt) | 2 | NO |
-| **Total operaciones SIN API nativa** | **~249** | 83% del fallback a lxml |
-
-### Benchmark: fidelidad de round-trip (evidence/area1.json)
-
-| Variante de portada | zone_identical | Tiempo (ms) | Diferencias detectadas |
-|---|---|---|---|
-| plaintext | **false** | 205 | w:ind w:firstLine="720" añadido a 6 párrafos de portada |
-| table_logo | **false** | 23 | Reordenamiento de tabla + w:ind añadido |
-| textbox_nested | **false** | 25 | w:ind añadido + caption "Figura" insertado |
-| floating_image | **false** | 25 | w:ind añadido + caption "Figura" insertado |
-| mixed | **false** | 24 | w:ind añadido + reorderamiento de tabla |
-
-**Hallazgo:** El pipeline actual NO produce round-trip cero-diff en NINGUNA variante. El scope "texto" añade `w:ind w:firstLine="720"` a TODOS los párrafos, incluyendo los de la portada, porque `apply_scope_texto()` itera `doc.paragraphs` sin excluir la zona de portada.
-
-### Tabla comparativa
-
-| Tecnología | Cobertura de operaciones | Round-trip cero-diff | Requiere runtime no-Python | Validación de schema | Recomendación |
-|---|---|---|---|---|---|
-| **python-docx + lxml** (actual) | 67.6% nativo + 32.4% lxml | 0/5 variantes | No | No | **Mantener** |
-| docx4j 11.5.x (Java) | ~95% nativo (numbering, sdt, fields) | No medido (requiere JVM) | **Sí — JVM 11+** | Parcial (JAXB subset) | No migrar |
-| Open XML SDK 3.5.1 (.NET) | ~100% nativo (todas las partes) | No medido (requiere .NET) | **Sí — .NET 6+** | **Sí — OpenXmlValidator** | No migrar |
-| docxtpl 0.20.2 (Python) | Solo plantillas Jinja2 | N/A | No | No | No aplica |
-
-### Recomendación: MANTENER python-docx + lxml
-
-**Justificación con datos:**
-- El 32.4% de fallback a lxml es alto, pero el 67.6% restante usa API nativa correctamente.
-- Las alternativas con mejor cobertura (docx4j, Open XML SDK) requieren JVM o .NET en un stack Python/Electron — costo operativo inaceptable para una app de escritorio.
-- docxtpl es un motor de plantillas, no una librería de modificación de documentos existentes.
-- El problema real NO es la librería: es que `apply_scope_texto()` no excluye la zona de portada al iterar `doc.paragraphs` (ver Subsistema 4).
-- **Costo de migración a docx4j/Open XML SDK:** 3-6 meses + nuevo runtime + bridge IPC. **Beneficio:** eliminar ~249 líneas de lxml manual. **ROI:** negativo.
-
----
-
-## SUBSISTEMA 2 — Numeración y listas (viñetas)
-
-### Tecnología actual
-`bullet_engine.py` con `apply_bullet_from_template()` que inyecta `w:numPr` con `num_id` hardcodeado: `num_id=1` para viñetas, `num_id=2` para numeradas.
-
-### Benchmark: integridad referencial + colisión (evidence/area4.json)
-
-| Métrica | Resultado | Detalle |
-|---|---|---|
-| Documentos con integridad referencial OK | 24/24 (100%) | Todo numId resuelve a num, todo abstractNumId resuelve a abstractNum |
-| **POC: colisión de numId** | **misformat_confirmado = true** | bullet_engine usa numId=1; el usuario ya tiene numId=1 como lista DECIMAL → viñeta se renderiza como número |
-| Preservación de viñetas Symbol/Wingdings | preservado = true | scoped_apply no destruye la fuente de viñeta |
-
-**Evidencia del bug de colisión:**
-```python
-# bullet_engine.py línea 62:
-apply_bullet_from_template(p._element, num_id=1, level=1)  # num_id HARDCODEADO
-# Si el documento del usuario ya tiene numId=1 → abstractNum decimal,
-# la viñeta hereda ese formato y se renderiza como "1." en vez de "•"
-```
-
-### Tabla comparativa
-
-| Enfoque | Integridad referencial | Tasa de colisión | Costo de integración | Recomendación |
-|---|---|---|---|---|
-| **Generación dinámica actual** (numId hardcodeado) | 100% | **1 colisión confirmada** (PoC) | — | Corregir bug |
-| docx4j NumberingDefinitionsPart | 100% | 0% (gestiona numId dinámicamente) | JVM requerido | No migrar |
-| **Template registry** (abstractNum versionado como asset) | 100% | 0% (numIds reservados) | ~2 días de desarrollo | **Adoptar** |
-
-### Recomendación: MANTENER generación manual + CORREGIR colisión de numId
-
-**Justificación con datos:**
-- La integridad referencial es 100% (no hay referencias colgantes). El problema es la COLISIÓN de numId, no la integridad.
-- La corrección es un cambio de ~20 líneas: escanear `numbering.xml` existente antes de asignar `num_id`, usando el primer `numId` libre.
-- docx4j resuelve esto automáticamente pero requiere JVM — costo desproporcionado para un fix de 20 líneas.
-- Un template registry de abstractNum (numIds reservados 100-199 para el pipeline) eliminaría la colisión sin cambiar la librería.
-- **Costo de corrección:** 2 días. **Costo de migración a docx4j:** 3-6 meses + JVM. **ROI del fix:** altísimo.
-
----
-
-## SUBSISTEMA 3 — Bibliografía y citas APA
-
-### Tecnología actual
-Formateador propio: `references_extractor._parse_single_reference()` (regex) + `referencias_module.format_apa_referencias_section()` (render) + `referencias_module.resolve_doi()` (Crossref/OpenLibrary).
-
-### Benchmark: exactitud APA 7 (evidence/area5.json, 15 referencias con casos límite)
-
-| Tecnología | Coincidencia exacta | Fallas | Causa de fallas |
-|---|---|---|---|
-| **citeproc-py 0.11.0** + apa.csl | **26.7% (4/15)** | 11 | Title Case en container-title (locale EN), en-dash vs hyphen, fechas en inglés ("March 15" vs "15 de marzo"), "(ed.)" vs "(Ed.)", "(Publication)" en tesis, "(Original work published)" en obra traducida |
-| **Formateador custom** (raw passthrough) | **93.3% (14/15)** | 1 | s.f. vs n.d. (preserva input del usuario) |
-| Formateador custom (extracción de campos) | 80.0% (12/15) | 3 | Año con sufijo (2019a no matchea regex \d{4}), fecha completa rompe split de autor |
-
-**Análisis de fallas de citeproc-py:**
-
-| Caso | citeproc-py output | Expected APA 7 | Causa |
-|---|---|---|---|
-| single_author | "Revista **D**e Educacion" | "Revista **de** Educacion" | CSL locale EN: Title Case |
-| two_authors | "45**–**67" | "45**-**67" | en-dash vs hyphen (APA usa en-dash, expected estaba mal) |
-| web_page | "**March 15**" | "**15 de marzo**" | Locale EN: formato de fecha |
-| book_chapter | "(**ed.**)" | "(**Ed.**)" | Locale EN: capitalización de abreviatura |
-| thesis | "(**Publication**) [Tesis doctoral]" | "[Tesis doctoral, ...]" | CSL añade "(Publication)" — no aplica a tesis no-publicadas |
-| translated | "(**Original work published** 1923)" | "(Obra original publicada en 1923)" | Locale EN |
-| newspaper | "**January 20**" | "**20 de enero**" | Locale EN |
-| newspaper | "A1, A4" | "**pp.** A1, A4" | CSL no añade "pp." para newspaper |
-
-**Hallazgo crítico:** 9 de 11 fallas de citeproc-py son por **locale inglés**, no por errores del CSL. Si se configurara un locale español, la mayoría se corregiría. Pero citeproc-py no incluye locales — hay que descargarlos del repositorio CSL.
-
-**Hallazgo adicional (de investigación):** citeproc-py NO implementa `disambiguation/year-suffix` ni `literal names` — ambos críticos para APA 7 §8.19 (mismo autor-año: 2019a/2019b) y autores corporativos.
-
-### Tabla comparativa
-
-| Tecnología | Coincidencia APA 7 | In-text + bibliografía | Runtime no-Python | Maneja mismo autor-año | Autores corporativos | Recomendación |
-|---|---|---|---|---|---|---|
-| **Formateador custom** (actual) | **93.3%** | Solo bibliografía | No | Sí (en raw passthrough) | Sí (en raw passthrough) | **Mantener** |
-| citeproc-py 0.11.0 | 26.7% (con locale EN) | Ambas | No | **No** (no implementa year-suffix) | **No** (no soporta literal names) | No migrar |
-| Pandoc --citeproc | ~92% (estimado, con locale ES) | Ambas | **Sí** (binario pandoc) | Sí | Sí | Evaluar como híbrido |
-| CSL-JSON intermedio + render custom | N/A (formato, no render) | N/A | No | Sí (en CSL-JSON) | Sí (en CSL-JSON) | **Adoptar como formato intermedio** |
-
-### Recomendación: HÍBRIDO — MANTENER formateador custom + adoptar CSL-JSON como formato intermedio
-
-**Justificación con datos:**
-- El formateador custom gana 93.3% vs 26.7% de citeproc-py en el benchmark.
-- citeproc-py pierde principalmente por locale inglés (9/11 fallas), pero también tiene gaps fundamentales: no implementa year-suffix ni literal names (ambos críticos para APA 7).
-- Pandoc citeproc (~92% compliance) sería la mejor opción CSL, pero requiere un binario no-Python.
-- **Adoptar CSL-JSON como formato intermedio** permite estructurar los datos parseados (autores, año, título, fuente, DOI) de forma estandarizada, validable, e interoperable con Zotero/Mendeley — sin cambiar el render final custom.
-- **Costo:** 1-2 semanas para migrar _parse_single_reference a output CSL-JSON. **Beneficio:** datos estructurados + dedup más robusta + futura compatibilidad con cualquier procesador CSL.
-
----
-
-## SUBSISTEMA 4 — Protección de zonas del documento (portada)
-
-### Tecnología actual
-Convención de código: `cover_paragraph_count` excluye párrafos de portada del bucle de formateo en `generator.py` y `scoped_apply.py`.
-
-### Benchmark: tres variantes de protección (evidence/area1.json)
-
-**Experimento A — SDT lock contra edición lxml:**
-
-| Variante | Lock | lock_stopped_us (lxml) | pipeline_touched_sdt_zone |
-|---|---|---|---|
-| plaintext | sdtLocked | **false** | false |
-| plaintext | contentLocked | **false** | false |
-| mixed | sdtLocked | **false** | false |
-| mixed | contentLocked | **false** | false |
-
-**Hallazgo crítico:** El SDT lock NO detiene a lxml. python-docx/lxml puede editar el contenido dentro de un w:sdt bloqueado sin restricción. El lock es enforcement a nivel de aplicación (Word lo respeta), no a nivel de XML.
-
-**Pero:** `pipeline_touched_sdt_zone = false` en todos los casos — el pipeline NO toca la zona SDT porque `doc.paragraphs` NO retorna párrafos dentro de w:sdt. El SDT wrapping proporciona protección INCIDENTAL al esconder el contenido de la iteración.
-
-**Experimento B — Round-trip sin SDT (exclusión lógica actual):**
-
-| Variante | zone_identical | Diferencias |
-|---|---|---|
-| plaintext | **false** | w:ind firstLine="720" añadido a 6 párrafos de portada |
-| table_logo | **false** | Tabla reordenada + w:ind añadido |
-| textbox_nested | **false** | w:ind añadido + caption insertado |
-| floating_image | **false** | w:ind añadido + caption insertado |
-| mixed | **false** | w:ind añadido + tabla reordenada |
-
-**Hallazgo:** La exclusión lógica actual falla en 5/5 variantes cuando se aplica `scoped_apply` con scope "texto". El método `apply_scope_texto()` itera TODOS los `doc.paragraphs` sin excluir la portada.
-
-**Experimento C — Detección de zonas vs ground truth:**
-
-| Variante | Ground truth (párrafos portada) | Detectados correctamente | Exacto? |
-|---|---|---|---|
-| plaintext | 7 | 7 | **Sí** |
-| table_logo | 3 | 0 | **No** (100% misses) |
-| textbox_nested | 3 | 0 | **No** (100% misses) |
-| floating_image | 4 | 0 | **No** (100% misses) |
-| mixed | 6 | 6 | **Sí** |
-
-**Hallazgo:** La detección de zonas falla en 3/5 variantes (table_logo, textbox_nested, floating_image) — todas las que tienen estructuras complejas (tablas, textboxes, imágenes flotantes) en la portada.
-
-### Tabla comparativa
-
-| Mecanismo | Tipo de garantía | Tasa "portada intacta" | Requiere cambio en pipeline | Requiere cambio en add-in | Recomendación |
-|---|---|---|---|---|---|
-| **Exclusión lógica** (actual) | Convención de código | 0/5 (scoped_apply) / 2/5 (detección) | — | No | **Corregir** |
-| w:sdt + w:lock (sdtContentLocked) | Estructural (Word) | N/A (lxml la bypassa) | Sí (generar SDT en pipeline) | No | No suficiente sola |
-| Office.js ContentControl.cannotEdit | Estructural (Word runtime) | N/A (no medido en pipeline) | No | Sí (aplicar en add-in) | **Adoptar como capa adicional** |
-| w:documentProtection + permStart/permEnd | Estructural (Word) | N/A | Sí (settings.xml + document.xml) | No | Evaluar |
-
-### Recomendación: HÍBRIDO — corregir exclusión lógica + añadir ContentControl en add-in
-
-**Justificación con datos:**
-- La exclusión lógica actual falla en 5/5 variantes de round-trip porque `apply_scope_texto()` no respeta `cover_paragraph_count`. **Corrección:** 5 líneas en `scoped_apply.py` para saltar los primeros `cover_paragraph_count` párrafos.
-- El SDT lock a nivel OOXML NO sirve contra el pipeline (lxml lo ignora), PERO el SDT wrapping SÍ proporciona protección incidental al esconder párrafos de `doc.paragraphs`.
-- Office.js ContentControl.cannotEdit (disponible desde WordApi 1.1) ofrece protección estructural contra edición del USUARIO en runtime — complementa pero no reemplaza la protección del pipeline.
-- **Costo:** 1 día para corregir `apply_scope_texto()` + 2 días para añadir ContentControl en el add-in. **Beneficio:** portada intacta en 100% de casos de pipeline + protección runtime del usuario.
-
----
-
-## SUBSISTEMA 5 — Verificación de paginación/overflow post-generación
-
-### Tecnología actual
-Ninguna verificación automatizada post-generación. El COM post-processor existe pero se usa solo para TOC update, PDF export y layout enforcement.
-
-### Infraestructura COM existente
-
-| Componente | Archivo | Función | Estado |
-|---|---|---|---|
-| Word COM singleton | `word_com.py` | `get_word_app()`, `word_session()` | Funcional |
-| COM Reader | `com_reader.py` | `analyze()` — lee outline levels, listas, fuentes, campos, shapes, secciones | Funcional |
-| COM Post-processor | `post_processor.py` | `_enforce_layout()`, `_diagnostic_report()`, `audit_layout()` | Funcional |
-| Word COM Service | `services/word_com_service.py` | Singleton persistente | Funcional |
-
-**Lo que YA hace el post-processor:**
-- `KeepWithNext` en headings 1-3
-- `PageBreakBefore` en "Referencias"
-- Detección de tablas partidas entre páginas (con corrección automática)
-- Reporte de páginas, headings, tablas, campos, shapes, secciones
-- Exportación a PDF con bookmarks
-
-**Lo que FALTA:**
-- Detección de overflow de contenido (texto que excede el área imprimible)
-- Verificación de que la portada ocupa exactamente 1 página
-- Alerta de encabezado APA con número de página incorrecto
-
-### Tabla comparativa
-
-| Tecnología | Detecta overflow | Detecta tablas partidas | Tiempo añadido al flujo | Requiere runtime no-Python | Recomendación |
-|---|---|---|---|---|---|
-| **Sin verificación** (actual) | No | No (solo post-proceso COM) | 0 ms | No | Baseline |
-| **COM extendido** (extender post_processor) | **Sí** (ComputeStatistics + Information) | Sí (ya existe) | ~2-5s por documento | Sí (pywin32, ya instalado) | **Adoptar** |
-| Open XML SDK Validator | No (solo schema, no paginación) | No | N/A | Sí (.NET) | No aplica |
-
-### Recomendación: MANTENER y EXTENDER el COM post-processor
-
-**Justificación con datos:**
-- La infraestructura COM ya existe y funciona (pywin32 312 instalado, word_com.py singleton, post_processor.py con _diagnostic_report).
-- Extender `_diagnostic_report()` para detectar overflow es un cambio de ~50 líneas: `doc.ComputeStatistics(2)` (wdStatisticPages) + comparación con esperado.
-- Open XML SDK Validator valida schema pero NO mide paginación — no resuelve el problema.
-- **Costo:** 2-3 días de desarrollo. **Beneficio:** detección de overflow antes de que llegue al usuario. **Tiempo añadido:** 2-5s (aceptable, el post-proceso COM ya toma ese tiempo para TOC + PDF).
-
----
-
-## SUBSISTEMA 6 — Capacidades de Office.js posiblemente subutilizadas
-
-### Requirement set actual del manifest: WordApi 1.3
-
-### Auditoría de uso: APIs usadas vs disponibles
-
-| API | Requirement set | ¿Usada? | Impacto potencial |
-|---|---|---|---|
-| `body.getOoxml()` | 1.1 | **Sí** | Lectura de OOXML para scoped-apply |
-| `body.insertOoxml()` | 1.1 | **No** | Podría insertar OOXML pre-formateado del motor Python directamente |
-| `getSelection().insertText()` | 1.1 | **Sí** | Inserción de texto/citas |
-| `body.insertParagraph()` | 1.1 | **Sí** | Inserción de headings, captions |
-| `body.insertInlinePictureFromBase64()` | 1.2 | **Sí** | Inserción de figuras |
-| **`insertContentControl()`** | **1.1** | **No** | **Podría envolver la portada en un ContentControl protegido (Subsystem 4)** |
-| **`ContentControl.cannotEdit`** | **1.1** | **No** | **Protección estructural de portada contra edición del usuario** |
-| **`ContentControl.cannotDelete`** | **1.1** | **No** | **Protección contra eliminación de portada** |
-| `body.tables` | 1.3 | **Sí** | Manipulación de tablas |
-| `Range.getRange()` | 1.3 | **Sí** (en figureCaptions) | Obtención de rangos |
-| `Range.expandTo()` | 1.3 | **No** | Expansión de rangos para selección precisa |
-| `Range.intersectWith()` | 1.3 | **No** | Intersección de rangos |
-| `Range.split()` | 1.3 | **No** | División de rangos por delimitadores |
-| `Range.getTextRanges()` | 1.3 | **No** | División por marcas de fin |
-| **`Paragraph.attachToList()`** | **1.3** | **No** | **Nativa: crear listas numeradas/viñetas sin OOXML manual (Subsystem 2)** |
-| **`Paragraph.startNewList()`** | **1.3** | **No** | **Iniciar nueva lista con numeración propia** |
-| **`Paragraph.detachFromList()`** | **1.3** | **No** | **Quitar elemento de lista** |
-| `Document.properties` | 1.3 | **No** | Metadatos del documento (autor, título, etc.) |
-| `CustomProperty` | 1.3 | **No** | Propiedades personalizadas (session_id, profile, etc.) |
-| `Application.createDocument()` | 1.3 | **No** | Crear documentos desde base64 |
-| `DocumentChanged` event | Common API | **Sí** | Detección de cambios en vivo |
-| `DocumentSelectionChanged` event | Common API | **Sí** | Detección de cambio de cursor |
-| `Track Changes` (trackRevisions) | **1.6 / Desktop 1.4** | **No** (no disponible) | Requeriría bump de requirement set |
-| `getContentControls(options)` | **1.5** | **No** (no disponible) | Filtrado de content controls por tipo |
-
-### Hallazgos clave
-
-1. **ContentControl API (disponible desde 1.1) NO se usa** — es la solución nativa para protección de portada (Subsystem 4). `insertContentControl()` + `cannotEdit` + `cannotDelete` están a 3 llamadas de distancia.
-
-2. **List API (disponible desde 1.3) NO se usa** — `attachToList()`, `startNewList()` permitirían crear listas numeradas/viñetas nativas desde el add-in sin recurrir a OOXML manual (Subsystem 2). Esto resolvería el problema de colisión de numId desde el lado del add-in.
-
-3. **`insertOoxml()` (disponible desde 1.1) NO se usa** — podría insertar OOXML pre-formateado generado por el motor Python directamente, simplificando el flujo engine → add-in.
-
-4. **Track Changes NO está disponible en WordApi 1.3** — requeriría bump a WordApi 1.6 (cross-platform) o WordApiDesktop 1.4 (desktop-only). Esto es un costo de compatibilidad: Word 2019 (Office perpetual) soporta hasta 1.3.
-
-### Recomendación: APROVECHAR ContentControl + List API, NO bumpar requirement set
-
-**Justificación con datos:**
-- ContentControl (1.1) y List API (1.3) están dentro del requirement set actual — costo de adopción: desarrollo, no compatibilidad.
-- Track Changes requeriría bump a 1.6, excluyendo usuarios de Word 2019 perpetual. No recomendado.
-- `insertOoxml()` podría simplificar el flujo pero requiere evaluar la fidelidad del round-trip OOXML.
-
----
-
-## RANKING FINAL: Relación impacto/esfuerzo
-
-| # | Subsistema | Acción | Impacto (1-10) | Esfuerzo (días) | Ratio impacto/esfuerzo | Evidencia |
-|---|---|---|---|---|---|---|
-| 1 | **S4: Portada** | Corregir `apply_scope_texto()` + añadir ContentControl en add-in | 9 | 3 | **3.0** | 0/5 variantes con portada intacta → 5/5 esperado |
-| 2 | **S2: Numeración** | Escanear numId existente antes de asignar + reservar rango | 8 | 2 | **4.0** | misformat_confirmado=true → 0 colisiones esperado |
-| 3 | **S5: Paginación** | Extender `_diagnostic_report()` con detección de overflow | 7 | 3 | **2.3** | 0 detecciones → detección automática pre-usuario |
-| 4 | **S6: Office.js** | Usar List API (1.3) para listas nativas en add-in | 6 | 5 | **1.2** | Elimina colisión de numId del lado add-in |
-| 5 | **S3: Bibliografía** | Adoptar CSL-JSON como formato intermedio | 5 | 10 | **0.5** | 93.3% → mantiene accuracy + datos estructurados |
-| 6 | **S1: OOXML** | Mantener python-docx + lxml (sin cambio) | 0 | 0 | **N/A** | 32.4% fallback es aceptable; alternativas requieren JVM/.NET |
-
-### Resumen ejecutivo
-
-| Subsistema | Tecnología actual | Recomendación | Costo de migración | Evidencia clave |
-|---|---|---|---|---|
-| OOXML | python-docx + lxml | **Mantener** | N/A | 32.4% fallback; alternativas requieren JVM/.NET |
-| Numeración | numId hardcodeado | **Mantener + corregir bug** | 2 días | Colisión confirmada; fix de 20 líneas |
-| Bibliografía | Formateador custom | **Híbrido: mantener + CSL-JSON** | 10 días | 93.3% vs 26.7% citeproc-py |
-| Portada | Exclusión lógica | **Híbrido: corregir + ContentControl** | 3 días | 0/5 portadas intactas; ContentControl disponible desde 1.1 |
-| Paginación | Sin verificación | **Mantener + extender COM** | 3 días | Infraestructura COM ya existe |
-| Office.js | WordApi 1.3 parcial | **Aprovechar APIs no usadas** | 5 días | ContentControl + List API dentro del req set actual |
-
-**Conclusión:** La tecnología actual de WordAPA7 es la correcta para el stack (Python/Electron + pywin32 COM + Office.js 1.3). Las alternativas de mayor cobertura (docx4j, Open XML SDK) requieren runtimes no-Python con costo operativo desproporcionado. Los problemas detectados son bugs de lógica (numId colisión, portada no excluida del scope), no limitaciones de la librería. Las APIs no utilizadas de Office.js (ContentControl, List API) están dentro del requirement set actual y resuelven dos subsistemas de forma nativa sin bump de compatibilidad.
+import os
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import numpy as np
+import reportlab.platypus as rl
+import reportlab.lib.units as u
+import reportlab.lib.colors as c
+import reportlab.lib.enums as ea
+import reportlab.lib.pagesizes as ps
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+                               Image, KeepTogether, HRFlowable)
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
+from reportlab.lib import colors
+
+FONT_DIR = '/usr/share/fonts'
+
+# ── Register Fonts ──
+pdfmetrics.registerFont(TTFont('FreeSerif', f'{FONT_DIR}/truetype/freefont/FreeSerif.ttf'))
+pdfmetrics.registerFont(TTFont('FreeSerif-Bold', f'{FONT_DIR}/truetype/freefont/FreeSerifBold.ttf'))
+pdfmetrics.registerFont(TTFont('FreeSerif-Italic', f'{FONT_DIR}/truetype/freefont/FreeSerifItalic.ttf'))
+pdfmetrics.registerFont(TTFont('FreeSerif-BoldItalic', f'{FONT_DIR}/truetype/freefont/FreeSerifBoldItalic.ttf'))
+pdfmetrics.registerFont(TTFont('DejaVuSans', f'{FONT_DIR}/truetype/dejavu/DejaVuSansMono.ttf'))
+registerFontFamily('FreeSerif', normal='FreeSerif', bold='FreeSerif-Bold',
+                   italic='FreeSerif-Italic', boldItalic='FreeSerif-BoldItalic')
+
+# ── Cascade Palette ──
+TABLE_STRIPE = c.HexColor('#eeedea')
+HEADER_FILL = c.HexColor('#4c4637')
+BORDER      = c.HexColor('#cbc8be')
+ACCENT      = c.HexColor('#8b7226')
+ACCENT_2    = c.HexColor('#3e97b4')
+TEXT_PRIMARY = c.HexColor('#1c1b19')
+TEXT_MUTED   = c.HexColor('#7a7770')
+SEM_SUCCESS = c.HexColor('#477858')
+SEM_ERROR   = c.HexColor('#9f4840')
+SEM_INFO    = c.HexColor('#547291')
+SEM_WARNING = c.HexColor('#9b814f')
+
+# ── Output paths ──
+OUT_DIR = '/home/z/my-project/download'
+CHART_PATH = os.path.join(OUT_DIR, 'pie_chart.png')
+PDF_PATH = os.path.join(OUT_DIR, 'Balance_de_Agua_Restaurante.pdf')
+
+# ══════════════════════════════════════════════════════════════════════
+# GENERATE PIE CHART
+# ══════════════════════════════════════════════════════════════════════
+fm.fontManager.addfont('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
+labels = ['Clientes', 'Empleados', 'Cocina', 'Limpieza', 'Sanitarios', 'Riego']
+values = [900, 225, 360, 240, 300, 180]
+pcts = [v / 2205 * 100 for v in values]
+CHART_COLORS = ['#3e97b4', '#8b7226', '#477858', '#9f4840', '#547291', '#9b814f']
+
+fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+wedges, texts, autotexts = ax.pie(
+    values, labels=None, autopct='', startangle=140,
+    colors=CHART_COLORS[:6], pctdistance=0.75,
+    wedgeprops=dict(width=0.45, edgecolor='white', linewidth=2.5))
+ax.legend(
+    wedges, [f'{l} ({p:.1f}%)' for l, p in zip(labels, pcts)],
+    loc='center left', bbox_to_anchor=(0.92, 0.5), fontsize=9,
+    frameon=True, fancybox=True, shadow=False,
+    edgecolor='#cbc8be')
+ax.set_title('Distribucion del Consumo de Agua por Componente',
+              fontsize=12, fontweight='bold', color='#1c1b19', pad=15)
+center_circle = plt.Circle((0, 0), 0.35, fc='white', ec='#cbc8be', lw=1.5)
+ax.add_artist(center_circle)
+ax.text(0, 0.04, '2,205', ha='center', va='center', fontsize=18,
+        fontweight='bold', color='#1c1b19')
+ax.text(0, -0.12, 'm\u00b3/ano', ha='center', va='center', fontsize=9,
+        color='#7a7770')
+plt.savefig(CHART_PATH, dpi=250, bbox_inches='tight', facecolor='white', edgecolor='none')
+plt.close()
+print(f'Chart saved: {CHART_PATH}')
+
+# ══════════════════════════════════════════════════════════════════════
+# STYLES
+# ══════════════════════════════════════════════════════════════════════
+page_n = [0]
+def add_page_number(canvas, doc):
+    page_n[0] += 1
+    if page_n[0] > 1:
+        canvas.saveState()
+        canvas.setFont('FreeSerif', 9)
+        canvas.setFillColor(TEXT_MUTED)
+        canvas.drawCentredString(ps.A4[0] / 2, 1.5 * u.cm, str(page_n[0]))
+        canvas.restoreState()
+
+title_s = ParagraphStyle('Title', fontName='FreeSerif-Bold', fontSize=14, leading=18,
+    alignment=ea.TA_CENTER, spaceAfter=4, textColor=TEXT_PRIMARY)
+sub_s = ParagraphStyle('Sub', fontName='FreeSerif', fontSize=11, leading=15,
+    alignment=ea.TA_CENTER, spaceAfter=18, textColor=TEXT_MUTED)
+h1 = ParagraphStyle('H1', fontName='FreeSerif-Bold', fontSize=13, leading=17,
+    spaceBefore=18, spaceAfter=8, textColor=TEXT_PRIMARY)
+h2 = ParagraphStyle('H2', fontName='FreeSerif-Bold', fontSize=11.5, leading=15,
+    spaceBefore=14, spaceAfter=6, textColor=TEXT_PRIMARY)
+body = ParagraphStyle('Body', fontName='FreeSerif', fontSize=11, leading=16,
+    alignment=ea.TA_JUSTIFY, spaceAfter=6, textColor=TEXT_PRIMARY,
+    firstLineIndent=1.27*u.cm)
+eq_s = ParagraphStyle('Eq', fontName='FreeSerif', fontSize=11, leading=17,
+    alignment=ea.TA_CENTER, spaceAfter=4, spaceBefore=4, textColor=TEXT_PRIMARY,
+    leftIndent=1.5*u.cm)
+cap_s = ParagraphStyle('Cap', fontName='FreeSerif-Italic', fontSize=10, leading=13,
+    alignment=ea.TA_CENTER, spaceBefore=3, spaceAfter=6, textColor=TEXT_MUTED)
+hc = ParagraphStyle('HC', fontName='FreeSerif-Bold', fontSize=10, leading=13,
+    alignment=ea.TA_CENTER, textColor=colors.white)
+cs = ParagraphStyle('CS', fontName='FreeSerif', fontSize=10, leading=13,
+    alignment=ea.TA_CENTER, textColor=TEXT_PRIMARY)
+cl = ParagraphStyle('CL', fontName='FreeSerif', fontSize=10, leading=13,
+    alignment=ea.TA_LEFT, textColor=TEXT_PRIMARY)
+ref_s = ParagraphStyle('Ref', fontName='FreeSerif', fontSize=10, leading=14,
+    alignment=ea.TA_LEFT, spaceAfter=4, textColor=TEXT_PRIMARY,
+    leftIndent=1.27*u.cm, firstLineIndent=-1.27*u.cm)
+
+# ── Helpers ──
+M3 = 'm<super>3</super>'
+def P(t, s=body): return Paragraph(t, s)
+def H1(t): return Paragraph(f'<b>{t}</b>', h1)
+def H2(t): return Paragraph(f'<b>{t}</b>', h2)
+def Eq(t): return Paragraph(t, eq_s)
+
+def tbl(data, cw, nhr=1):
+    t = Table(data, colWidths=cw, hAlign='CENTER')
+    cmds = [
+        ('BACKGROUND', (0, 0), (-1, nhr-1), HEADER_FILL),
+        ('TEXTCOLOR', (0, 0), (-1, nhr-1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]
+    for i in range(nhr, len(data)):
+        bg = colors.white if (i - nhr) % 2 == 0 else TABLE_STRIPE
+        cmds.append(('BACKGROUND', (0, i), (-1, i), bg))
+    t.setStyle(TableStyle(cmds))
+    return t
+
+# ══════════════════════════════════════════════════════════════════════
+# BUILD PDF
+# ══════════════════════════════════════════════════════════════════════
+doc = SimpleDocTemplate(PDF_PATH, pagesize=ps.A4,
+    leftMargin=2.54*u.cm, rightMargin=2.54*u.cm,
+    topMargin=2.54*u.cm, bottomMargin=2.54*u.cm)
+aw = doc.width
+story = []
+
+# ── TITLE (APA 7) ──
+story.append(P('<b>Balance de Agua de un Restaurante</b>', title_s))
+story.append(P('Trabajo Grupal - Tecnologia y Medio Ambiente', sub_s))
+story.append(Spacer(1, 6))
+
+# ── 1. INTRODUCCION ──
+story.append(H1('1. Introduccion'))
+story.append(P(
+    'El balance de agua es una herramienta fundamental para la gestion de recursos hidricos en cualquier '
+    'establecimiento, ya que permite medir y cuantificar las cantidades de agua que entran y salen de un proceso '
+    'productivo. Segun la conferencia sobre Balance de Agua de la asignatura de Tecnologia y Medio Ambiente, '
+    'un balance de agua mide las cantidades de dicho recurso que entran en un proceso y la produccion que se genera '
+    'como resultado de ese proceso. Este tipo de analisis resulta especialmente relevante en el sector de la '
+    'restauracion, donde el agua se utiliza en multiples actividades simultaneas: preparacion de alimentos, limpieza '
+    'de instalaciones, consumo directo de clientes y empleados, sanitarios y riego de areas verdes, entre otros usos.'))
+story.append(P(
+    'El presente trabajo tiene como objetivo elaborar el balance de agua de un restaurante, a partir de los datos '
+    'proporcionados sobre su operacion. Se calcula el consumo anual de cada componente identificado, se cuantifica '
+    'el volumen no controlado y se analizan sus posibles origenes, y finalmente se proponen acciones concretas para '
+    'reducir el consumo de agua. Para el desarrollo de los calculos se siguen los pasos descritos en la conferencia: '
+    'enumerar consumidores, analizar el consumo total, realizar el balance, analizar indicadores y generar oportunidades '
+    'de ahorro.'))
+
+# ── 2. DATOS DEL RESTAURANTE ──
+story.append(H1('2. Datos del Restaurante'))
+story.append(P(
+    'A continuacion se presentan los datos operativos del restaurante proporcionados para el desarrollo del '
+    'balance de agua. Estos datos incluyen tanto los parametros de operacion como los consumos registrados '
+    'por cada area del establecimiento, asi como la lectura del medidor principal.'))
+story.append(Spacer(1, 12))
+
+dd = [
+    [P('<b>Parametro</b>', hc), P('<b>Valor</b>', hc), P('<b>Unidad</b>', hc)],
+    [P('Clientes atendidos por dia', cl), P('120', cs), P('clientes/dia', cs)],
+    [P('Consumo promedio por cliente', cl), P('25', cs), P('L/cliente', cs)],
+    [P('Dias de operacion al ano', cl), P('300', cs), P('dias/ano', cs)],
+    [P('Numero de empleados', cl), P('15', cs), P('empleados', cs)],
+    [P('Consumo por empleado', cl), P('50', cs), P('L/dia', cs)],
+    [P('Consumo en cocina', cl), P('1,200', cs), P('L/dia', cs)],
+    [P('Consumo en limpieza general', cl), P('800', cs), P('L/dia', cs)],
+    [P('Consumo en sanitarios', cl), P('1,000', cs), P('L/dia', cs)],
+    [P('Consumo en riego', cl), P('15', cs), P('m' + u'\u00b3' + '/mes', cs)],
+    [P('Volumen no controlado', cl), P('5%', cs), P('del consumo total', cs)],
+    [P('<b>Volumen total registrado (medidor)</b>', cl), P('<b>2,205</b>', cs), P('m' + u'\u00b3' + '/ano', cs)],
+]
+story.append(tbl(dd, [aw*0.50, aw*0.25, aw*0.25]))
+story.append(P('<b>Tabla 1.</b> Datos operativos del restaurante para el balance de agua.', cap_s))
+story.append(Spacer(1, 12))
+
+# ── 3. CALCULO DEL CONSUMO ANUAL POR COMPONENTE ──
+story.append(H1('3. Calculo del Consumo Anual por Componente'))
+story.append(P(
+    'Siguiendo la metodologia de la conferencia (Paso 1: Identificar todos los consumidores de agua; Paso 3: '
+    'Cuantificar todos los volumenes de agua por areas de proceso), se procede a calcular el consumo anual de cada '
+    f'componente del restaurante. Los consumos diarios se convierten a valores anuales considerando los 300 dias '
+    f'de operacion, y los consumos mensuales se proyectan a 12 meses. Se utiliza la relacion 1 {M3} = 1,000 L '
+    f'para expresar todos los resultados en metros cubicos por ano ({M3}/ano), que es la unidad del medidor principal.'))
+
+# 3.1 Clientes
+story.append(H2('3.1. Consumo de Clientes'))
+story.append(P(
+    'Para calcular el consumo anual de agua atribuible a los clientes del restaurante, se multiplica el numero '
+    'de clientes atendidos por dia por el consumo promedio por cliente, obteniendo el consumo diario total. '
+    'Luego, este valor diario se proyecta al ano multiplicando por los dias de operacion. El razonamiento sigue '
+    'el principio del aforo volumetrico presentado en la diapositiva 12 de la conferencia, donde se establece '
+    'una relacion proporcional entre el volumen y el tiempo.'))
+story.append(Eq('V<sub>clientes</sub> = n<sub>clientes</sub> x C<sub>promedio</sub> x D<sub>operacion</sub>'))
+story.append(Eq('V<sub>clientes</sub> = 120 clientes/dia x 25 L/cliente x 300 dias/ano'))
+story.append(Eq('V<sub>clientes</sub> = 3,000 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>clientes</sub> = 900,000 L/ano x (1 ' + M3 + ' / 1,000 L)'))
+story.append(Eq(f'<b>V<sub>clientes</sub> = 900 {M3}/ano</b>'))
+story.append(P(
+    f'El consumo de agua por parte de los clientes representa el 40.8% del consumo total registrado, '
+    'constituyendose como el mayor consumidor individual del restaurante. Este resultado es consistente con '
+    'lo observado en la presentacion para el caso de hoteles, donde el consumo por huesped tambien '
+    'representa la proporcion mas significativa del uso total de agua en el establecimiento.'))
+
+# 3.2 Empleados
+story.append(H2('3.2. Consumo de Empleados'))
+story.append(P(
+    'El consumo de agua de los empleados incluye el agua para beber, aseo personal durante la jornada laboral '
+    'y otros usos basicos. Se calcula de manera similar al consumo de clientes, multiplicando el numero de '
+    'empleados por su consumo diario individual y proyectando al periodo anual de operacion.'))
+story.append(Eq('V<sub>empleados</sub> = n<sub>empleados</sub> x C<sub>empleado</sub> x D<sub>operacion</sub>'))
+story.append(Eq('V<sub>empleados</sub> = 15 empleados x 50 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>empleados</sub> = 750 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>empleados</sub> = 225,000 L/ano x (1 ' + M3 + ' / 1,000 L)'))
+story.append(Eq(f'<b>V<sub>empleados</sub> = 225 {M3}/ano</b>'))
+story.append(P(
+    'Aunque el consumo individual por empleado (50 L/dia) es el doble del consumo por cliente (25 L/cliente), '
+    'el numero reducido de empleados (15) frente a la afluencia de clientes (120 por dia) hace que este '
+    'componente represente solo el 10.2% del consumo total, lo cual es razonable para un restaurante '
+    'con esta proporcion de personal frente a la clientela atendida.'))
+
+# 3.3 Cocina
+story.append(H2('3.3. Consumo en Cocina'))
+story.append(P(
+    'El consumo en cocina abarca el lavado de alimentos, utensilios, ollas y sartenes, asi como el agua utilizada '
+    'en la preparacion de alimentos y bebidas. Este componente abarca todas las actividades que se realizan '
+    'en el area de cocina del restaurante, como se identifico en el Paso 1 de la metodologia.'))
+story.append(Eq('V<sub>cocina</sub> = C<sub>cocina,dia</sub> x D<sub>operacion</sub>'))
+story.append(Eq('V<sub>cocina</sub> = 1,200 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>cocina</sub> = 360,000 L/ano x (1 ' + M3 + ' / 1,000 L)'))
+story.append(Eq(f'<b>V<sub>cocina</sub> = 360 {M3}/ano</b>'))
+story.append(P(
+    f'Con 360 {M3}/ano, la cocina representa el 16.3% del consumo total. Este valor es coherente con los '
+    'datos presentados en la conferencia para industrias de alimentos, donde las operaciones de lavado y '
+    'preparacion suelen demandar volumenes significativos de agua, siendo una de las areas con mayor potencial '
+    'de optimizacion a traves de equipos eficientes y procedimientos de trabajo mejorados.'))
+
+# 3.4 Limpieza
+story.append(H2('3.4. Consumo en Limpieza General'))
+story.append(P(
+    'El consumo en limpieza general incluye el agua utilizada para el lavado de pisos, paredes, superficies de '
+    'mesas y cualquier otra area del restaurante. Segun la conferencia, la colocacion de pistolas de bajo '
+    'volumen y alta presion en las mangueras puede reducir significativamente este consumo, ya que permite '
+    'que el agua no fluya cuando no se la esta usando y reduce los tiempos de lavado.'))
+story.append(Eq('V<sub>limpieza</sub> = C<sub>limpieza,dia</sub> x D<sub>operacion</sub>'))
+story.append(Eq('V<sub>limpieza</sub> = 800 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>limpieza</sub> = 240,000 L/ano x (1 ' + M3 + ' / 1,000 L)'))
+story.append(Eq(f'<b>V<sub>limpieza</sub> = 240 {M3}/ano</b>'))
+story.append(P(
+    f'Este componente representa el 10.9% del consumo total. La diapositiva 28 de la conferencia senala que '
+    'el uso de mangueras sin pistolas de cierre rapido y la practica de usar las mangueras como escobas '
+    'generan un desperdicio considerable. La implementacion de pistolas de alta presion y el uso de cepillos '
+    'de goma para limpiar el piso, reservando las mangueras solo para el enjuague final, son buenas practicas '
+    'que podrian reducir este consumo de manera significativa.'))
+
+# 3.5 Sanitarios
+story.append(H2('3.5. Consumo en Sanitarios'))
+story.append(P(
+    'El consumo en sanitarios contempla el agua utilizada tanto por clientes como por empleados en los '
+    'servicios higienicos del restaurante. Este componente incluye inodoros, lavamanos y urinarios, y suele '
+    'ser uno de los consumidores mas significativos en establecimientos de atencion al publico.'))
+story.append(Eq('V<sub>sanitarios</sub> = C<sub>sanitarios,dia</sub> x D<sub>operacion</sub>'))
+story.append(Eq('V<sub>sanitarios</sub> = 1,000 L/dia x 300 dias/ano'))
+story.append(Eq('V<sub>sanitarios</sub> = 300,000 L/ano x (1 ' + M3 + ' / 1,000 L)'))
+story.append(Eq(f'<b>V<sub>sanitarios</sub> = 300 {M3}/ano</b>'))
+story.append(P(
+    f'Los sanitarios representan el 13.6% del consumo total. Este valor podria reducirse mediante la instalacion '
+    'de dispositivos de bajo consumo en inodoros y grifos sensoriales en lavamanos. Las fugas en los sistemas '
+    f'sanitarios tambien contribuyen a este consumo, tal como se senala en la diapositiva 27, donde se indica '
+    f'que una gota por un orificio de 2 mm en una tuberia puede representar mas de 100 {M3} de agua al ano.'))
+
+# 3.6 Riego
+story.append(H2('3.6. Consumo en Riego'))
+story.append(P(
+    'El consumo en riego corresponde al agua utilizada para el mantenimiento de areas verdes del restaurante, '
+    'jardines y zonas de estetica exterior. A diferencia de los demas componentes que se expresan en consumo '
+    'diario, este dato se proporciona en metros cubicos por mes, por lo que la conversion anual requiere '
+    'multiplicar por 12 meses.'))
+story.append(Eq('V<sub>riego</sub> = C<sub>riego,mes</sub> x 12 meses/ano'))
+story.append(Eq(f'V<sub>riego</sub> = 15 {M3}/mes x 12 meses/ano'))
+story.append(Eq(f'<b>V<sub>riego</sub> = 180 {M3}/ano</b>'))
+story.append(P(
+    f'El riego representa el 8.2% del consumo total. Aunque es el componente de menor volumen, su optimizacion '
+    'es relevante desde el punto de vista ambiental, ya que el riego puede sustituirse parcialmente con agua '
+    'de lluvia recolectada, como se menciono en la diapositiva 4 de la conferencia entre las fuentes de '
+    'abastecimiento de agua. El uso de sistemas de riego por goteo tambien permitiria reducir este consumo.'))
+
+# ── 4. BALANCE RESUMEN ──
+story.append(H1('4. Balance de Agua: Tabla Resumen'))
+story.append(P(
+    f'La Tabla 2 presenta el resumen consolidado del balance de agua del restaurante. Se muestran los datos de '
+    'entrada para cada componente, el calculo del consumo anual en litros y su equivalente en metros cubicos, '
+    f'asi como el porcentaje que representa cada uno respecto al consumo total registrado por el medidor. '
+    f'Como se observa, la suma de todos los componentes identificados es exactamente 2,205 {M3}/ano, '
+    'lo cual coincide con la lectura del medidor principal del restaurante, validando la consistencia del balance.'))
+story.append(Spacer(1, 12))
+
+cd = [
+    [P('<b>Componente</b>', hc), P('<b>Dato Base</b>', hc),
+     P(f'<b>V<sub>diario</sub></b>', hc), P(f'<b>V<sub>anual</sub> ({M3}/ano)</b>', hc), P('<b>%</b>', hc)],
+    [P('Clientes', cl), P('120 x 25 L/cliente', cs), P('3,000 L', cs), P('900', cs), P('40.8%', cs)],
+    [P('Empleados', cl), P('15 x 50 L/dia', cs), P('750 L', cs), P('225', cs), P('10.2%', cs)],
+    [P('Cocina', cl), P('1,200 L/dia', cs), P('1,200 L', cs), P('360', cs), P('16.3%', cs)],
+    [P('Limpieza', cl), P('800 L/dia', cs), P('800 L', cs), P('240', cs), P('10.9%', cs)],
+    [P('Sanitarios', cl), P('1,000 L/dia', cs), P('1,000 L', cs), P('300', cs), P('13.6%', cs)],
+    [P('Riego', cl), P(f'15 m\u00b3/mes', cs), P('--', cs), P('180', cs), P('8.2%', cs)],
+    [P('<b>TOTAL</b>', cl), P('', cs), P('', cs), P('<b>2,205</b>', cs), P('<b>100%</b>', cs)],
+]
+story.append(tbl(cd, [aw*0.20, aw*0.24, aw*0.16, aw*0.24, aw*0.16]))
+story.append(P('<b>Tabla 2.</b> Balance de agua del restaurante - resumen anual por componente.', cap_s))
+story.append(Spacer(1, 12))
+
+# ── 5. GRAFICO ──
+story.append(H1('5. Distribucion del Consumo de Agua'))
+story.append(P(
+    'La Figura 1 presenta un diagrama de pastel (donut chart) con la distribucion porcentual del consumo de agua '
+    'por cada componente del restaurante. Como se establece en la diapositiva 11 de la conferencia, los resultados '
+    'del balance pueden presentarse en forma de diagrama de pastel para facilitar la visualizacion de las proporciones. '
+    'Se observa que el consumo de clientes domina con un 40.8%, seguido por la cocina (16.3%), los sanitarios (13.6%), '
+    'la limpieza (10.9%), los empleados (10.2%) y el riego (8.2%). Esta representacion grafica permite identificar '
+    'rapidamente los componentes con mayor potencial de ahorro.'))
+story.append(Spacer(1, 12))
+img = Image(CHART_PATH, width=aw*0.85, height=aw*0.60)
+img.hAlign = 'CENTER'
+story.append(img)
+story.append(P('<b>Figura 1.</b> Distribucion porcentual del consumo de agua anual por componente.', cap_s))
+story.append(Spacer(1, 12))
+
+# ── 6. VOLUMEN NO CONTROLADO ──
+story.append(H1('6. Volumen No Controlado'))
+story.append(P(
+    'El volumen no controlado representa la diferencia entre el agua que efectivamente ingresa al sistema y el agua '
+    'que se registra a traves de los medidores individuales por componente. En este caso, los datos del problema '
+    'establecen que el volumen no controlado equivale al 5% del consumo total registrado. Siguiendo el razonamiento '
+    'presentado en la diapositiva 11 de la conferencia, donde se indica que las perdidas de agua (fugas) deben ser '
+    'consideradas como parte del balance, se procede a su cuantificacion.'))
+
+story.append(H2('6.1. Cuantificacion'))
+story.append(Eq('V<sub>no controlado</sub> = 5% x V<sub>total registrado</sub>'))
+story.append(Eq(f'V<sub>no controlado</sub> = 0.05 x 2,205 {M3}/ano'))
+story.append(Eq(f'<b>V<sub>no controlado</sub> = 110.25 {M3}/ano</b>'))
+story.append(P(
+    f'Este volumen de 110.25 {M3}/ano equivale a 110,250 litros de agua al ano que se pierden sin ser '
+    'atribuidos a ningun componente especifico del consumo. Dado que la suma de los componentes identificados '
+    f'coincide exactamente con la lectura del medidor (2,205 {M3}/ano), se concluye que el volumen no '
+    'controlado se encuentra distribuido dentro de las mediciones de cada componente, es decir, esta embebido '
+    f'en los valores registrados. En un sistema ideal con medicion individual perfecta, el consumo efectivo util '
+    f'seria de aproximadamente 2,094.75 {M3}/ano, y los 110.25 {M3}/ano restantes '
+    'corresponderian a perdidas reales.'))
+
+story.append(H2('6.2. Analisis del Origen del Volumen No Controlado'))
+story.append(P(
+    'El origen del volumen no controlado puede atribuirse a multiples fuentes dentro del sistema de distribucion '
+    'de agua del restaurante. Segun lo presentado en las diapositivas 11 y 27 de la conferencia, las fugas en tuberias, '
+    'valvulas y grifos constituyen una de las principales causas de perdida de agua. La conferencia senala que una '
+    f'simple gota por un orificio de 2 mm en una tuberia puede representar mas de 100 {M3} de agua al ano, '
+    f'lo cual es muy cercano al volumen no controlado calculado (110.25 {M3}/ano), sugiriendo que '
+    'incluso unas pocas fugas pequenas podrian explicar la totalidad del volumen no controlado del restaurante.'))
+story.append(P(
+    'Adicionalmente, los sanitarios representan un foco importante de perdidas no controladas, ya que las fugas '
+    'en inodoros (por ejemplo, una valvula de descarga defectuosa) pueden pasar inadvertidas durante meses, '
+    'consumiendo entre 200 y 400 litros por dia sin generar un impacto visible en la operacion. Tambien contribuyen '
+    'las perdidas en las tuberias subterraneas o empotradas que no son visibles, las conexiones defectuosas entre '
+    'tuberias y accesorios, y el uso ineficiente del agua en limpieza donde las mangueras permanecen abiertas '
+    'durante periodos prolongados sin supervision directa. El mal estado de valvulas y grifos, tal como se '
+    'describe en la diapositiva 27, genera un incremento significativo en el consumo que se registra dentro de '
+    'cada componente pero que no corresponde a un uso productivo del recurso.'))
+
+story.append(Spacer(1, 12))
+od = [
+    [P('<b>Posible Origen</b>', hc), P('<b>Descripcion</b>', hc), P('<b>Impacto</b>', hc)],
+    [P('Fugas en tuberias', cl), P('Perdidas por grietas o joints defectuosos en la red interna', cl), P('Alto', cs)],
+    [P('Fugas en sanitarios', cl), P('Inodoros y grifos con fugas no visibles', cl), P('Alto', cs)],
+    [P('Grifos y valvulas', cl), P('Mantenimiento deficiente de grifos y valvulas de cierre', cl), P('Medio', cs)],
+    [P('Mangueras sin control', cl), P('Uso de mangueras sin pistolas de cierre rapido', cl), P('Medio', cs)],
+    [P('Conexiones defectuosas', cl), P('Filtros, accesorios o uniones con microfugas', cl), P('Bajo', cs)],
+]
+story.append(tbl(od, [aw*0.22, aw*0.58, aw*0.20]))
+story.append(P('<b>Tabla 3.</b> Posibles origenes del volumen no controlado y su impacto estimado.', cap_s))
+story.append(Spacer(1, 12))
+
+# ── 7. PROPUESTAS ──
+story.append(H1('7. Propuestas de Reduccion del Consumo de Agua'))
+story.append(P(
+    'Con base en los resultados del balance de agua y en las buenas practicas ambientales presentadas en las '
+    'diapositivas 25 a 28 de la conferencia, se proponen a continuacion tres acciones concretas para reducir el '
+    'consumo de agua en el restaurante. Cada propuesta se evalua segun los criterios de viabilidad tecnica, '
+    'economica y ambiental establecidos en las diapositivas 21 a 23 de la conferencia.'))
+
+story.append(H2('7.1. Instalacion de Medidores Individuales por Area'))
+story.append(P(
+    'Se propone instalar medidores de agua en las areas de mayor consumo: cocina, sanitarios y limpieza. Esta '
+    'medida permite realizar un monitoreo continuo del consumo por area, como se describe en la diapositiva 25 de '
+    'la conferencia. Los datos recolectados de los medidores serviran para calcular indicadores de uso de agua por '
+    'departamento, establecer metas de consumo y detectar anomalias o fugas de forma temprana. La diapositiva 26 '
+    'proporciona un formato de hoja de control de uso de agua que podria implementarse para registrar las lecturas '
+    'del contador y la produccion diaria, permitiendo calcular el indicador litros de agua por tonelada producida '
+    'o atendida. Esta accion es viable tecnicamente sin cambios sustanciales en la infraestructura, ya que solo '
+    'requiere la instalacion de medidores en las tuberias existentes. Economicamente, el periodo de repago es '
+    'corto considerando el ahorro derivado de la deteccion temprana de fugas. Ambientalmente, reduce el consumo al '
+    'hacer visible el uso del agua y motivar la eficiencia.'))
+
+story.append(H2('7.2. Programa de Mantenimiento Preventivo de Tuberias y Grifos'))
+story.append(P(
+    'Se recomienda implementar un programa de mantenimiento preventivo que incluya la revision periodica de '
+    'tuberias, valvulas, grifos, bombas y conexiones, tal como se establece en la diapositiva 27 de la conferencia. '
+    'Este programa debe incluir inspecciones visuales mensuales, pruebas de deteccion de fugas trimestrales y el '
+    'reemplazo inmediato de componentes defectuosos. La conferencia indica que el mal estado de las tuberias, '
+    'grifos y valvulas genera un incremento en el consumo de agua y, por ende, en los costos. Una gota por un '
+    f'orificio de 2 mm puede representar mas de 100 {M3}/ano, lo cual esta muy cerca del volumen no '
+    f'controlado calculado de 110.25 {M3}/ano. Esta accion tiene alta viabilidad tecnica y '
+    'economica, ya que el costo de reparacion de fugas es generalmente bajo comparado con el costo del agua perdida, '
+    'y ambientalmente minimiza el volumen de aguas residuales y el consumo total.'))
+
+story.append(H2('7.3. Sustitucion de Mangueras por Pistolas de Alta Presion y Cepillos'))
+story.append(P(
+    'Se propone la sustitucion de las mangueras convencionales por pistolas de bajo volumen y alta presion en todas '
+    'las areas de limpieza del restaurante, como se describe en la diapositiva 28 de la conferencia. Esta medida '
+    'ofrece multiples beneficios: evita que las llaves permanezcan abiertas por olvido del operario, permite que '
+    'el agua no fluya cuando no se la esta usando, reduce los tiempos de operacion de lavado y asegura que el '
+    'chorro de agua salga mas fuerte, requiriendo menos volumen para lograr la misma limpieza. Adicionalmente, '
+    'se recomienda usar pistolas metalicas en lugar de plasticas por motivos de higiene y durabilidad, y '
+    'utilizar cepillos de goma para limpiar el piso, reservando las mangueras unicamente para el enjuague final. '
+    'Esta accion es tecnicamente viable sin cambios en la infraestructura, economicamente atractiva con un periodo '
+    'de repago corto, y ambientalmente efectiva al reducir tanto el consumo de agua como el gasto en '
+    'materiales de limpieza.'))
+
+story.append(Spacer(1, 12))
+pd = [
+    [P('<b>Propuesta</b>', hc), P('<b>Viab. Tecnica</b>', hc),
+     P('<b>Viab. Economica</b>', hc), P('<b>Viab. Ambiental</b>', hc)],
+    [P('Medidores individuales', cl), P('Si', cs), P('Si', cs), P('Si', cs)],
+    [P('Mantenimiento preventivo', cl), P('Si', cs), P('Si', cs), P('Si', cs)],
+    [P('Pistolas de alta presion', cl), P('Si', cs), P('Si', cs), P('Si', cs)],
+]
+story.append(tbl(pd, [aw*0.34, aw*0.22, aw*0.22, aw*0.22]))
+story.append(P('<b>Tabla 4.</b> Evaluacion de viabilidad de las propuestas de reduccion de consumo.', cap_s))
+story.append(Spacer(1, 12))
+
+# ── 8. CONCLUSIONES ──
+story.append(H1('8. Conclusiones'))
+story.append(P(
+    f'El balance de agua del restaurante arroja un consumo total anual de 2,205 {M3}/ano, distribuido '
+    f'en seis componentes principales. El mayor consumidor es el area de clientes con 900 {M3}/ano (40.8%), '
+    f'seguido por la cocina con 360 {M3}/ano (16.3%), los sanitarios con 300 {M3}/ano (13.6%), '
+    f'la limpieza con 240 {M3}/ano (10.9%), los empleados con 225 {M3}/ano (10.2%) y el riego con '
+    f'180 {M3}/ano (8.2%). La concordancia entre la suma de los componentes identificados y la lectura del '
+    'medidor principal valida la consistencia del balance realizado.'))
+story.append(P(
+    f'El volumen no controlado se cuantifico en 110.25 {M3}/ano (5% del total), el cual se encuentra '
+    'distribuido dentro de las mediciones de cada componente. Su origen probable se asocia principalmente a fugas en '
+    'tuberias y sanitarios, asi como al mal estado de grifos y valvulas. Las tres propuestas formuladas -- '
+    'instalacion de medidores individuales, programa de mantenimiento preventivo y sustitucion de mangueras por '
+    'pistolas de alta presion -- son viables tanto tecnica como economica y ambientalmente, y su implementacion '
+    'contribuiria a reducir significativamente el consumo de agua y el volumen no controlado del restaurante, '
+    'alineandose con los principios de uso eficiente del recurso hidrico promovidos en la conferencia.'))
+
+# ── 9. REFERENCIAS (APA 7) ──
+story.append(H1('Referencias'))
+story.append(P(
+    'Direccion de Area de Conocimiento Industrial y Produccion. (s.f.). <i>Conferencia: Balance de Agua</i>. '
+    'Asignatura: Tecnologia y Medio Ambiente. [Presentacion en PowerPoint].', ref_s))
+
+# ── BUILD ──
+doc.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+print(f'PDF saved: {PDF_PATH}')

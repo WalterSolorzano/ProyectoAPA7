@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
-import { DocumentModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../types';
+import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../types';
 import * as api from '../api/backend';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult } from '../api/backend';
 import { setRequestIdListener } from '../api/http';
@@ -228,6 +228,11 @@ interface DocState {
   // IA Studio unificado + preflight (propuestas 1 y 3)
   aiStudioOpen: boolean;
   setAiStudioOpen: (open: boolean) => void;
+  liveChatOpen: boolean;
+  setLiveChatOpen: (open: boolean) => void;
+  stressTestModalOpen: boolean;
+  setStressTestModalOpen: (open: boolean) => void;
+  runProactiveAutoCaptioning: () => Promise<void>;
   auditorMode: boolean;
   setAuditorMode: (open: boolean) => void;
   theme: 'dark' | 'light';
@@ -255,6 +260,13 @@ interface DocState {
   // Undo/Redo
   history: DocumentModel[];
   historyIndex: number;
+
+  // Modo Foco & Toasts de Acción
+  focusMode: boolean;
+  setFocusMode: (f: boolean) => void;
+  actionToast: { message: string; timestamp: number } | null;
+  triggerActionToast: (message: string) => void;
+  clearActionToast: () => void;
 
   rules: APARuleSet;
   ruleProfiles: APARuleSet[];
@@ -314,6 +326,7 @@ interface DocState {
   createFromTemplate: (templateId: string) => Promise<void>;
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
+  updateElementText: (elementId: string, text: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
   replaceImage: (elementId: string, file: File) => Promise<void>;
@@ -338,10 +351,13 @@ interface DocState {
   resetRulesToDefault: () => void;
 
   setPortada: (portada: Partial<PortadaData>) => void;
+  updateCoverField: (field: keyof PortadaData, value: any) => void;
   savePortadaProfile: (name: string) => void;
 
   updateReferences: (refs: ReferenciaModel[]) => void;
   addReference: (ref: ReferenciaModel) => void;
+  addReferencia: (ref: ReferenciaModel) => void;
+
   removeReference: (id: string) => void;
   resolveDoiReference: (doi: string) => Promise<void>;
   resolveGhostCitation: (authors: string[], year: string) => Promise<{
@@ -446,6 +462,96 @@ export function safeRefText(ref: unknown): string {
   } catch { return ''; }
 }
 
+export function syncCoverFieldToElements(elements: ElementModel[], field: keyof PortadaData, value: string): ElementModel[] {
+  if (!elements || elements.length === 0) return elements;
+  const coverElems = elements.filter(e => e.is_cover_section || e.type === 'portada_block');
+  if (coverElems.length === 0) return elements;
+
+  const newElements = [...elements];
+
+  if (field === 'title') {
+    const titleElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('tema:') || (e.font_size && e.font_size >= 18))
+    ) || coverElems.find(e => 
+      e.text && !['universidad', 'facultad', 'recinto', 'departamento', 'direccion', 'área de conocimiento'].some(kw => e.text.toLowerCase().includes(kw))
+    );
+    if (titleElem) {
+      const idx = newElements.findIndex(e => e.id === titleElem.id);
+      if (idx !== -1) {
+        const prefixMatch = newElements[idx].text.match(/^(tema\s*:\s*)/i);
+        const prefix = prefixMatch ? prefixMatch[1] : '';
+        newElements[idx] = { ...newElements[idx], text: prefix ? `${prefix}${value}` : value };
+      }
+    }
+  } else if (field === 'author') {
+    const authorElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('elaborado por') || e.text.toLowerCase().includes('br.') || e.text.toLowerCase().includes('carnet'))
+    );
+    if (authorElem) {
+      const idx = newElements.findIndex(e => e.id === authorElem.id);
+      if (idx !== -1) {
+        newElements[idx] = { ...newElements[idx], text: value };
+      }
+    }
+  } else if (field === 'instructor') {
+    const instElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('docente') || e.text.toLowerCase().includes('profesor') || e.text.toLowerCase().includes('tutor') || e.text.toLowerCase().includes('ing.') || e.text.toLowerCase().includes('lic.'))
+    );
+    if (instElem) {
+      const idx = newElements.findIndex(e => e.id === instElem.id);
+      if (idx !== -1) {
+        const prefixMatch = newElements[idx].text.match(/^(docente\s*:\s*|profesor\s*:\s*|tutor\s*:\s*)/i);
+        const prefix = prefixMatch ? prefixMatch[1] : 'Docente: ';
+        newElements[idx] = { ...newElements[idx], text: value ? `${prefix}${value}` : '' };
+      }
+    }
+  } else if (field === 'grupo') {
+    const grpElem = coverElems.find(e => e.text && e.text.toLowerCase().includes('grupo'));
+    if (grpElem) {
+      const idx = newElements.findIndex(e => e.id === grpElem.id);
+      if (idx !== -1) {
+        const prefixMatch = newElements[idx].text.match(/^(grupo\s*:\s*)/i);
+        const prefix = prefixMatch ? prefixMatch[1] : 'Grupo: ';
+        newElements[idx] = { ...newElements[idx], text: value ? `${prefix}${value}` : '' };
+      }
+    }
+  } else if (field === 'date') {
+    const dateElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('fecha') || /\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
+    );
+    if (dateElem) {
+      const idx = newElements.findIndex(e => e.id === dateElem.id);
+      if (idx !== -1) {
+        const prefixMatch = newElements[idx].text.match(/^(fecha(?:\s+de\s+entrega)?\s*:\s*)/i);
+        const prefix = prefixMatch ? prefixMatch[1] : 'Fecha: ';
+        newElements[idx] = { ...newElements[idx], text: value ? `${prefix}${value}` : '' };
+      }
+    }
+  } else if (field === 'course') {
+    const courseElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('asignatura') || e.text.toLowerCase().includes('curso') || e.text.toLowerCase().includes('materia') || e.text.toLowerCase().includes('unidad'))
+    );
+    if (courseElem) {
+      const idx = newElements.findIndex(e => e.id === courseElem.id);
+      if (idx !== -1) {
+        newElements[idx] = { ...newElements[idx], text: value };
+      }
+    }
+  } else if (field === 'institution') {
+    const instElem = coverElems.find(e => 
+      e.text && (e.text.toLowerCase().includes('universidad') || e.text.toLowerCase().includes('facultad') || e.text.toLowerCase().includes('recinto') || e.text.toLowerCase().includes('direccion'))
+    );
+    if (instElem) {
+      const idx = newElements.findIndex(e => e.id === instElem.id);
+      if (idx !== -1) {
+        newElements[idx] = { ...newElements[idx], text: value };
+      }
+    }
+  }
+
+  return newElements;
+}
+
 export const useDocStore = create<DocState>()(
   persist(
     (set, get) => ({
@@ -526,6 +632,15 @@ export const useDocStore = create<DocState>()(
   setScrollTargetId: (id) => set({ scrollTargetId: id }),
   validatorOpen: false,
   setValidatorOpen: (open) => set({ validatorOpen: open }),
+  focusMode: false,
+  setFocusMode: (f) => set({ focusMode: f }),
+  actionToast: null,
+  triggerActionToast: (message) => set({ actionToast: { message, timestamp: Date.now() } }),
+  clearActionToast: () => set({ actionToast: null }),
+  liveChatOpen: false,
+  setLiveChatOpen: (open) => set({ liveChatOpen: open }),
+  stressTestModalOpen: false,
+  setStressTestModalOpen: (open) => set({ stressTestModalOpen: open }),
   openExportTunnel: () => set({ isDownloadModalOpen: false, viewMode: 'export', forceRightPanelOpen: false }),
   dismissedCommentIds: [],
   dismissComment: (id) => set((state) => ({
@@ -723,6 +838,28 @@ export const useDocStore = create<DocState>()(
     } catch { /* silencioso: estilo/IA esperarán la revisión manual */ }
     // Proactivo total: buscar referencias faltantes en Crossref sin molestar.
     try { await get().autoResolveGhosts(); } catch { /* noop */ }
+  },
+
+  runProactiveAutoCaptioning: async () => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      const res = await api.fetchProactiveCaptions(doc.session_id);
+      if (res.suggestions && res.suggestions.length > 0) {
+        res.suggestions.forEach((sug) => {
+          if (sug.type === 'image') {
+            get().updateElementImage(sug.element_id, { caption: sug.caption, note: sug.note });
+          } else if (sug.type === 'table') {
+            get().updateElementTable(sug.element_id, { caption: sug.caption, note: sug.note });
+          }
+        });
+        get().pushActivityEvent(
+          'success',
+          `Auto-captioning proactivo: ${res.suggestions.length} leyendas generadas`,
+          'Títulos y notas APA 7 asignados automáticamente'
+        );
+      }
+    } catch { /* silencioso */ }
   },
   setViewMode: (mode) => set({ viewMode: mode }),
   setPdfPreviewCache: (cache) => set({ pdfPreviewCache: cache }),
@@ -1020,16 +1157,17 @@ export const useDocStore = create<DocState>()(
         const newTabDocs = { ...state.tabDocs, [doc.session_id]: doc };
 
         let updatedPortada = { ...state.portada };
-        if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
-          const f = doc.portada.fields;
+        if (doc.portada?.fields && typeof doc.portada.fields === 'object') {
+          const f = doc.portada.fields as any;
+          const toStr = (v: any) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : v != null ? String(v) : '');
           updatedPortada = {
             ...updatedPortada,
-            title: f.title || updatedPortada.title,
-            author: f.author || updatedPortada.author,
-            institution: f.institution || updatedPortada.institution,
-            course: f.course || updatedPortada.course || '',
-            instructor: f.instructor || updatedPortada.instructor || '',
-            date: f.date || updatedPortada.date || '',
+            title: toStr(f.title) || updatedPortada.title,
+            author: toStr(f.author) || updatedPortada.author,
+            institution: toStr(f.institution) || updatedPortada.institution,
+            course: toStr(f.course) || updatedPortada.course || '',
+            instructor: toStr(f.instructor) || updatedPortada.instructor || '',
+            date: toStr(f.date) || updatedPortada.date || '',
           };
         }
 
@@ -1062,6 +1200,7 @@ export const useDocStore = create<DocState>()(
       get().pushActivityEvent('success', `Documento listo: ${doc.elements.length} elementos`, doc.file_name);
       // Globos proactivos: auditorías silenciosas en background
       get().runProactiveAudits().catch(() => {});
+      get().runProactiveAutoCaptioning().catch(() => {});
       // Revisor por lotes (ortografía/IA/pegado): silencioso
       get().runProofreadBatch().catch(() => {});
 
@@ -1314,6 +1453,15 @@ export const useDocStore = create<DocState>()(
     }
   },
 
+  updateElementText: async (elementId, text) => {
+    const { doc } = get();
+    if (!doc) return;
+    const elem = doc.elements.find((e) => e.id === elementId);
+    if (!elem) return;
+    await get().updateElementType(elementId, elem.type, elem.heading_level, text);
+  },
+
+
   updateElementImage: async (elementId, imageInfo) => {
     const { doc, pushHistory } = get();
     if (!doc) return;
@@ -1553,7 +1701,24 @@ export const useDocStore = create<DocState>()(
 
   resetRulesToDefault: () => set({ rules: defaultRules }),
 
-  setPortada: (newPortada) => set((state) => ({ portada: { ...state.portada, ...newPortada } })),
+  setPortada: (newPortada) => set((state) => {
+    const updatedPortada = { ...state.portada, ...newPortada };
+    let updatedDoc = state.doc;
+    if (updatedDoc && updatedDoc.elements && updatedDoc.elements.length > 0) {
+      let elements = [...updatedDoc.elements];
+      for (const [k, v] of Object.entries(newPortada)) {
+        if (typeof v === 'string' && v.trim()) {
+          elements = syncCoverFieldToElements(elements, k as keyof PortadaData, v);
+        }
+      }
+      updatedDoc = { ...updatedDoc, elements, portada: { ...updatedDoc.portada, ...newPortada } as any };
+    }
+    return { portada: updatedPortada, doc: updatedDoc };
+  }),
+
+  updateCoverField: (field, value) => {
+    get().setPortada({ [field]: value });
+  },
 
   savePortadaProfile: (name) => set((state) => {
     const profile = { profile_name: name, created_at: new Date().toISOString(), data: state.portada };
@@ -1565,6 +1730,8 @@ export const useDocStore = create<DocState>()(
     const nextRefs = [...state.references, ref];
     return { references: nextRefs, doc: state.doc ? { ...state.doc, referencias: nextRefs } : state.doc };
   }),
+  addReferencia: (ref) => get().addReference(ref),
+
   
   removeReference: (id) => set((state) => {
     const nextRefs = state.references.filter((r) => r.id !== id);

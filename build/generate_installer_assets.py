@@ -187,11 +187,62 @@ def build_sidebar() -> None:
     draw.text((ax2 + gap, y_text), "APA 7", font=font_ribbon, fill=NAVY)
 
     img.convert("RGB").save(ROOT / "installerSidebar.bmp", "BMP")
+    print("[assets] installerSidebar.bmp generado")
+
+
+def build_uninstaller_sidebar() -> None:
+    """Genera un sidebar diferenciado para el desinstalador con paleta slate/navy y mensaje de limpieza."""
+    w, h = 164, 314
+    UN_TOP = (51, 65, 85)       # slate-700
+    UN_MID = (30, 41, 59)       # slate-800
+    UN_BOTTOM = (15, 23, 42)    # slate-900
+    UN_FRAME = (148, 163, 184)  # slate-400
+    UN_PILL = (241, 245, 249)   # slate-100
+    UN_PILL_SHADOW = (203, 213, 225)
+
+    img = v3_gradient(w, h, UN_TOP, UN_MID, UN_BOTTOM)
+    draw = ImageDraw.Draw(img)
+
+    # Círculos decorativos en tonos slate profundos
+    draw.ellipse([-42, 214, 64, 320], fill=(20, 30, 48))
+    draw.ellipse([108, -34, 238, 96], fill=(40, 53, 75))
+    draw.ellipse([122, 252, 206, 336], fill=(18, 26, 42))
+    draw.ellipse([-26, 36, 44, 106], fill=(40, 53, 75))
+
+    # Marco redondeado que enmarca a la mascota
+    draw.rounded_rectangle([28, 32, 136, 152], radius=26, outline=UN_FRAME, width=2)
+
+    # Mascota con expresión tranquila
+    s = 2.0
+    draw_mascot(draw, s, 82 - 29 * s, 92 - 32 * s, mouth="happy")
+
+    # Título + tagline de desinstalación con Baloo 2
+    font_title = baloo("800", 32)
+    font_tag = baloo("600", 15)
+    title = "WordAPA7"
+    tw = draw.textlength(title, font=font_title)
+    shadow_text(draw, ((w - tw) / 2, 170), title, font_title, WHITE, shadow=(10, 15, 30), offset=(0, 2))
+    tag = "Desinstalación"
+    tw2 = draw.textlength(tag, font=font_tag)
+    draw.text(((w - tw2) / 2, 222), tag, font=font_tag, fill=(203, 213, 225))
+
+    # Píldora de estado "Limpieza del Sistema"
+    font_ribbon = baloo("700", 13)
+    px0, py0, px1, py1 = 14, 260, 150, 294
+    draw.rounded_rectangle([px0, py0 + 3, px1, py1 + 3], radius=17, fill=UN_PILL_SHADOW)
+    draw.rounded_rectangle([px0, py0, px1, py1], radius=17, fill=UN_PILL)
+
+    pill_text = "Limpieza de Sistema"
+    tw_pill = draw.textlength(pill_text, font=font_ribbon)
+    y_text = py0 + (py1 - py0 - 14) / 2
+    draw.text(((w - tw_pill) / 2, y_text), pill_text, font=font_ribbon, fill=(30, 41, 59))
+
     img.convert("RGB").save(ROOT / "uninstallerSidebar.bmp", "BMP")
-    print("[assets] installerSidebar.bmp + uninstallerSidebar.bmp generados")
+    print("[assets] uninstallerSidebar.bmp diferenciado generado")
 
 
 if __name__ == "__main__":
     build_icon()
     build_header()
     build_sidebar()
+    build_uninstaller_sidebar()

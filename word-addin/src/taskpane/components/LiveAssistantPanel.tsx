@@ -16,7 +16,7 @@ import {
   applyHighlights,
   clearAllHighlights,
 } from '../office/highlighter'
-import { insertBibliographyAPA, getDocumentText, getSelectedText } from '../office/wordHelper'
+import { insertBibliographyAPA, insertReferenceAtCursor, getDocumentText, getSelectedText } from '../office/wordHelper'
 import { SelectionCriticCard } from './SelectionCriticCard'
 import {
   ZapIcon,
@@ -66,6 +66,9 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
   const [lastReport, setLastReport] = useState<NormalizationReport | null>(null)
   const [highlightedInWord, setHighlightedInWord] = useState(false)
   const [bibWorking, setBibWorking] = useState(false)
+  const [doiQuery, setDoiQuery] = useState('')
+  const [doiLoading, setDoiLoading] = useState(false)
+  const [resolvedRef, setResolvedRef] = useState<string | null>(null)
 
   // 1-CLIC MASTER: Normaliza todo el documento en vivo en Word
   const handleMasterNormalize = async () => {
@@ -91,6 +94,32 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
         setProgressPct(0)
         setProgressMsg('')
       }, 4000)
+    }
+  }
+
+  // TABLAS APA 7 PROACTIVAS
+  const handleFormatTables = async () => {
+    setWorking('tables')
+    try {
+      const res = await autoFormatAllTablesAPA()
+      showToast(`${res.count} tabla(s) formateadas a APA 7`, 'success')
+    } catch (err: any) {
+      showToast(err.message || 'Error al formatear tablas', 'error')
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  // FIGURAS APA 7 PROACTIVAS
+  const handleCaptionFigures = async () => {
+    setWorking('figures')
+    try {
+      const res = await autoCaptionAllFiguresAPA()
+      showToast(`${res.count} figura(s) rotuladas a APA 7`, 'success')
+    } catch (err: any) {
+      showToast(err.message || 'Error al rotular figuras', 'error')
+    } finally {
+      setWorking(null)
     }
   }
 
@@ -150,6 +179,54 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
       showToast(err.message || 'Error al generar bibliografía', 'error')
     } finally {
       setBibWorking(false)
+    }
+  }
+
+  // GHOSTWRITER DOI / CROSSREF
+  const handleLookupDoi = async () => {
+    const q = doiQuery.trim()
+    if (!q) return
+    setDoiLoading(true)
+    setResolvedRef(null)
+    try {
+      if (q.startsWith('10.') || q.includes('doi.org/')) {
+        const cleanDoi = q.replace(/^https?:\/\/doi\.org\//i, '').trim()
+        const res = await backend.resolveDoi(cleanDoi)
+        if (res.formatted) {
+          setResolvedRef(res.formatted)
+          showToast('Referencia resuelta desde Crossref', 'success')
+        } else {
+          showToast(res.error || 'No se pudo resolver el DOI', 'error')
+        }
+      } else {
+        const parts = q.split(/[\s,]+/)
+        const yearMatch = q.match(/\b(19|20)\d{2}\b/)
+        const year = yearMatch ? yearMatch[0] : ''
+        const author = parts[0] || q
+        const res = await backend.searchGhostCitation([author], year)
+        if (res.candidates && res.candidates.length > 0 && res.candidates[0].formatted_apa) {
+          setResolvedRef(res.candidates[0].formatted_apa)
+          showToast('Referencia encontrada en Crossref', 'success')
+        } else {
+          showToast('No se encontraron candidatos para la búsqueda', 'info')
+        }
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error al consultar Crossref', 'error')
+    } finally {
+      setDoiLoading(false)
+    }
+  }
+
+  const handleInsertResolvedRef = async () => {
+    if (!resolvedRef) return
+    try {
+      await insertReferenceAtCursor(resolvedRef)
+      showToast('Referencia insertada con sangría francesa', 'success')
+      setResolvedRef(null)
+      setDoiQuery('')
+    } catch (err: any) {
+      showToast(err.message || 'Error al insertar referencia', 'error')
     }
   }
 
@@ -217,9 +294,32 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             <span>{working === 'master' ? 'Normalizando en Word...' : 'Normalizar Todo a APA 7 en Vivo'}</span>
           </button>
 
-          {/* FORMATEAR (MODO LOCAL): aplica APA 7 local sin el motor central.
-              No detecta portada ni jerarquiza títulos; solo aplica fuente,
-              interlineado doble y sangría APA 7 (offline limitado seguro). */}
+          {/* ACCIONES PROACTIVAS ESPECÍFICAS (TABLAS Y FIGURAS) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleFormatTables}
+              disabled={working !== null}
+              title="Aplica bordes horizontales APA 7 y encabezados a todas las tablas"
+            >
+              <TableIcon size={13} />
+              <span>Tablas APA 7</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleCaptionFigures}
+              disabled={working !== null}
+              title="Auto-numera y etiqueta figuras con rótulos APA 7"
+            >
+              <ImageIcon size={13} />
+              <span>Figuras APA 7</span>
+            </button>
+          </div>
+
+          {/* FORMATEAR (MODO LOCAL): aplica APA 7 local sin el motor central */}
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -292,12 +392,12 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
       {/* ── SECCIÓN 2: CRÍTICO Y APOYO EN VIVO (AL CURSOR EN WORD) ── */}
       <SelectionCriticCard showToast={showToast} />
 
-      {/* ── SECCIÓN 3: BIBLIOGRAFÍA AUTOMÁTICA EN 1-CLIC ── */}
+      {/* ── SECCIÓN 3: BIBLIOGRAFÍA Y GHOSTWRITER DOI ── */}
       <div className="card">
         <div className="card__header">
           <div className="card__title">
             <BookOpenIcon size={16} color="var(--accent-primary)" />
-            <span>Bibliografía y Referencias</span>
+            <span>Bibliografía y Ghostwriter DOI</span>
           </div>
         </div>
 
@@ -314,7 +414,69 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
           <BookOpenIcon size={14} />
           <span>{bibWorking ? 'Generando bibliografía...' : 'Insertar Referencias APA 7 al Final'}</span>
         </button>
+
+        {/* Búsqueda rápida DOI / Crossref */}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+            Resolver DOI o Cita Fantasma (Crossref):
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="text"
+              placeholder="10.1037/... o Autor, Año"
+              value={doiQuery}
+              onChange={(e) => setDoiQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLookupDoi()}
+              style={{
+                flex: 1,
+                fontSize: 12,
+                padding: '6px 8px',
+                border: '1px solid var(--border-subtle, #cbd5e1)',
+                borderRadius: 4,
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleLookupDoi}
+              disabled={doiLoading || !doiQuery.trim()}
+              style={{ padding: '6px 10px', fontSize: 12 }}
+            >
+              {doiLoading ? 'Buscando...' : 'Resolver'}
+            </button>
+          </div>
+
+          {resolvedRef && (
+            <div
+              style={{
+                marginTop: 4,
+                padding: 8,
+                background: 'var(--surface-subtle, #f8fafc)',
+                border: '1px solid var(--border-subtle, #cbd5e1)',
+                borderRadius: 5,
+                fontSize: 11.5,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <div style={{ color: 'var(--text-main, #1e293b)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                {resolvedRef}
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleInsertResolvedRef}
+                style={{ alignSelf: 'flex-start', fontSize: 11 }}
+              >
+                Insertar en Cursor (Sangría Francesa)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
 
       {/* ── SECCIÓN 4: HALLAZGOS Y SEÑALIZACIÓN EN EL DOCUMENTO ── */}
       {findings.length > 0 && (

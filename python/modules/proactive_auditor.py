@@ -255,14 +255,29 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         text = getattr(e, "text", "") or ""
 
         # -- primera persona
+        fp_matches = []
         for m in _FIRST_PERSON.finditer(text):
             if _in_quotes(text, m.start()):
                 continue
-            frag = text[max(0, m.start() - 18):m.end()].lower()
-            # tras "que " suele ser conjunción, no pronombre de opinión
-            if re.search(r"\bque\s+$", frag) and not re.search(r"(creo|pienso)\s+que\s*$", frag):
+            frag = text[max(0, m.start() - 18):m.start()].lower()
+            # Si justo antes viene "que " o "como " y es pronombre no subjetivo
+            if re.search(r"\b(?:que|como)\s+$", frag) and m.group(0).lower() in ("mi", "mí", "me"):
                 continue
-            findings.append(_mk(eid, text, m.start(), m.end(), "first_person", "warn",
+            fp_matches.append(m)
+
+        merged_ranges = []
+        for m in fp_matches:
+            if not merged_ranges:
+                merged_ranges.append([m.start(), m.end()])
+            else:
+                last = merged_ranges[-1]
+                if m.start() <= last[1] + 20:  # "Yo considero que" en la misma cláusula
+                    last[1] = max(last[1], m.end())
+                else:
+                    merged_ranges.append([m.start(), m.end()])
+
+        for s_idx, e_pos in merged_ranges:
+            findings.append(_mk(eid, text, s_idx, e_pos, "first_person", "warn",
                                 "Primera persona en texto académico; usa redacción impersonal"))
 
         # -- frases IA

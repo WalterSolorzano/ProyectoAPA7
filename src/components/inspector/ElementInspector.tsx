@@ -8,6 +8,7 @@ import { ElementType, APARuleSet } from '../../types';
 import { Info, MessageCircle, Wand2, Sigma, Sparkles, PanelRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { explainElement, suggestCaption } from '../../api/backend';
+import { ProactiveSuggestionCard } from './ProactiveSuggestionCard';
 
 /** Botón "Sugerir leyenda con IA": acceso visible desde el inspector
     (antes solo existía en el menú contextual del clic derecho y nadie lo hallaba). */
@@ -159,6 +160,7 @@ export const ElementInspector: React.FC = () => {
           </TabsList>
 
           <div className="inspector-content" style={{ flex: 1, overflowY: 'auto' }}>
+            <ProactiveSuggestionCard />
             <TabsContent value="info" className="mt-0 outline-none">
               <InfoTab
                 selectedElem={selectedElem}

@@ -388,40 +388,48 @@ async def suggest_caption(req: SuggestCaptionRequest) -> dict:
         label_prefix = "Figura" if element_type == "figure" else "Tabla"
 
         system_prompt = (
-            "Sos un asistente APA 7. Generás títulos descriptivos para "
-            f"{'figuras' if element_type == 'figure' else 'tablas'} en trabajos "
-            "académicos. Respondés SOLO el título, sin numeración ni prefijo. "
-            "Máximo 120 caracteres. En español académico."
+            "Eres un asistente especialista en formato APA 7ma edición. "
+            f"Generas el título descriptivo en cursiva y la nota de pie para {'figuras' if element_type == 'figure' else 'tablas'}. "
+            "Responde ÚNICAMENTE un JSON con: \n"
+            "{\"caption\": \"Título descriptivo sin punto final\", \"note\": \"Nota. Explicación breve o fuente.\"}"
         )
         user_prompt = (
             f"Contexto del documento:\n{context[:500]}\n\n"
-            f"Generá un título descriptivo para una {label_prefix.lower()}."
+            f"Genera el título y nota APA 7 para una {label_prefix.lower()}."
         )
 
-        caption = await execute_with_specialty(
+        raw = await execute_with_specialty(
             prompt=user_prompt,
             system_prompt=system_prompt,
             specialty="FAST",
-            temperature=0.7,
-            max_tokens=120,
+            temperature=0.3,
+            max_tokens=220,
             use_cache=True,
         )
-        caption = (caption or "").strip().strip('"\'`')
-        if caption:
-            return {
-                "label": label_prefix,
-                "caption": caption[:120],
-                "note": "",
-            }
+        import json, re
+        match = re.search(r"\{.*?\}", raw or "", re.DOTALL)
+        if match:
+            data = json.loads(match.group(0))
+            cap = data.get("caption", "").strip().strip('"\'`')
+            note = data.get("note", "").strip()
+            if not note.startswith("Nota.") and note:
+                note = f"Nota. {note}"
+            if cap:
+                return {
+                    "label": label_prefix,
+                    "caption": cap[:120],
+                    "note": note[:250] or f"Nota. Elaboración propia.",
+                }
     except Exception:
         pass
 
-    # Fallback heurístico
+    # Fallback heurístico inteligente
     label = "Figura" if element_type == "figure" else "Tabla"
+    default_note = "Nota. Elaboración propia." if element_type == "figure" else "Nota. Datos adaptados según el análisis presentado."
     return {
         "label": label,
-        "caption": f"Título de la {label.lower()}",
-        "note": "",
+        "caption": f"Descripción de la {label.lower()}",
+        "note": default_note,
     }
 
 

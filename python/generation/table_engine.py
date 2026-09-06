@@ -397,7 +397,18 @@ def format_apa_table(
     current_row_idx: int = 0
 
     # Llenar Encabezados (primera fila en negrita)
-    if table_data.headers:
+    if table_data.headers and len(table.rows) > 0:
+        try:
+            from docx.oxml.ns import qn
+            from docx.oxml import OxmlElement
+            trPr = table.rows[0]._tr.get_or_add_trPr()
+            if trPr.find(qn("w:tblHeader")) is None:
+                trPr.append(OxmlElement("w:tblHeader"))
+            if trPr.find(qn("w:cantSplit")) is None:
+                trPr.append(OxmlElement("w:cantSplit"))
+        except Exception:
+            pass
+
         hdr_cells = table.rows[0].cells
         for col_idx, cell_text in enumerate(table_data.headers):
             if col_idx >= len(hdr_cells):

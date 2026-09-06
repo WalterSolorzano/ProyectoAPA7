@@ -3,13 +3,14 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { ZoomIn, ZoomOut, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3 } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
+import { InlineAILens } from '../canvas/InlineAILens';
 
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
@@ -63,25 +64,40 @@ const ChangeMark: React.FC<{ label: string }> = ({ label }) => (
 
 export const computePages = (elements: ElementModel[], maxUnits = 30): ElementModel[][] => {
   const pages: ElementModel[][] = [];
+  const coverElements: ElementModel[] = [];
+  const bodyElements: ElementModel[] = [];
+
+  elements.forEach((elem) => {
+    if (elem.type === 'empty') return;
+    if (elem.is_cover_section || elem.type === 'portada_block') {
+      if (elem.type !== 'page_break') {
+        coverElements.push(elem);
+      }
+    } else {
+      bodyElements.push(elem);
+    }
+  });
+
+  if (coverElements.length > 0) {
+    pages.push(coverElements);
+  }
+
   let currentPage: ElementModel[] = [];
   let currentEstimatedHeight = 0;
   const MAX_PAGE_UNITS = Math.max(20, Math.round(maxUnits));
 
-  elements.forEach((elem) => {
-    if (elem.type === 'empty') return;
-
+  bodyElements.forEach((elem) => {
     let units = 1;
     if (elem.type === 'heading') units = 2;
     if (elem.type === 'toc') units = 20;
     if (elem.type === 'image') units = 4;
     if (elem.type === 'table') units = 6;
-    if (elem.type === 'portada_block' || elem.is_cover_section) units = elem.image_info ? 1.2 : 0.6;
     if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 250));
 
-    const isFirstBodyHeading = !elem.is_cover_section && elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
+    const isFirstBodyHeading = elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
     const isLevel1Heading = elem.type === 'heading' && elem.heading_level === 1;
     const isToc = elem.type === 'toc';
-    const pageHasToc = currentPage.some(e => e.type === 'toc');
+    const pageHasToc = currentPage.some((e) => e.type === 'toc');
 
     if (
       elem.type === 'page_break' ||
@@ -111,11 +127,49 @@ export const computePages = (elements: ElementModel[], maxUnits = 30): ElementMo
 };
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
-  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment } = useDocStore();
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
+  const [editingCoverElemId, setEditingCoverElemId] = useState<string | null>(null);
+  const [editingCoverText, setEditingCoverText] = useState<string>('');
+
+  useEffect(() => {
+    if (!actionToast) return;
+    const timer = setTimeout(() => {
+      clearActionToast();
+    }, 2800);
+    return () => clearTimeout(timer);
+  }, [actionToast, clearActionToast]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === 'Escape' && focusMode) {
+        setFocusMode(false);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, focusMode, setFocusMode]);
+
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [contextMenuElemId, setContextMenuElemId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -235,10 +289,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     // texto completo del elemento para que el comentario SIEMPRE ancle a algo.
     if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
       const s = useDocStore.getState();
-      const cmtCtx = {
+      const proactivas = s.sugerenciasProactivas !== false;
+      const cmtCtx = proactivas ? {
         ghostCitations: (s.citationAuditResult?.ghost_citations || []) as any[],
         orphanReferences: (s.citationAuditResult?.orphan_references || []) as any[],
         validationIssues: (s.validationIssues || []) as any[],
+        styleAuditRun: !!reviewResult,
+      } : {
+        ghostCitations: [] as any[],
+        orphanReferences: [] as any[],
+        validationIssues: [] as any[],
+        styleAuditRun: false,
       };
       const comment = getWhatsAppComment(elem, cmtCtx, 0);
       const m = comment?.match;
@@ -449,6 +510,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       const targetEl = document.getElementById(`paper-elem-${scrollTargetId}`);
       if (targetEl) {
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetEl.classList.remove('target-glow-flash');
+        void targetEl.offsetWidth;
+        targetEl.classList.add('target-glow-flash');
       }
     }
   }, [scrollTargetId]);
@@ -633,6 +697,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         overscrollBehavior: 'contain'
       }}
     >
+      {/* Lente IA Quirúrgica (Micro-píldora flotante en selección de texto) */}
+      <InlineAILens containerRef={wrapperRef} />
+
       {/* Zoom control minimalista — reemplaza la barra flotante gigante */}
       <div style={{
         position: 'sticky',
@@ -650,6 +717,41 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         boxShadow: 'var(--shadow-sm)',
       }}>
         <button
+          onClick={undo}
+          disabled={historyIndex <= 0}
+          title="Deshacer (Ctrl+Z)"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: historyIndex > 0 ? 'pointer' : 'default',
+            padding: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            color: historyIndex > 0 ? 'var(--text-secondary)' : 'var(--border-strong)',
+            opacity: historyIndex > 0 ? 1 : 0.4,
+          }}
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          onClick={redo}
+          disabled={historyIndex >= history.length - 1}
+          title="Rehacer (Ctrl+Y)"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: historyIndex < history.length - 1 ? 'pointer' : 'default',
+            padding: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            color: historyIndex < history.length - 1 ? 'var(--text-secondary)' : 'var(--border-strong)',
+            opacity: historyIndex < history.length - 1 ? 1 : 0.4,
+          }}
+        >
+          <Redo2 size={14} />
+        </button>
+        <div style={{ width: '1px', height: '12px', backgroundColor: 'var(--border-subtle)', margin: '0 2px' }} />
+        <button
           onClick={() => setZoomLevel(zoomLevel - 10)}
           title="Reducir Zoom"
           style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}
@@ -664,7 +766,85 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         >
           <ZoomIn size={14} />
         </button>
+        <div style={{ width: '1px', height: '12px', backgroundColor: 'var(--border-subtle)', margin: '0 2px' }} />
+        <button
+          onClick={() => setFocusMode(!focusMode)}
+          title={focusMode ? 'Salir del Modo Foco (Esc)' : 'Modo Foco / Pantalla Completa'}
+          style={{
+            border: 'none',
+            background: focusMode ? 'var(--color-accent-soft)' : 'transparent',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            color: focusMode ? 'var(--accent-primary)' : 'var(--text-secondary)',
+          }}
+        >
+          {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
       </div>
+
+      {/* Micro-Toast de Acción con Deshacer */}
+      {actionToast && (
+        <div
+          className="canvas-toast-enter"
+          style={{
+            position: 'fixed',
+            bottom: '56px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            backgroundColor: 'var(--color-bg-surface)',
+            color: 'var(--color-text-primary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '999px',
+            padding: '6px 16px',
+            boxShadow: 'var(--shadow-card)',
+            fontSize: '12px',
+            fontWeight: 500,
+          }}
+        >
+          <span>{actionToast.message}</span>
+          <button
+            type="button"
+            onClick={() => {
+              undo();
+              clearActionToast();
+            }}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--accent-primary)',
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: '2px 4px',
+              borderRadius: '4px',
+              fontSize: '12px',
+            }}
+          >
+            Deshacer
+          </button>
+          <button
+            type="button"
+            onClick={clearActionToast}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Barra contextual de imagen (estilo Word: aparece al seleccionar una figura) */}
       {!readOnly && doc && selectedElementId && (() => {
@@ -831,59 +1011,60 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           const pageCommentElems = pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null));
 
           return (
-            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', position: 'relative' }}>
-            {docHasComments && <div aria-hidden="true" style={{ width: '250px', flexShrink: 0 }} />}
-            <div
-              style={{
-                width: `${PAGE_W}px`,
-                maxWidth: '100%',
-                height: `${PAGE_H}px`,
-                overflow: 'hidden',
-                backgroundColor: 'var(--paper-white)',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
-                padding: '54px 54px',
-                boxSizing: 'border-box',
-                position: 'relative',
-                fontFamily: fontFamily,
-                fontSize: `${rules.font_size_pt}pt`,
-                color: 'var(--ink, #000000)',
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
-              {/* Encabezado Superior de Página: APA 7 exige sin número en portada e índice */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '10pt',
-                fontFamily: fontFamily,
-                marginBottom: '16px',
-                color: 'var(--ink, #000000)',
-                minHeight: '20px'
-              }}>
-                {doc.apa_format === 'professional' && showPageNumber ? (
-                  <span style={{ fontWeight: 600 }}>RUNNING HEAD</span>
-                ) : (
-                  <span></span>
-                )}
-                <span>{showPageNumber ? pageIdx + 1 : ''}</span>
-              </div>
+            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', position: 'relative', minWidth: 'fit-content' }}>
+              {docHasComments && (
+                <div style={{ width: '250px', flexShrink: 0, pointerEvents: 'none' }} />
+              )}
+              <div
+                style={{
+                  width: `${PAGE_W}px`,
+                  maxWidth: '100%',
+                  minHeight: `${PAGE_H}px`,
+                  backgroundColor: 'var(--paper-white, #ffffff)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
+                  padding: '54px 54px',
+                  boxSizing: 'border-box',
+                  position: 'relative',
+                  fontFamily: fontFamily,
+                  fontSize: `${rules.font_size_pt}pt`,
+                  color: 'var(--paper-ink, #111827)',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+                {/* Encabezado Superior de Página: APA 7 exige sin número en portada e índice */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '10pt',
+                  fontFamily: fontFamily,
+                  marginBottom: '16px',
+                  color: 'var(--paper-ink, #111827)',
+                  minHeight: '20px'
+                }}>
+                  {doc.apa_format === 'professional' && showPageNumber ? (
+                    <span style={{ fontWeight: 600 }}>RUNNING HEAD</span>
+                  ) : (
+                    <span></span>
+                  )}
+                  <span>{showPageNumber ? pageIdx + 1 : ''}</span>
+                </div>
 
-              {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1
-                  La cadena ternaria evalúa en orden:
-                  1. cover_mode === 'generate_uni_cover' && !use_original_cover → UNICoverPreview
-                  2. !use_original_cover → APACoverEditor
-                  3. coverHeaderTexts.length > 0 && all cover elements → Structured cover
-                     (renderiza logo, textos de encabezado, autores y pie — incluso
-                      cuando use_original_cover es true, para que el usuario VEA la
-                      portada original en lugar de un placeholder)
-                  4. else → Standard body rendering */}
-              {isCoverPage && (portada.cover_mode === 'generate_uni_cover') && !portada.use_original_cover ? (
-                <UNICoverPreview />
-              ) : isCoverPage && !portada.use_original_cover ? (
-                <APACoverEditor />
-              ) : isCoverPage && coverHeaderTexts.length > 0 && pageElements.every(e => e.is_cover_section || e.type === 'portada_block') ? (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, height: '100%' }}>
+                {/* RENDERIZADO ESTRUCTURADO DE PORTADA EN PÁGINA 1
+                    La cadena ternaria evalúa en orden:
+                    1. cover_mode === 'generate_uni_cover' && !use_original_cover → UNICoverPreview
+                    2. !use_original_cover → APACoverEditor
+                    3. isCoverPage con elementos de portada → Structured cover
+                       (renderiza logo, textos de encabezado, autores y pie — incluso
+                        cuando use_original_cover es true, para que el usuario VEA la
+                        portada original en lugar de un placeholder)
+                    4. else → Standard body rendering */}
+                {isCoverPage && (portada.cover_mode === 'generate_uni_cover') && !portada.use_original_cover ? (
+                  <UNICoverPreview />
+                ) : isCoverPage && !portada.use_original_cover ? (
+                  <APACoverEditor />
+                ) : isCoverPage && (coverHeaderTexts.length > 0 || coverAuthorTexts.length > 0 || coverFooterTexts.length > 0 || !!coverLogoImage || pageElements.some(e => e.is_cover_section || e.type === 'portada_block')) ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, height: '100%' }}>
                   
                   {/* Badge informativo: la portada original del archivo se conserva
                       en el documento final. Sutil y no intrusivo para que el usuario
@@ -927,47 +1108,102 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                       };
                       const institutionalTexts = coverHeaderTexts.filter(e => !isNameLike(e.text || ''));
                       const nameLikeTexts = coverHeaderTexts.filter(e => isNameLike(e.text || ''));
+                      
+                      const renderCoverEditable = (elem: ElementModel, defaultAlign: string = 'center', defaultBold?: boolean) => {
+                        const isEditing = editingCoverElemId === elem.id;
+                        const isSelected = selectedElementId === elem.id;
+                        const align = (elem.alignment as any) || defaultAlign;
+                        const bold = defaultBold !== undefined ? defaultBold : (elem.is_bold || false);
+                        const fontSize = elem.font_size ? `${elem.font_size}pt` : '12pt';
+
+                        if (isEditing) {
+                          return (
+                            <div key={elem.id} style={{ width: '100%', margin: '2px 0' }}>
+                              <textarea
+                                autoFocus
+                                value={editingCoverText}
+                                onChange={(e) => setEditingCoverText(e.target.value)}
+                                onBlur={() => {
+                                  if (editingCoverText !== elem.text) {
+                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                  }
+                                  setEditingCoverElemId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (editingCoverText !== elem.text) {
+                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCoverElemId(null);
+                                  }
+                                }}
+                                style={{
+                                  width: '100%',
+                                  fontFamily: fontFamily,
+                                  fontSize,
+                                  fontWeight: bold ? 'bold' : 'normal',
+                                  textAlign: align,
+                                  border: '2px solid var(--accent-primary)',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  background: 'var(--paper-white, #ffffff)',
+                                  color: 'var(--paper-ink, #111827)',
+                                  resize: 'vertical',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.25)',
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <p
+                            key={elem.id}
+                            id={`paper-elem-${elem.id}`}
+                            title="Doble clic para editar texto"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCoverElemId(elem.id);
+                              setEditingCoverText(elem.text || '');
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedElementId(elem.id);
+                              onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
+                            }}
+                            style={{
+                              margin: '2px 0',
+                              textAlign: align,
+                              fontWeight: bold ? 'bold' : 'normal',
+                              fontSize,
+                              color: 'var(--paper-ink)',
+                              cursor: 'pointer',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              whiteSpace: 'pre-line',
+                              transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                              backgroundColor: isSelected ? 'var(--info-mist, rgba(79,124,255,0.12))' : 'transparent',
+                              border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
+                            }}
+                          >
+                            {elem.text}
+                          </p>
+                        );
+                      };
+
                       return (
                         <>
                           {/* Textos institucionales (universidad, tema, etc.) — verticales, centrados */}
-                          {institutionalTexts.map(elem => (
-                            <p
-                              key={elem.id}
-                              id={`paper-elem-${elem.id}`}
-                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                              style={{
-                                margin: '2px 0',
-                                textAlign: (elem.alignment as any) || 'center',
-                                fontWeight: elem.is_bold ? 'bold' : 'normal',
-                                fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
-                                color: 'var(--paper-ink)',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {elem.text}
-                            </p>
-                          ))}
+                          {institutionalTexts.map(elem => renderCoverEditable(elem, (elem.alignment as any) || 'center'))}
                           {/* Nombres cortos — distribuidos horizontalmente como en el documento original */}
                           {nameLikeTexts.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px 24px', marginTop: '12px', maxWidth: '100%' }}>
-                              {nameLikeTexts.map(elem => (
-                                <p
-                                  key={elem.id}
-                                  id={`paper-elem-${elem.id}`}
-                                  onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                                  style={{
-                                    margin: 0,
-                                    textAlign: 'center',
-                                    fontWeight: elem.is_bold ? 'bold' : 'normal',
-                                    fontSize: elem.font_size ? `${elem.font_size}pt` : '12pt',
-                                    color: 'var(--paper-ink)',
-                                    cursor: 'pointer',
-                                    whiteSpace: 'pre-line',
-                                  }}
-                                >
-                                  {elem.text}
-                                </p>
-                              ))}
+                              {nameLikeTexts.map(elem => renderCoverEditable(elem, 'center'))}
                             </div>
                           )}
                         </>
@@ -986,29 +1222,85 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         borderLeft: '2px solid var(--paper-line)',
                         paddingLeft: '12px'
                       }}>
-                        {coverAuthorTexts.map(elem => (
-                          <div
-                            key={elem.id}
-                            id={`paper-elem-${elem.id}`}
-                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                            style={{
-                              padding: '4px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              backgroundColor: selectedElementId === elem.id ? 'var(--info-mist)' : 'transparent'
-                            }}
-                          >
-                            <p style={{
-                              margin: 0,
-                              fontSize: '11pt',
-                              fontWeight: elem.text.toLowerCase().includes('elaborado') || elem.text.toLowerCase().includes('tutor') ? 'bold' : 'normal',
-                              color: 'var(--paper-ink)',
-                              whiteSpace: 'pre-line'
-                            }}>
-                              {elem.text}
-                            </p>
-                          </div>
-                        ))}
+                        {coverAuthorTexts.map(elem => {
+                          const isEditing = editingCoverElemId === elem.id;
+                          const isSelected = selectedElementId === elem.id;
+                          if (isEditing) {
+                            return (
+                              <div key={elem.id} style={{ padding: '4px' }}>
+                                <textarea
+                                  autoFocus
+                                  value={editingCoverText}
+                                  onChange={(e) => setEditingCoverText(e.target.value)}
+                                  onBlur={() => {
+                                    if (editingCoverText !== elem.text) {
+                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      if (editingCoverText !== elem.text) {
+                                        useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                      }
+                                      setEditingCoverElemId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingCoverElemId(null);
+                                    }
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    fontFamily: fontFamily,
+                                    fontSize: '11pt',
+                                    border: '2px solid var(--accent-primary)',
+                                    borderRadius: '6px',
+                                    padding: '4px',
+                                    background: 'var(--paper-white, #ffffff)',
+                                    color: 'var(--paper-ink, #111827)',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                          return (
+                            <div
+                              key={elem.id}
+                              id={`paper-elem-${elem.id}`}
+                              title="Doble clic para editar autor"
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCoverElemId(elem.id);
+                                setEditingCoverText(elem.text || '');
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedElementId(elem.id);
+                                onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
+                              }}
+                              style={{
+                                padding: '4px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
+                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
+                              }}
+                            >
+                              <p style={{
+                                margin: 0,
+                                fontSize: '11pt',
+                                fontWeight: elem.text.toLowerCase().includes('elaborado') || elem.text.toLowerCase().includes('tutor') ? 'bold' : 'normal',
+                                color: 'var(--paper-ink)',
+                                whiteSpace: 'pre-line'
+                              }}>
+                                {elem.text}
+                              </p>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1018,50 +1310,155 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       {coverFooterTexts
                         .filter(e => !e.text.toLowerCase().includes('managua') && !e.text.toLowerCase().includes('nicaragua') && !/\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
-                        .map(elem => (
-                          <p
-                            key={elem.id}
-                            id={`paper-elem-${elem.id}`}
-                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                            style={{
-                              margin: 0,
-                              fontSize: '11pt',
-                              fontWeight: 'bold',
-                              color: 'var(--paper-ink)',
-                              cursor: 'pointer',
-                              textAlign: 'left'
-                            }}
-                          >
-                            {elem.text}
-                          </p>
-                        ))}
+                        .map(elem => {
+                          const isEditing = editingCoverElemId === elem.id;
+                          const isSelected = selectedElementId === elem.id;
+                          if (isEditing) {
+                            return (
+                              <textarea
+                                key={elem.id}
+                                autoFocus
+                                value={editingCoverText}
+                                onChange={(e) => setEditingCoverText(e.target.value)}
+                                onBlur={() => {
+                                  if (editingCoverText !== elem.text) {
+                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                  }
+                                  setEditingCoverElemId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (editingCoverText !== elem.text) {
+                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCoverElemId(null);
+                                  }
+                                }}
+                                style={{
+                                  fontFamily: fontFamily,
+                                  fontSize: '11pt',
+                                  fontWeight: 'bold',
+                                  border: '2px solid var(--accent-primary)',
+                                  borderRadius: '4px',
+                                  padding: '2px 4px',
+                                  background: 'var(--paper-white, #ffffff)',
+                                  color: 'var(--paper-ink, #111827)',
+                                  outline: 'none',
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <p
+                              key={elem.id}
+                              id={`paper-elem-${elem.id}`}
+                              title="Doble clic para editar"
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCoverElemId(elem.id);
+                                setEditingCoverText(elem.text || '');
+                              }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                              style={{
+                                margin: 0,
+                                fontSize: '11pt',
+                                fontWeight: 'bold',
+                                color: 'var(--paper-ink)',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
+                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
+                              }}
+                            >
+                              {elem.text}
+                            </p>
+                          );
+                        })}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-end' }}>
                       {coverFooterTexts
                         .filter(e => e.text.toLowerCase().includes('managua') || e.text.toLowerCase().includes('nicaragua') || /\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(e.text))
-                        .map(elem => (
-                          <p
-                            key={elem.id}
-                            id={`paper-elem-${elem.id}`}
-                            onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
-                            style={{
-                              margin: 0,
-                              fontSize: '11pt',
-                              fontWeight: 'bold',
-                              color: 'var(--paper-ink)',
-                              cursor: 'pointer',
-                              textAlign: 'right'
-                            }}
-                          >
-                            {elem.text}
-                          </p>
-                        ))}
+                        .map(elem => {
+                          const isEditing = editingCoverElemId === elem.id;
+                          const isSelected = selectedElementId === elem.id;
+                          if (isEditing) {
+                            return (
+                              <textarea
+                                key={elem.id}
+                                autoFocus
+                                value={editingCoverText}
+                                onChange={(e) => setEditingCoverText(e.target.value)}
+                                onBlur={() => {
+                                  if (editingCoverText !== elem.text) {
+                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                  }
+                                  setEditingCoverElemId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (editingCoverText !== elem.text) {
+                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCoverElemId(null);
+                                  }
+                                }}
+                                style={{
+                                  fontFamily: fontFamily,
+                                  fontSize: '11pt',
+                                  fontWeight: 'bold',
+                                  textAlign: 'right',
+                                  border: '2px solid var(--accent-primary)',
+                                  borderRadius: '4px',
+                                  padding: '2px 4px',
+                                  background: 'var(--paper-white, #ffffff)',
+                                  color: 'var(--paper-ink, #111827)',
+                                  outline: 'none',
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <p
+                              key={elem.id}
+                              id={`paper-elem-${elem.id}`}
+                              title="Doble clic para editar"
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCoverElemId(elem.id);
+                                setEditingCoverText(elem.text || '');
+                              }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedElementId(elem.id); onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem); }}
+                              style={{
+                                margin: 0,
+                                fontSize: '11pt',
+                                fontWeight: 'bold',
+                                color: 'var(--paper-ink)',
+                                cursor: 'pointer',
+                                textAlign: 'right',
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                                backgroundColor: isSelected ? 'var(--info-mist)' : 'transparent',
+                                border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
+                              }}
+                            >
+                              {elem.text}
+                            </p>
+                          );
+                        })}
                     </div>
                   </div>
                 </div>
               ) : (
                 /* RENDERIZADO ESTÁNDAR DEL CUERPO (PÁGINAS > 1) */
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                   {pageElements.map((elem) => {
                     const isSelected = selectedElementId === elem.id;
                     const isContextMenuOpen = contextMenuElemId === elem.id;
@@ -1397,13 +1794,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             )}
 
                             {elem.type === 'bullet' && (
-                              <p style={{ fontFamily: fontFamily, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
+                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0' }}>
                                 • {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
-                              <p style={{ fontFamily: fontFamily, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '4px' }}>
+                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0' }}>
                                 {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
                             )}

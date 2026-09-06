@@ -1600,6 +1600,15 @@ def generate_apa7_docx(
         elif elem_type == ElementType.PARAGRAPH:
             # A1: párrafos de la portada original preservada NO se formatean.
             if use_orig_cover and elem.is_cover_section:
+                if elem.text and elem.text.strip() != p.text.strip():
+                    if len(p.runs) == 1:
+                        p.runs[0].text = elem.text
+                    elif len(p.runs) > 1:
+                        p.runs[0].text = elem.text
+                        for r in p.runs[1:]:
+                            r.text = ""
+                    else:
+                        p.text = elem.text
                 continue
             # Reset numbered list counters — a paragraph breaks the list sequence
             numbered_counters = {1: 0, 2: 0, 3: 0}
@@ -1607,10 +1616,17 @@ def generate_apa7_docx(
             format_normal_paragraph(p, elem.text or p.text, rules, preserve_text=(elem.has_math or elem.has_fields))
 
         elif elem_type == ElementType.PORTADA_BLOCK:
-            # A1 Portada INTOCABLE: si se preserva la portada original, ni
-            # formato ni reescritura de texto — representación tal cual.
+            # A1 Portada INTOCABLE: si se preserva la portada original, solo actualizar texto si fue editado
             if use_orig_cover:
-                pass
+                if elem.text and elem.text.strip() != p.text.strip():
+                    if len(p.runs) == 1:
+                        p.runs[0].text = elem.text
+                    elif len(p.runs) > 1:
+                        p.runs[0].text = elem.text
+                        for r in p.runs[1:]:
+                            r.text = ""
+                    else:
+                        p.text = elem.text
             else:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER if elem.alignment == 'center' else WD_ALIGN_PARAGRAPH.LEFT
                 p.paragraph_format.line_spacing = rules.line_spacing

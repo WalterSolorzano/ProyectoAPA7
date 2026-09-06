@@ -235,6 +235,30 @@ def audit_document_heuristic(doc_model: Any) -> DocAuditResult:
                 f"(max ~{PAGE_USABLE_H_CM:.0f} cm). Reduzcala o divídala."
             )
 
+    # ── 5c. Anclaje bidireccional en el texto (Cross-Linking de Figuras y Tablas) ──
+    # APA 7 (§7.5 y §7.24) requiere que toda figura y tabla sea llamada en el texto.
+    full_body_text = " ".join([
+        (getattr(e, 'text', '') or '') for e in elements
+        if str(getattr(e, 'type', '')).lower() in ('paragraph', 'bullet', 'numbered_list', 'block_quote')
+    ]).lower()
+
+    for elem in elements:
+        t = str(getattr(elem, 'type', '') or '').lower()
+        if t == 'table':
+            num = getattr(getattr(elem, 'table_info', None), 'table_number', None)
+            if num and not re.search(rf'\btabla\s+{num}\b', full_body_text):
+                format_suggestions.append(
+                    f"La Tabla {num} no está mencionada en el texto: "
+                    f"APA 7 §7.5 requiere hacer referencia a cada tabla en el cuerpo del documento"
+                )
+        elif t == 'image' and not getattr(elem, 'is_cover_section', False):
+            num = getattr(getattr(elem, 'image_info', None), 'figure_number', None)
+            if num and not re.search(rf'\bfigura\s+{num}\b', full_body_text):
+                format_suggestions.append(
+                    f"La Figura {num} no está mencionada en el texto: "
+                    f"APA 7 §7.24 requiere hacer referencia a cada figura en el cuerpo del documento"
+                )
+
     # ── 6. Citas huérfanas (en texto sin referencia en bibliografía) ──────────
     citas = getattr(doc_model, 'citas_intext', None) or []
     refs = getattr(doc_model, 'referencias', None) or []

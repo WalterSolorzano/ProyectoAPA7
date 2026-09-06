@@ -162,13 +162,21 @@ def apply_inplace(
             continue  # PORTADA INTOCABLE — contrato duro
         text = para.text.strip()
         if not text:
+            # Preservar saltos de página manuales (rendered como w:br con type="page" o lastRenderedPageBreak)
+            has_page_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br[@{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type="page"]'))
+            has_rendered_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}lastRenderedPageBreak'))
+            
+            if "texto" in active and not (has_page_break or has_rendered_break):
+                para._element.getparent().remove(para._element)
             continue
         style_name = (para.style.name or "").lower() if para.style is not None else ""
         if "heading" in style_name or "título" in style_name or "titulo" in style_name:
+            para.paragraph_format.keep_with_next = True
+            para.paragraph_format.widow_control = True
             continue  # headings: los maneja la ruta rebuild si el usuario lo pide
 
         # Linea de indice / TOC -> NO aplicar sangria de primera linea
-        if _is_toc_line(text):
+        if _is_toc_line(text) or text.strip().lower() in ("indice", "índice", "tabla de contenido", "tabla de contenidos"):
             continue
 
         if "bibliografia" in active and i >= ref_zone_start and _is_ref_paragraph(text):
@@ -224,6 +232,15 @@ def apply_inplace(
         for tbl in doc.tables:
             tbl.alignment = WD_ALIGN_PARAGRAPH.CENTER if hasattr(tbl, "alignment") else tbl.alignment
             tbl.autofit = True
+            if len(tbl.rows) > 0:
+                try:
+                    trPr = tbl.rows[0]._tr.get_or_add_trPr()
+                    if trPr.find(qn("w:tblHeader")) is None:
+                        trPr.append(OxmlElement("w:tblHeader"))
+                    if trPr.find(qn("w:cantSplit")) is None:
+                        trPr.append(OxmlElement("w:cantSplit"))
+                except Exception:
+                    pass
             # Bordes horizontales únicamente (estilo APA clásico)
             tblPr = tbl._tbl.tblPr
             borders = tblPr.find(qn("w:tblBorders"))

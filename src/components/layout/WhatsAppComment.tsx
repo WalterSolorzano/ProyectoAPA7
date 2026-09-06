@@ -16,7 +16,7 @@ import { generateChatComment } from '../../api/backend';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
-import { PenLine, X, BookOpen, CheckCheck } from 'lucide-react';
+import { PenLine, X, BookOpen, CheckCheck, Sparkles } from 'lucide-react';
 import { hashStr } from '../../lib/utils';
 
 // ── DETECCIÓN ────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const EN_STOP = new Set(['the', 'and', 'of', 'to', 'is', 'are', 'we', 'you',
 const ES_STOP = new Set(['de', 'el', 'la', 'los', 'las', 'y', 'que', 'en',
   'por', 'para', 'con', 'del', 'una', 'un', 'se', 'su', 'al']);
 
-const FIRST_PERSON_RE = /\b(yo|nosotros|nosotras|nuestro|nuestra|m[íi]|me)\b/i;
+const FIRST_PERSON_RE = /\b(yo|nosotros|nosotras|nuestro|nuestra|nuestros|nuestras)\b|\b(?:creo|pienso|considero|opino)\s+que\b/i;
 // E4: el mínimo baja a 2 letras para atrapar typos reales del teclado como
 // "de de" y "la la". El guard de DUP_STOPWORDS (abajo) evita los falsos
 // positivos de stopwords muy frecuentes ("que que", "se se").
@@ -246,6 +246,21 @@ const COPYPASTE_COMMENTS: ChatLine[] = [
   { emoji: '', text: 'este texto tiene más saltos raros que un PDF mal exportado.' },
 ];
 
+const EQUATION_COMMENTS: ChatLine[] = [
+  { emoji: '', text: 'ecuación matemática detectada: centrada y con numeración (1) a la derecha' },
+  { emoji: '', text: 'fórmula lista para formato APA 7 con alineación limpia' },
+];
+
+const BLOCK_QUOTE_COMMENTS: ChatLine[] = [
+  { emoji: '', text: 'cita en bloque de >40 palabras: va sin comillas y con sangría de 1.27 cm' },
+  { emoji: '', text: 'cita larga detectada: formateada como bloque independiente según APA 7' },
+];
+
+const PROACTIVE_CAPTION_COMMENTS: ChatLine[] = [
+  { emoji: '', text: 'la IA le dedujo título y nota APA según el contexto del párrafo' },
+  { emoji: '', text: 'leyenda sugerida automáticamente en base al texto adyacente' },
+];
+
 const POSITIVE_COMMENTS: ChatLine[] = [
   { emoji: '', text: 'esta parte está limpia, ni te voy a molestar' },
   { emoji: '', text: 'todo bien por acá, seguí así' },
@@ -370,9 +385,23 @@ export function getWhatsAppComment(
     }
   }
 
+  if (elem.type === 'equation') {
+    const l = pickByElement(EQUATION_COMMENTS, elem.id, nonce);
+    return { emoji: l.emoji, text: l.text, kind: 'equation' };
+  }
+
+  if (elem.type === 'block_quote') {
+    const l = pickByElement(BLOCK_QUOTE_COMMENTS, elem.id, nonce);
+    return { emoji: l.emoji, text: l.text, kind: 'block_quote' };
+  }
+
   // Checks por tipo de elemento (imagen, tabla, copypaste)
   // van antes que triggers genéricos de texto para que el tipo de elemento pese más.
   if (elem.type === 'image' && elem.image_info) {
+    if ((elem.image_info as any).suggested_caption) {
+      const l = pickByElement(PROACTIVE_CAPTION_COMMENTS, elem.id, nonce);
+      return { emoji: l.emoji, text: l.text, kind: 'proactive_caption' };
+    }
     if (!(elem.image_info.caption || '').trim()) {
       const l = pickByElement(IMAGE_NO_CAPTION_COMMENTS, elem.id, nonce);
       return { emoji: l.emoji, text: l.text, kind: 'image_no_caption' };
@@ -383,9 +412,15 @@ export function getWhatsAppComment(
     }
   }
 
-  if (elem.type === 'table' && hashStr(elem.id) % 4 === 0) {
-    const l = pickByElement(TABLE_STYLE_COMMENTS, elem.id, nonce);
-    return { emoji: l.emoji, text: l.text, kind: 'table_style' };
+  if (elem.type === 'table') {
+    if ((elem.table_info as any)?.suggested_caption) {
+      const l = pickByElement(PROACTIVE_CAPTION_COMMENTS, elem.id, nonce);
+      return { emoji: l.emoji, text: l.text, kind: 'proactive_caption' };
+    }
+    if (hashStr(elem.id) % 4 === 0) {
+      const l = pickByElement(TABLE_STYLE_COMMENTS, elem.id, nonce);
+      return { emoji: l.emoji, text: l.text, kind: 'table_style' };
+    }
   }
 
   if ((elem.type === 'paragraph' || elem.type === 'bullet') && /(\n\s*\n){2,}/.test(text)) {
@@ -396,8 +431,9 @@ export function getWhatsAppComment(
   // ── Comentarios de ESTILO/REDACCIÓN: solo tras una auditoría explícita ──
   // (el usuario presionó "Auditar párrafos"). Sin ella no se juzga al
   // estudiante: solo aparecen fallas estructurales reales.
-  if (ctx.styleAuditRun && (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote')) {
+  if (ctx.styleAuditRun && (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || (elem.type as string) === 'block_quote')) {
     const letters = text.replace(/[^a-zA-ZÁÉÍÓÚÑáéíóúñ]/g, '');
+
     if (letters.length >= 6 && letters.length / Math.max(1, text.length) > 0.75 && letters === letters.toUpperCase()) {
       const l = pickByElement(SHOUT_COMMENTS, elem.id, nonce);
       return { emoji: l.emoji, text: l.text, kind: 'shouting', match: findMatch(text, SHOUT_PHRASE_RE) || undefined };
@@ -485,6 +521,25 @@ interface WhatsAppCommentProps {
   onDismiss?: (id: string) => void;
 }
 
+function getCategoryDetails(kind: string, isPositive: boolean): { label: string; className: string; icon: React.ReactNode } {
+  if (isPositive || kind === 'positive' || kind === 'citation_ok') {
+    return { label: 'Cita Verificada APA 7', className: 'wa-bubble-positive', icon: <CheckCheck size={11} color="#10b981" /> };
+  }
+  if (kind === 'ghost_citation' || kind === 'orphan_references') {
+    return { label: 'Alerta Bibliográfica', className: 'wa-bubble-ghost', icon: <BookOpen size={11} color="#ef4444" /> };
+  }
+  if (kind && (kind.startsWith('validation_') || kind === 'citation_error' || kind === 'shouting')) {
+    return { label: 'Formato APA 7', className: 'wa-bubble-warning', icon: <PenLine size={11} color="#f59e0b" /> };
+  }
+  if (kind === 'ai' || kind === 'conclusion') {
+    return { label: 'Sugerencia de Redacción IA', className: 'wa-bubble-ai', icon: <Sparkles size={11} color="#6366f1" /> };
+  }
+  if (kind === 'image_no_caption' || kind === 'table_no_caption' || kind === 'table_emoji') {
+    return { label: 'Figuras & Tablas APA 7', className: 'wa-bubble-tables', icon: <BookOpen size={11} color="#06b6d4" /> };
+  }
+  return { label: 'Revisión Editorial', className: '', icon: <PenLine size={11} color="#64748b" /> };
+}
+
 export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false, onHover, onLeave, onResolve, onDismiss }) => {
   const ghostCitations = useDocStore((s) => (s.citationAuditResult?.ghost_citations || []) as any[]);
   const orphanReferences = useDocStore((s) => (s.citationAuditResult?.orphan_references || []) as any[]);
@@ -495,14 +550,6 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
   const sessionId = useDocStore((s) => s.doc?.session_id || '');
 
   const nonceRef = useRef<number>(Math.floor(Math.random() * 1e6));
-  const [phase, setPhase] = useState<'typing' | 'done'>('typing');
-  const [iaText, setIaText] = useState<string | null>(null);
-  const [dismissing, setDismissing] = useState(false);
-  const [resolved, setResolved] = useState(false);
-  const [swipeDx, setSwipeDx] = useState(0);
-  const dragStartX = useRef<number | null>(null);
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const ctx: WhatsAppContext = { ghostCitations, orphanReferences, validationIssues, styleAuditRun: !!reviewResult };
   let comment: WhatsAppCommentData | null = getWhatsAppComment(elem, ctx, nonceRef.current);
   let isPositive = false;
@@ -513,45 +560,48 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
   }
 
   const useIA = !isPositive && !!comment && canUseIA(comment.kind) && !!apiKey;
+  const initialPhase = useIA && !iaCache.has(elem.id) ? 'typing' : 'done';
+  const [phase, setPhase] = useState<'typing' | 'done'>(initialPhase);
+  const [iaText, setIaText] = useState<string | null>(() => iaCache.get(elem.id) || null);
+  const [dismissing, setDismissing] = useState(false);
+  const [resolved, setResolved] = useState(false);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!comment) return;
+    if (!comment || !useIA) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
-    if (useIA) {
-      iaCallCount += 1;
-      const cached = iaCache.get(elem.id);
-      if (cached) {
-        setIaText(cached);
-        timer = setTimeout(() => { if (!cancelled) setPhase('done'); }, 400);
-      } else {
-        // Arranca el typing mientras el LLM escribe; tope de 45s → biblioteca
-        timer = setTimeout(async () => {
-          if (cancelled) return;
-          try {
-            const res = await Promise.race([
-              generateChatComment(sessionId, elem.id, comment.kind, elem.text || '', apiKey, aiProviderConfig),
-              new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
-            ]);
-            if (cancelled) return;
-            iaCache.set(elem.id, res);
-            setIaText(res);
-          } catch {
-            // fallback a la biblioteca
-          } finally {
-            if (!cancelled) setPhase('done');
-          }
-        }, 1200 + Math.floor(Math.random() * 900));
-      }
+    iaCallCount += 1;
+    const cached = iaCache.get(elem.id);
+    if (cached) {
+      setIaText(cached);
+      setPhase('done');
     } else {
-      const delay = 700 + Math.floor(Math.random() * 1300);
-      timer = setTimeout(() => { if (!cancelled) setPhase('done'); }, delay);
+      setPhase('typing');
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const res = await Promise.race([
+            generateChatComment(sessionId, elem.id, comment!.kind, elem.text || '', apiKey, aiProviderConfig),
+            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 45000)),
+          ]);
+          if (cancelled) return;
+          iaCache.set(elem.id, res);
+          setIaText(res);
+        } catch {
+          // fallback a la biblioteca
+        } finally {
+          if (!cancelled) setPhase('done');
+        }
+      }, 900);
     }
 
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elem.id]);
+  }, [elem.id, useIA]);
 
   // Limpieza del timer de dismiss al desmontar
   useEffect(() => () => { if (dismissTimer.current) clearTimeout(dismissTimer.current); }, []);
@@ -564,6 +614,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
 
   const expression = mascotFor(display.kind, isPositive);
   const action = resolveMeta(display.kind);
+  const cat = getCategoryDetails(display.kind, isPositive);
 
   const triggerDismiss = () => {
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
@@ -612,7 +663,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
       {phase === 'typing' ? (
         <div className="wa-bubble wa-bubble-typing" aria-hidden="true" style={bubbleStyle}>
           <div className="wa-typing"><span /><span /><span /></div>
-          <span className="wa-time">escribiendo…</span>
+          <span className="wa-time">analizando con IA…</span>
         </div>
       ) : resolved ? (
         /* Cara festiva: el usuario resolvió la alerta desde el botón */
@@ -625,7 +676,11 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
         </div>
       ) : (
         <>
-          <div className="wa-bubble" style={bubbleStyle}>
+          <div className={`wa-bubble ${cat.className}`} style={bubbleStyle}>
+            <div className="wa-bubble-header">
+              {cat.icon}
+              <span>{cat.label}</span>
+            </div>
             <div className="wa-line">
               <span className="wa-avatar"><DocumentMascot size={24} expression={expression} /></span>
               <span className="wa-text">{display.text}</span>

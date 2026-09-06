@@ -40,6 +40,9 @@ import { ImageEditPanel } from './components/inspector/ImageEditPanel';
 import { syncAllProviderKeys } from './api/backend';
 // F4: ValidatorView drawer ahora vive a nivel raiz (abrible desde cualquier paso)
 import { ValidatorView } from './components/validator/ValidatorView';
+import { ExpressQuickTransformModal } from './components/quick/ExpressQuickTransformModal';
+import { DocumentAIChat } from './components/chat/DocumentAIChat';
+import { StressTestModal } from './components/test/StressTestModal';
 import { X } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
@@ -191,6 +194,27 @@ const ValidatorDrawer: React.FC = () => {
   );
 };
 
+/** Drawer del Copiloto Editorial IA (Edición en vivo en lenguaje natural). */
+const LiveChatDrawer: React.FC = () => {
+  const liveChatOpen = useDocStore((s) => s.liveChatOpen);
+  const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
+  if (!liveChatOpen) return null;
+  return (
+    <div
+      style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 'min(480px, 90%)', zIndex: 1000,
+        display: 'flex', flexDirection: 'column',
+        backgroundColor: 'var(--sidebar-bg)',
+        borderLeft: '1px solid var(--border-subtle)',
+        boxShadow: '-10px 0 28px rgba(0,0,0,0.25)',
+      }}
+    >
+      <DocumentAIChat onClose={() => setLiveChatOpen(false)} />
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const {
     doc,
@@ -210,13 +234,51 @@ export const App: React.FC = () => {
     tabs,
     auditorMode,
     setAuditorMode,
+    focusMode,
     isBackendReady,
     structureTab,
     setStructureTab,
   } = useDocStore();
 
+  // ── Resizable Left Sidebar (Portada / Wizards) ────────────────────────────
+  const [leftSidebarWidth, setLeftSidebarWidth] = React.useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('wordapa7-left-sidebar-width');
+      return saved ? parseInt(saved, 10) : 380;
+    } catch { return 380; }
+  });
+  const [isLeftResizing, setIsLeftResizing] = React.useState(false);
+
+  useEffect(() => {
+    try { localStorage.setItem('wordapa7-left-sidebar-width', leftSidebarWidth.toString()); } catch {}
+  }, [leftSidebarWidth]);
+
+  useEffect(() => {
+    if (!isLeftResizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const newW = Math.min(640, Math.max(300, e.clientX));
+      setLeftSidebarWidth(newW);
+    };
+    const handleMouseUp = () => {
+      setIsLeftResizing(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+  }, [isLeftResizing]);
+
   // ── Context Menu Integration ──────────────────────────────────────────────
-  const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array } | null>(null);
+  const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array; isQuick?: boolean; filePath?: string } | null>(null);
+  const [quickModalData, setQuickModalData] = React.useState<{ fileName: string; buffer?: Uint8Array; filePath?: string } | null>(null);
 
   const processPendingOSFile = () => {
     const data = pendingOSFile.current;
@@ -231,7 +293,9 @@ export const App: React.FC = () => {
       { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
     );
 
-    useDocStore.getState().showToast(`Abriendo "${data.fileName}" desde el menú contextual…`, 'info');
+    if (!data.isQuick) {
+      useDocStore.getState().showToast(`Abriendo "${data.fileName}" desde el menú contextual…`, 'info');
+    }
     useDocStore.getState().uploadFile(file);
   };
 
@@ -240,8 +304,15 @@ export const App: React.FC = () => {
     if (!electronWindow.electronAPI?.onOpenFileFromOS) return;
 
     const cleanup = electronWindow.electronAPI.onOpenFileFromOS(
-      (data: { fileName: string; buffer: Uint8Array }) => {
+      (data: { fileName: string; buffer: Uint8Array; isQuick?: boolean; filePath?: string }) => {
         pendingOSFile.current = data;
+        if (data.isQuick) {
+          setQuickModalData({
+            fileName: data.fileName,
+            buffer: data.buffer,
+            filePath: data.filePath,
+          });
+        }
         if (useDocStore.getState().isBackendReady) {
           processPendingOSFile();
         }
@@ -347,6 +418,8 @@ export const App: React.FC = () => {
 
       if (e.key === 'Escape') {
         const s = useDocStore.getState();
+        if (s.liveChatOpen) { s.setLiveChatOpen(false); return; }
+        if (s.stressTestModalOpen) { s.setStressTestModalOpen(false); return; }
         if (s.validatorOpen) { s.setValidatorOpen(false); return; }
         if (s.viewMode === 'export') { s.setViewMode('edit'); return; }
         if (s.isNIMDiagnosticsOpen) { s.setIsNIMDiagnosticsOpen(false); return; }
@@ -466,6 +539,28 @@ export const App: React.FC = () => {
     return () => cleanups.forEach((cleanup) => cleanup());
   }, []);
 
+  if (quickModalData) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <ExpressQuickTransformModal
+          fileName={quickModalData.fileName}
+          filePath={quickModalData.filePath}
+          fileBuffer={quickModalData.buffer}
+          onClose={() => {
+            setQuickModalData(null);
+            const ew = window as any;
+            if (ew.electronAPI?.windowClose) ew.electronAPI.windowClose();
+          }}
+          onOpenFullEditor={() => {
+            setQuickModalData(null);
+            const ew = window as any;
+            if (ew.electronAPI?.expandToFullEditor) ew.electronAPI.expandToFullEditor();
+          }}
+        />
+      </div>
+    );
+  }
+
   if (settingsStudioOpen) {
     return (
       <>
@@ -540,11 +635,25 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : wizardStep === 1 ? (
-          /* D1: EditorRail removed — RightSidePanel handles the assistant toggle */
           <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
-            <div style={{ width: '35%', minWidth: 340, maxWidth: 560, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
-              <CoverEditorPanel />
-            </div>
+            {!focusMode && (
+              <>
+                <div style={{ width: `${leftSidebarWidth}px`, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
+                  <CoverEditorPanel />
+                </div>
+                <div
+                  onMouseDown={(e) => { e.preventDefault(); setIsLeftResizing(true); }}
+                  title="Arrastra para redimensionar el panel de portada"
+                  style={{
+                    width: '4px', cursor: 'col-resize',
+                    backgroundColor: isLeftResizing ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                    transition: 'background-color 0.15s ease', flexShrink: 0, zIndex: 10,
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent-primary)'; }}
+                  onMouseLeave={(e) => { if (!isLeftResizing) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--border-subtle)'; }}
+                />
+              </>
+            )}
             <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
               <Step1PortadaWizard />
             </div>
@@ -554,7 +663,7 @@ export const App: React.FC = () => {
           <>
             <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
               <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+                {wizardStep === 2 && !focusMode && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
                 <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
                   {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
                   {wizardStep === 3 && <Step3FiguresTablesWizard />}
@@ -562,10 +671,8 @@ export const App: React.FC = () => {
                   {wizardStep === 5 && <ExportView />}
                 </div>
               </div>
-              {/* Mapa del documento: vive bajo el StepRail (izquierda) para no
-                  quitarle ancho a la UI principal (p. ej. bibliografía).
-                  En Exportar (paso 5) se oculta: la cabina ya tiene preview. */}
-              {wizardStep !== 5 && <RightSidePanel />}
+              {/* Mapa del documento y panel contextual: activo en pasos 2 y 3 */}
+              {wizardStep !== 4 && wizardStep !== 5 && !focusMode && <RightSidePanel />}
             </div>
           </>
         )}
@@ -586,6 +693,12 @@ export const App: React.FC = () => {
       <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
+      {/* Copiloto Editorial IA (Edición en vivo) */}
+      {doc && <LiveChatDrawer />}
+      {/* Modal de Banco de Pruebas y Estrés */}
+      {useDocStore((s) => s.stressTestModalOpen) && (
+        <StressTestModal onClose={() => useDocStore.getState().setStressTestModalOpen(false)} />
+      )}
     </div>
   );
 };

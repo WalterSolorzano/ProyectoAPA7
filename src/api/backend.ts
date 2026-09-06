@@ -445,6 +445,30 @@ export async function generatePreview(
   return res.json();
 }
 
+export async function generateDocx(
+  sessionId: string,
+  rules?: APARuleSet,
+  portada?: PortadaData,
+  references?: ReferenciaModel[]
+): Promise<PreviewResponse> {
+  const store = (await import('../store/useDocStore')).useDocStore.getState();
+  return generatePreview(
+    sessionId,
+    rules || store.rules,
+    portada || store.portada,
+    references || store.references
+  );
+}
+
+export async function openInWord(sessionId: string): Promise<void> {
+  await fetchWithTrace(`${getApiBase()}/open-local`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+
 export async function generatePreviewPdf(
   sessionId: string,
   rules: APARuleSet,
@@ -1010,4 +1034,126 @@ export async function sideloadWordAddin(): Promise<AddinSideloadResult> {
     throw new Error('No se pudo contactar al motor para registrar el complemento');
   }
   return res.json();
+}
+
+// ── LIVE AI CHAT & PROACTIVE CAPTIONS ────────────────────────────────────────
+
+export interface LiveChatAction {
+  type: 'update_text' | 'set_type' | 'insert_citation' | 'add_reference' | 'set_caption' | 'set_note' | 'split_paragraph' | 'delete_element';
+  element_id?: string;
+  text?: string;
+  element_type?: string;
+  level?: number;
+  citation?: string;
+  reference?: string;
+  caption?: string;
+  note?: string;
+  paragraphs?: string[];
+}
+
+export interface LiveChatResponse {
+  reply: string;
+  actions: LiveChatAction[];
+}
+
+export async function sendLiveChat(
+  sessionId: string,
+  userInstruction: string,
+  selectedElementId?: string | null,
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<LiveChatResponse> {
+  const apiKey = useDocStore.getState().apiKey;
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/ai/live-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      user_instruction: userInstruction,
+      selected_element_id: selectedElementId || undefined,
+      history: history || [],
+      api_key: apiKey || undefined,
+    }),
+  });
+
+  if (!res.ok) {
+    let msg = 'Error en el chat con la IA';
+    try {
+      const err = await res.json();
+      msg = err.detail || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+export async function fetchProactiveCaptions(sessionId: string): Promise<{
+  suggestions: Array<{
+    element_id: string;
+    type: string;
+    caption: string;
+    note: string;
+  }>;
+}> {
+  const apiKey = useDocStore.getState().apiKey;
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/ai/proactive-captions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      api_key: apiKey || undefined,
+    }),
+  });
+
+  if (!res.ok) {
+    return { suggestions: [] };
+  }
+  return res.json();
+}
+
+export async function listSampleDocuments(): Promise<{
+  samples: Array<{ id: string; name: string; desc: string }>;
+}> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/test/sample-documents`);
+  if (!res.ok) return { samples: [] };
+  return res.json();
+}
+
+export async function fetchProactiveElementDiagnosis(
+  sessionId: string,
+  elementId: string
+): Promise<{
+  proposal?: {
+    element_id: string;
+    type: string;
+    diagnosis: string;
+    original_text: string;
+    proposed_text: string;
+    action_type: string;
+    new_type?: string;
+  } | null;
+}> {
+  const apiKey = useDocStore.getState().apiKey;
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/ai/proactive-diagnose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      element_id: elementId,
+      api_key: apiKey || undefined,
+    }),
+  });
+
+  if (!res.ok) {
+    return { proposal: null };
+  }
+  return res.json();
+}
+
+export function getSampleDocumentUrl(docType: string): string {
+  return `${getApiBase()}/test/sample-documents/${docType}`;
 }

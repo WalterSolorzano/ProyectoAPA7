@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, Sparkles, Undo, Redo, Sun, Moon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Sparkles, Undo, Redo, Sun, Moon, CheckCircle2, AlertCircle, Loader2, MessageSquare, BookOpen, Home } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
 import { getSideloadStatus, repairSideload, SideloadStatus } from '../../api/backend';
+
+import { APAScoreCard } from './APAScoreCard';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
@@ -84,20 +86,20 @@ export function UnifiedToolbar() {
       height: '48px',
       backgroundColor: 'var(--sidebar-bg)',
       borderBottom: '1px solid var(--border-subtle)',
-      padding: isElectron ? '0 150px 0 20px' : '0 16px 0 20px',
+      padding: isElectron ? '0 150px 0 16px' : '0 16px',
       position: 'relative',
       zIndex: 10,
       flexShrink: 0,
     }}>
-      {/* Left: Logo (= menú Archivo) + Brand */}
+      {/* Left: Logo (= menú Archivo) + Brand + Botón Inicio */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
         <button type="button"
           onClick={() => useDocStore.getState().setShowFileMenu(!useDocStore.getState().showFileMenu)}
-          aria-label="Menú"
+          aria-label="Menú Archivo"
           title="Archivo"
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
-            background: 'none', border: 'none', padding: '2px 4px',
+            background: 'none', border: 'none', padding: '4px 6px',
             cursor: 'pointer', borderRadius: 'var(--radius-sm)',
             transition: 'background 0.15s',
             ...noDragRegion,
@@ -105,17 +107,41 @@ export function UnifiedToolbar() {
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="9" y1="13" x2="15" y2="13" />
-            <line x1="9" y1="17" x2="15" y2="17" />
-          </svg>
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '26px', height: '26px', borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+          }}>
+            <BookOpen size={16} strokeWidth={2.2} />
+          </div>
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>WordAPA7</span>
         </button>
+
+        {doc && (
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().goHome()}
+            aria-label="Volver al Inicio"
+            title="Volver a la pantalla de bienvenida y plantillas"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+              padding: '4px 9px', borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 700,
+              color: 'var(--text-secondary)', transition: 'background 0.15s',
+              ...noDragRegion,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+          >
+            <Home size={13} />
+            <span>Inicio</span>
+          </button>
+        )}
       </div>
 
       {/* Center vacío: la navegación por pasos vive en el StepRail izquierdo */}
+      <div />
 
       {/* Right: action buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
@@ -145,6 +171,11 @@ export function UnifiedToolbar() {
 
         {doc && (
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, ...noDragRegion }}>
+          {/* Tarjeta de Diagnóstico APA 7 */}
+          <APAScoreCard />
+
+          <div style={toolbarDivider} />
+
           {/* Save status chip (compact, passive) */}
           <span
             title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
@@ -205,6 +236,23 @@ export function UnifiedToolbar() {
               <span className="toolbar-btn-label">Actualización</span>
             </button>
           )}
+
+          {/* Copiloto Editorial IA */}
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().setLiveChatOpen(!useDocStore.getState().liveChatOpen)}
+            title="Copiloto Editorial IA (Edición en vivo en lenguaje natural)"
+            style={{
+              ...ghostBtn,
+              background: useDocStore((s) => s.liveChatOpen) ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+              color: useDocStore((s) => s.liveChatOpen) ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              borderColor: useDocStore((s) => s.liveChatOpen) ? 'var(--accent-primary)' : 'var(--border-subtle)',
+              fontWeight: 700,
+            }}
+          >
+            <MessageSquare size={13} />
+            <span className="toolbar-btn-label">Copiloto IA</span>
+          </button>
 
           <div style={toolbarDivider} />
 

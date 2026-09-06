@@ -18,7 +18,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   School, FileText, Check, ChevronRight, Users, Calendar,
-  GraduationCap, X, Hash,
+  GraduationCap, X, Hash, Layers,
 } from 'lucide-react';
 import { requestCoverFieldHighlight } from '../../lib/portadaAuthors';
 
@@ -168,80 +168,89 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
 /* ── Componente principal ───────────────────────────────────────────────── */
 
 export const CoverEditorPanel: React.FC = () => {
-  const { portada, setPortada, setCoverSetupDone } = useDocStore();
+  const { portada, setPortada, updateCoverField, setCoverSetupDone } = useDocStore();
   const { integrantes, profesores, grupos } = useRosterStore();
 
-  // El checkbox se deriva del estado de la portada (no hay estado local).
-  const keepOriginal = portada.use_original_cover !== false;
+  // Determinar modo actual
+  const currentMode: 'original' | 'apa7' | 'uni' = useMemo(() => {
+    if (portada.use_original_cover !== false) return 'original';
+    if (portada.cover_mode === 'generate_uni_cover') return 'uni';
+    return 'apa7';
+  }, [portada.use_original_cover, portada.cover_mode]);
 
-  const toggleKeepOriginal = () => {
-    setPortada({
-      use_original_cover: !keepOriginal,
-      force_skip_cover: false,
-      cover_mode: '',
-    });
+  const setCoverMode = (mode: 'original' | 'apa7' | 'uni') => {
+    if (mode === 'original') {
+      setPortada({
+        use_original_cover: true,
+        force_skip_cover: false,
+        cover_mode: '',
+      });
+    } else if (mode === 'uni') {
+      setPortada({
+        use_original_cover: false,
+        force_skip_cover: false,
+        cover_mode: 'generate_uni_cover',
+      });
+    } else {
+      setPortada({
+        use_original_cover: false,
+        force_skip_cover: false,
+        cover_mode: '',
+      });
+    }
   };
 
-  // Dispara el highlight azul de ~1s sobre el campo en la hoja de portada.
+  // Dispara el highlight azul sobre el campo en la hoja de portada
   const focusHighlight = (field: string) => () => requestCoverFieldHighlight(field);
 
   /* ── Integrantes / Autor ──────────────────────────────────────────────── */
 
-  // Lista de autores actualmente en el campo (separados por coma).
   const currentAuthors = useMemo(() => parseAuthors(portada.author || ''), [portada.author]);
 
-  /** Comprueba si un integrante ya está en la lista de autores. */
   const isAuthorSelected = (nombre: string): boolean =>
     currentAuthors.some((a) => a.toLowerCase() === nombre.toLowerCase());
 
-  /** Añade o quita un integrante del campo author (comma-separated). */
   const toggleIntegrante = (nombre: string) => {
     const list = parseAuthors(portada.author || '');
     const exists = list.some((a) => a.toLowerCase() === nombre.toLowerCase());
     const next = exists
       ? list.filter((a) => a.toLowerCase() !== nombre.toLowerCase())
       : [...list, nombre];
-    setPortada({ author: joinAuthors(next) });
+    const joined = joinAuthors(next);
+    updateCoverField('author', joined);
     requestCoverFieldHighlight('author');
   };
 
-  /** Quita un autor concreto del campo (usado por los tags removibles). */
   const removeAuthor = (nombre: string) => {
     const next = parseAuthors(portada.author || '').filter(
       (a) => a !== nombre,
     );
-    setPortada({ author: joinAuthors(next) });
+    const joined = joinAuthors(next);
+    updateCoverField('author', joined);
     requestCoverFieldHighlight('author');
   };
 
   /* ── Docente / Profesor ──────────────────────────────────────────────── */
 
-  /** Asigna un profesor al campo instructor. */
   const setInstructor = (nombre: string) => {
-    setPortada({ instructor: nombre });
+    updateCoverField('instructor', nombre);
     requestCoverFieldHighlight('instructor');
   };
 
   /* ── Grupo ───────────────────────────────────────────────────────────── */
 
-  /** Asigna un grupo al campo grupo. */
   const setGrupo = (valor: string) => {
-    // Si ya está seleccionado, lo deselecciona (toggle).
     const isCurrent = (portada.grupo || '') === valor;
-    setPortada({ grupo: isCurrent ? '' : valor });
+    updateCoverField('grupo', isCurrent ? '' : valor);
     requestCoverFieldHighlight('grupo');
   };
 
   /* ── Fecha ───────────────────────────────────────────────────────────── */
 
-  // El <input type="date"> necesita un valor ISO (YYYY-MM-DD). Si portada.date
-  // ya contiene texto formateado, intentamos extraer una fecha; si no, vacío.
   const dateInputValue = useMemo(() => {
     const raw = portada.date || '';
     if (!raw) return '';
-    // Si ya está en formato ISO (viene del propio picker).
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    // Intentar parsear "DD de mes de YYYY" → ISO.
     const m = raw.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
     if (m) {
       const day = m[1].padStart(2, '0');
@@ -251,7 +260,6 @@ export const CoverEditorPanel: React.FC = () => {
         return `${m[3]}-${month}-${day}`;
       }
     }
-    // Intentar Date nativa.
     const d = new Date(raw);
     if (!isNaN(d.getTime())) {
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -265,8 +273,7 @@ export const CoverEditorPanel: React.FC = () => {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const iso = e.target.value;
-    // Guardamos el texto formateado en español en portada.date.
-    setPortada({ date: iso ? formatFechaES(iso) : '' });
+    updateCoverField('date', iso ? formatFechaES(iso) : '');
     requestCoverFieldHighlight('date');
   };
 
@@ -293,46 +300,112 @@ export const CoverEditorPanel: React.FC = () => {
         flex: 1, overflowY: 'auto', padding: '14px',
         display: 'flex', flexDirection: 'column', gap: '16px',
       }}>
-        {/* Checkbox: conservar portada original */}
-        <button
-          type="button"
-          onClick={toggleKeepOriginal}
-          aria-pressed={keepOriginal}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-            textAlign: 'left', padding: '11px 12px', cursor: 'pointer',
-            fontFamily: 'inherit',
-            background: keepOriginal ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-            border: `1.5px solid ${keepOriginal ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-            borderRadius: '12px',
-            transition: 'border-color 0.15s ease, background 0.15s ease',
-          }}
-        >
-          <span style={{
-            width: '18px', height: '18px', borderRadius: '5px', flexShrink: 0,
-            border: `1.5px solid ${keepOriginal ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-            background: keepOriginal ? 'var(--accent-primary)' : 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 0.15s ease, border-color 0.15s ease',
-          }}>
-            {keepOriginal && <Check size={12} color="#fff" strokeWidth={3} />}
-          </span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-              Conservar portada original
-            </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-              Deja intacta la portada de tu documento
-            </span>
-          </span>
-        </button>
+        {/* Selector de modo de portada: 3 opciones visuales claras */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={blockTitle}><Layers size={12} /> Modo de Portada</div>
 
-        {/* Formulario (se atenúa si se conserva la portada original) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Opción 1: Conservar y editar original */}
+            <button
+              type="button"
+              onClick={() => setCoverMode('original')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: currentMode === 'original' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                border: `1.5px solid ${currentMode === 'original' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                borderRadius: '10px',
+                transition: 'border-color 0.15s ease, background 0.15s ease',
+              }}
+            >
+              <span style={{
+                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                border: `1.5px solid ${currentMode === 'original' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                background: currentMode === 'original' ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {currentMode === 'original' && <Check size={11} color="#fff" strokeWidth={3} />}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Conservar y editar original
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  Mantiene tu diseño, logos y fuentes intactos
+                </span>
+              </div>
+            </button>
+
+            {/* Opción 2: Plantilla APA 7 */}
+            <button
+              type="button"
+              onClick={() => setCoverMode('apa7')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: currentMode === 'apa7' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                border: `1.5px solid ${currentMode === 'apa7' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                borderRadius: '10px',
+                transition: 'border-color 0.15s ease, background 0.15s ease',
+              }}
+            >
+              <span style={{
+                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                border: `1.5px solid ${currentMode === 'apa7' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                background: currentMode === 'apa7' ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {currentMode === 'apa7' && <Check size={11} color="#fff" strokeWidth={3} />}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Plantilla APA 7 Estándar
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  Diseño formal centrado para estudiantes
+                </span>
+              </div>
+            </button>
+
+            {/* Opción 3: Plantilla UNI */}
+            <button
+              type="button"
+              onClick={() => setCoverMode('uni')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
+                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: currentMode === 'uni' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                border: `1.5px solid ${currentMode === 'uni' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                borderRadius: '10px',
+                transition: 'border-color 0.15s ease, background 0.15s ease',
+              }}
+            >
+              <span style={{
+                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                border: `1.5px solid ${currentMode === 'uni' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                background: currentMode === 'uni' ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {currentMode === 'uni' && <Check size={11} color="#fff" strokeWidth={3} />}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Plantilla Institucional UNI
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  Encabezado y grilla oficial de la institución
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Formulario SIEMPRE activo y editable */}
         <div style={{
-          display: 'flex', flexDirection: 'column', gap: '18px',
-          opacity: keepOriginal ? 0.45 : 1,
-          pointerEvents: keepOriginal ? 'none' : 'auto',
-          transition: 'opacity 0.2s ease',
+          display: 'flex', flexDirection: 'column', gap: '16px',
         }}>
           <div style={blockTitle}><FileText size={12} /> Datos de la portada</div>
 
@@ -341,7 +414,7 @@ export const CoverEditorPanel: React.FC = () => {
             <label style={fieldLabel}>Título del trabajo</label>
             <textarea
               value={portada.title || ''}
-              onChange={(e) => setPortada({ title: e.target.value })}
+              onChange={(e) => updateCoverField('title', e.target.value)}
               onFocus={focusHighlight('title')}
               placeholder="Escribe el título completo de tu trabajo..."
               rows={3}
@@ -351,11 +424,11 @@ export const CoverEditorPanel: React.FC = () => {
 
           {/* ── Nombre del autor + Integrantes ─────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Nombre del autor</label>
+            <label style={fieldLabel}>Nombre del autor / Integrantes</label>
             <input
               type="text"
               value={portada.author || ''}
-              onChange={(e) => setPortada({ author: e.target.value })}
+              onChange={(e) => updateCoverField('author', e.target.value)}
               onFocus={focusHighlight('author')}
               placeholder="Nombre y apellido (o escribe varios separados por comas)"
               style={baseInput}
@@ -415,11 +488,11 @@ export const CoverEditorPanel: React.FC = () => {
 
           {/* ── Institución ─────────────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Institución</label>
+            <label style={fieldLabel}>Institución / Universidad</label>
             <input
               type="text"
               value={portada.institution || ''}
-              onChange={(e) => setPortada({ institution: e.target.value })}
+              onChange={(e) => updateCoverField('institution', e.target.value)}
               onFocus={focusHighlight('institution')}
               placeholder="Universidad o facultad"
               style={baseInput}
@@ -428,11 +501,11 @@ export const CoverEditorPanel: React.FC = () => {
 
           {/* ── Curso ───────────────────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Curso</label>
+            <label style={fieldLabel}>Curso / Asignatura</label>
             <input
               type="text"
               value={portada.course || ''}
-              onChange={(e) => setPortada({ course: e.target.value })}
+              onChange={(e) => updateCoverField('course', e.target.value)}
               onFocus={focusHighlight('course')}
               placeholder="Nombre del curso"
               style={baseInput}
@@ -445,7 +518,7 @@ export const CoverEditorPanel: React.FC = () => {
             <input
               type="text"
               value={portada.grupo || ''}
-              onChange={(e) => setPortada({ grupo: e.target.value })}
+              onChange={(e) => updateCoverField('grupo', e.target.value)}
               onFocus={focusHighlight('grupo')}
               placeholder="Ej: 3T1 IND"
               style={baseInput}
@@ -479,7 +552,7 @@ export const CoverEditorPanel: React.FC = () => {
             <input
               type="text"
               value={portada.instructor || ''}
-              onChange={(e) => setPortada({ instructor: e.target.value })}
+              onChange={(e) => updateCoverField('instructor', e.target.value)}
               onFocus={focusHighlight('instructor')}
               placeholder="Nombre y título del docente"
               style={baseInput}
@@ -497,7 +570,7 @@ export const CoverEditorPanel: React.FC = () => {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setPortada({ instructor: '' })}
+                    onClick={() => updateCoverField('instructor', '')}
                     title="Quitar docente"
                     style={removeBtn}
                   >
@@ -591,7 +664,10 @@ export const CoverEditorPanel: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => { setCoverSetupDone(true); useDocStore.getState().openExportTunnel(); }}
+          onClick={() => {
+            setCoverSetupDone(true);
+            useDocStore.getState().setWizardStep(2);
+          }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '7px', marginTop: '8px', padding: '10px 14px', fontSize: '12px', fontWeight: 700,
@@ -600,7 +676,7 @@ export const CoverEditorPanel: React.FC = () => {
             fontFamily: 'inherit',
           }}
         >
-          Continuar a Exportación <ChevronRight size={14} />
+          Continuar a Estructura <ChevronRight size={14} />
         </button>
       </div>
     </div>
