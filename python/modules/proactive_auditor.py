@@ -53,17 +53,16 @@ _SENT_START_DUP = re.compile(r"^(?:el|la|los|las|un|una|es|se|su|en|al|de)\b", r
 def _audit_repeticion(eid: str, text: str) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     ws = [w.lower() for w in _WORD.findall(text)]
-    content = [w for w in ws if w not in _STOPWORDS and len(w) > 4]
-    if len(content) >= 8:
+    content = [w for w in ws if w not in _STOPWORDS and len(w) >= 4]
+    if len(content) >= 4:
         counts = Counter(content)
-        para_topic = max(counts.values()) if counts else 0
         for w, c in counts.items():
-            # Umbral adaptativo: tolera la palabra-tema del párrafo.
-            if c >= 3 and c < max(3, para_topic):
+            if c >= 3:
                 i = text.lower().find(w)
                 if i >= 0:
+                    orig_word = text[i:i+len(w)]
                     out.append(_mk(eid, text, i, i + len(w), "repeticion", "info",
-                                   f'"{w}" se repite {c} veces en el párrafo'))
+                                   f'La palabra o marca "{orig_word}" se repite {c} veces en este párrafo. Considera usar pronombres o variaciones.'))
                 break
     # Inicios de oración idénticos
     sents = [s.strip() for s in re.split(r"[.!?]+\s", text) if s.strip()]

@@ -338,6 +338,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
+          liveChatOpen: true,
         };
       });
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
@@ -950,9 +951,13 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         get().showToast('El PDF no pudo generarse en este equipo; se descargó el DOCX oficial.', 'error');
       }
       if (data.download_url) {
-        const downloadUrl = data.download_url.startsWith('http')
-          ? data.download_url
-          : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
+        let path = data.download_url;
+        if (!path.startsWith('http')) {
+          if (base.endsWith('/api') && path.startsWith('/api/')) {
+            path = path.slice(4); // quitar '/api' duplicate
+          }
+        }
+        const downloadUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
         triggerDownload(downloadUrl, data.pdf_name || (doc.file_name?.replace(/\.[^.]+$/, '') + '.pdf'));
         set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
       }

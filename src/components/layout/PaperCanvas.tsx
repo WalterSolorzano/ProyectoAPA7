@@ -158,7 +158,7 @@ export const computePages = (elements: ElementModel[], maxUnits = 30): ElementMo
     if (elem.type === 'toc') units = 20;
     if (elem.type === 'image') units = 4;
     if (elem.type === 'table') units = 6;
-    if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 250));
+    if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 90));
 
     const isFirstBodyHeading = elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
     const isLevel1Heading = elem.type === 'heading' && elem.heading_level === 1;
@@ -1084,8 +1084,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 style={{
                   width: `${PAGE_W}px`,
                   maxWidth: '100%',
-                  height: `${PAGE_H}px`,
-                  overflow: 'hidden',
+                  minHeight: `${PAGE_H}px`,
+                  height: isCoverPage ? `${PAGE_H}px` : undefined,
+                  overflow: isCoverPage ? 'hidden' : undefined,
                   backgroundColor: 'var(--paper-white, #ffffff)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
                   padding: '54px 54px',

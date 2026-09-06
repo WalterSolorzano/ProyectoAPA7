@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ElementModel } from '../../types';
 import { useDocStore } from '../../store/useDocStore';
-import { generateChatComment } from '../../api/backend';
+import { generateChatComment, suggestCaption } from '../../api/backend';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
@@ -686,11 +686,37 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
               <span className="wa-text">{display.text}</span>
             </div>
             <div className="wa-actions">
-              {action && (
+              {(display.kind === 'image_no_caption' || display.kind === 'table_no_caption' || display.kind === 'proactive_caption') ? (
+                <button
+                  type="button"
+                  className="wa-action"
+                  style={{ backgroundColor: 'var(--accent-primary, #4f7cff)', color: '#ffffff', border: 'none', padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const state = useDocStore.getState();
+                    state.showToast('Generando leyenda con IA…', 'info');
+                    try {
+                      const textCtx = elem.text || '';
+                      const caption = await suggestCaption(sessionId, elem.id, textCtx, apiKey);
+                      if (elem.type === 'image') {
+                        state.updateElementImage(elem.id, { caption });
+                      } else if (elem.type === 'table') {
+                        state.updateElementTable(elem.id, { caption });
+                      }
+                      state.showToast('Leyenda aplicada correctamente', 'success');
+                      handleResolve();
+                    } catch (err: any) {
+                      state.showToast('No se pudo generar la leyenda: ' + (err.message || 'Error'), 'error');
+                    }
+                  }}
+                >
+                  <Sparkles size={11} /> Aplicar leyenda IA
+                </button>
+              ) : action ? (
                 <button type="button" className="wa-action" onClick={(e) => { e.stopPropagation(); handleResolve(); }}>
                   {action.icon} {action.label}
                 </button>
-              )}
+              ) : null}
               <span className="wa-time">WordAPA7</span>
               <button
                 type="button"

@@ -421,7 +421,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
             )}
           </div>
 
-          {/* Tarjetas individuales de sugerencia */}
+          {/* Lista compacta de elementos por rotular */}
           {uncaptionedElements.map((elem, idx) => {
             const isTable = elem.type === 'table';
             const num = isTable ? (elem.table_info?.table_number || idx + 1) : (elem.image_info?.figure_number || idx + 1);
@@ -434,93 +434,88 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               <div
                 key={elem.id}
                 style={{
-                  padding: '14px',
+                  padding: '10px 12px',
                   backgroundColor: 'var(--surface-elevated, #ffffff)',
                   border: selectedElementId === elem.id ? '2px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: '10px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                  borderRadius: '8px',
                   display: 'flex',
-                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   gap: '10px',
                   transition: 'border-color 0.15s ease',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '7px',
-                      backgroundColor: isTable ? 'rgba(16, 185, 129, 0.12)' : 'rgba(79, 124, 255, 0.12)',
-                      color: isTable ? 'var(--accent-success, #10b981)' : 'var(--accent-primary, #4f7cff)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {isTable ? <Table size={14} /> : <ImageIcon size={14} />}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '6px',
+                    backgroundColor: isTable ? 'rgba(16, 185, 129, 0.12)' : 'rgba(79, 124, 255, 0.12)',
+                    color: isTable ? 'var(--accent-success, #10b981)' : 'var(--accent-primary, #4f7cff)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    {isTable ? <Table size={13} /> : <ImageIcon size={13} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
+                        {typeLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedElementId(elem.id);
+                          const domElem = document.getElementById(`paper-elem-${elem.id}`);
+                          if (domElem) domElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '11px', color: 'var(--accent-primary, #4f7cff)', padding: 0,
+                        }}
+                      >
+                        Ver en hoja
+                      </button>
                     </div>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
-                      {typeLabel}
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: 'italic', marginTop: '1px' }}>
+                      «{contextSnippet}»
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ flexShrink: 0 }}>
+                  {isApplied ? (
+                    <span style={{ fontSize: '11px', color: 'var(--accent-success, #10b981)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={13} /> Listo
                     </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedElementId(elem.id);
-                      const domElem = document.getElementById(`paper-elem-${elem.id}`);
-                      if (domElem) domElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: 'var(--accent-primary, #4f7cff)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '2px',
-                      padding: 0,
-                    }}
-                  >
-                    Ver en hoja <ChevronRight size={13} />
-                  </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleApplySingleCaption(elem)}
+                      disabled={isLoading}
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        backgroundColor: 'var(--accent-primary)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        opacity: isLoading ? 0.7 : 1,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {isLoading ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={11} />}
+                      {isLoading ? '...' : 'Rotular'}
+                    </button>
+                  )}
                 </div>
-
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary, #6b7280)', backgroundColor: 'var(--surface-subtle, #f9fafb)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-subtle, #e5e7eb)', fontStyle: 'italic' }}>
-                  «{contextSnippet}»
-                </div>
-
-                {isApplied ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--accent-success, #10b981)', fontWeight: 600 }}>
-                    <CheckCircle2 size={15} /> Leyenda aplicada: «{appliedItems[elem.id]}»
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleApplySingleCaption(elem)}
-                    disabled={isLoading}
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      backgroundColor: 'var(--accent-primary)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '7px',
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      opacity: isLoading ? 0.7 : 1,
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {isLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={13} />}
-                    {isLoading ? 'Generando leyenda...' : `Generar leyenda para ${typeLabel}`}
-                  </button>
-                )}
               </div>
             );
           })}

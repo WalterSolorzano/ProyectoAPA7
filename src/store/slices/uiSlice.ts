@@ -160,7 +160,7 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   clearActionToast: () => set({ actionToast: null }),
   aiStudioOpen: false,
   setAiStudioOpen: (open) => set({ aiStudioOpen: open }),
-  liveChatOpen: false,
+  liveChatOpen: true,
   setLiveChatOpen: (open) => set({ liveChatOpen: open }),
   stressTestModalOpen: false,
   setStressTestModalOpen: (open) => set({ stressTestModalOpen: open }),
