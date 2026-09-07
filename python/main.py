@@ -2338,12 +2338,16 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     if not pdf_generated:
         try:
-            from docx2pdf import convert
-            convert(str(docx_path), str(pdf_path))
-            if pdf_path.exists():
+            from services.doc_converter import get_doc_converter
+            dc_ok, dc_pdf = get_doc_converter().process_and_convert(
+                docx_path, docx_path, docx_path, preserve_cover=False, generate_pdf=True
+            )
+            if dc_ok and dc_pdf and dc_pdf.exists():
+                shutil.move(str(dc_pdf), str(pdf_path))
                 pdf_generated = True
+                engine_used = "COM"
         except Exception as e:
-            print(f"[WARN] docx2pdf conversion exception: {e}")
+            print(f"[WARN] Fallback PDF converter exception: {e}")
 
     if pdf_generated and pdf_path.exists():
         return {
@@ -2445,17 +2449,31 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
             "fallback_docx_url": f"/api/download-preview/{session_id}",
         }
 
-    # Convertir DOCX → PDF via LibreOffice Service
+    # Convertir DOCX → PDF via DocConverterService (Word COM si está disponible, o LibreOffice)
     import asyncio
     try:
-        # Usamos asyncio.to_thread para no bloquear si demora un poco
-        success = await asyncio.to_thread(lo.convert, preview_docx, "pdf", out_dir)
-        if not success:
-            raise Exception("LibreOffice Falló al generar el PDF")
-
+        from services.doc_converter import get_doc_converter
+        dc = get_doc_converter()
+        pdf_generated = False
         pdf_file = out_dir / "preview.pdf"
-        if not pdf_file.exists():
-            raise Exception("PDF no fue creado.")
+
+        # Intentar con DocConverterService (que usa Word COM de alta fidelidad en Windows)
+        success, dc_pdf = await asyncio.to_thread(
+            dc.process_and_convert, preview_docx, preview_docx, preview_docx, False, True
+        )
+        if success and dc_pdf and dc_pdf.exists():
+            if dc_pdf.resolve() != pdf_file.resolve():
+                shutil.move(str(dc_pdf), str(pdf_file))
+            pdf_generated = True
+
+        # Fallback a LibreOffice si Word COM no produjo el PDF
+        if not pdf_generated and lo.is_available():
+            lo_success = await asyncio.to_thread(lo.convert, preview_docx, "pdf", out_dir)
+            if lo_success and pdf_file.exists():
+                pdf_generated = True
+
+        if not pdf_generated or not pdf_file.exists():
+            raise Exception("No se pudo generar el PDF de vista previa.")
 
         return {
             "status": "pdf",

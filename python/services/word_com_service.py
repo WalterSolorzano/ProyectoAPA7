@@ -72,6 +72,10 @@ class WordCOMService:
         word.Visible = False
         word.DisplayAlerts = 0
         try:
+            word.ScreenUpdating = False
+        except Exception:
+            pass
+        try:
             word.WindowState = 2  # wdWindowStateMinimize
         except Exception:
             pass

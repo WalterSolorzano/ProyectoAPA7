@@ -28,10 +28,9 @@ export function cleanHeadingPrefix(text: string): string {
   if (!text) return '';
   let clean = text.trim();
   clean = clean.replace(/^\[(ROMAN|DECIMAL)\]\s*/i, '');
-  clean = clean.replace(/^(?:[IVXLCDM]+\.|\d+\.)\s*/i, '');
+  // Exigir punto tras números romanos [IVXLCDM]+\. para no recortar la 'I' de 'Introducción'
+  clean = clean.replace(/^(?:[IVXLCDM]+\.|\d+(?:\.\d+)*\.?)\s*/i, '');
   clean = clean.replace(/^\[(ROMAN|DECIMAL)\]\s*/i, '');
-  clean = clean.replace(/^(?:[IVXLCDM]+\.|\d+\.)\s*/i, '');
-  clean = clean.replace(/^(?:[IVXLCDM]+\.|\d+\.)\s*/i, '');
   return clean.trim();
 }
 

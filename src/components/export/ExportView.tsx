@@ -1063,12 +1063,13 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
     }
     return (
       <div key={idx} style={{
-        fontFamily: 'Arial, sans-serif',
-        fontSize: elem.type === 'heading' ? '14px' : '11.5px',
+        fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+        fontSize: elem.type === 'heading' ? '13px' : '11.5px',
         fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
-        color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.35,
-        padding: '5px 8px', borderRadius: '4px',
+        color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.4,
+        padding: '6px 10px', borderRadius: '4px',
         backgroundColor: 'var(--surface-subtle)',
+        border: '1px solid var(--border-subtle)',
       }}>
         {elem.text || ''}
       </div>
@@ -1081,19 +1082,19 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const tableNum = elem.table_info?.table_number || (idx + 1);
       const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
       return (
-        <div key={idx} style={{ padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontWeight: 'bold', color: '#111827' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: '4px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
             Tabla {tableNum}
           </div>
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontStyle: 'italic', color: '#111827', marginBottom: '6px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: '#111827', marginBottom: '8px' }}>
             {title}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Times New Roman', serif", fontSize: '10.5pt', borderTop: '2px solid #111827', borderBottom: '2px solid #111827' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Times New Roman", Times, serif', fontSize: '11pt', borderTop: '2px solid #111827', borderBottom: '2px solid #111827' }}>
             {rows.length > 0 && (
               <thead>
                 <tr style={{ borderBottom: '1px solid #111827' }}>
                   {(rows[0].cells || rows[0] || []).map((c: any, cIdx: number) => (
-                    <th key={cIdx} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: '#111827' }}>
+                    <th key={cIdx} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 'bold', color: '#111827' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </th>
                   ))}
@@ -1101,10 +1102,10 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
               </thead>
             )}
             <tbody>
-              {rows.slice(1, 5).map((r: any, rIdx: number) => (
+              {rows.slice(1, 6).map((r: any, rIdx: number) => (
                 <tr key={rIdx}>
                   {(r.cells || r || []).map((c: any, cIdx: number) => (
-                    <td key={cIdx} style={{ padding: '3px 8px', color: '#111827' }}>
+                    <td key={cIdx} style={{ padding: '5px 10px', color: '#111827' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </td>
                   ))}
@@ -1112,7 +1113,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
               ))}
             </tbody>
           </table>
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '9.5pt', fontStyle: 'italic', color: '#374151', marginTop: '6px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: '#374151', marginTop: '6px' }}>
             <strong>Nota.</strong> Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.
           </div>
         </div>
@@ -1122,17 +1123,17 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const figNum = elem.image_info?.figure_number || 1;
       const caption = elem.image_info?.caption || 'Ilustración del proceso';
       return (
-        <div key={idx} style={{ padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontWeight: 'bold', color: '#111827' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: '4px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
             Figura {figNum}
           </div>
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '11pt', fontStyle: 'italic', color: '#111827', marginBottom: '4px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: '#111827', marginBottom: '6px' }}>
             {caption}
           </div>
           {elem.image_info?.relative_url && (
-            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain', margin: '4px 0' }} />
+            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '180px', maxWidth: '100%', objectFit: 'contain', margin: '6px 0' }} />
           )}
-          <div style={{ fontFamily: "'Times New Roman', serif", fontSize: '9.5pt', fontStyle: 'italic', color: '#374151', marginTop: '4px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: '#374151', marginTop: '4px' }}>
             <strong>Nota.</strong> Presentación gráfica formal APA 7 con alineación y resolución óptima.
           </div>
         </div>
@@ -1141,20 +1142,19 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
     const isHeading = elem.type === 'heading';
     const isRef = elem.type === 'reference';
     const textIndent = (!isHeading && !isRef) ? '1.27cm' : undefined;
-    const paddingLeft = isRef ? '1.27cm' : '8px';
+    const paddingLeft = isRef ? '1.27cm' : '0px';
     return (
       <div key={idx} style={{
-        fontFamily: "'Times New Roman', serif",
+        fontFamily: '"Times New Roman", Times, serif',
         fontSize: '12pt',
         lineHeight: 2.0,
-        color: 'var(--paper-ink, #111827)',
+        color: '#111827',
         textAlign: isHeading && (elem.heading_level === 1 || !elem.heading_level) ? 'center' : 'left',
         fontWeight: isHeading ? 'bold' : 'normal',
         fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
         textIndent,
         paddingLeft,
-        borderLeft: '2px solid rgba(79, 124, 255, 0.25)',
-        paddingRight: '8px',
+        margin: '6px 0',
       }}>
         {elem.text || ''}
       </div>
@@ -1180,28 +1180,26 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
         </div>
       </div>
 
-      {/* Columna Derecha: APA 7 estandarizado */}
+      {/* Columna Derecha: Formato APA 7 (Hoja de Papel Blanco) */}
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', backgroundColor: 'rgba(79,124,255,0.06)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={13} color="var(--accent-primary)" />
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Estandarizado APA 7
-            </span>
-          </div>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-success)' }}>Márgenes 2.54 cm • Sangría 1.27 cm • Doble espacio</span>
+        <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Transformado (Norma APA 7)
+          </span>
+          <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>Formato Oficial Editable</span>
         </div>
         <div
           ref={rightScrollRef}
           onScroll={onScrollRight}
-          style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: 'var(--paper-white, #ffffff)' }}
+          style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', backgroundColor: 'var(--canvas-bg)' }}
         >
-          {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
+          <div style={{ backgroundColor: '#ffffff', color: '#111827', padding: '36px 40px', borderRadius: '4px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
+            {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
+          </div>
         </div>
       </div>
     </div>
   );
 };
-
 
 export default ExportView;

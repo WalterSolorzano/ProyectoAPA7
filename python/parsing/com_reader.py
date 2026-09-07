@@ -61,6 +61,7 @@ class COMReader:
             try:
                 word.DisplayAlerts = 0
                 word.Visible = False
+                word.ScreenUpdating = False
                 word.WindowState = 2
             except Exception:
                 pass
@@ -72,6 +73,11 @@ class COMReader:
                 ReadOnly=True,
                 Visible=False,
             )
+            try:
+                if hasattr(doc, 'ActiveWindow') and doc.ActiveWindow:
+                    doc.ActiveWindow.Visible = False
+            except Exception:
+                pass
 
             result["cover"] = self._read_cover(doc)
             para_data = self._read_all_paragraphs_data(doc)

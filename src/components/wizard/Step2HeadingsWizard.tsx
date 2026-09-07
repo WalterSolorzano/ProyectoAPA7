@@ -243,6 +243,20 @@ export const Step2HeadingsWizard: React.FC = () => {
           </div>
           <button
             type="button"
+            onClick={handleAutoNormalizeHierarchy}
+            title="Ajusta y estructura automáticamente todos los niveles de títulos (50+) con IA según la norma APA 7"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+              fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
+              color: '#ffffff', border: 'none', borderRadius: 'var(--radius-sm)',
+              boxShadow: '0 2px 8px rgba(79, 124, 255, 0.35)',
+            }}
+          >
+            <Sparkles size={14} /> Auto-organizar todos los títulos con IA
+          </button>
+          <button
+            type="button"
             onClick={() => {
               if (doc?.elements.some(e => e.type === 'toc')) {
                 useDocStore.getState().removeTocElement();
@@ -254,9 +268,9 @@ export const Step2HeadingsWizard: React.FC = () => {
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: doc?.elements.some(e => e.type === 'toc') ? 'rgba(34, 197, 94, 0.15)' : 'var(--accent-primary)',
-              color: doc?.elements.some(e => e.type === 'toc') ? '#15803d' : '#fff',
-              border: doc?.elements.some(e => e.type === 'toc') ? '1px solid #22c55e' : 'none',
+              background: doc?.elements.some(e => e.type === 'toc') ? 'rgba(34, 197, 94, 0.15)' : 'var(--surface-subtle)',
+              color: doc?.elements.some(e => e.type === 'toc') ? '#15803d' : 'var(--text-main)',
+              border: doc?.elements.some(e => e.type === 'toc') ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-sm)',
             }}
           >

@@ -398,13 +398,20 @@ export function getWhatsAppComment(
   // Checks por tipo de elemento (imagen, tabla, copypaste)
   // van antes que triggers genéricos de texto para que el tipo de elemento pese más.
   if (elem.type === 'image' && elem.image_info) {
-    if ((elem.image_info as any).suggested_caption) {
-      const l = pickByElement(PROACTIVE_CAPTION_COMMENTS, elem.id, nonce);
-      return { emoji: l.emoji, text: l.text, kind: 'proactive_caption' };
+    const sug = (elem.image_info as any)?.suggested_caption || (elem.image_info as any)?.caption;
+    if (sug && sug.trim()) {
+      return {
+        emoji: '',
+        text: `Sugerencia APA 7: "${sug.replace(/\*/g, '').trim()}"`,
+        kind: 'proactive_caption'
+      };
     }
     if (!(elem.image_info.caption || '').trim()) {
-      const l = pickByElement(IMAGE_NO_CAPTION_COMMENTS, elem.id, nonce);
-      return { emoji: l.emoji, text: l.text, kind: 'image_no_caption' };
+      return {
+        emoji: '',
+        text: 'Figura sin rotulación formal APA 7. Presiona el botón para asignarle leyenda con IA.',
+        kind: 'image_no_caption'
+      };
     }
     if (hashStr(elem.id) % 3 === 0) {
       const l = pickByElement(IMAGE_SOURCE_COMMENTS, elem.id, nonce);
@@ -413,9 +420,20 @@ export function getWhatsAppComment(
   }
 
   if (elem.type === 'table') {
-    if ((elem.table_info as any)?.suggested_caption) {
-      const l = pickByElement(PROACTIVE_CAPTION_COMMENTS, elem.id, nonce);
-      return { emoji: l.emoji, text: l.text, kind: 'proactive_caption' };
+    const sug = (elem.table_info as any)?.suggested_caption || (elem.table_info as any)?.caption;
+    if (sug && sug.trim()) {
+      return {
+        emoji: '',
+        text: `Sugerencia APA 7: "${sug.replace(/\*/g, '').trim()}"`,
+        kind: 'proactive_caption'
+      };
+    }
+    if (!(elem.table_info?.caption || '').trim()) {
+      return {
+        emoji: '',
+        text: 'Tabla sin rotulación formal APA 7. Presiona el botón para asignarle leyenda con IA.',
+        kind: 'table_no_caption'
+      };
     }
     if (hashStr(elem.id) % 4 === 0) {
       const l = pickByElement(TABLE_STYLE_COMMENTS, elem.id, nonce);

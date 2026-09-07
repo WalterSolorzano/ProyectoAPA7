@@ -263,6 +263,22 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
     return elem.text ? (elem.text.length > 80 ? elem.text.slice(0, 77) + '...' : elem.text) : 'Sin texto descriptivo inmediato';
   };
 
+  const [filterCategory, setFilterCategory] = useState<'all' | 'tables' | 'figures'>('all');
+  const [sugPage, setSugPage] = useState(1);
+  const pageSize = 10;
+
+  const tableCount = uncaptionedElements.filter((e) => e.type === 'table').length;
+  const figureCount = uncaptionedElements.filter((e) => e.type === 'image').length;
+
+  const filteredElements = uncaptionedElements.filter((e) => {
+    if (filterCategory === 'tables') return e.type === 'table';
+    if (filterCategory === 'figures') return e.type === 'image';
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredElements.length / pageSize));
+  const currentPageElements = filteredElements.slice((sugPage - 1) * pageSize, sugPage * pageSize);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg, #ffffff)', fontFamily: 'var(--font-sans, system-ui, sans-serif)', boxSizing: 'border-box' }}>
       {/* Encabezado Superior Estilo Gemini / Word Task Pane */}
@@ -413,15 +429,58 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                 }}
               >
                 <Wand2 size={13} />
-                Rotular todos automáticamente con IA
+                Rotular todos automáticamente con IA ({uncaptionedElements.length})
               </button>
             )}
           </div>
 
-          {/* Lista compacta de elementos por rotular */}
-          {uncaptionedElements.map((elem, idx) => {
+          {/* Filtros por Categoría */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => { setFilterCategory('all'); setSugPage(1); }}
+              style={{
+                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                border: filterCategory === 'all' ? '1px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
+                backgroundColor: filterCategory === 'all' ? 'rgba(79, 124, 255, 0.12)' : 'var(--surface-subtle, #f9fafb)',
+                color: filterCategory === 'all' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
+                cursor: 'pointer',
+              }}
+            >
+              Todas ({uncaptionedElements.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterCategory('figures'); setSugPage(1); }}
+              style={{
+                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                border: filterCategory === 'figures' ? '1px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
+                backgroundColor: filterCategory === 'figures' ? 'rgba(79, 124, 255, 0.12)' : 'var(--surface-subtle, #f9fafb)',
+                color: filterCategory === 'figures' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
+                cursor: 'pointer',
+              }}
+            >
+              Figuras ({figureCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterCategory('tables'); setSugPage(1); }}
+              style={{
+                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                border: filterCategory === 'tables' ? '1px solid var(--accent-success, #10b981)' : '1px solid var(--border-subtle, #e5e7eb)',
+                backgroundColor: filterCategory === 'tables' ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-subtle, #f9fafb)',
+                color: filterCategory === 'tables' ? 'var(--accent-success, #10b981)' : 'var(--text-secondary, #6b7280)',
+                cursor: 'pointer',
+              }}
+            >
+              Tablas ({tableCount})
+            </button>
+          </div>
+
+          {/* Lista compacta de elementos por rotular (paginada) */}
+          {currentPageElements.map((elem, idx) => {
             const isTable = elem.type === 'table';
-            const num = isTable ? (elem.table_info?.table_number || idx + 1) : (elem.image_info?.figure_number || idx + 1);
+            const num = isTable ? (elem.table_info?.table_number || ((sugPage - 1) * pageSize + idx + 1)) : (elem.image_info?.figure_number || ((sugPage - 1) * pageSize + idx + 1));
             const typeLabel = isTable ? `Tabla ${num}` : `Figura ${num}`;
             const contextSnippet = getNearbyContextSnippet(elem);
             const isApplied = !!appliedItems[elem.id];
@@ -516,6 +575,41 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               </div>
             );
           })}
+
+          {/* Controles de Paginación */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 4px', borderTop: '1px solid var(--border-subtle, #e5e7eb)', marginTop: '4px' }}>
+              <button
+                type="button"
+                disabled={sugPage <= 1}
+                onClick={() => setSugPage((p) => Math.max(1, p - 1))}
+                style={{
+                  padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                  border: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)',
+                  color: sugPage <= 1 ? 'var(--text-muted, #9ca3af)' : 'var(--text-main, #1a1a2e)',
+                  cursor: sugPage <= 1 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Anterior
+              </button>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', fontWeight: 600 }}>
+                Página {sugPage} de {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={sugPage >= totalPages}
+                onClick={() => setSugPage((p) => Math.min(totalPages, p + 1))}
+                style={{
+                  padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                  border: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)',
+                  color: sugPage >= totalPages ? 'var(--text-muted, #9ca3af)' : 'var(--text-main, #1a1a2e)',
+                  cursor: sugPage >= totalPages ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
 
           {/* Citas fantasma */}
           {ghostCitations.length > 0 && (

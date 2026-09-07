@@ -734,10 +734,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     if (isRefHeading(e.text || '')) continue;
     const lvl = e.heading_level || 1;
     if (lvl > 3) continue;
-    hCounters[lvl] = (hCounters[lvl] || 0) + 1;
-    // resetear contadores de niveles más profundos al subir de nivel
-    if (lvl === 1) { hCounters[2] = 0; hCounters[3] = 0; }
-    if (lvl === 2) { hCounters[3] = 0; }
+
+    const explicitMultiMatch = (e.text || '').trim().match(/^(\d+)\.(\d+)/);
+    if (explicitMultiMatch && lvl >= 2) {
+      const maj = parseInt(explicitMultiMatch[1], 10);
+      const min = parseInt(explicitMultiMatch[2], 10);
+      if (maj > 0) hCounters[1] = maj;
+      if (min > 0 && lvl === 2) hCounters[2] = min;
+      if (lvl === 3) hCounters[3] = (hCounters[3] || 0) + 1;
+    } else {
+      hCounters[lvl] = (hCounters[lvl] || 0) + 1;
+      if (lvl === 1) { hCounters[2] = 0; hCounters[3] = 0; }
+      if (lvl === 2) { hCounters[3] = 0; }
+    }
     const style = rules[`heading_numbering_style_lvl${lvl}` as keyof typeof rules] as string || 'decimal';
     const base = cleanHeadingPrefix(e.text || '');
     if (style === 'none') {

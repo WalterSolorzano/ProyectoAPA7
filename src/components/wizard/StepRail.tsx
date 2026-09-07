@@ -29,7 +29,31 @@ export function StepRail() {
   const setWizardStep = useDocStore((s) => s.setWizardStep);
   const doc = useDocStore((s) => s.doc);
   const coverSetupDone = useDocStore((s) => s.coverSetupDone);
+  const leftSidebarWidth = useDocStore((s) => s.leftSidebarWidth) || 280;
+  const setLeftSidebarWidth = useDocStore((s) => s.setLeftSidebarWidth);
   const [mapOpen, setMapOpen] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = leftSidebarWidth;
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      setLeftSidebarWidth(startWidth + delta);
+    };
+
+    const onPointerUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   const showMap = wizardStep === 2 || wizardStep === 3 || wizardStep === 4;
 
@@ -56,7 +80,7 @@ export function StepRail() {
     <nav
       aria-label="Pasos del asistente"
       style={{
-        width: '240px',
+        width: `${leftSidebarWidth}px`,
         flexShrink: 0,
         height: '100%',
         overflowY: 'auto',
@@ -66,8 +90,26 @@ export function StepRail() {
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
+        position: 'relative',
+        userSelect: isResizing ? 'none' : 'auto',
       }}
     >
+      {/* Asa de arrastre para cambiar ancho */}
+      <div
+        onPointerDown={handleResizePointerDown}
+        title="Arrastrar para ajustar ancho del panel"
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: '5px',
+          height: '100%',
+          cursor: 'col-resize',
+          zIndex: 20,
+          backgroundColor: isResizing ? 'var(--accent-primary)' : 'transparent',
+          transition: 'background-color 0.15s ease',
+        }}
+      />
       <div
         style={{
           fontSize: '10px',

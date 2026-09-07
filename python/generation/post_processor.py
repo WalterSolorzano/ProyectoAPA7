@@ -68,6 +68,14 @@ class COMPostProcessor:
 
                 word.Visible = False
                 word.DisplayAlerts = 0
+                try:
+                    word.ScreenUpdating = False
+                except Exception:
+                    pass
+                try:
+                    word.WindowState = 2
+                except Exception:
+                    pass
 
                 if preserve_cover:
                     # Trasplante quirúrgico
@@ -103,6 +111,12 @@ class COMPostProcessor:
                         AddToRecentFiles=False,
                         Visible=False,
                     )
+
+                try:
+                    if hasattr(doc, 'ActiveWindow') and doc.ActiveWindow:
+                        doc.ActiveWindow.Visible = False
+                except Exception:
+                    pass
 
                 # 5. Aplicar estilos APA con el motor real de Word.
                 # Python-docx los escribió en styles.xml pero Word es la autoridad.

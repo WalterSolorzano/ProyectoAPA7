@@ -32,6 +32,8 @@ export interface DocState {
   /** Referencia seleccionada en el Editor Unificado (sección Referencias). */
   selectedReferenceId: string | null;
   zoomLevel: number;
+  leftSidebarWidth: number;
+  setLeftSidebarWidth: (w: number) => void;
   /** Estilo de tabla APA por elemento (solo preview; no afecta la generación del .docx) */
   tableStyles: Record<string, 'standard' | 'compact' | 'expanded'>;
   setTableStyle: (elementId: string, style: 'standard' | 'compact' | 'expanded') => void;

@@ -830,7 +830,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                     continue
                 f_txt = _normalize_accent((forward_elem.text or "").lower())
                 # Metadatos inequívocos de portada en líneas cortas (<= 10 palabras)
-                if any(ck in f_txt for ck in ["docente", "carnet", "carne:", "elaborado por", "grupo", "tutor", "carrera:", "facultad"]):
+                if any(ck in f_txt for ck in ["docente", "profesor", "ing.", "lic.", "msc.", "dr.", "carnet", "carne:", "elaborado por", "grupo", "tutor", "carrera:", "facultad"]):
                     subsequent_cover = True
                     break
                 # Ciudad / país solo si la línea es ultra corta (<= 5 palabras)

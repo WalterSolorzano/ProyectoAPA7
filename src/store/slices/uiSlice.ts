@@ -11,6 +11,8 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   backendCheckNonce: 0,
   zoomLevel: 100,
   setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
+  leftSidebarWidth: 280,
+  setLeftSidebarWidth: (w) => set({ leftSidebarWidth: Math.min(500, Math.max(220, w)) }),
   nimLogs: [],
   isNIMDiagnosticsOpen: false,
   setIsNIMDiagnosticsOpen: (open) => set({ isNIMDiagnosticsOpen: open }),
