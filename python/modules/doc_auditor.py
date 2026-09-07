@@ -295,6 +295,20 @@ def audit_document_heuristic(doc_model: Any) -> DocAuditResult:
                 + (" y otras más" if len(orphan_citas) > 5 else "")
             )
 
+    # ── 7. Referencias duplicadas ──────────────────────────────────────────────
+    if isinstance(refs, list):
+        duplicate_refs = []
+        for r in refs:
+            is_dup = r.get("is_duplicate") if isinstance(r, dict) else getattr(r, "is_duplicate", False)
+            dup_cnt = r.get("duplicate_count", 1) if isinstance(r, dict) else getattr(r, "duplicate_count", 1)
+            raw = r.get("raw_text", "") if isinstance(r, dict) else getattr(r, "raw_text", "")
+            if is_dup or dup_cnt > 1:
+                duplicate_refs.append(f"'{raw[:40]}...' (x{dup_cnt})")
+        if duplicate_refs:
+            reference_issues.append(
+                f"Referencias duplicadas en la bibliografía: {', '.join(duplicate_refs[:3])}"
+            )
+
     # ── Determinar evaluación general ─────────────────────────────────────────
     critical = bool(heading_issues or (len(reference_issues) > 1))
     if not heading_issues and not missing_sections and not reference_issues:

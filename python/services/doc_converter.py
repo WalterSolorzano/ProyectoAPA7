@@ -67,12 +67,16 @@ class DocConverterService:
                 )
 
             elif engine == "LO":
-                logger.info("[DocConverter] Usando motor LibreOffice para post-procesamiento y PDF.")
-                # LO no puede hacer el trasplante quirúrgico de portada tan fácil como COM.
-                # En caso de LO, si preserve_cover es True, perderemos fidelidad en la portada,
-                # pero el usuario sabe que LO es un fallback o para previews.
-                # Solo copiamos el generado al final.
-                shutil.copy(generated_path, final_path)
+                logger.info("[DocConverter] Usando motor LibreOffice con trasplante OpenXML de portada.")
+                if preserve_cover:
+                    try:
+                        from generation.openxml_cover import splice_cover_with_openxml
+                        splice_cover_with_openxml(original_path, generated_path, final_path)
+                    except Exception as e:
+                        logger.warning(f"[DocConverter] Trasplante OpenXML falló: {e}; usando copia directa")
+                        shutil.copy(generated_path, final_path)
+                else:
+                    shutil.copy(generated_path, final_path)
 
                 pdf_path = None
                 if generate_pdf:

@@ -79,6 +79,116 @@ def _audit_repeticion(eid: str, text: str) -> List[Dict[str, Any]]:
     return out
 
 
+def detect_repeated_ngrams(elements: List[Any]) -> List[Dict[str, Any]]:
+    """Detecta frases de 3 a 6 palabras que se repiten 3 o más veces en el documento."""
+    out: List[Dict[str, Any]] = []
+    ngram_occurrences: Dict[str, List[tuple[str, int, int, str, str]]] = {}  # phrase -> [(eid, start, end, snippet, full_text)]
+
+    for e in elements:
+        etype = getattr(getattr(e, "type", None), "value", getattr(e, "type", ""))
+        if str(etype) not in ("paragraph", "para"):
+            continue
+        eid = str(getattr(e, "id", ""))
+        text = getattr(e, "text", "") or ""
+        word_positions = []
+        for m in _WORD.finditer(text):
+            word_positions.append((m.group(0), m.start(), m.end()))
+
+        if len(word_positions) < 3:
+            continue
+
+        for n in range(3, 7):
+            for i in range(len(word_positions) - n + 1):
+                window = word_positions[i : i + n]
+                phrase_words = [w[0].lower() for w in window]
+                if not any(w not in _STOPWORDS and len(w) >= 3 for w in phrase_words):
+                    continue
+                phrase_key = " ".join(phrase_words)
+                start_pos = window[0][1]
+                end_pos = window[-1][2]
+                snippet = text[start_pos:end_pos]
+
+                if phrase_key not in ngram_occurrences:
+                    ngram_occurrences[phrase_key] = []
+                ngram_occurrences[phrase_key].append((eid, start_pos, end_pos, snippet, text))
+
+    flagged_keys = sorted(
+        [k for k, occurrences in ngram_occurrences.items() if len(occurrences) >= 3],
+        key=lambda k: len(k),
+        reverse=True,
+    )
+
+    seen_ranges_per_elem: Dict[str, List[tuple[int, int]]] = {}
+
+    for key in flagged_keys:
+        occurrences = ngram_occurrences[key]
+        cnt = len(occurrences)
+        for eid, start, end, snippet, full_text in occurrences:
+            if eid not in seen_ranges_per_elem:
+                seen_ranges_per_elem[eid] = []
+            if any(s <= start and end <= e_pos for s, e_pos in seen_ranges_per_elem[eid]):
+                continue
+            seen_ranges_per_elem[eid].append((start, end))
+            out.append(_mk(
+                eid,
+                full_text,
+                start,
+                end,
+                "ngram_repetition",
+                "warn",
+                f'La frase "{snippet}" se repite {cnt} veces en el documento; varía la redacción.',
+            ))
+
+    return out
+
+
+_SPACY_NLP = None
+try:
+    import spacy
+    _SPACY_NLP = spacy.load("es_core_news_sm")
+except Exception:
+    _SPACY_NLP = None
+
+_SPELL_CHECKER = None
+try:
+    from spellchecker import SpellChecker
+    _SPELL_CHECKER = SpellChecker(language="es")
+except Exception:
+    _SPELL_CHECKER = None
+
+
+def _audit_spacy_and_spellchecker(eid: str, text: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    if not text or len(text) < 15:
+        return out
+
+    if _SPACY_NLP:
+        try:
+            doc = _SPACY_NLP(text)
+            for i, token in enumerate(doc[:-2]):
+                if token.lemma_ in ("ser", "haber") and doc[i + 1].pos_ == "VERB" and doc[i + 2].lemma_ == "por":
+                    start = token.idx
+                    end = doc[i + 2].idx + len(doc[i + 2].text)
+                    out.append(_mk(
+                        eid, text, start, end, "passive_voice", "info",
+                        f'Voz pasiva "{text[start:end]}"; considera usar voz activa e impersonal.'
+                    ))
+
+            for sent in doc.sents:
+                words_in_sent = [t for t in sent if not t.is_punct]
+                if len(words_in_sent) >= 40:
+                    start = sent.start_char
+                    end = sent.end_char
+                    out.append(_mk(
+                        eid, text, start, end, "long_sentence", "warn",
+                        f'Oración extensa ({len(words_in_sent)} palabras); divide la idea para mejorar la claridad.'
+                    ))
+        except Exception:
+            pass
+
+    return out
+
+
 # ---------------------------------------------------------------- B2 idea incompleta
 _DANGLING_END = re.compile(
     r"\b(?:pero|aunque|sin embargo|no obstante|porque|pues|ya que|dado que|más|menos|etc|etcétera)\s*\.?\s*$",
@@ -328,6 +438,10 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         findings.extend(_audit_incompleta(eid, text))
         findings.extend(_audit_persona(eid, text))
         findings.extend(_audit_ambigua(eid, text))
+        findings.extend(_audit_spacy_and_spellchecker(eid, text))
+
+    # Repetición de n-gramas a nivel de documento
+    findings.extend(detect_repeated_ngrams(elements))
 
     # Deduplicar solapamientos de primera persona ("Yo considero que..."
     # matchea pronombre y frase completa de la MISMA cláusula): fusiona

@@ -30,11 +30,18 @@ _REFERENCES_HEADINGS = {
     "bibliografías",
     "bibliografia consultada",
     "bibliografía consultada",
+    "fuentes",
     "fuentes consultadas",
     "fuentes de informacion",
     "fuentes de información",
     "fuentes bibliograficas",
     "fuentes bibliográficas",
+    "fuentes y referencias",
+    "referencias y fuentes",
+    "bibliografía y anexos",
+    "bibliografia y anexos",
+    "anexos y bibliografía",
+    "anexos y bibliografia",
     "obras citadas",
     "obras consultadas",
     "literatura citada",
@@ -306,7 +313,7 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
     # texto crudo. Antes se usaba el texto crudo (lower + whitespace), lo que
     # dejaba duplicados como '6. Hirano (1995)...' y '7. Hirano (1995)...' como
     # entradas distintas porque solo diferian en el prefijo numeral de lista.
-    seen = set()
+    seen: dict[str, ReferenciaModel] = {}
     for raw in entry_lines:
         raw_clean = _strip_numeric_prefix(raw)  # para parseo/clave; raw se conserva
         parsed = _parse_single_reference(raw_clean)
@@ -314,9 +321,10 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             continue
         key = _semantic_dedup_key(parsed, raw_clean)
         if key in seen:
+            seen[key].duplicate_count += 1
+            seen[key].is_duplicate = True
             continue
-        seen.add(key)
-        refs.append(ReferenciaModel(
+        ref_model = ReferenciaModel(
             id=f"ref-{uuid.uuid4().hex[:8]}",
             authors=parsed.get("authors", []),
             year=parsed.get("year"),
@@ -324,7 +332,9 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
             source=parsed.get("source", ""),
             doi_or_url=parsed.get("doi_or_url"),
             raw_text=raw.strip(),
-        ))
+        )
+        seen[key] = ref_model
+        refs.append(ref_model)
 
     if not refs and start_idx >= 0:
         print(f"[REFS] [extract_references] Heading encontrado en idx={start_idx - 1} "

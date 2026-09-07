@@ -490,6 +490,8 @@ class ReferenciaModel(BaseModel):
     # DocumentModel.referencias), por lo que la asignación se perdía.
     cited_count: int = 0
     never_cited: bool = False
+    is_duplicate: bool = False
+    duplicate_count: int = 1
 
     # FASE 3.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S3)
     def to_csl_json(self) -> dict:

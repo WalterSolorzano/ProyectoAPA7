@@ -2024,15 +2024,59 @@ async def resolve_batch_endpoint(req: ResolveBatchRequest) -> dict:
 @app.post("/api/resolve-ghost-citation")
 async def resolve_ghost_citation_endpoint(req: ResolveGhostCitationRequest):
     """
-    Busca en Crossref API referencias por apellido(s) de autor + año.
-    API gratuita (Crossref), sin API key. Retorna hasta 5 candidatos
-    formateados en APA 7 para que el usuario elija.
+    Busca en cascada (Crossref -> OpenAlex -> Semantic Scholar) referencias por autor + año.
     """
-    from modules.referencias_module import search_crossref_by_author_year
-    result = await search_crossref_by_author_year(req.authors, req.year)
+    from modules.referencias_module import search_academic_metadata_cascade
+    query = f"{' '.join(req.authors)} {req.year}".strip()
+    result = await search_academic_metadata_cascade(query, authors=req.authors, year=req.year)
     if result:
-        return {"found": True, "candidates": result.get("candidates", []), "total_results": result.get("total_results", 0)}
+        return {"found": True, "candidates": [result], "total_results": 1}
     return {"found": False, "candidates": [], "total_results": 0}
+
+
+@app.post("/api/references/import-file")
+async def import_references_file_endpoint(
+    file: Optional[UploadFile] = File(None),
+    content: Optional[str] = Form(None),
+    file_type: Optional[str] = Form(None),
+):
+    """Importa bibliotecas de Zotero/Mendeley en formato BibTeX (.bib) o RIS (.ris)."""
+    from parsing.bibtex_ris_parser import parse_bibtex_text, parse_ris_text
+
+    raw_text = ""
+    filename = ""
+    if file:
+        raw_bytes = await file.read()
+        raw_text = raw_bytes.decode("utf-8", errors="ignore")
+        filename = file.filename or ""
+    elif content:
+        raw_text = content
+
+    if not raw_text.strip():
+        raise HTTPException(status_code=400, detail="No se proporcionó contenido para importar.")
+
+    is_ris = (file_type and file_type.lower() == "ris") or filename.lower().endswith(".ris") or "TY  -" in raw_text or "ER  -" in raw_text
+    if is_ris:
+        imported = parse_ris_text(raw_text)
+    else:
+        imported = parse_bibtex_text(raw_text)
+
+    return {
+        "success": True,
+        "count": len(imported),
+        "imported_references": [r.model_dump() for r in imported],
+    }
+
+
+@app.post("/api/export/audit-pdf-visual")
+async def audit_pdf_visual_endpoint(file: UploadFile = File(...)):
+    """Audita el maquetado visual de un archivo PDF renderizado usando PyMuPDF."""
+    from modules.visual_auditor import audit_pdf_visual_layout
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Archivo PDF vacío.")
+    audit_res = audit_pdf_visual_layout(pdf_bytes)
+    return audit_res
 
 
 @app.post("/api/validate")

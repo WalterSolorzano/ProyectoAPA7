@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Send, Sparkles, User, Check, Loader2, FileEdit,
   Quote, BookOpen, X, Info, AlertCircle, WifiOff, Minimize2, ArrowRight,
-  Table, Image as ImageIcon, CheckCircle2, ChevronRight, Wand2, Layers, RefreshCw
+  Table, Image as ImageIcon, CheckCircle2, ChevronRight, Wand2, Layers, RefreshCw, Upload
 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { sendLiveChat, LiveChatAction, suggestCaption } from '../../api/backend';
@@ -203,6 +203,35 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
     } finally { setIsSending(false); }
   };
 
+  const bibFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportBibFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/references/import-file', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.imported_references) {
+        const state = useDocStore.getState();
+        const currentRefs = state.doc?.referencias || [];
+        useDocStore.setState({
+          doc: state.doc ? {
+            ...state.doc,
+            referencias: [...currentRefs, ...data.imported_references],
+          } : state.doc,
+        });
+        useDocStore.getState().showToast(`Importadas ${data.count} referencias desde ${file.name}`, 'success');
+      }
+    } catch (err: any) {
+      useDocStore.getState().showToast(err.message || 'Error importando archivo BibTeX/RIS', 'error');
+    }
+  };
+
   const applyActions = (actions: LiveChatAction[]) => {
     let appliedCount = 0;
     actions.forEach((act) => {
@@ -380,6 +409,35 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               {pendingCount}
             </span>
           )}
+        </button>
+
+        <input
+          type="file"
+          ref={bibFileInputRef}
+          accept=".bib,.ris"
+          style={{ display: 'none' }}
+          onChange={handleImportBibFile}
+        />
+        <button
+          type="button"
+          onClick={() => bibFileInputRef.current?.click()}
+          title="Importar biblioteca desde Zotero / Mendeley (.bib, .ris)"
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 8px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--accent-primary, #4f7cff)',
+            backgroundColor: 'rgba(79, 124, 255, 0.08)',
+            border: '1px solid rgba(79, 124, 255, 0.2)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <Upload size={12} /> Zotero / Mendeley
         </button>
       </div>
 

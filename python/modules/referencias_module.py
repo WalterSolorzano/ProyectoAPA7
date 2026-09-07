@@ -133,19 +133,156 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                     else:
                         formatted += "."
 
-                return {
+                results.append({
                     "author": author_str,
                     "year": year_str,
-                    "title": title,
-                    "journal": container_title,
+                    "title": title_str,
+                    "source": source_str,
+                    "doi": doi,
                     "volume": volume,
                     "issue": issue,
                     "page": page,
-                    "doi": doi,
-                    "formatted": formatted
-                }
+                    "formatted_apa": formatted,
+                    "provider": "crossref",
+                })
+
+            return results[0] if results else None
     except Exception as e:
-        print(f"[WARN] Error in Crossref API: {e}")
+        print(f"[WARN] Error in Crossref search: {e}")
+    return None
+
+
+async def fetch_openalex_metadata(query_or_doi: str) -> Optional[dict]:
+    """Busca metadatos en OpenAlex API (abierta, sin API key)."""
+    q_clean = query_or_doi.strip()
+    if q_clean.startswith("10.") or "doi.org/" in q_clean:
+        doi = re.sub(r"^https?://doi\.org/", "", q_clean)
+        url = f"https://api.openalex.org/works/https://doi.org/{doi}"
+    else:
+        url = f"https://api.openalex.org/works?search={quote(q_clean)}&per-page=1"
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(url, headers={"User-Agent": "WordAPA7/1.0 (mailto:wordapa7@antigravity.dev)"})
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            work = data if "display_name" in data else (data.get("results", [{}])[0] if data.get("results") else None)
+            if not work or not work.get("display_name"):
+                return None
+
+            # Autores
+            authors = []
+            for auth_m in work.get("authorships", []):
+                name = auth_m.get("author", {}).get("display_name", "")
+                if name:
+                    parts = name.strip().split()
+                    if len(parts) >= 2:
+                        authors.append(f"{parts[-1]}, {parts[0][0]}.")
+                    else:
+                        authors.append(name)
+            author_str = ", & ".join(authors[:3]) if authors else "Autor desconocido"
+
+            year_str = str(work.get("publication_year") or "s.f.")
+            title_str = work.get("display_name", "")
+            venue = work.get("primary_location", {}).get("source", {}).get("display_name", "")
+            doi_str = work.get("doi", "").replace("https://doi.org/", "")
+            pdf_url = work.get("primary_location", {}).get("pdf_url")
+
+            formatted = f"{author_str} ({year_str}). {title_str}."
+            if venue:
+                formatted += f" {venue}."
+
+            return {
+                "author": author_str,
+                "year": year_str,
+                "title": title_str,
+                "source": venue,
+                "doi": doi_str,
+                "pdf_url": pdf_url,
+                "formatted_apa": formatted,
+                "provider": "openalex",
+            }
+    except Exception as e:
+        print(f"[WARN] Error in OpenAlex API: {e}")
+    return None
+
+
+async def fetch_semantic_scholar_metadata(query_or_doi: str) -> Optional[dict]:
+    """Busca metadatos en Semantic Scholar API."""
+    q_clean = query_or_doi.strip()
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={quote(q_clean)}&limit=1&fields=title,authors,year,venue,externalIds,openAccessPdf"
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            papers = data.get("data", [])
+            if not papers:
+                return None
+            paper = papers[0]
+
+            authors = []
+            for a in paper.get("authors", []):
+                name = a.get("name", "")
+                parts = name.strip().split()
+                if len(parts) >= 2:
+                    authors.append(f"{parts[-1]}, {parts[0][0]}.")
+                elif name:
+                    authors.append(name)
+            author_str = ", & ".join(authors[:3]) if authors else "Autor desconocido"
+
+            year_str = str(paper.get("year") or "s.f.")
+            title_str = paper.get("title", "")
+            venue = paper.get("venue", "")
+            doi_str = paper.get("externalIds", {}).get("DOI", "")
+            pdf_info = paper.get("openAccessPdf", {}) or {}
+            pdf_url = pdf_info.get("url")
+
+            formatted = f"{author_str} ({year_str}). {title_str}."
+            if venue:
+                formatted += f" {venue}."
+
+            return {
+                "author": author_str,
+                "year": year_str,
+                "title": title_str,
+                "source": venue,
+                "doi": doi_str,
+                "pdf_url": pdf_url,
+                "formatted_apa": formatted,
+                "provider": "semantic_scholar",
+            }
+    except Exception as e:
+        print(f"[WARN] Error in Semantic Scholar API: {e}")
+    return None
+
+
+async def search_academic_metadata_cascade(query_or_doi: str, authors: list[str] = [], year: str = "") -> Optional[dict]:
+    """Búsqueda proactiva en cascada: Crossref -> OpenAlex -> Semantic Scholar."""
+    # 1. Intentar Crossref
+    if authors and year:
+        res = await search_crossref_by_author_year(authors, year)
+        if res:
+            return res
+
+    if query_or_doi.startswith("10.") or "doi.org" in query_or_doi:
+        res_doi = await fetch_crossref_metadata(query_or_doi)
+        if res_doi:
+            return res_doi
+
+    # 2. Intentar OpenAlex
+    res_oa = await fetch_openalex_metadata(query_or_doi)
+    if res_oa:
+        return res_oa
+
+    # 3. Intentar Semantic Scholar
+    res_ss = await fetch_semantic_scholar_metadata(query_or_doi)
+    if res_ss:
+        return res_ss
+
     return None
 
 

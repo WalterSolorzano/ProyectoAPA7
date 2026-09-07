@@ -243,6 +243,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const [showAIHeatmap, setShowAIHeatmap] = useState<boolean>(true);
   const [showCitationMarks, setShowCitationMarks] = useState<boolean>(true);
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
+  const [activePageIndex, setActivePageIndex] = useState<number>(0);
   const [brokenFigureIds, setBrokenFigureIds] = useState<Record<string, string>>({});
   const [resizeState, setResizeState] = useState<{
     id: string;
@@ -1094,6 +1095,41 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           // permanezca centrada (antes solo el gutter derecho empujaba la hoja
           // ~135px y "bailaba" al activarse/desactivar comentarios).
           const pageCommentElems = pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null));
+
+          // Virtualización segura de páginas cuando el documento es muy extenso (>12 páginas):
+          // Solo renderiza el DOM completo para las páginas dentro del rango [activePageIndex - 4, activePageIndex + 4].
+          // Las demás se renderizan como contenedores livianos para mantener fluida la UI sin perder cálculos ni auditorías.
+          const isWindowed = pages.length > 12;
+          const activeWindowStart = Math.max(0, activePageIndex - 4);
+          const activeWindowEnd = Math.min(pages.length - 1, activePageIndex + 4);
+
+          if (isWindowed && (pageIdx < activeWindowStart || pageIdx > activeWindowEnd)) {
+            return (
+              <div key={pageIdx} id={`paper-page-${pageIdx}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', position: 'relative', minWidth: 'fit-content' }}>
+                {docHasComments && <div style={{ width: '250px', flexShrink: 0, pointerEvents: 'none' }} />}
+                <div
+                  onClick={() => setActivePageIndex(pageIdx)}
+                  style={{
+                    width: `${PAGE_W}px`,
+                    height: `${PAGE_H}px`,
+                    backgroundColor: 'var(--paper-white, #ffffff)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--paper-ink, #111827)',
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Página {pageIdx + 1} de {pages.length}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Haz clic para enfocar esta página</span>
+                </div>
+                {docHasComments && <div style={{ width: '250px', flexShrink: 0, pointerEvents: 'none' }} />}
+              </div>
+            );
+          }
 
           return (
             <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', position: 'relative', minWidth: 'fit-content' }}>

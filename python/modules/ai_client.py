@@ -127,7 +127,8 @@ async def execute_with_specialty(
     temperature: float = 0.3,
     max_tokens: int = 1000,
     use_cache: bool = True,
-    return_provider_info: bool = False
+    return_provider_info: bool = False,
+    json_mode: bool = False,
 ) -> Any:
     """
     Ejecuta un prompt enrutando predictivamente según la especialidad solicitada.
@@ -151,6 +152,7 @@ async def execute_with_specialty(
     fallback_providers = [p for p in providers if p["id"] not in specialty_ids]
 
     routing_queue = preferred_providers + fallback_providers
+    is_json = json_mode or "json" in system_prompt.lower() or "json" in prompt.lower()
 
     # 3. Enrutamiento Predictivo
     for p in routing_queue:
@@ -165,7 +167,7 @@ async def execute_with_specialty(
             logger.info(f"[Router] {p['name']} está predictivamente OCUPADO. Saltando en FIFO.")
             continue
 
-        payload = {
+        payload: Dict[str, Any] = {
             "model": p["model"],
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -174,6 +176,8 @@ async def execute_with_specialty(
             "temperature": temperature,
             "max_tokens": max_tokens
         }
+        if is_json:
+            payload["response_format"] = {"type": "json_object"}
 
         logger.info(f"[Router] Asignando tarea {specialty} a {p['name']}")
         result = await _try_provider(p, payload, timeout)
@@ -201,6 +205,8 @@ async def execute_with_specialty(
             "temperature": temperature,
             "max_tokens": max_tokens
         }
+        if is_json:
+            payload["response_format"] = {"type": "json_object"}
         result = await _try_provider(p, payload, capacity.get("timeout", 25), retries=2)
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
