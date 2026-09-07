@@ -693,7 +693,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const handleResolveComment = (comment: WhatsAppCommentData, elem: ElementModel) => {
     setForceRightPanelOpen(true);
     if (comment.kind === 'ghost_citation' || comment.kind === 'orphan_references') {
-      // El panel derecho de Referencias tiene el botón "Resolver" por cita.
       setSelectedElementId(null);
       setSelectedReferenceId(null);
       setWizardStep(4);
@@ -703,6 +702,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     setSelectedElementId(elem.id);
     if (comment.kind && comment.kind.startsWith('validation_') && (comment.kind.includes('figur') || comment.kind.includes('tabla'))) {
       setWizardStep(3); // inspector de la figura/tabla
+    } else {
+      // Para problemas de redacción, muletillas, repetición, etc.:
+      // 1) scroll suave al elemento exacto en la hoja
+      const domElem = document.getElementById(`paper-elem-${elem.id}`);
+      if (domElem) domElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 2) activar modo de edición directa
+      if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'heading') {
+        setEditingId(elem.id);
+        setEditValue(elem.text || '');
+      }
+      // 3) abrir copiloto IA
+      useDocStore.getState().setLiveChatOpen(true);
     }
     setScrollTargetId(elem.id);
   };
@@ -1918,7 +1929,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     style={{ fontStyle: 'italic', textAlign: 'left', margin: 0, cursor: 'text', minHeight: '1em', userSelect: 'none', WebkitUserSelect: 'none' }}
                                   >
                                     {/* Limpiar prefijo "Figura N:" redundante para no duplicar el contador */}
-                                    {(elem.image_info?.caption || '').replace(/^(figura|fig\.?)\s+\d+[:\.\s]*\s*/i, '') || (
+                                    {(elem.image_info?.caption || '').replace(/\*/g, '').replace(/^(figura|fig\.?)\s+\d+[:\.\s]*\s*/i, '') || (
                                       <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Doble clic para editar leyenda</span>
                                     )}
                                   </p>
@@ -2046,7 +2057,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 </button>
                               )}
                             </div>
-                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption}</p>}
+                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption.replace(/\*/g, '')}</p>}
                             <table style={{
                               width: '100%',
                               maxWidth: '100%',

@@ -61,6 +61,23 @@ function triggerDownload(url: string, filename?: string) {
   document.body.removeChild(a);
 }
 
+function cleanRedundantTitleParagraphs(doc: DocumentModel, targetElemId: string, captionText: string): DocumentModel {
+  const idx = doc.elements.findIndex((e) => e.id === targetElemId);
+  if (idx <= 0) return doc;
+  const prevIdx = idx - 1;
+  const prev = doc.elements[prevIdx];
+  if (prev && (prev.type === 'paragraph' || prev.type === 'heading')) {
+    const txt = (prev.text || '').trim();
+    const isFigNum = /^(figura|tabla|fig\.?)\s+\d+$/i.test(txt);
+    const isSimilarTitle = captionText && txt.length > 3 && (captionText.toLowerCase().includes(txt.toLowerCase()) || txt.toLowerCase().includes(captionText.toLowerCase()));
+    if (isFigNum || isSimilarTitle) {
+      const filtered = doc.elements.filter((_, i) => i !== prevIdx);
+      return { ...doc, elements: filtered };
+    }
+  }
+  return doc;
+}
+
 export function safeRefText(ref: unknown): string {
   try {
     const o = (ref ?? {}) as any;
@@ -609,23 +626,30 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   updateElementImage: async (elementId, imageInfo) => {
     const { doc, pushHistory } = get();
     if (!doc) return;
+    const cleanCaption = imageInfo.caption ? imageInfo.caption.replace(/\*/g, '') : imageInfo.caption;
+    const sanitizedInfo = { ...imageInfo, ...(cleanCaption !== undefined ? { caption: cleanCaption } : {}) };
     try {
-      const updated = await api.updateElementImage(doc.session_id, elementId, imageInfo);
+      let updated = await api.updateElementImage(doc.session_id, elementId, sanitizedInfo);
+      if (cleanCaption) {
+        updated = cleanRedundantTitleParagraphs(updated, elementId, cleanCaption);
+      }
       pushHistory(updated);
       set({ doc: updated });
     } catch (err: any) {
-      // C7: Show visible error toast instead of silent console.error
       get().showToast(err?.message || 'Error al actualizar imagen', 'error');
     }
   },
 
-  // C2: Persist table_info changes (caption, note, table_number, etc.) via the
-  // backend updateElementTable endpoint so they survive regeneration.,
   updateElementTable: async (elementId, tableInfo) => {
     const { doc, pushHistory } = get();
     if (!doc) return;
+    const cleanCaption = tableInfo.caption ? tableInfo.caption.replace(/\*/g, '') : tableInfo.caption;
+    const sanitizedInfo = { ...tableInfo, ...(cleanCaption !== undefined ? { caption: cleanCaption } : {}) };
     try {
-      const updated = await api.updateElementTable(doc.session_id, elementId, tableInfo);
+      let updated = await api.updateElementTable(doc.session_id, elementId, sanitizedInfo);
+      if (cleanCaption) {
+        updated = cleanRedundantTitleParagraphs(updated, elementId, cleanCaption);
+      }
       pushHistory(updated);
       set({ doc: updated });
     } catch (err: any) {

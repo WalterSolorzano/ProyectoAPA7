@@ -696,14 +696,23 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
                     const state = useDocStore.getState();
                     state.showToast('Generando leyenda con IA…', 'info');
                     try {
-                      const textCtx = elem.text || '';
-                      const caption = await suggestCaption(sessionId, elem.id, textCtx, apiKey);
+                      const allElems = state.doc?.elements || [];
+                      const eIdx = allElems.findIndex((x) => x.id === elem.id);
+                      let textCtx = elem.text || '';
+                      if (eIdx >= 0) {
+                        const neighbors = [allElems[eIdx - 1]?.text, allElems[eIdx + 1]?.text].filter(Boolean);
+                        if (neighbors.length > 0) textCtx = neighbors.join(' ');
+                      }
+                      const rawCaption = await suggestCaption(sessionId, elem.id, textCtx, apiKey);
+                      const caption = (rawCaption || '').replace(/\*/g, '').trim();
                       if (elem.type === 'image') {
-                        state.updateElementImage(elem.id, { caption });
+                        await state.updateElementImage(elem.id, { caption });
                       } else if (elem.type === 'table') {
-                        state.updateElementTable(elem.id, { caption });
+                        await state.updateElementTable(elem.id, { caption });
                       }
                       state.showToast('Leyenda aplicada correctamente', 'success');
+                      const domElem = document.getElementById(`paper-elem-${elem.id}`);
+                      if (domElem) domElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
                       handleResolve();
                     } catch (err: any) {
                       state.showToast('No se pudo generar la leyenda: ' + (err.message || 'Error'), 'error');
