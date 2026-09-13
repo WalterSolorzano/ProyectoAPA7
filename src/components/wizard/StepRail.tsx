@@ -1,27 +1,15 @@
 import React, { useState } from 'react';
-import { FileText, ListTree, Image as ImageIcon, AlignLeft, BookOpen, Check, Map, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download, Check, Map, ChevronDown, ChevronUp, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { OutlineTree } from './OutlineTree';
-
-/**
- * StepRail — navegación de pasos como lista vertical a la izquierda.
- * Reemplaza la barra superior de tabs (decisión de producto: la lista
- * lateral es más clara y deja la barra superior solo con acciones globales).
- * Debajo de los pasos (solo pasos 2, 3 y 4) vive el "Mapa del documento",
- * colapsable, para no quitarle ancho a la UI principal.
- *
- * El mapa se unificó (D2): ahora también aparece en el paso 2 (Estructura),
- * así que el panel "Mapa de títulos" que antes vivía dentro de Step2 ya no
- * se duplica — StepRail es el único dueño del árbol de títulos en todos los
- * pasos donde tiene sentido (2, 3 y 4).
- */
 
 const STEPS = [
   { step: 1, label: 'Portada', Icon: FileText },
   { step: 2, label: 'Estructura', Icon: ListTree },
   { step: 3, label: 'Figuras', Icon: ImageIcon },
   { step: 4, label: 'Referencias', Icon: BookOpen },
-  { step: 5, label: 'Exportar', Icon: Download },
+  { step: 5, label: 'Auditoría & IA', Icon: ShieldCheck },
+  { step: 6, label: 'Exportar', Icon: Download },
 ] as const;
 
 export function StepRail() {
@@ -31,6 +19,8 @@ export function StepRail() {
   const coverSetupDone = useDocStore((s) => s.coverSetupDone);
   const leftSidebarWidth = useDocStore((s) => s.leftSidebarWidth) || 280;
   const setLeftSidebarWidth = useDocStore((s) => s.setLeftSidebarWidth);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+  const citationAuditResult = useDocStore((s) => s.citationAuditResult);
   const [mapOpen, setMapOpen] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -63,17 +53,25 @@ export function StepRail() {
     (e) => (e.type === 'image' || e.type === 'table') && e.needs_review,
   ).length;
   const hasReferences = (doc?.referencias?.length || 0) > 0;
+  const pendingAuditCount = proofreadFindings.length + (citationAuditResult?.ghost_citations?.length || 0);
 
   const doneByStep: Record<number, boolean> = {
     1: coverSetupDone,
     2: !!doc && pendingHeadings === 0,
     3: !!doc && pendingFigures === 0,
     4: hasReferences,
+    5: !!doc && pendingAuditCount === 0,
   };
 
   const badgeByStep: Record<number, number> = {
     2: pendingHeadings,
     3: pendingFigures,
+    5: pendingAuditCount,
+  };
+
+  const isCollapsed = leftSidebarWidth < 100;
+  const toggleCollapse = () => {
+    setLeftSidebarWidth(isCollapsed ? 240 : 56);
   };
 
   return (
@@ -86,12 +84,13 @@ export function StepRail() {
         overflowY: 'auto',
         borderRight: '1px solid var(--border-subtle)',
         backgroundColor: 'var(--sidebar-bg)',
-        padding: '14px 10px',
+        padding: isCollapsed ? '14px 6px' : '14px 10px',
         display: 'flex',
         flexDirection: 'column',
         gap: '2px',
         position: 'relative',
         userSelect: isResizing ? 'none' : 'auto',
+        transition: isResizing ? 'none' : 'width 0.15s ease',
       }}
     >
       {/* Asa de arrastre para cambiar ancho */}
@@ -117,10 +116,31 @@ export function StepRail() {
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
           color: 'var(--text-secondary)',
-          padding: '4px 12px 10px',
+          padding: isCollapsed ? '4px 0 10px' : '4px 12px 10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'space-between',
         }}
       >
-        Pasos
+        {!isCollapsed && <span>Pasos</span>}
+        <button
+          type="button"
+          onClick={toggleCollapse}
+          title={isCollapsed ? 'Expandir panel de pasos' : 'Colapsar panel de pasos'}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '2px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
       {STEPS.map(({ step, label, Icon }) => {
         const active = wizardStep === step;
@@ -135,14 +155,15 @@ export function StepRail() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
-              padding: '10px 12px',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              gap: isCollapsed ? '0' : '10px',
+              padding: isCollapsed ? '10px 0' : '10px 12px',
               borderRadius: 'var(--radius-sm)',
               border: active ? '1px solid var(--accent-primary)' : '1px solid transparent',
               background: active ? 'var(--color-accent-soft)' : 'transparent',
               color: active ? 'var(--accent-primary)' : 'var(--text-main)',
               cursor: 'pointer',
-              textAlign: 'left',
+              textAlign: isCollapsed ? 'center' : 'left',
               fontSize: '13px',
               fontWeight: active ? 700 : 500,
               transition: 'background 0.12s',
@@ -155,10 +176,10 @@ export function StepRail() {
             }}
           >
             <Icon size={15} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
-            {done ? (
+            {!isCollapsed && <span style={{ flex: 1, minWidth: 0 }}>{label}</span>}
+            {!isCollapsed && done ? (
               <Check size={13} color="var(--accent-success)" style={{ flexShrink: 0 }} />
-            ) : badge > 0 ? (
+            ) : !isCollapsed && badge > 0 ? (
               <span
                 style={{
                   minWidth: '18px',
@@ -182,7 +203,7 @@ export function StepRail() {
         );
       })}
 
-      {showMap && (
+      {!isCollapsed && showMap && (
         <div
           style={{
             marginTop: '8px',

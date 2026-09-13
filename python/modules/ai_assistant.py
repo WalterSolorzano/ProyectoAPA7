@@ -29,7 +29,7 @@ async def generate_caption_suggestion(context_text: str, api_key: Optional[str] 
             max_tokens=100,
             use_cache=True
         )
-        clean = content.strip().replace('"', '').replace('*', '')
+        clean = content.strip().replace('"', '').replace('*', '').replace('_', '')
         return clean
     except Exception as e:
         logger.error(f"Error generando caption: {e}")

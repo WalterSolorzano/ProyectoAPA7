@@ -24,6 +24,18 @@ export const APAScoreCard: React.FC = () => {
 
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+  const reviewResult = useDocStore((s) => s.reviewResult);
+  const aiIndices = useDocStore((s) => s.aiIndices);
+
+  const aiPercentage = useMemo(() => {
+    if (aiIndices?.score !== undefined && aiIndices.score !== null) {
+      return Math.round(aiIndices.score * 100);
+    }
+    if (reviewResult?.ai_avg_score !== undefined && reviewResult.ai_avg_score !== null) {
+      return Math.round(reviewResult.ai_avg_score);
+    }
+    return null;
+  }, [aiIndices, reviewResult]);
 
   const stats = useMemo(() => {
     if (!doc || !doc.elements) {
@@ -39,7 +51,6 @@ export const APAScoreCard: React.FC = () => {
     const uncaptionedFigures = figures.filter((f) => !f.image_info?.caption);
     const uncaptionedTables = tables.filter((t) => !t.table_info?.caption);
     const ghostCitations = citationAudit?.ghost_citations || [];
-    const orphanRefs = citationAudit?.orphan_references || [];
 
     const warnings: Array<{ id: string; label: string; penalty: number; elementId?: string; step: number }> = [];
 
@@ -94,12 +105,15 @@ export const APAScoreCard: React.FC = () => {
       });
     });
 
-    // 4. Redacción / Estilo
-    if (proofreadFindings.length > 0) {
+    // 4. Redacción / Estilo / IA
+    const aiFlaggedCount = reviewResult?.flagged_count || 0;
+    const spellingCount = reviewResult?.spelling_count || 0;
+    if (proofreadFindings.length > 0 || aiFlaggedCount > 0 || spellingCount > 0) {
+      const totalIssues = Math.max(proofreadFindings.length, aiFlaggedCount + spellingCount);
       warnings.push({
         id: 'warn_proofread',
-        label: `${proofreadFindings.length} detalle(s) de redacción o estilo informal`,
-        penalty: Math.min(10, proofreadFindings.length * 2),
+        label: `${totalIssues} observación(es) de contenido IA, muletillas u ortografía`,
+        penalty: Math.min(15, totalIssues * 2),
         step: 2,
       });
     }
@@ -137,10 +151,21 @@ export const APAScoreCard: React.FC = () => {
         icon: BookOpen,
         step: 4,
       },
+      {
+        title: 'Contenido IA & Redacción',
+        status: (aiPercentage === null || aiPercentage < 25) && proofreadFindings.length === 0 ? 'ok' : 'warn',
+        detail: aiPercentage !== null
+          ? `${aiPercentage}% patrón IA global · ${reviewResult?.flagged_count || 0} párrafos señalados`
+          : proofreadFindings.length > 0
+            ? `${proofreadFindings.length} hallazgos de redacción/estilo`
+            : 'Sin señales críticas de IA u ortografía',
+        icon: Sparkles,
+        step: 2,
+      },
     ];
 
     return { score, items, warnings };
-  }, [doc, portada, citationAudit, proofreadFindings]);
+  }, [doc, portada, citationAudit, proofreadFindings, reviewResult, aiPercentage]);
 
   if (!doc) return null;
 

@@ -936,30 +936,23 @@ async def upload_docx(
             parse_docx_bytes, content, file.filename, session_id, STORAGE_DIR, skip_page_layout=True
         )
 
-        # Engine V2 (P0b): enriquecer con mediciones reales de Word via COM.
-        # Solo en Windows con Office instalado; sin COM sigue funcionando.
+        # Fix A1: Enriquecimiento de portada 100% OOXML nativo — NUNCA abre Word.
+        # El COM se usa exclusivamente en la exportación (post-procesador), no en el upload.
+        # Razón: abrir Word via COM al importar causa que el usuario vea Word abrirse/cerrarse
+        # y en algunos casos queda colgado con un documento vacío.
         original_path = session_dir / "original.docx"
         try:
-            from parsing.com_reader import enrich_document_from_com
-            com_diag = await asyncio.wait_for(
-                asyncio.to_thread(
-                    enrich_document_from_com, doc_model, str(original_path)
-                ),
-                timeout=8.0
+            from parsing.ooxml_cover_detector import detect_cover_ooxml
+            ooxml_diag = await asyncio.to_thread(
+                detect_cover_ooxml, doc_model, str(original_path)
             )
-            if com_diag.get("cover_corrected"):
+            if ooxml_diag.get("cover_corrected"):
                 logger.info(
-                    f"[COM Enrich] Portada corregida: body_start={com_diag.get('cover_new_start')}, "
-                    f"elementos corregidos={com_diag.get('cover_elements_corrected', 0)}"
+                    f"[OOXML Cover] Portada detectada nativa: body_start={ooxml_diag.get('cover_new_start')}, "
+                    f"elementos marcados={ooxml_diag.get('cover_elements_corrected', 0)}"
                 )
-            if com_diag.get("heading_corrected"):
-                logger.info(
-                    f"[COM Enrich] Headings corregidos: {com_diag.get('heading_corrected')}/{com_diag.get('headings_checked')}"
-                )
-        except asyncio.TimeoutError:
-            logger.warning("[COM Enrich] Timeout de 8s en Word COM; continuando de forma segura con el modelo nativo")
         except Exception as e:
-            logger.warning(f"[COM Enrich] Falló enriquecimiento COM (no crítico): {e}")
+            logger.warning(f"[OOXML Cover] Detección nativa falló (no crítico): {e}")
 
         # Run AI text detector (Library patterns)
         try:
@@ -2666,12 +2659,12 @@ async def generate_docx(req: GenerateRequest) -> dict:
         # Inyectar Post-Processor Dual Engine
         final_path = out_dir / f"Final_{doc.file_name}"
         success, pdf_path = doc_converter.process_and_convert(
-            docx_in=generated_path,
-            docx_out=final_path,
-            original_docx=original_path,
-            rules=rules,
-            post_processor=None,
-            generate_pdf=False
+            original_path=original_path,
+            generated_path=generated_path,
+            final_path=final_path,
+            preserve_cover=preserve_cover,
+            generate_pdf=True,
+            rules=rules
         )
 
         if success and final_path.exists():

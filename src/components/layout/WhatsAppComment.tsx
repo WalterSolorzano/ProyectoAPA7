@@ -58,6 +58,22 @@ function normalize(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Renderiza formateo inline Markdown (_texto_ o *texto*) sin mostrar guiones bajos ni asteriscos crudos. */
+export function renderFormattedCommentText(text: string): React.ReactNode {
+  if (!text) return null;
+  const cleaned = text.replace(/_/g, '');
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i} style={{ fontStyle: 'italic' }}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
+
 /** Primer fragmento contiguo del texto que disparó el comentario (para resaltarlo). */
 function findMatch(text: string, re: RegExp): string | null {
   const m = (text || '').match(re);
@@ -701,7 +717,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
             </div>
             <div className="wa-line">
               <span className="wa-avatar"><DocumentMascot size={24} expression={expression} /></span>
-              <span className="wa-text">{display.text}</span>
+              <span className="wa-text">{renderFormattedCommentText(display.text)}</span>
             </div>
             <div className="wa-actions">
               {(display.kind === 'image_no_caption' || display.kind === 'table_no_caption' || display.kind === 'proactive_caption') ? (

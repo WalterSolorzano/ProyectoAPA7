@@ -11,6 +11,7 @@ import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './What
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
 import { InlineAILens } from '../canvas/InlineAILens';
+import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
 
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
@@ -128,7 +129,7 @@ const ChangeMark: React.FC<{ label: string }> = ({ label }) => {
   );
 };
 
-export const computePages = (elements: ElementModel[], maxUnits = 30): ElementModel[][] => {
+export const computePages = (elements: ElementModel[], maxUnits = 14): ElementModel[][] => {
   const pages: ElementModel[][] = [];
   const coverElements: ElementModel[] = [];
   const bodyElements: ElementModel[] = [];
@@ -150,15 +151,21 @@ export const computePages = (elements: ElementModel[], maxUnits = 30): ElementMo
 
   let currentPage: ElementModel[] = [];
   let currentEstimatedHeight = 0;
-  const MAX_PAGE_UNITS = Math.max(20, Math.round(maxUnits));
+  const MAX_PAGE_UNITS = Math.max(8, Math.round(maxUnits));
 
   bodyElements.forEach((elem) => {
     let units = 1;
-    if (elem.type === 'heading') units = 2;
-    if (elem.type === 'toc') units = 20;
-    if (elem.type === 'image') units = 4;
-    if (elem.type === 'table') units = 6;
-    if (elem.type === 'paragraph') units = Math.max(1, Math.ceil((elem.text || '').length / 90));
+    if (elem.type === 'heading') units = 2.5;
+    if (elem.type === 'toc') units = 12;
+    if (elem.type === 'image') units = 5;
+    if (elem.type === 'table') units = Math.max(3, Math.ceil((elem.table_info?.rows?.length || 2) * 0.8));
+    if (elem.type === 'paragraph' || elem.type === 'block_quote') {
+      const text = elem.text || '';
+      const lineBreaks = (text.match(/\n/g) || []).length;
+      const charLines = Math.ceil(text.length / 90);
+      const totalLines = Math.max(1, charLines + lineBreaks);
+      units = Math.max(1, Math.ceil(totalLines / 2.0));
+    }
 
     const isFirstBodyHeading = elem.type === 'heading' && elem.text && elem.text.toLowerCase().includes('introducc');
     const isLevel1Heading = elem.type === 'heading' && elem.heading_level === 1;
@@ -193,7 +200,7 @@ export const computePages = (elements: ElementModel[], maxUnits = 30): ElementMo
 };
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
-  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
@@ -570,19 +577,27 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     }
   }, [selectedElementId]);
 
-  // Scroll del DocumentOutline / auto-scroll a Referencias SIN abrir el inspector
+  // Scroll del DocumentOutline / auto-scroll a Referencias o Figuras SIN abrir el inspector
   const scrollTargetId = useDocStore((s) => s.scrollTargetId);
   useEffect(() => {
-    if (scrollTargetId) {
-      const targetEl = document.getElementById(`paper-elem-${scrollTargetId}`);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        targetEl.classList.remove('target-glow-flash');
-        void targetEl.offsetWidth;
-        targetEl.classList.add('target-glow-flash');
+    if (scrollTargetId && doc) {
+      const pages = computePages(doc.elements);
+      const pageIdx = pages.findIndex((p) => p.some((e) => e.id === scrollTargetId));
+      if (pageIdx !== -1) {
+        setActivePageIndex(pageIdx);
       }
+      const timer = setTimeout(() => {
+        const targetEl = document.getElementById(`paper-elem-${scrollTargetId}`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetEl.classList.remove('target-glow-flash');
+          void targetEl.offsetWidth;
+          targetEl.classList.add('target-glow-flash');
+        }
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [scrollTargetId]);
+  }, [scrollTargetId, doc]);
 
   // ── Marcas de transparencia: mapa elemento → etiqueta (SOLO LECTURA) ──
   // Escrito por otro agente en localStorage key `wordapa7_marcas_map`.
@@ -1140,9 +1155,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 style={{
                   width: `${PAGE_W}px`,
                   maxWidth: '100%',
-                  minHeight: `${PAGE_H}px`,
-                  height: isCoverPage ? `${PAGE_H}px` : undefined,
-                  overflow: isCoverPage ? 'hidden' : undefined,
+                  height: `${PAGE_H}px`,
+                  overflow: 'hidden',
                   backgroundColor: 'var(--paper-white, #ffffff)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
                   padding: '54px 54px',
@@ -1210,15 +1224,24 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     )}
 
                     {/* Logo institucional (si existe) */}
-                    {coverLogoImage?.image_info?.relative_url && (
-                      <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-                        <img
-                          src={resolveAssetUrl(coverLogoImage.image_info.relative_url)}
-                          alt="Logo"
-                          style={{ maxHeight: '80px', maxWidth: '280px', objectFit: 'contain' }}
-                        />
-                      </div>
-                    )}
+                    {(() => {
+                      const coverLogoImage = pageElements.find(
+                        (e) => e.type === 'image' && e.image_info?.relative_url
+                      ) || (doc?.elements || []).find(
+                        (e) => (e.is_cover_section || e.type === 'portada_block') && e.type === 'image' && e.image_info?.relative_url
+                      );
+                      const logoUrl = portada?.logo_url || coverLogoImage?.image_info?.relative_url;
+                      if (!logoUrl) return null;
+                      return (
+                        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                          <img
+                            src={resolveAssetUrl(logoUrl)}
+                            alt="Logo institucional"
+                            style={{ maxHeight: '90px', maxWidth: '280px', objectFit: 'contain' }}
+                          />
+                        </div>
+                      );
+                    })()}
 
                     {/* Renderizado secuencial de TODOS los elementos de portada en orden original con grilla para autores */}
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-evenly' }}>
@@ -1496,7 +1519,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     // Detector IA Margen (Siempre activo si el score > 0.5)
                     const aiScore = elem.ai_score !== undefined ? elem.ai_score : 0;
                     const isAIGenerated = aiScore > 0.5;
-                    const aiMarginBorder = isAIGenerated ? '2px solid rgba(250,173,20,0.4)' : '2px solid transparent';
+                    const aiMarginBorder = isAIGenerated ? '2px solid var(--color-accent-soft, #e0e7ff)' : '2px solid transparent';
                     const aiTooltip = isAIGenerated ? `Posible contenido IA (${Math.round(aiScore * 100)}%). Patrones detectados.` : undefined;
 
                     return (
@@ -2055,6 +2078,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.image_info.note}
                               </p>
                             )}
+                            {/* Floating AI caption badge — only when no caption yet */}
+                            {!elem.image_info?.caption && (
+                              <CaptionSuggestionBadge
+                                elementId={elem.id}
+                                onApply={(cap) => useDocStore.getState().updateElementImage(elem.id, { ...elem.image_info, caption: cap })}
+                              />
+                            )}
                           </div>
                         )}
 
@@ -2138,9 +2168,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
                               </p>
                             )}
+                            {/* Floating AI caption badge for table — when no caption yet */}
+                            {!elem.table_info.caption && (
+                              <CaptionSuggestionBadge
+                                elementId={elem.id}
+                                onApply={(cap) => updateElementTable(elem.id, { ...elem.table_info, caption: cap })}
+                              />
+                            )}
                           </div>
                           );
                         })()}
+
 
                         {/* Comentarios estilo WhatsApp: ahora viven en el gutter
                             lateral (columna derecha fuera de la hoja, como Word). */}

@@ -1,15 +1,15 @@
-/* WordAPA7 — Paso 1: Portada (vista simplificada).
-   El editor de portada vive en el RightSidePanel (CoverPanel). Acá solo
-   queda el PaperCanvas, donde el usuario ve la portada actualizandose en vivo
-   mientras completa los campos. */
+/* WordAPA7 — Paso 1: Portada (Estudio Carrusel de Diseños).
+   Mapea el modulo independiente de portadas en la vista central, mostrando
+   el carrusel de diseños (APA 7, UNI, Original/Personalizada) con dos-way binding
+   en tiempo real sobre los datos del panel lateral. */
 
 import React from 'react';
-import { PaperCanvas } from '../layout/PaperCanvas';
+import { CoverCarouselStudio } from './CoverCarouselStudio';
 
 export const Step1PortadaWizard: React.FC = () => {
   return (
     <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
-      <PaperCanvas />
+      <CoverCarouselStudio />
     </div>
   );
 };

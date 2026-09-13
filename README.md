@@ -1,171 +1,159 @@
-```text
-██╗██╗██╗  ██╗██████╗  ██████╗  ██████╗  █████╗ ╚██╗██╗
-██║██║██║  ██║██╔══██╗██╔═══██╗██╔════╝ ██╔══██╗ ╚██╗██╗
-██║██║███████║██████╔╝██║   ██║██║  ███╗███████║  ██║██║
-██║██║██╔══██║██╔═══╝ ██║   ██║██║   ██║██╔══██║  ██║██║
-██║██║██║  ██║██║     ╚██████╔╝╚██████╔╝██║  ██║██╔╝██║
-╚═╝╚═╝╚═╝  ╚═╝╚═╝      ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═╝
-              W O R D   A P A   7   v 1 . 0
-```
-
-<div align="center">
-
-# 📄 WordAPA7 — Formateador Automático Académico a APA 7ª Edición
+# 📄 WordAPA7 — Formateador Automático e Inteligente a Normas APA 7ª Edición
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-2563EB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-059669?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React 18](https://img.shields.io/badge/React-18.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA_NIM-LLaMA_3.1_70B-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](https://build.nvidia.com)
+[![Electron](https://img.shields.io/badge/Electron-28.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org)
+[![Microsoft Word 365](https://img.shields.io/badge/Microsoft_Word-Add--in-2B579A?style=for-the-badge&logo=microsoftword&logoColor=white)](https://office.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-8B5CF6?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  <b>Plataforma de alta precisión para transformar documentos universitarios y académicos (<code>.docx</code>) a las normas oficiales APA 7ª Edición manteniendo el 100% del contenido original, diagramación de portada in-place y tablas nativas.</b>
+  <b>Suite académica de alta precisión y complemento nativo para Microsoft Word que transforma documentos universitarios (<code>.docx</code>) a las normas oficiales APA 7.ª Edición, preservando el 100% del contenido original, diagramando portadas de forma indivisible e integrando copilotos de IA proactivos.</b>
 </p>
 
-[📥 Instalación (usuario final)](#-instalación-para-usuario-final) • [✨ Características](#-características-principales) • [🏗 Arquitectura](#-arquitectura-del-sistema) • [🚀 Instalación (desarrollador)](#-instalación-y-ejecución) • [🛡️ Seguridad](#-seguridad-y-variables-de-entorno)
+<p align="center">
+  <a href="#-instalación-para-usuario-final">📥 Instalación Usuario</a> •
+  <a href="#-por-qué-wordapa7-factores-diferenciadores">💡 ¿Por qué WordAPA7?</a> •
+  <a href="#-características-principales">✨ Características</a> •
+  <a href="#-arquitectura-del-sistema">🏗 Arquitectura</a> •
+  <a href="#-instalación-y-ejecución-para-desarrolladores">🚀 Guía Desarrollador</a> •
+  <a href="#-seguridad-y-privacidad">🛡️ Seguridad</a>
+</p>
 
 ---
 
-</div>
+## 💡 ¿Por qué WordAPA7? (Factores Diferenciadores)
 
-## 📥 Instalación para usuario final
+Formatear un documento académico (tesis, monografía, ensayo o artículo) a las normas APA 7ª edición suele ser un proceso tedioso, manual y propenso a errores. Las herramientas tradicionales o plantillas rígidas de Word suelen romper los encabezados institucionales, desordenar tablas o borrar portadas complejas. 
 
-> **No necesitás instalar Python, Node.js ni nada extra.** Todo viaja dentro
-> del instalador. Solo descargá el `.exe` y ejecutalo.
+**WordAPA7 resuelve esto con una arquitectura híbrida in-place de grado profesional:**
 
-### Paso a paso (3 clics + abrir Word)
-
-1. **Descargá** el instalador `WordAPA7 Setup X.X.X.exe` desde la página de
-   [Releases en GitHub](https://github.com/WalterSolorzano/ProyectoAPA7/releases).
-
-2. **Hacé doble clic** en el `.exe` descargado.
-
-3. **SmartScreen de Windows** mostrará un aviso azul que dice
-   *"Windows protegió tu equipo"*. **Esto es normal** y se debe a que el
-   instalador no está firmado con un certificado comercial pago (no queremos
-   que los usuarios paguen por usar la herramienta). Para continuar:
-
-   | Paso | Acción |
-   |------|--------|
-   | 1 | Clic en **"Más información"** |
-   | 2 | Clic en **"Ejecutar de todas formas"** |
-
-   > ℹ️ Este aviso aparece **una sola vez** (la primera vez que descargas el
-   > instalador). No significa que haya un virus; es el comportamiento estándar
-   > de Windows con cualquier instalador descargado de internet que no tiene
-   > un certificado de firma de código comercial.
-
-4. **El instalador hace todo solo** (one-click):
-   - Copia la aplicación y el complemento de Word.
-   - **Registra el complemento automáticamente** en Word (no tenés que hacer
-     nada dentro de Word).
-   - Agrega la opción "Convertir a APA 7" al clic derecho sobre archivos `.docx`.
-   - Configura el arranque automático en segundo plano.
-   - Al terminar, **abre la aplicación automáticamente**.
-
-5. **Abrí Microsoft Word.** Vas a ver una nueva pestaña llamada **"WordAPA7"**
-   en el ribbon, al lado de las demás pestañas.
-
-   > Si Word ya estaba abierto cuando instalaste, **cerralo y volvé a abrirlo**
-   > para que cargue el complemento.
-
-### ¿Qué instala WordAPA7?
-
-| Componente | Ubicación | ¿Requiere admin? |
-|------------|-----------|-----------------|
-| App de escritorio | `%LOCALAPPDATA%\Programs\WordAPA7\` | No |
-| Complemento de Word | `%APPDATA%\WordAPA7\storage\manifest.xml` | No |
-| Backend Python embebido | `resources\python-runtime\` (dentro de la app) | No |
-| Certificado SSL local | `Cert:\CurrentUser\Root` (auto-firmado, silencioso) | No |
-| Entrada de inicio (watcher) | `HKCU\…\Run\WordAPA7Watcher` | No |
-| Menú contextual .docx | `HKCU\…\.docx\shell\WordAPA7` | No |
-
-Todo se instala en el **perfil del usuario actual** (HKCU + LOCALAPPDATA),
-sin requerir permisos de administrador. Ideal para computadoras de
-universidad donde no tenés permisos admin.
-
-### Desinstalación
-
-Desde **Configuración → Aplicaciones → Aplicaciones instaladas**, buscá
-"WordAPA7" y clic en Desinstalar. Se eliminan la app, el complemento de Word,
-el watcher y el certificado SSL. Tus documentos y claves de IA se conservan
-(por si reinstalás).
-
----
-
-## 🎨 Paleta de Colores y Diseño Oficial (Integración Word 365)
-
-| Componente UI | Código Hexadecimal | Previsualización | Uso |
-|---|---|---|---|
-| **WordAPA7 Brand Blue** | `#4F7CFF` | `████████` | Color de marca, botones principales, selección |
-| **Canvas / Paper White** | `#FFFFFF` | `████████` | Hoja de trabajo, tarjetas elevadas, ribbon |
-| **App Surface / Backdrop** | `#F8F9FA` | `████████` | Fondo de la aplicación y paneles |
-| **Text Primary (Dark)** | `#0F172A` | `████████` | Tipografía principal de alto contraste |
-| **Success Emerald** | `#16A34A` | `████████` | Cumplimiento APA 7, validaciones correctas |
-| **Warning Amber** | `#D97706` | `████████` | Advertencias de estilo o citas |
-| **Danger Red** | `#DC2626` | `████████` | Errores críticos de formato |
+| Desafío Académico | Formateadores Tradicionales / Plantillas | **WordAPA7 (Nuestra Solución)** |
+|---|---|---|
+| **Portadas Institucionales Complejas** | Reemplaza o borra la portada por una plantilla genérica, eliminando escudos y logos. | 🛡️ **Preservación In-Place Intacta**: Detecta nodos XML `<wpg:wgp>` y `<wps:txbx>` congelando escudos, logos y cajas de texto universitarias sin partirlas ni alterarlas (`use_original_cover`). |
+| **Integración con Microsoft Word** | Obliga a usar herramientas externas sin conexión con Word. | 📌 **Complemento Nativo de Word**: Ofrece una cinta de opciones (Ribbon) en Word y sincronización bidireccional (*Highlight & Jump*) para saltar al párrafo exacto en pantalla. |
+| **Modificación de Estructura por IA** | Respuestas de chat pasivas que el usuario debe copiar y pegar a mano. | 🤖 **Copiloto con Action DSL Seguro**: Transforma el documento mediante instrucciones en lenguaje natural ("convierte esto en cita en bloque", "arregla la tabla 2") ejecutadas quirúrgicamente. |
+| **Auditoría de Citas y Referencias** | Verificación manual propensa a dejar citas no referenciadas o bibliografía huérfana. | 🔍 **Auditorías Proactivas en Background**: Detecta automáticamente citas no encontradas en la bibliografía, referencias huérfanas, texto pegado sin formato y párrafos generados por IA. |
+| **Disponibilidad y Conexión de IA** | Dependen de un único proveedor en la nube que puede caerse o cobrar cuotas altas. | ⚡ **Multi-Proveedor con Failover**: Funciona 100% offline con heurísticas locales súper rápidas o con soporte para NVIDIA NIM, Groq, Cerebras y Ollama (local e ilimitado). |
+| **Pérdida de Formato y Control de Revisiones** | Genera un archivo final estático sin historial de cambios. | 📝 **Exportación con Control de Cambios (Track Changes)**: Genera versiones formateadas conservando el historial de revisiones para entregar al tutor o docente. |
+| **Instalación en PCs Universitarias** | Requiere derechos de administrador, Python o scripts complejos. | 📦 **Instalador One-Click Portátil**: Se instala sin permisos de administrador en `%LOCALAPPDATA%` registrando automáticamente el complemento en Word. |
 
 ---
 
 ## ✨ Características Principales
 
-### ⚡ Normalizador Proactivo In-Document en Microsoft Word (1 Clic)
-- **Edición 100% en Vivo**: Muta y formatea directamente el documento abierto en Word (`Word.run`) sin necesidad de exportar ni descargar nuevos archivos `.docx`.
-- **Detección Inteligente de Portada**: Identifica y centra la portada de estudiante/profesional sin aplicar sangría de primera línea ni alterar logos universitarios.
-- **Jerarquización Automática de Títulos**: Aplica estilos APA 7 a títulos (H1 centrado en negrita, H2 alineado a la izquierda en negrita, H3 cursiva).
-- **Tablas y Figuras en Vivo**: Limpia líneas verticales, aplica bordes horizontales 0.5pt e inyecta rótulos reglamentarios `Tabla 1...` y `Figura 1...` con notas al pie.
-- **Referencias con Sangría Francesa**: Formatea la sección Referencias al final con *hanging indent* de 1.27 cm e interlineado doble.
-- **Señalización en Word (Highlight & Jump)**: Botón *👁️ Ver en Word* que salta al párrafo exacto y lo resalta temporalmente en amarillo.
+### 📌 1. Complemento Nativo e Integración In-Document para Microsoft Word
+- **Integración Ribbon**: Pestaña dedicada **WordAPA7** y grupo en la pestaña **Inicio** dentro de Microsoft Word.
+- **Normalización In-Place (1 Clic)**: Formatea directamente el documento abierto en Word (`Word.run`) sin necesidad de exportar ni descargar nuevos archivos.
+- **Ver y Resaltar en Word (*Jump & Highlight*)**: Salta visualmente al párrafo exacto dentro del Word de escritorio y lo resalta temporalmente en amarillo para fácil revisión.
 
-### 📌 Ribbon Superior Integrado en Word
-- Grupo **WordAPA7** en la pestaña **Inicio (Home Tab)** visible inmediatamente al abrir cualquier documento, más la pestaña dedicada **WordAPA7** con todas las herramientas.
+### 🎨 2. Lienzo WYSIWYG de Alta Fidelidad (`PaperCanvas.tsx`)
+- **Visualización en Papel Blanco Puro**: En modo claro y modo oscuro, el lienzo de trabajo mantiene el color de hoja real (`#ffffff`) con contraste tipográfico nítido (`--paper-ink: #111827`) para evitar la fatiga visual.
+- **Paginación Inteligente**: Divide el contenido dinámicamente simulando hojas físicas carta/A4 según los márgenes APA 7 (2.54 cm / 1 pulgada en los 4 lados).
+- **Inspección de Nodos**: Panel lateral interactivo para modificar el tipo de elemento (Título 1-5, Párrafo, Lista, Tabla, Figura, Cita en bloque, Referencia).
 
-### 🛡️ Preservación In-Place de Portadas Universitarias
-- **Modificación Quirúrgica XML**: Mantiene intactos agrupamientos de formas `<wpg:wgp>`, cajas de texto `<wps:txbx>`, logos institucionales y encabezados universitarios sin sobreescribirlos ni borrarlos.
-- **Roster Arrastrable (Drag & Drop)**: Libreta de integrantes persistente en `localStorage` con autocompletado rápido de autores, carnet, tutor y fecha.
+### 🤖 3. Copiloto Editorial IA y Auditorías Proactivas
+- **Editor Conversacional (`LiveChatDrawer.tsx`)**: Asistente inteligente siempre disponible para solicitar modificaciones mediante lenguaje natural.
+- **Action DSL Seguro**: Intérprete estructurado que valida sintácticamente las instrucciones antes de aplicarlas a la estructura JSON/Pydantic del documento.
+- **Auditorías Proactivas automáticas**:
+  1. `runProactiveAudits()`: Cruce automático de citas bibliográficas vs. lista de referencias.
+  2. `runProactiveAutoCaptioning()`: Detección e inyección reglamentaria de leyendas (*Tabla N / Figura N*) y notas al pie.
+  3. `runProofreadBatch()`: Detección de patrones de escritura generados por IA, inconsistencias ortográficas y texto sin formato.
 
-### 📐 Motor de Estilos APA 7º Estricto
-- **Normalización Global de Interlineado**: Aplica interlineado **Doble 2.0 (`w:line="480"`)** y `0pt` de espacio antes/después en el 100% de los párrafos del cuerpo.
-- **Jerarquía de Títulos (H1 a H5)**: Todos los niveles normalizados a **12pt** (tamaño único del cuerpo). H1 centrado en negrita (`<w:jc w:val="center"/>`), H2/H3 a la izquierda.
-- **Tablas Nativas APA 7**: Cero bordes verticales, bordes horizontales de 0.75pt, primera fila de encabezados en negrita obligatoria y título en cursiva.
+### 📐 4. Motor de Estilos APA 7.ª Edición Estricto
+- **Interlineado y Sangrías**: Normalización global a interlineado **Doble (2.0)**, espacios antes/después en 0pt y sangría de primera línea reglamentaria de **1.27 cm (0.5 in)**.
+- **Jerarquía de Títulos (H1 a H5)**:
+  - **Nivel 1**: Centrado, Negrita, Título Principal.
+  - **Nivel 2**: Alineado a la Izquierda, Negrita.
+  - **Nivel 3**: Alineado a la Izquierda, Negrita, Cursiva.
+  - **Nivel 4**: Con Sangría 1.27 cm, Negrita, Termina con Punto.
+  - **Nivel 5**: Con Sangría 1.27 cm, Negrita, Cursiva, Termina con Punto.
+- **Tablas Nativas APA 7**: Eliminación automática de líneas verticales, aplicación de bordes horizontales de 0.5-0.75pt, encabezados en negrita y títulos en cursiva.
+- **Sección de Referencias**: Sangría francesa (*Hanging Indent*) de 1.27 cm con ordenamiento alfabético automático por apellido de autor.
 
-### 🤖 Clasificación Híbrida Inteligente (NVIDIA NIM)
-- **Score Multi-Criterio + Heurística Local**: Resuelve el 85%+ de párrafos instantáneamente sin consumir API Keys.
-- **Cola de Lotes NVIDIA NIM (LLaMA 3.1 70B Instruct)**: Procesa secuencialmente en lotes seguros (máx 3,000 tokens) los elementos ambiguos (`needs_review = True`) con reintentos automáticos y caché local por hash SHA-256.
-- **Panel de Diagnóstico en Tiempo Real**: Badge interactivo y modal emergente con métricas de latencia, tokens y códigos de respuesta HTTP.
+### 🛡️ 5. Portadas Estudiante, Profesional y Portada Original
+- **Formato Estudiante**: Título, Autor(es), Afiliación Institucional, Curso, Profesor y Fecha de Entrega.
+- **Formato Profesional**: Título, Autor(es), Afiliación, Nota del Autor, Encabezado (*Running Head*) de máximo 50 caracteres y Número de Página.
+- **Roster Arrastrable (Drag & Drop)**: Libreta de autores e integrantes persistente con autocompletado rápido.
+
+---
+
+## 📥 Instalación para Usuario Final
+
+> 💡 **Sin complicaciones**: No necesitas instalar Python, Node.js ni configurar terminales. Todo viene empaquetado en el instalador `.exe`.
+
+### Paso a paso (3 clics + abrir Word):
+
+1. **Descarga el instalador** `WordAPA7 Setup X.X.X.exe` desde la sección de [Releases de GitHub](https://github.com/WalterSolorzano/ProyectoAPA7/releases).
+2. **Ejecuta el archivo** haciendo doble clic sobre el `.exe`.
+3. **Aviso SmartScreen de Windows**: Al ser una herramienta académica de código abierto que no utiliza un certificado comercial de pago de miles de dólares, Windows mostrará la ventana azul *"Windows protegió su equipo"*. **Esto es completamente normal e inocuo**:
+   - Haz clic en **"Más información"**.
+   - Haz clic en **"Ejecutar de todas formas"**.
+4. **El instalador realiza el proceso automáticamente**:
+   - Instala la aplicación en la carpeta de tu usuario (`%LOCALAPPDATA%\Programs\WordAPA7`).
+   - Registra el complemento en Microsoft Word.
+   - Añade el acceso rápido *"Convertir a APA 7"* al menú contextual del clic derecho sobre cualquier archivo `.docx`.
+   - Abre la aplicación automáticamente al finalizar.
+5. **Abre Microsoft Word**: Verás la nueva pestaña **WordAPA7** en la cinta de opciones superior.
+
+> ℹ️ *Si Word ya estaba abierto durante la instalación, simplemente ciérralo y vuelve a abrirlo para que cargue la nueva pestaña.*
 
 ---
 
 ## 🏗 Arquitectura del Sistema
 
+El sistema utiliza un diseño desacoplado donde el backend en Python expone servicios REST de alto rendimiento y el frontend en React/Electron ofrece la experiencia gráfica responsiva.
+
 ```mermaid
 graph TD
-    A["📄 Documento .docx Original"] --> B["🐍 Python FastAPI Backend"]
-    B --> C["🔍 structure_scanner.py (lxml XML)"]
-    C --> D["⚡ pre_classifier.py (Pass 1 - Pass 3)"]
+    A["📄 Documento .docx Original"] --> B["🐍 Python FastAPI Backend (:8742)"]
+    B --> C["🔍 structure_scanner.py (lxml XML / OOXML)"]
+    C --> D["⚡ pre_classifier.py (Heurística Local)"]
     
-    D -->|Confiabilidad >= 90%| E["✅ Asignación Directa"]
-    D -->|Ambiguo 40%-70%| F["🤖 llm_batch_classifier.py"]
+    D -->|Confiabilidad >= 90%| E["✅ Asignación Directa de Estilo"]
+    D -->|Ambiguo / Complejo| F["🤖 AI Router (Multi-Provider)"]
     
-    F -->|Lotes <= 3000 tokens| G["🌐 NVIDIA NIM API (LLaMA 3.1 70B)"]
-    G --> H["💾 Local Hash Cache (SHA-256)"]
+    F --> G1["🌐 NVIDIA NIM API (LLaMA 3.1 70B)"]
+    F --> G2["⚡ Groq / Cerebras API"]
+    F --> G3["🏠 Ollama (Local Offline)"]
+    
+    G1 --> H["💾 Local Hash Cache (SHA-256)"]
+    G2 --> H
+    G3 --> H
     
     E --> I["🎨 style_engine.py / table_engine.py"]
     H --> I
     
-    I --> J["🛡️ sanity_check.py (Gate de Sanidad)"]
-    J --> K["📥 DOCX Formateado APA 7 Final"]
+    I --> J["🛡️ sanity_check.py (Sanidad XML >= 95%)"]
+    J --> K["📥 DOCX Formateado / Track Changes"]
+    K --> L["💻 React PaperCanvas UI & Word Add-in"]
 ```
+
+### Componentes Clave del Código:
+
+| Módulo | Ruta | Función Principal |
+|---|---|---|
+| **FastAPI Integration Server** | `python/main.py` | Servidor backend RESTful y lazy-loader COM |
+| **Modelos Pydantic** | `python/models.py` | Fuente única de verdad de los datos del documento |
+| **Parser XML Profundo** | `python/parsing/xml_deep_parser.py` | Extracción y preservación de nodos OOXML (`<wps:txbx>`, `<wpg:wgp>`) |
+| **In-place Engine** | `python/generation/inplace_editor.py` | Modificación de documentos respetando la portada original |
+| **Multi-Provider AI Router** | `python/modules/ai_client.py` | Router balanceado con failover entre 10+ proveedores |
+| **Copiloto & Action DSL** | `python/modules/ai_document_editor.py` | Intérprete conversacional de comandos estructurales |
+| **Auditor Proactivo** | `python/modules/proactive_auditor.py` | Detección de citas huérfanas, patrones de IA y ortografía |
+| **Lienzo Interactivo** | `src/components/layout/PaperCanvas.tsx` | Renderizador WYSIWYG en vivo paginado |
+| **Zustand Store** | `src/store/useDocStore.ts` | Estado reactivo central y gestor de auditorías |
+| **Complemento Word** | `word-addin/` | Manifiesto y scripts de integración para Office JS API |
 
 ---
 
-## 🚀 Instalación y Ejecución (Desarrollador)
+## 🚀 Instalación y Ejecución para Desarrolladores
 
-### Requisitos Previos
+### Requisitos del Sistema
 - **Python**: 3.11 o superior
 - **Node.js**: v18.0.0 o superior
 - **Git**
+- **Microsoft Word**: (Opcional, necesario únicamente para probar el Add-in nativo)
 
 ### 1. Clonar el Repositorio
 ```bash
@@ -173,129 +161,79 @@ git clone https://github.com/WalterSolorzano/ProyectoAPA7.git
 cd ProyectoAPA7
 ```
 
-### 2. Setup Automático (recomendado)
+### 2. Configuración Automática (Recomendado)
+Ejecuta el script de instalación automática:
 ```bash
 setup.bat
 ```
+Este script realiza las siguientes acciones:
+- Valida la versión de Python y Node.js.
+- Crea el entorno virtual `venv\` e instala `requirements.txt`.
+- Crea el archivo de configuración `.env` desde `.env.example`.
+- Instala las dependencias de Node (`npm install`).
+- Genera la plantilla base APA 7 y compila el frontend React.
 
-`setup.bat` hace todo en un solo paso:
-- Verifica Python 3.11+ y Node.js 18+ en el PATH.
-- Crea el entorno virtual `venv\` e instala `requirements.txt` en él.
-- Copia `.env.example` → `.env` (solo si no existe) y restringe su acceso al usuario actual.
-- `npm install` + genera la plantilla APA7 + `npm run build`.
+### 3. Iniciar el Entorno de Desarrollo
+Para ejecutar la aplicación en modo desarrollo con Hot Module Replacement (HMR):
 
-### 3. Iniciar la Aplicación
 ```bash
-start.bat
-```
-(o `powershell -ExecutionPolicy Bypass -File start.ps1`). El arranque usa
-`venv\Scripts\python.exe` si existe. Abre en tu navegador: **`http://localhost:8742`**
+# Terminal 1: Servidor Backend FastAPI (Puerto 8742)
+python python/main.py
 
-### 4. Setup Manual (alternativa)
+# Terminal 2: Servidor Frontend Vite (Puerto 5173 con proxy a :8742)
+npm run dev
+```
+Accede a la interfaz en tu navegador en: **`http://localhost:5173`** o **`http://localhost:8742`**.
+
+### 4. Pruebas Automatizadas
+El proyecto cuenta con un riguroso suite de pruebas unitarias e integración:
+
 ```bash
-# Entorno virtual + dependencias
-python -m venv venv
-venv\Scripts\pip install -r requirements.txt
-npm install
-venv\Scripts\python python\create_template.py
-npm run build
+# Pruebas Backend (pytest: 415+ tests)
+pytest python/tests/
+
+# Pruebas Frontend (Vitest: 120+ tests)
+npm test
 ```
 
-### 5. Configurar Variables de Entorno
-Copia el archivo `.env.example` a `.env` si `setup.bat` no lo hizo:
-```bash
-cp .env.example .env
+### 5. Compilar el Instalador de Producción (`.exe`)
+Para compilar la aplicación de escritorio completa con backend Python embebido y el complemento de Word:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
-Edita `.env` con tu API Key opcional de NVIDIA NIM:
-```env
-NVIDIA_API_KEY=nvapi-TU_CLAVE_AQUI
-NVIDIA_NIM_MODEL=meta/llama-3.1-70b-instruct
-```
-
-### 6. Generar el Instalador (Electron)
-```bash
-# 1. Construir el backend Python embebido
-npm run build:backend
-
-# 2. Construir el frontend + add-in de Word
-npm run build
-
-# 3. Empaquetar con electron-builder (genera dist-electron-builder/WordAPA7 Setup X.X.X.exe)
-npx electron-builder --win
-```
-
-El instalador resultante es un `.exe` one-click que:
-- No requiere permisos de administrador (instala en `%LOCALAPPDATA%`).
-- Registra el complemento de Word automáticamente (sideload vía `Wef\Developer`).
-- Instala el certificado SSL autofirmado silenciosamente al arrancar el backend.
-- Muestra el aviso de SmartScreen (inevitable sin certificado comercial).
-
-## 🔐 Seguridad de Claves de API
-
-- **No se empaquetan claves en el instalador.** `electron-builder.yml` usa
-  empaquetado *whitelist*: solo `dist/**`, `dist-electron/**` y
-  `dist-python/**` (bundle PyInstaller que incluye únicamente
-  `python/assets/`). `.env`, `.env.example`, `storage/` y `requirements.txt`
-  NUNCA se incluyen en `electron:build`.
-- **`.env.example` solo contiene placeholders.** `setup.bat` verifica que no
-  haya claves reales (patrón `nvapi-`/`sk-`/`gsk_`/`csk-`) y aborta si las
-  encuentra, para evitar distribuir una clave real por accidente.
-- **`.env` está en `.gitignore`** y `setup.bat` le aplica ACL de Windows para
-  restringirlo al usuario actual. Nunca lo subas a git ni lo compartas.
-- Las claves que escribes en la UI se conservan en `storage/ai_keys.json`
-  (carpeta local, también gitignore) y se restauran en `os.environ` al iniciar.
-  Es cifrado en reposo no aplicado: las claves están en texto plano en tu disco
-  local, como es típico en apps de escritorio. No compartas la carpeta del
-  proyecto ni hagas backups que la incluyan.
-
-### Claves embebidas en el instalador (ofuscadas)
-
-Para que la IA funcione **sin configuración** en el instalador, las claves de
-los 10 proveedores se empaquetan dentro del instalador de forma **ofuscada**
-(XOR + base64 con semilla compartida), generadas por `python/embed_payload.py`
-desde tu `.env` local en cada `npm run build:backend`:
-
-1. El build lee tu `.env` (local, gitignoreado) y escribe
-   `python/_embedded_payload.json` (gitignoreado, nunca se sube a git).
-2. PyInstaller lo incluye como data en `_internal/_embedded_payload.json`.
-3. En runtime, `python/embedded_secrets.py` lo decodifica y lo inyecta en
-   `os.environ` **solo si la variable aún no está definida** (prioridad:
-   entorno del launcher > claves del usuario en `ai_keys.json` > embebidas).
-
-**Verificado**: ningún fragmento de 10+ caracteres de las claves reales aparece
-en el instalador (`WordAPA7 Setup *.exe`), `app.asar` ni el backend empaquetado.
-
-> ⚠️ **Límite honesto**: esto es *ofuscación*, no cifrado real. Cualquier
-> proceso que pueda *usar* la clave también puede *extraerla* (depurar la app o
-> volcar su memoria/entorno). Solo eleva la barrera contra extracción casual
-> (strings, grep, escaneo binario). **No distribuyas este instalador
-> públicamente**: todos los usuarios compartirían las mismas claves y cuota, y
-> los proveedores pueden bloquearlas. Para distribución pública, la solución
-> real es un proxy server-side (las claves nunca tocan el cliente).
+El instalador generado se guardará en `dist-electron-builder/WordAPA7 Setup X.X.X.exe`.
 
 ---
 
-## 🧪 Pruebas Automatizadas
+## 🛡️ Seguridad y Privacidad
 
-El proyecto cuenta con un suite automatizado de 146 pruebas unitarias e integración:
-
-```bash
-# Ejecutar suite de pruebas pytest
-pytest python/tests
-
-# Validar build de producción frontend React
-npm run build
-```
+- 🔒 **Procesamiento 100% Local Disponible**: El documento puede ser procesado íntegramente de manera local mediante heurísticas internas o modelos offline (Ollama), garantizando confidencialidad absoluta.
+- 🔑 **Gestión Segura de Claves de API**: Las llaves de API ingresadas en la UI se guardan únicamente de forma local en tu máquina (`storage/ai_keys.json`), excluidas de cualquier repositorio o compilación externa.
+- ⚡ **Gate de Sanidad XML**: Antes de permitir la descarga de un documento, el motor de sanidad (`sanity_check.py`) verifica la integridad del texto original pre y post procesamiento. Si detecta una pérdida de texto superior al 5%, bloquea automáticamente el resultado para proteger tu información.
 
 ---
 
-## 🛡️ Seguridad y Buenas Prácticas
+## 🎨 Paleta de Colores Oficial
 
-- 🔒 **Sin Fuga de Credenciales**: `.gitignore` excluye strictly `.env`, archivos de sesión en `storage/` y archivos `.docx` temporales.
-- ⚡ **Gate de Sanidad**: El pipeline mide la retención de caracteres pre/post exportación y bloquea descargas si se detecta una pérdida superior al 5%.
+WordAPA7 utiliza tokens CSS con la paleta de diseño inspirada en Microsoft Word 365:
+
+| Variable CSS | Hexadecimal | Previsualización | Propósito |
+|---|---|---|---|
+| `--accent-primary` | `#4F7CFF` | `████████` | Color de marca, selección y acciones principales |
+| `--paper-white` | `#FFFFFF` | `████████` | Hoja de trabajo e inspección |
+| `--paper-ink` | `#111827` | `████████` | Tinta tipográfica nítida de alto contraste |
+| `--canvas-bg` | `#F8F9FA` | `████████` | Fondo exterior del espacio de trabajo |
+| `--success` | `#16A34A` | `████████` | Cumplimiento reglamentario APA 7 |
+| `--warning` | `#D97706` | `████████` | Advertencias de citas o formato |
+| `--danger` | `#DC2626` | `████████` | Inconsistencias o errores críticos |
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia [MIT](LICENSE).
+Este proyecto se distribuye bajo la Licencia [MIT](LICENSE). Siéntete libre de utilizarlo, modificarlo y distribuirlo para fines académicos o comerciales.
+
+<p align="center">
+  Hecho con ❤️ para estudiantes, docentes e investigadores universitarios.
+</p>

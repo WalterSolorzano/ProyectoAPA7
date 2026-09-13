@@ -310,18 +310,52 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg, #ffffff)', fontFamily: 'var(--font-sans, system-ui, sans-serif)', boxSizing: 'border-box' }}>
+      {/* Barra de progreso animada — visible cuando la IA está procesando */}
+      {isSending && (
+        <div style={{
+          height: '2px',
+          background: 'var(--border-subtle, #e5e7eb)',
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, var(--accent-primary, #4f7cff), transparent)',
+            animation: 'ai-progress-sweep 1.4s ease-in-out infinite',
+            width: '40%',
+          }} />
+        </div>
+      )}
+
       {/* Encabezado Superior Estilo Gemini / Word Task Pane */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-subtle, #e5e7eb)', background: 'var(--surface-elevated, #ffffff)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 2px 8px rgba(79,124,255,0.30)' }}>
-            <Sparkles size={16} />
+
+          {/* Icono con pulso vivo cuando la IA trabaja */}
+          <div style={{ position: 'relative', width: 30, height: 30 }}>
+            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 2px 8px rgba(79,124,255,0.30)' }}>
+              {isSending
+                ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                : <Sparkles size={16} />
+              }
+            </div>
+            {isSending && (
+              <span style={{
+                position: 'absolute', top: -3, right: -3,
+                width: 10, height: 10,
+                borderRadius: '50%',
+                background: 'var(--accent-success, #10b981)',
+                border: '2px solid var(--surface-elevated, #fff)',
+                animation: 'pulse-dot 1.2s ease-in-out infinite',
+              }} />
+            )}
           </div>
           <div>
             <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main, #1a1a2e)', letterSpacing: '-0.01em' }}>
               Copiloto IA
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--text-secondary, #6b7280)', fontWeight: 500 }}>
-              Asistente editorial APA 7
+            <div style={{ fontSize: '10px', color: isSending ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)', fontWeight: 500, transition: 'color 0.3s' }}>
+              {isSending ? 'Analizando...' : 'Asistente editorial APA 7'}
             </div>
           </div>
         </div>
@@ -348,6 +382,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           )}
         </div>
       </div>
+
 
       {/* Barra de Pestañas: Chat Conversacional vs Sugerencias APA 7 */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)', padding: '0 12px', flexShrink: 0 }}>

@@ -301,6 +301,7 @@ export interface DocState {
     source: string; doi_or_url: string; raw_text: string; formatted_apa: string;
     candidates?: { authors: string[]; year: string; title: string; source: string; doi?: string; formatted_apa: string; relevance: string }[];
   } | null>;
+  autoResolveAllGhostCitations: () => Promise<void>;
 
   /** Engine V2 (P2): auditoría estructural global via LLM. */
   runStructureAudit: () => Promise<void>;

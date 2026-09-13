@@ -33,18 +33,40 @@ _FIRST_PERSON = re.compile(
 
 _QUOTES = re.compile(r"[«\"“”'‘’]")
 
-# ---------------------------------------------------------------- frases IA
+# ---------------------------------------------------------------- frases IA (Patrones unívocos de modelos de lenguaje)
 _AI_PHRASES = [
-    "en conclusión", "en resumen", "cabe destacar", "cabe mencionar",
-    "es importante mencionar", "si quieres más", "como modelo de lenguaje",
-    "no puedo ayudar", "hasta luego", "sin duda alguna",
+    "cabe destacar", "como modelo de lenguaje", "no puedo ayudar", "hasta luego", "sin duda alguna",
     "juega un papel crucial", "desempeña un papel fundamental",
     "en el mundo actual", "en la sociedad actual",
-    "desde tiempos inmemoriales", "es importante recalcar",
+    "desde tiempos inmemoriales", "es importante recalcar que",
+    "es menester destacar", "es de suma importancia",
+    "un pilar fundamental", "un papel primordial",
+    "a modo de conclusión se puede afirmar", "en resumidas cuentas podemos decir",
+    "un enfoque holístico", "un análisis profundo", "una mirada detallada",
+    "un enfoque exhaustivo", "una comprensión más profunda", "perspectiva holística",
+    "marco conceptual", "cuerpo teórico", "panorama amplio", "en el contexto de",
 ]
 
 _MULETILLA_START = re.compile(r"^(?:además|asimismo|por otro lado|en primer lugar)\b[,:]?",
                               re.IGNORECASE)
+
+# ---------------------------------------------------------------- Taxonomía de Bloom (Mega-Set)
+BLOOM_VERBS = {
+    'recordar':   ['citar', 'definir', 'describir', 'enumerar', 'identificar', 'listar', 'nombrar', 'recordar', 'reconocer', 'reproducir', 'señalar'],
+    'entender':   ['clasificar', 'comparar', 'contrastar', 'discutir', 'explicar', 'expresar', 'ilustrar', 'interpretar', 'parafrasear', 'resumir', 'traducir'],
+    'aplicar':    ['aplicar', 'calcular', 'demostrar', 'dramatizar', 'emplear', 'ejecutar', 'escoger', 'ilustrar', 'practicar', 'resolver', 'usar', 'utilizar'],
+    'analizar':   ['analizar', 'categorizar', 'comparar', 'contrastar', 'diferenciar', 'distinguir', 'examinar', 'investigar', 'relacionar', 'separar', 'subdividir'],
+    'evaluar':    ['argumentar', 'defender', 'evaluar', 'justificar', 'validar', 'valorar', 'verificar', 'criticar', 'priorizar', 'recomendar', 'seleccionar'],
+    'crear':      ['asumir', 'combinar', 'compilar', 'componer', 'construir', 'diseñar', 'desarrollar', 'formular', 'generar', 'integrar', 'inventar', 'planear', 'planificar', 'proponer', 'sintetizar'],
+}
+
+BLOOM_LEVELS = {
+    'recordar': 1, 'entender': 2, 'aplicar': 3,
+    'analizar': 4, 'evaluar': 5, 'crear': 6,
+}
+
+VAGUE_VERBS = ['conocer', 'entender', 'aprender', 'saber', 'comprender', 'estudiar',
+               'familiarizarse', 'tener idea de', 'estar al tanto de', 'darse cuenta de']
 
 # ---------------------------------------------------------------- B1 repetición
 _SENT_START_DUP = re.compile(r"^(?:el|la|los|las|un|una|es|se|su|en|al|de)\b", re.IGNORECASE)
@@ -114,16 +136,24 @@ def detect_repeated_ngrams(elements: List[Any]) -> List[Dict[str, Any]]:
 
     flagged_keys = sorted(
         [k for k, occurrences in ngram_occurrences.items() if len(occurrences) >= 3],
-        key=lambda k: len(k),
+        key=lambda k: (len(k.split()), len(k)),
         reverse=True,
     )
 
+    # Filtrar subfrases contenidas en frases más largas ya marcadas
+    filtered_keys: List[str] = []
+    for key in flagged_keys:
+        if not any(key != longer and key in longer for longer in filtered_keys):
+            filtered_keys.append(key)
+
     seen_ranges_per_elem: Dict[str, List[tuple[int, int]]] = {}
 
-    for key in flagged_keys:
+    for key in filtered_keys:
+        if len(out) >= 5:  # Cáp máximo de 5 hallazgos de repetición n-gram por documento
+            break
         occurrences = ngram_occurrences[key]
         cnt = len(occurrences)
-        for eid, start, end, snippet, full_text in occurrences:
+        for eid, start, end, snippet, full_text in occurrences[:3]:
             if eid not in seen_ranges_per_elem:
                 seen_ranges_per_elem[eid] = []
             if any(s <= start and end <= e_pos for s, e_pos in seen_ranges_per_elem[eid]):
@@ -285,14 +315,25 @@ _TYPOS: Dict[str, str] = {
     "quiza": "quizá", "solucion": "solución", "atencion": "atención",
     "informacion": "información", "investigacion": "investigación",
     "educacion": "educación", "poblacion": "población",
-    "sociedad ": None,  # placeholder ignorado
     "analisis": "análisis", "proposito": "propósito",
     "periodo": "período", "practica": "práctica",
     "politica": "política", "tecnologia": "tecnología",
-    "economia": "economía", "historia ": None,  # válido, ignorar
+    "economia": "economía", "redaccion": "redacción",
+    "metodologia": "metodología", "seccion": "sección",
+    "conclusion": "conclusión", "grafico": "gráfico",
+    "paginas": "páginas", "parrafo": "párrafo",
+    "sintesis": "síntesis", "teoria": "teoría",
+    "pagina": "página", "numeros": "números",
+    "evaluacion": "evaluación", "produccion": "producción",
+    "distribucion": "distribución", "tecnica": "técnica",
+    "logistica": "logística", "hipotesis": "hipótesis",
+    "estadistica": "estadística", "matematica": "matemática",
+    "fisica": "física", "quimica": "química",
+    "caracteristica": "característica", "sistematica": "sistemática",
+    "especifico": "específico", "especifica": "específica",
     "q": "que", "xq": "porque", "pq": "porque", "xbj": "objeto",
     "atravez": "a través", "asin": "así", "ce": "se", "valla": "valle",
-    "hasta": None, "haora": "ahora", "agarrar ": None,
+    "haora": "ahora",
 }
 _TYPOS = {k: v for k, v in _TYPOS.items() if v}  # limpia placeholders
 _TYPO_RE = re.compile(
@@ -530,3 +571,135 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
         return kept_local, True
     except Exception:
         return findings, False
+
+
+# ---------------------------------------------------------------- Mega-Set: Bloom Taxonomy & Quantitative Indicators
+def find_bloom_level(verb: str) -> int | None:
+    """Devuelve el nivel Bloom (1-6) de un verbo, o None si no se encuentra."""
+    verb_lower = verb.lower().strip()
+    for level, verbs in BLOOM_VERBS.items():
+        if verb_lower in [v.lower() for v in verbs]:
+            return BLOOM_LEVELS[level]
+    for level, verbs in BLOOM_VERBS.items():
+        for v in verbs:
+            if v.lower() in verb_lower:
+                return BLOOM_LEVELS[level]
+    return None
+
+
+def audit_objective(objective_text: str) -> Dict[str, Any]:
+    """Evalúa un objetivo académico individual contra los criterios de Bloom (Mega-Set §2.2)."""
+    obj_lower = (objective_text or "").lower()
+    found_level = None
+    found_verb = None
+
+    for level, verbs in BLOOM_VERBS.items():
+        for v in verbs:
+            if v in obj_lower:
+                found_level = level
+                found_verb = v
+                break
+        if found_level:
+            break
+
+    vague_found = [v for v in VAGUE_VERBS if v in obj_lower]
+
+    return {
+        "objective": objective_text,
+        "bloom_level": found_level,
+        "verb_detected": found_verb,
+        "is_measurable": found_level is not None and not vague_found,
+        "vague_verbs_used": vague_found,
+        "severity": "high" if vague_found else ("ok" if found_level else "medium"),
+        "recommendation": (
+            f"✓ Verbo '{found_verb}' válido (nivel {found_level})"
+            if found_level and not vague_found
+            else f"✗ Verbos vagos: {', '.join(vague_found)}. Reemplazar por verbos medibles (ej. analizar, diseñar, evaluar)."
+            if vague_found
+            else "⚠ No se detectó verbo de Bloom accionable. Considerar reformular."
+        ),
+    }
+
+
+def audit_objectives_hierarchy(general: str, specifics: List[str]) -> Dict[str, Any]:
+    """Audita la jerarquía de coherencia entre objetivo general y específicos (Mega-Set §12).
+    
+    Regla: Los objetivos específicos NUNCA pueden tener un nivel Bloom superior al general.
+    """
+    findings = []
+    gen_audit = audit_objective(general)
+    gen_level = BLOOM_LEVELS.get(gen_audit["bloom_level"], None) if gen_audit["bloom_level"] else None
+
+    if not gen_level:
+        findings.append({
+            "severity": "high",
+            "title": "Objetivo general sin verbo Bloom medible",
+            "description": f'El objetivo general "{general}" no usa un verbo medible.',
+            "recommendation": "Reformular con un verbo accionable como Analizar, Evaluar, Diseñar o Proponer."
+        })
+
+    specific_results = []
+    for i, spec in enumerate(specifics, 1):
+        sp_audit = audit_objective(spec)
+        sp_level = BLOOM_LEVELS.get(sp_audit["bloom_level"], None) if sp_audit["bloom_level"] else None
+        
+        issue = None
+        if not sp_level:
+            issue = "Sin verbo Bloom medible"
+        elif gen_level and sp_level > gen_level:
+            issue = f"Específico nivel {sp_level} supera al general ({gen_level})"
+            findings.append({
+                "severity": "high",
+                "title": f"Objetivo específico #{i} supera nivel del general",
+                "description": f'El específico #{i} ({sp_audit["verb_detected"]}) requiere nivel {sp_level}, superior al general (nivel {gen_level}).',
+                "recommendation": f"Reformular el específico con un verbo de nivel ≤{gen_level} o elevar el general."
+            })
+        
+        specific_results.append({
+            "index": i,
+            "text": spec,
+            "bloom_level": sp_level,
+            "verb_detected": sp_audit["verb_detected"],
+            "issue": issue,
+        })
+
+    return {
+        "general_level": gen_level,
+        "specific_results": specific_results,
+        "findings": findings,
+        "is_coherent": len([f for f in findings if f["severity"] == "high"]) == 0,
+    }
+
+
+def burstiness_score(sentences: List[str]) -> Dict[str, Any]:
+    """Calcula la variabilidad en longitud de oraciones (Burstiness) (Mega-Set §6.1)."""
+    if not sentences:
+        return {"score": 0.5, "interpretation": "sin oraciones"}
+
+    lengths = [len(_words(s)) for s in sentences if len(_words(s)) > 0]
+    if len(lengths) < 5:
+        return {"score": 0.5, "interpretation": "texto muy corto"}
+
+    avg = sum(lengths) / len(lengths)
+    std = (sum((l - avg) ** 2 for l in lengths) / len(lengths)) ** 0.5
+    cv = std / avg if avg > 0 else 0
+
+    if cv < 0.15:
+        score = 0.1
+    elif cv < 0.20:
+        score = 0.3
+    elif cv < 0.30:
+        score = 0.5
+    elif cv <= 0.60:
+        score = 0.9
+    else:
+        score = 0.6
+
+    return {
+        "burstiness_score": score,
+        "cv": round(cv, 3),
+        "avg_length": round(avg, 1),
+        "std_length": round(std, 1),
+        "interpretation": "Probable humano (variación natural)" if score >= 0.7 else "Sospecha IA (longitud muy homogénea)" if score <= 0.3 else "Indeterminado",
+    }
+

@@ -36,36 +36,61 @@ class COMPostProcessor:
                 preserve_cover: bool = False, generate_pdf: bool = True,
                 rules=None) -> Tuple[bool, Optional[Path]]:
         """
-        Post-procesa el documento generado.
+        Post-procesa el documento generado con Word COM.
         Retorna (exito: bool, ruta_pdf: Optional[Path])
 
+        Fix A2 + B2:
+        - Usa DispatchEx completamente LOCAL (no WordCOMService singleton).
+          Word se crea y destruye en el mismo hilo, sin estado compartido.
+          Nunca queda abierto para el usuario.
+        - preserve_cover=True ya NO hace trasplante aqui. El trasplante OpenXML
+          lo hace DocConverterService como pre-paso. Word aqui solo aplica estilos
+          y exporta PDF sobre el DOCX ya ensamblado.
+
         ``rules`` es un APARuleSet (Pydantic). Si se proporciona, los estilos
-        APA se aplican respetando la configuración del usuario en lugar de los
-        defaults hardcoded. Si es ``None``, se usan los defaults APA clásicos
-        (backward compatible).
+        APA se aplican respetando la configuracion del usuario.
         """
         if not self.is_available():
-            logger.warning("[COM PostProcessor] COM no está disponible en este sistema.")
+            logger.warning("[COM PostProcessor] COM no esta disponible en este sistema.")
             shutil.copy(generated_path, final_path)
             return False, None
 
         import concurrent.futures
-
         import pythoncom
+
+        # El DOCX a procesar es final_path (ya ensamblado por DocConverterService).
+        # Si por alguna razon final_path no existe aun, copiar desde generated_path.
+        if not final_path.exists():
+            shutil.copy(generated_path, final_path)
 
         def _do_process():
             pythoncom.CoInitialize()
             word = None
             doc = None
             pdf_path = None
+            word_pid = None
             try:
-                from services.word_com_service import get_word_com_service
-                word_service = get_word_com_service()
-                word = word_service.word
-                if not word:
-                    raise Exception("Word COM Service failed to provide a valid Word instance")
+                import win32com.client
+                import psutil as _psutil
 
+                # Registrar PIDs antes de crear la instancia para poder identificar
+                # el proceso nuevo y cerrarlo quirurgicamente si algo falla.
+                pids_before = set(
+                    p.pid for p in _psutil.process_iter(["name"])
+                    if p.info["name"] == "WINWORD.EXE"
+                )
 
+                # DispatchEx crea una instancia NUEVA, no se conecta a una existente.
+                word = win32com.client.DispatchEx("Word.Application")
+
+                pids_after = set(
+                    p.pid for p in _psutil.process_iter(["name"])
+                    if p.info["name"] == "WINWORD.EXE"
+                )
+                new_pids = pids_after - pids_before
+                word_pid = new_pids.pop() if new_pids else None
+
+                # Asegurar invisibilidad total
                 word.Visible = False
                 word.DisplayAlerts = 0
                 try:
@@ -73,69 +98,43 @@ class COMPostProcessor:
                 except Exception:
                     pass
                 try:
-                    word.WindowState = 2
+                    word.WindowState = 2  # wdWindowStateMinimize
+                except Exception:
+                    pass
+                try:
+                    word.ShowStartupDialog = False
                 except Exception:
                     pass
 
-                if preserve_cover:
-                    # Trasplante quirúrgico
-                    # 1. Copiar original a final
-                    shutil.copy(original_path, final_path)
-
-                    # 2. Abrir final.docx (que ahora es copia del original)
-                    doc = word.Documents.Open(
-                        str(final_path.resolve()),
-                        ConfirmConversions=False,
-                        AddToRecentFiles=False,
-                        Visible=False,
-                    )
-
-                    # 3. Borrar de pág 2 en adelante
-                    # wdGoToPage = 1, wdGoToAbsolute = 1
-                    page2 = doc.GoTo(1, 1, 2)
-                    if page2.Start > 0 and page2.Start < doc.Content.End - 1:
-                        doc.Range(page2.Start, doc.Content.End).Delete()
-
-                    # 4. Insertar página de salto y el doc generado
-                    end_range = doc.Range(doc.Content.End-1, doc.Content.End-1)
-                    end_range.InsertBreak(7) # wdPageBreak
-
-                    end_range = doc.Range(doc.Content.End-1, doc.Content.End-1)
-                    end_range.InsertFile(str(generated_path.resolve()))
-                else:
-                    # Solo copiar generado a final y abrir
-                    shutil.copy(generated_path, final_path)
-                    doc = word.Documents.Open(
-                        str(final_path.resolve()),
-                        ConfirmConversions=False,
-                        AddToRecentFiles=False,
-                        Visible=False,
-                    )
+                # Abrir el DOCX ya ensamblado (portada + cuerpo).
+                # preserve_cover ya fue gestionado por DocConverterService.
+                doc = word.Documents.Open(
+                    str(final_path.resolve()),
+                    ConfirmConversions=False,
+                    AddToRecentFiles=False,
+                    Visible=False,
+                )
 
                 try:
-                    if hasattr(doc, 'ActiveWindow') and doc.ActiveWindow:
+                    if hasattr(doc, "ActiveWindow") and doc.ActiveWindow:
                         doc.ActiveWindow.Visible = False
                 except Exception:
                     pass
 
-                # 5. Aplicar estilos APA con el motor real de Word.
-                # Python-docx los escribió en styles.xml pero Word es la autoridad.
+                # Aplicar estilos APA con el motor real de Word.
                 self._apply_apa_styles(word, doc, rules=rules)
 
-                # 6. Layout enforcement PASS 1: pageBreakBefore, KeepWithNext,
-                #    tablas partidas → corregir. Luego guardar para que Word
-                #    re-pagine con los nuevos estilos.
+                # Layout enforcement PASS 1
                 self._enforce_layout(doc)
                 doc.Save()
-                # PASS 2: re-medir (los estilos+layout del pass 1 pueden haber
-                # desplazado contenido). Corregir remanentes.
+                # PASS 2: re-medir tras aplicar estilos+layout del pass 1
                 self._enforce_layout(doc)
 
-                # 7. Diagnóstico: resumen de la estructura final
+                # Diagnostico de estructura final
                 diag = self._diagnostic_report(doc)
-                logger.info(f"[COM PostProcessor] Diagnóstico: {diag}")
+                logger.info(f"[COM PostProcessor] Diagnostico: {diag}")
 
-                # 8. Actualizar campos de Word y TOC (los headings están en sus páginas finales)
+                # Actualizar campos de Word y TOC
                 try:
                     doc.Fields.Update()
                 except Exception:
@@ -149,57 +148,68 @@ class COMPostProcessor:
                 # Guardar cambios finales del DOCX
                 doc.Save()
 
-                # 9. Exportar a PDF con hipervínculos interactivos y marcadores
+                # Exportar a PDF de alta fidelidad con hipervinculos y marcadores
                 if generate_pdf:
                     pdf_path = final_path.with_suffix(".pdf")
-                    # wdExportFormatPDF = 17, wdExportOptimizeForPrint = 0, wdExportCreateHeadingBookmarks = 1
                     doc.ExportAsFixedFormat(
                         OutputFileName=str(pdf_path.resolve()),
-                        ExportFormat=17,
+                        ExportFormat=17,        # wdExportFormatPDF
                         OpenAfterExport=False,
-                        OptimizeFor=0,
-                        CreateBookmarks=1,
+                        OptimizeFor=0,          # wdExportOptimizeForPrint
+                        CreateBookmarks=1,      # wdExportCreateHeadingBookmarks
                         DocStructureTags=True,
                         BitmapMissingFonts=True,
-                        UseISO19005_1=False
+                        UseISO19005_1=False,
                     )
 
                 return True, pdf_path
 
             except Exception as e:
                 logger.error(f"[COM PostProcessor] Error procesando: {e}")
-                # Resiliencia: si el trasplante/PDF falló, al menos entregar el
-                # DOCX generado (degradado, sin portada transplantada exacta).
-                try:
-                    shutil.copy(generated_path, final_path)
-                except Exception:
-                    return False, None
-                return False, f"Post-proceso COM falló: {e}"
+                return False, f"Post-proceso COM fallo: {e}"
             finally:
-                if doc:
+                # Cerrar documento primero
+                if doc is not None:
                     try:
                         doc.Close(SaveChanges=False)
                     except Exception:
                         pass
+                    doc = None
 
+                # Cerrar la instancia de Word que creamos nosotros
+                if word is not None:
+                    try:
+                        word.Quit(0)
+                    except Exception:
+                        pass
+                    word = None
 
-                doc = None
-                word = None
+                # Matar el proceso si aun esta vivo (caso de crash de Word)
+                if word_pid is not None:
+                    try:
+                        import psutil as _psutil
+                        p = _psutil.Process(word_pid)
+                        if p.name() == "WINWORD.EXE":
+                            # Esperar 2s a que cierre normalmente antes de forzar
+                            import time as _t
+                            _t.sleep(2.0)
+                            if p.is_running():
+                                p.kill()
+                    except Exception:
+                        pass
 
                 try:
                     pythoncom.CoUninitialize()
                 except Exception:
                     pass
 
-        # Usar ThreadPoolExecutor para proteger el hilo principal
+        # ThreadPoolExecutor protege el hilo principal de asyncio
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(_do_process)
             try:
-                # Timeout generoso de 60s
-                return future.result(timeout=60)
+                return future.result(timeout=90)
             except concurrent.futures.TimeoutError:
                 logger.error("[COM PostProcessor] Timeout esperando a Word.")
-                shutil.copy(generated_path, final_path)
                 return False, None
 
     def _enforce_layout(self, doc) -> None:

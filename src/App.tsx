@@ -24,7 +24,7 @@ import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
-// D1: EditorRail removed — the Sparkles toggle now lives inside RightSidePanel
+import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
 import { StepRail } from './components/wizard/StepRail';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 
@@ -216,9 +216,9 @@ const LiveChatFloatingCard: React.FC = () => {
         data-copilot-btn="true"
         style={{
           position: 'fixed',
-          bottom: '68px',
-          right: '20px',
-          zIndex: 990,
+          bottom: '20px',
+          right: '24px',
+          zIndex: 800,
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
@@ -522,8 +522,8 @@ export const App: React.FC = () => {
           e.preventDefault();
           if (!doc) return;
           const step = useDocStore.getState().wizardStep;
-          if (step < 4) useDocStore.getState().setWizardStep(step + 1);
-          else if (step === 4) useDocStore.getState().openExportTunnel();
+          if (step < 5) useDocStore.getState().setWizardStep(step + 1);
+          else if (step === 5) useDocStore.getState().setWizardStep(6);
           return;
         }
         if (e.shiftKey && (e.key === '[' || e.key === '{')) {
@@ -542,13 +542,13 @@ export const App: React.FC = () => {
             e.preventDefault();
             if (!doc) break;
             const step = useDocStore.getState().wizardStep;
-            const nextWithPending = [1, 2, 3, 4].find(s => s > step && pendingCountForPhase(s) > 0);
+            const nextWithPending = [1, 2, 3, 4, 5].find(s => s > step && pendingCountForPhase(s) > 0);
             if (nextWithPending) {
               useDocStore.getState().setWizardStep(nextWithPending);
-            } else if (step < 4) {
+            } else if (step < 5) {
               useDocStore.getState().setWizardStep(step + 1);
-            } else if (step === 4) {
-              useDocStore.getState().openExportTunnel();
+            } else if (step === 5) {
+              useDocStore.getState().setWizardStep(6);
             }
             break;
           }
@@ -576,16 +576,16 @@ export const App: React.FC = () => {
             e.preventDefault();
             useDocStore.setState({ commandPaletteOpen: true });
             break;
-          case '1': case '2': case '3': case '4':
+          case '1': case '2': case '3': case '4': case '5':
             e.preventDefault();
             if (doc) {
               useDocStore.getState().setWizardStep(parseInt(e.key));
             }
             break;
-          case '5': case '6':
+          case '6':
             e.preventDefault();
             if (doc) {
-              useDocStore.getState().openExportTunnel();
+              useDocStore.getState().setWizardStep(6);
             }
             break;
           default:
@@ -723,28 +723,8 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : wizardStep === 1 ? (
-          <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }}>
-            {!focusMode && (
-              <>
-                <div style={{ width: `${leftSidebarWidth}px`, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
-                  <CoverEditorPanel />
-                </div>
-                <div
-                  onMouseDown={(e) => { e.preventDefault(); setIsLeftResizing(true); }}
-                  title="Arrastra para redimensionar el panel de portada"
-                  style={{
-                    width: '4px', cursor: 'col-resize',
-                    backgroundColor: isLeftResizing ? 'var(--accent-primary)' : 'var(--border-subtle)',
-                    transition: 'background-color 0.15s ease', flexShrink: 0, zIndex: 10,
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent-primary)'; }}
-                  onMouseLeave={(e) => { if (!isLeftResizing) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--border-subtle)'; }}
-                />
-              </>
-            )}
-            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
-              <Step1PortadaWizard />
-            </div>
+          <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
+            <Step1PortadaWizard />
           </div>
         ) : (
           /* D1: EditorRail removed — RightSidePanel handles the assistant toggle */
@@ -756,11 +736,12 @@ export const App: React.FC = () => {
                   {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
                   {wizardStep === 3 && <Step3FiguresTablesWizard />}
                   {wizardStep === 4 && <Step5ReferencesWizard />}
-                  {wizardStep === 5 && <ExportView />}
+                  {wizardStep === 5 && <Step5AuditIAWizard />}
+                  {wizardStep === 6 && <ExportView />}
                 </div>
               </div>
               {/* Mapa del documento y panel contextual: activo en pasos 2 y 3 */}
-              {wizardStep !== 4 && wizardStep !== 5 && !focusMode && <RightSidePanel />}
+              {wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}
             </div>
           </>
         )}

@@ -1108,8 +1108,12 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 break
 
             next_norm = _normalize_accent(next_txt.lower())
+            body_start_kws = ("resumen", "abstract", "introduccion", "introducción", "indice", "índice", "tabla de contenido", "desarrollo", "marco teorico", "conclusiones")
+            if any(kw in next_norm for kw in body_start_kws) or next_norm.startswith(("resumen", "abstract", "introducc")):
+                break
+
             # Si es un heading con keyword de cuerpo, es el fin de la portada
-            if any(kw in next_norm for kw in _expanded_body_kws) or "heading" in (next_elem.style_name or "").lower():
+            if "heading" in (next_elem.style_name or "").lower():
                 break
             if next_elem.type == ElementType.HEADING and len(next_txt.split()) <= 10:
                 has_cover_kw = any(pat.search(next_norm) for pat in cover_kw_patterns)
@@ -1123,6 +1127,23 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             else:
                 break
 
+    # Clic estricto: portada_boundary JAMÁS puede sobrepasar la primera señal innegable de cuerpo (ej: "Resumen", "Abstract", "Introducción", etc.)
+    body_start_kws = ("resumen", "abstract", "introduccion", "introducción", "indice", "índice", "tabla de contenido", "desarrollo", "marco teorico", "conclusiones", "justificacion", "antecedentes", "objetivo")
+    strict_body_limit = None
+    for i, e in enumerate(elements):
+        txt_norm = _normalize_accent((e.text or "").strip().lower())
+        if not txt_norm:
+            continue
+        is_body_kw = any(kw in txt_norm for kw in body_start_kws) or txt_norm.startswith(("resumen", "abstract", "introducc"))
+        is_cover_meta = any(pat.search(txt_norm) for pat in cover_kw_patterns)
+        if is_body_kw and not is_cover_meta and len(txt_norm.split()) <= 15:
+            strict_body_limit = i
+            break
+
+    if strict_body_limit is not None:
+        if portada_boundary is None or portada_boundary > strict_body_limit:
+            portada_boundary = strict_body_limit
+
     # ── Variables de estado para detección de logo de portada ──────────────
     # El portada_boundary a veces NO incluye el logo de la universidad, lo
     # que hace que se numere incorrectamente como "Figura 1". Estas
@@ -1132,7 +1153,9 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
     first_body_image = True        # ¿Es esta la primera imagen del cuerpo?
 
     for idx, elem in enumerate(elements):
-        if idx < portada_boundary:
+        txt_norm = _normalize_accent((elem.text or "").strip().lower())
+        is_body_kw_elem = (any(kw in txt_norm for kw in body_start_kws) or txt_norm.startswith(("resumen", "abstract", "introducc"))) and len(txt_norm.split()) <= 15
+        if idx < (portada_boundary or 0) and not is_body_kw_elem:
             elem.is_cover_section = True
             # Convertir tanto párrafos como headings a portada_block dentro
             # de la portada (evita que "Docente:", "Grupo:", fecha y lugar

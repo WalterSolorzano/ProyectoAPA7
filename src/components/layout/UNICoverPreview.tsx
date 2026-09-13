@@ -37,9 +37,16 @@ export const UNICoverPreview: React.FC = () => {
   const tutorName = portada.instructor || (tutores.length > 0 ? tutores[0].nombre : '');
   const grupo = portada.grupo || '';
 
-  // Columnas de estudiantes dinámicas: pocos estudiantes = pocas columnas,
-  // para no dejar columnas vacías con separadores (mismo criterio que el .docx).
-  const nStudentCols = Math.min(3, Math.max(1, estudiantes.length));
+  // Columnas de estudiantes dinámicas adaptativas:
+  // 1 estudiante  -> 1 col (balanceado)
+  // 2 estudiantes -> 2 cols (balanceado)
+  // 3 estudiantes -> 3 cols (1 fila)
+  // 4 estudiantes -> 2 cols x 2 filas (simetría 2x2)
+  // 5-6 estudiantes -> 3 cols x 2 filas
+  let nStudentCols = 3;
+  if (estudiantes.length <= 1) nStudentCols = 1;
+  else if (estudiantes.length === 2 || estudiantes.length === 4) nStudentCols = 2;
+
   const studentCols: { nombre: string; carnet: string }[][] = Array.from({ length: nStudentCols }, () => []);
   estudiantes.forEach((a, i) => {
     studentCols[i % nStudentCols].push({ nombre: a.nombre, carnet: a.carnet });
@@ -48,9 +55,12 @@ export const UNICoverPreview: React.FC = () => {
 
   const cellStyle: React.CSSProperties = {
     flex: 1,
-    padding: '6px 10px',
+    minWidth: 0,
+    padding: '6px 8px',
     fontSize: '11pt',
     color: BLACK,
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
   };
 
   return (
@@ -76,19 +86,19 @@ export const UNICoverPreview: React.FC = () => {
         />
       </div>
 
-      {/* Área de conocimiento — 20pt, centrado (editable desde el panel) */}
-      <p id="cover-field-departamento" style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '4px 0 24px', ...hl('departamento') }}>
+      {/* Área de conocimiento — centrado, escalable */}
+      <p id="cover-field-departamento" style={{ textAlign: 'center', fontSize: '15pt', color: BLACK, margin: '4px 0 18px', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('departamento') }}>
         {portada.departamento || 'Área de Conocimiento de Ingeniería y Afines'}
       </p>
 
-      {/* Título — Montserrat Black 20pt */}
-      <p id="cover-field-title" style={{ textAlign: 'center', fontSize: '20pt', fontWeight: 900, color: BLACK, margin: '0 0 24px', fontFamily: 'Montserrat, sans-serif', ...hl('title') }}>
+      {/* Título — Montserrat Black */}
+      <p id="cover-field-title" style={{ textAlign: 'center', fontSize: '16pt', fontWeight: 900, color: BLACK, margin: '0 0 18px', fontFamily: 'Montserrat, sans-serif', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('title') }}>
         {portada.title || 'Título del trabajo'}
       </p>
 
-      {/* Asignatura — 20pt */}
+      {/* Asignatura */}
       {portada.course && (
-        <p id="cover-field-course" style={{ textAlign: 'center', fontSize: '20pt', color: BLACK, margin: '0 0 40px', ...hl('course') }}>
+        <p id="cover-field-course" style={{ textAlign: 'center', fontSize: '14pt', color: BLACK, margin: '0 0 24px', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('course') }}>
           {portada.course}
         </p>
       )}
@@ -98,17 +108,17 @@ export const UNICoverPreview: React.FC = () => {
         Elaborado por
       </p>
 
-      {/* Autores en 4 columnas con separadores verticales */}
-      <div style={{ display: 'flex', borderTop: '1px solid transparent' }}>
+      {/* Autores en columnas con separadores verticales */}
+      <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: '4px' }}>
         {cols.map((col, ci) => (
           <React.Fragment key={ci}>
             <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? '1px solid #000' : 'none' }}>
               {col.map((a, ai) => (
                 <div key={ai} style={{ marginBottom: '10px', fontFamily: 'Montserrat, sans-serif' }}>
-                  <div style={{ fontSize: '11pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK }}>{a.nombre}</div>
+                  <div style={{ fontSize: '10.5pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK, wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2 }}>{a.nombre}</div>
                   {a.carnet && (
-                    <div style={{ fontSize: '10pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK }}>
-                      {ci === cols.length - 1 && /^Grupo/.test(a.carnet) ? a.carnet : (a.carnet.startsWith('Carnet:') || a.carnet.startsWith('Grupo:') ? a.carnet : `Carnet: ${a.carnet}`)}
+                    <div style={{ fontSize: '9.5pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK, wordBreak: 'break-word', overflowWrap: 'break-word', marginTop: '2px', lineHeight: 1.2 }}>
+                      {a.carnet.startsWith('Carnet:') || a.carnet.startsWith('Grupo:') ? a.carnet : `Carnet: ${a.carnet}`}
                     </div>
                   )}
                 </div>

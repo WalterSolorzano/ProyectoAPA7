@@ -20,7 +20,7 @@ import {
   School, FileText, Check, ChevronRight, Users, Calendar,
   GraduationCap, X, Hash, Layers,
 } from 'lucide-react';
-import { requestCoverFieldHighlight } from '../../lib/portadaAuthors';
+import { requestCoverFieldHighlight, parseAuthorEntries, serializeAuthorEntries } from '../../lib/portadaAuthors';
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -205,28 +205,41 @@ export const CoverEditorPanel: React.FC = () => {
 
   /* ── Integrantes / Autor ──────────────────────────────────────────────── */
 
-  const currentAuthors = useMemo(() => parseAuthors(portada.author || ''), [portada.author]);
+  const authorEntries = useMemo(() => parseAuthorEntries(portada.author || ''), [portada.author]);
+  const currentAuthors = useMemo(() => authorEntries.map((a) => a.nombre), [authorEntries]);
+
+  const handleUpdateAuthorEntry = (index: number, field: 'nombre' | 'carnet', value: string) => {
+    const updated = [...authorEntries];
+    updated[index] = { ...updated[index], [field]: value };
+    const serialized = serializeAuthorEntries(updated);
+    updateCoverField('author', serialized);
+    requestCoverFieldHighlight('author');
+  };
+
+  const handleAddAuthorEntry = () => {
+    const updated = [...authorEntries, { nombre: 'Br. Nuevo Estudiante', carnet: '' }];
+    const serialized = serializeAuthorEntries(updated);
+    updateCoverField('author', serialized);
+    requestCoverFieldHighlight('author');
+  };
+
+  const handleRemoveAuthorEntry = (index: number) => {
+    const updated = authorEntries.filter((_, i) => i !== index);
+    const serialized = serializeAuthorEntries(updated);
+    updateCoverField('author', serialized);
+    requestCoverFieldHighlight('author');
+  };
 
   const isAuthorSelected = (nombre: string): boolean =>
     currentAuthors.some((a) => a.toLowerCase() === nombre.toLowerCase());
 
   const toggleIntegrante = (nombre: string) => {
-    const list = parseAuthors(portada.author || '');
-    const exists = list.some((a) => a.toLowerCase() === nombre.toLowerCase());
+    const exists = currentAuthors.some((a) => a.toLowerCase() === nombre.toLowerCase());
     const next = exists
-      ? list.filter((a) => a.toLowerCase() !== nombre.toLowerCase())
-      : [...list, nombre];
-    const joined = joinAuthors(next);
-    updateCoverField('author', joined);
-    requestCoverFieldHighlight('author');
-  };
-
-  const removeAuthor = (nombre: string) => {
-    const next = parseAuthors(portada.author || '').filter(
-      (a) => a !== nombre,
-    );
-    const joined = joinAuthors(next);
-    updateCoverField('author', joined);
+      ? authorEntries.filter((a) => a.nombre.toLowerCase() !== nombre.toLowerCase())
+      : [...authorEntries, { nombre, carnet: '' }];
+    const serialized = serializeAuthorEntries(next);
+    updateCoverField('author', serialized);
     requestCoverFieldHighlight('author');
   };
 
@@ -300,109 +313,6 @@ export const CoverEditorPanel: React.FC = () => {
         flex: 1, overflowY: 'auto', padding: '14px',
         display: 'flex', flexDirection: 'column', gap: '16px',
       }}>
-        {/* Selector de modo de portada: 3 opciones visuales claras */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={blockTitle}><Layers size={12} /> Modo de Portada</div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {/* Opción 1: Conservar y editar original */}
-            <button
-              type="button"
-              onClick={() => setCoverMode('original')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
-                fontFamily: 'inherit',
-                background: currentMode === 'original' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                border: `1.5px solid ${currentMode === 'original' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                borderRadius: '10px',
-                transition: 'border-color 0.15s ease, background 0.15s ease',
-              }}
-            >
-              <span style={{
-                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                border: `1.5px solid ${currentMode === 'original' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                background: currentMode === 'original' ? 'var(--accent-primary)' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {currentMode === 'original' && <Check size={11} color="#fff" strokeWidth={3} />}
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Conservar y editar original
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  Mantiene tu diseño, logos y fuentes intactos
-                </span>
-              </div>
-            </button>
-
-            {/* Opción 2: Plantilla APA 7 */}
-            <button
-              type="button"
-              onClick={() => setCoverMode('apa7')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
-                fontFamily: 'inherit',
-                background: currentMode === 'apa7' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                border: `1.5px solid ${currentMode === 'apa7' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                borderRadius: '10px',
-                transition: 'border-color 0.15s ease, background 0.15s ease',
-              }}
-            >
-              <span style={{
-                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                border: `1.5px solid ${currentMode === 'apa7' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                background: currentMode === 'apa7' ? 'var(--accent-primary)' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {currentMode === 'apa7' && <Check size={11} color="#fff" strokeWidth={3} />}
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Plantilla APA 7 Estándar
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  Diseño formal centrado para estudiantes
-                </span>
-              </div>
-            </button>
-
-            {/* Opción 3: Plantilla UNI */}
-            <button
-              type="button"
-              onClick={() => setCoverMode('uni')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                textAlign: 'left', padding: '10px 12px', cursor: 'pointer',
-                fontFamily: 'inherit',
-                background: currentMode === 'uni' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                border: `1.5px solid ${currentMode === 'uni' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                borderRadius: '10px',
-                transition: 'border-color 0.15s ease, background 0.15s ease',
-              }}
-            >
-              <span style={{
-                width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                border: `1.5px solid ${currentMode === 'uni' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                background: currentMode === 'uni' ? 'var(--accent-primary)' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {currentMode === 'uni' && <Check size={11} color="#fff" strokeWidth={3} />}
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Plantilla Institucional UNI
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  Encabezado y grilla oficial de la institución
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-
         {/* Formulario SIEMPRE activo y editable */}
         <div style={{
           display: 'flex', flexDirection: 'column', gap: '16px',
@@ -411,7 +321,10 @@ export const CoverEditorPanel: React.FC = () => {
 
           {/* ── Título del trabajo ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Título del trabajo</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={fieldLabel}>Título del trabajo</label>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tab para ir a autores</span>
+            </div>
             <textarea
               value={portada.title || ''}
               onChange={(e) => updateCoverField('title', e.target.value)}
@@ -420,54 +333,114 @@ export const CoverEditorPanel: React.FC = () => {
               rows={3}
               style={{ ...baseInput, resize: 'none', lineHeight: 1.45 }}
             />
+            {/* Helper Badge (Contador de Caracteres y Palabras APA 7) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '3px 8px', borderRadius: '999px',
+                backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)',
+                color: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--accent-warning, #d97706)' : 'var(--accent-success, #16a34a)',
+                fontSize: '10.5px', fontWeight: 700,
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
+                <span>
+                  {(portada.title || '').length} caracteres · {(portada.title || '').trim().split(/\s+/).filter(Boolean).length} palabras (APA recomienda máx 12)
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* ── Nombre del autor + Integrantes ─────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Nombre del autor / Integrantes</label>
-            <input
-              type="text"
-              value={portada.author || ''}
-              onChange={(e) => updateCoverField('author', e.target.value)}
-              onFocus={focusHighlight('author')}
-              placeholder="Nombre y apellido (o escribe varios separados por comas)"
-              style={baseInput}
-            />
+          {/* ── Nombre del autor + Integrantes (Editor Estructurado) ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={fieldLabel}>Integrantes / Autores ({authorEntries.length})</label>
+              <button
+                type="button"
+                onClick={handleAddAuthorEntry}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--accent-primary)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                }}
+              >
+                + Agregar Integrante
+              </button>
+            </div>
 
-            {/* Integrantes seleccionados (tags removibles) */}
-            {currentAuthors.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                {currentAuthors.map((nombre) => (
-                  <span key={nombre} style={removableTag}>
-                    <span style={{
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      maxWidth: '180px',
-                    }}>
-                      {nombre}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeAuthor(nombre)}
-                      title="Quitar"
-                      style={removeBtn}
-                    >
-                      <X size={10} strokeWidth={3} />
-                    </button>
-                  </span>
-                ))}
+            {/* Lista de renglones estructurados */}
+            {authorEntries.map((entry, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px',
+                  backgroundColor: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                }}
+              >
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <input
+                    type="text"
+                    value={entry.nombre}
+                    onChange={(e) => handleUpdateAuthorEntry(idx, 'nombre', e.target.value)}
+                    onFocus={focusHighlight('author')}
+                    placeholder="Br. Nombre del Estudiante"
+                    style={{ ...baseInput, padding: '5px 8px', fontSize: '12px' }}
+                  />
+                  <input
+                    type="text"
+                    value={entry.carnet}
+                    onChange={(e) => handleUpdateAuthorEntry(idx, 'carnet', e.target.value)}
+                    onFocus={focusHighlight('author')}
+                    placeholder="Carnet: 202X-XXXXU"
+                    style={{ ...baseInput, padding: '5px 8px', fontSize: '11px', color: 'var(--text-secondary)' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAuthorEntry(idx)}
+                  title="Eliminar integrante"
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    color: 'var(--accent-danger, #ef4444)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              </div>
+            ))}
+
+            {authorEntries.length === 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
+                No hay integrantes agregados. Haz clic en "+ Agregar Integrante" o selecciona del roster.
               </div>
             )}
 
-            {/* Roster de integrantes como chips */}
-            <div style={{ marginTop: '8px' }}>
-              <div style={sectionHeader}>
-                <Users size={12} color="var(--accent-primary)" /> Integrantes
-              </div>
-              {integrantes.length === 0 ? (
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  No hay integrantes guardados en el roster.
-                </span>
-              ) : (
+            {/* Roster de integrantes como chips rápidos */}
+            {integrantes.length > 0 && (
+              <div style={{ marginTop: '4px' }}>
+                <div style={sectionHeader}>
+                  <Users size={12} color="var(--accent-primary)" /> Integrantes del Roster
+                </div>
                 <div style={chipWrap}>
                   {integrantes.map((intg) => {
                     const selected = isAuthorSelected(intg.nombre);
@@ -482,8 +455,8 @@ export const CoverEditorPanel: React.FC = () => {
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* ── Institución ─────────────────────────────────────────────── */}

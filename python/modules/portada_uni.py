@@ -53,14 +53,15 @@ _CM_TO_DXA = 567
 
 
 def _add_run_styled(paragraph, text: str, bold=False, size_pt=12,
-                    font: str = FONT_BODY, color: RGBColor = BLACK):
-    """Agrega un run con estilo específico a un párrafo."""
+                    font: str = FONT_BODY, color: RGBColor = BLACK, color_hex: str = "000000"):
+    """Agrega un run con estilo específico a un párrafo forzando la inyección
+    de color negro puro (000000) y fuentes de respaldo nativas en OpenXML."""
     run = paragraph.add_run(text)
     run.bold = bold
     run.font.name = font
     run.font.size = Pt(size_pt)
     run.font.color.rgb = color
-    # Fijar también la fuente en el atributo eastAsia para respetar el nombre exacto
+
     rPr = run._element.get_or_add_rPr()
     rFonts = rPr.find(qn('w:rFonts'))
     if rFonts is None:
@@ -68,6 +69,15 @@ def _add_run_styled(paragraph, text: str, bold=False, size_pt=12,
         rPr.append(rFonts)
     rFonts.set(qn('w:ascii'), font)
     rFonts.set(qn('w:hAnsi'), font)
+    rFonts.set(qn('w:cs'), font)
+
+    # Inyectar nodo <w:color w:val="000000"/> directo en rPr para evitar texto desvaído/gris en Word/PDF
+    w_color = rPr.find(qn('w:color'))
+    if w_color is None:
+        w_color = OxmlElement('w:color')
+        rPr.append(w_color)
+    w_color.set(qn('w:val'), color_hex)
+
     return run
 
 
@@ -238,6 +248,17 @@ def generate_uni_cover(
 
     Returns: Número de párrafos insertados (para cover_paragraph_count).
     """
+    if not departamento:
+        departamento = "Área de Conocimiento de Ingeniería y Afines"
+    if not titulo:
+        titulo = "Título del trabajo"
+
+    # Si la portada se genera vacía/editable inicialmente sin datos
+    if not autores and not tutor:
+        autores = [{"nombre": "[Br. Nombre del Estudiante]", "carnet": "Carnet: 202X-XXXXU"}]
+        tutor = "[Ing. Nombre del Docente]"
+        grupo = grupo or "3T1 IND"
+
     if not fecha:
         from datetime import date
         d = date.today()
@@ -283,10 +304,19 @@ def generate_uni_cover(
     # ── 6. Autores en columnas con separadores verticales negros ─────────────
     estudiantes = [a for a in autores if not a.get("es_tutor", False)]
 
-    # Distribuir en columnas de estudiantes (la última es el docente).
-    # Columnas dinámicas: pocos estudiantes = pocas columnas, para no dejar
-    # columnas vacías con separadores (portada rota con 1-2 integrantes).
-    n_student_cols = min(3, max(1, len(estudiantes)))
+    # Distribuir en columnas de estudiantes adaptativas:
+    # 1 estudiante  -> 1 col
+    # 2 estudiantes -> 2 cols
+    # 3 estudiantes -> 3 cols
+    # 4 estudiantes -> 2 cols x 2 filas (simetría 2x2)
+    # 5-6 estudiantes -> 3 cols x 2 filas
+    if len(estudiantes) <= 1:
+        n_student_cols = 1
+    elif len(estudiantes) == 2 or len(estudiantes) == 4:
+        n_student_cols = 2
+    else:
+        n_student_cols = 3
+
     cols_students: list[list[dict]] = [[] for _ in range(n_student_cols)]
     for i, est in enumerate(estudiantes):
         cols_students[i % n_student_cols].append(est)

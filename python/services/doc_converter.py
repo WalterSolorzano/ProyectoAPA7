@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 import shutil
 import threading
@@ -12,10 +12,14 @@ logger = logging.getLogger(__name__)
 
 class DocConverterService:
     """
-    Servicio unificado para conversión DOCX → PDF y post-procesamiento.
+    Servicio unificado para conversion DOCX a PDF y post-procesamiento.
+
+    Fix B: openxml_cover se usa como PRE-PASO en AMBOS motores (COM y LO)
+    antes de abrir el documento en Word o LibreOffice. Esto elimina la logica
+    de trasplante destructiva (doc.GoTo + doc.Range.Delete) del post_processor.
 
     Estrategia Dual Engine:
-    1. Si FORCE_ENGINE == 'COM', fuerza usar pywin32 (falla si no está disponible)
+    1. Si FORCE_ENGINE == 'COM', fuerza usar pywin32 (falla si no disponible)
     2. Si FORCE_ENGINE == 'LO', fuerza usar LibreOffice
     3. Default: intenta COM primero, si falla intenta LO.
     """
@@ -26,7 +30,7 @@ class DocConverterService:
         self._lock = threading.Lock()
 
     def get_active_engine(self) -> str:
-        """Determina qué motor usar basado en disponibilidad y variables de entorno."""
+        """Determina que motor usar basado en disponibilidad y variables de entorno."""
         force_engine = os.getenv("FORCE_ENGINE", "").upper()
 
         if force_engine == "COM":
@@ -34,7 +38,7 @@ class DocConverterService:
         elif force_engine == "LO":
             return "LO" if self._lo_service.is_available() else "NONE"
 
-        # Fallback automático
+        # Fallback automatico
         if self._com_processor.is_available():
             return "COM"
         if self._lo_service.is_available():
@@ -49,47 +53,62 @@ class DocConverterService:
         """Aplica post-procesamiento (portada, TOC) y genera PDF usando el motor activo.
         Protegido por un Lock global para evitar concurrencia en COM/LO.
 
+        Fix B: Si preserve_cover=True, se aplica openxml_cover PRIMERO (antes
+        de que Word abra el archivo), ensamblando la portada original con el cuerpo
+        generado en un DOCX intermedio. Word/LO solo recibe el DOCX ya ensamblado
+        y solo hace: aplicar estilos + exportar PDF.
+
         ``rules`` es opcionalmente un ``APARuleSet`` (Pydantic) con la
-        configuración de formato del usuario. Se pasa al motor COM para
-        que respete fuente, tamaño, interlineado, etc. en lugar de los
-        defaults APA hardcoded.
+        configuracion de formato del usuario.
         """
 
         with self._lock:
             engine = self.get_active_engine()
 
+            # ── Pre-paso: trasplante de portada via OpenXML (sin COM, sin LO) ──
+            # Si preserve_cover=True, ensamblar portada + cuerpo en un DOCX
+            # intermedio antes de pasar al motor. Esto reemplaza la logica
+            # destructiva doc.GoTo + doc.Range.Delete del post_processor.
+            if preserve_cover:
+                try:
+                    from generation.openxml_cover import splice_cover_with_openxml
+                    splice_cover_with_openxml(original_path, generated_path, final_path)
+                    logger.info("[DocConverter] Portada trasplantada via OpenXML (sin COM).")
+                    # A partir de aqui, final_path tiene la portada + cuerpo correctos.
+                    # El motor solo necesita aplicar estilos y exportar PDF.
+                    working_path = final_path
+                except Exception as e:
+                    logger.warning(f"[DocConverter] Trasplante OpenXML fallo: {e}; usando copia directa")
+                    shutil.copy(generated_path, final_path)
+                    working_path = final_path
+            else:
+                shutil.copy(generated_path, final_path)
+                working_path = final_path
+
             if engine == "COM":
-                logger.info("[DocConverter] Usando motor COM para post-procesamiento y PDF.")
+                logger.info("[DocConverter] Usando motor COM para estilos APA y exportacion PDF.")
+                # Pasar preserve_cover=False porque el trasplante ya se hizo arriba
                 return self._com_processor.process(
-                    original_path, generated_path, final_path,
-                    preserve_cover=preserve_cover, generate_pdf=generate_pdf,
+                    original_path, working_path, working_path,
+                    preserve_cover=False, generate_pdf=generate_pdf,
                     rules=rules
                 )
 
             elif engine == "LO":
-                logger.info("[DocConverter] Usando motor LibreOffice con trasplante OpenXML de portada.")
-                if preserve_cover:
-                    try:
-                        from generation.openxml_cover import splice_cover_with_openxml
-                        splice_cover_with_openxml(original_path, generated_path, final_path)
-                    except Exception as e:
-                        logger.warning(f"[DocConverter] Trasplante OpenXML falló: {e}; usando copia directa")
-                        shutil.copy(generated_path, final_path)
-                else:
-                    shutil.copy(generated_path, final_path)
-
+                logger.info("[DocConverter] Usando motor LibreOffice para exportacion PDF.")
+                # El DOCX ya esta ensamblado en working_path; LO solo convierte a PDF
                 pdf_path = None
                 if generate_pdf:
-                    success = self._lo_service.convert(final_path, "pdf", final_path.parent)
+                    out_dir = working_path.parent
+                    success = self._lo_service.convert(working_path, "pdf", out_dir)
                     if success:
-                        pdf_path = final_path.with_suffix(".pdf")
+                        pdf_path = working_path.with_suffix(".pdf")
                         return True, pdf_path
                     return False, None
                 return True, None
 
             else:
-                logger.warning("[DocConverter] Ningún motor disponible. Solo se copia el archivo generado.")
-                shutil.copy(generated_path, final_path)
+                logger.warning("[DocConverter] Ningun motor disponible. Solo se entrega el DOCX ensamblado.")
                 return False, None
 
 # Singleton

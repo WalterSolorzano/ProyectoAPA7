@@ -4,14 +4,14 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2 } from 'lucide-react';
+import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2, Sparkles } from 'lucide-react';
 import { QuickReferenceSearch } from '../export/QuickReferenceSearch';
 
 export const ReferencesPanel: React.FC = () => {
   const {
     references, selectedReferenceId, setSelectedReferenceId,
     addReference, removeReference, resolveDoiReference, isLoading,
-    citationAuditResult, runCitationAudit, setValidatorOpen, resolveGhostCitation,
+    citationAuditResult, runCitationAudit, setValidatorOpen, resolveGhostCitation, autoResolveAllGhostCitations,
   } = useDocStore();
 
   const [rawInput, setRawInput] = useState('');
@@ -77,6 +77,31 @@ const handleResolveGhost = async (i: number) => {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Botón estelar: 1-Click Auto-resolver todas las referencias con IA */}
+      <button
+        type="button"
+        onClick={() => autoResolveAllGhostCitations()}
+        disabled={isLoading}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          fontSize: '12px',
+          fontWeight: 700,
+          color: '#ffffff',
+          background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(79, 124, 255, 0.25)',
+          width: '100%',
+        }}
+      >
+        <Sparkles size={15} />
+        <span>Auto-resolver todas las referencias con IA</span>
+      </button>
       {/* Buscador DOI / manual */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '5px 9px', backgroundColor: 'var(--canvas-bg)' }}>

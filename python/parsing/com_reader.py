@@ -411,15 +411,35 @@ def enrich_document_from_com(doc_model: Any, original_docx_path: str | Path) -> 
             diag["cover_ratio"] = cover_info.get("ratio", 0)
 
             # Corregir is_cover_section en los elementos
-            # REGLA ESTRICTA: COM nunca debe desmarcar elementos que pre_classifier
-            # ya identificó como portada o portada_block. COM solo puede confirmar o expandir.
+            body_start_kws = ("resumen", "abstract", "introduccion", "introducción", "indice", "índice", "tabla de contenido", "desarrollo", "marco teorico", "conclusiones", "justificacion", "antecedentes", "objetivo")
+            first_body_idx = None
+            for idx_b, elem_b in enumerate(doc_model.elements):
+                t_txt = (elem_b.text or "").strip().lower()
+                if not t_txt:
+                    continue
+                is_body = any(kw in t_txt for kw in body_start_kws) or t_txt.startswith(("resumen", "abstract", "introducc"))
+                is_meta = any(k in t_txt for k in ("docente", "tutor", "carnet", "carne", "recinto", "universidad", "facultad", "elaborado por", "carrera"))
+                if is_body and not is_meta and len(t_txt.split()) <= 15:
+                    first_body_idx = idx_b
+                    break
+
             effective_end = max(end_idx, old_body_start or 0)
+            if first_body_idx is not None and effective_end > first_body_idx:
+                effective_end = first_body_idx
             doc_model.portada["body_start_paragraph_idx"] = effective_end
 
             corrected = 0
             for i, elem in enumerate(doc_model.elements):
+                if first_body_idx is not None and i >= first_body_idx:
+                    if elem.is_cover_section:
+                        elem.is_cover_section = False
+                        corrected += 1
+                    if getattr(elem, "type", None) in ("portada_block", ElementType.PORTADA_BLOCK):
+                        elem.type = ElementType.PARAGRAPH
+                    continue
+
                 was_cover = elem.is_cover_section or (getattr(elem, "type", None) in ("portada_block",))
-                should_be_cover = was_cover or (i < end_idx)
+                should_be_cover = was_cover or (i < effective_end)
                 elem.is_cover_section = should_be_cover
                 if was_cover != should_be_cover:
                     corrected += 1

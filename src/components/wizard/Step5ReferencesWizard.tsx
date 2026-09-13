@@ -1,30 +1,34 @@
-/* WordAPA7 — Paso 4: Reference Studio (Arquitectura 3 Columnas)
-   Columna 1: Captura & Búsqueda (CrossRef, DOI, Entrada manual por tipo).
-   Columna 2: Gestor de Bibliografía & Auditoría (Lista alfabética, sangría francesa, filtros).
-   Columna 3: Editor en Vivo APA 7 & Auditoría de Citas en el Texto. */
+/* WordAPA7 — Paso 4: Reference Studio (Rediseño de 2 Columnas + Progressive Disclosure)
+   Criterios del documento de diseño:
+   - Layout de 2 columnas (Lista Agrupada + Detalle) eliminando el formulario permanente.
+   - Modal flotante "+ Nueva Referencia" (DOI / Manual) a la demanda.
+   - Agrupación por estado: Válidas (verificadas DOI), Sin Verificar (zombie data / metadatos incompletos), Citas sin fuente ("En texto, no en biblio").
+   - Badges accionables con tooltip ("Insertar en pág. X").
+   - Paleta oficial WordAPA7 (tokens CSS, blanco papel) y cero emojis. */
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
   Trash2, BookOpen, Copy, Sparkles, Check,
-  ChevronRight, RefreshCw, ArrowRight
+  ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
 
 export const Step5ReferencesWizard: React.FC = () => {
   const {
-    doc, references, selectedReferenceId, setSelectedReferenceId,
+    doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
     addReference, removeReference, updateReferences, resolveDoiReference, isLoading,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
-    setScrollTargetId, setWizardStep, openExportTunnel,
+    setScrollTargetId, openExportTunnel,
   } = useDocStore();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'ghosts' | 'orphans'>('all');
   const [doiQuery, setDoiQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addMode, setAddMode] = useState<'doi' | 'manual'>('doi');
   const [resolvingGhostIdx, setResolvingGhostIdx] = useState<number | null>(null);
 
-  // Formulario manual guiado
+  // Formulario manual guiado dentro de Modal
   const [refType, setRefType] = useState<'journal' | 'book' | 'thesis' | 'web'>('journal');
   const [formAuthors, setFormAuthors] = useState('');
   const [formYear, setFormYear] = useState('');
@@ -32,9 +36,14 @@ export const Step5ReferencesWizard: React.FC = () => {
   const [formSource, setFormSource] = useState('');
   const [formDoi, setFormDoi] = useState('');
 
-  // Sincronizar referencia seleccionada con el editor
+  // Estado de colapso de secciones en lista de la izquierda
+  const [openValid, setOpenValid] = useState(true);
+  const [openUnverified, setOpenUnverified] = useState(true);
+  const [openGhosts, setOpenGhosts] = useState(true);
+
+  // Reference activa
   const selectedRef = useMemo(() => {
-    return references.find((r) => r.id === selectedReferenceId) || references[0] || null;
+    return references.find((r) => r.id === selectedReferenceId) || null;
   }, [references, selectedReferenceId]);
 
   const [editAuthors, setEditAuthors] = useState('');
@@ -54,7 +63,7 @@ export const Step5ReferencesWizard: React.FC = () => {
     }
   }, [selectedRef]);
 
-  // Auditoría al entrar si no se ha corrido
+  // Auditoría al entrar
   useEffect(() => {
     if (!citationAuditResult && doc) {
       runCitationAudit();
@@ -64,17 +73,50 @@ export const Step5ReferencesWizard: React.FC = () => {
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
 
+  // Clasificación de referencias en Válidas vs Sin Verificar (Zombie Data)
+  const { validReferences, unverifiedReferences } = useMemo(() => {
+    const valid: ReferenciaModel[] = [];
+    const unverified: ReferenciaModel[] = [];
+
+    references.forEach((r) => {
+      const authorText = (r.authors?.[0] || '').toLowerCase();
+      const titleText = (r.title || r.raw_text || '').toLowerCase();
+      const isZombie =
+        !r.authors?.length ||
+        authorText.includes('autor (s.f.)') ||
+        authorText.includes('s.f.') ||
+        titleText.includes('sin título') ||
+        titleText.length < 5;
+
+      if (isZombie) {
+        unverified.push(r);
+      } else {
+        valid.push(r);
+      }
+    });
+
+    // Ordenar alfabéticamente
+    const sortFn = (a: ReferenciaModel, b: ReferenciaModel) =>
+      (a.authors?.[0] || a.title || '').localeCompare(b.authors?.[0] || b.title || '', 'es', { sensitivity: 'base' });
+
+    valid.sort(sortFn);
+    unverified.sort(sortFn);
+
+    return { validReferences: valid, unverifiedReferences: unverified };
+  }, [references]);
+
   const handleResolveDoi = async () => {
     if (!doiQuery.trim()) return;
     const query = doiQuery.trim();
     setDoiQuery('');
     showToast('Consultando metadatos DOI…', 'info');
     await resolveDoiReference(query);
+    setShowAddModal(false);
   };
 
   const handleAddManual = () => {
     if (!formTitle.trim() && !formAuthors.trim()) {
-      showToast('Ingresa al menos el autor o título', 'warning');
+      showToast('Ingresa al menos autor o título', 'warning');
       return;
     }
     const authorsArr = formAuthors.split(/,|&|;/).map((a) => a.trim()).filter(Boolean);
@@ -99,7 +141,8 @@ export const Step5ReferencesWizard: React.FC = () => {
     setFormTitle('');
     setFormSource('');
     setFormDoi('');
-    showToast('Referencia agregada a la bibliografía', 'success');
+    setShowAddModal(false);
+    showToast('Referencia agregada exitosamente', 'success');
   };
 
   const handleSaveSelected = () => {
@@ -159,13 +202,6 @@ export const Step5ReferencesWizard: React.FC = () => {
     });
   }, [doc, selectedRef]);
 
-  // Ordenar alfabéticamente
-  const sortedReferences = useMemo(() => {
-    return [...references].sort((a, b) =>
-      (a.authors?.[0] || a.title || a.raw_text || '').localeCompare(b.authors?.[0] || b.title || b.raw_text || '', 'es', { sensitivity: 'base' })
-    );
-  }, [references]);
-
   const copyInTextCitation = (refItem: ReferenciaModel) => {
     const main = (refItem.authors?.[0] || 'Autor').split(',')[0].trim();
     const yr = refItem.year || 's.f.';
@@ -186,7 +222,7 @@ export const Step5ReferencesWizard: React.FC = () => {
       {/* ── Top Header Bar ── */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 20px', backgroundColor: 'var(--sidebar-bg)',
+        padding: '12px 24px', backgroundColor: 'var(--sidebar-bg)',
         borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -199,8 +235,8 @@ export const Step5ReferencesWizard: React.FC = () => {
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                Estudio de Referencias APA 7ma Edición
+              <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
+                Estudio de Referencias & Citas APA 7
               </h2>
               <span style={{
                 fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px',
@@ -210,7 +246,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               </span>
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
-              Cruce bidireccional entre las citas en el cuerpo del texto y la lista bibliográfica final.
+              Agrupación por estado y verificación bidireccional entre el cuerpo y la bibliografía.
             </p>
           </div>
         </div>
@@ -218,8 +254,17 @@ export const Step5ReferencesWizard: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
+            onClick={() => setShowAddModal(true)}
+            className="btn btn-primary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+          >
+            <Plus size={14} />
+            <span>Nueva Referencia</span>
+          </button>
+          <button
+            type="button"
             onClick={() => runCitationAudit()}
-            title="Volver a analizar correspondencia de citas"
+            title="Re-auditar correspondencia de citas"
             className="btn btn-secondary btn-sm"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
@@ -238,229 +283,193 @@ export const Step5ReferencesWizard: React.FC = () => {
         </div>
       </header>
 
-      {/* ── 3-Column Studio Layout ── */}
+      {/* ── Layout de 2 Columnas (Progressive Disclosure) ── */}
       <div style={{ display: 'flex', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' }}>
 
-        {/* ══ COLUMNA 1: Captura & Búsqueda (320px) ══ */}
+        {/* ══ COLUMNA 1: Lista Agrupada por Estado (420px) ══ */}
         <div style={{
-          width: '320px', flexShrink: 0, height: '100%', overflowY: 'auto',
+          width: '420px', flexShrink: 0, height: '100%', overflowY: 'auto',
           backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
-          padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px',
+          display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px',
         }}>
-          {/* Tarjeta de Búsqueda DOI */}
-          <div style={{
-            backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-lg)', padding: '14px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <Search size={14} color="var(--accent-primary)" />
-              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Buscador DOI / CrossRef
-              </span>
-            </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '10px', lineHeight: 1.4 }}>
-              Pega un DOI (ej. <code style={{ fontSize: '10px' }}>10.1037/arc0000014</code>) o título para extraer metadatos oficiales:
-            </p>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="text"
-                value={doiQuery}
-                onChange={(e) => setDoiQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleResolveDoi(); }}
-                placeholder="10.xxxx/yyyy o título..."
-                style={{
-                  flex: 1, padding: '7px 10px', fontSize: '12px', borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)',
-                  color: 'var(--text-main)', outline: 'none',
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleResolveDoi}
-                disabled={isLoading || !doiQuery.trim()}
-                className="btn btn-primary btn-sm"
-                style={{ padding: '7px 12px' }}
-              >
-                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-              </button>
-            </div>
-          </div>
 
-          {/* Formulario Manual Guiado */}
-          <div style={{
-            backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-lg)', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Plus size={14} color="var(--accent-primary)" />
-              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Nueva Referencia Manual
-              </span>
-            </div>
-
-            {/* Selector de Tipo de Fuente */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', margin: '4px 0' }}>
-              {([
-                ['journal', 'Artículo'],
-                ['book', 'Libro'],
-                ['thesis', 'Tesis'],
-                ['web', 'Web/Inf.'],
-              ] as const).map(([typeKey, label]) => (
-                <button
-                  key={typeKey}
-                  type="button"
-                  onClick={() => setRefType(typeKey)}
-                  style={{
-                    padding: '5px 2px', fontSize: '10px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                    border: refType === typeKey ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    backgroundColor: refType === typeKey ? 'var(--color-accent-soft)' : 'transparent',
-                    color: refType === typeKey ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
-                Autores (Apellido, Iniciales)
-              </label>
-              <input
-                type="text"
-                value={formAuthors}
-                onChange={(e) => setFormAuthors(e.target.value)}
-                placeholder="García, A., López, B."
-                style={inputSubStyle}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px' }}>
-              <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
-                  Año
-                </label>
-                <input
-                  type="text"
-                  value={formYear}
-                  onChange={(e) => setFormYear(e.target.value)}
-                  placeholder="2024"
-                  style={inputSubStyle}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
-                  {refType === 'web' ? 'Sitio Web / Org' : refType === 'thesis' ? 'Universidad' : 'Revista / Editorial'}
-                </label>
-                <input
-                  type="text"
-                  value={formSource}
-                  onChange={(e) => setFormSource(e.target.value)}
-                  placeholder={refType === 'journal' ? 'Revista de Psicología, 12(3), 45-60' : 'Editorial'}
-                  style={inputSubStyle}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
-                Título del Trabajo
-              </label>
-              <input
-                type="text"
-                value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
-                placeholder="Impacto de la inteligencia artificial..."
-                style={inputSubStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
-                DOI o URL permanente
-              </label>
-              <input
-                type="text"
-                value={formDoi}
-                onChange={(e) => setFormDoi(e.target.value)}
-                placeholder="https://doi.org/10.xxxx/..."
-                style={inputSubStyle}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleAddManual}
-              className="btn btn-primary"
-              style={{ width: '100%', justifyContent: 'center', marginTop: '4px', fontSize: '12px', fontWeight: 700 }}
+          {/* GRUPO 1: VÁLIDAS (Verificadas DOI OK) */}
+          <div style={groupCardStyle}>
+            <div
+              onClick={() => setOpenValid(!openValid)}
+              style={groupHeaderStyle}
             >
-              <Plus size={13} />
-              <span>Añadir a Bibliografía</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ══ COLUMNA 2: Lista Bibliográfica & Auditoría (380px) ══ */}
-        <div style={{
-          width: '380px', flexShrink: 0, height: '100%', overflowY: 'auto',
-          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {/* Pestañas de Filtro y Métricas */}
-          <div style={{
-            padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)',
-            backgroundColor: 'var(--surface-elevated)', display: 'flex', flexDirection: 'column', gap: '8px',
-          }}>
-            <div style={{ display: 'flex', gap: '4px', background: 'var(--canvas-bg)', padding: '3px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-              <button
-                type="button"
-                onClick={() => setActiveTab('all')}
-                style={{
-                  flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                  border: 'none', cursor: 'pointer',
-                  backgroundColor: activeTab === 'all' ? 'var(--surface-elevated)' : 'transparent',
-                  color: activeTab === 'all' ? 'var(--text-main)' : 'var(--text-secondary)',
-                  boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}
-              >
-                Todas ({references.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('ghosts')}
-                style={{
-                  flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                  border: 'none', cursor: 'pointer',
-                  backgroundColor: activeTab === 'ghosts' ? 'rgba(239,68,68,0.15)' : 'transparent',
-                  color: activeTab === 'ghosts' ? '#dc2626' : 'var(--text-secondary)',
-                }}
-              >
-                Citas Fantasma ({ghosts.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('orphans')}
-                style={{
-                  flex: 1, padding: '5px 8px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                  border: 'none', cursor: 'pointer',
-                  backgroundColor: activeTab === 'orphans' ? 'rgba(245,158,11,0.15)' : 'transparent',
-                  color: activeTab === 'orphans' ? '#d97706' : 'var(--text-secondary)',
-                }}
-              >
-                Sin Citar ({orphans.length})
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={15} color="var(--accent-success, #16a34a)" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Válidas ({validReferences.length})
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>· DOI verificado OK</span>
+              </div>
+              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openValid ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
             </div>
+
+            {openValid && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
+                {validReferences.length === 0 ? (
+                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    No hay fuentes válidas aún.
+                  </div>
+                ) : (
+                  validReferences.map((refItem, idx) => {
+                    const isSelected = selectedRef?.id === refItem.id;
+                    const isOrphan = orphans.some((o: any) => {
+                      const s = typeof o === 'string' ? o : (o.title || o.raw_text || '');
+                      return s.includes(refItem.authors?.[0] || '---') || s.includes(refItem.title || '---');
+                    });
+
+                    return (
+                      <div
+                        key={refItem.id}
+                        onClick={() => setSelectedReferenceId(refItem.id)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                          backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                          border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          transition: 'all 0.15s ease',
+                          display: 'flex', flexDirection: 'column', gap: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)' }}>
+                            {idx + 1}. {(refItem.authors?.[0] || 'Autor').split(',')[0]} ({refItem.year || 's.f.'})
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); copyInTextCitation(refItem); }}
+                              title="Copiar cita en texto"
+                              style={iconBtnStyle}
+                            >
+                              {copiedId === refItem.id ? <Check size={11} color="var(--accent-success)" /> : <Copy size={11} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
+                              title="Eliminar"
+                              style={{ ...iconBtnStyle, color: 'var(--accent-danger)' }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-main)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {refItem.title || refItem.raw_text || 'Sin título'}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                          {refItem.doi_or_url && (
+                            <span style={{ fontSize: '10px', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              <Link2 size={10} /> DOI
+                            </span>
+                          )}
+                          {isOrphan && (
+                            <span
+                              title="Esta referencia no está citada en el texto. Haz clic para opciones."
+                              style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)' }}
+                            >
+                              Sin citar en texto
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Lista de Referencias o Alertas */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-            {activeTab === 'ghosts' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* GRUPO 2: SIN VERIFICAR (Zombie Data / Metadatos Incompletos) */}
+          <div style={groupCardStyle}>
+            <div
+              onClick={() => setOpenUnverified(!openUnverified)}
+              style={groupHeaderStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HelpCircle size={15} color="var(--accent-warning, #d97706)" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Sin verificar ({unverifiedReferences.length})
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>· Requieren completar datos</span>
+              </div>
+              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openUnverified ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </div>
+
+            {openUnverified && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
+                {unverifiedReferences.length === 0 ? (
+                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    No hay entradas pendientes de verificación.
+                  </div>
+                ) : (
+                  unverifiedReferences.map((refItem) => {
+                    const isSelected = selectedRef?.id === refItem.id;
+                    return (
+                      <div
+                        key={refItem.id}
+                        onClick={() => setSelectedReferenceId(refItem.id)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                          backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                          border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          transition: 'all 0.15s ease',
+                          display: 'flex', flexDirection: 'column', gap: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-warning, #d97706)' }}>
+                            Metadatos Incompletos
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); }}
+                            title="Eliminar"
+                            style={{ ...iconBtnStyle, color: 'var(--accent-danger)' }}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-main)', fontWeight: 600 }}>
+                          {refItem.title || refItem.raw_text || 'Entrada sin título'}
+                        </div>
+                        <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 700 }}>
+                          Haz clic para completar datos →
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* GRUPO 3: CITAS FANTASMA ("En texto, no en biblio") */}
+          <div style={groupCardStyle}>
+            <div
+              onClick={() => setOpenGhosts(!openGhosts)}
+              style={groupHeaderStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={15} color="var(--accent-danger, #dc2626)" />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  En texto, no en biblio ({ghosts.length})
+                </span>
+              </div>
+              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openGhosts ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </div>
+
+            {openGhosts && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
                 {ghosts.length === 0 ? (
-                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
-                    <CheckCircle2 size={24} color="var(--accent-success)" style={{ margin: '0 auto 8px' }} />
-                    No hay citas fantasma. Todas las menciones en el texto tienen su fuente correspondiente.
+                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    No se detectaron citas huérfanas en el texto.
                   </div>
                 ) : (
                   ghosts.map((g: any, i: number) => {
@@ -470,125 +479,61 @@ export const Step5ReferencesWizard: React.FC = () => {
                         key={i}
                         style={{
                           padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                          backgroundColor: '#fef2f2', border: '1px solid #fecaca',
+                          backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
                           display: 'flex', flexDirection: 'column', gap: '6px',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <AlertTriangle size={13} color="#dc2626" />
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#991b1b' }}>
-                            Citada en el texto sin bibliografía
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '12px', color: '#7f1d1d', margin: 0, fontWeight: 600 }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-main)' }}>
                           {txt}
-                        </p>
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleResolveGhost(i)}
                           disabled={resolvingGhostIdx === i}
                           className="btn btn-primary btn-sm"
-                          style={{ marginTop: '4px', alignSelf: 'flex-start', fontSize: '11px', backgroundColor: '#dc2626' }}
+                          style={{ alignSelf: 'flex-start', fontSize: '11px' }}
                         >
                           {resolvingGhostIdx === i ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                          <span>Autocompletar Referencia</span>
+                          <span>Completar Referencia</span>
                         </button>
                       </div>
                     );
                   })
                 )}
               </div>
-            ) : sortedReferences.length === 0 ? (
-              <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                <BookOpen size={28} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                Aún no tienes referencias en este documento. Agrega un DOI a la izquierda para empezar.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {sortedReferences.map((refItem, idx) => {
-                  const isSelected = selectedRef?.id === refItem.id;
-                  const isOrphan = orphans.some((o: any) => {
-                    const s = typeof o === 'string' ? o : (o.title || o.raw_text || '');
-                    return s.includes(refItem.authors?.[0] || '---') || s.includes(refItem.title || '---');
-                  });
-
-                  return (
-                    <div
-                      key={refItem.id}
-                      onClick={() => setSelectedReferenceId(refItem.id)}
-                      style={{
-                        padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                        backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                        border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                        <span style={{
-                          fontSize: '10px', fontWeight: 800, color: isSelected ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                          fontFamily: 'var(--font-mono)',
-                        }}>
-                          {idx + 1}. {(refItem.authors?.[0] || 'Autor').split(',')[0]} ({refItem.year || 's.f.'})
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); copyInTextCitation(refItem); }}
-                            title="Copiar cita en texto"
-                            style={iconBtnStyle}
-                          >
-                            {copiedId === refItem.id ? <Check size={11} color="var(--accent-success)" /> : <Copy size={11} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
-                            title="Eliminar referencia"
-                            style={{ ...iconBtnStyle, color: 'var(--accent-danger)' }}
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{
-                        fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginTop: '4px',
-                        lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                      }}>
-                        {refItem.title || refItem.raw_text || 'Sin título'}
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                        {refItem.doi_or_url && (
-                          <span style={{ fontSize: '10px', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            <Link2 size={10} /> DOI
-                          </span>
-                        )}
-                        {isOrphan && (
-                          <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#b45309' }}>
-                            Sin citar en texto
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             )}
           </div>
         </div>
 
-        {/* ══ COLUMNA 3: Editor en Vivo APA 7 & Cruce de Citas (Flex 1) ══ */}
+        {/* ══ COLUMNA 2: Detalle de Referencia / Editor & Menciones en Texto (Flex 1) ══ */}
         <div style={{
           flex: 1, height: '100%', overflowY: 'auto', padding: '24px',
           display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--canvas-bg)',
         }}>
           {!selectedRef ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              Selecciona una referencia de la lista para editarla y ver sus menciones en el texto.
+            /* Dashboard de Resumen cuando no hay selección */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '20px', textAlign: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', maxWidth: '600px', width: '100%' }}>
+                <div style={kpiBoxStyle}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Fuentes</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{references.length}</span>
+                </div>
+                <div style={kpiBoxStyle}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Verificadas OK</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--accent-success, #16a34a)' }}>{validReferences.length}</span>
+                </div>
+                <div style={kpiBoxStyle}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Por Resolver</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--accent-warning, #d97706)' }}>{unverifiedReferences.length + ghosts.length}</span>
+                </div>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '400px' }}>
+                Selecciona una referencia de la izquierda para editar sus campos y consultar sus menciones directas en el cuerpo del documento.
+              </div>
             </div>
           ) : (
             <>
-              {/* Vista Previa Tipográfica APA 7 (Sangría Francesa de 1.27cm) */}
+              {/* Vista Previa Tipográfica APA 7 (Wrapping Completo sin truncamiento) */}
               <div style={{
                 backgroundColor: 'var(--paper-white)', borderRadius: 'var(--radius-lg)',
                 padding: '20px 24px', border: '1px solid var(--border-subtle)',
@@ -614,9 +559,10 @@ export const Step5ReferencesWizard: React.FC = () => {
 
                 <div style={{
                   fontFamily: "'Times New Roman', serif", fontSize: '13pt', lineHeight: 2.0,
-                  color: 'var(--ink, #000)', paddingLeft: '36px', textIndent: '-36px',
+                  color: 'var(--paper-ink, #000)', paddingLeft: '36px', textIndent: '-36px',
                   backgroundColor: 'var(--surface-subtle)', padding: '16px 20px 16px 48px',
                   borderRadius: 'var(--radius-md)', borderLeft: '3px solid var(--accent-primary)',
+                  wordBreak: 'break-word', whiteSpace: 'normal',
                 }}>
                   {editAuthors || 'Autor, A.'} ({editYear || 's.f.'}). <em>{editTitle || 'Título del trabajo'}</em>. {editSource || 'Fuente'}.{' '}
                   {editDoi && (
@@ -634,12 +580,12 @@ export const Step5ReferencesWizard: React.FC = () => {
                 display: 'flex', flexDirection: 'column', gap: '14px',
               }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
-                  Editar Datos de la Fuente
+                  Editar Ficha Bibliográfica
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={labelFullStyle}>Autores (Formato: Apellido, Iniciales; separados por comas)</label>
+                    <label style={labelFullStyle}>Autores (Formato: Apellido, Iniciales)</label>
                     <input
                       type="text"
                       value={editAuthors}
@@ -648,7 +594,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label style={labelFullStyle}>Año de Publicación</label>
+                    <label style={labelFullStyle}>Año</label>
                     <input
                       type="text"
                       value={editYear}
@@ -659,7 +605,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label style={labelFullStyle}>Título del Artículo, Libro o Monografía</label>
+                  <label style={labelFullStyle}>Título del Trabajo</label>
                   <input
                     type="text"
                     value={editTitle}
@@ -670,7 +616,7 @@ export const Step5ReferencesWizard: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={labelFullStyle}>Fuente / Revista / Editorial / Volumen</label>
+                    <label style={labelFullStyle}>Fuente / Revista / Editorial</label>
                     <input
                       type="text"
                       value={editSource}
@@ -679,7 +625,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label style={labelFullStyle}>DOI o URL Oficial</label>
+                    <label style={labelFullStyle}>DOI / URL Permanente</label>
                     <input
                       type="text"
                       value={editDoi}
@@ -689,12 +635,12 @@ export const Step5ReferencesWizard: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
                   <button
                     type="button"
                     onClick={handleSaveSelected}
                     className="btn btn-primary"
-                    style={{ fontWeight: 700, padding: '8px 18px' }}
+                    style={{ fontSize: '12px', fontWeight: 700 }}
                   >
                     <Check size={14} />
                     <span>Guardar Cambios</span>
@@ -702,55 +648,72 @@ export const Step5ReferencesWizard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Cruce de Citas en el Texto del Documento */}
+              {/* Menciones en el Texto */}
               <div style={{
                 backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
-                padding: '20px', border: '1px solid var(--border-subtle)',
-                display: 'flex', flexDirection: 'column', gap: '10px',
+                padding: '16px 20px', border: '1px solid var(--border-subtle)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Link2 size={15} color="var(--accent-primary)" />
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
-                      Menciones Detectadas en el Documento ({linkedParagraphs.length})
-                    </span>
-                  </div>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
+                  Menciones Detectadas en el Documento ({linkedParagraphs.length})
                 </div>
-
                 {linkedParagraphs.length === 0 ? (
-                  <div style={{ padding: '16px', backgroundColor: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Esta referencia no aparece citada en el cuerpo del documento. Puedes usar el botón "Copiar Cita en Texto" para insertarla donde corresponda.
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    No se detectaron menciones explícitas de esta fuente en los párrafos del documento.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {linkedParagraphs.map((elem) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {linkedParagraphs.map((p) => (
                       <div
-                        key={elem.id}
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedElementId(p.id);
+                          setScrollTargetId(p.id);
+                        }}
                         style={{
-                          padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                          backgroundColor: 'var(--canvas-bg)', border: '1px solid var(--border-subtle)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+                          padding: '14px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          backgroundColor: 'var(--paper-white)',
+                          border: '1px solid var(--border-subtle)',
+                          borderLeft: '3px solid var(--accent-primary)',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <p style={{
-                          fontSize: '12px', color: 'var(--text-main)', margin: 0, lineHeight: 1.4,
-                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1,
+                        <div style={{
+                          fontSize: '12px',
+                          lineHeight: '1.6',
+                          color: 'var(--text-main)',
+                          fontStyle: 'italic',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
                         }}>
-                          "{elem.text}"
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setWizardStep(2);
-                            setScrollTargetId(elem.id);
-                            showToast('Navegando a la sección del documento', 'info');
-                          }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ flexShrink: 0, fontSize: '11px', gap: '4px' }}
-                        >
-                          <span>Ver en texto</span>
-                          <ArrowRight size={12} />
-                        </button>
+                          "{p.text}"
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedElementId(p.id);
+                              setScrollTargetId(p.id);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: 'var(--accent-primary)',
+                              gap: '4px',
+                              padding: '4px 10px',
+                            }}
+                          >
+                            <span>Ver en Hoja</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -759,34 +722,206 @@ export const Step5ReferencesWizard: React.FC = () => {
             </>
           )}
         </div>
-
       </div>
+
+      {/* ── Modal Flotante: Nueva Referencia ── */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '20px',
+        }}>
+          <div style={{
+            width: '460px', backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-subtle)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            {/* Header Modal */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 18px', borderBottom: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--sidebar-bg)',
+            }}>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                Añadir Nueva Referencia Bibliográfica
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Selector de Modo (DOI vs Manual) */}
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', gap: '6px', background: 'var(--canvas-bg)', padding: '3px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <button
+                  type="button"
+                  onClick={() => setAddMode('doi')}
+                  style={{
+                    flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                    border: 'none', cursor: 'pointer',
+                    backgroundColor: addMode === 'doi' ? 'var(--surface-elevated)' : 'transparent',
+                    color: addMode === 'doi' ? 'var(--text-main)' : 'var(--text-secondary)',
+                  }}
+                >
+                  Buscador DOI / CrossRef
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddMode('manual')}
+                  style={{
+                    flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                    border: 'none', cursor: 'pointer',
+                    backgroundColor: addMode === 'manual' ? 'var(--surface-elevated)' : 'transparent',
+                    color: addMode === 'manual' ? 'var(--text-main)' : 'var(--text-secondary)',
+                  }}
+                >
+                  Entrada Manual
+                </button>
+              </div>
+
+              {addMode === 'doi' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={labelFullStyle}>Ingrese DOI o Título de la publicación</label>
+                  <input
+                    type="text"
+                    value={doiQuery}
+                    onChange={(e) => setDoiQuery(e.target.value)}
+                    placeholder="10.1037/arc0000014..."
+                    style={inputFullStyle}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResolveDoi}
+                    disabled={isLoading || !doiQuery.trim()}
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }}
+                  >
+                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                    <span>Buscar & Extraer Metadatos</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                    {(['journal', 'book', 'thesis', 'web'] as const).map((tKey) => (
+                      <button
+                        key={tKey}
+                        type="button"
+                        onClick={() => setRefType(tKey)}
+                        style={{
+                          padding: '4px', fontSize: '10px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                          border: refType === tKey ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          backgroundColor: refType === tKey ? 'var(--color-accent-soft)' : 'transparent',
+                          color: refType === tKey ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tKey === 'journal' ? 'Artículo' : tKey === 'book' ? 'Libro' : tKey === 'thesis' ? 'Tesis' : 'Web'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div>
+                    <label style={labelFullStyle}>Autores (Apellido, Iniciales)</label>
+                    <input type="text" value={formAuthors} onChange={(e) => setFormAuthors(e.target.value)} placeholder="García, A., López, B." style={inputFullStyle} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px' }}>
+                    <div>
+                      <label style={labelFullStyle}>Año</label>
+                      <input type="text" value={formYear} onChange={(e) => setFormYear(e.target.value)} placeholder="2024" style={inputFullStyle} />
+                    </div>
+                    <div>
+                      <label style={labelFullStyle}>Fuente / Editorial</label>
+                      <input type="text" value={formSource} onChange={(e) => setFormSource(e.target.value)} placeholder="Editorial / Revista" style={inputFullStyle} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelFullStyle}>Título del Trabajo</label>
+                    <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Título..." style={inputFullStyle} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddManual}
+                    className="btn btn-primary"
+                    style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }}
+                  >
+                    <Plus size={14} />
+                    <span>Guardar en Bibliografía</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const inputSubStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 9px', fontSize: '11px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)',
-  color: 'var(--text-main)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+// Estilos auxiliares
+const groupCardStyle: React.CSSProperties = {
+  backgroundColor: 'var(--surface-elevated)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-lg)',
+  overflow: 'hidden',
 };
 
-const inputFullStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 12px', fontSize: '12.5px', borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)',
-  color: 'var(--text-main)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-};
-
-const labelFullStyle: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
-  color: 'var(--text-secondary)', display: 'block', marginBottom: '4px',
+const groupHeaderStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  cursor: 'pointer',
+  backgroundColor: 'var(--sidebar-bg)',
+  borderBottom: '1px solid var(--border-subtle)',
+  userSelect: 'none',
 };
 
 const iconBtnStyle: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: '22px', height: '22px', borderRadius: 'var(--radius-sm)',
-  border: 'none', background: 'transparent', cursor: 'pointer',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '2px',
   color: 'var(--text-secondary)',
+  display: 'flex',
+  alignItems: 'center',
+};
+
+const kpiBoxStyle: React.CSSProperties = {
+  padding: '14px',
+  borderRadius: 'var(--radius-md)',
+  backgroundColor: 'var(--surface-elevated)',
+  border: '1px solid var(--border-subtle)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  alignItems: 'center',
+};
+
+const labelFullStyle: React.CSSProperties = {
+  fontSize: '10px',
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  color: 'var(--text-secondary)',
+  display: 'block',
+  marginBottom: '3px',
+};
+
+const inputFullStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '7px 10px',
+  fontSize: '12px',
+  borderRadius: 'var(--radius-md)',
+  border: '1px solid var(--border-subtle)',
+  backgroundColor: 'var(--canvas-bg)',
+  color: 'var(--text-main)',
+  outline: 'none',
+  boxSizing: 'border-box',
 };
 
 export default Step5ReferencesWizard;

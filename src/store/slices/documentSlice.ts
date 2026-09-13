@@ -346,7 +346,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           portada: updatedPortada,
           rules: uploadedProfile ? uploadedProfile.rules : state.rules,
           activeProfileId: uploadedProfile ? uploadedProfile.profile_id : state.activeProfileId,
-          isLoading: true, // mantener loading hasta que clasificación termine
+          isLoading: false,
           tabs: newTabs,
           activeTabIndex: newTabs.length - 1,
           tabDocs: newTabDocs,
@@ -355,7 +355,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
-          liveChatOpen: true,
+          liveChatOpen: false,
         };
       });
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
@@ -374,15 +374,12 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       // Revisor por lotes (ortografía/IA/pegado): silencioso
       get().runProofreadBatch().catch(() => {});
 
-      // Auto-disparar clasificación LLM en background
+      // Auto-disparar clasificación LLM en background silencioso sin bloquear la UI
       const uncertainCount = doc.elements.filter(
         (e: any) => e.needs_review || (e.confidence < 0.85 && e.type !== 'empty' && e.type !== 'image' && e.type !== 'table')
       ).length;
       if (uncertainCount > 0) {
         get().runLLMClassify().catch(() => {});
-      } else {
-        // Sin elementos inciertos: loading termina acá
-        set({ isLoading: false });
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al procesar archivo', isLoading: false });
@@ -919,13 +916,12 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     set({ isLoading: true });
     try {
       const base = getApiBase();
-      // Alcances activos → aplicar SOLO eso sobre el original (garantía).
-      if (!tracked && sessionScopes.length > 0) {
+      if (!tracked && sessionScopes && sessionScopes.length > 0) {
         try {
           await api.scopedApply(doc.session_id, sessionScopes);
           triggerDownload(`${base}/download-scoped/${doc.session_id}`, `Scoped_${doc.file_name}`);
           set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
-          get().showToast('Exportado con los alcances elegidos', 'success');
+          get().showToast('¡Documento DOCX descargado con éxito!', 'success');
           return;
         } catch (e: any) {
           get().showToast(`Alcances fallaron, exportando completo: ${e.message}`, 'warning');
@@ -937,16 +933,16 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: doc.session_id, rules, portada, references }),
       });
-      if (!res.ok) throw new Error('Error al exportar documento');
+      if (!res.ok) throw new Error('Error al generar el documento');
       const data = await res.json();
-      // En Electron, download_url es relativo (/api/download/...). Necesitamos la URL absoluta.
       const downloadUrl = data.download_url.startsWith('http')
         ? data.download_url
         : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
       triggerDownload(downloadUrl, data.filename || `APA7_${doc.file_name}`);
       set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
+      get().showToast('¡Documento DOCX descargado con éxito!', 'success');
     } catch (err: any) {
-      set({ error: err.message || 'Error al exportar documento', isLoading: false });
+      set({ error: err.message || 'Error al exportar DOCX', isLoading: false });
       get().showToast(err.message || 'Error al descargar DOCX', 'error');
     } finally {
       set({ isLoading: false });
@@ -972,7 +968,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       const data = await res.json();
       if (data.status === 'fallback_docx' && data.download_url) {
         // El backend no pudo generar el PDF: avisa en vez de entregar un DOCX como si nada.
-        get().showToast('El PDF no pudo generarse en este equipo; se descargó el DOCX oficial.', 'error');
+        get().showToast('El PDF no pudo generarse en este equipo; se descargó el DOCX oficial.', 'warning');
       }
       if (data.download_url) {
         let path = data.download_url;
@@ -984,6 +980,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         const downloadUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
         triggerDownload(downloadUrl, data.pdf_name || (doc.file_name?.replace(/\.[^.]+$/, '') + '.pdf'));
         set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
+        get().showToast('¡Documento PDF descargado con éxito!', 'success');
       }
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar PDF', isLoading: false });

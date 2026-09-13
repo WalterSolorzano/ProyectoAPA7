@@ -90,3 +90,46 @@ def test_llm_no_key_passthrough():
                  "source": "local"}]
     out, used = refine_with_llm(findings, [], "")
     assert out == findings and used is False
+
+
+def test_bloom_audit_objective_valid_and_vague():
+    from modules.proactive_auditor import audit_objective
+
+    valid = audit_objective("Diseñar un sistema de inventario automatizado.")
+    assert valid["is_measurable"] is True
+    assert valid["verb_detected"] == "diseñar"
+    assert valid["bloom_level"] == "crear"
+
+    vague = audit_objective("Aprender y conocer sobre sistemas de información.")
+    assert vague["is_measurable"] is False
+    assert "conocer" in vague["vague_verbs_used"]
+
+
+def test_bloom_objectives_hierarchy_violation():
+    from modules.proactive_auditor import audit_objectives_hierarchy
+
+    # General es nivel 4 (Analizar), pero un específico es nivel 6 (Diseñar) -> Incoherencia
+    gen = "Analizar los procesos de producción de la empresa."
+    specs = [
+        "Identificar las etapas del proceso.",  # nivel 1 (Recordar)
+        "Diseñar un nuevo modelo de optimización." # nivel 6 (Crear) -> violacion
+    ]
+    res = audit_objectives_hierarchy(gen, specs)
+    assert res["is_coherent"] is False
+    assert any("supera nivel del general" in f["title"] for f in res["findings"])
+
+
+def test_burstiness_score_calculation():
+    from modules.proactive_auditor import burstiness_score
+
+    sentences = [
+        "Esta es una oración corta.",
+        "A continuación se presenta un análisis extremadamente detallado y profundo sobre los diversos factores cuantitativos.",
+        "Se midió.",
+        "Los resultados obtenidos durante las pruebas de campo en la universidad demostraron la factibilidad técnica del prototipo.",
+        "Breve resumen."
+    ]
+    res = burstiness_score(sentences)
+    assert res["burstiness_score"] >= 0.5
+    assert "Sospecha IA" not in res["interpretation"]
+

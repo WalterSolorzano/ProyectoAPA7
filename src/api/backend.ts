@@ -751,6 +751,7 @@ export interface AIReviewResult {
   paragraphs: AIReviewParagraph[];
   table_signals: AIReviewTableSignal[];
   document_signals: string[];
+  ai_indices?: AIIndicesSummary | null;
 }
 
 export async function runAIReview(sessionId: string): Promise<AIReviewResult> {

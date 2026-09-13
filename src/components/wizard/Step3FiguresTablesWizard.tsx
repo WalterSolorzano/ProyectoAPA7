@@ -288,7 +288,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             const thumbUrl = isImage ? resolveAssetUrl(info?.relative_url) : null;
 
             return (
-              <div key={item.id} onClick={() => setSelectedElementId(item.id)} style={{
+              <div key={item.id} onClick={() => { setSelectedElementId(item.id); useDocStore.getState().setScrollTargetId(item.id); }} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '6px 8px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
                 borderLeft: needsAttn ? '3px solid var(--color-warning)' : '3px solid transparent',

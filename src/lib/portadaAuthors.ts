@@ -8,15 +8,25 @@ export interface AuthorEntry {
   carnet: string;
 }
 
+export function normalizeRawAuthorString(raw: string | undefined | null): string {
+  if (!raw) return '';
+  let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Reintroducir saltos de línea antes de títulos personales pegados (Br., Ing., Lic., Dr., Msc., Est.)
+  text = text.replace(/([^\n])\s*((?:B[rR]\.|ING\b|Ing\.|LIC\b|Lic\.|SR[Aa]?\.|EST\.|Dr\.|M\.?Sc\.)\s*)/g, '$1\n$2');
+  // Reintroducir saltos de línea antes de etiquetas "Carnet:" y "Grupo:"
+  text = text.replace(/([^\n])\s*(Carnet\s*:)/gi, '$1\n$2');
+  text = text.replace(/([^\n])\s*(Grupo\s*:)/gi, '$1\n$2');
+  return text;
+}
+
 export function parseAuthorEntries(raw: string | undefined | null): AuthorEntry[] {
   if (!raw) return [];
   const entries: AuthorEntry[] = [];
-  // Formato actual del parser: "Br. Nombre Apellido | Carnet: 2023-XXXX" por línea
-  // o dos líneas "Br. Nombre" + "Carnet: 2023-XXXX".
-  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const normalized = normalizeRawAuthorString(raw);
+  const lines = normalized.split(/\n/).map((l) => l.trim()).filter(Boolean);
   let pendingName = '';
   for (const line of lines) {
-    if (line.toLowerCase().startsWith('carnet:') || /^\d{4}-\d+/.test(line)) {
+    if (line.toLowerCase().startsWith('carnet:') || line.toLowerCase().startsWith('grupo:') || /^\d{4}-\d+/i.test(line)) {
       const carnet = line.replace(/^carnet:\s*/i, '').trim();
       if (pendingName) {
         entries.push({ nombre: pendingName, carnet });

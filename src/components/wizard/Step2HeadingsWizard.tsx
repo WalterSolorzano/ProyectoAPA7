@@ -258,23 +258,24 @@ export const Step2HeadingsWizard: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              if (doc?.elements.some(e => e.type === 'toc')) {
+              const hasTocElem = doc?.elements.some(e => e.type === 'toc');
+              if (hasTocElem) {
                 useDocStore.getState().removeTocElement();
               } else {
                 useDocStore.getState().insertTocElement();
               }
             }}
-            title={doc?.elements.some(e => e.type === 'toc') ? "Quitar la Tabla de Contenidos del documento" : "Insertar una Tabla de Contenidos / Índice tras la portada"}
+            title={doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? "El documento ya contiene un Índice / Tabla de Contenidos" : "Insertar una Tabla de Contenidos / Índice tras la portada"}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: doc?.elements.some(e => e.type === 'toc') ? 'rgba(34, 197, 94, 0.15)' : 'var(--surface-subtle)',
-              color: doc?.elements.some(e => e.type === 'toc') ? '#15803d' : 'var(--text-main)',
-              border: doc?.elements.some(e => e.type === 'toc') ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
+              background: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? 'rgba(34, 197, 94, 0.15)' : 'var(--surface-subtle)',
+              color: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? '#15803d' : 'var(--text-main)',
+              border: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-sm)',
             }}
           >
-            <ListOrdered size={13} /> {doc?.elements.some(e => e.type === 'toc') ? 'Índice activo (Quitar)' : 'Insertar índice'}
+            <ListOrdered size={13} /> {doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? 'Índice detectado' : 'Insertar índice'}
           </button>
           <button
             type="button"
