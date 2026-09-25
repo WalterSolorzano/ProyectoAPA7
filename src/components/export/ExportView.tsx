@@ -279,7 +279,7 @@ export const ExportView: React.FC = () => {
           </button>
         </div>
 
-        {/* Zona Scrolleable de Diagnóstico Unificado */}
+        {/* Zona Principal de Exportación */}
         <div
           style={{
             flex: 1,
@@ -291,9 +291,256 @@ export const ExportView: React.FC = () => {
           }}
         >
 
-          {/* ── RESUMEN DE PROCESAMIENTO RÁPIDO ── */}
+          {/* ── ACCIÓN PRIMARIA: SELECTOR DE FORMATO & CTA HERO ── */}
           <section
-            aria-label="Resumen de Procesamiento Rápido"
+            aria-label="Selector de Formato y Descarga"
+            style={{
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid var(--color-border-subtle)',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              padding: 'var(--space-4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            {/* 1. Selector de Formato */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '6px',
+                padding: '4px',
+                backgroundColor: 'var(--surface-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              {FORMATS.map((f) => {
+                const Icon = f.icon;
+                const isSelected = format === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFormat(f.id)}
+                    aria-pressed={isSelected}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 6px',
+                      borderRadius: 'var(--radius-md)',
+                      textAlign: 'center',
+                      transition: 'all var(--transition-fast)',
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      ...(isSelected
+                        ? {
+                            backgroundColor: 'var(--color-bg-surface)',
+                            color: 'var(--color-text-primary)',
+                            boxShadow: 'var(--shadow-sm)',
+                            borderColor: 'var(--color-border-subtle)',
+                          }
+                        : {
+                            backgroundColor: 'transparent',
+                            color: 'var(--color-text-secondary)',
+                            borderColor: 'transparent',
+                          }),
+                    }}
+                  >
+                    <Icon size={20} style={{ color: f.iconColor }} />
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', marginTop: 'var(--space-1)' }}>
+                      {f.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 2. Opciones de DOCX */}
+            {format === 'docx' && (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-secondary)',
+                  padding: '2px 4px',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={tracked}
+                  onChange={(e) => setTracked(e.target.checked)}
+                  style={{
+                    borderRadius: 'var(--radius-sm)',
+                    width: '14px',
+                    height: '14px',
+                    cursor: 'pointer',
+                    accentColor: 'var(--color-accent)',
+                  }}
+                />
+                <span>Incluir marcas de control de cambios (Track Changes)</span>
+              </label>
+            )}
+
+            {/* 3. Advertencia de Citas Fantasma */}
+            {ghostCount > 0 && friction === 'ask' && (
+              <div
+                style={{
+                  padding: '12px',
+                  borderRadius: 'var(--radius-lg)',
+                  backgroundColor: 'var(--color-accent-soft)',
+                  border: '1px solid var(--color-warning)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <AlertTriangle size={15} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)' }}>
+                    Hay <strong>{ghostCount}</strong> cita{ghostCount === 1 ? '' : 's'} sin referencia en la bibliografía.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                  <button
+                    type="button"
+                    onClick={doExport}
+                    style={{
+                      flex: 1,
+                      padding: '5px 10px',
+                      backgroundColor: 'var(--color-bg-surface)',
+                      color: 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border-strong)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Descargar igual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFriction('resolve')}
+                    style={{
+                      flex: 1,
+                      padding: '5px 10px',
+                      backgroundColor: 'var(--color-accent)',
+                      color: 'var(--color-text-on-accent)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Resolver ahora
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4. BOTÓN HERO PRINCIPAL DE DESCARGA */}
+            <button
+              type="button"
+              onClick={handleDownloadClick}
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '14px var(--space-4)',
+                backgroundColor: 'var(--color-accent)',
+                color: 'var(--color-text-on-accent)',
+                borderRadius: 'var(--radius-xl)',
+                fontWeight: 'var(--font-bold)',
+                fontSize: 'var(--text-sm)',
+                boxShadow: 'var(--shadow-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 'var(--space-2)',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.7 : 1,
+                transition: 'all var(--transition-base)',
+                border: 'none',
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {loadingPhase}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>
+                    Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX (.tex)'}
+                  </span>
+                  <kbd
+                    style={{
+                      marginLeft: '6px',
+                      padding: '2px 6px',
+                      fontSize: 'var(--text-xs)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 400,
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      color: 'rgba(255, 255, 255, 0.85)',
+                    }}
+                  >
+                    Ctrl+S
+                  </kbd>
+                </>
+              )}
+            </button>
+
+            {/* Acción secundaria: Copiar PDF físico al portapapeles para WhatsApp */}
+            {format === 'pdf' && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await useDocStore.getState().copyPdfToClipboard();
+                }}
+                disabled={isLoading}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  backgroundColor: 'var(--surface-subtle)',
+                  color: 'var(--color-text-primary)',
+                  borderRadius: 'var(--radius-md)',
+                  fontWeight: 600,
+                  fontSize: 'var(--text-xs)',
+                  border: '1px solid var(--color-border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.15s ease',
+                }}
+                title="Copiar archivo PDF al portapapeles de Windows para pegar con Ctrl+V en WhatsApp"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Copiar PDF para WhatsApp (Ctrl+V)</span>
+              </button>
+            )}
+          </section>
+
+          {/* ── RESUMEN COMPACTO DE CERTIFICACIÓN APA 7 ── */}
+          <section
+            aria-label="Certificación de Estructura APA 7"
             style={{
               borderRadius: 'var(--radius-xl)',
               border: '1px solid var(--color-border-subtle)',
@@ -318,10 +565,10 @@ export const ExportView: React.FC = () => {
                   fontWeight: 'var(--font-bold)',
                   color: 'var(--color-text-primary)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  letterSpacing: '0.04em',
                 }}
               >
-                Resumen de Procesamiento Rápido
+                Certificación Editorial APA 7
               </span>
               <span
                 style={{
@@ -333,118 +580,27 @@ export const ExportView: React.FC = () => {
                   gap: 'var(--space-1)',
                 }}
               >
-                <CheckCircle2 size={13} /> Formato OK
+                <CheckCircle2 size={13} /> En regla
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-              {/* 1. Formato y márgenes APA 7 */}
-              <div style={summaryItemStyle}>
-                <div style={iconBox(ICON_PALETTES.accent)}>
-                  <Layers size={14} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={summaryTitleStyle}>
-                    Formato y márgenes APA 7
-                  </div>
-                  <div style={summaryDescStyle}>
-                    Documento formateado según normas APA 7.
-                  </div>
-                </div>
-                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '12px var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+                <span><strong>{authorsCount}</strong> autor{authorsCount === 1 ? '' : 'es'} en portada</span>
               </div>
-
-              {/* 2. Portada — paso 1 */}
-              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
-                <div style={iconBox(ICON_PALETTES.purple)}>
-                  <BookOpen size={14} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={summaryTitleStyle}>
-                    Portada Institucional / Estudiantil
-                  </div>
-                  <div style={summaryDescStyle}>
-                    {authorsCount} autor{authorsCount === 1 ? '' : 'es'} identificado{authorsCount === 1 ? '' : 's'}. Metadatos y título normalizados.
-                  </div>
-                </div>
-                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+                <span><strong>{headingsCount}</strong> títulos jerárquicos</span>
               </div>
-
-              {/* 3. Títulos y estructura — paso 2 */}
-              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
-                <div style={iconBox(ICON_PALETTES.indigo)}>
-                  <FileText size={14} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={summaryTitleStyle}>
-                    Títulos y estructura
-                  </div>
-                  <div style={summaryDescStyle}>
-                    {headingsCount} títulos organizados según APA 7.
-                  </div>
-                </div>
-                <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+                <span><strong>{tablesCount + figuresCount}</strong> tablas y figuras</span>
               </div>
-
-              {/* 4. Citas y Referencias — paso 4 */}
-              <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
-                <div style={iconBox(ICON_PALETTES.amber)}>
-                  <FileText size={14} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={summaryTitleStyle}>
-                    Citas y Referencias Bibliográficas
-                  </div>
-                  <div style={summaryDescStyle}>
-                    {refsCount} referencias en bibliografía con sangría francesa.
-                    {ghostCount > 0 && (
-                      <span style={{ color: 'var(--color-text-primary)', fontWeight: 'var(--font-medium)', display: 'block', marginTop: '4px' }}>
-                         {ghostCount} cita{ghostCount === 1 ? '' : 's'} en el texto sin entrada en bibliografía.
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {ghostCount === 0 ? (
-                  <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setFriction(friction === 'resolve' ? 'idle' : 'resolve')}
-                    style={{
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--color-warning)',
-                      fontWeight: 'var(--font-semibold)',
-                      cursor: 'pointer',
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      marginTop: '2px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {friction === 'resolve' ? 'Cerrar' : 'Resolver'}
-                  </button>
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
+                <span><strong>{refsCount}</strong> referencias citadas</span>
               </div>
-
-              {/* 5. Tablas y Figuras — paso 3 (si existen) */}
-              {(tablesCount > 0 || figuresCount > 0) && (
-                <div style={{ ...summaryItemStyle, borderTop: '1px solid var(--color-border-subtle)' }}>
-                  <div style={iconBox(ICON_PALETTES.teal)}>
-                    {tablesCount > 0 ? <Table size={14} /> : <ImageIcon size={14} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={summaryTitleStyle}>
-                      Tablas y Figuras APA 7
-                    </div>
-                    <div style={summaryDescStyle}>
-                      {tablesCount} tabla{tablesCount === 1 ? '' : 's'} y {figuresCount} figura{figuresCount === 1 ? '' : 's'} rotuladas y enumeradas.
-                    </div>
-                  </div>
-                  <Check size={15} style={{ color: 'var(--color-success)', marginTop: '2px', flexShrink: 0 }} />
-                </div>
-              )}
             </div>
           </section>
 
@@ -546,262 +702,6 @@ export const ExportView: React.FC = () => {
             </div>
           )}
 
-        </div>
-
-        {/* ── STICKY CTA: PANEL DE ACCIÓN Y SELECCIÓN DE FORMATO ── */}
-        <div
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            marginTop: 'auto',
-            padding: 'var(--space-4)',
-            backgroundColor: 'var(--color-bg-surface)',
-            borderTop: '1px solid var(--color-border-subtle)',
-            zIndex: 10,
-            boxShadow: 'var(--shadow-lg)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-          }}
-        >
-
-          {/* 1. Selector de Formato */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '6px',
-              padding: '4px',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--color-border-subtle)',
-            }}
-          >
-            {FORMATS.map((f) => {
-              const Icon = f.icon;
-              const isSelected = format === f.id;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setFormat(f.id)}
-                  aria-pressed={isSelected}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
-                    borderRadius: 'var(--radius-md)',
-                    textAlign: 'center',
-                    transition: 'all var(--transition-fast)',
-                    cursor: 'pointer',
-                    border: '1px solid',
-                    ...(isSelected
-                      ? {
-                          backgroundColor: 'var(--color-bg-surface)',
-                          color: 'var(--color-text-primary)',
-                          boxShadow: 'var(--shadow-sm)',
-                          borderColor: 'var(--color-border-subtle)',
-                        }
-                      : {
-                          backgroundColor: 'transparent',
-                          color: 'var(--color-text-secondary)',
-                          borderColor: 'transparent',
-                        }),
-                  }}
-                >
-                  <Icon size={18} style={{ color: f.iconColor }} />
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', marginTop: 'var(--space-1)' }}>
-                    {f.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 2. Opciones de DOCX */}
-          {format === 'docx' && (
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-2)',
-                cursor: 'pointer',
-                fontSize: 'var(--text-xs)',
-                color: 'var(--color-text-secondary)',
-                padding: '0 4px',
-                userSelect: 'none',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={tracked}
-                onChange={(e) => setTracked(e.target.checked)}
-                style={{
-                  borderRadius: 'var(--radius-sm)',
-                  width: '14px',
-                  height: '14px',
-                  cursor: 'pointer',
-                  accentColor: 'var(--color-accent)',
-                }}
-              />
-              <span>Incluir marcas de control de cambios (Track Changes)</span>
-            </label>
-          )}
-
-          {/* 3. FRICCIÓN INTENCIONAL / INTERCEPCIÓN SI HAY CITAS FANTASMA */}
-          {ghostCount > 0 && friction === 'ask' && (
-            <div
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-xl)',
-                backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <AlertTriangle size={16} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} />
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)' }}>
-                  Espera, tienes <strong>{ghostCount}</strong> cita{ghostCount === 1 ? '' : 's'} en el texto sin referencia en la bibliografía. ¿Descargar de todos modos?
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 'var(--space-2)', paddingTop: '4px' }}>
-                <button
-                  type="button"
-                  onClick={doExport}
-                  style={{
-                    flex: 1,
-                    padding: '6px 12px',
-                    backgroundColor: 'var(--color-bg-surface)',
-                    color: 'var(--color-text-primary)',
-                    border: '1px solid var(--color-border-strong)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--font-medium)',
-                    cursor: 'pointer',
-                    transition: 'background-color var(--transition-fast)',
-                  }}
-                >
-                  Descargar igual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFriction('resolve')}
-                  style={{
-                    flex: 1,
-                    padding: '6px 12px',
-                    backgroundColor: 'var(--color-accent)',
-                    color: 'var(--color-text-on-accent)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--font-semibold)',
-                    cursor: 'pointer',
-                    boxShadow: 'var(--shadow-sm)',
-                    transition: 'background-color var(--transition-fast)',
-                  }}
-                >
-                  Resolver ahora
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 4. BOTÓN HERO PRINCIPAL DE DESCARGA */}
-          <button
-            type="button"
-            onClick={handleDownloadClick}
-            disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '14px var(--space-4)',
-              backgroundColor: 'var(--color-accent)',
-              color: 'var(--color-text-on-accent)',
-              borderRadius: 'var(--radius-xl)',
-              fontWeight: 'var(--font-bold)',
-              fontSize: 'var(--text-sm)',
-              boxShadow: 'var(--shadow-md)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 'var(--space-2)',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              opacity: isLoading ? 0.7 : 1,
-              transition: 'all var(--transition-base)',
-              border: 'none',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {loadingPhase}
-                </span>
-              </>
-            ) : (
-              <>
-                <Download size={18} />
-                <span>
-                  Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX'}
-                </span>
-                <kbd
-                  style={{
-                    marginLeft: '6px',
-                    padding: '2px 6px',
-                    fontSize: '10px',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 400,
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    color: 'rgba(255, 255, 255, 0.85)',
-                  }}
-                >
-                  Ctrl+S
-                </kbd>
-              </>
-            )}
-          </button>
-
-          {/* Acción secundaria: Copiar PDF físico al portapapeles para WhatsApp */}
-          {format === 'pdf' && (
-            <button
-              type="button"
-              onClick={async () => {
-                await useDocStore.getState().copyPdfToClipboard();
-              }}
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                backgroundColor: 'var(--color-bg-surface-alt)',
-                color: 'var(--color-text-primary)',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 600,
-                fontSize: '12px',
-                border: '1px solid var(--color-border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.15s ease',
-              }}
-              title="Copiar archivo PDF al portapapeles de Windows para pegar con Ctrl+V en WhatsApp"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <span>Copiar PDF para WhatsApp (Ctrl+V)</span>
-            </button>
-          )}
         </div>
       </aside>
 
@@ -1063,16 +963,16 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
     if (elem.type === 'table') {
       const rows = elem.table_info?.rows || elem.rows || [];
       return (
-        <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div key={idx} style={{ padding: '8px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>
             Tabla original (sin formato)
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #d1d5db' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-xs)', border: '1px solid var(--border-subtle)' }}>
             <tbody>
               {rows.slice(0, 4).map((r: any, rIdx: number) => (
                 <tr key={rIdx}>
                   {(r.cells || r || []).map((c: any, cIdx: number) => (
-                    <td key={cIdx} style={{ border: '1px solid #d1d5db', padding: '3px 6px', color: 'var(--text-main)' }}>
+                    <td key={cIdx} style={{ border: '1px solid var(--border-subtle)', padding: '3px 6px', color: 'var(--text-main)' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </td>
                   ))}
@@ -1080,28 +980,28 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
               ))}
             </tbody>
           </table>
-          {rows.length > 4 && <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>+{rows.length - 4} filas adicionales</div>}
+          {rows.length > 4 && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>+{rows.length - 4} filas adicionales</div>}
         </div>
       );
     }
     if (elem.type === 'image') {
       return (
-        <div key={idx} style={{ padding: '8px', borderRadius: '6px', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>Figura original</div>
+        <div key={idx} style={{ padding: '8px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Figura original</div>
           {elem.image_info?.relative_url && (
-            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt="Figura" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt="Figura" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
           )}
-          {elem.text && <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{elem.text}</div>}
+          {elem.text && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{elem.text}</div>}
         </div>
       );
     }
     return (
       <div key={idx} style={{
         fontFamily: 'var(--font-sans, system-ui, sans-serif)',
-        fontSize: elem.type === 'heading' ? '13px' : '11.5px',
+        fontSize: elem.type === 'heading' ? 'var(--text-sm)' : 'var(--text-xs)',
         fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
         color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.4,
-        padding: '6px 10px', borderRadius: '4px',
+        padding: '6px 10px', borderRadius: 'var(--radius-sm)',
         backgroundColor: 'var(--surface-subtle)',
         border: '1px solid var(--border-subtle)',
       }}>
@@ -1116,7 +1016,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const tableNum = elem.table_info?.table_number || (idx + 1);
       const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: '4px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
             Tabla {tableNum}
           </div>
@@ -1147,7 +1047,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
               ))}
             </tbody>
           </table>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: '#374151', marginTop: '6px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: 'var(--text-secondary)', marginTop: '6px' }}>
             <strong>Nota.</strong> Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.
           </div>
         </div>
@@ -1157,7 +1057,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const figNum = elem.image_info?.figure_number || 1;
       const caption = elem.image_info?.caption || 'Ilustración del proceso';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: '4px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
             Figura {figNum}
           </div>
@@ -1167,7 +1067,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
           {elem.image_info?.relative_url && (
             <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '180px', maxWidth: '100%', objectFit: 'contain', margin: '6px 0' }} />
           )}
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: '#374151', marginTop: '4px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: 'var(--text-secondary)', marginTop: '4px' }}>
             <strong>Nota.</strong> Presentación gráfica formal APA 7 con alineación y resolución óptima.
           </div>
         </div>
@@ -1200,10 +1100,10 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       {/* Columna Izquierda: Original */}
       <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-subtle)', height: '100%', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Original
           </span>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Sin formato APA 7</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Sin formato APA 7</span>
         </div>
         <div
           ref={leftScrollRef}
@@ -1217,17 +1117,17 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       {/* Columna Derecha: Formato APA 7 (Hoja de Papel Blanco) */}
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', backgroundColor: 'var(--surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Transformado (Norma APA 7)
           </span>
-          <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 600 }}>Formato Oficial Editable</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-primary)', fontWeight: 600 }}>Formato Oficial Editable</span>
         </div>
         <div
           ref={rightScrollRef}
           onScroll={onScrollRight}
           style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', backgroundColor: 'var(--canvas-bg)' }}
         >
-          <div style={{ backgroundColor: '#ffffff', color: '#111827', padding: '36px 40px', borderRadius: '4px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
+          <div style={{ backgroundColor: '#ffffff', color: '#111827', padding: '36px 40px', borderRadius: 'var(--radius-sm)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
             {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
           </div>
         </div>

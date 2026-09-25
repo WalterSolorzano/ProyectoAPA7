@@ -478,7 +478,7 @@ export interface ProofreadFinding {
   start: number;
   end: number;
   excerpt: string;
-  kind: 'first_person' | 'ortografia' | 'ai_phrase' | 'pegado' | 'muletilla';
+  kind: 'first_person' | 'ortografia' | 'ai_phrase' | 'pegado' | 'muletilla' | 'ngram_repetition' | 'bloom_vague' | 'bloom_low' | 'repeticion' | 'persona' | 'incompleta' | 'ambigua' | 'passive_voice' | 'long_sentence' | string;
   severity: 'info' | 'warn' | 'error';
   message: string;
   suggestion?: string;

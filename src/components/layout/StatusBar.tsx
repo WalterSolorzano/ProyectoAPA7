@@ -79,9 +79,8 @@ export const StatusBar: React.FC = () => {
     warnings.push('Citas detectadas sin referencias');
   }
 
-  const openSuggestions = () => {
-    setForceRightPanelOpen(true);
-    if (firstSuggestionId) useDocStore.getState().setSelectedElementId(firstSuggestionId);
+  const goToReview = () => {
+    useDocStore.getState().setWizardStep(5);
   };
 
   return (
@@ -98,11 +97,11 @@ export const StatusBar: React.FC = () => {
           padding: '4px 12px',
         }}
       >
-        {/* ── BOTÓN ÚNICO: Auditoría y Sugerencias ── */}
+        {/* ── BOTÓN ÚNICO: Acceso a Revisión Editorial ── */}
         <button
           type="button"
-          onClick={openSuggestions}
-          title={suggestionCount > 0 ? `${suggestionCount} sugerencias pendientes — clic para verlas` : 'Abrir panel de sugerencias y auditoría'}
+          onClick={goToReview}
+          title={suggestionCount > 0 ? `${suggestionCount} observaciones editoriales — clic para ir a Revisión` : 'Paso 5: Revisión y Calidad Editorial'}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: suggestionCount > 0 ? 'var(--accent-primary)' : 'transparent',
@@ -115,13 +114,13 @@ export const StatusBar: React.FC = () => {
           }}
         >
           <Sparkles size={14} />
-          <span>Auditoría</span>
+          <span>Revisión</span>
           {(suggestionCount > 0 || activityUnseen > 0) && (
             <span style={{
-              minWidth: '18px', height: '18px', borderRadius: '999px',
+              minWidth: '18px', height: '18px', borderRadius: 'var(--radius-full)',
               backgroundColor: suggestionCount > 0 ? '#fff' : 'var(--accent-primary)',
               color: suggestionCount > 0 ? 'var(--accent-primary)' : '#fff',
-              fontSize: '10px', fontWeight: 800,
+              fontSize: 'var(--text-xs)', fontWeight: 800,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               padding: '0 5px',
             }}>

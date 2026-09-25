@@ -474,6 +474,19 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
                                 f'Ortografía: "{m.group(0)}" → "{correct}"',
                                 suggestion=correct))
 
+        # -- verbos imprecisos en objetivos / Bloom
+        low_t = text.lower()
+        if any(kw in low_t for kw in ("objetivo", "propósito", "finalidad", "meta")):
+            for vv in VAGUE_VERBS:
+                pos = low_t.find(vv)
+                if pos >= 0:
+                    findings.append(_mk(
+                        eid, text, pos, pos + len(vv), "bloom_vague", "warn",
+                        f'Verbo impreciso "{text[pos:pos+len(vv)]}" en objetivo; usa un verbo en infinitivo medible (analizar, determinar, evaluar)',
+                        suggestion="analizar"
+                    ))
+                    break
+
         # -- B1 repetición / B2 incompleta / B4 persona / B5 ambigüedad
         findings.extend(_audit_repeticion(eid, text))
         findings.extend(_audit_incompleta(eid, text))

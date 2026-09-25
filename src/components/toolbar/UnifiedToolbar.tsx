@@ -46,7 +46,6 @@ export function UnifiedToolbar() {
   // ── T5: chip de estado del complemento de Word ──
   const [sideload, setSideload] = useState<SideloadStatus | null>(null);
   const [hbActive, setHbActive] = useState<boolean | null>(null);
-  const chipLabel = hbActive === true ? 'Activo en Word' : 'Instalado — ábrelo desde Mis complementos';
   const refreshSideload = useCallback(() => {
     fetch('/api/addin/sideload-status').then(r=>r.json()).then((d:any)=>setHbActive(!!d?.active_in_word)).catch(()=>{});
     getSideloadStatus()
@@ -64,6 +63,10 @@ export function UnifiedToolbar() {
     : sideload.installed
       ? (sideload.up_to_date ? 'active' : 'outdated')
       : 'missing';
+
+  const chipLabel = hbActive === true
+    ? 'Word Add-in'
+    : (sideloadState === 'outdated' ? 'Actualizar Add-in' : (sideloadState === 'missing' ? 'Instalar Add-in' : 'Word Add-in'));
 
   const handleRepairSideload = async () => {
     try {
@@ -235,7 +238,7 @@ export function UnifiedToolbar() {
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#25D366' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-success)' }}>
               <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
               <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
             </svg>
@@ -252,8 +255,8 @@ export function UnifiedToolbar() {
               title="Actualización descargada. Clic para reiniciar e instalar."
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
-                background: 'rgba(82,196,26,0.14)',
-                border: '1px solid rgba(82,196,26,0.4)',
+                background: 'var(--color-accent-soft)',
+                border: '1px solid var(--accent-success)',
                 borderRadius: 'var(--radius-sm)',
                 color: 'var(--accent-success)',
                 fontSize: 'var(--text-xs)', fontWeight: 700,

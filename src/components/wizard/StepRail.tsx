@@ -8,7 +8,7 @@ const STEPS = [
   { step: 2, label: 'Estructura', Icon: ListTree },
   { step: 3, label: 'Figuras', Icon: ImageIcon },
   { step: 4, label: 'Referencias', Icon: BookOpen },
-  { step: 5, label: 'Auditoría & IA', Icon: ShieldCheck },
+  { step: 5, label: 'Revisión & IA', Icon: ShieldCheck },
   { step: 6, label: 'Exportar', Icon: Download },
 ] as const;
 
@@ -90,7 +90,6 @@ export function StepRail() {
         gap: '2px',
         position: 'relative',
         userSelect: isResizing ? 'none' : 'auto',
-        transition: isResizing ? 'none' : 'width 0.15s ease',
       }}
     >
       {/* Asa de arrastre para cambiar ancho */}
@@ -111,7 +110,7 @@ export function StepRail() {
       />
       <div
         style={{
-          fontSize: '10px',
+          fontSize: 'var(--text-xs)',
           fontWeight: 800,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
@@ -165,7 +164,7 @@ export function StepRail() {
               color: active ? 'var(--accent-primary)' : 'var(--text-main)',
               cursor: 'pointer',
               textAlign: isCollapsed ? 'center' : 'left',
-              fontSize: '13px',
+              fontSize: 'var(--text-sm)',
               fontWeight: active ? 700 : 500,
               transition: 'background 0.12s',
             }}
@@ -192,9 +191,9 @@ export function StepRail() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '10px',
+                  fontSize: 'var(--text-xs)',
                   fontWeight: 800,
-                  background: 'var(--accent-warning, #b45309)',
+                  background: 'var(--accent-warning)',
                   color: '#fff',
                   flexShrink: 0,
                 }}
@@ -239,7 +238,7 @@ export function StepRail() {
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
             <Map size={13} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)' }}>
               Mapa del documento
             </span>
             {mapOpen
