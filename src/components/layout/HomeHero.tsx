@@ -4,7 +4,8 @@
  * ni texto patronizante. Cero emojis — iconos Lucide únicamente.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { RotateCw, Sparkles } from 'lucide-react';
 import { PROCESS_VERBS, JOKES, APA_FACTS, AI_JOKES, WORD_HELL_JOKES, STUDENT_JOKES } from './LoadingTips';
 import { getTimeSlotPhrases } from '../../lib/studentJokes';
 
@@ -55,8 +56,8 @@ function fmtPhrase(raw: string): string {
 function buildPool(): Phrase[] {
   const timePhrases = getTimeContextPhrases();
   const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: fmtPhrase(t.replace(/…$/, '')), tag: 'procesando' }));
-  const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste' }));
-  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato' }));
+  const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste', badge: 'humor' }));
+  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato', badge: 'norma APA' }));
   const ai: Phrase[] = AI_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'ai', badge: 'modo IA' }));
   const wordhell: Phrase[] = WORD_HELL_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'wordhell', badge: 'infierno Word' }));
   const student: Phrase[] = STUDENT_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'student', badge: 'modo café' }));
@@ -64,8 +65,43 @@ function buildPool(): Phrase[] {
   return [...timePhrases, ...EXTRA_HERO, ...process, ...jokes, ...facts, ...ai, ...wordhell, ...student];
 }
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+// Historial para que nunca se repita la misma frase en aperturas consecutivas
+const SEEN_STORAGE_KEY = 'wordapa7_seen_hero_phrases';
+
+function getSeenPhrases(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(SEEN_STORAGE_KEY) || localStorage.getItem(SEEN_STORAGE_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function recordSeenPhrase(text: string) {
+  try {
+    const seen = getSeenPhrases();
+    seen.add(text);
+    // Limitar historial a 30 frases para recircular
+    const arr = Array.from(seen).slice(-30);
+    sessionStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(arr));
+    localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(arr));
+  } catch { /* noop */ }
+}
+
+function pickFreshPhrase(pool: Phrase[], currentText?: string): Phrase {
+  const seen = getSeenPhrases();
+  let available = pool.filter((p) => !seen.has(p.text) && p.text !== currentText);
+  if (available.length === 0) {
+    // Si ya vimos todas, limpiar historial
+    try {
+      sessionStorage.removeItem(SEEN_STORAGE_KEY);
+      localStorage.removeItem(SEEN_STORAGE_KEY);
+    } catch { /* noop */ }
+    available = pool.filter((p) => p.text !== currentText);
+  }
+  const picked = available[Math.floor(Math.random() * available.length)] || pool[0];
+  recordSeenPhrase(picked.text);
+  return picked;
 }
 
 const TAG_COLOR: Record<string, string> = {
@@ -82,91 +118,140 @@ const TAG_COLOR: Record<string, string> = {
 
 const BADGE_COLOR: Record<string, string> = {
   'hora-especial': 'var(--accent-primary)',
-  ai: 'var(--accent-danger)',
-  wordhell: 'var(--accent-warning)',
-  student: 'var(--accent-primary)',
-};
-
-const getEffectClass = (tag: string): string => {
-  switch (tag) {
-    case 'ai': return 'hero-phrase-base hero-fx-ai';
-    case 'chiste': return 'hero-phrase-base hero-fx-chiste';
-    case 'hora-especial':
-    case 'student': return 'hero-phrase-base hero-fx-academic';
-    case 'wordhell': return 'hero-phrase-base hero-fx-punch';
-    case 'dato': return 'hero-phrase-base hero-fx-clarity';
-    default: return 'hero-phrase-base hero-fx-editorial';
-  }
+  ai: '#7c3aed',
+  wordhell: 'var(--accent-warning, #d97706)',
+  student: 'var(--accent-primary, #4f7cff)',
+  humor: 'var(--accent-success, #10b981)',
+  'norma APA': 'var(--accent-primary, #4f7cff)',
 };
 
 export const HomeHero: React.FC = () => {
   const poolRef = useRef<Phrase[]>(buildPool());
-  const [phrase, setPhrase] = useState<Phrase>(() => poolRef.current[0]);
+  const [phrase, setPhrase] = useState<Phrase>(() => pickFreshPhrase(poolRef.current));
   const [fadeKey, setFadeKey] = useState(0);
 
+  const rotateNext = useCallback(() => {
+    const next = pickFreshPhrase(poolRef.current, phrase.text);
+    setPhrase(next);
+    setFadeKey((k) => k + 1);
+  }, [phrase.text]);
+
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const next = pickRandom(poolRef.current);
-      setPhrase(next);
-      setFadeKey((k) => k + 1);
-      const isArt =
-        next.tag === 'hora-especial' || next.tag === 'contexto' || next.tag === 'ai' || next.tag === 'student';
-      timer = setTimeout(tick, isArt ? 16000 : 9000);
-    };
-    timer = setTimeout(tick, 9000);
-    return () => clearTimeout(timer);
-  }, []);
+    const timer = setInterval(() => {
+      rotateNext();
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [rotateNext]);
 
   const color = TAG_COLOR[phrase.tag] || 'var(--text-main)';
-  const badgeColor = BADGE_COLOR[phrase.tag];
-  const effectClass = getEffectClass(phrase.tag);
+  const badgeColor = BADGE_COLOR[phrase.badge || ''] || 'var(--accent-primary)';
 
   return (
-    <div style={{ textAlign: 'center', padding: '10px 0 20px' }}>
-      {/* Frase principal rotatoria con efecto tipográfico contextual de alta definición */}
-      <div
-        key={fadeKey}
-        className={effectClass}
+    <div style={{ textAlign: 'center', padding: '6px 0 18px', userSelect: 'none' }}>
+      {/* Título de ancla claro, estable y profesional */}
+      <h1
         style={{
-          fontSize: 'clamp(34px, 4.6vw, 52px)',
-          fontWeight: 900,
-          lineHeight: 1.15,
-          letterSpacing: '-0.025em',
-          color,
-          margin: '0 auto',
-          maxWidth: '920px',
-          minHeight: '100px',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
+          fontSize: 'var(--text-2xl)',
+          fontWeight: 800,
+          color: 'var(--text-main)',
+          margin: '0 0 4px',
+          letterSpacing: '-0.02em',
+          lineHeight: 1.2,
           fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
         }}
       >
-        {phrase.text}
-      </div>
+        WordAPA7
+      </h1>
 
-      {/* Badge temático opcional */}
-      {badgeColor && phrase.badge && (
+      <p
+        style={{
+          fontSize: 'var(--text-sm)',
+          color: 'var(--text-secondary)',
+          margin: '0 0 12px',
+          fontWeight: 500,
+        }}
+      >
+        Formato y edición APA 7ma edición con fidelidad nativa a tu documento original
+      </p>
+
+      {/* Cápsula de frases cómicas y de contexto: no repetitiva, animada y compacta */}
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '4px 12px',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--surface-elevated)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-sm)',
+          maxWidth: '85vw',
+        }}
+      >
+        {phrase.badge && (
+          <span
+            style={{
+              fontSize: 'var(--text-xs)',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: '#ffffff',
+              backgroundColor: badgeColor,
+              borderRadius: 'var(--radius-full)',
+              padding: '2px 8px',
+              flexShrink: 0,
+            }}
+          >
+            {phrase.badge}
+          </span>
+        )}
+
         <span
+          key={fadeKey}
+          className="hero-phrase-base"
           style={{
-            display: 'inline-block',
-            marginTop: '12px',
-            fontSize: '11px',
-            fontWeight: 800,
-            textTransform: 'uppercase',
-            letterSpacing: '0.6px',
-            color: '#fff',
-            backgroundColor: badgeColor,
-            borderRadius: '999px',
-            padding: '4px 14px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 600,
+            color,
+            lineHeight: 1.3,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={phrase.text}
+        >
+          {phrase.text}
+        </span>
+
+        <button
+          type="button"
+          onClick={rotateNext}
+          title="Ver otra frase o curiosidad"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '2px',
+            cursor: 'pointer',
+            color: 'var(--text-secondary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            borderRadius: '50%',
+            transition: 'color 0.15s ease, transform 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--accent-primary)';
+            e.currentTarget.style.transform = 'rotate(45deg)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--text-secondary)';
+            e.currentTarget.style.transform = 'rotate(0deg)';
           }}
         >
-          {phrase.badge}
-        </span>
-      )}
+          <RotateCw size={11} />
+        </button>
+      </div>
     </div>
   );
 };

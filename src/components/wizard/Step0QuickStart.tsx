@@ -213,7 +213,7 @@ export const Step0QuickStart: React.FC = () => {
     uploadFile, setActiveProfile, isLoading, isBackendReady, error, openSession,
     profiles, activeProfileId,
   } = useDocStore();
-  const [activeTab, setActiveTab] = useState<'inicio' | 'abrir' | 'recientes'>('inicio');
+  const [activeTab, setActiveTab] = useState<'inicio' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
   const [dragging, setDragging] = useState(false);
   const [recentSessions, setRecentSessions] = useState<SessionRecovery[]>([]);
@@ -431,7 +431,6 @@ export const Step0QuickStart: React.FC = () => {
         borderRight: '1px solid var(--border-subtle)'
       }}>
         <NavItem icon={<Home size={22} />} label="Inicio" active={activeTab === 'inicio'} onClick={() => setActiveTab('inicio')} />
-        <NavItem icon={<FolderOpen size={22} />} label="Abrir" active={activeTab === 'abrir'} onClick={() => setActiveTab('abrir')} />
         <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
 
         {/* Configuraciones — único punto de acceso a ajustes */}
@@ -463,7 +462,7 @@ export const Step0QuickStart: React.FC = () => {
             <div style={{
               width: '42px',
               height: '42px',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-lg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -475,7 +474,7 @@ export const Step0QuickStart: React.FC = () => {
             }}>
               <Settings2 size={22} />
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.02em' }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.02em' }}>
               Ajustes
             </span>
           </button>
@@ -488,15 +487,15 @@ export const Step0QuickStart: React.FC = () => {
 
 
       {/* ── ÁREA PRINCIPAL ─── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '28px 60px 56px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 48px 40px' }}>
 
         {/* Error global */}
         {error && (
           <div role="alert" style={{
             padding: '12px 20px',
             marginBottom: '20px',
-            backgroundColor: 'rgba(255,77,79,0.14)', border: '1px solid rgba(255,77,79,0.4)',
-            color: 'var(--accent-danger)', borderRadius: '8px', fontWeight: 600,
+            backgroundColor: 'rgba(212, 56, 46, 0.1)', border: '1px solid var(--color-danger)',
+            color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: '10px',
           }}>
             <AlertTriangle size={16} style={{ flexShrink: 0 }} />
@@ -540,16 +539,16 @@ export const Step0QuickStart: React.FC = () => {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ShieldCheck size={15} color="var(--accent-primary)" />
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '0.01em' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '0.01em' }}>
                     Norma APA 7ma Edición
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                     · Motor editorial local
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label htmlFor="apa-profile-select" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  <label htmlFor="apa-profile-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
                     Perfil:
                   </label>
                   <select
@@ -564,7 +563,7 @@ export const Step0QuickStart: React.FC = () => {
                       backgroundColor: 'var(--surface-elevated)',
                       color: 'var(--text-main)',
                       fontFamily: 'inherit',
-                      fontSize: '12px',
+                      fontSize: 'var(--text-xs)',
                       fontWeight: 600,
                       cursor: isLoading ? 'wait' : 'pointer',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -616,11 +615,11 @@ export const Step0QuickStart: React.FC = () => {
                   <FileUp size={28} color={dragging ? '#fff' : 'var(--accent-primary)'} />
                 </div>
 
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: 'var(--text-xl)', fontWeight: 800, color: 'var(--text-main)', marginBottom: '6px', textAlign: 'center' }}>
                   {isLoading ? 'Analizando documento…' : 'Arrastrá tu documento Word (.docx) aquí'}
                 </div>
 
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', textAlign: 'center', maxWidth: '460px' }}>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: '20px', textAlign: 'center', maxWidth: '460px' }}>
                   Ajuste automático de portada, títulos jerárquicos, márgenes, tablas, figuras y referencias sin alterar tu texto original.
                 </div>
 
@@ -641,7 +640,7 @@ export const Step0QuickStart: React.FC = () => {
                       backgroundColor: 'var(--accent-primary)',
                       color: '#ffffff',
                       fontFamily: 'inherit',
-                      fontSize: '13.5px',
+                      fontSize: 'var(--text-sm)',
                       fontWeight: 700,
                       boxShadow: '0 4px 14px rgba(79, 124, 255, 0.28)',
                       transition: 'all 0.15s ease',
@@ -685,7 +684,7 @@ export const Step0QuickStart: React.FC = () => {
                       backgroundColor: 'var(--surface-elevated)',
                       color: 'var(--text-main)',
                       fontFamily: 'inherit',
-                      fontSize: '13px',
+                      fontSize: 'var(--text-sm)',
                       fontWeight: 600,
                       boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
                       transition: 'all 0.15s ease',
@@ -710,20 +709,59 @@ export const Step0QuickStart: React.FC = () => {
                 background: 'var(--surface-subtle)',
               }}>
                 <BadgeCheck size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 500 }}>
                   Procesamiento local y privado. El texto de tu documento original nunca se pierde ni se altera.
                 </span>
               </div>
             </div>
 
+            {/* ── RECIENTES INMEDIATOS (visible sin scroll cuando existen) ── */}
+            {recentSessions.length > 0 && (
+              <div style={{ marginBottom: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Clock size={16} color="var(--accent-primary)" />
+                    <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                      Continuar documento reciente
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('recientes')}
+                    style={{
+                      fontSize: 'var(--text-sm)', color: 'var(--accent-primary)', cursor: 'pointer',
+                      background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontWeight: 600,
+                    }}
+                  >
+                    Ver todos ({recentSessions.length}) →
+                  </button>
+                </div>
+                <div style={{
+                  background: 'var(--surface-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-lg)',
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                }}>
+                  <RecentsList
+                    sessions={recentSessions.slice(0, 4)}
+                    loading={loadingRecents}
+                    backendReady={isBackendReady}
+                    recoveringId={recoveringId}
+                    onOpen={handleRecoverSession}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* ── ACCIÓN SECUNDARIA: Plantillas Oficiales APA 7 (Tarjetas Esbeltas y Claras) ── */}
             <div style={{ marginBottom: '36px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
                 <div>
-                  <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px' }}>
+                  <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px' }}>
                     Plantillas Oficiales APA 7
                   </h2>
-                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
                     Estructuras académicas listas para redactar con jerarquía y portada normalizada.
                   </p>
                 </div>
@@ -764,7 +802,7 @@ export const Step0QuickStart: React.FC = () => {
                       <div style={{
                         width: '44px',
                         height: '44px',
-                        borderRadius: '10px',
+                        borderRadius: 'var(--radius-lg)',
                         flexShrink: 0,
                         background: 'var(--surface-subtle)',
                         display: 'flex',
@@ -778,26 +816,26 @@ export const Step0QuickStart: React.FC = () => {
                       {/* Información central */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {tpl.name}
                           </span>
                           <span style={{
-                            fontSize: '9.5px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: 700,
                             color: 'var(--text-secondary)',
                             background: 'var(--surface-subtle)',
                             padding: '1px 6px',
-                            borderRadius: '999px',
+                            borderRadius: 'var(--radius-full)',
                             border: '1px solid var(--border-subtle)',
                             flexShrink: 0,
                           }}>
                             {tpl.badge}
                           </span>
                         </div>
-                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {tpl.purpose}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {tpl.description}
                         </div>
                       </div>
@@ -822,7 +860,7 @@ export const Step0QuickStart: React.FC = () => {
                             background: 'var(--accent-primary)',
                             color: '#ffffff',
                             border: 'none',
-                            fontSize: '11.5px',
+                            fontSize: 'var(--text-xs)',
                             fontWeight: 700,
                             fontFamily: 'inherit',
                             cursor: 'pointer',
@@ -867,40 +905,6 @@ export const Step0QuickStart: React.FC = () => {
                 })}
               </div>
             </div>
-
-            {/* Recientes (preview) */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>Recientes</h2>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('recientes')}
-                  style={{
-                    fontSize: 'var(--text-sm)', color: 'var(--accent-primary)', cursor: 'pointer',
-                    background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-                  }}
-                >
-                  Ver todos →
-                </button>
-              </div>
-              <RecentsList
-                sessions={recentSessions.slice(0, 5)}
-                loading={loadingRecents}
-                backendReady={isBackendReady}
-                recoveringId={recoveringId}
-                onOpen={handleRecoverSession}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── ABRIR ── */}
-        {activeTab === 'abrir' && (
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-main)', marginBottom: '24px', marginTop: 0 }}>
-              Abrir Documento Existente
-            </h1>
-            <UploadDropzone onFileSelected={(file) => uploadFile(file, { profileId: activeProfileId, mode: 'review' })} isLoading={isLoading || !isBackendReady} />
           </div>
         )}
 
@@ -948,7 +952,7 @@ const NavItem: React.FC<{
     onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
   >
     <div style={{ color: active ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>{icon}</div>
-    <span style={{ color: active ? 'var(--accent-primary)' : 'var(--text-muted)', fontSize: '9px', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
+    <span style={{ color: active ? 'var(--accent-primary)' : 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
       {label}
     </span>
   </button>
