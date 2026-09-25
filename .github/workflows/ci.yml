@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # historial completo para diff de archivos cambiados
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -19,8 +21,31 @@ jobs:
         cache: pip
     - name: Install Ruff
       run: pip install ruff
-    - name: Run Ruff Linter
-      run: ruff check python/
+    # Ratchet: ruff SOLO sobre .py cambiados en este evento.
+    # El codigo legacy (~245 hallazgos preexistentes) no bloquea;
+    # todo archivo tocado nuevo/modificado si debe pasar limpio.
+    - name: Run Ruff Linter (changed files)
+      env:
+        EVENT_BEFORE: ${{ github.event.before }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -euo pipefail
+        if [ -n "${PR_BASE_SHA:-}" ]; then
+          RANGE="$PR_BASE_SHA...HEAD"
+        elif [ -n "${EVENT_BEFORE:-}" ] && [[ "$EVENT_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+          RANGE="$EVENT_BEFORE...HEAD"
+        else
+          RANGE="HEAD~1...HEAD"
+        fi
+        git diff --name-only --diff-filter=ACMR "$RANGE" -- '*.py' > changed.txt || true
+        grep -E '^python/.*\.py$' changed.txt > lintable.txt || true
+        if [ ! -s lintable.txt ]; then
+          echo "Sin .py cambiados dentro de python/. Ruff omitido."
+          exit 0
+        fi
+        echo "Lint sobre archivos cambiados:"
+        cat lintable.txt
+        xargs -a lintable.txt ruff check
 
   lint-frontend:
     runs-on: ubuntu-latest

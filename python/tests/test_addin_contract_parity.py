@@ -10,9 +10,9 @@ Tiers:
   TIER_MONO : solo el monolito los implementa; el add-in DEGRADA si faltan
               (fallback local). Deben existir en main.py.
 """
+import pathlib
 import re
 import sys
-import pathlib
 
 import pytest
 

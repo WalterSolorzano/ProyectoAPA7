@@ -95,8 +95,8 @@ from models import (
     WorkMode,
 )
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
+from modules.doc_auditor import DocAuditResult, audit_document_structure
 from modules.referencias_module import resolve_doi
-from modules.doc_auditor import audit_document_structure, DocAuditResult
 from parsing.docx_parser import parse_docx_bytes
 from persistence.idempotency import check_idempotency, init_sqlite_db
 from persistence.session_manager import (
@@ -127,7 +127,12 @@ async def lifespan_app(app: FastAPI):
 
     # Generar/actualizar manifest.xml dinámico en STORAGE_DIR al arrancar (sideload local)
     try:
-        from routers.addin_static import _get_addin_manifest_path, _resolve_addin_base_url, _DEV_ADDIN_URL, _DEV_ADDIN_URLS
+        from routers.addin_static import (
+            _DEV_ADDIN_URL,
+            _DEV_ADDIN_URLS,
+            _get_addin_manifest_path,
+            _resolve_addin_base_url,
+        )
         manifest_src = _get_addin_manifest_path()
         if manifest_src and manifest_src.exists():
             dest_manifest = STORAGE_DIR / "manifest.xml"
@@ -176,6 +181,7 @@ _DEFAULT_ALLOWED_ORIGINS = [
 # Produccion: el add-in puede servirse desde URL publica (WORDAPA7_ADDIN_PUBLIC_URL)
 # y llama al backend local en loopback => su origen debe entrar a la allowlist.
 from urllib.parse import urlparse as _urlparse
+
 _public_addin = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
 if _public_addin:
     _p = _urlparse(_public_addin if "//" in _public_addin else "https://" + _public_addin)
@@ -232,10 +238,13 @@ from routers import proofread
 app.include_router(proofread.router)
 
 from routers import pagination as pagination_router
+
 app.include_router(pagination_router.router)
 from routers import presets as presets_router
+
 app.include_router(presets_router.router)
 from routers import spec as spec_router
+
 app.include_router(spec_router.router)
 
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
@@ -1417,7 +1426,7 @@ async def api_live_chat(req: LiveChatRequest) -> dict:
     y devuelve una respuesta explicativa junto con acciones estructuradas (DSL)
     para editar el DocumentModel de forma atómica y segura.
     """
-    doc = session_manager.get_session(req.session_id)
+    doc = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
     from modules.ai_document_editor import process_live_document_chat
@@ -1440,7 +1449,7 @@ async def api_proactive_captions(req: ProactiveCaptionsRequest) -> dict:
     Analiza en segundo plano las figuras y tablas del documento y sugiere
     automáticamente títulos descriptivos en cursiva y notas APA 7.
     """
-    doc = session_manager.get_session(req.session_id)
+    doc = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
     from modules.ai_proactive_captioner import analyze_document_proactive_captions
@@ -1460,7 +1469,7 @@ async def api_proactive_diagnose(req: ProactiveDiagnoseRequest) -> dict:
     Diagnostica de forma proactiva un elemento del documento y formula una
     propuesta de corrección académica lista para aplicar con 1 clic.
     """
-    doc = session_manager.get_session(req.session_id)
+    doc = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
 
@@ -2183,7 +2192,8 @@ class ClientLogRequest(BaseModel):
 @app.post("/api/client-log")
 async def client_log_endpoint(req: ClientLogRequest) -> dict:
     """Receptor de logs del frontend y del add-in."""
-    from wordapa7_logger import log_event as _lv2, log_error as _le2
+    from wordapa7_logger import log_error as _le2
+    from wordapa7_logger import log_event as _lv2
     comp = (req.component or "client").replace("/", "_")[:24]
     if req.level == "error":
         _le2(comp, req.event, Exception(str(req.data)), req.data)
@@ -2227,8 +2237,9 @@ async def open_local_document(req: OpenLocalReq) -> dict:
     src = Path(req.path)
     if not src.exists() or src.suffix.lower() != ".docx":
         raise HTTPException(status_code=400, detail="Archivo .docx no encontrado")
-    from fastapi import UploadFile as _UF
     import io as _io
+
+    from fastapi import UploadFile as _UF
     _up = _UF(file=_io.BytesIO(src.read_bytes()), filename=src.name)
     return await upload_docx(_up)
 
@@ -2264,6 +2275,7 @@ async def addin_format_plan(req: FormatPlanReq) -> dict:
     """Piso de portada + reglas desde el MOTOR CENTRAL.
     El add-in ejecuta; nunca decide formato ni limites por su cuenta."""
     import re as _re
+
     from modules.apa_rules import RULES
 
     def _floor(texts: List[str]) -> int:
@@ -2279,7 +2291,8 @@ async def addin_format_plan(req: FormatPlanReq) -> dict:
         return 0
 
     if req.full:
-        from modules.plan_engine import classify, findings as _findings
+        from modules.plan_engine import classify
+        from modules.plan_engine import findings as _findings
         plan = classify(req.texts)
         plan["findings"] = _findings(req.texts, plan["floor"])
         return plan
@@ -2288,7 +2301,7 @@ async def addin_format_plan(req: FormatPlanReq) -> dict:
 
 @app.post("/api/addin/setup-catalog")
 async def addin_setup_catalog() -> dict:
-    from routers.addin_static import _setup_trusted_catalog, _purge_wef_cache_full
+    from routers.addin_static import _purge_wef_cache_full, _setup_trusted_catalog
     cat = _setup_trusted_catalog()
     purged = _purge_wef_cache_full()
     return {"catalog": cat, "wef_purged": purged}
@@ -2935,22 +2948,22 @@ async def create_from_template_endpoint(req: CreateFromTemplateRequest) -> Docum
     apa_format = APAFormat.PROFESSIONAL if fmt == "professional" else APAFormat.STUDENT
 
     sample_refs = [
-        ReferenceModel(
+        ReferenciaModel(
+            id="ref-tpl-1",
             raw_text="Hernández-Sampieri, R., & Mendoza, C. P. (2018). Metodología de la investigación: Las rutas cuantitativa, cualitativa y mixta. McGraw-Hill Education.",
             authors=["Hernández-Sampieri, R.", "Mendoza, C. P."],
-            year=2018,
+            year="2018",
             title="Metodología de la investigación: Las rutas cuantitativa, cualitativa y mixta",
             source="McGraw-Hill Education",
-            entry_type="book",
         ),
-        ReferenceModel(
+        ReferenciaModel(
+            id="ref-tpl-2",
             raw_text="American Psychological Association. (2020). Publication manual of the American Psychological Association (7th ed.). https://doi.org/10.1037/0000165-000",
             authors=["American Psychological Association"],
-            year=2020,
+            year="2020",
             title="Publication manual of the American Psychological Association",
             source="American Psychological Association",
-            doi="10.1037/0000165-000",
-            entry_type="book",
+            doi_or_url="10.1037/0000165-000",
         ),
     ]
 
@@ -3348,6 +3361,7 @@ log_file_path = os.path.join(user_data_dir, 'python-backend.log')
 
 # Log rotativo (máx. 5 MB por archivo, 3 copias): el log NO debe crecer sin límite.
 from logging.handlers import RotatingFileHandler
+
 file_handler = RotatingFileHandler(
     log_file_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
 )
