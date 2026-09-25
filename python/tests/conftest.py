@@ -5,12 +5,23 @@ Proporciona helpers para crear documentos .docx de prueba,
 mock de respuestas de NVIDIA NIM, y configuración de sesión.
 """
 
+import atexit
 import io
+import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
+
+# Aislamiento de storage (Issue #16): los tests NUNCA escriben en el
+# storage real del usuario. Se fija el override ANTES de cualquier
+# import del proyecto para que config.py (que lee el env al importar)
+# resuelva siempre en un temporal descartado al cerrar la sesión.
+if not os.environ.get("WORDAPA7_STORAGE_DIR"):
+    _TEST_STORAGE = tempfile.mkdtemp(prefix="wordapa7_tests_")
+    os.environ["WORDAPA7_STORAGE_DIR"] = _TEST_STORAGE
+    atexit.register(shutil.rmtree, _TEST_STORAGE, ignore_errors=True)
 
 import docx
 import pytest
