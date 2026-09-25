@@ -11,10 +11,8 @@ from pathlib import Path
 import docx
 from docx.oxml.ns import qn
 from docx.shared import Pt
-
 from generation.image_handler import add_apa_equipment_card
 from generation.table_engine import set_table_borders
-from preset_store import HeadingLevelPreset
 from spec_dsl import EquipmentCardItem  # re-export para consumidores
 
 __all__ = ["EquipmentCardItem", "apply_heading_styles",

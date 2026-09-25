@@ -6,14 +6,12 @@ IMPORT: los imports de main van DENTRO del handler (circulo de import).
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-
 from config import STORAGE_DIR
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from persistence.session_manager import maybe_run_gc, save_session_state
 from preset_store import PresetNotFound, get_preset
 from spec_dsl import SpecDocument, expand_spec
-from spec_postpass import (apply_heading_styles, apply_table_border_override,
-                           append_equipment_cards)
+from spec_postpass import append_equipment_cards, apply_heading_styles, apply_table_border_override
 
 router = APIRouter(tags=["spec"])
 
@@ -54,9 +52,13 @@ def _check_cover(name: str | None) -> None:
 async def generate_from_spec(spec: SpecDocument,
                              background_tasks: BackgroundTasks) -> dict:
     """Genera un docx APA 7 completo desde un spec JSON (un solo llamado)."""
-    from main import (ApplyCoverRequest, GenerateRequest,
-                      apply_cover_endpoint, generate_docx,
-                      start_blank_document)
+    from main import (
+        ApplyCoverRequest,
+        GenerateRequest,
+        apply_cover_endpoint,
+        generate_docx,
+        start_blank_document,
+    )
 
     # 1. Resolver presets y portada (404 con available)
     table_rec = _resolve_preset(spec.presets.table, "table")
