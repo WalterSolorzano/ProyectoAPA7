@@ -235,6 +235,8 @@ from routers import pagination as pagination_router
 app.include_router(pagination_router.router)
 from routers import presets as presets_router
 app.include_router(presets_router.router)
+from routers import spec as spec_router
+app.include_router(spec_router.router)
 
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
