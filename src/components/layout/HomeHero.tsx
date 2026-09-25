@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { RotateCw, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { PROCESS_VERBS, JOKES, APA_FACTS, AI_JOKES, WORD_HELL_JOKES, STUDENT_JOKES } from './LoadingTips';
 import { getTimeSlotPhrases } from '../../lib/studentJokes';
 
@@ -222,35 +222,6 @@ export const HomeHero: React.FC = () => {
         >
           {phrase.text}
         </span>
-
-        <button
-          type="button"
-          onClick={rotateNext}
-          title="Ver otra frase o curiosidad"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: '2px',
-            cursor: 'pointer',
-            color: 'var(--text-secondary)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            borderRadius: '50%',
-            transition: 'color 0.15s ease, transform 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--accent-primary)';
-            e.currentTarget.style.transform = 'rotate(45deg)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--text-secondary)';
-            e.currentTarget.style.transform = 'rotate(0deg)';
-          }}
-        >
-          <RotateCw size={11} />
-        </button>
       </div>
     </div>
   );
