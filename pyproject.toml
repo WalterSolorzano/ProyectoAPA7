@@ -66,7 +66,6 @@ py-modules = [
     "test_com_suite",
     "test_cover_classification",
     "test_cover_image_ratios",
-    "test_estudio_diag",
     "test_p10_xml",
     "test_preserve_cover",
     "test_textbox_extract",
