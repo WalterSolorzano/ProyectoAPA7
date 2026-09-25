@@ -1,14 +1,15 @@
 """Test para figuras multipanel APA 7 (a, b)"""
-import os
 import pathlib
 import sys
+
 import docx
 from PIL import Image
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from models import APARuleSet, DocumentModel, ElementModel, ElementType, ImageModel, SubfigureModel
 from generation.generator import generate_apa7_docx
+from models import APARuleSet, DocumentModel, ElementModel, ElementType, ImageModel, SubfigureModel
+
 
 def _make_test_png(path, color="blue"):
     Image.new("RGB", (100, 100), color).save(str(path), format="PNG")

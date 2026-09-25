@@ -414,7 +414,7 @@ export const Step0QuickStart: React.FC = () => {
         type="file"
         ref={folderInputRef}
         onChange={handleFolderPicked}
-        // @ts-ignore
+        // @ts-expect-error atributo no estandar webkitdirectory fuera de los tipos de React
         webkitdirectory="true"
         directory=""
         multiple

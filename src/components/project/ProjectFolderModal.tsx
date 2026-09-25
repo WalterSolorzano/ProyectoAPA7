@@ -422,7 +422,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
         <input
           ref={folderInputRef}
           type="file"
-          // @ts-ignore
+          // @ts-expect-error atributo no estandar webkitdirectory fuera de los tipos de React
           webkitdirectory="true"
           directory=""
           multiple

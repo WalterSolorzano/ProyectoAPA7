@@ -158,7 +158,7 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       if (!targetDoc || !sourceDoc) return {};
 
       let mergedElements = [...targetDoc.elements];
-      let mergedReferences = [...(targetDoc.referencias || [])];
+      const mergedReferences = [...(targetDoc.referencias || [])];
 
       // 1. Fusionar Portada (si se solicita, reemplaza los bloques de portada de destino por los de origen)
       if (parts.includes('cover')) {
