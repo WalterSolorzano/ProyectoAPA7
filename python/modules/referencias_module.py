@@ -100,6 +100,7 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(url)
+            results = []
             if resp.status_code == 200:
                 data = resp.json()["message"]
                 authors = []
@@ -136,8 +137,8 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                 results.append({
                     "author": author_str,
                     "year": year_str,
-                    "title": title_str,
-                    "source": source_str,
+                    "title": title,
+                    "source": container_title,
                     "doi": doi,
                     "volume": volume,
                     "issue": issue,
