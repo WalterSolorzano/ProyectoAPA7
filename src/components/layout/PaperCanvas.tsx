@@ -130,6 +130,31 @@ const ChangeMark: React.FC<{
       : `Revisión editorial APA 7: ${label}`
   );
 
+  // Normalización editorial de etiquetas crudas ("parece ia", "ngram_repetition", etc.)
+  const getFriendlyLabel = (raw: string) => {
+    const l = (raw || '').toLowerCase();
+    if (l.includes('ia') || l.includes('sintético') || l.includes('sintetico') || l.includes('parece ia') || l.includes('ai_phrase')) {
+      return 'Sugerencia de estilo';
+    }
+    if (l.includes('ngram') || l.includes('repet')) {
+      return 'Variedad léxica';
+    }
+    if (l.includes('ortograf') || l.includes('spelling')) {
+      return 'Ortografía';
+    }
+    if (l.includes('ambig')) {
+      return 'Claridad referencial';
+    }
+    if (l.includes('bloom')) {
+      return 'Precisión taxonómica';
+    }
+    if (l.includes('persona')) {
+      return 'Voz académica';
+    }
+    return raw;
+  };
+  const displayLabel = getFriendlyLabel(label);
+
   return (
     <div
       style={{
@@ -167,7 +192,7 @@ const ChangeMark: React.FC<{
         }}
       >
         <IconComponent size={12} style={{ flexShrink: 0 }} />
-        <span>{label}</span>
+        <span>{displayLabel}</span>
       </div>
 
       {popoverOpen && (
@@ -699,7 +724,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         setActivePageIndex(pIdx);
       }
 
-      const timer = setTimeout(() => {
+      let attempts = 0;
+      let timer: any = null;
+
+      const tryScroll = () => {
         const targetEl = document.getElementById(`paper-elem-${selectedElementId}`);
         if (targetEl) {
           targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -709,10 +737,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           window.setTimeout(() => {
             (targetEl as HTMLElement).style.boxShadow = prev;
           }, 1400);
+        } else if (attempts < 5) {
+          attempts++;
+          timer = setTimeout(() => requestAnimationFrame(tryScroll), 50 * attempts);
         }
-      }, 60);
+      };
 
-      return () => clearTimeout(timer);
+      requestAnimationFrame(tryScroll);
+      return () => { if (timer) clearTimeout(timer); };
     }
   }, [selectedElementId, doc]);
 
@@ -722,19 +754,28 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     if (scrollTargetId && doc) {
       const pages = computePages(doc.elements);
       const pageIdx = pages.findIndex((p) => p.some((e) => e.id === scrollTargetId));
-      if (pageIdx !== -1) {
+      if (pageIdx !== -1 && pageIdx !== activePageIndex) {
         setActivePageIndex(pageIdx);
       }
-      const timer = setTimeout(() => {
+
+      let attempts = 0;
+      let timer: any = null;
+
+      const tryScrollTarget = () => {
         const targetEl = document.getElementById(`paper-elem-${scrollTargetId}`);
         if (targetEl) {
           targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           targetEl.classList.remove('target-glow-flash');
           void targetEl.offsetWidth;
           targetEl.classList.add('target-glow-flash');
+        } else if (attempts < 6) {
+          attempts++;
+          timer = setTimeout(() => requestAnimationFrame(tryScrollTarget), 60 * attempts);
         }
-      }, 100);
-      return () => clearTimeout(timer);
+      };
+
+      requestAnimationFrame(tryScrollTarget);
+      return () => { if (timer) clearTimeout(timer); };
     }
   }, [scrollTargetId, doc]);
 
@@ -1286,7 +1327,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           }
 
           return (
-            <div key={pageIdx} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', position: 'relative', minWidth: 'fit-content' }}>
+            <div key={pageIdx} id={`paper-page-${pageIdx}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', position: 'relative', minWidth: 'fit-content' }}>
               {docHasComments && (
                 <div style={{ width: '250px', flexShrink: 0, pointerEvents: 'none' }} />
               )}

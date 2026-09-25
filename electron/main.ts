@@ -154,6 +154,26 @@ function createWindow() {
     log('error', 'renderer-fail-load', `${errorDescription} (${errorCode}) for ${validatedURL}`);
   });
 
+  // ── Gestor de Descargas (will-download) ──────────────────────────────────
+  // En Electron, los elementos <a download> y las solicitudes de descarga de archivos
+  // generados por FastAPI deben capturarse para garantizar que se descarguen en la
+  // carpeta de descargas del usuario o abran el diálogo de guardado sin cancelarse silenciosamente.
+  mainWindow.webContents.session.on('will-download', (event, item, webContents) => {
+    // Si ya tiene nombre sugerido, respetarlo
+    const filename = item.getFilename();
+    const downloadPath = path.join(app.getPath('downloads'), filename);
+    // Configurar ruta por defecto en Descargas sin bloquear
+    item.setSavePath(downloadPath);
+    item.once('done', (_event, state) => {
+      if (state === 'completed') {
+        log('info', 'download', `Archivo descargado con éxito: ${downloadPath}`);
+        webContents.send('download-completed', { path: downloadPath, filename });
+      } else {
+        log('warn', 'download', `Descarga no completada: ${state}`);
+      }
+    });
+  });
+
   // ── Context Menu: procesar archivo si se pasó al arrancar ──────────────────
   // El usuario hizo click derecho → "Convertir a APA 7" y la app NO estaba
   // corriendo. El archivo viene en process.argv. Lo enviamos al renderer

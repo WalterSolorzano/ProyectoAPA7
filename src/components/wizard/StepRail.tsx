@@ -76,6 +76,7 @@ export function StepRail() {
 
   return (
     <nav
+      className="step-rail-nav"
       aria-label="Pasos del asistente"
       style={{
         width: `${leftSidebarWidth}px`,

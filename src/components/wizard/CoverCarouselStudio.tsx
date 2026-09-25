@@ -181,7 +181,7 @@ export const CoverCarouselStudio: React.FC = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
               Carrusel de Portadas
             </div>
             {/* Controles de navegación del carrusel */}
@@ -219,7 +219,7 @@ export const CoverCarouselStudio: React.FC = () => {
               type="button"
               onClick={() => setShowCoverEditor(!showCoverEditor)}
               style={{
-                fontSize: '11px', fontWeight: 700, background: 'transparent',
+                fontSize: 'var(--text-xs)', fontWeight: 700, background: 'transparent',
                 border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
                 padding: '3px 10px', color: 'var(--accent-primary)', cursor: 'pointer',
                 marginLeft: '6px',
@@ -236,7 +236,7 @@ export const CoverCarouselStudio: React.FC = () => {
               setWizardStep(2);
             }}
             className="btn btn-primary btn-sm"
-            style={{ fontSize: '12px', fontWeight: 800, gap: '6px', display: 'inline-flex', alignItems: 'center' }}
+            style={{ fontSize: 'var(--text-xs)', fontWeight: 800, gap: '6px', display: 'inline-flex', alignItems: 'center' }}
           >
             <span>Usar este diseño y Continuar</span>
             <SvgChevronRightSmall />
@@ -313,7 +313,7 @@ export const CoverCarouselStudio: React.FC = () => {
                 }}>
                   {c.id === 'original' && (
                     <>
-                      <div style={{ width: '80%', height: '4px', backgroundColor: 'var(--accent-primary)', borderRadius: '2px', opacity: 0.6 }} />
+                      <div style={{ width: '80%', height: '4px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.6 }} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
                         <div style={{ width: '60%', height: '3px', backgroundColor: 'var(--text-secondary)', opacity: 0.5 }} />
                         <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
@@ -325,7 +325,7 @@ export const CoverCarouselStudio: React.FC = () => {
                     <>
                       <div style={{ width: '15%', height: '2px', alignSelf: 'flex-end', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '2px' }}>
-                        <div style={{ width: '70%', height: '4px', backgroundColor: 'var(--text-main)', borderRadius: '1px', opacity: 0.8 }} />
+                        <div style={{ width: '70%', height: '4px', backgroundColor: 'var(--text-main)', borderRadius: 'var(--radius-sm)', opacity: 0.8 }} />
                         <div style={{ width: '50%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.7 }} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
@@ -336,7 +336,7 @@ export const CoverCarouselStudio: React.FC = () => {
                   )}
                   {c.id === 'uni' && (
                     <>
-                      <div style={{ width: '16px', height: '10px', border: '1px solid var(--accent-primary)', borderRadius: '1px', opacity: 0.7 }} />
+                      <div style={{ width: '16px', height: '10px', border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.7 }} />
                       <div style={{ width: '65%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width: '100%', alignItems: 'center' }}>
                         <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--accent-primary)', opacity: 0.6 }} />
@@ -357,18 +357,18 @@ export const CoverCarouselStudio: React.FC = () => {
                   {c.id === 'custom' && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '3px', color: 'var(--accent-primary)' }}>
                       <SvgUploadCloud />
-                      <span style={{ fontSize: '8px', fontWeight: 700 }}>.docx</span>
+                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>.docx</span>
                     </div>
                   )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)' }}>
                   {c.icon}
-                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {c.title}
                   </span>
                 </div>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {c.subtitle}
                 </span>
               </div>

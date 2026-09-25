@@ -1,9 +1,7 @@
-/* WordAPA7 — Explorador de Proyecto y Carpeta de Trabajo */
-
 import React, { useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
-import { Folder, FileText, Image as ImageIcon, Plus, ExternalLink, X, Check, Layers } from 'lucide-react';
+import { Folder, FolderSearch, FileText, Image as ImageIcon, Plus, ExternalLink, X, Check, Layers } from 'lucide-react';
 
 interface ProjectFolderModalProps {
   isOpen: boolean;
@@ -25,6 +23,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     isLoading,
     projectImages,
     addProjectImage,
+    activeFilePath,
     showToast,
   } = useDocStore();
 
@@ -125,27 +124,57 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
             backgroundColor: 'var(--surface-elevated)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
+                width: '34px',
+                height: '34px',
                 borderRadius: '8px',
                 backgroundColor: 'var(--color-accent-soft)',
                 color: 'var(--accent-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               <Folder size={18} />
             </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
-                {projectName}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{projectName}</span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Carpeta de trabajo y recursos del proyecto
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                {activeFilePath ? (
+                  <>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '320px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                      {activeFilePath}
+                    </span>
+                    {(window as any).electronAPI?.showItemInFolder && (
+                      <button
+                        type="button"
+                        onClick={() => (window as any).electronAPI.showItemInFolder(activeFilePath)}
+                        title="Abrir ubicación en el Explorador de Windows"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accent-primary)',
+                          cursor: 'pointer',
+                          padding: '1px 4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <ExternalLink size={11} /> Abrir carpeta
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span>Carpeta de trabajo y recursos del proyecto</span>
+                )}
               </div>
             </div>
           </div>
@@ -159,6 +188,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
               color: 'var(--text-secondary)',
               cursor: 'pointer',
               padding: '4px',
+              marginLeft: '8px',
             }}
           >
             <X size={16} />

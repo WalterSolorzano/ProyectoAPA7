@@ -296,7 +296,10 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                   if (isImage) {
                     useDocStore.getState().setImagePanelOpen(true);
                   }
-                  useDocStore.getState().setForceRightPanelOpen(true);
+                  // Si el copiloto IA está abierto, no forzar RightSidePanel para no saturar la pantalla
+                  if (!useDocStore.getState().liveChatOpen) {
+                    useDocStore.getState().setForceRightPanelOpen(true);
+                  }
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,

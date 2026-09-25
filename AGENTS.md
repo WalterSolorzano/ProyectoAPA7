@@ -34,7 +34,7 @@ python python/main.py
 npm run dev
 # Tests
 npm test              # Vitest (frontend: 125 tests)
-pytest python/tests/  # pytest (backend: 506 tests)
+pytest python/tests/  # pytest (backend: 514 tests)
 # Build de producción e instalador
 npm run build
 powershell -ExecutionPolicy Bypass -File build-installer.ps1

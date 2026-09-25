@@ -1,3 +1,7 @@
+/* WordAPA7 — Copiloto Editorial IA (DocumentAIChat)
+   Diseño impecable, tokens CSS centralizados, cero emojis y tipografía consistente.
+*/
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Send, Sparkles, User, Check, Loader2, FileEdit,
@@ -8,27 +12,63 @@ import { useDocStore } from '../../store/useDocStore';
 import { sendLiveChat, LiveChatAction, suggestCaption } from '../../api/backend';
 
 interface ChatMessage {
-  id: string; role: 'user' | 'assistant'; content: string;
-  actions?: LiveChatAction[]; applied?: boolean; isError?: boolean;
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  actions?: LiveChatAction[];
+  applied?: boolean;
+  isError?: boolean;
   suggestedPrompt?: string;
 }
 
-type QuickAction = { icon: React.ElementType; label: string; sublabel: string; prompt: string; color: string; };
+type QuickAction = {
+  icon: React.ElementType;
+  label: string;
+  sublabel: string;
+  prompt: string;
+  color: string;
+};
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { icon: FileEdit, label: 'Mejorar tono', sublabel: 'Reescribir en estilo académico formal', prompt: 'Reescribe el párrafo seleccionado en tono académico formal según APA 7, eliminando lenguaje informal.', color: 'var(--accent-primary, #4f7cff)' },
-  { icon: Quote, label: 'Cita en bloque', sublabel: 'Formato APA para +40 palabras', prompt: 'Convierte el texto seleccionado a formato de cita en bloque APA 7 (más de 40 palabras, sangría de 1.27 cm).', color: 'var(--accent-success, #10b981)' },
-  { icon: BookOpen, label: 'Revisar referencias', sublabel: 'Detectar citas sin respaldo', prompt: 'Analiza el documento y señala qué afirmaciones empíricas carecen de cita APA 7 como respaldo.', color: 'var(--accent-warning, #f59e0b)' },
+  {
+    icon: FileEdit,
+    label: 'Mejorar tono',
+    sublabel: 'Reescribir en estilo formal APA 7',
+    prompt: 'Reescribe el párrafo seleccionado en tono formal impersonal según normas APA 7, eliminando lenguaje informal.',
+    color: 'var(--accent-primary)',
+  },
+  {
+    icon: Quote,
+    label: 'Cita en bloque',
+    sublabel: 'Formato APA para más de 40 palabras',
+    prompt: 'Convierte el texto seleccionado a formato de cita en bloque APA 7 (más de 40 palabras, sangría izquierda de 1.27 cm).',
+    color: 'var(--accent-success)',
+  },
+  {
+    icon: BookOpen,
+    label: 'Revisar citas',
+    sublabel: 'Cotejar afirmaciones empíricas',
+    prompt: 'Analiza el documento y señala qué afirmaciones empíricas requieren respaldo de cita APA 7.',
+    color: 'var(--accent-warning)',
+  },
 ];
 
 function formatInlineMarkdown(text: string): React.ReactNode {
   const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} style={{ fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>{part.slice(2, -2)}</strong>;
+      return (
+        <strong key={i} style={{ fontWeight: 700, color: 'var(--text-main)' }}>
+          {part.slice(2, -2)}
+        </strong>
+      );
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={i} style={{ fontStyle: 'italic' }}>{part.slice(1, -1)}</em>;
+      return (
+        <em key={i} style={{ fontStyle: 'italic' }}>
+          {part.slice(1, -1)}
+        </em>
+      );
     }
     return part;
   });
@@ -62,10 +102,14 @@ function renderMarkdown(text: string): React.ReactNode {
   );
 }
 
-function buildProactiveGreeting(doc: any, citationAudit: any, proofreadFindings: any[]): { text: string; chips: { label: string; prompt: string; actionTab?: 'suggestions' }[] } {
+function buildProactiveGreeting(
+  doc: any,
+  citationAudit: any,
+  proofreadFindings: any[]
+): { text: string; chips: { label: string; prompt: string; actionTab?: 'suggestions' }[] } {
   if (!doc) {
     return {
-      text: 'Hola. Puedo ayudarte a revisar y mejorar tu documento con normas APA 7. Sube un documento para empezar.',
+      text: 'Asistente editorial listo. Sube un documento de trabajo para comenzar la revisión APA 7.',
       chips: [],
     };
   }
@@ -81,34 +125,34 @@ function buildProactiveGreeting(doc: any, citationAudit: any, proofreadFindings:
 
   if (ghosts.length > 0) {
     const sample = ghosts.slice(0, 2).map((g: any) => g.citation_text || g.author || 'cita').join(' y ');
-    issues.push(`Hay citas en el texto (como "${sample}") que no tienen entrada en la bibliografía.`);
+    issues.push(`Hay citas en el texto (${sample}) sin entrada en la bibliografía.`);
     chips.push({
       label: 'Generar referencias faltantes',
-      prompt: `Genera las referencias bibliográficas completas en formato APA 7 para las citas que no tienen respaldo: ${sample}.`,
+      prompt: `Genera las referencias bibliográficas completas en formato APA 7 para las citas: ${sample}.`,
       actionTab: 'suggestions',
     });
   }
 
   if (uncaptionedTables > 0 || uncaptionedFigures > 0) {
-    issues.push('Encontré tablas y figuras que no tienen leyenda en formato APA 7.');
+    issues.push('Existen tablas o figuras pendientes de rotulación formal APA 7.');
     chips.push({
       label: 'Generar leyendas APA 7',
-      prompt: 'Genera títulos en cursiva y notas descriptivas en formato APA 7 para las tablas y figuras del documento.',
+      prompt: 'Genera títulos en cursiva y notas explicativas APA 7 para las tablas y figuras del documento.',
       actionTab: 'suggestions',
     });
   }
 
   if (styleIssues.length > 0) {
-    issues.push('Hay párrafos con lenguaje informal o expresiones que conviene ajustar al estilo académico.');
+    issues.push('Hay fragmentos con expresiones informales o patrones rígidos que conviene pulir.');
     chips.push({
-      label: 'Pulir redacción académica',
-      prompt: 'Revisa y ajusta los párrafos con expresiones informales para que cumplan con el estilo formal APA 7.',
+      label: 'Pulir redacción formal',
+      prompt: 'Revisa y ajusta los párrafos marcados para cumplir con el estilo impersonal formal APA 7.',
     });
   }
 
   if (issues.length === 0) {
     return {
-      text: 'Tu documento tiene buena base estructural. ¿En qué parte te gustaría trabajar?',
+      text: 'El documento presenta una estructura inicial sólida. ¿En qué sección te gustaría trabajar?',
       chips: [
         { label: 'Revisar jerarquía de títulos', prompt: 'Verifica la jerarquía de títulos H1, H2 y H3 de acuerdo con las normas APA 7.' },
         { label: 'Optimizar tono del resumen', prompt: 'Reescribe el resumen o introducción para maximizar su claridad académica.' },
@@ -117,11 +161,11 @@ function buildProactiveGreeting(doc: any, citationAudit: any, proofreadFindings:
   }
 
   const intro = issues.length === 1
-    ? `Revisé el documento. ${issues[0]}`
-    : `Revisé el documento y encontré algunos puntos para mejorar:\n\n${issues.map(i => `• ${i}`).join('\n')}`;
+    ? `Revisión completada: ${issues[0]}`
+    : `Puntos de atención detectados:\n\n${issues.map((i) => `• ${i}`).join('\n')}`;
 
   return {
-    text: `${intro}\n\n¿Por dónde empezamos?`,
+    text: `${intro}\n\nSelecciona una sugerencia o escribe una indicación.`,
     chips,
   };
 }
@@ -199,8 +243,20 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
       if (res.actions && res.actions.length > 0) applyActions(res.actions);
     } catch (err: any) {
       const isNetworkError = err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed');
-      setMessages((prev) => [...prev, { id: `msg-err-${Date.now()}`, role: 'assistant', content: isNetworkError ? 'Sin conexión con el motor de IA. Verifica que el backend esté activo (Estado del backend en Configuraciones).' : `No se pudo procesar: ${err.message || 'Error de IA'}.`, isError: true }]);
-    } finally { setIsSending(false); }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-err-${Date.now()}`,
+          role: 'assistant',
+          content: isNetworkError
+            ? 'Sin conexión con el servicio de IA local. Verifica que el servidor FastAPI esté iniciado.'
+            : `Error de procesamiento: ${err.message || 'Error interno'}.`,
+          isError: true,
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const bibFileInputRef = useRef<HTMLInputElement>(null);
@@ -220,32 +276,52 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
         const state = useDocStore.getState();
         const currentRefs = state.doc?.referencias || [];
         useDocStore.setState({
-          doc: state.doc ? {
-            ...state.doc,
-            referencias: [...currentRefs, ...data.imported_references],
-          } : state.doc,
+          doc: state.doc
+            ? {
+                ...state.doc,
+                referencias: [...currentRefs, ...data.imported_references],
+              }
+            : state.doc,
         });
-        useDocStore.getState().showToast(`Importadas ${data.count} referencias desde ${file.name}`, 'success');
+        showToast(`Importadas ${data.count} referencias desde ${file.name}`, 'success');
       }
     } catch (err: any) {
-      useDocStore.getState().showToast(err.message || 'Error importando archivo BibTeX/RIS', 'error');
+      showToast(err.message || 'Error importando archivo BibTeX/RIS', 'error');
     }
   };
 
   const applyActions = (actions: LiveChatAction[]) => {
     let appliedCount = 0;
     actions.forEach((act) => {
-      if (act.type === 'update_text' && act.element_id && act.text) { updateElementText(act.element_id, act.text); appliedCount++; }
-      else if (act.type === 'set_type' && act.element_id && act.element_type) { updateElementType(act.element_id, act.element_type as any, act.level || 1); appliedCount++; }
-      else if (act.type === 'insert_citation' && act.element_id && act.citation) {
+      if (act.type === 'update_text' && act.element_id && act.text) {
+        updateElementText(act.element_id, act.text);
+        appliedCount++;
+      } else if (act.type === 'set_type' && act.element_id && act.element_type) {
+        updateElementType(act.element_id, act.element_type as any, act.level || 1);
+        appliedCount++;
+      } else if (act.type === 'insert_citation' && act.element_id && act.citation) {
         const target = doc?.elements.find((e) => e.id === act.element_id);
-        if (target) { updateElementText(act.element_id, `${(target.text || '').trim()} ${act.citation}`); appliedCount++; }
+        if (target) {
+          updateElementText(act.element_id, `${(target.text || '').trim()} ${act.citation}`);
+          appliedCount++;
+        }
       } else if (act.type === 'add_reference' && act.reference) {
-        addReferencia({ id: `ref-ai-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, raw_text: act.reference, authors: [], year: '', title: act.reference, source: '', doi_or_url: '', formatted_apa: act.reference });
+        addReferencia({
+          id: `ref-ai-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          raw_text: act.reference,
+          authors: [],
+          year: '',
+          title: act.reference,
+          source: '',
+          doi_or_url: '',
+          formatted_apa: act.reference,
+        });
         appliedCount++;
       }
     });
-    if (appliedCount > 0) showToast(`${appliedCount} ${appliedCount === 1 ? 'cambio aplicado' : 'cambios aplicados'} en vivo`, 'success');
+    if (appliedCount > 0) {
+      showToast(`${appliedCount} ${appliedCount === 1 ? 'cambio aplicado' : 'cambios aplicados'} en vivo`, 'success');
+    }
   };
 
   const handleApplySingleCaption = async (elem: any) => {
@@ -289,7 +365,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
         return text.length > 90 ? text.slice(0, 87) + '...' : text;
       }
     }
-    return elem.text ? (elem.text.length > 80 ? elem.text.slice(0, 77) + '...' : elem.text) : 'Sin texto descriptivo inmediato';
+    return elem.text ? (elem.text.length > 80 ? elem.text.slice(0, 77) + '...' : elem.text) : 'Sin texto descriptivo';
   };
 
   const [filterCategory, setFilterCategory] = useState<'all' | 'tables' | 'figures'>('all');
@@ -309,63 +385,96 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
   const currentPageElements = filteredElements.slice((sugPage - 1) * pageSize, sugPage * pageSize);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg, #ffffff)', fontFamily: 'var(--font-sans, system-ui, sans-serif)', boxSizing: 'border-box' }}>
-      {/* Barra de progreso animada — visible cuando la IA está procesando */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        backgroundColor: 'var(--sidebar-bg)',
+        fontFamily: 'inherit',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Barra de progreso animada cuando la IA procesa */}
       {isSending && (
-        <div style={{
-          height: '2px',
-          background: 'var(--border-subtle, #e5e7eb)',
-          flexShrink: 0,
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%',
-            background: 'linear-gradient(90deg, transparent, var(--accent-primary, #4f7cff), transparent)',
-            animation: 'ai-progress-sweep 1.4s ease-in-out infinite',
-            width: '40%',
-          }} />
+        <div
+          style={{
+            height: '2px',
+            background: 'var(--border-subtle)',
+            flexShrink: 0,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              background: 'linear-gradient(90deg, transparent, var(--accent-primary), transparent)',
+              animation: 'ai-progress-sweep 1.4s ease-in-out infinite',
+              width: '50%',
+            }}
+          />
         </div>
       )}
 
-      {/* Encabezado Superior Estilo Gemini / Word Task Pane */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-subtle, #e5e7eb)', background: 'var(--surface-elevated, #ffffff)', flexShrink: 0 }}>
+      {/* Encabezado Superior */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--border-subtle)',
+          background: 'var(--surface-elevated)',
+          flexShrink: 0,
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-
-          {/* Icono con pulso vivo cuando la IA trabaja */}
-          <div style={{ position: 'relative', width: 30, height: 30 }}>
-            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 2px 8px rgba(79,124,255,0.30)' }}>
-              {isSending
-                ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                : <Sparkles size={16} />
-              }
-            </div>
-            {isSending && (
-              <span style={{
-                position: 'absolute', top: -3, right: -3,
-                width: 10, height: 10,
-                borderRadius: '50%',
-                background: 'var(--accent-success, #10b981)',
-                border: '2px solid var(--surface-elevated, #fff)',
-                animation: 'pulse-dot 1.2s ease-in-out infinite',
-              }} />
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--color-accent-soft)',
+              color: 'var(--accent-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {isSending ? (
+              <Loader2 size={16} className="spin" />
+            ) : (
+              <Sparkles size={16} />
             )}
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main, #1a1a2e)', letterSpacing: '-0.01em' }}>
-              Copiloto IA
+            <div style={{ fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
+              Copiloto Editorial IA
             </div>
-            <div style={{ fontSize: '10px', color: isSending ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)', fontWeight: 500, transition: 'color 0.3s' }}>
-              {isSending ? 'Analizando...' : 'Asistente editorial APA 7'}
+            <div style={{ fontSize: 'var(--text-xs)', color: isSending ? 'var(--accent-primary)' : 'var(--text-secondary)', fontWeight: 500 }}>
+              {isSending ? 'Analizando documento...' : 'Asistencia conversacional APA 7'}
             </div>
           </div>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {onMinimize && (
             <button
               type="button"
               onClick={onMinimize}
               title="Minimizar panel"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary, #6b7280)', padding: '5px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                padding: '5px',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               <Minimize2 size={15} />
             </button>
@@ -375,7 +484,17 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               type="button"
               onClick={onClose}
               title="Cerrar panel"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary, #6b7280)', padding: '5px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                padding: '5px',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               <X size={16} />
             </button>
@@ -383,18 +502,26 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
         </div>
       </div>
 
-
-      {/* Barra de Pestañas: Chat Conversacional vs Sugerencias APA 7 */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)', padding: '0 12px', flexShrink: 0 }}>
+      {/* Barra de Pestañas */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          borderBottom: '1px solid var(--border-subtle)',
+          backgroundColor: 'var(--surface-elevated)',
+          padding: '0 12px',
+          flexShrink: 0,
+        }}
+      >
         <button
           type="button"
           onClick={() => setActiveTab('chat')}
           style={{
-            padding: '10px 14px',
-            fontSize: '12px',
+            padding: '9px 12px',
+            fontSize: 'var(--text-xs)',
             fontWeight: activeTab === 'chat' ? 700 : 500,
-            color: activeTab === 'chat' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
-            borderBottom: activeTab === 'chat' ? '2px solid var(--accent-primary, #4f7cff)' : '2px solid transparent',
+            color: activeTab === 'chat' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'chat' ? '2px solid var(--accent-primary)' : '2px solid transparent',
             background: 'none',
             borderTop: 'none',
             borderLeft: 'none',
@@ -403,22 +530,21 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            transition: 'all 0.15s ease',
           }}
         >
           <Sparkles size={13} />
-          Conversación
+          <span>Conversación</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('suggestions')}
           style={{
-            padding: '10px 14px',
-            fontSize: '12px',
+            padding: '9px 12px',
+            fontSize: 'var(--text-xs)',
             fontWeight: activeTab === 'suggestions' ? 700 : 500,
-            color: activeTab === 'suggestions' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
-            borderBottom: activeTab === 'suggestions' ? '2px solid var(--accent-primary, #4f7cff)' : '2px solid transparent',
+            color: activeTab === 'suggestions' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'suggestions' ? '2px solid var(--accent-primary)' : '2px solid transparent',
             background: 'none',
             borderTop: 'none',
             borderLeft: 'none',
@@ -427,20 +553,21 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            transition: 'all 0.15s ease',
           }}
         >
           <Layers size={13} />
-          Sugerencias APA 7
+          <span>Sugerencias APA</span>
           {pendingCount > 0 && (
-            <span style={{
-              backgroundColor: activeTab === 'suggestions' ? 'var(--accent-primary, #4f7cff)' : 'rgba(79, 124, 255, 0.15)',
-              color: activeTab === 'suggestions' ? '#ffffff' : 'var(--accent-primary, #4f7cff)',
-              fontSize: '10px',
-              fontWeight: 800,
-              padding: '1px 6px',
-              borderRadius: '999px',
-            }}>
+            <span
+              style={{
+                backgroundColor: activeTab === 'suggestions' ? 'var(--accent-primary)' : 'var(--color-accent-soft)',
+                color: activeTab === 'suggestions' ? '#ffffff' : 'var(--accent-primary)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 800,
+                padding: '1px 6px',
+                borderRadius: 'var(--radius-full)',
+              }}
+            >
               {pendingCount}
             </span>
           )}
@@ -456,23 +583,24 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
         <button
           type="button"
           onClick={() => bibFileInputRef.current?.click()}
-          title="Importar biblioteca desde Zotero / Mendeley (.bib, .ris)"
+          title="Importar biblioteca desde Zotero o Mendeley (.bib, .ris)"
           style={{
             marginLeft: 'auto',
             padding: '4px 8px',
-            fontSize: '11px',
+            fontSize: 'var(--text-xs)',
             fontWeight: 600,
-            color: 'var(--accent-primary, #4f7cff)',
-            backgroundColor: 'rgba(79, 124, 255, 0.08)',
-            border: '1px solid rgba(79, 124, 255, 0.2)',
-            borderRadius: '6px',
+            color: 'var(--accent-primary)',
+            backgroundColor: 'var(--color-accent-soft)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
           }}
         >
-          <Upload size={12} /> Zotero / Mendeley
+          <Upload size={12} />
+          <span>Zotero / BibTeX</span>
         </button>
       </div>
 
@@ -480,25 +608,27 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
       {activeTab === 'suggestions' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Banner de acción masiva */}
-          <div style={{
-            padding: '12px 14px',
-            backgroundColor: 'rgba(79, 124, 255, 0.06)',
-            borderRadius: '12px',
-            border: '1px solid rgba(79, 124, 255, 0.18)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}>
+          <div
+            style={{
+              padding: '12px 14px',
+              backgroundColor: 'var(--color-accent-soft)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)' }}>
                 {uncaptionedElements.length} elemento(s) sin rotulación formal
               </span>
-              <span style={{ fontSize: '11px', color: 'var(--accent-primary, #4f7cff)', fontWeight: 600 }}>
-                Norma APA 7ma Ed.
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-primary)', fontWeight: 700 }}>
+                Normas APA 7
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary, #6b7280)', lineHeight: 1.4 }}>
-              Cada tabla y figura debe contener número secuencial, título breve descriptivo en cursiva y nota de procedencia.
+            <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+              Cada tabla y figura debe contener numeración secuencial, título breve en cursiva y nota explicativa.
             </p>
             {uncaptionedElements.length > 0 && (
               <button
@@ -507,22 +637,21 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                 style={{
                   marginTop: '4px',
                   padding: '7px 12px',
-                  fontSize: '11px',
+                  fontSize: 'var(--text-xs)',
                   fontWeight: 700,
-                  backgroundColor: 'var(--accent-primary, #4f7cff)',
+                  backgroundColor: 'var(--accent-primary)',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  boxShadow: '0 2px 6px rgba(79, 124, 255, 0.25)',
                 }}
               >
                 <Wand2 size={13} />
-                Rotular todos automáticamente con IA ({uncaptionedElements.length})
+                <span>Rotular todos automáticamente con IA ({uncaptionedElements.length})</span>
               </button>
             )}
           </div>
@@ -533,10 +662,13 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               type="button"
               onClick={() => { setFilterCategory('all'); setSugPage(1); }}
               style={{
-                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
-                border: filterCategory === 'all' ? '1px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
-                backgroundColor: filterCategory === 'all' ? 'rgba(79, 124, 255, 0.12)' : 'var(--surface-subtle, #f9fafb)',
-                color: filterCategory === 'all' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
+                padding: '4px 10px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: filterCategory === 'all' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                backgroundColor: filterCategory === 'all' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                color: filterCategory === 'all' ? 'var(--accent-primary)' : 'var(--text-secondary)',
                 cursor: 'pointer',
               }}
             >
@@ -546,10 +678,13 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               type="button"
               onClick={() => { setFilterCategory('figures'); setSugPage(1); }}
               style={{
-                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
-                border: filterCategory === 'figures' ? '1px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
-                backgroundColor: filterCategory === 'figures' ? 'rgba(79, 124, 255, 0.12)' : 'var(--surface-subtle, #f9fafb)',
-                color: filterCategory === 'figures' ? 'var(--accent-primary, #4f7cff)' : 'var(--text-secondary, #6b7280)',
+                padding: '4px 10px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: filterCategory === 'figures' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                backgroundColor: filterCategory === 'figures' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                color: filterCategory === 'figures' ? 'var(--accent-primary)' : 'var(--text-secondary)',
                 cursor: 'pointer',
               }}
             >
@@ -559,10 +694,13 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
               type="button"
               onClick={() => { setFilterCategory('tables'); setSugPage(1); }}
               style={{
-                padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
-                border: filterCategory === 'tables' ? '1px solid var(--accent-success, #10b981)' : '1px solid var(--border-subtle, #e5e7eb)',
-                backgroundColor: filterCategory === 'tables' ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-subtle, #f9fafb)',
-                color: filterCategory === 'tables' ? 'var(--accent-success, #10b981)' : 'var(--text-secondary, #6b7280)',
+                padding: '4px 10px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: filterCategory === 'tables' ? '1px solid var(--accent-success)' : '1px solid var(--border-subtle)',
+                backgroundColor: filterCategory === 'tables' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                color: filterCategory === 'tables' ? 'var(--accent-success)' : 'var(--text-secondary)',
                 cursor: 'pointer',
               }}
             >
@@ -570,10 +708,12 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
             </button>
           </div>
 
-          {/* Lista compacta de elementos por rotular (paginada) */}
+          {/* Lista compacta de elementos por rotular */}
           {currentPageElements.map((elem, idx) => {
             const isTable = elem.type === 'table';
-            const num = isTable ? (elem.table_info?.table_number || ((sugPage - 1) * pageSize + idx + 1)) : (elem.image_info?.figure_number || ((sugPage - 1) * pageSize + idx + 1));
+            const num = isTable
+              ? (elem.table_info?.table_number || ((sugPage - 1) * pageSize + idx + 1))
+              : (elem.image_info?.figure_number || ((sugPage - 1) * pageSize + idx + 1));
             const typeLabel = isTable ? `Tabla ${num}` : `Figura ${num}`;
             const contextSnippet = getNearbyContextSnippet(elem);
             const isApplied = !!appliedItems[elem.id];
@@ -584,33 +724,34 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                 key={elem.id}
                 style={{
                   padding: '10px 12px',
-                  backgroundColor: 'var(--surface-elevated, #ffffff)',
-                  border: selectedElementId === elem.id ? '2px solid var(--accent-primary, #4f7cff)' : '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: '8px',
+                  backgroundColor: 'var(--surface-elevated)',
+                  border: selectedElementId === elem.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '10px',
-                  transition: 'border-color 0.15s ease',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    width: '26px',
-                    height: '26px',
-                    borderRadius: '6px',
-                    backgroundColor: isTable ? 'rgba(16, 185, 129, 0.12)' : 'rgba(79, 124, 255, 0.12)',
-                    color: isTable ? 'var(--accent-success, #10b981)' : 'var(--accent-primary, #4f7cff)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {isTable ? <Table size={13} /> : <ImageIcon size={13} />}
+                  <div
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: isTable ? 'var(--color-accent-soft)' : 'var(--color-accent-soft)',
+                      color: isTable ? 'var(--accent-success)' : 'var(--accent-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isTable ? <Table size={14} /> : <ImageIcon size={14} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)' }}>
                         {typeLabel}
                       </span>
                       <button
@@ -621,14 +762,28 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                           if (domElem) domElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }}
                         style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          fontSize: '11px', color: 'var(--accent-primary, #4f7cff)', padding: 0,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--accent-primary)',
+                          padding: 0,
                         }}
                       >
                         Ver en hoja
                       </button>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: 'italic', marginTop: '1px' }}>
+                    <div
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-secondary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontStyle: 'italic',
+                        marginTop: '1px',
+                      }}
+                    >
                       «{contextSnippet}»
                     </div>
                   </div>
@@ -636,7 +791,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
                 <div style={{ flexShrink: 0 }}>
                   {isApplied ? (
-                    <span style={{ fontSize: '11px', color: 'var(--accent-success, #10b981)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-success)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={13} /> Listo
                     </span>
                   ) : (
@@ -646,22 +801,21 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                       disabled={isLoading}
                       style={{
                         padding: '5px 10px',
-                        fontSize: '11px',
-                        fontWeight: 600,
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 700,
                         backgroundColor: 'var(--accent-primary)',
                         color: '#ffffff',
                         border: 'none',
-                        borderRadius: '6px',
+                        borderRadius: 'var(--radius-sm)',
                         cursor: isLoading ? 'not-allowed' : 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
                         opacity: isLoading ? 0.7 : 1,
-                        fontFamily: 'inherit',
                       }}
                     >
-                      {isLoading ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={11} />}
-                      {isLoading ? '...' : 'Rotular'}
+                      {isLoading ? <Loader2 size={11} className="spin" /> : <Wand2 size={11} />}
+                      <span>{isLoading ? '...' : 'Rotular'}</span>
                     </button>
                   )}
                 </div>
@@ -671,21 +825,25 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
           {/* Controles de Paginación */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 4px', borderTop: '1px solid var(--border-subtle, #e5e7eb)', marginTop: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 4px', borderTop: '1px solid var(--border-subtle)', marginTop: '4px' }}>
               <button
                 type="button"
                 disabled={sugPage <= 1}
                 onClick={() => setSugPage((p) => Math.max(1, p - 1))}
                 style={{
-                  padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
-                  border: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)',
-                  color: sugPage <= 1 ? 'var(--text-muted, #9ca3af)' : 'var(--text-main, #1a1a2e)',
+                  padding: '4px 10px',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--surface-elevated)',
+                  color: sugPage <= 1 ? 'var(--text-secondary)' : 'var(--text-main)',
                   cursor: sugPage <= 1 ? 'not-allowed' : 'pointer',
                 }}
               >
                 Anterior
               </button>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', fontWeight: 600 }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 600 }}>
                 Página {sugPage} de {totalPages}
               </span>
               <button
@@ -693,9 +851,13 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                 disabled={sugPage >= totalPages}
                 onClick={() => setSugPage((p) => Math.min(totalPages, p + 1))}
                 style={{
-                  padding: '4px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
-                  border: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)',
-                  color: sugPage >= totalPages ? 'var(--text-muted, #9ca3af)' : 'var(--text-main, #1a1a2e)',
+                  padding: '4px 10px',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--surface-elevated)',
+                  color: sugPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-main)',
                   cursor: sugPage >= totalPages ? 'not-allowed' : 'pointer',
                 }}
               >
@@ -707,18 +869,18 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           {/* Citas fantasma */}
           {ghostCitations.length > 0 && (
             <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <AlertCircle size={15} style={{ color: 'var(--accent-warning, #f59e0b)' }} />
-                Citas sin respaldo bibliográfico ({ghostCitations.length})
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={15} style={{ color: 'var(--accent-warning)' }} />
+                <span>Citas sin respaldo bibliográfico ({ghostCitations.length})</span>
               </div>
               {ghostCitations.map((gc: any, gIdx: number) => (
                 <div
                   key={gIdx}
                   style={{
-                    padding: '12px 14px',
-                    backgroundColor: 'var(--surface-elevated, #ffffff)',
-                    border: '1px solid var(--border-subtle, #e5e7eb)',
-                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    backgroundColor: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -726,10 +888,10 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)' }}>
                       {gc.citation_text || gc.author || 'Cita en texto'}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', marginTop: '2px' }}>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: '2px' }}>
                       Sin entrada en la bibliografía
                     </div>
                   </div>
@@ -737,19 +899,18 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                     type="button"
                     onClick={() => {
                       setActiveTab('chat');
-                      handleSend(`Genera la referencia bibliográfica completa en formato APA 7 para la cita ${gc.citation_text || gc.author}.`);
+                      handleSend(`Genera la referencia bibliográfica completa en formato APA 7 para la cita: ${gc.citation_text || gc.author}.`);
                     }}
                     style={{
                       flexShrink: 0,
-                      padding: '6px 12px',
-                      fontSize: '12px',
-                      fontWeight: 600,
+                      padding: '5px 10px',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 700,
                       backgroundColor: 'var(--accent-primary)',
                       color: '#ffffff',
                       border: 'none',
-                      borderRadius: '6px',
+                      borderRadius: 'var(--radius-sm)',
                       cursor: 'pointer',
-                      fontFamily: 'inherit',
                     }}
                   >
                     Crear referencia
@@ -760,13 +921,13 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           )}
 
           {uncaptionedElements.length === 0 && ghostCitations.length === 0 && (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary, #6b7280)' }}>
-              <CheckCircle2 size={32} style={{ color: 'var(--accent-success, #10b981)', margin: '0 auto 8px auto' }} />
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>
-                ¡Todo rotulado y respaldado!
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <CheckCircle2 size={32} style={{ color: 'var(--accent-success)', margin: '0 auto 8px auto' }} />
+              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)' }}>
+                Todo rotulado y respaldado
               </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: '11px' }}>
-                Todas las tablas, figuras y citas cumplen con los criterios APA 7.
+              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-xs)' }}>
+                Todas las tablas, figuras y citas cumplen con los criterios de formato APA 7.
               </p>
             </div>
           )}
@@ -775,28 +936,75 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
         /* Vista de Chat Conversacional */
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {selectedElement && (
-            <div style={{ padding: '7px 12px', backgroundColor: 'rgba(79, 124, 255, 0.08)', borderBottom: '1px solid var(--border-subtle, #e5e7eb)', fontSize: '11px', color: 'var(--accent-primary, #4f7cff)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <div
+              style={{
+                padding: '7px 12px',
+                backgroundColor: 'var(--color-accent-soft)',
+                borderBottom: '1px solid var(--border-subtle)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--accent-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexShrink: 0,
+              }}
+            >
               <Info size={12} style={{ flexShrink: 0 }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Elemento activo: <strong>{selectedElement.type}</strong>{selectedElement.text ? ` — ${selectedElement.text.slice(0, 40)}...` : ''}
+                Elemento activo: <strong>{selectedElement.type}</strong>
+                {selectedElement.text ? ` — ${selectedElement.text.slice(0, 40)}...` : ''}
               </span>
             </div>
           )}
 
           <div style={{ flex: 1, padding: '12px 14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {messages.map((m) => (
-              <div key={m.id} className="chat-msg-in" style={{ display: 'flex', flexDirection: 'column', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+              <div
+                key={m.id}
+                className="chat-msg-in"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '88%',
+                }}
+              >
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexDirection: m.role === 'user' ? 'row-reverse' : 'row' }}>
-                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: m.role === 'user' ? 'var(--accent-primary, #4f7cff)' : m.isError ? 'var(--color-danger, #ef4444)' : 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {m.role === 'user' ? <User size={12} /> : m.isError ? <AlertCircle size={12} /> : <Sparkles size={12} />}
+                  <div
+                    style={{
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: m.role === 'user' ? 'var(--accent-primary)' : m.isError ? 'var(--color-danger)' : 'var(--color-accent-soft)',
+                      color: m.role === 'user' || m.isError ? '#ffffff' : 'var(--accent-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {m.role === 'user' ? <User size={13} /> : m.isError ? <AlertCircle size={13} /> : <Sparkles size={13} />}
                   </div>
-                  <div style={{ padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px', backgroundColor: m.role === 'user' ? 'var(--accent-primary, #4f7cff)' : m.isError ? 'rgba(239,68,68,0.08)' : 'var(--surface-elevated, #ffffff)', color: m.role === 'user' ? '#ffffff' : m.isError ? 'var(--color-danger, #ef4444)' : 'var(--text-main, #1a1a2e)', border: m.role === 'user' ? 'none' : m.isError ? '1px solid rgba(239,68,68,0.25)' : '1px solid var(--border-subtle, #e5e7eb)', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', fontSize: '12px', lineHeight: 1.5, wordBreak: 'break-word' }}>
+
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: m.role === 'user' ? 'var(--accent-primary)' : m.isError ? 'rgba(212, 56, 46, 0.08)' : 'var(--surface-elevated)',
+                      color: m.role === 'user' ? '#ffffff' : m.isError ? 'var(--color-danger)' : 'var(--text-main)',
+                      border: m.role === 'user' ? 'none' : m.isError ? '1px solid var(--color-danger)' : '1px solid var(--border-subtle)',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      fontSize: 'var(--text-xs)',
+                      lineHeight: 1.5,
+                      wordBreak: 'break-word',
+                    }}
+                  >
                     {m.isError && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontWeight: 700, fontSize: '11px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontWeight: 800, fontSize: 'var(--text-xs)' }}>
                         <WifiOff size={12} /> Error de conexión
                       </div>
                     )}
-                    {/* Renderizado de Markdown sin asteriscos crudos */}
+
                     {m.role === 'assistant' ? renderMarkdown(m.content) : m.content}
 
                     {m.isError && (
@@ -806,21 +1014,28 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                           onClick={() => handleSend('Reintentar diagnóstico y mejoras APA 7')}
                           disabled={isSending}
                           style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '4px',
-                            padding: '4px 10px', fontSize: '11px', fontWeight: 600,
-                            backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                            borderRadius: '6px', cursor: isSending ? 'not-allowed' : 'pointer', color: 'var(--text-main)',
-                            fontFamily: 'inherit'
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 700,
+                            backgroundColor: 'var(--surface-elevated)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: isSending ? 'not-allowed' : 'pointer',
+                            color: 'var(--text-main)',
                           }}
                         >
-                          <RefreshCw size={11} className={isSending ? 'animate-spin' : ''} /> Reintentar
+                          <RefreshCw size={11} className={isSending ? 'spin' : ''} />
+                          <span>Reintentar</span>
                         </button>
                       </div>
                     )}
 
                     {m.id.startsWith('welcome') && greetingData.chips.length > 0 && (
                       <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.04em' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-primary)', letterSpacing: '0.04em' }}>
                           Acciones recomendadas:
                         </div>
                         {greetingData.chips.map((chip, cIdx) => (
@@ -836,11 +1051,19 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                             }}
                             disabled={isSending}
                             style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              padding: '7px 10px', fontSize: '11px', fontWeight: 600,
-                              backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-                              borderRadius: '8px', color: 'var(--text-main)', cursor: isSending ? 'not-allowed' : 'pointer',
-                              textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.15s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '7px 10px',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 700,
+                              backgroundColor: 'var(--sidebar-bg)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              color: 'var(--text-main)',
+                              cursor: isSending ? 'not-allowed' : 'pointer',
+                              textAlign: 'left',
+                              transition: 'border-color 0.15s ease',
                             }}
                             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-primary)'; }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; }}
@@ -853,12 +1076,12 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                     )}
 
                     {m.actions && m.actions.length > 0 && (
-                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-success, #10b981)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Check size={11} /> Aplicado al documento:
                         </div>
                         {m.actions.map((act, idx) => (
-                          <div key={idx} style={{ fontSize: '11px', color: 'var(--text-secondary, #6b7280)', fontStyle: 'italic' }}>
+                          <div key={idx} style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
                             — {act.type === 'update_text' ? 'Texto actualizado' : act.type === 'set_type' ? `Convertido a ${act.element_type}` : act.type}
                           </div>
                         ))}
@@ -871,13 +1094,35 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
             {isSending && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', alignSelf: 'flex-start' }}>
-                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
-                  <Sparkles size={12} />
+                <div
+                  style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'var(--color-accent-soft)',
+                    color: 'var(--accent-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Sparkles size={13} />
                 </div>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center', padding: '8px 12px', backgroundColor: 'var(--surface-elevated, #ffffff)', border: '1px solid var(--border-subtle, #e5e7eb)', borderRadius: '4px 14px 14px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <span className="typing-dot" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: 'var(--text-secondary, #6b7280)', display: 'inline-block', animationDelay: '0ms' }} />
-                  <span className="typing-dot" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: 'var(--text-secondary, #6b7280)', display: 'inline-block', animationDelay: '200ms' }} />
-                  <span className="typing-dot" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: 'var(--text-secondary, #6b7280)', display: 'inline-block', animationDelay: '400ms' }} />
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '4px',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--surface-elevated)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }} />
+                  <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }} />
+                  <span className="typing-dot" style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--text-secondary)', display: 'inline-block' }} />
                 </div>
               </div>
             )}
@@ -885,11 +1130,21 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           </div>
 
           {/* Acciones Rápidas */}
-          <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-subtle, #f9fafb)', display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary, #6b7280)', marginBottom: '2px', letterSpacing: '0.05em' }}>
+          <div
+            style={{
+              padding: '8px 12px',
+              borderTop: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--surface-elevated)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
               Acciones rápidas
             </div>
-            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
               {QUICK_ACTIONS.map((qa, i) => {
                 const Icon = qa.icon;
                 return (
@@ -900,17 +1155,23 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                     disabled={isSending}
                     title={qa.sublabel}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', fontSize: '11px',
-                      fontWeight: 600, backgroundColor: 'var(--surface-elevated, #ffffff)', border: `1px solid var(--border-subtle, #e5e7eb)`,
-                      borderRadius: '8px', color: 'var(--text-main, #1a1a2e)', cursor: isSending ? 'not-allowed' : 'pointer',
-                      whiteSpace: 'nowrap', fontFamily: 'inherit', opacity: isSending ? 0.6 : 1, flexShrink: 0,
-                      transition: 'border-color 0.15s, box-shadow 0.15s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 9px',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 700,
+                      backgroundColor: 'var(--sidebar-bg)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-full)',
+                      color: 'var(--text-main)',
+                      cursor: isSending ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                     }}
-                    onMouseEnter={(e) => { if (!isSending) (e.currentTarget as HTMLElement).style.borderColor = qa.color; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle, #e5e7eb)'; }}
                   >
                     <Icon size={12} style={{ color: qa.color, flexShrink: 0 }} />
-                    {qa.label}
+                    <span>{qa.label}</span>
                   </button>
                 );
               })}
@@ -918,34 +1179,61 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           </div>
 
           {/* Formulario de Entrada */}
-          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} style={{ padding: '10px 12px', borderTop: '1px solid var(--border-subtle, #e5e7eb)', backgroundColor: 'var(--surface-elevated, #ffffff)', display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend();
+            }}
+            style={{
+              padding: '10px 12px',
+              borderTop: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--surface-elevated)',
+              display: 'flex',
+              gap: '8px',
+              flexShrink: 0,
+            }}
+          >
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={selectedElement ? `Instrucción sobre '${selectedElement.text?.slice(0, 25) || selectedElement.type}'...` : 'Instrucción de edición para la IA...'}
+              placeholder={
+                selectedElement
+                  ? `Instrucción sobre '${selectedElement.text?.slice(0, 25) || selectedElement.type}'...`
+                  : 'Instrucción de edición para el Copiloto IA...'
+              }
               disabled={isSending}
               style={{
-                flex: 1, padding: '9px 12px', borderRadius: '10px', border: '1px solid var(--border-subtle, #e5e7eb)',
-                fontSize: '12px', outline: 'none', fontFamily: 'inherit', backgroundColor: 'var(--app-bg, #f8f9fa)',
-                color: 'var(--text-main, #1a1a2e)', transition: 'border-color 0.15s',
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: 'var(--text-xs)',
+                outline: 'none',
+                backgroundColor: 'var(--sidebar-bg)',
+                color: 'var(--text-main)',
               }}
-              onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--accent-primary, #4f7cff)'; }}
-              onBlur={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border-subtle, #e5e7eb)'; }}
             />
             <button
               type="submit"
               disabled={!input.trim() || isSending}
               style={{
-                width: '36px', height: '36px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
-                color: '#ffffff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: !input.trim() || isSending ? 'not-allowed' : 'pointer', opacity: !input.trim() || isSending ? 0.5 : 1,
-                flexShrink: 0, transition: 'opacity 0.15s',
+                width: '34px',
+                height: '34px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--accent-primary)',
+                color: '#ffffff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: !input.trim() || isSending ? 'not-allowed' : 'pointer',
+                opacity: !input.trim() || isSending ? 0.4 : 1,
+                flexShrink: 0,
               }}
             >
-              {isSending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+              {isSending ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
             </button>
           </form>
         </div>
@@ -953,3 +1241,5 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
     </div>
   );
 };
+
+export default DocumentAIChat;

@@ -53,13 +53,39 @@ const defaultLLMProgress: LLMProgressState = {
 
 /** Triggers a file download without navigating away from the app (Electron-safe). */
 function triggerDownload(url: string, filename?: string) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.style.display = 'none';
-  if (filename) a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  // En caso de URL relativa, resolverla
+  const targetUrl = url;
+  // Intentar descarga vía Fetch + Blob para evitar problemas de CORS/sandbox de iframe en Electron
+  fetch(targetUrl)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.style.display = 'none';
+      if (filename) a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 2000);
+    })
+    .catch(() => {
+      // Fallback a enlace directo estándar si fetch falla (ej. descarga directa del backend)
+      const a = document.createElement('a');
+      a.href = targetUrl;
+      a.style.display = 'none';
+      if (filename) a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
+    });
 }
 
 function cleanRedundantTitleParagraphs(doc: DocumentModel, targetElemId: string, captionText: string): DocumentModel {
