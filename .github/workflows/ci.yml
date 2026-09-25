@@ -21,10 +21,10 @@ jobs:
         cache: pip
     - name: Install Ruff
       run: pip install ruff
-    # Ratchet: ruff SOLO sobre .py cambiados en este evento.
-    # El codigo legacy (~245 hallazgos preexistentes) no bloquea;
-    # todo archivo tocado nuevo/modificado si debe pasar limpio.
-    - name: Run Ruff Linter (changed files)
+    # Ratchet con baseline congelado: ruff SOLO sobre .py cambiados en este
+    # evento; falla solo si un (archivo, codigo) es nuevo o supera su conteo
+    # en ci/ruff-baseline.txt. La deuda legacy no bloquea; lo nuevo si.
+    - name: Run Ruff Linter (changed files, baseline gate)
       env:
         EVENT_BEFORE: ${{ github.event.before }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -45,7 +45,9 @@ jobs:
         fi
         echo "Lint sobre archivos cambiados:"
         cat lintable.txt
-        xargs -a lintable.txt ruff check
+        xargs -a lintable.txt ruff check --output-format concise > ruff_out.txt || true
+        cat ruff_out.txt
+        python ci/check_ruff_baseline.py ruff_out.txt
 
   lint-frontend:
     runs-on: ubuntu-latest

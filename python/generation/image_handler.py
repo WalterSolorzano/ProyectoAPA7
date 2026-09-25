@@ -21,7 +21,7 @@ from copy import deepcopy
 import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import qn
+from docx.oxml.ns import nsdecls, qn
 from docx.shared import Inches, Pt
 from models import APARuleSet, ImageModel
 
@@ -405,3 +405,138 @@ def _add_figure_label_and_caption(doc: docx.Document, img_data: ImageModel, rule
         r_cap.italic = True
         r_cap.font.name = rules.font_family
         r_cap.font.size = Pt(rules.font_size_pt)
+
+
+def add_apa_equipment_card(
+    doc: docx.Document,
+    fig_num: int,
+    fig_title: str,
+    img_path: str,
+    specs_dict: dict[str, str],
+    rules: APARuleSet | None = None,
+) -> None:
+    """
+    F-04: Maqueta evidencias de equipos con estética académica y máxima nitidez:
+    construye una tabla de 1 fila y 2 columnas sin bordes externos:
+    - Columna 1: Foto real del equipo con etiqueta y título APA 7 (Figura N).
+    - Columna 2: Ficha técnica estructurada en texto nativo editable (Times New Roman 8.5 pt)
+      con especificaciones (fabricante, modelo, potencia, tensión, régimen de uso, etc.).
+    """
+    font_name = rules.font_family if rules else "Times New Roman"
+
+    # Etiqueta APA 7
+    p_num = doc.add_paragraph()
+    p_num.paragraph_format.space_before = Pt(12)
+    p_num.paragraph_format.space_after = Pt(0)
+    p_num.paragraph_format.keep_with_next = True
+    p_num.paragraph_format.first_line_indent = Inches(0)
+    r_num = p_num.add_run(f"Figura {fig_num}")
+    r_num.bold = True
+    r_num.font.name = font_name
+    r_num.font.size = Pt(rules.font_size_pt if rules else 12)
+
+    p_cap = doc.add_paragraph()
+    p_cap.paragraph_format.space_before = Pt(0)
+    p_cap.paragraph_format.space_after = Pt(6)
+    p_cap.paragraph_format.keep_with_next = True
+    p_cap.paragraph_format.first_line_indent = Inches(0)
+    r_cap = p_cap.add_run(fig_title)
+    r_cap.italic = True
+    r_cap.font.name = font_name
+    r_cap.font.size = Pt(rules.font_size_pt if rules else 12)
+
+    # Tabla principal de 1 fila, 2 columnas
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = False
+
+    # Eliminar bordes de la tabla contenedor
+    tblPr = table._tbl.tblPr
+    if tblPr is not None:
+        borders_xml = parse_xml(
+            f'<w:tblBorders {nsdecls("w")}>'
+            f'  <w:top w:val="none"/>'
+            f'  <w:bottom w:val="none"/>'
+            f'  <w:left w:val="none"/>'
+            f'  <w:right w:val="none"/>'
+            f'  <w:insideH w:val="none"/>'
+            f'  <w:insideV w:val="none"/>'
+            f'</w:tblBorders>'
+        )
+        tblPr.append(borders_xml)
+
+    # Columna 1: Imagen (ancho ~7.5 cm / ~2.9 in)
+    cell_img = table.cell(0, 0)
+    cell_img.width = Inches(3.0)
+    p_cell_img = cell_img.paragraphs[0]
+    p_cell_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if img_path and os.path.exists(img_path):
+        run_img = p_cell_img.add_run()
+        run_img.add_picture(img_path, width=Inches(2.8))
+
+    # Columna 2: Subtabla con especificaciones técnicas
+    cell_specs = table.cell(0, 1)
+    cell_specs.width = Inches(3.5)
+    p_specs_header = cell_specs.paragraphs[0]
+    p_specs_header.paragraph_format.space_before = Pt(0)
+    p_specs_header.paragraph_format.space_after = Pt(4)
+    r_sh = p_specs_header.add_run("Ficha Técnica del Equipo")
+    r_sh.bold = True
+    r_sh.font.name = font_name
+    r_sh.font.size = Pt(9.5)
+
+    if specs_dict:
+        subtable = cell_specs.add_table(rows=len(specs_dict), cols=2)
+        subtable.autofit = False
+        # Bordes limpios de ficha APA
+        sub_tblPr = subtable._tbl.tblPr
+        if sub_tblPr is not None:
+            sub_borders = parse_xml(
+                f'<w:tblBorders {nsdecls("w")}>'
+                f'  <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+                f'  <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+                f'  <w:left w:val="none"/>'
+                f'  <w:right w:val="none"/>'
+                f'  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="D3D3D3"/>'
+                f'  <w:insideV w:val="none"/>'
+                f'</w:tblBorders>'
+            )
+            sub_tblPr.append(sub_borders)
+
+        for row_i, (k, v) in enumerate(specs_dict.items()):
+            row = subtable.rows[row_i]
+            # cantSplit
+            r_trPr = row._tr.get_or_add_trPr()
+            if r_trPr.find(qn('w:cantSplit')) is None:
+                r_trPr.append(OxmlElement('w:cantSplit'))
+
+            c_key = row.cells[0]
+            c_key.width = Inches(1.4)
+            p_k = c_key.paragraphs[0]
+            p_k.paragraph_format.space_before = Pt(1)
+            p_k.paragraph_format.space_after = Pt(1)
+            rk = p_k.add_run(str(k))
+            rk.bold = True
+            rk.font.name = font_name
+            rk.font.size = Pt(8.5)
+
+            c_val = row.cells[1]
+            c_val.width = Inches(2.1)
+            p_v = c_val.paragraphs[0]
+            p_v.paragraph_format.space_before = Pt(1)
+            p_v.paragraph_format.space_after = Pt(1)
+            rv = p_v.add_run(str(v))
+            rv.font.name = font_name
+            rv.font.size = Pt(8.5)
+
+    # Nota al pie de figura opcional
+    p_foot = doc.add_paragraph()
+    p_foot.paragraph_format.space_before = Pt(4)
+    p_foot.paragraph_format.space_after = Pt(12)
+    p_foot.paragraph_format.first_line_indent = Inches(0)
+    r_nl = p_foot.add_run("Nota. ")
+    r_nl.italic = True
+    r_nl.font.name = font_name
+    r_nl.font.size = Pt(10)
+    r_nt = p_foot.add_run("Evidencia fotográfica y datos de placa obtenidos in situ.")
+    r_nt.font.name = font_name
+    r_nt.font.size = Pt(10)
