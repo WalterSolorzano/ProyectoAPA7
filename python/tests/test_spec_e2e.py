@@ -70,3 +70,38 @@ def test_spec_full_generation_and_download(client, tmp_path):
     assert "Parrafo de prueba E2E." in text, "parrafo ausente: docx vacio"
     assert "133" in text, "celda de tabla ausente"
     assert "Enero" in text, "celda de tabla ausente"
+
+
+def test_spec_cover_scratch_portada_sintetica(client):
+    """cover sin template (modo scratch) -> portada sintetica APA 7 real."""
+    spec = {
+        "spec_version": "1",
+        "elements": [
+            {"type": "heading", "level": 1, "text": "1. Marco teorico"},
+            {"type": "paragraph", "text": "Parrafo tras la portada."},
+        ],
+        "cover": {
+            "title": "Balance del Consumo Electrico",
+            "author": "Walter Noel Solorzano",
+            "institution": "Universidad Nacional de Ingenieria",
+            "course": "Tecnologia y Medio Ambiente",
+            "instructor": "Ing. Eva Mairena",
+            "date": "02 de octubre de 2026",
+        },
+    }
+    r = client.post("/api/spec", json=spec)
+    assert r.status_code == 200, r.text
+    dl = client.get(r.json()["download_url"])
+    assert dl.status_code == 200
+    assert dl.content[:2] == b"PK"
+
+    import io
+    import re
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(dl.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8", "ignore")
+    text = re.sub(r"<[^>]+>", "", xml)
+    assert "Balance del Consumo Electrico" in text, "titulo de portada ausente"
+    assert "Walter Noel Solorzano" in text, "autor de portada ausente"
+    assert "Universidad Nacional de Ingenieria" in text, "institucion ausente"
+    assert "1. Marco teorico" in text, "cuerpo ausente"

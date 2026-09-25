@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from config import STORAGE_DIR
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from models import PortadaData
 from persistence.session_manager import maybe_run_gc, save_session_state
 from preset_store import PresetNotFound, PresetTypeMismatch, get_preset
 from spec_dsl import SpecDocument, expand_spec
@@ -98,6 +99,15 @@ async def generate_from_spec(spec: SpecDocument,
     layout_rec = _resolve_preset(spec.presets.layout, "layout")
     _check_cover(spec.cover.template if spec.cover else None)
 
+    # 1b. Scratch: cover sin template exige al menos un dato que renderizar
+    if spec.cover and not spec.cover.template and not any((
+            spec.cover.title, spec.cover.author, spec.cover.institution,
+            spec.cover.course, spec.cover.instructor, spec.cover.date)):
+        raise HTTPException(
+            status_code=422,
+            detail="cover sin template ni datos: indique cover.template o "
+                   "al menos un campo de la portada sintetica.")
+
     # 2. Expandir DSL (propaga PresetNotFound de presets por tabla)
     try:
         exp = await expand_spec(
@@ -121,17 +131,27 @@ async def generate_from_spec(spec: SpecDocument,
     save_session_state(doc, STORAGE_DIR)
 
     try:
-        # 4. Portada si se pidio
+        # 4. Portada si se pidio: template con nombre o scratch sintetica
+        portada_req: PortadaData | None = None
         if spec.cover and spec.cover.template:
             await apply_cover_endpoint(ApplyCoverRequest(
                 session_id=doc.session_id, cover_template_name=spec.cover.template,
                 title=spec.cover.title, author=spec.cover.author,
                 institution=spec.cover.institution, course=spec.cover.course,
                 instructor=spec.cover.instructor, date=spec.cover.date))
+        elif spec.cover:
+            # Modo scratch: portada sintetica APA 7 generada desde cero
+            # con los datos del bloque (generator: generate_apa7_template)
+            portada_req = PortadaData(
+                title=spec.cover.title, author=spec.cover.author,
+                institution=spec.cover.institution, course=spec.cover.course,
+                instructor=spec.cover.instructor, date=spec.cover.date,
+                use_original_cover=False)
 
         # 5. Generar con el pipeline existente
         result = await generate_docx(GenerateRequest(
             session_id=doc.session_id, rules=exp.rules,
+            portada=portada_req,
             references=exp.references or None))
 
         # 6. Post-paso: headings nativos, bordes por caption, tarjetas de anexo

@@ -134,3 +134,45 @@ def test_equipment_card_data_uri_422(client):
         {"type": "equipment_card", "number": "A1", "title": "Eq",
          "image": "data:image/png;base64,AA", "specs": {}}]))
     assert r.status_code == 422
+
+
+def test_cover_scratch_pasa_portada_a_generate(client, monkeypatch):
+    """cover SIN template -> PortadaData scratch (use_original_cover=False)."""
+    import docx
+    import main
+
+    captured = {}
+
+    async def fake_generate(req):
+        captured["portada"] = req.portada
+        out = Path(main.STORAGE_DIR) / "sessions" / req.session_id
+        out.mkdir(parents=True, exist_ok=True)
+        d = docx.Document()
+        d.add_paragraph("1. Marco")
+        d.add_paragraph("Texto de prueba.")
+        d.save(str(out / "APA7_test.docx"))
+        return {"download_url": f"/api/download/{req.session_id}",
+                "filename": "APA7_test.docx"}
+
+    monkeypatch.setattr(main, "generate_docx", fake_generate)
+    r = client.post("/api/spec", json=_spec(cover={
+        "title": "Balance energetico", "author": "Walter Solorzano",
+        "institution": "UNI", "course": "Tecnologia y Medio Ambiente",
+        "instructor": "Ing. Eva Mairena", "date": "octubre 2026"}))
+    assert r.status_code == 200, r.text
+    p = captured.get("portada")
+    assert p is not None, "cover scratch no llego a generate_docx"
+    assert p.use_original_cover is False, "scratch debe pedir portada sintetica"
+    assert p.title == "Balance energetico"
+    assert p.author == "Walter Solorzano"
+    assert p.institution == "UNI"
+    assert p.course == "Tecnologia y Medio Ambiente"
+    assert p.instructor == "Ing. Eva Mairena"
+    assert p.date == "octubre 2026"
+
+
+def test_cover_vacio_sin_template_422(client):
+    """cover sin template y sin un solo dato -> 422 (nada que renderizar)."""
+    r = client.post("/api/spec", json=_spec(cover={}))
+    assert r.status_code == 422, (
+        "cover vacio debe rechazarse, no generarse sin portada")
