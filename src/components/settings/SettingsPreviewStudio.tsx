@@ -176,56 +176,181 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
           <Section
             icon={<Type size={14} />}
             title="Tipografía"
-            description="La fuente y tamaño definen la apariencia general del documento. APA 7 requiere Times New Roman 12pt por defecto."
+            description="La fuente y tamaño definen la apariencia general del documento. APA 7 admite fuentes con o sin serifa estandarizadas."
             collapsed={!!collapsedSections['Tipografía']}
             onToggle={() => toggleSection('Tipografía')}
           >
-            <Field label="Fuente">
-              <select className="form-select" value={rules.font_family}
-                onChange={(e) => {
-                  const f = FONT_OPTIONS.find(x => x.value === e.target.value);
-                  setRules({ font_family: e.target.value, font_size_pt: f?.size ?? rules.font_size_pt });
-                }}>
-                {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
-            </Field>
-            <Field label="Tamaño">
-              <select className="form-select" value={rules.font_size_pt}
-                onChange={(e) => setRules({ font_size_pt: Number(e.target.value) })}>
-                {FONT_SIZES.map(s => <option key={s} value={s}>{s} pt</option>)}
-              </select>
-            </Field>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Fuente Principal
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                {FONT_OPTIONS.map((f) => {
+                  const isSelected = rules.font_family === f.value;
+                  return (
+                    <button
+                      key={f.value}
+                      type="button"
+                      onClick={() => setRules({ font_family: f.value, font_size_pt: f.size })}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-bg)',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontFamily: f.value,
+                        fontSize: '12px',
+                        fontWeight: isSelected ? 700 : 500,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>{f.label}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>
+                        {f.size} pt {f.value === 'Times New Roman' ? '· Oficial APA' : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Tamaño del Texto del Cuerpo
+              </label>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                {FONT_SIZES.map((s) => {
+                  const isSelected = rules.font_size_pt === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setRules({ font_size_pt: s })}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--surface-bg)',
+                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {s} pt
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </Section>
 
           {/* Párrafo */}
           <Section
             icon={<StretchHorizontal size={14} />}
-            title="Párrafo"
-            description="El interlineado y sangría afectan la legibilidad. APA 7 exige doble espacio y sangría de 1.27cm."
+            title="Párrafo e Interlineado"
+            description="El espaciado y la sangría son inspeccionados rigurosamente por los comités académicos de evaluación."
             collapsed={!!collapsedSections['Párrafo']}
             onToggle={() => toggleSection('Párrafo')}
           >
-            <Field label="Interlineado">
-              <select className="form-select" value={rules.line_spacing}
-                onChange={(e) => setRules({ line_spacing: parseFloat(e.target.value) })}>
-                {SPACING_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </Field>
-            <Field label="Alineación">
-              <select className="form-select" value={rules.alignment}
-                onChange={(e) => setRules({ alignment: e.target.value as 'left' | 'justify' })}>
-                <option value="left">Izquierda</option>
-                <option value="justify">Justificado</option>
-              </select>
-            </Field>
-            <Field label="Sangría de párrafo">
-              <select className="form-select" value={rules.paragraph_indent_cm}
-                onChange={(e) => setRules({ paragraph_indent_cm: parseFloat(e.target.value) })}>
-                <option value={0}>Sin sangría</option>
-                <option value={1.27}>1.27 cm (APA)</option>
-                <option value={1.5}>1.5 cm</option>
-              </select>
-            </Field>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Interlineado
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {SPACING_OPTIONS.map((o) => {
+                  const isSelected = rules.line_spacing === o.value;
+                  const isApa = o.value === 2.0;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setRules({ line_spacing: o.value })}
+                      style={{
+                        flex: 1,
+                        padding: '7px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-bg)',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: isSelected ? 700 : 500,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '2px',
+                      }}
+                    >
+                      <span>{o.label}</span>
+                      {isApa && (
+                        <span style={{ fontSize: '9px', fontWeight: 700, color: isSelected ? 'var(--accent-primary)' : 'var(--color-success)' }}>
+                          Requerido APA
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                  Alineación
+                </label>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {[
+                    { id: 'left', label: 'Izquierda (APA)' },
+                    { id: 'justify', label: 'Justificado' }
+                  ].map((al) => {
+                    const isSelected = rules.alignment === al.id;
+                    return (
+                      <button
+                        key={al.id}
+                        type="button"
+                        onClick={() => setRules({ alignment: al.id as any })}
+                        style={{
+                          flex: 1,
+                          padding: '6px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          backgroundColor: isSelected ? 'var(--accent-primary)' : 'var(--surface-bg)',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {al.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                  Sangría Primera Línea
+                </label>
+                <select
+                  className="form-select"
+                  style={{ fontSize: '11px', padding: '6px 8px' }}
+                  value={rules.paragraph_indent_cm}
+                  onChange={(e) => setRules({ paragraph_indent_cm: parseFloat(e.target.value) })}
+                >
+                  <option value={0}>Sin sangría (0 cm)</option>
+                  <option value={1.27}>1.27 cm / 0.5" (Estándar APA)</option>
+                  <option value={1.5}>1.5 cm</option>
+                </select>
+              </div>
+            </div>
           </Section>
 
           {/* Títulos */}
@@ -348,6 +473,9 @@ export const SettingsPreviewStudio: React.FC<{ onClose?: () => void; onContinue?
             <ProviderKeyField label="Gemini" envVar="GEMINI_API_KEY" />
             <ProviderKeyField label="Cloudflare" envVar="CLOUDFLARE_API_TOKEN" />
             <ProviderKeyField label="Cloudflare Account ID" envVar="CLOUDFLARE_ACCOUNT_ID" />
+            <ProviderKeyField label="Aion Labs" envVar="AION_API_KEY" />
+            <ProviderKeyField label="Kilo Code" envVar="KILOCODE_API_KEY" />
+            <ProviderKeyField label="Ollama Cloud" envVar="OLLAMA_API_KEY" />
           </Section>
           </>)}
 

@@ -138,11 +138,16 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
           const raw = localStorage.getItem('wordapa7_marcas_map');
           const map = raw ? JSON.parse(raw) : {};
           const KIND_LABELS: Record<string, string> = {
-            first_person: 'primera persona',
-            ortografia: 'ortografía',
-            ai_phrase: 'frase de IA',
-            pegado: 'texto pegado',
-            muletilla: 'muletilla repetida',
+            first_person: 'Primera persona',
+            ortografia: 'Ortografía',
+            ai_phrase: 'Patrón sintético / IA',
+            pegado: 'Texto mal pegado',
+            muletilla: 'Muletilla repetitiva',
+            ngram_repetition: 'Repetición frecuente',
+            bloom_vague: 'Objetivo impreciso',
+            bloom_low: 'Nivel taxonómico bajo',
+            repeticion: 'Palabra repetida',
+            ambiguedad: 'Pronombre ambiguo',
           };
           for (const f of res.findings || []) {
             map[f.element_id] = KIND_LABELS[f.kind] || f.kind;

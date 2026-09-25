@@ -1,3 +1,85 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wordapa7"
+version = "0.1.0"
+description = "Motor APA 7: API de spec, presets y generacion de docx (WordAPA7)"
+readme = "README.md"
+requires-python = ">=3.10"
+# Espejo EXACTO de requirements.txt (el test de empaquetado exige igualdad;
+# cambiar una version implica tocar ambos archivos).
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.1",
+    "python-docx>=1.1.2",
+    "lxml>=5.2.0",
+    "pillow>=10.4.0",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27.0",
+    "openai>=1.35.0",
+    "pydantic>=2.7.4",
+    "pydantic-settings>=2.3.4",
+    "aiofiles>=23.2.1",
+    "python-dotenv>=1.0.1",
+    "psutil>=5.9.0",
+    'pywin32>=306; sys_platform == "win32"',
+    "networkx>=3.0",
+    "PyMuPDF>=1.24.0",
+    'docx2pdf>=0.0.1; sys_platform == "win32"',
+    "cryptography>=42.0.0",
+]
+
+[tool.setuptools]
+# Layout plano: los modulos sueltos viven en python/ (imports raiz intactos;
+# nada cambia en cómo se ejecuta hoy — solo habilita pip install -e .).
+package-dir = { "" = "python" }
+py-modules = [
+    "audit_estudio_trabajo",
+    "build_embedded",
+    "build_manifest",
+    "config",
+    "constants",
+    "core_server",
+    "create_template",
+    "debug_cover_elements",
+    "embed_payload",
+    "embedded_secrets",
+    "find_authors",
+    "inspect_images_in_zip",
+    "main",
+    "models",
+    "preset_store",
+    "profiles",
+    "runtime_flags",
+    "scratch_inspect",
+    "search_zip_xml",
+    "spec_dsl",
+    "spec_postpass",
+    "ssl_cert_gen",
+    "take_browser_screenshot",
+    "take_page_screenshots",
+    "take_scroll_middle",
+    "take_scroll_page2",
+    "test_audit",
+    "test_com_suite",
+    "test_cover_classification",
+    "test_cover_image_ratios",
+    "test_estudio_diag",
+    "test_p10_xml",
+    "test_preserve_cover",
+    "test_textbox_extract",
+    "test_wizard_steps",
+    "test_zip_meta",
+    "trace_generator",
+    "word_watcher",
+    "wordapa7_logger",
+]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

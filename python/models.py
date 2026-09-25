@@ -325,7 +325,14 @@ class HealthResponse(BaseModel):
     app: str = "WordAPA7"
 
 
-# ── COMPATIBILITY ALIASES & CLASSES ──────────────────────────────────────────
+class SubfigureModel(BaseModel):
+    id: str
+    label: str = "(a)"
+    title: str = ""
+    relative_url: str = ""
+    file_path: Optional[str] = None
+    filename: Optional[str] = None
+
 
 class ImageModel(BaseModel):
     element_id: str
@@ -338,6 +345,8 @@ class ImageModel(BaseModel):
     caption: str = ""
     note: Optional[str] = None
     figure_number: int = 1
+    # Subfiguras multipanel APA 7 (a, b, c...)
+    subfigures: list[SubfigureModel] = Field(default_factory=list)
     # Nuevos campos configurables para control total de imagen
     width_inches: Optional[float] = None      # Ancho en pulgadas (si se prefiere sobre cm)
     height_inches: Optional[float] = None     # Alto en pulgadas
@@ -345,7 +354,7 @@ class ImageModel(BaseModel):
     wrap_style: str = "inline"                # "inline" | "square" | "tight" | "top_and_bottom"
     caption_position: str = "above"           # "above" | "below"
     constrain_proportions: bool = True        # Mantener proporcion al cambiar ancho
-    design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width"
+    design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width" | "multipanel"
     rotation: int = 0                          # grados de rotacion (0, 90, 180, 270)
     alt_text: str = ""                         # texto alternativo / accesibilidad
 
@@ -379,6 +388,7 @@ class ElementModel(BaseModel):
     is_bold: bool = False
     is_italic: bool = False
     is_bullet: bool = False
+    is_table_cell: bool = False
     left_indent_cm: float = 0.0
     first_line_indent_cm: float = 0.0
     space_before_pt: float = 0.0

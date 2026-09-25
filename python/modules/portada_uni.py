@@ -205,6 +205,7 @@ def _set_row_min_height(row, height_cm: float = 1.5):
     Garantiza que las filas de autores no colapsen cuando hay poco texto
     (p. ej. un solo estudiante). ``atLeast`` permite que la fila crezca si el
     contenido la rebasa.
+    F-02: Añade cantSplit a la fila para que nunca se divida verticalmente.
     """
     trPr = row._tr.get_or_add_trPr()
     trHeight = trPr.find(qn('w:trHeight'))
@@ -213,6 +214,10 @@ def _set_row_min_height(row, height_cm: float = 1.5):
         trPr.append(trHeight)
     trHeight.set(qn('w:val'), str(int(height_cm * _CM_TO_DXA)))
     trHeight.set(qn('w:hRule'), 'atLeast')
+
+    # F-02: <w:cantSplit/> en filas de autores
+    if trPr.find(qn('w:cantSplit')) is None:
+        trPr.append(OxmlElement('w:cantSplit'))
 
 
 def generate_uni_cover(
@@ -225,17 +230,18 @@ def generate_uni_cover(
     departamento: str = "Área de Conocimiento de Ingeniería y Afines",
     fecha: str = "",
     lugar: str = "Managua, Nicaragua",
+    font_family: str | None = None,
 ) -> int:
     """
     Inserta al inicio del documento una portada institucional UNI fiel al
     formato de los trabajos reales:
 
         [Logo UNI centrado]
-        Área de Conocimiento de Ingeniería y Afines        (Butler 20pt)
-        Título del trabajo                                  (Montserrat Black 20pt)
-        Asignatura                                          (Butler 20pt)
+        Área de Conocimiento de Ingeniería y Afines        (Butler 20pt / font_family)
+        Título del trabajo                                  (Montserrat Black 20pt / font_family)
+        Asignatura                                          (Butler 20pt / font_family)
 
-        Elaborado por                                       (Montserrat Bold 11pt)
+        Elaborado por                                       (Montserrat Bold 11pt / font_family)
         ──────────┬──────────┬──────────┬─────────────────
         │ Autor 1  │ Autor 3  │ Autor 5  │ Tutor           │
         │ Carnet   │ Carnet   │ Carnet   │ Grupo: XXX      │
@@ -248,6 +254,17 @@ def generate_uni_cover(
 
     Returns: Número de párrafos insertados (para cover_paragraph_count).
     """
+    # F-01: Desvincular encabezado/pie de la primera página para que no se superponga
+    if doc.sections:
+        try:
+            doc.sections[0].different_first_page_header_footer = True
+        except Exception:
+            pass
+
+    font_dept = font_family or FONT_DEPARTMENT
+    font_title = font_family or FONT_TITLE
+    font_body = font_family or FONT_BODY
+
     if not departamento:
         departamento = "Área de Conocimiento de Ingeniería y Afines"
     if not titulo:
@@ -279,26 +296,26 @@ def generate_uni_cover(
     # ── 2. Departamento (Butler 20pt, centrado) ──────────────────────────────
     dept_p = builder.add_paragraph()
     dept_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run_styled(dept_p, departamento, bold=False, size_pt=20, font=FONT_DEPARTMENT)
+    _add_run_styled(dept_p, departamento, bold=False, size_pt=20, font=font_dept)
     _set_paragraph_spacing(dept_p, before=6, after=30)
 
     # ── 3. Título (Montserrat Black 20pt, centrado) ──────────────────────────
     titulo_p = builder.add_paragraph()
     titulo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run_styled(titulo_p, titulo, bold=False, size_pt=20, font=FONT_TITLE)
+    _add_run_styled(titulo_p, titulo, bold=False, size_pt=20, font=font_title)
     _set_paragraph_spacing(titulo_p, before=0, after=30)
 
     # ── 4. Asignatura (Butler 20pt, centrado) ────────────────────────────────
     if asignatura:
         asig_p = builder.add_paragraph()
         asig_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _add_run_styled(asig_p, asignatura, bold=False, size_pt=20, font=FONT_DEPARTMENT)
+        _add_run_styled(asig_p, asignatura, bold=False, size_pt=20, font=font_dept)
         _set_paragraph_spacing(asig_p, before=0, after=60)
 
     # ── 5. "Elaborado por" (Montserrat Bold 11pt, izquierda) ─────────────────
     elab_p = builder.add_paragraph()
     elab_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(elab_p, "Elaborado por", bold=True, size_pt=11, font=FONT_BODY)
+    _add_run_styled(elab_p, "Elaborado por", bold=True, size_pt=11, font=font_body)
     _set_paragraph_spacing(elab_p, before=0, after=10)
 
     # ── 6. Autores en columnas con separadores verticales negros ─────────────
@@ -382,19 +399,19 @@ def generate_uni_cover(
                     carnet = autor.get("carnet", "")
 
                     if is_tutor_col:
-                        _add_run_styled(p, nombre, bold=True, size_pt=10, font=FONT_BODY)
+                        _add_run_styled(p, nombre, bold=True, size_pt=10, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
                             _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, f"Grupo: {carnet}", bold=True, size_pt=10, font=FONT_BODY)
+                            _add_run_styled(p2, f"Grupo: {carnet}", bold=True, size_pt=10, font=font_body)
                     else:
-                        _add_run_styled(p, nombre, bold=False, size_pt=10, font=FONT_BODY)
+                        _add_run_styled(p, nombre, bold=False, size_pt=10, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
                             _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, carnet, bold=False, size_pt=10, font=FONT_BODY)
+                            _add_run_styled(p2, carnet, bold=False, size_pt=10, font=font_body)
 
         builder.insert_table(authors_table)
 
@@ -416,13 +433,13 @@ def generate_uni_cover(
     # ── 7. Fecha (izquierda) ─────────────────────────────────────────────────
     fecha_p = builder.add_paragraph()
     fecha_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(fecha_p, fecha, bold=False, size_pt=11, font=FONT_BODY)
+    _add_run_styled(fecha_p, fecha, bold=False, size_pt=11, font=font_body)
     _set_paragraph_spacing(fecha_p, before=24, after=2)
 
     # ── 8. Lugar (Managua, Nicaragua) ────────────────────────────────────────
     lugar_p = builder.add_paragraph()
     lugar_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(lugar_p, lugar, bold=False, size_pt=11, font=FONT_BODY)
+    _add_run_styled(lugar_p, lugar, bold=False, size_pt=11, font=font_body)
     _set_paragraph_spacing(lugar_p, before=0, after=0)
 
     # ── 9. Salto de página ───────────────────────────────────────────────────

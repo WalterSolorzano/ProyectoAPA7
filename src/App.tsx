@@ -32,17 +32,15 @@ import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
 import * as api from './api/backend';
 import { getApiBaseAsync, resetProtocolCache } from './api/http';
+import { syncAllProviderKeys } from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
-import { DesignAuditor } from './components/auditor/DesignAuditor';
+import { ExpressQuickTransformModal } from './components/quick/ExpressQuickTransformModal';
 import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
 import { ImageEditPanel } from './components/inspector/ImageEditPanel';
-import { syncAllProviderKeys } from './api/backend';
-// F4: ValidatorView drawer ahora vive a nivel raiz (abrible desde cualquier paso)
 import { ValidatorView } from './components/validator/ValidatorView';
-import { ExpressQuickTransformModal } from './components/quick/ExpressQuickTransformModal';
 import { DocumentAIChat } from './components/chat/DocumentAIChat';
-import { StressTestModal } from './components/test/StressTestModal';
+
 import { X, Sparkles } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
@@ -264,17 +262,20 @@ const LiveChatFloatingCard: React.FC = () => {
   return (
     <aside
       aria-label="Copiloto Editorial IA"
+      className="copilot-drawer animate-fade-in"
       style={{
-        width: '330px',
-        flexShrink: 0,
-        height: '100%',
+        position: 'fixed',
+        top: '48px',
+        right: 0,
+        bottom: '24px',
+        width: 'min(380px, 92vw)',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--surface-elevated)',
         borderLeft: '1px solid var(--border-subtle)',
-        boxShadow: '-4px 0 16px rgba(0,0,0,0.06)',
+        boxShadow: '-8px 0 32px rgba(0,0,0,0.18)',
         overflow: 'hidden',
-        zIndex: 20,
+        zIndex: 850,
       }}
     >
       <DocumentAIChat
@@ -302,15 +303,11 @@ export const App: React.FC = () => {
     atHome,
     goHome,
     tabs,
-    auditorMode,
-    setAuditorMode,
     focusMode,
     isBackendReady,
     structureTab,
     setStructureTab,
   } = useDocStore();
-
-  const stressTestModalOpen = useDocStore((s) => s.stressTestModalOpen);
 
   // ── Resizable Left Sidebar (Portada / Wizards) ────────────────────────────
   const [leftSidebarWidth, setLeftSidebarWidth] = React.useState<number>(() => {
@@ -380,6 +377,9 @@ export const App: React.FC = () => {
       if (!data.isQuick) {
         useDocStore.getState().showToast(`Abriendo "${file.name}"…`, 'info');
       }
+      if (data.filePath) {
+        useDocStore.getState().setActiveFilePath(data.filePath);
+      }
       useDocStore.getState().uploadFile(file);
     } catch (err) {
       console.error('[App] Error al procesar archivo desde el SO:', err);
@@ -414,6 +414,26 @@ export const App: React.FC = () => {
       processPendingOSFile();
     }
   }, [isBackendReady]);
+
+  // ── Sincronización en Paralelo con Word (Live Watcher) ──────────────────────
+  const activeFilePath = useDocStore((s) => s.activeFilePath);
+  useEffect(() => {
+    const ew = window as any;
+    if (!ew.electronAPI?.watchDocumentFile || !activeFilePath) return;
+
+    const cleanup = ew.electronAPI.watchDocumentFile(
+      activeFilePath,
+      (data: { filePath: string; fileName: string; timestamp: number }) => {
+        useDocStore.getState().showToast(
+          `Word guardó cambios en "${data.fileName}". El documento está sincronizado.`,
+          'info'
+        );
+      }
+    );
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
+  }, [activeFilePath]);
 
   // ── Global backend readiness ──────────────────────────────────────────────
   // CRITICAL: Cuando el backend se vuelve ready, reseteamos el cache de
@@ -507,7 +527,6 @@ export const App: React.FC = () => {
       if (e.key === 'Escape') {
         const s = useDocStore.getState();
         if (s.liveChatOpen) { s.setLiveChatOpen(false); return; }
-        if (s.stressTestModalOpen) { s.setStressTestModalOpen(false); return; }
         if (s.validatorOpen) { s.setValidatorOpen(false); return; }
         if (s.viewMode === 'export') { s.setViewMode('edit'); return; }
         if (s.isNIMDiagnosticsOpen) { s.setIsNIMDiagnosticsOpen(false); return; }
@@ -682,7 +701,6 @@ export const App: React.FC = () => {
         )}
         {isBackendReady ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
         <LoadingTips />
-        <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       </>
     );
   }
@@ -719,7 +737,7 @@ export const App: React.FC = () => {
               </div>
             </div>
             <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)', borderLeft: '2px solid var(--border-subtle)' }}>
-              <ReactPDFPreview />
+              <PDFPreview />
             </div>
           </div>
         ) : wizardStep === 1 ? (
@@ -761,14 +779,8 @@ export const App: React.FC = () => {
       <StatusBar />
       <AIBatteryIndicator />
       {doc && <MascotBubble />}
-      <DesignAuditor open={auditorMode} onClose={() => setAuditorMode(false)} />
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
-
-      {/* Modal de Banco de Pruebas y Estrés */}
-      {stressTestModalOpen && (
-        <StressTestModal onClose={() => useDocStore.getState().setStressTestModalOpen(false)} />
-      )}
     </div>
   );
 };

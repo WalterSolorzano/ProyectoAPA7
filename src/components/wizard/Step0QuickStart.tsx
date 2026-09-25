@@ -222,6 +222,7 @@ export const Step0QuickStart: React.FC = () => {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Load real sessions from backend when it's ready
   useEffect(() => {
@@ -258,9 +259,8 @@ export const Step0QuickStart: React.FC = () => {
       useDocStore.getState().showToast('Solo se aceptan archivos .docx', 'warning');
       return;
     }
-    // Filtro de alcances: decidir ANTES de subir qué se tocará.
-    setPendingFile(file);
-    setScopeFilterOpen(true);
+    // Entrada directa al editor: sin modal invasivo previo
+    doUpload(file);
   };
 
   const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,6 +268,28 @@ export const Step0QuickStart: React.FC = () => {
     if (!file) return;
     e.target.value = '';
     handleUploadFile(file);
+  };
+
+  const handleFolderPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const docxFiles = files.filter(f => f.name.toLowerCase().endsWith('.docx'));
+    const imgFiles = files.filter(f => /\.(png|jpe?g|webp|svg)$/i.test(f.name));
+
+    for (const img of imgFiles) {
+      useDocStore.getState().addProjectImage(img);
+    }
+
+    if (docxFiles.length > 0) {
+      uploadFile(docxFiles[0], { profileId: activeProfileId, mode: 'review' });
+      for (let i = 1; i < docxFiles.length; i++) {
+        uploadFile(docxFiles[i], { profileId: activeProfileId, mode: 'review' });
+      }
+      useDocStore.getState().showToast(`Carpeta vinculada: ${docxFiles.length} documento(s) y ${imgFiles.length} imágenes detectadas`, 'success');
+    } else {
+      useDocStore.getState().showToast('No se encontraron documentos .docx en la carpeta seleccionada', 'warning');
+    }
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -386,8 +408,18 @@ export const Step0QuickStart: React.FC = () => {
         })()}
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input type="file" ref={fileInputRef} onChange={handleFilePicked} accept=".docx" style={{ display: 'none' }} />
+      <input
+        type="file"
+        ref={folderInputRef}
+        onChange={handleFolderPicked}
+        // @ts-ignore
+        webkitdirectory="true"
+        directory=""
+        multiple
+        style={{ display: 'none' }}
+      />
 
       {/* ── CONTENIDO (sidebar + principal) ── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -453,78 +485,7 @@ export const Step0QuickStart: React.FC = () => {
       {/* Menú "Configuraciones" estilo Notion */}
         {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
 
-        {/* ── Filtro de alcances: ¿qué se toca de este Word? ── */}
-        {scopeFilterOpen && pendingFile && (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 500, backgroundColor: 'rgba(10,12,24,0.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-          }}>
-            <div style={{
-              width: '100%', maxWidth: 460, backgroundColor: 'var(--sidebar-bg)',
-              border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xl)',
-              boxShadow: 'var(--shadow-card)', padding: '22px 24px',
-            }}>
-              <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px' }}>
-                ¿Qué modificamos de "{pendingFile.name}"?
-              </h3>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 14px' }}>
-                Solo se toca lo que elijas. Lo demás queda EXACTAMENTE igual.
-              </p>
-              {[
-                { id: 'texto', label: 'Texto', desc: 'Tipografía, interlineado y sangría' },
-                { id: 'tablas_imagenes', label: 'Tablas e imágenes', desc: 'Numeración Tabla N / Figura N + bordes APA' },
-                { id: 'bibliografia', label: 'Bibliografía', desc: 'Sangría francesa y espaciado APA' },
-              ].map((s) => {
-                const on = selectedScopes.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setSelectedScopes((prev) => on ? prev.filter((x) => x !== s.id) : [...prev, s.id])}
-                    style={{
-                      width: '100%', textAlign: 'left', marginBottom: 8, cursor: 'pointer',
-                      fontFamily: 'inherit', padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: `1px solid ${on ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                      background: on ? 'var(--accent-soft)' : 'var(--surface-elevated)',
-                    }}
-                  >
-                    <span style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 700, color: on ? 'var(--accent-primary)' : 'var(--text-main)' }}>
-                      {s.label} {on ? '' : ''}
-                    </span>
-                    <span style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{s.desc}</span>
-                  </button>
-                );
-              })}
-              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                <button
-                  type="button"
-                  disabled={selectedScopes.length === 0}
-                  onClick={() => {
-                    useDocStore.getState().setSessionScopes(selectedScopes);
-                    setScopeFilterOpen(false);
-                    doUpload(pendingFile);
-                    useDocStore.getState().showToast(`Se aplicará solo: ${selectedScopes.join(', ')}`, 'info');
-                  }}
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: selectedScopes.length ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 700, background: 'var(--accent-primary)', color: '#fff', border: 'none', opacity: selectedScopes.length ? 1 : 0.5 }}
-                >
-                  Aplicar solo lo elegido
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    useDocStore.getState().setSessionScopes([]);
-                    setScopeFilterOpen(false);
-                    doUpload(pendingFile);
-                  }}
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-                >
-                  Formato completo APA
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
 
       {/* ── ÁREA PRINCIPAL ─── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '28px 60px 56px' }}>
@@ -663,47 +624,80 @@ export const Step0QuickStart: React.FC = () => {
                   Ajuste automático de portada, títulos jerárquicos, márgenes, tablas, figuras y referencias sin alterar tu texto original.
                 </div>
 
-                {/* Botón de acción principal integrado */}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); triggerFilePicker(); }}
-                  disabled={busy}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '11px 26px',
-                    borderRadius: 'var(--radius-lg)',
-                    border: 'none',
-                    cursor: busy ? 'wait' : 'pointer',
-                    backgroundColor: 'var(--accent-primary)',
-                    color: '#ffffff',
-                    fontFamily: 'inherit',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    boxShadow: '0 4px 14px rgba(79, 124, 255, 0.28)',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 124, 255, 0.36)'; } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(79, 124, 255, 0.28)'; }}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                      Procesando documento…
-                    </>
-                  ) : !isBackendReady ? (
-                    <>
-                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                      Iniciando motor editorial…
-                    </>
-                  ) : (
-                    <>
-                      <FileUp size={16} />
-                      Seleccionar archivo Word (.docx)
-                    </>
-                  )}
-                </button>
+                {/* Botones de acción integrados */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); triggerFilePicker(); }}
+                    disabled={busy}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '11px 24px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: 'none',
+                      cursor: busy ? 'wait' : 'pointer',
+                      backgroundColor: 'var(--accent-primary)',
+                      color: '#ffffff',
+                      fontFamily: 'inherit',
+                      fontSize: '13.5px',
+                      fontWeight: 700,
+                      boxShadow: '0 4px 14px rgba(79, 124, 255, 0.28)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 124, 255, 0.36)'; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(79, 124, 255, 0.28)'; }}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                        Procesando documento…
+                      </>
+                    ) : !isBackendReady ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                        Iniciando motor editorial…
+                      </>
+                    ) : (
+                      <>
+                        <FileUp size={16} />
+                        Seleccionar archivo Word (.docx)
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!busy) folderInputRef.current?.click();
+                    }}
+                    disabled={busy}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '11px 20px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--border-subtle)',
+                      cursor: busy ? 'wait' : 'pointer',
+                      backgroundColor: 'var(--surface-elevated)',
+                      color: 'var(--text-main)',
+                      fontFamily: 'inherit',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+                    title="Vincular la carpeta de tu tesis o trabajo para detectar todos los .docx y figuras"
+                  >
+                    <FolderOpen size={16} color="var(--accent-primary)" />
+                    <span>Abrir carpeta de proyecto...</span>
+                  </button>
+                </div>
               </div>
 
               {/* Mensaje de garantía al pie de la dropzone */}

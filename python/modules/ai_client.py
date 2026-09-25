@@ -16,9 +16,9 @@ CACHE_FILE_PATH = Path("storage/ai_cache.json")
 
 # Definición de Especialidades
 PROVIDER_SPECIALTIES = {
-    "FAST": ["groq", "cerebras", "cloudflare"],
-    "HEAVY": ["gemini", "nvidia_nim", "openrouter"],
-    "REASONING": ["nvidia_nim", "openrouter", "mistral", "opencodezen", "zenmux"]
+    "FAST": ["groq", "cerebras", "cloudflare", "aion", "kilocode"],
+    "HEAVY": ["gemini", "nvidia_nim", "openrouter", "ollama_cloud"],
+    "REASONING": ["nvidia_nim", "openrouter", "mistral", "opencodezen", "zenmux", "aion", "kilocode", "ollama_cloud"]
 }
 
 # --- Predictive Token Bucket Rate Limiter ---

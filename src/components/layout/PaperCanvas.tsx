@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
 import { ElementModel } from '../../types';
-import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles } from 'lucide-react';
+import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
@@ -78,53 +78,188 @@ export function isCoverAuthorElement(elem: ElementModel): boolean {
   return /\b(Br\.|Ing\.|Lic\.|Carnet:)\b/i.test(t) || /Carnet:\s*\d+/i.test(t);
 }
 
-// ── Marcas de transparencia (ChangeMark) ─────────────────────────────────────
-// Micro-etiqueta gris renderizada arriba del elemento sin tapar el texto. Indica
-// qué transformación APA se aplicó (ej. "sangría aplicada", "Tabla → APA").
-// Solo lectura: el mapa vive en localStorage (key wordapa7_marcas_map) y lo
-// escribe otro agente. No editable, pointer-events none.
-const ChangeMark: React.FC<{ label: string }> = ({ label }) => {
-  const isAmbig = label.toLowerCase().includes('ambig');
-  const displayLabel = isAmbig ? 'Pronombre ambiguo' : label;
-  
+// ── Marcas de transparencia y auditoría (ChangeMark) ─────────────────────────
+// Micro-chip interactivo renderizado arriba del elemento con feedback pedagógico,
+// categorización visual y acciones directas (reescritura IA / descartar).
+const ChangeMark: React.FC<{
+  label: string;
+  elem?: ElementModel;
+  finding?: any;
+  onRewrite?: (elem: ElementModel) => void;
+  onDismiss?: (elemId: string) => void;
+}> = ({ label, elem, finding, onRewrite, onDismiss }) => {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const lower = (label || '').toLowerCase();
+
+  const isAI = lower.includes('ia') || lower.includes('sintético') || lower.includes('sintetico');
+  const isRepetition = lower.includes('repet') || lower.includes('ngram');
+  const isSpelling = lower.includes('ortograf');
+  const isAmbig = lower.includes('ambig');
+
+  let toneColor = 'var(--text-main)';
+  let bgColor = 'var(--surface-elevated)';
+  let borderColor = 'var(--border-subtle)';
+  let IconComponent = Wand2;
+
+  if (isAI) {
+    toneColor = '#7c3aed';
+    bgColor = 'rgba(124, 58, 237, 0.08)';
+    borderColor = 'rgba(124, 58, 237, 0.3)';
+    IconComponent = Sparkles;
+  } else if (isRepetition) {
+    toneColor = '#d97706';
+    bgColor = 'rgba(245, 158, 11, 0.08)';
+    borderColor = 'rgba(245, 158, 11, 0.3)';
+    IconComponent = RotateCw;
+  } else if (isSpelling || isAmbig) {
+    toneColor = '#dc2626';
+    bgColor = 'rgba(220, 38, 38, 0.08)';
+    borderColor = 'rgba(220, 38, 38, 0.3)';
+    IconComponent = AlertTriangle;
+  }
+
+  const detailedMessage = finding?.message || (
+    isAI
+      ? 'Frase o giro redactado con patrón sintético típico de modelos de IA. Se sugiere reformular con voz académica propia.'
+      : isRepetition
+      ? 'Se identificó una expresión o secuencia de palabras repetida frecuentemente en el texto. Varía el léxico para mayor riqueza editorial.'
+      : isSpelling
+      ? 'Posible discordancia u omisión ortográfica detectada según el diccionario académico.'
+      : isAmbig
+      ? 'Referencia pronominal potencialmente ambigua. Precisa a qué sujeto o variable alude el enunciado.'
+      : `Revisión editorial APA 7: ${label}`
+  );
+
   return (
     <div
       style={{
         display: 'flex',
         justifyContent: 'flex-end',
         width: '100%',
-        marginBottom: '3px',
+        marginBottom: '4px',
+        position: 'relative',
+        zIndex: popoverOpen ? 60 : 10,
       }}
     >
-      <span
-        className="change-mark"
-        title={`Cambio aplicado: ${displayLabel}`}
+      <div
+        className="change-mark-chip"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPopoverOpen(!popoverOpen);
+        }}
+        title="Clic para ver diagnóstico y opciones de redacción"
         style={{
-          maxWidth: 'calc(100% - 8px)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontSize: '11px',
-          fontWeight: isAmbig ? 700 : 600,
-          lineHeight: 1.35,
-          padding: '2px 8px',
-          borderRadius: 'var(--radius-sm, 6px)',
-          border: isAmbig ? '1px solid var(--accent-warning, #f59e0b)' : '1px solid var(--border-subtle)',
-          backgroundColor: isAmbig ? 'rgba(245, 158, 11, 0.16)' : 'var(--surface-elevated)',
-          color: isAmbig ? 'var(--accent-warning, #d97706)' : 'var(--text-main)',
-          boxShadow: 'var(--shadow-sm)',
-          pointerEvents: 'none',
-          userSelect: 'none',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '5px',
+          padding: '2px 9px',
+          borderRadius: '999px',
+          border: `1px solid ${borderColor}`,
+          backgroundColor: bgColor,
+          color: toneColor,
+          fontSize: '11px',
+          fontWeight: 700,
+          lineHeight: 1.35,
+          cursor: 'pointer',
+          boxShadow: 'var(--shadow-sm)',
+          userSelect: 'none',
+          transition: 'all 0.15s ease',
         }}
       >
-        {isAmbig && (
-          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
-        )}
-        {displayLabel}
-      </span>
+        <IconComponent size={12} style={{ flexShrink: 0 }} />
+        <span>{label}</span>
+      </div>
+
+      {popoverOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            right: 0,
+            width: '310px',
+            backgroundColor: 'var(--surface-elevated, #ffffff)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md, 8px)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            zIndex: 100,
+            textAlign: 'left',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 800, color: toneColor }}>
+              <IconComponent size={13} />
+              <span>{label}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPopoverOpen(false)}
+              style={{ background: 'none', border: 'none', padding: '2px', cursor: 'pointer', color: 'var(--text-secondary)' }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            {detailedMessage}
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+            {onRewrite && elem && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPopoverOpen(false);
+                  onRewrite(elem);
+                }}
+                className="btn btn-primary btn-sm"
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 10px',
+                  flex: 1,
+                  justifyContent: 'center',
+                }}
+              >
+                <Sparkles size={12} />
+                <span>Reescribir</span>
+              </button>
+            )}
+            {onDismiss && elem && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPopoverOpen(false);
+                  onDismiss(elem.id);
+                }}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '5px 10px',
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Check size={12} />
+                <span>Ignorar</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -556,26 +691,30 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
   // Scroll automático y resalte suave al seleccionar cualquier elemento desde el esquema o asistente
   useEffect(() => {
-    if (selectedElementId) {
-      const targetEl = document.getElementById(`paper-elem-${selectedElementId}`);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Flash visible: el usuario DEBE ver dónde aterrizó.
-        const prev = (targetEl as HTMLElement).style.boxShadow;
-        (targetEl as HTMLElement).style.transition = 'box-shadow 0.3s';
-        (targetEl as HTMLElement).style.boxShadow = 'inset 0 0 0 3px var(--accent-primary)';
-        window.setTimeout(() => {
-          (targetEl as HTMLElement).style.boxShadow = prev;
-        }, 1400);
-      } else if (selectedElementId) {
-        // Elemento aún no montado (página virtual lejana): reintenta corto.
-        const t = window.setTimeout(() => {
-          document.getElementById(`paper-elem-${selectedElementId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 350);
-        return () => window.clearTimeout(t);
+    if (selectedElementId && doc) {
+      // Si el elemento está en una página virtualizada lejana, activar esa página de inmediato
+      const docPages = computePages(doc.elements);
+      const pIdx = docPages.findIndex((p) => p.some((e) => e.id === selectedElementId));
+      if (pIdx !== -1 && pIdx !== activePageIndex) {
+        setActivePageIndex(pIdx);
       }
+
+      const timer = setTimeout(() => {
+        const targetEl = document.getElementById(`paper-elem-${selectedElementId}`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const prev = (targetEl as HTMLElement).style.boxShadow;
+          (targetEl as HTMLElement).style.transition = 'box-shadow 0.3s';
+          (targetEl as HTMLElement).style.boxShadow = 'inset 0 0 0 3px var(--accent-primary)';
+          window.setTimeout(() => {
+            (targetEl as HTMLElement).style.boxShadow = prev;
+          }, 1400);
+        }
+      }, 60);
+
+      return () => clearTimeout(timer);
     }
-  }, [selectedElementId]);
+  }, [selectedElementId, doc]);
 
   // Scroll del DocumentOutline / auto-scroll a Referencias o Figuras SIN abrir el inspector
   const scrollTargetId = useDocStore((s) => s.scrollTargetId);
@@ -1669,7 +1808,20 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                         {/* Marca de transparencia: etiqueta del cambio APA aplicado arriba del párrafo */}
                         {marcasVisibles && marcasMap[elem.id] && (
-                          <ChangeMark label={marcasMap[elem.id]} />
+                          <ChangeMark
+                            label={marcasMap[elem.id]}
+                            elem={elem}
+                            finding={useDocStore.getState().proofreadFindings?.find(f => f.element_id === elem.id)}
+                            onRewrite={handleRewriteText}
+                            onDismiss={(eid) => {
+                              const nextMap = { ...marcasMap };
+                              delete nextMap[eid];
+                              setMarcasMap(nextMap);
+                              try {
+                                localStorage.setItem('wordapa7_marcas_map', JSON.stringify(nextMap));
+                              } catch { /* noop */ }
+                            }}
+                          />
                         )}
 
                         {editingId === elem.id && elem.type !== 'image' ? (
@@ -2005,73 +2157,133 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               </div>
                             )}
 
-                            {/* Marco de la imagen — ocupa el ancho de la página sin achicarse demasiado */}
-                            <div
-                              style={{
-                                order: 1,
-                                margin: '0 auto',
-                                width: '100%', maxWidth: '100%',
-                                height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
-                                minWidth: '120px',
-                                minHeight: '120px',
-                                overflow: 'hidden',
-                                backgroundColor: 'var(--paper-bg)',
-                                border: selectedElementId === elem.id
-                                  ? '2px solid var(--accent-primary)'
-                                  : '1px solid var(--paper-line)',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--text-secondary)',
-                                position: 'relative',
-                                cursor: 'grab',
-                                touchAction: 'none',
-                                transform: elem.image_info?.rotation ? `rotate(${elem.image_info.rotation}deg)` : undefined,
-                                transformOrigin: 'center center',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {elem.image_info?.relative_url && !elem.image_info?.render_error && !brokenFigureIds[elem.id] ? (
-                                <img
-                                  src={resolveAssetUrl(elem.image_info.relative_url)}
-                                  alt="Figura"
-                                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', pointerEvents: 'none' }}
-                                  onError={() => setBrokenFigureIds((prev) => ({
-                                    ...prev,
-                                    [elem.id]: 'La imagen no pudo cargarse en el navegador.',
-                                  }))}
-                                />
-                              ) : (
-                                <div style={{ padding: '12px', textAlign: 'left', maxWidth: '100%' }}>
-                                  <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--accent-warning)' }}>
-                                    Previsualización no disponible
+                            {/* Marco de la imagen / Paneles Multipanel */}
+                            {elem.image_info?.design_style === 'multipanel' && elem.image_info?.subfigures && elem.image_info.subfigures.length > 0 ? (
+                              <div
+                                style={{
+                                  order: 1,
+                                  margin: '0 auto',
+                                  width: '100%',
+                                  display: 'grid',
+                                  gridTemplateColumns: `repeat(${elem.image_info.subfigures.length}, 1fr)`,
+                                  gap: '12px',
+                                  alignItems: 'start',
+                                }}
+                              >
+                                {elem.image_info.subfigures.map((sub, sIdx) => (
+                                  <div
+                                    key={sub.id || sIdx}
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: '100%',
+                                        height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 30}px` : '170px',
+                                        backgroundColor: 'var(--paper-bg)',
+                                        border: '1px solid var(--paper-line)',
+                                        borderRadius: '6px',
+                                        overflow: 'hidden',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}
+                                    >
+                                      {sub.relative_url ? (
+                                        <img
+                                          src={resolveAssetUrl(sub.relative_url)}
+                                          alt={sub.title || `Panel ${sub.label}`}
+                                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                        />
+                                      ) : elem.image_info?.relative_url ? (
+                                        <img
+                                          src={resolveAssetUrl(elem.image_info.relative_url)}
+                                          alt={sub.title || `Panel ${sub.label}`}
+                                          style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                        />
+                                      ) : (
+                                        <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>Sin imagen</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '10.5pt', color: 'var(--paper-ink)', textAlign: 'center', lineHeight: 1.3 }}>
+                                      <span style={{ fontWeight: 600 }}>{sub.label || `(${String.fromCharCode(97 + sIdx)})`}</span>{' '}
+                                      <span style={{ fontStyle: 'italic' }}>{sub.title}</span>
+                                    </div>
                                   </div>
-                                  <div style={{ fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
-                                    {brokenFigureIds[elem.id] || (elem.image_info as any)?.render_error || 'El formato original no puede renderizarse en este preview. Revisa el archivo original o exporta la figura a PNG/SVG.'}
+                                ))}
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  order: 1,
+                                  margin: '0 auto',
+                                  width: '100%', maxWidth: '100%',
+                                  height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
+                                  minWidth: '120px',
+                                  minHeight: '120px',
+                                  overflow: 'hidden',
+                                  backgroundColor: 'var(--paper-bg)',
+                                  border: selectedElementId === elem.id
+                                    ? '2px solid var(--accent-primary)'
+                                    : '1px solid var(--paper-line)',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'var(--text-secondary)',
+                                  position: 'relative',
+                                  cursor: 'grab',
+                                  touchAction: 'none',
+                                  transform: elem.image_info?.rotation ? `rotate(${elem.image_info.rotation}deg)` : undefined,
+                                  transformOrigin: 'center center',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                {elem.image_info?.relative_url && !elem.image_info?.render_error && !brokenFigureIds[elem.id] ? (
+                                  <img
+                                    src={resolveAssetUrl(elem.image_info.relative_url)}
+                                    alt="Figura"
+                                    style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', pointerEvents: 'none' }}
+                                    onError={() => setBrokenFigureIds((prev) => ({
+                                      ...prev,
+                                      [elem.id]: 'La imagen no pudo cargarse en el navegador.',
+                                    }))}
+                                  />
+                                ) : (
+                                  <div style={{ padding: '12px', textAlign: 'left', maxWidth: '100%' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--accent-warning)' }}>
+                                      Previsualización no disponible
+                                    </div>
+                                    <div style={{ fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
+                                      {brokenFigureIds[elem.id] || (elem.image_info as any)?.render_error || 'El formato original no puede renderizarse en este preview. Revisa el archivo original o exporta la figura a PNG/SVG.'}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
 
-                              {/* Resize handle */}
-                              {selectedElementId === elem.id && (
-                                <div
-                                  onPointerDown={(e) => startFigureResize(e, elem)}
-                                  onPointerMove={resizeState?.id === elem.id ? handleFigureResize : undefined}
-                                  onPointerUp={endFigureResize}
-                                  onPointerLeave={resizeState?.id === elem.id ? endFigureResize : undefined}
-                                  title="Arrastrar para redimensionar · Shift para liberar proporción"
-                                  style={{
-                                    position: 'absolute', right: 0, bottom: 0,
-                                    width: '0', height: '0',
-                                    cursor: 'nwse-resize', touchAction: 'none',
-                                    borderBottom: '18px solid var(--accent-primary)',
-                                    borderLeft: '18px solid transparent',
-                                    borderBottomRightRadius: '10px',
-                                  }}
-                                />
-                              )}
-                            </div>
+                                {/* Resize handle */}
+                                {selectedElementId === elem.id && (
+                                  <div
+                                    onPointerDown={(e) => startFigureResize(e, elem)}
+                                    onPointerMove={resizeState?.id === elem.id ? handleFigureResize : undefined}
+                                    onPointerUp={endFigureResize}
+                                    onPointerLeave={resizeState?.id === elem.id ? endFigureResize : undefined}
+                                    title="Arrastrar para redimensionar · Shift para liberar proporción"
+                                    style={{
+                                      position: 'absolute', right: 0, bottom: 0,
+                                      width: '0', height: '0',
+                                      cursor: 'nwse-resize', touchAction: 'none',
+                                      borderBottom: '18px solid var(--accent-primary)',
+                                      borderLeft: '18px solid transparent',
+                                      borderBottomRightRadius: '10px',
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            )}
 
                             {elem.image_info?.note && (
                               <p style={{ fontSize: '11px', marginTop: '8px', color: 'var(--paper-slate)', textAlign: 'left', order: 3 }}>

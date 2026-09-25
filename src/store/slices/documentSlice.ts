@@ -3,6 +3,7 @@ import { DocState } from '../types';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../../types';
 import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
+import { parseDocumentVersion } from '../../lib/projectUtils';
 import { syncCoverFieldToElements, defaultPortada } from './coverSlice';
 
 const getApiBase = () => api.getApiBase();
@@ -99,6 +100,10 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         'OPENCODEZEN_API_KEY',
         'ZENMUX_API_KEY',
         'GEMINI_API_KEY',
+        'CLOUDFLARE_API_TOKEN',
+        'AION_API_KEY',
+        'KILOCODE_API_KEY',
+        'OLLAMA_API_KEY',
       ];
       for (const p of providers) {
         const val = localStorage.getItem(`wordapa7-provider-key:${p}`);
@@ -321,7 +326,14 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       // Sincronizar reglas con el perfil elegido en la subida (si el backend lo aplicó)
       const uploadedProfile = get().profiles.find((p) => p.profile_id === (opts?.profileId || doc.profile_id || 'apa7'));
       set((state) => {
-        const newTab = { session_id: doc.session_id, file_name: doc.file_name };
+        const parsed = parseDocumentVersion(doc.file_name);
+        const newTab = {
+          session_id: doc.session_id,
+          file_name: doc.file_name,
+          project_name: parsed.projectName,
+          version_label: parsed.versionLabel,
+          updated_at: Date.now(),
+        };
         const newTabs = [...state.tabs, newTab];
         const newTabDocs = { ...state.tabDocs, [doc.session_id]: doc };
 
@@ -985,6 +997,45 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     } catch (err: any) {
       set({ error: err.message || 'Error al exportar PDF', isLoading: false });
       get().showToast(err.message || 'Error al descargar PDF', 'error');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  activeFilePath: null,
+  setActiveFilePath: (path) => set({ activeFilePath: path }),
+  copyPdfToClipboard: async () => {
+    const { doc, rules, portada, references } = get();
+    if (!doc) return false;
+    set({ isLoading: true });
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/generate-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: doc.session_id,
+          rules,
+          portada,
+          references,
+        }),
+      });
+      if (!res.ok) throw new Error('Error al generar PDF para portapapeles');
+      const data = await res.json();
+      if (!data.file_path) {
+        throw new Error('El motor no devolvió la ruta local del archivo PDF.');
+      }
+      const ew = window as any;
+      if (ew.electronAPI?.copyFileToClipboard) {
+        const ok = await ew.electronAPI.copyFileToClipboard(data.file_path);
+        if (ok) {
+          get().showToast('PDF copiado al portapapeles. Pégalo con Ctrl+V en WhatsApp.', 'success');
+          return true;
+        }
+      }
+      throw new Error('La función de portapapeles solo está disponible en la app de escritorio.');
+    } catch (err: any) {
+      get().showToast(err.message || 'Error al copiar PDF al portapapeles', 'error');
+      return false;
     } finally {
       set({ isLoading: false });
     }

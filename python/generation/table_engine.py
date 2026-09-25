@@ -174,7 +174,16 @@ def fit_table_to_page(
             pass
         for row in table.rows:
             try:
-                row.cells[col_idx].width = Inches(width_in)
+                cell = row.cells[col_idx]
+                cell.width = Inches(width_in)
+                # F-09: Inyectar explícitamente w:tcW con dxa (o pct) para fijar el ancho en Word
+                tcPr = cell._tc.get_or_add_tcPr()
+                tcW = tcPr.find(qn('w:tcW'))
+                if tcW is None:
+                    tcW = OxmlElement('w:tcW')
+                    tcPr.append(tcW)
+                tcW.set(qn('w:w'), str(int(Inches(width_in).twips)))
+                tcW.set(qn('w:type'), 'dxa')
             except Exception:
                 pass
 
@@ -431,7 +440,16 @@ def format_apa_table(
     for row_data in table_data.rows:
         if current_row_idx >= len(table.rows):
             break
-        row_cells = table.rows[current_row_idx].cells
+        row = table.rows[current_row_idx]
+        # F-09: Asegurar cantSplit en todas las filas de datos
+        try:
+            r_trPr = row._tr.get_or_add_trPr()
+            if r_trPr.find(qn("w:cantSplit")) is None:
+                r_trPr.append(OxmlElement("w:cantSplit"))
+        except Exception:
+            pass
+
+        row_cells = row.cells
         for col_idx, val in enumerate(row_data):
             if col_idx >= len(row_cells):
                 continue

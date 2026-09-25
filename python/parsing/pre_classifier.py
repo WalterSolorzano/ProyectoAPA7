@@ -432,6 +432,15 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.confidence = 1.0
             continue
 
+        # F-07: Guard estructural temprano: líneas que terminan en dos puntos (':')
+        # o que provienen de una celda de tabla nunca son Headings APA 7.
+        if text.rstrip().endswith(":") or getattr(elem, 'is_table_cell', False):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.95
+            elem.needs_review = False
+            elem.pre_classifier_rule = "colon_or_cell_not_heading"
+            continue
+
         style_name: str = (elem.style_name or "").lower()
         word_count: int = _text_word_count(text)
         is_bold: bool = elem.is_bold
@@ -517,6 +526,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.type = ElementType.PARAGRAPH
             elem.confidence = 0.88
             elem.pre_classifier_rule = "labeled_field_paragraph"
+            continue
+
+        # F-07: Guard estructural previo y posterior: líneas que terminan en dos puntos (':')
+        # o que provienen de una celda de tabla / encabezado introductorio de lista no son Headings APA 7.
+        if text.rstrip().endswith(":") or getattr(elem, 'is_table_cell', False):
+            elem.type = ElementType.PARAGRAPH
+            elem.confidence = 0.89
+            elem.pre_classifier_rule = "colon_or_cell_not_heading"
             continue
 
         # --- CERTEZA 1.0: Estilo de Word explicito ---
@@ -1317,12 +1334,14 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # 0.5. EXCLUSIONES de Pasada 1 tienen prioridad TOTAL sobre el estilo de Word.
         # Captions de figura/tabla, textos legales, referencias APA y listas numeradas
         # NO deben ser headings aunque el usuario haya usado estilo "Heading 1".
+        # F-07: Tampoco líneas que terminan en dos puntos o pertenecen a celdas de tabla.
         if elem.pre_classifier_rule in (
             "exclude_table_caption", "exclude_table_legal",
             "exclude_figure_caption_upper", "reference_item",
-        ):
+            "colon_or_cell_not_heading",
+        ) or txt.endswith(":") or getattr(elem, 'is_table_cell', False):
             elem.needs_review = elem.confidence < 0.85
-            if elem.type == ElementType.HEADING:
+            if elem.type == ElementType.HEADING or elem.type == ElementType.PARAGRAPH:
                 elem.type = ElementType.PARAGRAPH
                 elem.confidence = max(elem.confidence, 0.85)
             continue

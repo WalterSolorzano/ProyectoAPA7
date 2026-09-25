@@ -45,7 +45,16 @@ export interface WizardAnswers {
 
 // ── IMAGE / TABLE MODELS ─────────────────────────────────────────────────────
 
-export type DesignStyle = 'standard' | 'sidebar' | 'scientific' | 'corner' | 'full_width';
+export type DesignStyle = 'standard' | 'sidebar' | 'scientific' | 'corner' | 'full_width' | 'multipanel';
+
+export interface SubfigureItem {
+  id: string;
+  label: string; // ej. '(a)'
+  title: string; // ej. 'Vista general'
+  relative_url: string;
+  file_path?: string;
+  filename?: string;
+}
 
 export interface ImageModel {
   element_id: string;
@@ -58,6 +67,8 @@ export interface ImageModel {
   caption: string;
   note?: string;
   figure_number: number;
+  // Subfiguras multipanel APA 7 (a, b, c...)
+  subfigures?: SubfigureItem[];
   // Nuevos campos configurables para control total de imagen
   width_inches?: number | null;
   height_inches?: number | null;

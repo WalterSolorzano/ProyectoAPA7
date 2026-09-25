@@ -53,7 +53,7 @@ const FORMATS: {
     sublabel: 'Código fuente .tex',
     ext: '.tex',
     icon: FileCode,
-    iconColor: '#14b8a6',
+    iconColor: 'var(--color-success)',
   },
 ];
 
@@ -768,6 +768,40 @@ export const ExportView: React.FC = () => {
               </>
             )}
           </button>
+
+          {/* Acción secundaria: Copiar PDF físico al portapapeles para WhatsApp */}
+          {format === 'pdf' && (
+            <button
+              type="button"
+              onClick={async () => {
+                await useDocStore.getState().copyPdfToClipboard();
+              }}
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                color: 'var(--color-text-primary)',
+                borderRadius: 'var(--radius-md)',
+                fontWeight: 600,
+                fontSize: '12px',
+                border: '1px solid var(--color-border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'background-color 0.15s ease',
+              }}
+              title="Copiar archivo PDF al portapapeles de Windows para pegar con Ctrl+V en WhatsApp"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span>Copiar PDF para WhatsApp (Ctrl+V)</span>
+            </button>
+          )}
         </div>
       </aside>
 

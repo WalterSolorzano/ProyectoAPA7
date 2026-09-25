@@ -39,13 +39,17 @@ REGEX_SECUNDARIA = re.compile(
 )
 
 # Cita parentetica: (Garcia, 2023), (Garcia & Lopez, 2023, p. 45), (Garcia et al., 2023),
-# acronimo organizacional (OIT, 2007), apellido compuesto (Gutiérrez Pulido, 2012)
+# acronimo organizacional (OIT, 2007), autor corporativo con corchetes (Instituto Nicaragüense de Energía [INE], 2026),
+# apellido compuesto (Gutiérrez Pulido, 2012)
 REGEX_PARENTETICA = re.compile(
     r"\(\s*"
-    r"((?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+|[A-ZÁÉÍÓÚÑ]{2,6})"          # Primer autor (nombre o acronimo)
-    r"(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*"                        # Apellido compuesto: "Gutiérrez Pulido"
-    r"(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*"             # Autores adicionales con & o y
-    r"(?:,\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*"  # Mas autores
+    r"("
+    r"(?:[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+|\s+(?:de|del|la|el|los|las|y|e|&)\s+[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)*\s*\[[A-ZÁÉÍÓÚÜÑ]{2,8}\])"  # F-06: Nombre corporativo [SIGLA]
+    r"|"
+    r"(?:[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+|[A-ZÁÉÍÓÚÜÑ]{2,6})"          # Primer autor (nombre o acronimo)
+    r"(?:\s+[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)*"                        # Apellido compuesto: "Gutiérrez Pulido"
+    r"(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)*"             # Autores adicionales con & o y
+    r"(?:,\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+)*)*"  # Mas autores
     r"(?:\s+et\s+al\.?)?"                                     # et al opcional
     r")"
     r"\s*,\s*(\d{4}[a-z]?)"                                    # Ano
@@ -126,10 +130,14 @@ def normalize_surname_key(author: str) -> str:
     Maneja apellidos compuestos en formato "Apellido1 Apellido2, Nombre":
     toma todo lo que hay antes de la primera coma (pueden ser varias palabras),
     lo pasa a minúsculas y elimina tildes. Así "GARCÍA LÓPEZ, A." -> "garcia lopez".
+    F-06: Si es autor corporativo con corchetes "Nombre [SIGLA]", elimina los corchetes
+    para que enlace de forma uniforme tanto si se cita por sigla como por nombre completo.
     """
     if not author:
         return ""
-    surname = author.split(",")[0].strip().lower()
+    # F-06: Si tiene [SIGLA], limpiar corchetes o extraer nombre base
+    author_clean = re.sub(r'\s*\[.*?\]', '', author).strip()
+    surname = author_clean.split(",")[0].strip().lower()
     nfkd = unicodedata.normalize("NFKD", surname)
     return "".join(c for c in nfkd if not unicodedata.combining(c)).strip()
 
@@ -138,9 +146,17 @@ def _parse_authors_from_match(author_text: str) -> List[str]:
     """
     Extrae autores individuales de un match de autor.
     Soporta: "Garcia", "Garcia y Lopez", "Garcia & Lopez", "Garcia et al."
+    F-06: Soporta autores corporativos con corchetes "Instituto Nicaragüense de Energía [INE]"
+    almacenando el nombre formal limpio sin corchetes para la referencia final.
     Descarta iniciales sueltas (p. ej. "M." en "García, M.") para no
     crear autores espurios con apellidos compuestos.
     """
+    # F-06: Detectar si es un autor corporativo con corchetes
+    corp_bracket_match = re.search(r'^(.*?)\s*\[([A-ZÁÉÍÓÚÑ]{2,8})\]$', author_text.strip())
+    if corp_bracket_match:
+        full_org = corp_bracket_match.group(1).strip()
+        return [full_org]
+
     authors: List[str] = []
     # Quitar introductores comunes que el regex puede capturar ("Según", "Como", etc.)
     author_text = re.sub(r'^(?:seg[uú]n|como|tal|entre|durante|mediante)\s+', '', author_text, flags=re.IGNORECASE).strip()

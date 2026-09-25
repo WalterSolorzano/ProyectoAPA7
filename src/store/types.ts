@@ -137,10 +137,21 @@ export interface DocState {
   restoreComment: (id: string) => void;
   imagePanelOpen: boolean;
   setImagePanelOpen: (open: boolean) => void;
-  tabs: { session_id: string; file_name: string }[];
+  tabs: {
+    session_id: string;
+    file_name: string;
+    project_name?: string;
+    version_label?: string;
+    file_path?: string;
+    updated_at?: number;
+  }[];
   activeTabIndex: number;
   tabDocs: Record<string, DocumentModel>;
   pdfPreviewCache: { hash: string; url: string } | null;
+  projectImages: { id: string; name: string; url: string; file?: File }[];
+  addProjectImage: (file: File) => void;
+  removeProjectImage: (id: string) => void;
+  mergeDocuments: (targetSessionId: string, sourceSessionId: string, parts: ('cover' | 'body' | 'references')[]) => void;
 
   // Home / multi-doc (Fase E)
   atHome: boolean;
@@ -310,6 +321,9 @@ export interface DocState {
   runCitationAudit: () => Promise<void>;
   exportDocx: (tracked?: boolean) => Promise<void>;
   exportPdf: () => Promise<void>;
+  copyPdfToClipboard: () => Promise<boolean>;
+  activeFilePath: string | null;
+  setActiveFilePath: (path: string | null) => void;
 }
 
 export type UISlice = Partial<DocState>;

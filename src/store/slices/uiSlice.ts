@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
+import { DocumentModel } from '../../types';
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -65,7 +66,7 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   lastRequestId: null,
   setLastRequestId: (id) => set({ lastRequestId: id }),
   wizardStep: 1,
-      setWizardStep: (step) => set({ wizardStep: Math.min(5, Math.max(1, step)) }),
+  setWizardStep: (step) => set({ wizardStep: Math.min(6, Math.max(1, step)), viewMode: step === 6 ? 'export' : 'edit' }),
   structureTab: 'headings',
   setStructureTab: (tab) => set({ structureTab: tab }),
   showFileMenu: false,
@@ -141,6 +142,69 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       scrollTargetId: null,
     };
   }),
+  projectImages: [],
+  addProjectImage: (file: File) => {
+    const url = URL.createObjectURL(file);
+    const item = { id: `pimg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, url, file };
+    set((state) => ({ projectImages: [...state.projectImages, item] }));
+  },
+  removeProjectImage: (id: string) => {
+    set((state) => ({ projectImages: state.projectImages.filter((img) => img.id !== id) }));
+  },
+  mergeDocuments: (targetSessionId: string, sourceSessionId: string, parts: ('cover' | 'body' | 'references')[]) => {
+    set((state) => {
+      const targetDoc = state.tabDocs[targetSessionId];
+      const sourceDoc = state.tabDocs[sourceSessionId];
+      if (!targetDoc || !sourceDoc) return {};
+
+      let mergedElements = [...targetDoc.elements];
+      let mergedReferences = [...(targetDoc.referencias || [])];
+
+      // 1. Fusionar Portada (si se solicita, reemplaza los bloques de portada de destino por los de origen)
+      if (parts.includes('cover')) {
+        const sourceCoverElements = sourceDoc.elements.filter((e) => e.is_cover_section || e.type === 'portada_block');
+        const targetBodyElements = mergedElements.filter((e) => !e.is_cover_section && e.type !== 'portada_block');
+        mergedElements = [...sourceCoverElements, ...targetBodyElements];
+      }
+
+      // 2. Fusionar Cuerpo (si se solicita, añade los elementos del cuerpo de origen tras el cuerpo de destino)
+      if (parts.includes('body')) {
+        const sourceBodyElements = sourceDoc.elements.filter((e) => !e.is_cover_section && e.type !== 'portada_block');
+        mergedElements = [...mergedElements, ...sourceBodyElements];
+      }
+
+      // 3. Fusionar Referencias (deduplicadas por texto)
+      if (parts.includes('references')) {
+        const sourceRefs = sourceDoc.referencias || [];
+        const existingTexts = new Set(mergedReferences.map((r) => (r.raw_text || r.title || '').toLowerCase().trim()));
+        for (const sRef of sourceRefs) {
+          const refKey = (sRef.raw_text || sRef.title || '').toLowerCase().trim();
+          if (refKey && !existingTexts.has(refKey)) {
+            mergedReferences.push(sRef);
+            existingTexts.add(refKey);
+          }
+        }
+      }
+
+      const updatedDoc: DocumentModel = {
+        ...targetDoc,
+        elements: mergedElements,
+        referencias: mergedReferences,
+      };
+
+      const updatedTabDocs = {
+        ...state.tabDocs,
+        [targetSessionId]: updatedDoc,
+      };
+
+      return {
+        tabDocs: updatedTabDocs,
+        doc: state.doc?.session_id === targetSessionId ? updatedDoc : state.doc,
+        references: state.doc?.session_id === targetSessionId ? mergedReferences : state.references,
+        hasUnsavedChanges: true,
+      };
+    });
+  },
   atHome: true,
   goHome: () => set({ atHome: true }),
   theme: 'light',

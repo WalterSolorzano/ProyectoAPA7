@@ -60,6 +60,12 @@ PROVIDER_CAPACITY = {
     "gemini": {"timeout": 15, "max_tokens_per_request": 2000, "requests_per_minute": 10, "typical_latency_s": 4},
     # Cloudflare Workers AI — modelo 8B, muy rápido, plan free con límites.
     "cloudflare": {"timeout": 15, "max_tokens_per_request": 2000, "requests_per_minute": 20, "typical_latency_s": 3},
+    # Aion Labs — Free tier 15 RPM, 20K TPD
+    "aion": {"timeout": 20, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 4},
+    # Kilo Code Gateway — Free tier models (kilo-auto/free)
+    "kilocode": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 5},
+    # Ollama Cloud / API — Modelos Cloud (gpt-oss:20b, nemotron-3-nano)
+    "ollama_cloud": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 5},
 }
 
 # ── Progress tracking (in-memory, keyed by session_id) ──────────────────────
@@ -131,7 +137,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "groq",
             "url": "https://api.groq.com/openai/v1/chat/completions",
             "key": groq_key,
-            "model": "llama-3.3-70b-versatile",
+            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -203,7 +209,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "gemini",
             "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
             "key": gem_key,
-            "model": "gemini-1.5-flash",
+            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -218,6 +224,42 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "url": f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
             "key": cf_token,
             "model": cf_model,
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 10. Aion Labs (Priority 10 — 15 RPM, 20K TPD Free Tier)
+    aion_key = os.getenv("AION_API_KEY", "")
+    if aion_key:
+        providers.append({
+            "name": "Aion Labs",
+            "id": "aion",
+            "url": "https://api.aionlabs.ai/v1/chat/completions",
+            "key": aion_key,
+            "model": os.getenv("AION_MODEL", "aion-labs/aion-2.0"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 11. Kilo Code (Priority 11 — Kilo AI Gateway Free Tier)
+    kilo_key = os.getenv("KILOCODE_API_KEY", "")
+    if kilo_key:
+        providers.append({
+            "name": "Kilo Code",
+            "id": "kilocode",
+            "url": "https://api.kilo.ai/api/gateway/chat/completions",
+            "key": kilo_key,
+            "model": os.getenv("KILOCODE_MODEL", "kilo-auto/free"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 12. Ollama Cloud (Priority 12 — Cloud API / Hosted Models)
+    ollama_key = os.getenv("OLLAMA_API_KEY", "")
+    if ollama_key:
+        providers.append({
+            "name": "Ollama Cloud",
+            "id": "ollama_cloud",
+            "url": "https://ollama.com/v1/chat/completions",
+            "key": ollama_key,
+            "model": os.getenv("OLLAMA_MODEL", "gpt-oss:20b"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 

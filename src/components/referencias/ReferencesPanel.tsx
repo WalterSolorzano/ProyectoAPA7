@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2, Sparkles } from 'lucide-react';
+import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2, Sparkles, BookOpen } from 'lucide-react';
 import { QuickReferenceSearch } from '../export/QuickReferenceSearch';
 
 export const ReferencesPanel: React.FC = () => {
@@ -87,20 +87,21 @@ const handleResolveGhost = async (i: number) => {
           alignItems: 'center',
           justifyContent: 'center',
           gap: '8px',
-          padding: '10px 14px',
+          padding: '9px 12px',
           fontSize: '12px',
           fontWeight: 700,
           color: '#ffffff',
-          background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
+          backgroundColor: 'var(--accent-primary)',
           border: 'none',
-          borderRadius: '8px',
+          borderRadius: 'var(--radius-md, 6px)',
           cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(79, 124, 255, 0.25)',
+          boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
           width: '100%',
+          transition: 'all 0.15s ease',
         }}
       >
-        <Sparkles size={15} />
-        <span>Auto-resolver todas las referencias con IA</span>
+        <Sparkles size={14} />
+        <span>Auto-resolver citas con IA</span>
       </button>
       {/* Buscador DOI / manual */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -221,12 +222,12 @@ const handleResolveGhost = async (i: number) => {
         </div>
         {sorted.length === 0 ? (
           <div style={{
-            padding: '20px 14px', fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.5,
+            padding: '24px 14px', fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.5,
             textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
           }}>
-            <span style={{ fontSize: '24px' }}></span>
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Aún no hay referencias en la lista</span>
-            <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+            <BookOpen size={24} color="var(--text-muted)" style={{ opacity: 0.6 }} />
+            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '12px' }}>Aún no hay referencias en la lista</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
               Pegá un DOI (ej. 10.1016/...) o una cita cruda en el buscador para resolverla automáticamente.
             </span>
           </div>

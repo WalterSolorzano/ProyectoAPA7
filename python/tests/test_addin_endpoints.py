@@ -509,6 +509,7 @@ class TestAIProviders:
             "CEREBRAS_API_KEY", "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY",
             "ZENMUX_API_KEY", "GEMINI_API_KEY",
             "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
+            "AION_API_KEY", "KILOCODE_API_KEY", "OLLAMA_API_KEY",
         ):
             monkeypatch.delenv(key, raising=False)
 

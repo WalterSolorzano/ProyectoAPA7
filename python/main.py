@@ -307,6 +307,9 @@ async def provider_status_endpoint() -> dict:
         {"id": "zenmux", "name": "ZenMux", "env_var": "ZENMUX_API_KEY"},
         {"id": "gemini", "name": "Gemini", "env_var": "GEMINI_API_KEY"},
         {"id": "cloudflare", "name": "Cloudflare Workers AI", "env_var": "CLOUDFLARE_API_TOKEN"},
+        {"id": "aion", "name": "Aion Labs", "env_var": "AION_API_KEY"},
+        {"id": "kilocode", "name": "Kilo Code", "env_var": "KILOCODE_API_KEY"},
+        {"id": "ollama_cloud", "name": "Ollama Cloud", "env_var": "OLLAMA_API_KEY"},
     ]
 
     active_providers = _get_active_providers()
@@ -330,6 +333,7 @@ async def provider_status_endpoint() -> dict:
         "NVIDIA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY",
         "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY", "ZENMUX_API_KEY", "GEMINI_API_KEY",
         "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
+        "AION_API_KEY", "KILOCODE_API_KEY", "OLLAMA_API_KEY",
     ]
     total_configured = sum(1 for v in configured_env_vars if os.getenv(v, "").strip())
 
@@ -1793,6 +1797,9 @@ async def sync_provider_keys_endpoint(request: Request) -> dict:
         "GEMINI_API_KEY": "GEMINI_API_KEY",
         "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
+        "AION_API_KEY": "AION_API_KEY",
+        "KILOCODE_API_KEY": "KILOCODE_API_KEY",
+        "OLLAMA_API_KEY": "OLLAMA_API_KEY",
     }
 
     applied = []
@@ -2409,6 +2416,7 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
             "session_id": req.session_id,
             "download_url": f"/api/download-pdf/{req.session_id}",
             "pdf_name": pdf_name,
+            "file_path": str(pdf_path.resolve()),
             "engine": engine_used or "COM",
         }
     else:

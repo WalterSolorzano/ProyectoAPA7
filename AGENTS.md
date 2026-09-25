@@ -33,8 +33,8 @@ python python/main.py
 # Frontend dev (proxy /api a :8742)
 npm run dev
 # Tests
-npm test              # Vitest (frontend: 121 tests)
-pytest python/tests/  # pytest (backend: 415 tests)
+npm test              # Vitest (frontend: 125 tests)
+pytest python/tests/  # pytest (backend: 506 tests)
 # Build de producción e instalador
 npm run build
 powershell -ExecutionPolicy Bypass -File build-installer.ps1
@@ -49,6 +49,8 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
 | **Multi-Provider AI** | `python/modules/ai_client.py` | Router balanceado (NIM, Groq, Cerebras, Ollama) |
 | **Live AI Editor** | `python/modules/ai_document_editor.py` | Intérprete conversacional y Action DSL |
 | **Proactive Auditor** | `python/modules/proactive_auditor.py` | Detección de patrones de IA, estilo y ortografía |
-| **Lienzo APA 7** | `src/components/layout/PaperCanvas.tsx` | Renderizador interactivo en vivo y paginador |
+| **Lienzo APA 7** | `src/components/layout/PaperCanvas.tsx` | Renderizador interactivo en vivo, paginador y chips editoriales |
+| **Carrusel de Portadas** | `src/components/wizard/CoverCarouselStudio.tsx` | Carrusel visual interactivo con miniaturas esqueleto y navegación |
+| **Explorador de Proyecto** | `src/components/project/ProjectFolderModal.tsx` | Gestión de carpeta de trabajo, múltiples .docx y figuras asociadas |
 | **Zustand Store** | `src/store/useDocStore.ts` | Estado reactivo central y disparador de auditorías |
 | **Barra Unificada** | `src/components/toolbar/UnifiedToolbar.tsx` | Navegación, botón Inicio y Copiloto IA |

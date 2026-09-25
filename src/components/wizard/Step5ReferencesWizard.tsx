@@ -20,7 +20,7 @@ export const Step5ReferencesWizard: React.FC = () => {
     doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
     addReference, removeReference, updateReferences, resolveDoiReference, isLoading,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
-    setScrollTargetId, openExportTunnel,
+    setScrollTargetId, setWizardStep,
   } = useDocStore();
 
   const [doiQuery, setDoiQuery] = useState('');
@@ -273,11 +273,11 @@ export const Step5ReferencesWizard: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => openExportTunnel()}
+            onClick={() => setWizardStep(5)}
             className="btn btn-primary btn-sm"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}
           >
-            <span>Continuar a Exportar</span>
+            <span>Continuar a Auditoría</span>
             <ChevronRight size={14} />
           </button>
         </div>
@@ -561,7 +561,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                   fontFamily: "'Times New Roman', serif", fontSize: '13pt', lineHeight: 2.0,
                   color: 'var(--paper-ink, #000)', paddingLeft: '36px', textIndent: '-36px',
                   backgroundColor: 'var(--surface-subtle)', padding: '16px 20px 16px 48px',
-                  borderRadius: 'var(--radius-md)', borderLeft: '3px solid var(--accent-primary)',
+                  borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
                   wordBreak: 'break-word', whiteSpace: 'normal',
                 }}>
                   {editAuthors || 'Autor, A.'} ({editYear || 's.f.'}). <em>{editTitle || 'Título del trabajo'}</em>. {editSource || 'Fuente'}.{' '}
@@ -674,7 +674,6 @@ export const Step5ReferencesWizard: React.FC = () => {
                           borderRadius: 'var(--radius-md)',
                           backgroundColor: 'var(--paper-white)',
                           border: '1px solid var(--border-subtle)',
-                          borderLeft: '3px solid var(--accent-primary)',
                           boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
                           display: 'flex',
                           flexDirection: 'column',

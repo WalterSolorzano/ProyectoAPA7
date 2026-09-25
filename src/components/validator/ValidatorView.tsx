@@ -353,12 +353,11 @@ export const ValidatorView: React.FC = () => {
                   display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)',
                   padding: 'var(--space-3) var(--space-4)',
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)',
-                  backgroundColor: 'var(--color-bg-surface)',
-                  borderLeft: `4px solid ${
-                    issue.severity === 'error' ? 'var(--color-danger)'
-                    : issue.severity === 'warning' ? 'var(--color-warning)' : 'var(--color-success)'
+                  border: `1px solid ${
+                    issue.severity === 'error' ? 'rgba(239, 68, 68, 0.4)'
+                    : issue.severity === 'warning' ? 'rgba(245, 158, 11, 0.4)' : 'var(--border-subtle)'
                   }`,
+                  backgroundColor: 'var(--color-bg-surface)',
                 }}
               >
                 {issue.severity === 'error' ? (

@@ -1484,6 +1484,9 @@ AI_PROVIDER_ENV_KEYS: List[tuple] = [
     ("ZenMux", ("ZENMUX_API_KEY",)),
     ("Gemini", ("GEMINI_API_KEY",)),
     ("Cloudflare", ("CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID")),
+    ("Aion Labs", ("AION_API_KEY",)),
+    ("Kilo Code", ("KILOCODE_API_KEY",)),
+    ("Ollama Cloud", ("OLLAMA_API_KEY",)),
 ]
 
 

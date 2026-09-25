@@ -533,6 +533,9 @@ def format_apa_referencias_section(
             continue
 
         text = _strip_ref_prefix(text)
+        # F-06: Los corchetes [SIGLA] en el autor corporativo solo son válidos en citas textuales,
+        # en la lista de referencias final debe figurar el nombre de la institución sin corchetes (APA 7, 9.11)
+        text = re.sub(r'^([A-ZÁÉÍÓÚÑ][^.\(\n]+?)\s*\[[A-ZÁÉÍÓÚÑ]{2,8}\]', r'\1', text)
 
         run = p_ref.add_run(text)
         run.bold = False

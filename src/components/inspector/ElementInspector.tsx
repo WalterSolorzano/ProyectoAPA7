@@ -5,9 +5,9 @@
 import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ElementType, APARuleSet } from '../../types';
-import { Info, MessageCircle, Wand2, Sigma, Sparkles, PanelRight } from 'lucide-react';
+import { Info, Sigma, Sparkles, PanelRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { explainElement, suggestCaption } from '../../api/backend';
+import { suggestCaption } from '../../api/backend';
 import { ProactiveSuggestionCard } from './ProactiveSuggestionCard';
 
 /** Botón "Sugerir leyenda con IA": acceso visible desde el inspector
@@ -119,7 +119,7 @@ export const ElementInspector: React.FC = () => {
         {isPortadaElem ? 'EDITOR DE PORTADA' : 'INSPECTOR DE ELEMENTOS'}
       </div>
 
-      {/* Tabs internas del inspector (solo para elementos no-portada) */}
+      {/* Tabs internas del inspector (para elementos que no son portada) */}
       {!isPortadaElem && (
         <Tabs defaultValue="info" className="flex flex-col" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <TabsList style={{
@@ -208,57 +208,6 @@ export const ElementInspector: React.FC = () => {
           </span>
         </div>
       )}
-
-      {/* Chat Contextual (Solo para elementos del cuerpo) */}
-      {!isPortadaElem && (
-        <div style={{
-          padding: '8px 12px',
-          borderTop: '1px solid var(--border-color)',
-          backgroundColor: 'var(--sidebar-bg)',
-          display: 'flex',
-          alignItems: 'center',
-          height: '40px'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            flex: 1,
-            backgroundColor: 'var(--surface-subtle)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            padding: '4px 10px'
-          }}>
-            <MessageCircle size={14} color="var(--text-muted)" />
-            <input
-              type="text"
-              placeholder="¿Por qué se clasificó así?"
-              style={{ border: 'none', outline: 'none', fontSize: '11px', flex: 1, width: '100%', backgroundColor: 'transparent', color: 'var(--text-main)' }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                   const val = e.currentTarget.value;
-                     if (val.trim() && selectedElem && doc) {
-                      e.currentTarget.value = '';
-                     // C3: Pasar los datos del elemento al backend (schema correcto)
-                     explainElement(doc.session_id, {
-                       id: selectedElem.id,
-                       type: selectedElem.type,
-                       text: selectedElem.text,
-                       confidence: selectedElem.confidence,
-                       pre_classifier_rule: selectedElem.pre_classifier_rule,
-                       llm_reasoning: selectedElem.llm_reasoning,
-                     }, val.trim(), useDocStore.getState().apiKey).then(() => {
-                       useDocStore.getState().showToast('Explicación IA solicitada', 'info');
-                     }).catch((err: any) => {
-                       useDocStore.getState().showToast(err?.message || 'Error al solicitar explicación IA', 'error');
-                     });
-                   }
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -327,43 +276,7 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImage
       />
     </div>
 
-    {/* Acciones IA visibles para elementos de texto */}
-    {selectedElem.type !== 'image' && selectedElem.type !== 'table' && (
-      <div className="inspector-section">
-        <label className="inspector-label">Acciones IA</label>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={async () => {
-              const instruction = window.prompt('Instrucción de reescritura (ej: hazlo más formal, elimina muletillas, resume):');
-              if (instruction === null) return;
-              const aiLoading = useDocStore.getState().isLoading;
-              if (aiLoading) return;
-              try {
-                const { rewriteText } = await import('../../api/backend');
-                const activeDoc = useDocStore.getState().doc;
-                if (!activeDoc) return;
-                const apiKey = useDocStore.getState().apiKey;
-                const res = await rewriteText(activeDoc.session_id, selectedElem.id, selectedElem.text, instruction, apiKey);
-                useDocStore.getState().updateElementType(selectedElem.id, selectedElem.type, selectedElem.heading_level || 1, res);
-                useDocStore.getState().showToast('Texto reescrito con IA', 'success');
-              } catch (err: any) {
-                useDocStore.getState().showToast(err.message || 'Error al reescribir', 'error');
-              }
-            }}
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-              padding: '7px 10px', fontSize: '11px', fontWeight: 600,
-              background: 'var(--word-blue-light)', color: 'var(--word-blue)',
-              border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-            }}
-            title="Reescribir este párrafo con IA según una instrucción"
-          >
-            <Wand2 size={13} /> Reescribir texto
-          </button>
-        </div>
-      </div>
-    )}
+
 
     {/* C1: Image — botón para abrir el panel lateral (ImageEditSidePanel en App.tsx),
         en lugar de un editor de imagen embebido que duplicaba la UI. */}

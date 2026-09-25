@@ -598,9 +598,12 @@ def _detect_lexical_burstiness(text: str) -> Tuple[float, Optional[str]]:
     return 0.0, None
 
 
-def analyze_ai_risk(text: str) -> Dict[str, Any]:
+def analyze_ai_risk(text: str, is_technical_domain: bool | None = None) -> Dict[str, Any]:
     """
     Análisis completo de riesgo de texto generado por IA.
+    F-08: Incorpora discriminador de dominio temático (is_technical_domain):
+    si el texto contiene datos metrológicos o balances técnicos (kWh, kW, V, A, compresor, tensión, etc.),
+    relaja las penalizaciones por baja varianza léxica para evitar falsos positivos en ingeniería.
 
     Retorna:
     {
@@ -622,6 +625,12 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
         return result
 
     text_lower = text.lower()
+
+    # F-08: Detección automática de dominio técnico / metrológico si no se especificó explícitamente
+    if is_technical_domain is None:
+        tech_terms = re.findall(r'\b(?:kwh|kw|mwh|mw|voltios?|voltaje|tensi[oó]n|amperios?|corriente|potencia|compresor|frecuencia|hz|ohm|resistencia|factor\s+de\s+potencia|transformador|kva)\b', text_lower)
+        is_technical_domain = len(tech_terms) >= 2 or (len(tech_terms) >= 1 and bool(re.search(r'\d+[\.,]?\d*\s*(?:kwh|kw|v|a|w|hz)', text_lower)))
+
     total_score = 0.0
     signal_count = 0
 
@@ -747,14 +756,18 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
     # 9. Diversidad léxica baja (type-token ratio)
     ttr_score, ttr_detail = _detect_type_token_ratio(text)
     if ttr_score > 0 and ttr_detail:
+        # F-08: En dominios técnicos de ingeniería, relajar la penalización por repetición de términos
+        effective_ttr_score = ttr_score * (0.2 if is_technical_domain else 0.6)
+        sev = "LOW" if is_technical_domain else ("HIGH" if ttr_score >= 0.35 else "MEDIUM")
+        detail_msg = ttr_detail + (" (Atenuado por dominio técnico de ingeniería/metrología)" if is_technical_domain else "")
         result["findings"].append({
             "pattern": "low_lexical_diversity",
-            "severity": "HIGH" if ttr_score >= 0.35 else "MEDIUM",
-            "detail": ttr_detail,
+            "severity": sev,
+            "detail": detail_msg,
             "count": 1,
             "phrase": "",
         })
-        total_score += ttr_score * 0.6
+        total_score += effective_ttr_score
         signal_count += 1
 
     # 10. Calcos sintácticos del inglés
@@ -780,14 +793,16 @@ def analyze_ai_risk(text: str) -> Dict[str, Any]:
     # 12. Uniformidad de longitud de palabras (anti-burstiness léxica)
     burst_score, burst_detail = _detect_lexical_burstiness(text)
     if burst_score > 0 and burst_detail:
+        # F-08: En dominios técnicos de ingeniería relajar penalización de longitud
+        effective_burst_score = burst_score * (0.2 if is_technical_domain else 0.5)
         result["findings"].append({
             "pattern": "lexical_burstiness",
             "severity": "LOW",
-            "detail": burst_detail,
+            "detail": burst_detail + (" (Atenuado por vocabulario técnico estándar)" if is_technical_domain else ""),
             "count": 1,
             "phrase": "",
         })
-        total_score += burst_score * 0.5
+        total_score += effective_burst_score
         signal_count += 1
 
     # Calcular puntaje final (suma ponderada con techo: MÁS evidencia = MÁS riesgo).

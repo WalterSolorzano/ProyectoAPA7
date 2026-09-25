@@ -217,11 +217,13 @@ class ClusteringHeadingClassifier:
                 real_idx = fp_to_elem_idx[i]
                 elem = elements[real_idx]
                 # Respetar exclusiones de Pasada 1/3 (captions de figura/tabla,
-                # textos legales, referencias APA). Estas NUNCA son headings.
+                # textos legales, referencias APA, líneas terminadas en dos puntos o celdas de tabla).
+                # Estas NUNCA son headings.
                 if elem.pre_classifier_rule in (
                     "exclude_table_caption", "exclude_table_legal",
                     "exclude_figure_caption_upper", "reference_item",
-                ):
+                    "colon_or_cell_not_heading",
+                ) or (elem.text and elem.text.rstrip().endswith(":")) or getattr(elem, 'is_table_cell', False):
                     continue
                 if elem.type == ElementType.PARAGRAPH:
                     elem.type = ElementType.HEADING

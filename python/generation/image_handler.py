@@ -274,13 +274,86 @@ def format_apa_figure(doc: docx.Document, img_data: ImageModel, rules: APARuleSe
     if img_data.caption_position == "above" or img_data.caption_position != "below":
         _add_figure_label_and_caption(doc, img_data, rules)
 
-    # 2. Imagen
+    # 1.5 Si es diseño multipanel con subfiguras, maquetar en cuadrícula de columnas
+    if design == "multipanel" and getattr(img_data, "subfigures", None) and len(img_data.subfigures) > 0:
+        subs = img_data.subfigures
+        num_cols = len(subs)
+        tbl_multi = doc.add_table(rows=2, cols=num_cols)
+        tbl_multi.autofit = False
+        tblPr = tbl_multi._tbl.tblPr
+        if tblPr is not None:
+            borders_xml = parse_xml(
+                f'<w:tblBorders {nsdecls("w")}>'
+                f'  <w:top w:val="none"/>'
+                f'  <w:bottom w:val="none"/>'
+                f'  <w:left w:val="none"/>'
+                f'  <w:right w:val="none"/>'
+                f'  <w:insideH w:val="none"/>'
+                f'  <w:insideV w:val="none"/>'
+                f'</w:tblBorders>'
+            )
+            tblPr.append(borders_xml)
+
+        col_w = Inches(6.0 / max(1, num_cols))
+        for ci, sub in enumerate(subs):
+            # Fila 0: Imagen
+            cell_img = tbl_multi.cell(0, ci)
+            cell_img.width = col_w
+            p_img = cell_img.paragraphs[0]
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_img.paragraph_format.space_before = Pt(4)
+            p_img.paragraph_format.space_after = Pt(4)
+            p_img.paragraph_format.first_line_indent = Inches(0)
+            sub_path = sub.file_path or (os.path.join(os.path.dirname(img_data.file_path), sub.filename) if (img_data.file_path and sub.filename) else "")
+            if sub_path and os.path.exists(sub_path):
+                r = p_img.add_run()
+                r.add_picture(sub_path, width=Inches((6.0 / max(1, num_cols)) * 0.92))
+            elif img_data.file_path and os.path.exists(img_data.file_path):
+                r = p_img.add_run()
+                r.add_picture(img_data.file_path, width=Inches((6.0 / max(1, num_cols)) * 0.92))
+
+            # Fila 1: Sub-etiqueta tipo (a) Vista general
+            cell_lbl = tbl_multi.cell(1, ci)
+            cell_lbl.width = col_w
+            p_lbl = cell_lbl.paragraphs[0]
+            p_lbl.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_lbl.paragraph_format.space_before = Pt(2)
+            p_lbl.paragraph_format.space_after = Pt(6)
+            p_lbl.paragraph_format.first_line_indent = Inches(0)
+            sub_lbl_run = p_lbl.add_run(f"{sub.label or f'({chr(97 + ci)})'} ")
+            sub_lbl_run.bold = False
+            sub_lbl_run.font.name = rules.font_family
+            sub_lbl_run.font.size = Pt(rules.font_size_pt)
+            if sub.title:
+                sub_txt_run = p_lbl.add_run(sub.title)
+                sub_txt_run.font.name = rules.font_family
+                sub_txt_run.font.size = Pt(rules.font_size_pt)
+
+        # 3. Titulo / caption ABAJO si se configuro asi
+        if img_data.caption_position == "below":
+            _add_figure_label_and_caption(doc, img_data, rules)
+
+        # 4. Nota al pie común de figura
+        if img_data.note and img_data.note.strip() not in {"author_card", "vertical_line", "shape_group", "shape_textbox"}:
+            p_note = doc.add_paragraph()
+            p_note.paragraph_format.space_before = Pt(4)
+            p_note.paragraph_format.space_after = Pt(12)
+            p_note.paragraph_format.first_line_indent = Inches(0)
+            r_label = p_note.add_run("Nota. ")
+            r_label.italic = True
+            r_label.font.name = rules.font_family
+            r_label.font.size = Pt(10)
+            r_text = p_note.add_run(img_data.note)
+            r_text.font.name = rules.font_family
+            r_text.font.size = Pt(10)
+        return
+
+    # 2. Imagen individual estándar
     p_img = doc.add_paragraph()
-    p_img.alignment = _get_alignment(effective_alignment)
+    p_img.alignment = alignment
     p_img.paragraph_format.space_before = Pt(6)
     p_img.paragraph_format.space_after = Pt(6)
     p_img.paragraph_format.first_line_indent = Inches(0)
-    # Evitar que la imagen quede partida entre dos páginas
     p_img.paragraph_format.keep_together = True
     p_img.paragraph_format.widow_control = True
 

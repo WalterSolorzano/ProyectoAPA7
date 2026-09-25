@@ -33,7 +33,6 @@ export const MascotBubble: React.FC = () => {
         <div style={{
           backgroundColor: 'var(--surface-elevated)',
           border: `1px solid ${toneColor}`,
-          borderLeft: `3px solid ${toneColor}`,
           borderRadius: 'var(--radius-lg)',
           padding: '10px 14px',
           fontSize: '12px', lineHeight: 1.45,

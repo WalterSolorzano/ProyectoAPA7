@@ -5,6 +5,7 @@ import { useUpdateStore } from '../../store/useUpdateStore';
 import { getSideloadStatus, repairSideload, SideloadStatus } from '../../api/backend';
 
 import { APAScoreCard } from './APAScoreCard';
+import { APAModuleToggles } from './APAModuleToggles';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
@@ -174,6 +175,9 @@ export function UnifiedToolbar() {
           {/* Tarjeta de Diagnóstico APA 7 */}
           <APAScoreCard />
 
+          {/* Módulos y Scopes APA 7 (Tachar qué sí y qué no) */}
+          <APAModuleToggles />
+
           <div style={toolbarDivider} />
 
           {/* Save status chip (compact, passive) */}
@@ -212,6 +216,30 @@ export function UnifiedToolbar() {
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
             <Redo size={11} />
+          </button>
+
+          <div style={toolbarDivider} />
+
+          {/* Copiar PDF para WhatsApp directo (Ctrl+V) */}
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().copyPdfToClipboard()}
+            title="Copiar PDF al portapapeles. Pégalo directamente con Ctrl+V en WhatsApp Desktop o Web."
+            style={{
+              ...ghostBtn,
+              gap: '5px',
+              padding: '4px 8px',
+              color: 'var(--text-main)',
+              fontWeight: 600,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#25D366' }}>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+            </svg>
+            <span className="toolbar-btn-label">Copiar PDF (WhatsApp)</span>
           </button>
 
           <div style={toolbarDivider} />

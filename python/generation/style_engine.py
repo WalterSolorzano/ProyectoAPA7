@@ -19,8 +19,9 @@ def set_run_font(run, font_family: str, font_size_pt: float) -> None:
     """
     Aplica fuente y tamaño de forma robusta a nivel de run, incluyendo
     atributos rFonts (ascii, hAnsi, eastAsia, cs) que python-docx no setea
-    por defecto. Esto garantiza que Word no herede la fuente del estilo
-    de párrafo o del numbering definition.
+    por defecto. Elimina explícitamente atributos de tema (w:asciiTheme, w:hAnsiTheme,
+    etc.) para evitar que Microsoft Word con temas activos (Calibri/Aptos)
+    sobreescriba la tipografía APA 7 (F-10).
     """
     run.font.name = font_family
     run.font.size = Pt(font_size_pt)
@@ -32,6 +33,13 @@ def set_run_font(run, font_family: str, font_size_pt: float) -> None:
     if rFonts is None:
         rFonts = OxmlElement('w:rFonts')
         rPr.insert(0, rFonts)
+
+    # F-10: Eliminar cualquier tema que invalide la fuente explícita
+    for theme_attr in ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme'):
+        theme_qn = qn(f'w:{theme_attr}')
+        if theme_qn in rFonts.attrib:
+            del rFonts.attrib[theme_qn]
+
     for attr in ('w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs'):
         rFonts.set(qn(attr), font_family)
     sz = rPr.find(qn('w:sz'))
@@ -224,6 +232,11 @@ def update_docx_styles_xml(doc: docx.Document, rules: APARuleSet) -> None:
                 if rFonts is None:
                     rFonts = parse_xml(f'<w:rFonts {nsdecls("w")}/>')
                     rPr.append(rFonts)
+                # F-10: Eliminar referencias a tema institucional / Calibri / Aptos
+                for theme_attr in ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme'):
+                    theme_qn = qn(f'w:{theme_attr}')
+                    if theme_qn in rFonts.attrib:
+                        del rFonts.attrib[theme_qn]
                 rFonts.set(qn("w:ascii"), font_name)
                 rFonts.set(qn("w:hAnsi"), font_name)
 
@@ -301,11 +314,20 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
     """
     if not preserve_text:
         p.text = ""  # Limpiar runs
-    # ponytail: clear inherited style to prevent double indentation (style + direct)
+    # F-03: Asignar el estilo nativo de Word ('Heading X' o 'Título X') para enlazar con Navigation Pane y TOC
     try:
-        p.style = None
+        style_candidates = [f"Heading {level}", f"Título {level}"]
+        doc_styles = p.part.document.styles
+        for sc in style_candidates:
+            if sc in doc_styles:
+                p.style = doc_styles[sc]
+                break
     except Exception:
-        pass
+        try:
+            p.style = None
+        except Exception:
+            pass
+
     p.paragraph_format.line_spacing = rules.line_spacing
     p.paragraph_format.space_before = Pt(rules.space_before_pt)
     p.paragraph_format.space_after = Pt(rules.space_after_pt)

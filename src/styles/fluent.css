@@ -923,7 +923,7 @@ html, body {
   background-color: var(--color-accent-soft);
   color: var(--color-accent);
   font-weight: 600;
-  border-left: 3px solid var(--color-accent);
+  box-shadow: inset 2px 0 0 0 var(--color-accent);
 }
 .filemenu-sidebar-icon {
   display: flex;

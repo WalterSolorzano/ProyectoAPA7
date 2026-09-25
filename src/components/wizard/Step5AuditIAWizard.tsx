@@ -12,7 +12,7 @@ import { useDocStore } from '../../store/useDocStore';
 import {
   ShieldCheck, RefreshCw, PenTool, ArrowUpRight, CheckCheck,
   FileText, Sparkles, Check, X, AlertOctagon, AlertTriangle,
-  Info, Sparkle, ArrowRight, CornerDownRight, CheckCircle2
+  Info, Sparkle, ArrowRight, CornerDownRight, CheckCircle2, ChevronRight
 } from 'lucide-react';
 import * as api from '../../api/backend';
 
@@ -41,6 +41,7 @@ export const Step5AuditIAWizard: React.FC = () => {
   const runQuickFix = useDocStore((s) => s.runQuickFix);
   const updateElementText = useDocStore((s) => s.updateElementText);
   const showToast = useDocStore((s) => s.showToast);
+  const openExportTunnel = useDocStore((s) => s.openExportTunnel);
 
   const [activeTab, setActiveTab] = useState<SeverityLevel>('critical');
   const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
@@ -287,28 +288,39 @@ export const Step5AuditIAWizard: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleBatchFixAll}
-              disabled={isBatchProcessing}
-              title="Resolver en lote todas las banderas menores del documento"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: 'var(--accent-primary)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {isBatchProcessing ? <RefreshCw size={12} className="spin" /> : <CheckCheck size={13} />}
-              <span>Arreglar Todo</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleBatchFixAll}
+                disabled={isBatchProcessing}
+                title="Resolver en lote todas las banderas menores del documento"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--color-accent-soft)',
+                  color: 'var(--accent-primary)',
+                  border: '1px solid rgba(79, 124, 255, 0.25)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {isBatchProcessing ? <RefreshCw size={12} className="spin" /> : <CheckCheck size={13} />}
+                <span>Arreglar Todo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openExportTunnel()}
+                className="btn btn-primary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 800, padding: '6px 10px', fontSize: '11px' }}
+              >
+                <span>Exportar</span>
+                <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
 
           {/* NIVEL 1: DASHBOARD VISUAL CON GRÁFICOS PASTEL Y DISTRIBUCIÓN POR SECCIÓN */}
@@ -569,7 +581,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                             padding: '8px 10px',
                             borderRadius: '6px',
                             backgroundColor: '#fef2f2',
-                            borderLeft: '3px solid #dc2626',
+                            border: '1px solid rgba(220, 38, 38, 0.25)',
                             color: '#7f1d1d',
                             fontStyle: 'italic',
                           }}
@@ -587,7 +599,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                               padding: '8px 10px',
                               borderRadius: '6px',
                               backgroundColor: '#f0fdf4',
-                              borderLeft: '3px solid #16a34a',
+                              border: '1px solid rgba(22, 163, 74, 0.25)',
                               color: '#14532d',
                             }}
                           >

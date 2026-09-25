@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu, clipboard } from 'electron'
+import { exec } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
@@ -249,6 +250,78 @@ if (!gotTheLock) {
       if (typeof url === 'string' && /^https:\/\//.test(url)) {
         shell.openExternal(url).catch(() => {})
       }
+    })
+
+    // ── Copiar archivo al portapapeles de Windows (Compatible WhatsApp/Telegram Ctrl+V) ──
+    ipcMain.handle('copy-file-to-clipboard', async (_event, filePath: string) => {
+      try {
+        if (!filePath || !fs.existsSync(filePath)) {
+          return false
+        }
+        // En Windows, ejecutar comando PowerShell ligero para setear el FileDropList en el Clipboard
+        // Esto permite pegar el archivo .pdf directo con Ctrl+V en WhatsApp Desktop / Web
+        if (process.platform === 'win32') {
+          const resolved = path.resolve(filePath).replace(/'/g, "''")
+          const psCommand = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::SetFileDropList([string[]]@('${resolved}'))"`
+          await new Promise<void>((resolve, reject) => {
+            exec(psCommand, (err) => {
+              if (err) reject(err)
+              else resolve()
+            })
+          })
+          return true
+        } else {
+          // Fallback a texto en otras plataformas
+          clipboard.writeText(filePath)
+          return true
+        }
+      } catch (err) {
+        log('warn', 'clipboard', 'Error al copiar archivo al portapapeles', { error: String(err) })
+        return false
+      }
+    })
+
+    // ── Live File Watcher (Sincronización en Paralelo con Word) ──
+    let activeDocWatcher: fs.FSWatcher | null = null
+    let activeDocPath: string | null = null
+    let watchDebounceTimer: NodeJS.Timeout | null = null
+
+    ipcMain.on('watch-document-file', (event, filePath: string) => {
+      if (!filePath || !fs.existsSync(filePath)) return
+      if (activeDocWatcher) {
+        try { activeDocWatcher.close() } catch { /* ignore */ }
+        activeDocWatcher = null
+      }
+      activeDocPath = filePath
+      try {
+        activeDocWatcher = fs.watch(filePath, (eventType) => {
+          if (eventType === 'change') {
+            if (watchDebounceTimer) clearTimeout(watchDebounceTimer)
+            watchDebounceTimer = setTimeout(() => {
+              try {
+                if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+                  event.sender.send('document-file-changed', {
+                    filePath,
+                    fileName: path.basename(filePath),
+                    timestamp: Date.now()
+                  })
+                }
+              } catch { /* best-effort */ }
+            }, 600)
+          }
+        })
+      } catch (err) {
+        log('warn', 'watcher', 'No se pudo iniciar watcher de archivo', { error: String(err) })
+      }
+    })
+
+    ipcMain.on('unwatch-document-file', () => {
+      if (activeDocWatcher) {
+        try { activeDocWatcher.close() } catch { /* ignore */ }
+        activeDocWatcher = null
+      }
+      activeDocPath = null
+      if (watchDebounceTimer) clearTimeout(watchDebounceTimer)
     })
 
     // ── Actualizaciones ─────────────────────────────────────────────────────

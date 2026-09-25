@@ -3,18 +3,82 @@
 
 import React, { useState, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
+import { SubfigureItem } from '../../types';
 import {
   ChevronDown, Ruler, Paintbrush, AlignHorizontalJustifyCenter,
   RotateCw, Captions, StickyNote, Accessibility, UploadCloud,
-  Loader2, Image as ImageIcon, RefreshCw,
+  Loader2, Image as ImageIcon, RefreshCw, Columns, Plus, Trash2,
 } from 'lucide-react';
 
 const DESIGN_STYLES = [
-  { value: 'standard', label: 'Estandar', icon: '⊞', desc: 'Figura centrada, caption abajo' },
-  { value: 'sidebar', label: 'Sidebar', icon: '◧', desc: 'Cuadro lateral derecho con borde' },
-  { value: 'scientific', label: 'Cientifico', icon: '▣', desc: 'Borde negro fino, Figura X. arriba' },
-  { value: 'corner', label: 'Esquina', icon: '◥', desc: 'Esquina superior derecha' },
-  { value: 'full_width', label: 'Ancho completo', icon: '⬛', desc: 'Ancho completo de pagina' },
+  {
+    value: 'standard',
+    label: 'Estándar',
+    desc: 'Figura centrada, caption abajo (Oficial APA)',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="12" y1="3" x2="12" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    value: 'sidebar',
+    label: 'Sidebar',
+    desc: 'Cuadro lateral derecho con borde',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <line x1="15" y1="3" x2="15" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    value: 'scientific',
+    label: 'Científico',
+    desc: 'Borde fino técnico, Figura N arriba',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="4" y="4" width="16" height="16" rx="1" />
+        <rect x="8" y="8" width="8" height="8" />
+      </svg>
+    ),
+  },
+  {
+    value: 'corner',
+    label: 'Esquina',
+    desc: 'Esquina superior derecha',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M12 3h9v9" fill="currentColor" fillOpacity="0.2" />
+      </svg>
+    ),
+  },
+  {
+    value: 'full_width',
+    label: 'Ancho completo',
+    desc: 'Ancho completo de página',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    value: 'multipanel',
+    label: 'Multipanel APA (a, b)',
+    desc: '2 imágenes en paralelo con sub-etiquetas (a) y (b) según norma oficial',
+    renderIcon: () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="4" width="9" height="12" rx="1" />
+        <rect x="13" y="4" width="9" height="12" rx="1" />
+        <line x1="4" y1="19" x2="9" y2="19" />
+        <line x1="15" y1="19" x2="20" y2="19" />
+      </svg>
+    ),
+  },
 ] as const;
 
 // ── Tarjeta colapsable (accordion) ────────────────────────────────────────────
@@ -236,7 +300,32 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
           {DESIGN_STYLES.map((ds) => {
             const active = currentDesign === ds.value;
             return (
-              <button key={ds.value} type="button" onClick={() => setProp('design_style', ds.value)}
+              <button key={ds.value} type="button" onClick={() => {
+                if (ds.value === 'multipanel' && (!img.subfigures || img.subfigures.length === 0)) {
+                  // Inicializar subfiguras por defecto con imagen actual como (a) y placeholder (b)
+                  const initialSubs: SubfigureItem[] = [
+                    {
+                      id: `sub_${Date.now()}_a`,
+                      label: '(a)',
+                      title: img.caption || 'Vista principal',
+                      relative_url: img.relative_url || '',
+                      file_path: img.file_path || '',
+                      filename: img.filename || '',
+                    },
+                    {
+                      id: `sub_${Date.now()}_b`,
+                      label: '(b)',
+                      title: 'Detalle o placa técnica',
+                      relative_url: img.relative_url || '',
+                      file_path: img.file_path || '',
+                      filename: img.filename || '',
+                    },
+                  ];
+                  updateElementImage(elem.id, { design_style: 'multipanel', subfigures: initialSubs });
+                } else {
+                  setProp('design_style', ds.value);
+                }
+              }}
                 title={ds.desc}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
@@ -246,13 +335,164 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
                   color: active ? 'var(--accent-primary)' : 'var(--color-text-secondary)',
                   fontSize: '10px', fontWeight: active ? 700 : 500, lineHeight: 1.2,
                 }}>
-                <span style={{ fontSize: '15px', lineHeight: 1 }}>{ds.icon}</span>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '18px' }}>
+                  {ds.renderIcon()}
+                </span>
                 <span>{ds.label}</span>
               </button>
             );
           })}
         </div>
       </Card>
+
+      {/* 2.1 Configuración Multipanel APA (a, b) */}
+      {currentDesign === 'multipanel' && (
+        <Card icon={<Columns size={14} />} title="Subfiguras Multipanel APA" defaultOpen accent="var(--accent-primary)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+              Norma APA 7: las imágenes comparten un único número de figura y nota, con sub-etiquetas en minúscula tipo <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>(a)</span> y <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>(b)</span>.
+            </div>
+
+            {((img.subfigures as SubfigureItem[]) || []).map((sub, idx) => (
+              <div
+                key={sub.id || idx}
+                style={{
+                  padding: '8px',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                    Panel {sub.label || `(${String.fromCharCode(97 + idx)})`}
+                  </span>
+                  {((img.subfigures?.length || 0) > 1) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSubs = img.subfigures!.filter((_: SubfigureItem, i: number) => i !== idx);
+                        setProp('subfigures', newSubs);
+                      }}
+                      title="Eliminar este panel"
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--color-danger, #ef4444)', padding: '2px', display: 'flex',
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <div style={{ width: '48px' }}>
+                    <FieldLabel>Etiqueta</FieldLabel>
+                    <input
+                      type="text"
+                      style={inputStyle}
+                      value={sub.label || `(${String.fromCharCode(97 + idx)})`}
+                      onChange={(e) => {
+                        const newSubs = [...(img.subfigures || [])];
+                        newSubs[idx] = { ...newSubs[idx], label: e.target.value };
+                        setProp('subfigures', newSubs);
+                      }}
+                      placeholder="(a)"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <FieldLabel>Título del panel</FieldLabel>
+                    <input
+                      type="text"
+                      style={inputStyle}
+                      value={sub.title || ''}
+                      onChange={(e) => {
+                        const newSubs = [...(img.subfigures || [])];
+                        newSubs[idx] = { ...newSubs[idx], title: e.target.value };
+                        setProp('subfigures', newSubs);
+                      }}
+                      placeholder="Ej: Vista general / Placa"
+                    />
+                  </div>
+                </div>
+
+                {/* Selección o reemplazo de imagen para esta subfigura */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      padding: '4px 6px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      backgroundColor: 'var(--color-bg-surface)',
+                      border: '1px dashed var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    <UploadCloud size={11} />
+                    <span>Cambiar imagen del panel</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const dataUrl = reader.result as string;
+                            const newSubs = [...(img.subfigures || [])];
+                            newSubs[idx] = { ...newSubs[idx], relative_url: dataUrl };
+                            setProp('subfigures', newSubs);
+                            showToast(`Imagen asignada a ${sub.label}`, 'success');
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => {
+                const nextChar = String.fromCharCode(97 + (img.subfigures?.length || 0));
+                const newSubs: SubfigureItem[] = [
+                  ...(img.subfigures || []),
+                  {
+                    id: `sub_${Date.now()}_${nextChar}`,
+                    label: `(${nextChar})`,
+                    title: `Panel ${nextChar.toUpperCase()}`,
+                    relative_url: img.relative_url || '',
+                    file_path: img.file_path || '',
+                    filename: img.filename || '',
+                  },
+                ];
+                setProp('subfigures', newSubs);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                padding: '6px 8px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                backgroundColor: 'transparent', border: '1px dashed var(--accent-primary)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--accent-primary)', fontFamily: 'inherit',
+              }}
+            >
+              <Plus size={12} /> Añadir subfigura (panel)
+            </button>
+          </div>
+        </Card>
+      )}
 
       {/* 3. Alineación y ajuste */}
       <Card icon={<AlignHorizontalJustifyCenter size={14} />} title="Alineación y ajuste" defaultOpen accent="var(--accent-primary)">

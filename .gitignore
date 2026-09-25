@@ -9,6 +9,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+# Artefactos de pip install -e . / build (mejora #2)
+*.egg-info/
 .pytest_cache/
 .venv/
 venv/
@@ -129,3 +131,8 @@ build_*.txt
 word-addin/$null
 # Catálogo generado por auto-setup del Add-in (runtime, no fuente)
 catalog/
+.perch/
+*.html
+*.pdf
+python/test_estudio_diag.py
+

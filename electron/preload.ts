@@ -60,5 +60,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, data: { fileName: string; buffer: Uint8Array; isQuick?: boolean; filePath?: string }) => callback(data)
     ipcRenderer.on('open-file-from-os', listener)
     return () => ipcRenderer.removeListener('open-file-from-os', listener)
-  }
+  },
+  // ── Copiar archivo físico al portapapeles (WhatsApp Ctrl+V) ─────────────
+  copyFileToClipboard: (filePath: string) => ipcRenderer.invoke('copy-file-to-clipboard', filePath),
+  // ── Live File Watcher (Sincronización paralela con Word) ────────────────
+  watchDocumentFile: (filePath: string, callback: (data: { filePath: string; fileName: string; timestamp: number }) => void) => {
+    ipcRenderer.send('watch-document-file', filePath)
+    const listener = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('document-file-changed', listener)
+    return () => {
+      ipcRenderer.removeListener('document-file-changed', listener)
+      ipcRenderer.send('unwatch-document-file')
+    }
+  },
+  unwatchDocumentFile: () => ipcRenderer.send('unwatch-document-file'),
 })

@@ -349,6 +349,9 @@ const PROVIDER_KEY_ENV_MAP: Record<string, string> = {
   'GEMINI_API_KEY': 'GEMINI_API_KEY',
   'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_API_TOKEN',
   'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID',
+  'AION_API_KEY': 'AION_API_KEY',
+  'KILOCODE_API_KEY': 'KILOCODE_API_KEY',
+  'OLLAMA_API_KEY': 'OLLAMA_API_KEY',
 };
 
 /** Sincroniza las claves guardadas en localStorage con el backend (os.environ). */

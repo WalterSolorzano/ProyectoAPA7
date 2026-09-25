@@ -152,12 +152,13 @@ export function StepRail() {
             type="button"
             onClick={() => setWizardStep(step)}
             title={label}
+            className="step-rail-btn"
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: isCollapsed ? 'center' : 'flex-start',
-              gap: isCollapsed ? '0' : '10px',
-              padding: isCollapsed ? '10px 0' : '10px 12px',
+              gap: isCollapsed ? '0' : '8px',
+              padding: isCollapsed ? '10px 0' : '9px 10px',
               borderRadius: 'var(--radius-sm)',
               border: active ? '1px solid var(--accent-primary)' : '1px solid transparent',
               background: active ? 'var(--color-accent-soft)' : 'transparent',
@@ -175,8 +176,10 @@ export function StepRail() {
               if (!active) e.currentTarget.style.background = 'transparent';
             }}
           >
-            <Icon size={15} style={{ flexShrink: 0 }} />
-            {!isCollapsed && <span style={{ flex: 1, minWidth: 0 }}>{label}</span>}
+            <span className="step-rail-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <Icon size={15} style={{ flexShrink: 0 }} />
+            </span>
+            {!isCollapsed && <span className="step-rail-label" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>}
             {!isCollapsed && done ? (
               <Check size={13} color="var(--accent-success)" style={{ flexShrink: 0 }} />
             ) : !isCollapsed && badge > 0 ? (
