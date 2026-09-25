@@ -7,7 +7,7 @@ IMPORT: los imports de main van DENTRO del handler (circulo de import).
 from __future__ import annotations
 
 from config import STORAGE_DIR
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Body, HTTPException
 from models import PortadaData
 from persistence.session_manager import maybe_run_gc, save_session_state
 from preset_store import PresetNotFound, PresetTypeMismatch, get_preset
@@ -15,6 +15,57 @@ from spec_dsl import SpecDocument, expand_spec
 from spec_postpass import append_equipment_cards, apply_heading_styles, apply_table_border_override
 
 router = APIRouter(tags=["spec"])
+
+# Ejemplos OpenAPI copiables por agentes (siempre validos contra el DSL;
+# los presets y la portada referenciados son builtins que existen siempre)
+_OPENAPI_EJEMPLOS = {
+    "minimo": {
+        "summary": "Especificacion minima",
+        "description": "Un titulo y un parrafo: el camino corto.",
+        "value": {
+            "spec_version": "1",
+            "elements": [
+                {"type": "heading", "level": 1, "text": "1. Introduccion"},
+                {"type": "paragraph", "text": "Parrafo de ejemplo."},
+            ],
+        },
+    },
+    "completo": {
+        "summary": "Especificacion completa",
+        "description": ("Documento con portada (template builtin), presets "
+                        "de tabla/layout, tabla y referencias."),
+        "value": {
+            "spec_version": "1",
+            "output": {"filename": "balance_energetico.docx"},
+            "cover": {
+                "template": "APA 7 Estudiante",
+                "title": ("Balance del Consumo de Energia Electrica "
+                          "de una Vivienda"),
+                "author": "Walter Noel Solorzano Gaitan",
+                "institution": "Universidad Nacional de Ingenieria",
+                "course": "Tecnologia y Medio Ambiente",
+                "instructor": "Ing. Eva Mairena",
+                "date": "02 de octubre de 2026",
+            },
+            "presets": {"table": "tabla_apa_generica",
+                        "layout": "layout_uni"},
+            "elements": [
+                {"type": "heading", "level": 1,
+                 "text": "1. Introduccion"},
+                {"type": "paragraph",
+                 "text": ("El balance compara el medidor con las "
+                          "potencias inventariadas.")},
+                {"type": "table", "caption": "Tabla 1",
+                 "title": "Consumo mensual",
+                 "columns": ["Mes", "kWh"],
+                 "rows": [["Enero", "133"], ["Febrero", "104"]]},
+                {"type": "references", "items": [
+                    {"apa": ("Instituto Nicaraguense de Energia. (2026). "
+                             "Tarifa T-0. INE.")}]},
+            ],
+        },
+    },
+}
 
 # Normalizacion para comparar texto del spec contra word/document.xml
 # (Word convierte comillas rectas a tipograficas y guiones a rayas)
@@ -82,8 +133,10 @@ def _check_cover(name: str | None) -> None:
 
 
 @router.post("/api/spec")
-async def generate_from_spec(spec: SpecDocument,
-                             background_tasks: BackgroundTasks) -> dict:
+async def generate_from_spec(
+        background_tasks: BackgroundTasks,
+        spec: SpecDocument = Body(..., openapi_examples=_OPENAPI_EJEMPLOS),
+) -> dict:
     """Genera un docx APA 7 completo desde un spec JSON (un solo llamado)."""
     from main import (
         ApplyCoverRequest,

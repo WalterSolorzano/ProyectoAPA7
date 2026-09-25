@@ -176,3 +176,82 @@ def test_cover_vacio_sin_template_422(client):
     r = client.post("/api/spec", json=_spec(cover={}))
     assert r.status_code == 422, (
         "cover vacio debe rechazarse, no generarse sin portada")
+
+
+# ==-==- Ejemplos OpenAPI copiables por agentes (mejora #5, pieza 4) ==-==
+
+
+def _spec_examples(openapi: dict) -> list[dict]:
+    """Ejemplos del body de POST /api/spec, en cualquier colocacion
+    (media-type `examples` o `schema.examples`; cambia entre versiones
+    de FastAPI)."""
+    media = (openapi["paths"]["/api/spec"]["post"]
+             ["requestBody"]["content"]["application/json"])
+    found: list[dict] = []
+
+    def _walk(node):
+        if isinstance(node, dict):
+            if "spec_version" in node:
+                found.append(node)
+            for v in node.values():
+                _walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                _walk(v)
+
+    _walk(media)
+    return found
+
+
+def test_openapi_ejemplos_spec_validos_y_usables(client):
+    """POST /api/spec publica >=2 ejemplos que validan contra el DSL
+    y cuyos presets/portada referenciados existen de verdad."""
+    import json as _json
+
+    from config import STORAGE_DIR
+    from modules.cover_designer import list_cover_templates
+    from preset_store import PresetNotFound, get_preset
+    from spec_dsl import SpecDocument
+
+    r = client.get("/openapi.json")
+    assert r.status_code == 200
+    openapi = r.json()
+
+    blob = _json.dumps(openapi, ensure_ascii=False).lower()
+    assert "completo" in blob, "resumen del ejemplo completo ausente"
+    assert "minimo" in blob, "resumen del ejemplo minimo ausente"
+
+    examples = _spec_examples(openapi)
+    assert len(examples) >= 2, (
+        f"se esperaban >=2 ejemplos de spec, hay {len(examples)}")
+
+    for ex in examples:
+        SpecDocument.model_validate(ex)   # lanza ValidationError si falla
+
+    completo = next((e for e in examples if e.get("cover")), None)
+    assert completo, "el ejemplo completo debe incluir bloque cover"
+    for pname in completo.get("presets", {}).values():
+        try:
+            get_preset(pname, STORAGE_DIR)
+        except PresetNotFound:
+            pytest.fail(f"el ejemplo completo apunta al preset inexistente "
+                        f"'{pname}'")
+    cover_names = [t.name for t in list_cover_templates(STORAGE_DIR)]
+    assert completo["cover"]["template"] in cover_names, (
+        f"template '{completo['cover']['template']}' inexistente")
+
+
+def test_openapi_ejemplo_type_cover(client):
+    """El query param type de GET /api/presets publica el ejemplo 'cover'."""
+    import json as _json
+
+    r = client.get("/openapi.json")
+    params = r.json()["paths"]["/api/presets"]["get"]["parameters"]
+    t = next((p for p in params if p.get("name") == "type"), None)
+    assert t is not None, "parametro type ausente del openapi"
+    dumped = _json.dumps(t)
+    # El VALOR cover como ejemplo, no la palabra en la descripcion
+    assert ('"value": "cover"' in dumped
+            or '"example": "cover"' in dumped
+            or t.get("schema", {}).get("example") == "cover"), (
+        f"el parametro type no publica ejemplo con valor cover: {dumped}")

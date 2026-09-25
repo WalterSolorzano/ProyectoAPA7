@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from config import STORAGE_DIR
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from preset_store import (
     PRESET_TYPES,
     BuiltinDeleteError,
@@ -41,7 +41,19 @@ def _cover_records() -> list[dict]:
 
 
 @router.get("/api/presets")
-async def list_presets_endpoint(type: Optional[str] = None) -> list[dict]:
+async def list_presets_endpoint(
+        type: Optional[str] = Query(
+            None,
+            openapi_examples={
+                "portadas": {
+                    "summary": "Plantillas de portada",
+                    "description": ("Proxy solo lectura de "
+                                    "cover-templates (fuente unica)."),
+                    "value": "cover",
+                },
+            },
+        ),
+) -> list[dict]:
     """Lista presets; type=cover (y el listado sin filtro) incluye portadas."""
     if type is None:
         return ([p.model_dump() for p in list_presets(STORAGE_DIR, None)]
