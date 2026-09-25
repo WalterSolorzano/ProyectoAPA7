@@ -189,3 +189,52 @@ def test_heading_preset_invalid_level_key_rejected(client):
         "definition": {"levels": {"6": {"bold": True}}}})
     assert r.status_code == 422
     client.delete("/api/presets/head_malo")
+
+
+# ==-==- Portadas via presets: proxy solo lectura (mejora #5, pieza 3) ==-==
+
+
+def test_list_type_cover_returns_cover_templates(client):
+    """type=cover -> plantillas del cover-designer con forma de preset."""
+    r = client.get("/api/presets", params={"type": "cover"})
+    assert r.status_code == 200
+    items = r.json()
+    assert items, "debe listar al menos las 4 portadas builtins"
+    assert all(p["type"] == "cover" for p in items)
+    names = [p["name"] for p in items]
+    assert "APA 7 Estudiante" in names
+    assert all(p["origin"] in ("builtin", "user") for p in items)
+
+
+def test_unfiltered_list_includes_covers(client):
+    """Lista sin filtro descubre presets Y portadas (punto unico del agente)."""
+    r = client.get("/api/presets")
+    assert r.status_code == 200
+    types = {p["type"] for p in r.json()}
+    assert types & {"table", "heading", "layout"}, "presets ausentes"
+    assert "cover" in types, "portadas ausentes del listado sin filtro"
+
+
+def test_get_cover_by_name(client):
+    """GET /api/presets/{name} resuelve portadas por nombre (lectura)."""
+    r = client.get("/api/presets/APA%207%20Estudiante")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["type"] == "cover"
+    assert body["name"] == "APA 7 Estudiante"
+
+
+def test_post_cover_422_con_pista(client):
+    """POST type=cover rechazado con punta a /api/cover-templates."""
+    r = client.post("/api/presets", json={
+        "name": "cover_malo", "type": "cover", "definition": {}})
+    assert r.status_code == 422
+    assert "cover" in str(r.json()["detail"]).lower()
+
+
+def test_delete_cover_422_con_pista(client):
+    """DELETE de nombre que es portada -> 422 con punta, no 404 silencioso."""
+    r = client.delete("/api/presets/APA%207%20Estudiante")
+    assert r.status_code == 422
+    detail = str(r.json()["detail"]).lower()
+    assert "portada" in detail or "cover" in detail

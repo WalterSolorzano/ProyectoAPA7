@@ -21,23 +21,50 @@ from pydantic import ValidationError
 router = APIRouter(tags=["presets"])
 
 
+def _cover_records() -> list[dict]:
+    """Plantillas de portada del cover-designer con forma de PresetRecord.
+
+    Proxy SOLO lectura para descubrimiento unico del agente: la fuente
+    unica sigue siendo /api/cover-templates (nada se guarda ni borra aqui).
+    """
+    from modules.cover_designer import list_cover_templates
+    return [{
+        "name": t.name,
+        "type": "cover",
+        "description": t.description,
+        "definition": {"source_type": t.source_type},
+        "version": 1,
+        "created_at": t.created_at,
+        "updated_at": "",
+        "origin": "builtin" if t.is_builtin else "user",
+    } for t in list_cover_templates(STORAGE_DIR)]
+
+
 @router.get("/api/presets")
 async def list_presets_endpoint(type: Optional[str] = None) -> list[dict]:
-    """Lista presets (filtro opcional por tipo)."""
-    if type is not None and type not in PRESET_TYPES:
+    """Lista presets; type=cover (y el listado sin filtro) incluye portadas."""
+    if type is None:
+        return ([p.model_dump() for p in list_presets(STORAGE_DIR, None)]
+                + _cover_records())
+    if type == "cover":
+        return _cover_records()
+    if type not in PRESET_TYPES:
         raise HTTPException(
             status_code=422,
             detail=f"Tipo '{type}' desconocido. Validos: "
-                   f"{sorted(PRESET_TYPES)}.")
+                   f"{sorted(PRESET_TYPES) + ['cover']}.")
     return [p.model_dump() for p in list_presets(STORAGE_DIR, type)]
 
 
 @router.get("/api/presets/{name}")
 async def get_preset_endpoint(name: str) -> dict:
-    """Detalle de un preset (usuario pisa builtin)."""
+    """Detalle de un preset (usuario pisa builtin); resuelve portadas."""
     try:
         return get_preset(name, STORAGE_DIR).model_dump()
     except PresetNotFound as e:
+        for rec in _cover_records():
+            if rec["name"] == name:
+                return rec
         raise HTTPException(status_code=404,
                             detail={"detail": str(e), "available": e.available})
 
@@ -68,5 +95,11 @@ async def delete_preset_endpoint(name: str) -> dict:
         raise HTTPException(status_code=400,
                             detail=f"'{name}' es builtin y no se puede borrar.")
     except PresetNotFound as e:
+        for rec in _cover_records():
+            if rec["name"] == name:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"'{name}' es una plantilla de portada: se gestiona "
+                           f"en /api/cover-templates, aqui solo presets.")
         raise HTTPException(status_code=404,
                             detail={"detail": str(e), "available": e.available})

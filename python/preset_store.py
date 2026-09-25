@@ -73,6 +73,15 @@ class PresetPayload(BaseModel):
     definition: dict = Field(default_factory=dict)
     overwrite: bool = False
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def _type_cover_readonly(cls, v):
+        if v == "cover":
+            raise ValueError(
+                "type 'cover' es solo lectura: las plantillas de portada se "
+                "gestionan en /api/cover-templates; usa table, heading o layout")
+        return v
+
     @field_validator("name")
     @classmethod
     def _valid_name(cls, v: str) -> str:
