@@ -6,8 +6,20 @@ modelo interno (ElementModel) y genera el .docx con el pipeline existente.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
+from models import (
+    APARuleSet,
+    ElementModel,
+    ElementType,
+    ImageModel,
+    ReferenciaModel,
+    TableBorderStyle,
+    TableModel,
+)
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 SPEC_VERSION = "1"
@@ -165,12 +177,6 @@ def sanitize_filename(raw: str) -> str:
 
 
 # ── Expansión al modelo interno ──────────────────────────────────────────────
-
-from dataclasses import dataclass, field as dc_field  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-from models import (APARuleSet, ElementModel, ImageModel, ReferenciaModel,  # noqa: E402
-                    TableModel, TableBorderStyle, ElementType)
 
 
 @dataclass

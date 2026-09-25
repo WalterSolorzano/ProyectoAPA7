@@ -1,0 +1,58 @@
+"""E2E: spec real -> generacion completa -> descarga con bytes validos."""
+import base64
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_template():
+    """Crea la plantilla APA base una vez (en tests no corre el lifespan)."""
+    from config import get_apa7_template_path
+    p = get_apa7_template_path()
+    if not p.exists():
+        from create_template import create_apa7_template
+        create_apa7_template(p)
+
+
+@pytest.fixture
+def client():
+    """TestClient sin context manager (evita lifespan/COM)."""
+    from main import app
+    return TestClient(app)
+
+
+def test_spec_full_generation_and_download(client, tmp_path):
+    """Genera un docx real (pipeline COM/LO) y lo descarga."""
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBg"
+        "AAAABQABh6FO1AAAAABJRU5ErkJggg==")
+    img = tmp_path / "equipo.png"
+    img.write_bytes(png)
+
+    spec = {
+        "spec_version": "1",
+        "output": {"filename": "e2e_prueba.docx"},
+        "elements": [
+            {"type": "heading", "level": 1, "text": "1. Introduccion"},
+            {"type": "paragraph", "text": "Parrafo de prueba E2E."},
+            {"type": "table", "caption": "Tabla 1", "title": "Consumo",
+             "columns": ["Mes", "kWh"], "rows": [["Enero", "133"]]},
+            {"type": "equipment_card", "number": "A1", "title": "Equipo",
+             "image": str(img), "specs": {"Potencia": "120 W"}},
+        ],
+        "presets": {"layout": "layout_uni", "table": "tabla_apa_generica"},
+    }
+    r = client.post("/api/spec", json=spec)
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    # El contrato clave: la sesion sigue viva y el archivo descarga en PK
+    dl = client.get(body["download_url"])
+    assert dl.status_code == 200
+    assert dl.content[:2] == b"PK"
+    assert len(dl.content) > 5000

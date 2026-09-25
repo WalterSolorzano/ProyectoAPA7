@@ -8,11 +8,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import docx
 import pytest
 from docx.shared import Pt
-
 from preset_store import HeadingLevelPreset
-from spec_postpass import (EquipmentCardItem, apply_heading_styles,
-                           apply_table_border_override,
-                           append_equipment_cards)
+from spec_postpass import (
+    EquipmentCardItem,
+    append_equipment_cards,
+    apply_heading_styles,
+    apply_table_border_override,
+)
 
 # PNG valido 1x1 (transparente)
 _PNG = base64.b64decode(

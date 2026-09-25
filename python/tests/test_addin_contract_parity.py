@@ -39,6 +39,10 @@ TIER_MONO = {
     "/api/addin/document-zones",
     "/api/addin/scoped-apply-live",
     "/api/addin/auto-setup",
+    # API para agentes IA (nuevo contrato, solo monolito)
+    "/api/spec",
+    "/api/presets",
+    "/api/presets/{name}",
 }
 
 
@@ -100,6 +104,12 @@ class TestContract:
     def test_tier_both_present_in_mono(self, mono_client):
         routes = _route_paths(mono_client.app)
         missing = sorted(TIER_BOTH - routes)
+        assert not missing, "Faltan en main.py: " + ", ".join(missing)
+
+    def test_tier_mono_present_in_mono(self, mono_client):
+        """TIER_MONO debe existir en el monolito (antes declarado sin exigir)."""
+        routes = _route_paths(mono_client.app)
+        missing = sorted(TIER_MONO - routes)
         assert not missing, "Faltan en main.py: " + ", ".join(missing)
 
 

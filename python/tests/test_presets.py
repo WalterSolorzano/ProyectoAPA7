@@ -6,8 +6,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
 from preset_store import (
     BuiltinDeleteError,
     PresetExists,
@@ -16,9 +14,9 @@ from preset_store import (
     delete_preset,
     get_preset,
     list_names,
-    list_presets,
     save_preset,
 )
+from pydantic import ValidationError
 
 
 def _payload(name="mi_tabla", type_="table", definition=None, overwrite=False):
