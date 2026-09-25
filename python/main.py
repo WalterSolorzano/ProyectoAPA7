@@ -71,7 +71,7 @@ from classification.llm_classifier import classify_document_with_llm, get_classi
 
 # ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
 from config import BASE_DIR, DIST_DIR, STORAGE_DIR, get_apa7_template_path
-from create_template import create_apa7_template
+from create_template import ensure_apa7_template
 from generation.generator import generate_apa7_docx
 from generation.layered_generator import generate_apa7_from_scratch
 from generation.templates import (
@@ -702,13 +702,12 @@ async def check_idempotency_endpoint(file: UploadFile = File(...)) -> dict:
 @app.post("/api/start-blank")
 async def start_blank_document(background_tasks: BackgroundTasks) -> DocumentModel:
     """Inicia una nueva sesion usando la plantilla en blanco."""
-    template_path = get_apa7_template_path()
-    if not template_path.exists():
-        # Auto-generar la plantilla si no existe (nunca debe fallar por esto)
-        try:
-            create_apa7_template(template_path)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"No se pudo generar la plantilla base: {e}")
+    # Auto-generar o verificar la plantilla si hace falta (nunca debe fallar
+    # por esto): ensure_apa7_template valida el sello sha256 antes de usarla.
+    try:
+        template_path = ensure_apa7_template(get_apa7_template_path())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo generar la plantilla base: {e}")
 
     session_id: str = uuid.uuid4().hex[:12]
     content: bytes = template_path.read_bytes()
@@ -4128,14 +4127,12 @@ if __name__ == "__main__":
     # 1. Verificar y recompilar frontend si hubo cambios en src/
     check_and_auto_build_frontend()
 
-    # 2. Crear plantilla inicial si no existe
-    template_path: Path = get_apa7_template_path()
-    if not template_path.exists():
-        try:
-            create_apa7_template(template_path)
-            print(f"[INFO] Plantilla APA 7 creada en: {template_path}")
-        except Exception as e:
-            print(f"[WARN] No se pudo crear la plantilla APA 7: {e}")
+    # 2. Crear o verificar la plantilla inicial (una sola ruta de generacion)
+    try:
+        template_path: Path = ensure_apa7_template(get_apa7_template_path())
+        print(f"[INFO] Plantilla APA 7 verificada en: {template_path}")
+    except Exception as e:
+        print(f"[WARN] No se pudo crear la plantilla APA 7: {e}")
 
     # 3. Configurar SSL para el Word Add-in (requiere mkcert instalado)
     ssl_certfile, ssl_keyfile = _setup_ssl_for_addin()

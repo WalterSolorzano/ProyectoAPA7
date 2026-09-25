@@ -5,6 +5,7 @@ Genera el archivo `apa7_template.docx` utilizado como punto de partida
 para exportar o aplicar estilos APA 7.
 """
 
+import hashlib
 from pathlib import Path
 
 import docx
@@ -73,6 +74,51 @@ def create_apa7_template(output_path: Path | str = "apa7_template.docx") -> Path
     target_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(target_path))
     return target_path
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _sidecar_path(path: Path) -> Path:
+    return path.with_name(path.name + ".sha256")
+
+
+def ensure_apa7_template(output_path: Path | str = "apa7_template.docx") -> Path:
+    """Devuelve la plantilla APA 7 lista, creandola o reparandola si hace falta.
+
+    Verificacion de hash: al crear se sella el sha256 del archivo en un
+    sidecar `.sha256` hermano. En cada uso se compara el sello con el
+    archivo; si no coinciden (corrupcion, truncado) se regenera. Un archivo
+    valido sin sello se adopta sellandolo sin regenerar, porque la plantilla
+    esta trackeada en git y regenerarla ensuciaria el arbol de trabajo.
+
+    Es la UNICA puerta de entrada a la creacion de la plantilla: los call
+    sites de main.py y los tests pasan por aqui (E-04).
+    """
+    path = Path(output_path)
+    sidecar = _sidecar_path(path)
+
+    if path.is_file():
+        if sidecar.is_file():
+            try:
+                sello = sidecar.read_text(encoding="ascii").strip()
+            except OSError:
+                sello = ""
+            if sello and sello == _sha256_file(path):
+                return path                     # intacta y sellada: no se toca
+        else:
+            # Upgrade: valida pero sin sello -> sellar sin regenerar.
+            sidecar.write_text(_sha256_file(path) + "\n", encoding="ascii")
+            return path
+
+    create_apa7_template(path)
+    sidecar.write_text(_sha256_file(path) + "\n", encoding="ascii")
+    return path
 
 
 if __name__ == "__main__":
