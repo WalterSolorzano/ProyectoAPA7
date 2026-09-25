@@ -4,15 +4,14 @@
  * ni texto patronizante. Cero emojis — iconos Lucide únicamente.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { BookOpen, Zap, GitBranch } from 'lucide-react';
 import { PROCESS_VERBS, JOKES, APA_FACTS, AI_JOKES, WORD_HELL_JOKES, STUDENT_JOKES } from './LoadingTips';
 import { getTimeSlotPhrases } from '../../lib/studentJokes';
 
 interface Phrase {
   text: string;
   tag: string;
-  badge?: string;
 }
 
 const EXTRA_HERO: Phrase[] = [
@@ -24,26 +23,11 @@ const EXTRA_HERO: Phrase[] = [
   { text: 'Tus títulos al nivel correcto, sin discutirle a Word', tag: 'inicio' },
 ];
 
-/** Badge visual según el horario para usar con frases de getTimeSlotPhrases. */
-function getTimeBadge(now: Date): string {
-  const h = now.getHours();
-  const day = now.getDay();
-  if (h >= 1 && h < 5) return 'hora pico';
-  if (day === 0 && h >= 17) return 'entrega dominical';
-  if (day === 5 && h >= 15) return 'modo viernes';
-  if (day === 1 && h < 9) return 'lunes temprano';
-  if (day === 6 && h < 12) return 'mañana sabatina';
-  if (day >= 2 && day <= 4 && h >= 22) return 'entre semana';
-  if (h >= 23) return 'tras medianoche';
-  return 'hora local';
-}
-
 /** Frases de contexto horario. */
 function getTimeContextPhrases(): Phrase[] {
   const now = new Date();
   const texts = getTimeSlotPhrases(now);
-  const badge = getTimeBadge(now);
-  return texts.map((text) => ({ text, tag: 'hora-especial', badge }));
+  return texts.map((text) => ({ text, tag: 'hora-especial' }));
 }
 
 function fmtPhrase(raw: string): string {
@@ -56,11 +40,11 @@ function fmtPhrase(raw: string): string {
 function buildPool(): Phrase[] {
   const timePhrases = getTimeContextPhrases();
   const process: Phrase[] = PROCESS_VERBS.map((t) => ({ text: fmtPhrase(t.replace(/…$/, '')), tag: 'procesando' }));
-  const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste', badge: 'humor' }));
-  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato', badge: 'norma APA' }));
-  const ai: Phrase[] = AI_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'ai', badge: 'modo IA' }));
-  const wordhell: Phrase[] = WORD_HELL_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'wordhell', badge: 'infierno Word' }));
-  const student: Phrase[] = STUDENT_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'student', badge: 'modo café' }));
+  const jokes: Phrase[] = JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'chiste' }));
+  const facts: Phrase[] = APA_FACTS.map((t) => ({ text: fmtPhrase(t), tag: 'dato' }));
+  const ai: Phrase[] = AI_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'ai' }));
+  const wordhell: Phrase[] = WORD_HELL_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'wordhell' }));
+  const student: Phrase[] = STUDENT_JOKES.map((t) => ({ text: fmtPhrase(t), tag: 'student' }));
 
   return [...timePhrases, ...EXTRA_HERO, ...process, ...jokes, ...facts, ...ai, ...wordhell, ...student];
 }
@@ -105,123 +89,130 @@ function pickFreshPhrase(pool: Phrase[], currentText?: string): Phrase {
 }
 
 const TAG_COLOR: Record<string, string> = {
-  contexto: 'var(--text-main)',
+  contexto: 'var(--accent-warning)',
   'hora-especial': 'var(--accent-primary)',
-  inicio: 'var(--text-main)',
+  inicio: 'var(--accent-primary)',
   procesando: 'var(--accent-primary)',
-  chiste: 'var(--text-main)',
-  dato: 'var(--accent-primary)',
+  chiste: 'var(--accent-secondary)',
+  dato: 'var(--accent-success)',
   ai: 'var(--accent-primary)',
-  wordhell: 'var(--text-main)',
-  student: 'var(--text-main)',
+  wordhell: 'var(--accent-warning)',
+  student: 'var(--accent-primary)',
 };
 
-const BADGE_COLOR: Record<string, string> = {
-  'hora-especial': 'var(--accent-primary)',
-  ai: '#7c3aed',
-  wordhell: 'var(--accent-warning, #d97706)',
-  student: 'var(--accent-primary, #4f7cff)',
-  humor: 'var(--accent-success, #10b981)',
-  'norma APA': 'var(--accent-primary, #4f7cff)',
-};
+/** Tres pilares de producto — iconos nativos de la app, sin decir lo obvio. */
+const PILLARS = [
+  {
+    icon: <BookOpen size={14} strokeWidth={2} />,
+    label: 'Portada, cuerpo y referencias',
+    color: 'var(--accent-primary)',
+  },
+  {
+    icon: <Zap size={14} strokeWidth={2} />,
+    label: 'Corrección sin tocar tu contenido',
+    color: 'var(--accent-success)',
+  },
+  {
+    icon: <GitBranch size={14} strokeWidth={2} />,
+    label: 'Citas, DOI y referencias cruzadas',
+    color: 'var(--accent-primary)',
+  },
+];
 
 export const HomeHero: React.FC = () => {
   const poolRef = useRef<Phrase[]>(buildPool());
   const [phrase, setPhrase] = useState<Phrase>(() => pickFreshPhrase(poolRef.current));
   const [fadeKey, setFadeKey] = useState(0);
-
-  const rotateNext = useCallback(() => {
-    const next = pickFreshPhrase(poolRef.current, phrase.text);
-    setPhrase(next);
-    setFadeKey((k) => k + 1);
-  }, [phrase.text]);
+  const currentTextRef = useRef(phrase.text);
+  currentTextRef.current = phrase.text;
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      rotateNext();
-    }, 12000);
-    return () => clearInterval(timer);
-  }, [rotateNext]);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const next = pickFreshPhrase(poolRef.current, currentTextRef.current);
+      setPhrase(next);
+      setFadeKey((k) => k + 1);
+      const isArt =
+        next.tag === 'hora-especial' || next.tag === 'contexto' || next.tag === 'ai' || next.tag === 'student';
+      timer = setTimeout(tick, isArt ? 14000 : 9000);
+    };
+    timer = setTimeout(tick, 9000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const color = TAG_COLOR[phrase.tag] || 'var(--text-main)';
-  const badgeColor = BADGE_COLOR[phrase.badge || ''] || 'var(--accent-primary)';
 
   return (
-    <div style={{ textAlign: 'center', padding: '6px 0 18px', userSelect: 'none' }}>
-      {/* Título de ancla claro, estable y profesional */}
-      <h1
+    <div style={{ textAlign: 'center', padding: '6px 0 18px' }}>
+      {/* Frase principal rotatoria — altura fija para que el layout no salte */}
+      <div
+        key={fadeKey}
+        className="hero-phrase-in"
         style={{
-          fontSize: 'var(--text-2xl)',
-          fontWeight: 800,
-          color: 'var(--text-main)',
-          margin: '0 0 4px',
+          fontSize: '36px',
+          fontWeight: 900,
+          lineHeight: 1.18,
           letterSpacing: '-0.02em',
-          lineHeight: 1.2,
+          color,
+          margin: '0 auto',
+          maxWidth: '860px',
+          minHeight: '86px',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
           fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+          textShadow: '0 2px 6px rgba(128,128,128,0.18)',
         }}
       >
-        WordAPA7
-      </h1>
+        {phrase.text}
+      </div>
 
+      {/* Subtítulo — concreto, sin repetir lo que ya dice el nombre de la app */}
       <p
         style={{
-          fontSize: 'var(--text-sm)',
+          fontSize: '14px',
           color: 'var(--text-secondary)',
-          margin: '0 0 12px',
+          margin: '14px auto 18px',
+          maxWidth: '600px',
+          lineHeight: 1.6,
           fontWeight: 500,
         }}
       >
-        Formato y edición APA 7ma edición con fidelidad nativa a tu documento original
+        Ajustamos márgenes, jerarquía de títulos, sangría, interlineado y referencias
+        para que entregues con confianza.
       </p>
 
-      {/* Cápsula de frases cómicas y de contexto: no repetitiva, animada y compacta */}
+      {/* Tres pilares de producto */}
       <div
         style={{
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '4px 12px',
-          borderRadius: 'var(--radius-full)',
-          backgroundColor: 'var(--surface-elevated)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--shadow-sm)',
-          maxWidth: '85vw',
+          justifyContent: 'center',
+          gap: '10px',
+          flexWrap: 'wrap',
         }}
       >
-        {phrase.badge && (
-          <span
+        {PILLARS.map((p) => (
+          <div
+            key={p.label}
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface-elevated)',
+              border: '1px solid var(--border-subtle)',
               fontSize: 'var(--text-xs)',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              color: '#ffffff',
-              backgroundColor: badgeColor,
-              borderRadius: 'var(--radius-full)',
-              padding: '2px 8px',
-              flexShrink: 0,
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
             }}
           >
-            {phrase.badge}
-          </span>
-        )}
-
-        <span
-          key={fadeKey}
-          className="hero-phrase-base"
-          style={{
-            fontSize: 'var(--text-xs)',
-            fontWeight: 600,
-            color,
-            lineHeight: 1.3,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-          title={phrase.text}
-        >
-          {phrase.text}
-        </span>
+            <span style={{ color: p.color, display: 'flex', alignItems: 'center' }}>{p.icon}</span>
+            <span>{p.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
