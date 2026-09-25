@@ -58,13 +58,28 @@ def _addin_api_paths() -> set[str]:
 
 
 def _route_paths(app) -> set[str]:
-    return {r.path for r in app.routes}
+    """Rutas como contrato publico via openapi.
+
+    fastapi >= 0.141 deja objetos _IncludedRouter (sin atributo .path) en
+    app.routes; el esquema openapi expone las rutas finales con sus
+    templates ({name}) en ambas versiones, sin depender de internos.
+    """
+    return set(app.openapi()["paths"])
 
 
 def _route_matches(route: str, called: str) -> bool:
-    """/api/x/{ref_id} matchea /api/addin/reference (prefijo de template literal)."""
-    rx = re.sub(r"\{[^}]+\}", "[^/]+", route) + "(?:/.*)?$"
-    return re.fullmatch(rx, called) is not None
+    """El llamado matchea la ruta, incluido prefijo de template literal.
+
+    La extraccion de `_addin_api_paths` corta en `${...}`: de
+    `/api/addin/reference/${id}` queda `/api/addin/reference`, que debe
+    matchear la ruta `/api/addin/reference/{ref_id}`.
+    """
+    route_rx = re.sub(r"\{[^}]+\}", "[^/]+", route) + "(?:/.*)?$"
+    if re.fullmatch(route_rx, called):
+        return True
+    # llamado truncado: cada {param} final de la ruta es segmento opcional
+    prefix_rx = re.sub(r"/\{[^}]+\}", "(?:/[^/]+)?", route) + "(?:/.*)?$"
+    return re.fullmatch(prefix_rx, called) is not None
 
 
 # Ruido conocido: 'api/backend' es ruta de IMPORT del modulo cliente, no HTTP.

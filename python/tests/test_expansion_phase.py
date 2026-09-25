@@ -5,7 +5,7 @@ WordAPA7 — Suite de pruebas de la Fase de Expansión Avanzada
 import pytest
 from parsing.bibtex_ris_parser import parse_bibtex_text, parse_ris_text
 from modules.referencias_module import search_academic_metadata_cascade
-from modules.proactive_auditor import _audit_spacy_and_spellchecker
+from modules.proactive_auditor import _SPACY_NLP, _audit_spacy_and_spellchecker
 from modules.visual_auditor import audit_pdf_visual_layout
 
 
@@ -35,6 +35,8 @@ def test_ris_import():
 
 
 def test_spacy_passive_voice_detection():
+    if _SPACY_NLP is None:
+        pytest.skip("spacy + es_core_news_sm no disponibles (dependencia opcional)")
     text = "El informe fue realizado por el equipo de investigación en tres fases consecutivas."
     findings = _audit_spacy_and_spellchecker("p1", text)
     kinds = [f["kind"] for f in findings]
