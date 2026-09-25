@@ -148,3 +148,44 @@ def test_get_missing_404_available(client):
     r = client.get("/api/presets/no_tal")
     assert r.status_code == 404
     assert "tabla_apa_generica" in r.json()["detail"]["available"]
+
+
+def test_delete_traversal_rejected(client, tmp_path):
+    """Issue #4: nombre con path traversal no escapa de presets/."""
+    victim = tmp_path / "victim.json"
+    victim.write_text("{}", encoding="utf-8")
+    r = client.delete("/api/presets/..%5Cvictim")
+    assert r.status_code in (400, 404, 422)
+    assert victim.exists(), "borro fuera de presets/: traversal activo"
+
+
+def test_post_invalid_definition_422(client):
+    """Issue #5: definition invalida -> 422, no 500."""
+    r = client.post("/api/presets", json={
+        "name": "def_mala", "type": "table",
+        "definition": {"border_style": "dashed"}})
+    assert r.status_code == 422
+    client.delete("/api/presets/def_mala")   # limpieza si acaso
+
+
+def test_post_builtin_without_overwrite_409(client):
+    """Issue #10: nombre builtin sin overwrite -> 409 (no override silencioso)."""
+    r = client.post("/api/presets", json={
+        "name": "layout_uni", "type": "layout", "definition": {}})
+    assert r.status_code == 409
+    client.delete("/api/presets/layout_uni")   # no debe existir override
+
+
+def test_list_bogus_type_422(client):
+    """Issue #9: type filter desconocido -> 422 con tipos validos."""
+    r = client.get("/api/presets", params={"type": "bogus"})
+    assert r.status_code == 422
+
+
+def test_heading_preset_invalid_level_key_rejected(client):
+    """Issue #11: claves de levels fuera de 1..5 -> 422."""
+    r = client.post("/api/presets", json={
+        "name": "head_malo", "type": "heading",
+        "definition": {"levels": {"6": {"bold": True}}}})
+    assert r.status_code == 422
+    client.delete("/api/presets/head_malo")

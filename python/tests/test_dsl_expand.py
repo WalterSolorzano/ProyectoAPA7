@@ -85,7 +85,7 @@ def storage(tmp_path):
 
 def _expand(spec, storage, **presets):
     kw = dict(table_def=None, layout_def=None, heading_def=None,
-              table_defs_by_caption={}, storage_dir=storage)
+              storage_dir=storage)
     kw.update(presets)
     return asyncio.run(expand_spec(spec, **kw))
 
@@ -160,3 +160,15 @@ def test_doi_without_resolve_warns(storage):
     res = _expand(spec, storage)
     assert res.references == []
     assert len(res.warnings) >= 1
+
+
+def test_figure_number_from_caption(storage, tmp_path):
+    """Issue #13: 'Figura 3' del agente fija figure_number, no se ignora."""
+    img = tmp_path / "a.png"
+    img.write_bytes(b"\x89PNG")
+    spec = SpecDocument.model_validate(_minimal(elements=[
+        {"type": "figure", "image": str(img),
+         "caption": "Figura 3", "title": "Grafico"}]))
+    res = _expand(spec, storage)
+    assert res.elements[0].image_info.figure_number == 3
+    assert res.elements[0].image_info.caption == "Grafico"

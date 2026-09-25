@@ -56,3 +56,17 @@ def test_spec_full_generation_and_download(client, tmp_path):
     assert dl.status_code == 200
     assert dl.content[:2] == b"PK"
     assert len(dl.content) > 5000
+
+    # CONTRATO DE CONTENIDO: el docx debe llevar lo pedido en el spec
+    # (un template vacio ya pesa ~36KB; sin este assert el doc vacio pasa)
+    import io
+    import re
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(dl.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8", "ignore")
+    text = re.sub(r"<[^>]+>", "", xml)   # concatena w:t de runs partidos
+    assert "1. Introduccion" in text, "heading ausente: docx vacio"
+    assert "Parrafo de prueba E2E." in text, "parrafo ausente: docx vacio"
+    assert "133" in text, "celda de tabla ausente"
+    assert "Enero" in text, "celda de tabla ausente"

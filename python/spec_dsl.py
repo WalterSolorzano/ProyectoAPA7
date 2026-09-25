@@ -58,7 +58,9 @@ class PresetRefs(BaseModel):
 
 class SpecOptions(BaseModel):
     resolve_doi: bool = False
-    mode: Literal["inplace", "rebuild"] = "inplace"
+    # NOTA: sin 'mode'. El flujo spec SIEMPRE usa export_mode="rebuild":
+    # 'inplace' solo reformatea el original.docx (que esta en blanco) y
+    # retorna sin escribir elementos (bug critico corregido post-review).
 
 
 class HeadingElement(BaseModel):
@@ -212,11 +214,14 @@ def _table_number(caption: str, fallback: int) -> int:
 
 
 async def expand_spec(spec, *, table_def=None, layout_def=None, heading_def=None,
-                      table_defs_by_caption=None, storage_dir: Path) -> ExpansionResult:
+                      storage_dir: Path) -> ExpansionResult:
     """Expande SpecDocument a elementos internos + reglas + anexos + warnings."""
-    table_defs_by_caption = table_defs_by_caption or {}
     warnings: list[str] = []
     rules = APARuleSet()
+
+    # El flujo spec es SIEMPRE rebuild: el template esta en blanco y
+    # apply_inplace() nunca inserta elementos (retorna temprano).
+    rules.export_mode = "rebuild"
 
     # Preset de layout -> reglas de pagina
     if layout_def:
@@ -232,9 +237,6 @@ async def expand_spec(spec, *, table_def=None, layout_def=None, heading_def=None
         rules.table_border_style = TableBorderStyle(table_def.border_style)
         rules.table_label_prefix = table_def.table_label_prefix
         rules.figure_label_prefix = table_def.figure_label_prefix
-
-    # Modo
-    rules.export_mode = spec.options.mode
 
     elements: list[ElementModel] = []
     references: list[ReferenciaModel] = []
@@ -264,8 +266,10 @@ async def expand_spec(spec, *, table_def=None, layout_def=None, heading_def=None
                 warnings.append(f"elements[{i}]: repeat_header=false no soportado "
                                 f"todavia; la cabecera se repite por defecto.")
             if el.preset:
-                from preset_store import get_preset
+                from preset_store import PresetTypeMismatch, get_preset
                 rec = get_preset(el.preset, storage_dir)  # Propaga PresetNotFound
+                if rec.type != "table":
+                    raise PresetTypeMismatch(el.preset, "table", rec.type)
                 overrides.append(TableOverride(
                     caption_label=f"{rules.table_label_prefix} {tnum}",
                     border_style=rec.definition.get("border_style", "apa")))
@@ -275,11 +279,13 @@ async def expand_spec(spec, *, table_def=None, layout_def=None, heading_def=None
                                 f"se omite: {el.image}")
                 continue
             n_figs += 1
+            # 'Figura 3' del agente fija el numero; sin digito -> secuencial
+            fnum = _table_number(el.caption, n_figs)
             elements.append(ElementModel(
                 id=eid, type=ElementType.IMAGE, needs_review=False, confidence=1.0,
                 image_info=ImageModel(element_id=eid, file_path=el.image,
                                       filename=Path(el.image).name,
-                                      caption=el.title, figure_number=n_figs)))
+                                      caption=el.title, figure_number=fnum)))
         elif el.type == "equipment_card":
             if not Path(el.image).exists():
                 warnings.append(f"elements[{i}]: imagen de tarjeta no encontrada, "

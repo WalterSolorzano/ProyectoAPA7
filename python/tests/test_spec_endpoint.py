@@ -70,6 +70,7 @@ def test_happy_path_200(client, monkeypatch):
         out.mkdir(parents=True, exist_ok=True)
         d = docx.Document()
         d.add_paragraph("1. Marco")
+        d.add_paragraph("Texto de prueba.")
         d.save(str(out / "APA7_test.docx"))
         return {"download_url": f"/api/download/{req.session_id}",
                 "filename": "APA7_test.docx"}
@@ -90,7 +91,9 @@ def test_missing_image_warning_200(client, monkeypatch):
     async def fake_generate(req):
         out = Path(main.STORAGE_DIR) / "sessions" / req.session_id
         out.mkdir(parents=True, exist_ok=True)
-        docx.Document().save(str(out / "APA7_w.docx"))
+        d = docx.Document()
+        d.add_paragraph("x")   # texto del spec: satisface el sanity gate
+        d.save(str(out / "APA7_w.docx"))
         return {"download_url": f"/api/download/{req.session_id}",
                 "filename": "APA7_w.docx"}
 
@@ -101,3 +104,33 @@ def test_missing_image_warning_200(client, monkeypatch):
          "caption": "Figura 1", "title": "T"}]))
     assert r.status_code == 200
     assert any("no_existe" in w for w in r.json()["warnings"])
+
+
+def test_wrong_type_preset_422(client):
+    """Preset de tipo distinto al pedido -> 422 autocorregible."""
+    r = client.post("/api/spec", json=_spec(presets={"table": "layout_uni"}))
+    assert r.status_code == 422
+
+
+def test_table_element_unknown_preset_404(client):
+    """Preset inexistente en TableElement.preset -> 404 con available."""
+    r = client.post("/api/spec", json=_spec(elements=[
+        {"type": "table", "caption": "Tabla 1", "title": "T",
+         "columns": ["a"], "rows": [["1"]], "preset": "no_tal"}]))
+    assert r.status_code == 404
+    assert "tabla_apa_generica" in r.json()["detail"]["available"]
+
+
+def test_table_element_wrong_type_preset_422(client):
+    """Preset de tipo != table en TableElement.preset -> 422, no silencio."""
+    r = client.post("/api/spec", json=_spec(elements=[
+        {"type": "table", "caption": "Tabla 1", "title": "T",
+         "columns": ["a"], "rows": [["1"]], "preset": "layout_uni"}]))
+    assert r.status_code == 422
+
+
+def test_equipment_card_data_uri_422(client):
+    r = client.post("/api/spec", json=_spec(elements=[
+        {"type": "equipment_card", "number": "A1", "title": "Eq",
+         "image": "data:image/png;base64,AA", "specs": {}}]))
+    assert r.status_code == 422

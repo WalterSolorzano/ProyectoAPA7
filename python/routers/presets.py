@@ -6,6 +6,7 @@ from typing import Optional
 from config import STORAGE_DIR
 from fastapi import APIRouter, HTTPException
 from preset_store import (
+    PRESET_TYPES,
     BuiltinDeleteError,
     PresetExists,
     PresetNotFound,
@@ -15,6 +16,7 @@ from preset_store import (
     list_presets,
     save_preset,
 )
+from pydantic import ValidationError
 
 router = APIRouter(tags=["presets"])
 
@@ -22,11 +24,12 @@ router = APIRouter(tags=["presets"])
 @router.get("/api/presets")
 async def list_presets_endpoint(type: Optional[str] = None) -> list[dict]:
     """Lista presets (filtro opcional por tipo)."""
-    try:
-        return [p.model_dump() for p in list_presets(STORAGE_DIR, type)]
-    except KeyError:
-        raise HTTPException(status_code=422,
-                            detail=f"Tipo desconocido: {type}")
+    if type is not None and type not in PRESET_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Tipo '{type}' desconocido. Validos: "
+                   f"{sorted(PRESET_TYPES)}.")
+    return [p.model_dump() for p in list_presets(STORAGE_DIR, type)]
 
 
 @router.get("/api/presets/{name}")
@@ -48,6 +51,11 @@ async def save_preset_endpoint(payload: PresetPayload) -> dict:
         raise HTTPException(status_code=409,
                             detail=f"Preset '{payload.name}' ya existe. "
                                    f"Usa overwrite=true.")
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"path": ".".join(str(x) for x in err["loc"]),
+                     "msg": err["msg"]} for err in e.errors()])
 
 
 @router.delete("/api/presets/{name}")

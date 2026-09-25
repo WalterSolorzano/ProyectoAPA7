@@ -9,11 +9,43 @@ from __future__ import annotations
 from config import STORAGE_DIR
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from persistence.session_manager import maybe_run_gc, save_session_state
-from preset_store import PresetNotFound, get_preset
+from preset_store import PresetNotFound, PresetTypeMismatch, get_preset
 from spec_dsl import SpecDocument, expand_spec
 from spec_postpass import append_equipment_cards, apply_heading_styles, apply_table_border_override
 
 router = APIRouter(tags=["spec"])
+
+# Normalizacion para comparar texto del spec contra word/document.xml
+# (Word convierte comillas rectas a tipograficas y guiones a rayas)
+_TRANSLATION = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201a": "'",
+    "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-",
+})
+
+
+def _missing_texts(out_file, spec: SpecDocument) -> list[str]:
+    """Textos del spec ausentes del docx generado (sanity gate vacio)."""
+    import re
+    import zipfile
+    try:
+        with zipfile.ZipFile(out_file) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "ignore")
+    except Exception:
+        return ["<word/document.xml ilegible>"]
+    text = re.sub(r"<[^>]+>", "", xml).translate(_TRANSLATION)
+    missing: list[str] = []
+    for el in spec.elements:
+        if el.type in ("heading", "paragraph"):
+            candidates = [el.text]
+        elif el.type == "table":
+            candidates = list(el.rows[0]) if el.rows else []
+        else:
+            candidates = []
+        for c in candidates:
+            if c and c.translate(_TRANSLATION) not in text:
+                missing.append(c[:60])
+    return missing
 
 
 def _resolve_preset(name: str | None, expected_type: str):
@@ -73,10 +105,12 @@ async def generate_from_spec(spec: SpecDocument,
             table_def=table_rec,
             layout_def=layout_rec,
             heading_def=heading_rec,
-            table_defs_by_caption={}, storage_dir=STORAGE_DIR)
+            storage_dir=STORAGE_DIR)
     except PresetNotFound as e:
         raise HTTPException(status_code=404,
                             detail={"detail": str(e), "available": e.available})
+    except PresetTypeMismatch as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     warnings = list(exp.warnings)
 
@@ -102,23 +136,37 @@ async def generate_from_spec(spec: SpecDocument,
 
         # 6. Post-paso: headings nativos, bordes por caption, tarjetas de anexo
         out_dir = STORAGE_DIR / "sessions" / doc.session_id
-        outs = sorted(out_dir.glob("APA7_*.docx"),
+        outs = sorted((p for p in out_dir.glob("*.docx")
+                       if p.name != "original.docx"),
                       key=lambda p: p.stat().st_mtime, reverse=True)
-        if outs:
-            out_file = outs[0]
-            if exp.heading_preset:
-                apply_heading_styles(out_file, exp.heading_preset.levels)
-            for ov in exp.table_overrides:
-                if not apply_table_border_override(out_file, ov.caption_label,
-                                                   ov.border_style):
-                    warnings.append(f"Tabla '{ov.caption_label}' no localizada "
-                                    f"para aplicar preset de bordes.")
-            try:
-                append_equipment_cards(out_file, exp.equipment_cards, exp.rules)
-            except Exception as e:  # anexos no deben romper la descarga
-                warnings.append(f"Tarjetas de anexo fallaron: {e}")
-        else:
-            warnings.append("Salida no encontrada tras generar.")
+        if not outs:
+            raise HTTPException(status_code=500,
+                                detail={"detail": "Sin archivo de salida tras "
+                                                  "generar.",
+                                        "session_id": doc.session_id})
+        out_file = outs[0]
+        if exp.heading_preset:
+            apply_heading_styles(out_file, exp.heading_preset.levels)
+        for ov in exp.table_overrides:
+            if not apply_table_border_override(out_file, ov.caption_label,
+                                               ov.border_style):
+                warnings.append(f"Tabla '{ov.caption_label}' no localizada "
+                                f"para aplicar preset de bordes.")
+        try:
+            append_equipment_cards(out_file, exp.equipment_cards, exp.rules)
+        except Exception as e:  # anexos no deben romper la descarga
+            warnings.append(f"Tarjetas de anexo fallaron: {e}")
+
+        # 7. Sanity gate: nunca responder 200 con documento vacio
+        # (los textos del spec deben aparecer en word/document.xml)
+        missing = _missing_texts(out_file, spec)
+        if missing:
+            raise HTTPException(
+                status_code=500,
+                detail={"detail": "Documento generado sin el texto esperado "
+                                  "(sanity gate).",
+                        "missing": missing[:5],
+                        "session_id": doc.session_id})
     except HTTPException:
         raise
     except Exception as e:
