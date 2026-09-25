@@ -105,3 +105,40 @@ def test_spec_cover_scratch_portada_sintetica(client):
     assert "Walter Noel Solorzano" in text, "autor de portada ausente"
     assert "Universidad Nacional de Ingenieria" in text, "institucion ausente"
     assert "1. Marco teorico" in text, "cuerpo ausente"
+
+
+def test_spec_cover_template_builtin_e2e(client):
+    """cover con template builtin -> portada aplicada y cuerpo intacto."""
+    spec = {
+        "spec_version": "1",
+        "elements": [
+            {"type": "heading", "level": 1, "text": "2. Marco conceptual"},
+            {"type": "paragraph",
+             "text": "Parrafo tras portada con template."},
+        ],
+        "cover": {
+            "template": "APA 7 Estudiante",
+            "title": "Balance Energetico Vivienda",
+            "author": "Walter Noel Solorzano",
+            "institution": "Universidad Nacional de Ingenieria",
+            "course": "Tecnologia y Medio Ambiente",
+            "instructor": "Ing. Eva Mairena",
+            "date": "02 de octubre de 2026",
+        },
+    }
+    r = client.post("/api/spec", json=spec)
+    assert r.status_code == 200, r.text
+    dl = client.get(r.json()["download_url"])
+    assert dl.status_code == 200
+    assert dl.content[:2] == b"PK"
+
+    import io
+    import re
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(dl.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8", "ignore")
+    text = re.sub(r"<[^>]+>", "", xml)
+    assert "Balance Energetico Vivienda" in text, (
+        "datos de portada ausentes: template no aplicado")
+    assert "2. Marco conceptual" in text, "cuerpo ausente"
+    assert "Parrafo tras portada con template." in text

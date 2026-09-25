@@ -184,22 +184,24 @@ async def generate_from_spec(
     save_session_state(doc, STORAGE_DIR)
 
     try:
-        # 4. Portada si se pidio: template con nombre o scratch sintetica
+        # 4. Portada si se pidio: template con nombre o scratch sintetica.
+        # Los datos SIEMPRE viajan en PortadaData: generator.py los lee del
+        # param `portada` (el endpoint apply-cover solo guarda el id).
         portada_req: PortadaData | None = None
-        if spec.cover and spec.cover.template:
-            await apply_cover_endpoint(ApplyCoverRequest(
-                session_id=doc.session_id, cover_template_name=spec.cover.template,
-                title=spec.cover.title, author=spec.cover.author,
-                institution=spec.cover.institution, course=spec.cover.course,
-                instructor=spec.cover.instructor, date=spec.cover.date))
-        elif spec.cover:
-            # Modo scratch: portada sintetica APA 7 generada desde cero
-            # con los datos del bloque (generator: generate_apa7_template)
+        if spec.cover:
             portada_req = PortadaData(
                 title=spec.cover.title, author=spec.cover.author,
                 institution=spec.cover.institution, course=spec.cover.course,
                 instructor=spec.cover.instructor, date=spec.cover.date,
-                use_original_cover=False)
+                use_original_cover=bool(spec.cover.template))
+            if spec.cover.template:
+                await apply_cover_endpoint(ApplyCoverRequest(
+                    session_id=doc.session_id,
+                    cover_template_name=spec.cover.template,
+                    title=spec.cover.title, author=spec.cover.author,
+                    institution=spec.cover.institution,
+                    course=spec.cover.course,
+                    instructor=spec.cover.instructor, date=spec.cover.date))
 
         # 5. Generar con el pipeline existente
         result = await generate_docx(GenerateRequest(
