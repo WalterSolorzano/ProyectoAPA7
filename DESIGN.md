@@ -100,6 +100,22 @@ WordAPA7 combina dos mundos visuales con límites estrictos e infranqueables:
   - `PaperCanvas` / `PDFPreview` (zona central expandida): el documento como protagonista absoluto sobre un backdrop de lienzo.
   - `RightSidePanel` (lateral derecho integrado): inspector contextual de propiedades, asistentes y validador sin superposición destructiva.
 
+### Reasignación de espacio según la tarea
+
+El layout no es fijo entre pantallas: **el espacio se le quita a lo que ya está decidido y se le da a lo que hay que examinar ahora**. Reglas vigentes:
+
+- **Vista "Revisión & IA" (paso 5)** — `Step5AuditIAWizard.tsx` + `ReviewMinimap.tsx`:
+  1. **Tres columnas**: minimapa angosto (~19px) con una marca por página coloreada según el motor que detectó hallazgos ahí y la página actual resaltada con contorno de acento (ubicación en cientos de páginas sin scroll a ciegas) → documento central con hallazgos resaltados *inline* (`reviewHighlightIds`, sin bloques separados) → columna derecha de hallazgos agrupados.
+  2. **Agrupación, nunca fila por aparición**: cada motor es un grupo colapsable (encabezado + conteo total + acción masiva); dentro, **una fila por subtipo** con contador `×N` y acción propia. Por defecto solo está expandido el grupo con más hallazgos críticos.
+  3. **Acciones según certeza del motor**: motores con corrección objetiva (ortografía, Bloom, estructura APA, citas) usan botón sólido "Aceptar / Aceptar todas"; el motor probabilístico (detector de IA) usa **solo** botón fantasma "Marcar para revisar" — nunca "Aceptar", nunca con el mismo peso visual.
+  4. **Barra superior con dos zonas**: chips de filtro por motor con conteo (izquierda) y navegación `Página X de N` + "Siguiente hallazgo" (derecha). Nunca todo mezclado en una sola fila.
+  5. Al entrar al paso 5, `StepRail` se colapsa a solo iconos (56px) y restaura su ancho al salir; `RightSidePanel` no se renderiza.
+
+- **Pantalla final de exportación / descarga** — `ExportView.tsx` + `DownloadSuccessOverlay.tsx` (inverso de la vista de revisión: la pantalla con menos elementos del flujo):
+  1. **Una sola columna alineada a la izquierda** (no centrada: continuidad del flujo, no pantalla de celebración). Orden vertical: ícono de éxito pequeño → título → **una** línea de descripción (máx. ~50 caracteres de ancho) → dos botones pegados (principal sólida + secundaria fantasma).
+  2. Nada de listas, tarjetas, columnas ni scroll en estado por defecto. Formato, opciones, aviso de citas fantasma y vista previa viven ocultos bajo el botón "Opciones" (toggle "Previsualizar" para el panel derecho).
+  3. **No se repiten** aquí resúmenes de hallazgos ni estadísticas: eso ya se mostró en la vista de revisión. El espacio en blanco es intencional: después de la pantalla más densa del flujo, el contraste es lo que comunica "terminado".
+
 ## Elevation & Depth
 
 - **Capas Tonalmente Planas**: Preferencia por bordes perimetrales finos de 1px (`{colors.border-subtle}`) sobre sombras pesadas.
@@ -119,6 +135,8 @@ WordAPA7 combina dos mundos visuales con límites estrictos e infranqueables:
 - **APAModuleToggles**: Conjunto de chips independientes con iconos vectoriales SVG para activar o tachar qué módulos normalizar en el documento.
 - **CoverCarouselStudio**: Selector de carrusel horizontal con previsualización en vivo de portadas institucionales.
 - **PaperCanvas**: Renderizador con paginación geométrica estricta y protección de portada indivisible.
+- **ReviewMinimap**: Minimapa de ~19px con una marca por página (color = motor dominante, página actual con contorno de acento) para ubicarse en documentos de cientos de páginas.
+- **ExportView / DownloadSuccessOverlay**: Pantalla final de descarga en columna única alineada a la izquierda; dos botones pegados (sólida + fantasma), resto bajo toggle.
 
 ## Do's and Don'ts
 

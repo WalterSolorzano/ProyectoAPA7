@@ -10,6 +10,11 @@
 - **Control COM de Microsoft Word**:
   - Word COM debe inicializarse **100% bajo demanda (*lazy on-demand*)**, NUNCA de forma ansiosa en el startup lifespan de FastAPI.
   - Toda instancia COM debe mantener `Visible = False` y `DisplayAlerts = 0`.
+- **Reasignación de Espacio (LAYOUT POR TAREA)**:
+  - Vista **Revisión & IA** (`Step5AuditIAWizard.tsx`): tres columnas — minimapa de páginas (`ReviewMinimap.tsx`, marca por página coloreada por motor) | documento con resaltado inline | hallazgos agrupados por motor → subtipo (`×N` + acción, nunca una fila por aparición). Barra superior con dos zonas: chips de filtro por motor (izq) y `Página X de N` + "Siguiente hallazgo" (der). Solo el grupo más crítico expandido por defecto.
+  - Motores **objetivos** (ortografía, Bloom, estructura, citas) → "Aceptar / Aceptar todas"; motor **probabilístico** (detector de IA) → SOLO "Marcar para revisar", nunca "Aceptar".
+  - Al entrar al paso 5, `StepRail` se colapsa a iconos (56px) y se restaura al salir.
+  - Vista **final de exportación** (`ExportView.tsx`): columna única alineada a la IZQUIERDA, orden icono → título → una línea ≤50ch → dos botones pegados (sólida + fantasma). Sin listas, tarjetas, columnas ni scroll; formato/opciones/vista previa bajo toggle. NUNCA repetir aquí resúmenes de hallazgos ni estadísticas.
 
 ## 2. Metodología de IA Proactiva y Copiloto Editorial
 - **Copiloto Editorial IA (`LiveChatDrawer.tsx` / `ai_document_editor.py`)**: Asistente conversacional siempre disponible en la barra superior (`UnifiedToolbar.tsx`) que ejecuta transformaciones en tiempo real mediante un Action DSL seguro.
