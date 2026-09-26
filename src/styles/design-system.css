@@ -32,6 +32,10 @@
   --severity-critical-soft: rgba(220, 38, 38, 0.12);
   --severity-warning-soft: rgba(217, 119, 6, 0.12);
   --severity-info-soft: rgba(59, 130, 246, 0.12);
+  /* Fondo del resaltado del detector probabilístico de IA. Definido UNA sola
+     vez por tema: en claro sobre superficie blanca, en oscuro con más alfa
+     porque la superficie oscura se come el gris suave. */
+  --mark-ai-bg: rgba(107, 114, 128, 0.12);
   --severity-critical-tint: rgba(220, 38, 38, 0.05);
   --severity-success-tint: rgba(22, 163, 74, 0.05);
   --color-paper: #ffffff;
@@ -172,6 +176,7 @@
   --color-accent-hover: #7ba0ff;
   --color-accent-pressed: #3b66e0;
   --color-accent-soft: rgba(79, 124, 255, 0.15);
+  --mark-ai-bg: rgba(156, 163, 175, 0.22);
   --color-success: #52c41a;
   --color-warning: #faad14;
   --color-danger: #ff4d4f;
