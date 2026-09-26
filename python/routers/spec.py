@@ -138,10 +138,7 @@ async def generate_from_spec(
         spec: SpecDocument = Body(..., openapi_examples=_OPENAPI_EJEMPLOS),
 ) -> dict:
     """Genera un docx APA 7 completo desde un spec JSON (un solo llamado)."""
-    from main import (
-        ApplyCoverRequest,
-        apply_cover_endpoint,
-    )
+    from routers.cover_templates import ApplyCoverRequest, apply_cover_endpoint
     from routers.generation import GenerateRequest, generate_docx
     from routers.sessions import start_blank_document
 
