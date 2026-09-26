@@ -1,18 +1,18 @@
-/* WordAPA7 — Micro-animación de cierre + papeleta de entrega.
- * Cuando el DOCX/PDF termina de generarse con éxito:
- * 1) spinner → check con mini-rebote (200ms).
- * 2) "Papeleta de entrega": resumen en lenguaje de resultado (compartible),
- *    con botón "Copiar resumen". Auto-se oculta a los ~8s. */
+/* WordAPA7 — Micro-animación de cierre: pantalla final de descarga.
+ * Estructura mínima (la pantalla con menos elementos del flujo):
+ *   ícono de éxito pequeño → título → UNA línea de descripción (≤50ch) →
+ *   dos botones pegados (principal sólida + secundaria fantasma).
+ * Sin listas, tarjetas, columnas ni estadísticas: el resumen de hallazgos ya
+ * se mostró en la vista de revisión. Alineada a la IZQUIERDA (no centrada):
+ * la continuidad del flujo, no una pantalla de celebración.
+ * Auto-se oculta a los ~8s. */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Copy, Check } from 'lucide-react';
 
 export const DownloadSuccessOverlay: React.FC = () => {
   const exportSuccessAt = useDocStore((s) => s.exportSuccessAt);
   const doc = useDocStore((s) => s.doc);
-  const citationAuditResult = useDocStore((s) => s.citationAuditResult);
-  const references = useDocStore((s) => s.references);
   const [show, setShow] = useState(false);
   const [copied, setCopied] = useState(false);
   const lastSeenRef = useRef<number | null>(null);
@@ -31,24 +31,15 @@ export const DownloadSuccessOverlay: React.FC = () => {
 
   if (!show) return null;
 
-  const headings = doc?.elements.filter((e) => e.type === 'heading').length || 0;
-  const figures = doc?.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length || 0;
-  const tables = doc?.elements.filter((e) => e.type === 'table' && e.table_info).length || 0;
   const pages = doc?.meta?.page_count || 0;
-  const ghosts = citationAuditResult?.ghost_citations?.length || 0;
-  const refs = references?.length || doc?.referencias?.length || 0;
   const fileName = (doc as any)?.meta?.file_name || doc?.file_name || 'documento';
 
-  const summary = [
-    `Entrega APA 7 — ${fileName}`,
-    `${pages || '?'} páginas · ${headings} títulos · ${figures} figuras · ${tables} tablas · ${refs} referencias`,
-    ghosts === 0 ? 'Citas al día: sin citas fantasma' : `${ghosts} cita(s) sin referencia (revisar en Referencias)`,
-    'Formateado con WordAPA7',
-  ].join('\n');
+  /* Una sola línea: descripción y texto copiado comparten el mismo contenido */
+  const line = `${fileName} · ${pages ? `${pages} pág. · ` : ''}APA 7`;
 
   const copySummary = async () => {
     try {
-      await navigator.clipboard.writeText(summary);
+      await navigator.clipboard.writeText(line);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch { /* clipboard no disponible */ }
@@ -57,49 +48,66 @@ export const DownloadSuccessOverlay: React.FC = () => {
   return (
     <div className="download-success" role="status" aria-live="polite">
       <div className="download-success-icon">
-        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <svg width="30" height="30" viewBox="0 0 34 34" fill="none">
           <circle cx="17" cy="17" r="15" className="download-success-ring" />
           <path d="M10 17.5 L15 22.5 L24 12" className="download-success-check" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
       </div>
+
       <span className="download-success-text">¡Listo, a entregar!</span>
 
-      {/* Papeleta de entrega */}
-      <div style={{
-        marginTop: '12px', width: '100%', maxWidth: '360px',
-        border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-        backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
-        boxShadow: 'var(--shadow-md)',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-main)' }}>Papeleta de entrega</span>
-          <span style={{ marginLeft: 'auto' }} />
-          <button
-            type="button"
-            onClick={copySummary}
-            title="Copiar resumen"
-            aria-label="Copiar resumen"
-            style={{
-              display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700,
-              padding: '3px 8px', cursor: 'pointer', fontFamily: 'inherit',
-              background: copied ? 'rgba(82,196,26,0.14)' : 'var(--surface-subtle)',
-              border: '1px solid var(--border-subtle)', borderRadius: '999px',
-              color: copied ? 'var(--color-success)' : 'var(--text-secondary)',
-            }}
-          >
-            {copied ? <Check size={10} /> : <Copy size={10} />}
-            {copied ? 'Copiado' : 'Copiar'}
-          </button>
-        </div>
-        <pre style={{
-          margin: 0, padding: '10px 12px', fontSize: '11px', lineHeight: 1.6,
-          color: 'var(--text-secondary)', fontFamily: 'inherit', whiteSpace: 'pre-wrap',
-        }}>
-          {summary}
-        </pre>
+      {/* Una sola línea de descripción (máximo ~50 caracteres de ancho) */}
+      <span
+        style={{
+          fontSize: '11px',
+          color: 'var(--text-secondary)',
+          maxWidth: '50ch',
+          lineHeight: 1.4,
+        }}
+      >
+        {line}
+      </span>
+
+      {/* Dos botones pegados: principal sólida + secundaria fantasma */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+        <button
+          type="button"
+          onClick={copySummary}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: 700,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            backgroundColor: copied ? 'rgba(82,196,26,0.14)' : 'var(--accent-primary)',
+            border: 'none',
+            borderRadius: '8px',
+            color: copied ? 'var(--color-success)' : '#ffffff',
+            transition: 'background-color 0.15s ease',
+          }}
+        >
+          {copied ? 'Copiado' : 'Copiar resumen'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShow(false)}
+          style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            backgroundColor: 'transparent',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          Cerrar
+        </button>
       </div>
     </div>
   );

@@ -1374,18 +1374,18 @@ html, body {
 /* ════════════ MICRO-ANIMACIÓN DE CIERRE (descarga exitosa) ════════════ */
 .download-success {
   position: fixed;
-  left: 50%;
+  left: 24px;
   bottom: 96px;
-  transform: translateX(-50%);
+  transform: none;
   z-index: 95;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   background: var(--surface-elevated);
   border: 1px solid rgba(45, 106, 79, 0.35);
   border-radius: 14px;
-  padding: 12px 22px;
+  padding: 12px 18px;
   box-shadow: var(--shadow-lg);
   animation: download-success-in 0.25s ease-out both;
 }
@@ -1414,8 +1414,8 @@ html, body {
 }
 
 @keyframes download-success-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(14px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes download-success-bounce {
   0% { transform: scale(0.4); }

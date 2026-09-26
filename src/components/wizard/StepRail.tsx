@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download, Check, Map, ChevronDown, ChevronUp, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { OutlineTree } from './OutlineTree';
@@ -23,6 +23,23 @@ export function StepRail() {
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
   const [mapOpen, setMapOpen] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
+
+  /* Reasignación de espacio: al entrar a la vista "Revisión & IA" (paso 5) el
+     panel de pasos se colapsa a solo iconos — el espacio se le quita a lo que
+     ya está decidido y se le da al documento y los hallazgos por examinar. */
+  const prevWidthRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (wizardStep === 5) {
+      if (leftSidebarWidth >= 100 && prevWidthRef.current === null) {
+        prevWidthRef.current = leftSidebarWidth;
+        setLeftSidebarWidth(56);
+      }
+    } else if (prevWidthRef.current !== null) {
+      if (leftSidebarWidth < 100) setLeftSidebarWidth(prevWidthRef.current);
+      prevWidthRef.current = null;
+    }
+  }, [wizardStep, leftSidebarWidth, setLeftSidebarWidth]);
+
 
   const handleResizePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();

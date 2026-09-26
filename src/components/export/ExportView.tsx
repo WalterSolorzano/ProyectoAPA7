@@ -1,23 +1,24 @@
-/* WordAPA7 — Túnel de Exportación & Cabina de Control (WCAG AAA & Behavioral UX)
-   Arquitectura de 2 Columnas: Panel Izquierdo (Cabina de Control) + Panel Derecho (Lienzo Sagrado)
-   Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark.
-
-   Vista de solo lectura: se eliminaron los controles de edición (botones "Editar",
-   enlace al editor asistido y botón "Avanzado") para dar mayor prominencia a la
-   previsualización del documento. El panel izquierdo se redujo de 390px a 340px. */
+/* WordAPA7 — Túnel de Exportación & Pantalla Final de Descarga
+   COLUMPA ÚNICA ALINEADA A LA IZQUIERDA (no centrada): la pantalla con menos
+   elementos del flujo — ícono de éxito → título → una línea de descripción →
+   dos botones pegados (principal sólida + secundaria fantasma).
+   - Sin listas, tarjetas, columnas ni scroll en el estado por defecto.
+   - Formato, opciones, aviso de citas fantasma y vista previa viven OCULTOS
+     bajo el botón "Opciones" (toggle "Previsualizar" para el panel derecho).
+   - El resumen de hallazgos/estadísticas se mostró en la vista de revisión:
+     no se repite aquí. El espacio en blanco es intencional.
+   Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark. */
 
 import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
-import { parseAuthorEntries } from '../../lib/portadaAuthors';
-import { resolveAssetUrl } from '../../api/backend';
-import {
+import { resolveAssetUrl } from '../../api/backend';import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle, Download, Loader2,
-  Sparkles, Eye, ZoomIn, ZoomOut, Check,
-  BookOpen, Layers, Image as ImageIcon, Table, Bot, Columns2
+  Eye, ZoomIn, ZoomOut,
+  Columns2
 } from 'lucide-react';
 
 type Format = 'docx' | 'pdf' | 'latex';
@@ -103,16 +104,18 @@ function iconBox(palette: { bg: string; fg: string }): React.CSSProperties {
 
 export const ExportView: React.FC = () => {
   const {
-    doc, portada, isLoading,
+    doc, isLoading,
     exportDocx, exportPdf, exportLatex,
-    profiles, activeProfileId, setViewMode,
-    citationAuditResult, sayMascot, mascotMessage, clearQuickExport,
+    setViewMode,
+    citationAuditResult, sayMascot, clearQuickExport,
     zoomLevel, setZoomLevel,
   } = useDocStore();
 
   const [format, setFormat] = useState<Format>('docx');
   const [previewMode, setPreviewMode] = useState<PreviewMode>('canvas');
   const [tracked, setTracked] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve'>('idle');
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
 
@@ -148,14 +151,7 @@ export const ExportView: React.FC = () => {
 
   if (!doc) return null;
 
-  const profile = profiles.find((p) => p.profile_id === activeProfileId) || profiles[0] || null;
-
   const ghostCount = citationAuditResult?.ghost_citations?.length || 0;
-  const headingsCount = doc.elements.filter((e) => e.type === 'heading' && !e.is_cover_section).length;
-  const figuresCount = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0).length;
-  const tablesCount = doc.elements.filter((e) => e.type === 'table' && e.table_info).length;
-  const refsCount = doc.referencias?.length || 0;
-  const authorsCount = parseAuthorEntries(portada.author).length;
 
   const doExport = () => {
     clearQuickExport();
@@ -166,6 +162,7 @@ export const ExportView: React.FC = () => {
 
   const handleDownloadClick = () => {
     if (ghostCount > 0 && friction === 'idle') {
+      setOptionsOpen(true);
       setFriction('ask');
       return;
     }
@@ -183,130 +180,134 @@ export const ExportView: React.FC = () => {
       }}
     >
 
-      {/* ── PANEL IZQUIERDO: CABINA DE CONTROL & RESUMEN RÁPIDO ── */}
+      {/* ── COLUMNA ÚNICA ALINEADA A LA IZQUIERDA: pantalla final de descarga ── */}
       <aside
-        aria-label="Opciones y Resumen de Exportación"
+        aria-label="Exportación lista para descargar"
         style={{
-          width: '340px',
-          maxWidth: '40%',
-          minWidth: 0,
+          width: 'clamp(340px, 32vw, 440px)',
           flexShrink: 0,
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: 'var(--color-bg-surface)',
-          borderRight: '1px solid var(--color-border-subtle)',
+          alignItems: 'flex-start',
+          justifyContent: 'flex-start',
+          gap: '16px',
+          padding: '56px 44px',
+          backgroundColor: 'transparent',
+          borderRight: previewOpen ? '1px solid var(--color-border-subtle)' : 'none',
+          overflowY: 'auto',
+          textAlign: 'left',
           zIndex: 10,
-          boxShadow: 'var(--shadow-sm)',
         }}
       >
+        {/* 1. Ícono de éxito pequeño */}
+        <CheckCircle2 size={22} color="var(--color-success)" aria-hidden="true" />
 
-        {/* Cabecera Limpia */}
-        <div
+        {/* 2. Título */}
+        <h1
           style={{
-            padding: 'var(--space-4) var(--space-5)',
-            borderBottom: '1px solid var(--color-border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: 'var(--color-bg-surface-alt)',
+            fontSize: 'var(--text-xl, 20px)',
+            fontWeight: 'var(--font-bold)',
+            color: 'var(--color-text-primary)',
+            lineHeight: 1.2,
+            margin: 0,
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <h1
-                style={{
-                  fontSize: 'var(--text-base)',
-                  fontWeight: 'var(--font-bold)',
-                  color: 'var(--color-text-primary)',
-                  lineHeight: 1,
-                  margin: 0,
-                }}
-              >
-                Exportación Rápida
-              </h1>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-1)',
-                  padding: '2px var(--space-2)',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: 'var(--text-xs)',
-                  fontWeight: 'var(--font-semibold)',
-                  backgroundColor: 'var(--color-accent-soft)',
-                  color: 'var(--color-accent)',
-                  border: '1px solid var(--color-border-subtle)',
-                }}
-              >
-                <Sparkles size={11} style={{ color: 'var(--color-accent)' }} />
-                {profile?.display_name || 'APA 7ª Ed.'}
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: 'var(--text-xs)',
-                color: 'var(--color-text-secondary)',
-                marginTop: 'var(--space-1)',
-                margin: 0,
-              }}
-            >
-              Tu archivo fue estandarizado y está listo para descarga.
-            </p>
-          </div>
+          Exportación Rápida
+        </h1>
 
-          {/* Salida visible del túnel: botón secundario claro, junto al estado de éxito */}
+        {/* 3. Una sola línea de descripción (máximo ~50 caracteres de ancho) */}
+        <p
+          style={{
+            fontSize: 'var(--text-sm)',
+            color: 'var(--color-text-secondary)',
+            margin: 0,
+            maxWidth: '50ch',
+            lineHeight: 'var(--leading-normal)',
+          }}
+        >
+          Tu archivo está listo para descargar.
+        </p>
+
+        {/* 4. Dos botones pegados: principal sólida + secundaria fantasma */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={() => { clearQuickExport(); setViewMode('edit'); }}
+            onClick={handleDownloadClick}
+            disabled={isLoading}
             style={{
+              padding: '11px 18px',
+              backgroundColor: 'var(--color-accent)',
+              color: 'var(--color-text-on-accent)',
+              borderRadius: 'var(--radius-lg)',
+              fontWeight: 'var(--font-bold)',
               fontSize: 'var(--text-sm)',
-              fontWeight: 'var(--font-semibold)',
-              color: 'var(--color-accent)',
-              cursor: 'pointer',
-              background: 'transparent',
-              border: '1px solid var(--border-strong, var(--border-subtle))',
-              borderRadius: 'var(--radius-md)',
-              padding: '8px 14px',
-              transition: 'background var(--transition-fast), border-color var(--transition-fast)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.7 : 1,
+              transition: 'all var(--transition-base)',
+              border: 'none',
               whiteSpace: 'nowrap',
-              flexShrink: 0,
+            }}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={16} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {loadingPhase}
+                </span>
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                <span>
+                  Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX (.tex)'}
+                </span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setOptionsOpen((v) => !v)}
+            aria-expanded={optionsOpen}
+            style={{
+              padding: '11px 16px',
+              backgroundColor: 'transparent',
+              color: 'var(--color-text-secondary)',
+              border: '1px solid var(--border-strong, var(--color-border-subtle))',
+              borderRadius: 'var(--radius-lg)',
+              fontWeight: 'var(--font-semibold)',
+              fontSize: 'var(--text-sm)',
+              cursor: 'pointer',
+              transition: 'background var(--transition-fast), border-color var(--transition-fast)',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover, rgba(79,124,255,0.08))'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            ← Volver a editar
+            Opciones
           </button>
         </div>
 
-        {/* Zona Principal de Exportación */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: 'var(--space-4) var(--space-5)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-4)',
-          }}
-        >
-
-          {/* ── ACCIÓN PRIMARIA: SELECTOR DE FORMATO & CTA HERO ── */}
-          <section
-            aria-label="Selector de Formato y Descarga"
+        {/* Zona OCULTA por defecto: formato, opciones, fricción y vista previa */}
+        {optionsOpen && (
+          <div
             style={{
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--color-border-subtle)',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              padding: 'var(--space-4)',
+              width: '100%',
               display: 'flex',
               flexDirection: 'column',
               gap: 'var(--space-3)',
-              boxShadow: 'var(--shadow-sm)',
+              marginTop: 'var(--space-2)',
+              paddingTop: 'var(--space-4)',
+              borderTop: '1px solid var(--color-border-subtle)',
             }}
           >
-            {/* 1. Selector de Formato */}
+            {/* Selector de Formato */}
             <div
+              aria-label="Selector de formato"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
@@ -360,7 +361,7 @@ export const ExportView: React.FC = () => {
               })}
             </div>
 
-            {/* 2. Opciones de DOCX */}
+            {/* Opciones de DOCX */}
             {format === 'docx' && (
               <label
                 style={{
@@ -390,7 +391,7 @@ export const ExportView: React.FC = () => {
               </label>
             )}
 
-            {/* 3. Advertencia de Citas Fantasma */}
+            {/* Advertencia de Citas Fantasma */}
             {ghostCount > 0 && friction === 'ask' && (
               <div
                 style={{
@@ -447,61 +448,54 @@ export const ExportView: React.FC = () => {
               </div>
             )}
 
-            {/* 4. BOTÓN HERO PRINCIPAL DE DESCARGA */}
-            <button
-              type="button"
-              onClick={handleDownloadClick}
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '14px var(--space-4)',
-                backgroundColor: 'var(--color-accent)',
-                color: 'var(--color-text-on-accent)',
-                borderRadius: 'var(--radius-xl)',
-                fontWeight: 'var(--font-bold)',
-                fontSize: 'var(--text-sm)',
-                boxShadow: 'var(--shadow-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 'var(--space-2)',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                opacity: isLoading ? 0.7 : 1,
-                transition: 'all var(--transition-base)',
-                border: 'none',
-              }}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {loadingPhase}
+            {/* Búsqueda rápida de referencias (flujo de fricción) */}
+            {friction === 'resolve' && (
+              <div
+                style={{
+                  borderRadius: 'var(--radius-xl)',
+                  border: '1px solid var(--color-accent)',
+                  backgroundColor: 'var(--color-accent-soft)',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-2)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingBottom: 'var(--space-2)',
+                    borderBottom: '1px solid var(--color-border-subtle)',
+                  }}
+                >
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
+                    Vincular Referencias Faltantes (Crossref / DOI)
                   </span>
-                </>
-              ) : (
-                <>
-                  <Download size={18} />
-                  <span>
-                    Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX (.tex)'}
-                  </span>
-                  <kbd
+                  <button
+                    type="button"
+                    onClick={() => setFriction('idle')}
                     style={{
-                      marginLeft: '6px',
-                      padding: '2px 6px',
                       fontSize: 'var(--text-xs)',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 400,
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      color: 'rgba(255, 255, 255, 0.85)',
+                      color: 'var(--color-text-tertiary)',
+                      fontWeight: 'var(--font-semibold)',
+                      cursor: 'pointer',
+                      background: 'none',
+                      border: 'none',
                     }}
                   >
-                    Ctrl+S
-                  </kbd>
-                </>
-              )}
-            </button>
+                    Ocultar
+                  </button>
+                </div>
+                <QuickReferenceSearch
+                  onDone={() => {
+                    setFriction('idle');
+                    sayMascot('Referencias vinculadas correctamente. Todo listo.', 'success');
+                  }}
+                />
+              </div>
+            )}
 
             {/* Acción secundaria: Copiar PDF físico al portapapeles para WhatsApp */}
             {format === 'pdf' && (
@@ -536,176 +530,52 @@ export const ExportView: React.FC = () => {
                 <span>Copiar PDF para WhatsApp (Ctrl+V)</span>
               </button>
             )}
-          </section>
 
-          {/* ── RESUMEN COMPACTO DE CERTIFICACIÓN APA 7 ── */}
-          <section
-            aria-label="Certificación de Estructura APA 7"
-            style={{
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--color-border-subtle)',
-              backgroundColor: 'var(--surface-subtle)',
-              overflow: 'hidden',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <div
-              style={{
-                padding: '10px var(--space-4)',
-                backgroundColor: 'var(--color-bg-surface-alt)',
-                borderBottom: '1px solid var(--color-border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span
+            {/* Segunda fila de acciones fantasma: vista previa + volver */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((v) => !v)}
+                aria-pressed={previewOpen}
                 style={{
-                  fontSize: 'var(--text-xs)',
-                  fontWeight: 'var(--font-bold)',
-                  color: 'var(--color-text-primary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Certificación Editorial APA 7
-              </span>
-              <span
-                style={{
-                  fontSize: 'var(--text-xs)',
+                  padding: '8px 14px',
+                  fontSize: 'var(--text-sm)',
                   fontWeight: 'var(--font-semibold)',
-                  color: 'var(--color-success)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-1)',
+                  color: previewOpen ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  background: previewOpen ? 'var(--color-accent-soft)' : 'transparent',
+                  border: '1px solid var(--border-strong, var(--color-border-subtle))',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  transition: 'background var(--transition-fast), border-color var(--transition-fast)',
                 }}
               >
-                <CheckCircle2 size={13} /> En regla
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '12px var(--space-4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-                <span><strong>{authorsCount}</strong> autor{authorsCount === 1 ? '' : 'es'} en portada</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-                <span><strong>{headingsCount}</strong> títulos jerárquicos</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-                <span><strong>{tablesCount + figuresCount}</strong> tablas y figuras</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                <Check size={14} color="var(--color-success)" style={{ flexShrink: 0 }} />
-                <span><strong>{refsCount}</strong> referencias citadas</span>
-              </div>
-            </div>
-          </section>
-
-          {/* ── MASCOTA DINÁMICA / GLOBO DE DIÁLOGO IA ── */}
-          <div
-            style={{
-              backgroundColor: 'var(--color-bg-surface)',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-xl)',
-              padding: '14px',
-              boxShadow: 'var(--shadow-md)',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 'var(--space-3)',
-            }}
-          >
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-accent-soft)',
-                color: 'var(--color-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                border: '1px solid var(--color-border-subtle)',
-              }}
-            >
-              <Bot size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
-                Asistente WordAPA7
-              </div>
-              <p
+                {previewOpen ? 'Ocultar vista previa' : 'Previsualizar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { clearQuickExport(); setViewMode('edit'); }}
                 style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--color-text-primary)',
-                  fontWeight: 'var(--font-medium)',
-                  fontStyle: 'normal',
-                  lineHeight: 'var(--leading-relaxed)',
-                  marginTop: '2px',
-                  margin: 0,
+                  padding: '8px 14px',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 'var(--font-semibold)',
+                  color: 'var(--color-accent)',
+                  background: 'transparent',
+                  border: '1px solid var(--border-strong, var(--color-border-subtle))',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  transition: 'background var(--transition-fast), border-color var(--transition-fast)',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {mascotMessage?.text || 'Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.'}
-              </p>
+                Volver a editar
+              </button>
             </div>
           </div>
-
-          {/* ── BÚSQUEDA RÁPIDA INLINE DE REFERENCIAS ── */}
-          {friction === 'resolve' && (
-            <div
-              style={{
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--color-accent)',
-                backgroundColor: 'var(--color-accent-soft)',
-                padding: '14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingBottom: 'var(--space-2)',
-                  borderBottom: '1px solid var(--color-border-subtle)',
-                }}
-              >
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
-                  Vincular Referencias Faltantes (Crossref / DOI)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setFriction('idle')}
-                  style={{
-                    fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-tertiary)',
-                    fontWeight: 'var(--font-semibold)',
-                    cursor: 'pointer',
-                    background: 'none',
-                    border: 'none',
-                  }}
-                >
-                  Ocultar
-                </button>
-              </div>
-              <QuickReferenceSearch
-                onDone={() => {
-                  setFriction('idle');
-                  sayMascot('Referencias vinculadas correctamente. Todo listo.', 'success');
-                }}
-              />
-            </div>
-          )}
-
-        </div>
+        )}
       </aside>
 
-      {/* ── PANEL DERECHO: EL LIENZO SAGRADO ── */}
+      {/* ── PANEL DERECHO: PREVISUALIZACIÓN (solo bajo toggle) ── */}
+      {previewOpen && (
       <main
         aria-label="Previsualización en Vivo del Documento"
         style={{
@@ -932,6 +802,7 @@ export const ExportView: React.FC = () => {
           )}
         </div>
       </main>
+      )}
 
     </div>
   );

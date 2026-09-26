@@ -27,7 +27,7 @@ describe('D1 — EditorRail eliminado', () => {
   it('RightSidePanel tiene el toggle Sparkles (colapsado)', () => {
     // Cuando el panel está cerrado, muestra un botón Sparkles para reabrir
     expect(rightSidePanelSrc).toContain('Sparkles')
-    expect(rightSidePanelSrc).toMatch(/forceRightPanelOpen.*\n.*return/)
+    expect(rightSidePanelSrc).toMatch(/forceRightPanelOpen[^\n]*\r?\n[^\n]*return/)
   })
 })
 
