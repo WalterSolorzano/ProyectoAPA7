@@ -80,9 +80,27 @@ lee del store directamente salvo el hook.
 
 Fondo `--color-bg-surface`, borde inferior `--color-border-subtle`, `display: grid` con tres zonas.
 
-- Izquierda: botón logo (`BookOpen` + "WordAPA7", abre `FileMenu`), `input` de título editable de
-  420px con ellipsis, chip "Guardado" con check de 11px en `--color-success`.
+- Izquierda: botón logo (`BookOpen` + "WordAPA7", abre `FileMenu`), `span` de **solo lectura** con el
+  nombre del documento, 420px con ellipsis, y chip de estado de guardado.
+
+  El mockup usa un `input` editable y el spec lo exigía, pero **no existe endpoint de renombrado** en
+  `src/api`: no hay `rename`, `setDocTitle` ni `updateDocName`. Un `input` editable sin persistencia
+  sería una mentira —el usuario escribiría un nombre que nadie guarda y que desaparecería al
+  recargar—, y un setter de store que solo vive en memoria empeoraría la mentira. El título se
+  muestra, no se edita, hasta que exista el endpoint. **Enmendado en la Task 7.**
+- El chip de guardado se conecta a `hasUnsavedChanges`, que es estado real y mantenido
+  (`documentSlice.ts:538` lo activa en cada cambio de historia; las tres rutas de export lo limpian).
+  Cuando está limpio dice "Guardado" con un check; cuando no, dice "Sin guardar" en
+  `--color-warning`. Un chip que siempre dice "Guardado" afirmaría algo falso sobre estado que el
+  usuario controla —y el propio `FileMenu.tsx:175` sigue consultando ese campo para proteger el
+  documento al cerrar.
 - Derecha: botón Copiloto IA con contador de issues, `MoreHorizontal`, avatar de 28px con la inicial.
+  El botón logo no lleva `aria-expanded`; solo el de "Más acciones", que sí abre un popover.
+
+El menú de desbordamiento abre con una entrada **Inicio** (volver a la pantalla de bienvenida). Al
+adelgazar la barra, `goHome` se quedó sin ningún caller en la app: sin esta entrada, con un documento
+abierto la pantalla de inicio solo volvía cerrando el documento, y tanto `goHome` como la bandera
+`atHome` quedaban como código muerto. **Añadido en la Task 7.**
 
 El menú de desbordamiento, en orden: Deshacer · Rehacer · separador · Puntuación APA · Módulos APA ·
 Copiar PDF para WhatsApp · separador · Complemento de Word · Instalar actualización (solo si
