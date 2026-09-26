@@ -31,7 +31,9 @@ export const ProjectTabs: React.FC = () => {
     return () => window.removeEventListener('mousedown', onDown);
   }, [overflowOpen]);
 
-  if (tabs.length === 0) return null;
+  // Con una sola pestaña el nombre del proyecto ya vive en la topbar: el strip
+  // solo sirve para navegar entre proyectos.
+  if (tabs.length < 2) return null;
 
   const handleNewTab = () => {
     fileInputRef.current?.click();

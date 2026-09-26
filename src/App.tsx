@@ -3,7 +3,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { needsReview } from './lib/portadaAuthors';
-import { UnifiedToolbar } from './components/toolbar/UnifiedToolbar';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
 import { TemplateDialog } from './components/shared/TemplateDialog';
@@ -25,7 +24,7 @@ import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTables
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
 import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
-import { StepRail } from './components/wizard/StepRail';
+import { AppShell } from './components/shell/AppShell';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
@@ -208,42 +207,6 @@ export const App: React.FC = () => {
     structureTab,
     setStructureTab,
   } = useDocStore();
-
-  // ── Resizable Left Sidebar (Portada / Wizards) ────────────────────────────
-  const [leftSidebarWidth, setLeftSidebarWidth] = React.useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('wordapa7-left-sidebar-width');
-      return saved ? parseInt(saved, 10) : 380;
-    } catch { return 380; }
-  });
-  const [isLeftResizing, setIsLeftResizing] = React.useState(false);
-
-  useEffect(() => {
-    try { localStorage.setItem('wordapa7-left-sidebar-width', leftSidebarWidth.toString()); } catch {}
-  }, [leftSidebarWidth]);
-
-  useEffect(() => {
-    if (!isLeftResizing) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      const newW = Math.min(640, Math.max(300, e.clientX));
-      setLeftSidebarWidth(newW);
-    };
-    const handleMouseUp = () => {
-      setIsLeftResizing(false);
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = 'auto';
-    };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = 'auto';
-    };
-  }, [isLeftResizing]);
 
   // ── Context Menu Integration ──────────────────────────────────────────────
   const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array; isQuick?: boolean; filePath?: string } | null>(null);
@@ -606,66 +569,58 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', borderRadius: '0', overflow: 'hidden', backgroundColor: 'var(--app-bg)', position: 'relative' }}>
-      <UnifiedToolbar />
-      <ProjectTabs />
-      
-      <div className="app-main" style={{ flex: 1, overflow: 'hidden', display: 'flex', backgroundColor: 'var(--app-bg)', minWidth: 0 }}>
-        {/* Navegación de pasos: lista vertical a la izquierda (solo vistas de edición) */}
-        {viewMode !== 'result' && viewMode !== 'export' && viewMode !== 'native-pdf' && <StepRail />}
-        {viewMode === 'result' ? (
-          <div key="view-result" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
-             <PDFPreview />
-          </div>
-        ) : viewMode === 'export' ? (
-          <div key="view-export" className="wizard-step-enter" style={{ flex: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
-            <ExportView />
-          </div>
-        ) : viewMode === 'native-pdf' ? (
-          <div key="view-native-pdf" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
-             <ReactPDFPreview />
-          </div>
-        ) : viewMode === 'split' ? (
-          <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
-            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
-              {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
-              <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
-                {wizardStep === 1 && <Step1PortadaWizard />}
-                {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
-                {wizardStep === 3 && <Step3FiguresTablesWizard />}
-                {wizardStep === 4 && <Step5ReferencesWizard />}
-              </div>
-            </div>
-            <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)', borderLeft: '2px solid var(--border-subtle)' }}>
-              <PDFPreview />
+    <AppShell>
+      {viewMode === 'result' ? (
+        <div key="view-result" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
+          <PDFPreview />
+        </div>
+      ) : viewMode === 'export' ? (
+        <div key="view-export" className="wizard-step-enter" style={{ flex: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
+          <ExportView />
+        </div>
+      ) : viewMode === 'native-pdf' ? (
+        <div key="view-native-pdf" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
+          <ReactPDFPreview />
+        </div>
+      ) : viewMode === 'split' ? (
+        <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
+            {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
+              {wizardStep === 1 && <Step1PortadaWizard />}
+              {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+              {wizardStep === 3 && <Step3FiguresTablesWizard />}
+              {wizardStep === 4 && <Step5ReferencesWizard />}
             </div>
           </div>
-        ) : wizardStep === 1 ? (
-          <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
-            <Step1PortadaWizard />
+          <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)', borderLeft: '2px solid var(--border-subtle)' }}>
+            <PDFPreview />
           </div>
-        ) : (
-          /* D1: EditorRail removed — RightSidePanel handles the assistant toggle */
-          <>
-            <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
-              <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                {wizardStep === 2 && !focusMode && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
-                <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
-                  {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
-                  {wizardStep === 3 && <Step3FiguresTablesWizard />}
-                  {wizardStep === 4 && <Step5ReferencesWizard />}
-                  {wizardStep === 5 && <Step5AuditIAWizard />}
-                  {wizardStep === 6 && <ExportView />}
-                </div>
-              </div>
-              {/* Mapa del documento y panel contextual: activo en pasos 2 y 3 */}
-              {wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}
+        </div>
+      ) : wizardStep === 1 ? (
+        <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key="step-1-canvas">
+          <Step1PortadaWizard />
+        </div>
+      ) : (
+        /* D1: la navegación por fases vive en el rail de 56px de AppShell */
+        <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
+          <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            {wizardStep === 2 && !focusMode && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
+              {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+              {wizardStep === 3 && <Step3FiguresTablesWizard />}
+              {wizardStep === 4 && <Step5ReferencesWizard />}
+              {wizardStep === 5 && <Step5AuditIAWizard />}
+              {wizardStep === 6 && <ExportView />}
             </div>
-          </>
-        )}
-        {/* Copiloto Editorial IA: acoplado en el flex row si está abierto */}
-        {doc && <LiveChatFloatingCard />}
-      </div>
+          </div>
+          {/* Mapa del documento y panel contextual: activo en pasos 2 y 3 */}
+          {wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}
+        </div>
+      )}
+
+      {/* Copiloto Editorial IA */}
+      {doc && <LiveChatFloatingCard />}
 
       <TemplateDialog />
       <OnboardingTour />
@@ -674,12 +629,11 @@ export const App: React.FC = () => {
       {doc && commandPaletteOpen && <CommandPalette />}
       <LoadingTips />
       <DownloadSuccessOverlay />
-      <StatusBar />
       <AIBatteryIndicator />
       {doc && <MascotBubble />}
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
-    </div>
+    </AppShell>
   );
 };
 

@@ -1,14 +1,17 @@
 import { describe, it, expect } from 'vitest'
 // Vite `?raw` trae el contenido del archivo como string en tiempo de transform,
 // sin necesidad de `fs` (que Vite stubbea a null en el entorno jsdom de test).
-import stepRailSrc from '../components/wizard/StepRail.tsx?raw'
 import appSrc from '../App.tsx?raw'
 import rightSidePanelSrc from '../components/activity/RightSidePanel.tsx?raw'
 import step5Src from '../components/wizard/Step5ReferencesWizard.tsx?raw'
+import { EDITOR_RAIL_ITEMS } from '../components/shell/railItems'
 
 describe('Layout: unificación del mapa de títulos', () => {
-  it('StepRail showMap incluye el paso 2', () => {
-    expect(stepRailSrc).toMatch(/wizardStep === 2/)
+  it('el mapa del documento se incluye en el paso 2', () => {
+    // StepRail desapareció: el mapa cuelga del catálogo del rail y el flyout lo
+    // pinta según `showOutline`. La fase 2 (Estructura) es la que lo muestra.
+    const estructura = EDITOR_RAIL_ITEMS.find((item) => item.step === 2)
+    expect(estructura?.showOutline).toBe(true)
   })
 })
 

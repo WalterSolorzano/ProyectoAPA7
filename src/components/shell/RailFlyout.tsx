@@ -23,7 +23,14 @@ const STATUS_COLOR: Record<RailDestination['status'], string> = {
   idle: 'var(--color-text-tertiary)',
 };
 
-export function RailFlyout({ item, onClose }: { item: RailDestination | null; onClose: () => void }): JSX.Element | null {
+export function RailFlyout({ item, onClose, onEnter }: {
+  item: RailDestination | null;
+  onClose: () => void;
+  /** Reporta la entrada del puntero hacia arriba: el shell cancela con esto el
+   *  cierre que él mismo había iniciado al soltarse el rail. Opcional para que
+   *  este componente siga siendo usable sin shell. */
+  onEnter?: () => void;
+}): JSX.Element | null {
   const railPinned = useDocStore((s) => s.railPinned);
   const setRailPinned = useDocStore((s) => s.setRailPinned);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +75,10 @@ export function RailFlyout({ item, onClose }: { item: RailDestination | null; on
     <aside
       data-testid="rail-flyout"
       aria-label={`Detalle de ${item.label}`}
-      onMouseEnter={cancelClose}
+      onMouseEnter={() => {
+        cancelClose();
+        onEnter?.();
+      }}
       onMouseLeave={scheduleClose}
       style={{
         position: 'absolute',
@@ -115,8 +125,6 @@ export function RailFlyout({ item, onClose }: { item: RailDestination | null; on
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' }}>
         {StatusIcon && <StatusIcon size={12} strokeWidth={1.75} aria-hidden style={{ color: STATUS_COLOR[item.status] }} />}
         <span style={{ color: STATUS_COLOR[item.status], fontWeight: 600 }}>
-          {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
-              o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
           {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
               o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
           {item.status === 'pending' && item.pending > 0
