@@ -19,7 +19,7 @@ env/
 
 # Environment files (MUST NOT BE UPLOADED)
 .env
-.md
+# .md (evitar ignorar docs del proyecto)
 .env*.local
 
 # Application local storage & session files
