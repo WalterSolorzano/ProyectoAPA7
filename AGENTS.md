@@ -23,7 +23,7 @@
     1. `runProactiveAudits()`: Auditoría de citas fantasmas y referencias huérfanas.
     2. `runProactiveAutoCaptioning()`: Detección y sugerencia de leyendas APA 7 (Figura N / Tabla N / Nota) para imágenes y tablas sin rotular.
     3. `runProofreadBatch()`: Detección de patrones y frases generadas por IA, texto pegado sin formato y errores ortográficos.
-  - **Sincronización de Comentarios**: El contexto `commentCtx` debe coincidir exactamente entre `renderReviewedText` (subrayados inline) y `WhatsAppComment` (burbujas del gutter lateral) para evitar resaltados huérfanos.
+  - **Sincronización de Comentarios**: un hallazgo se muestra en DOS canales a la vez — el subrayado inline del texto y la burbuja del gutter — y tienen que decir lo mismo. Ambos leen el mismo contexto: lo construye `buildCommentContext` (`src/lib/commentContext.ts`) y lo consumen `ReadingText` (`src/components/review/ReadingText.tsx`, único responsable de los resaltados inline; los colores salen de `MARK_STYLE`, solo tokens) y `WhatsAppComment`. **Regla para quien toque cualquiera de los dos**: nada de normalizar `commentCtx` en el punto de uso (eso vive en `buildCommentContext`), nada de decidir "este tipo de elemento no lleva subrayado" solo en un canal, y nada de descartar (`dismissComment`) por un lado y no por el otro. Si agregás un resaltado inline, va por `ReadingText`; si agregás un tipo de comentario, verificá que `ReadingText` lo subraye y que `ReadingText` no subraye nada que no tenga burbuja.
 
 ## 3. Stack Tecnológico
 - **Frontend**: React 18, TypeScript, Vite 5, Zustand (`useDocStore.ts`), Lucide React.

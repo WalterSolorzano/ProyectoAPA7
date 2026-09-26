@@ -1,8 +1,10 @@
 /* WordAPA7 — contexto de comentarios del lienzo.
-   UNA sola construcción para el subrayado inline (renderReviewedText) y para
-   las burbujas del gutter (WhatsAppComment). La regla de styleAuditRun incluye
-   el corrector: si solo corrio proofread, hay burbuja y tiene que haber
-   subrayado, o el hallazgo queda resaltado a medias. */
+   UNA sola construcción para los DOS canales que muestran un hallazgo: el
+   subrayado inline (`ReadingText`, en `components/review/`) y las burbujas del
+   gutter (`WhatsAppComment`). Los dos leen el `commentCtx` que sale de acá, así
+   que si un hallazgo se anuncia tiene que subrayarse, y viceversa.
+   La regla de styleAuditRun incluye el corrector: si solo corrió proofread, hay
+   burbuja y tiene que haber subrayado, o el hallazgo queda resaltado a medias. */
 
 import type { WhatsAppContext } from '../components/layout/WhatsAppComment';
 import type { AIReviewResult } from '../api/backend';

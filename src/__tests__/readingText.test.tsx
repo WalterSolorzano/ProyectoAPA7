@@ -284,16 +284,80 @@ describe('T9 — consolidation de marcas solapadas', () => {
 });
 
 describe('T9 — hallazgos del corrector', () => {
-  it('un hallazgo de estilo se marca con el motor de estilo', () => {
+  it('un hallazgo que la burbuja no reconoce se marca con el motor de estilo', () => {
+    // `styleAuditRun: true` es el estado real de producción apenas hay
+    // hallazgos del corrector (buildCommentContext). El motor de estilo tiene
+    // que verse ahí, no solo en un fixture con el canal de comentarios apagado.
+    // `passive_voice` no tiene gatillo equivalente en getWhatsAppComment, así
+    // que nadie lo tapa y el color de estilo llega al lienzo.
+    const texto = 'El estudio fue realizado por los investigadores en la región.';
+    const source = fuente({
+      elem: elem(texto),
+      commentCtx: { ...CTX_VACIO, styleAuditRun: true },
+      proofreadFindings: [hallazgo({ kind: 'passive_voice', start: 11, end: 24, message: 'voz pasiva: usar activa' })],
+    });
+    const marcas = collectMarks(texto, source);
+    expect(marcas).toHaveLength(1);
+    expect(marcas[0]).toEqual(expect.objectContaining({ kind: 'style' }));
+    expect(texto.slice(marcas[0].start, marcas[0].end)).toBe('fue realizado');
+    expect(marcas[0].title).toBe('voz pasiva: usar activa');
+
+    const { container } = render(<ReadingText text={texto} source={source} />);
+    const mark = container.querySelector('mark');
+    expect(mark!.getAttribute('style')).toContain('var(--color-accent)');
+  });
+
+  it('el diagnóstico del corrector sobrevive cuando la burbuja tapa el mismo rango', () => {
+    // En producción `styleAuditRun` está activo apenas hay hallazgos del
+    // corrector, así que getWhatsAppComment dispara SU PROPIA burbuja de
+    // primera persona sobre el mismo "Yo" (FIRST_PERSON_RE). El comentario
+    // gana el rango por prioridad, y antes de arreglado se llevaba el title
+    // por delante: el mensaje del corrector quedaba inalcanzable en el lienzo.
     const texto = 'Yo creo que el estudio funciona.';
+    const corrector = hallazgo({ start: 0, end: 2, excerpt: 'Yo creo', message: 'primera persona: usar impersonal' });
+    const commentCtx = { ...CTX_VACIO, styleAuditRun: true };
+    const burbuja = getWhatsAppComment(elem(texto), commentCtx, 0);
+    expect(burbuja).not.toBeNull();
+    expect(burbuja!.match).toBe('Yo');
+
     const marcas = collectMarks(texto, fuente({
       elem: elem(texto),
-      proofreadFindings: [hallazgo({ start: 0, end: 2, excerpt: 'Yo creo' })],
+      commentCtx,
+      proofreadFindings: [corrector],
     }));
-    const style = marcas.find((m) => m.kind === 'style');
-    expect(style).toBeTruthy();
-    expect(texto.slice(style!.start, style!.end)).toBe('Yo');
-    expect(style!.title).toContain('primera persona');
+    expect(marcas).toHaveLength(1);
+    const mark = marcas[0];
+    // El comentario conserva el rango y el color (la burbuja sigue mandando
+    // sobre la pinta), pero el title no puede perder el diagnóstico.
+    expect(texto.slice(mark.start, mark.end)).toBe('Yo');
+    expect(mark.kind).toBe('comment');
+    expect(mark.title).toContain(burbuja!.text);
+    expect(mark.title).toContain('primera persona: usar impersonal');
+  });
+
+  it('el diagnóstico llega al title renderizado, no solo al objeto', () => {
+    const texto = 'Yo creo que el estudio funciona.';
+    const source = fuente({
+      elem: elem(texto),
+      commentCtx: { ...CTX_VACIO, styleAuditRun: true },
+      proofreadFindings: [hallazgo({ start: 0, end: 2, excerpt: 'Yo creo', message: 'primera persona: usar impersonal' })],
+    });
+    const { container } = render(<ReadingText text={texto} source={source} />);
+    const mark = container.querySelector('mark');
+    expect(mark!.textContent).toBe('Yo');
+    expect(mark!.getAttribute('title')).toContain('primera persona: usar impersonal');
+  });
+
+  it('no duplica el diagnóstico cuando el corrector ya ganó el rango', () => {
+    // Sin burbuja que lo tape, la marca ES la del corrector: su title ya es el
+    // mensaje, y anotarlo otra vez sería ruido en el tooltip.
+    const texto = 'En el marco de la investigación, el modelo se ajusta bien.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      proofreadFindings: [hallazgo({ start: 0, end: 34, excerpt: 'En el marco de la investigación' })],
+    }));
+    expect(marcas).toHaveLength(1);
+    expect(marcas[0].title).toBe('primera persona');
   });
 
   it('un hallazgo de ortografía o de muletilla va a su motor, no al de estilo', () => {
@@ -354,10 +418,28 @@ describe('T9 — el párrafo de la revisión se localize por elemento', () => {
     expect(conCita('heading').some((m) => m.kind === 'citation')).toBe(false);
   });
 
-  it('el comentario solo se subraya en bloques de texto, no en una figura', () => {
+  it('un encabezado con comentario de estilo también queda subrayado', () => {
+    // `CONCLUSION_TRIGGERS`/`AI_TRIGGERS` en WhatsAppComment no son filtrados
+    // por tipo de elemento, así que un título con "en conclusión" recibe
+    // burbuja. Si el subrayado dejara fuera a los encabezados, el hallazgo
+    // quedaría anunciado y sin marca: la mitad de lo que la Task 8 arregló.
+    const texto = 'En conclusiones';
+    const enc = elem(texto, { type: 'heading', heading_level: 1 });
+    const commentCtx = { ...CTX_VACIO, styleAuditRun: true };
+    const burbuja = getWhatsAppComment(enc, commentCtx, 0);
+    expect(burbuja).not.toBeNull();
+
+    const marcas = collectMarks(texto, fuente({ elem: enc, commentCtx }));
+    const comment = marcas.find((m) => m.kind === 'comment');
+    expect(comment).toBeTruthy();
+    expect(texto.slice(comment!.start, comment!.end).toLowerCase()).toBe('en conclusion');
+    expect(comment!.title).toBe(burbuja!.text);
+  });
+
+  it('el comentario NO se subraya en una figura', () => {
     // Una figura sin leyenda SÍ recibe burbuja ("Figura sin rotulación"), pero
-    // su `text` no es prosa: subrayarlo no significaría nada. La compuerta por
-    // tipo viene del renderReviewedText original y se preserva.
+    // su `text` no es prosa: no hay fragmento que señalar, subrayarlo sería
+    // pintar un rótulo como si fuera una frase.
     const texto = 'Figura 1';
     const figura = elem(texto, { type: 'image', image_info: { relative_url: 'f.png', caption: '', figure_number: 0, alignment: 'center' } as any });
     expect(getWhatsAppComment(figura, CTX_VACIO, 0)).not.toBeNull();

@@ -80,8 +80,18 @@ const KIND_PRIORITY: Record<MarkKind, number> = {
   comment: 5, citation: 4, spelling: 3, style: 2, ai: 1,
 };
 
-/** Tipos de bloque cuyo texto admite citas y comentarios. */
+/** Tipos de bloque cuyo `text` es prosa corrida: admiten cita APA. */
 const TEXT_BLOCK_TYPES = new Set(['paragraph', 'bullet', 'numbered_list', 'block_quote']);
+
+/**
+ * Tipos que además admiten el subrayado del comentario. Incluye `heading`
+ * porque los gatillos de redacción de `WhatsAppComment`
+ * (`CONCLUSION_TRIGGERS`, `AI_TRIGGERS`, y el bloque de estilo) no filtran por
+ * tipo de elemento: un título con "en conclusión" recibe burbuja, así que
+ * excluirlo del subrayado dejaría el hallazgo anunciado y sin marcar.
+ * Figuras y tablas quedan fuera: su `text` es un rótulo, no una frase.
+ */
+const COMMENT_TYPES = new Set([...TEXT_BLOCK_TYPES, 'heading']);
 
 /** Corrector: qué motor pinta cada tipo de hallazgo. */
 const PROOFREAD_ENGINE: Record<string, MarkKind> = {
@@ -131,6 +141,8 @@ function findingRange(text: string, f: ProofreadFinding): { start: number; end: 
 
 export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
   const marcas: ReadingMark[] = [];
+  /** Diagnósticos del corrector, para reinyectarlos después de consolidar. */
+  const delCorrector: Array<{ start: number; end: number; message: string }> = [];
   const push = (start: number, end: number, kind: MarkKind, title: string, severity?: string) => {
     if (start < 0 || end <= start || end > text.length) return;
     marcas.push({ start, end, kind, title, severity });
@@ -168,12 +180,13 @@ export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
       if (f.element_id !== source.elem.id) continue;
       const rango = findingRange(text, f);
       if (!rango) continue;
+      delCorrector.push({ start: rango.start, end: rango.end, message: f.message });
       push(rango.start, rango.end, PROOFREAD_ENGINE[f.kind] || 'style', f.message, f.severity);
     }
   }
 
   // ── Comentario del gutter: el mismo fragmento que ancla la burbuja ─────────
-  if (source.elem && TEXT_BLOCK_TYPES.has(source.elem.type)) {
+  if (source.elem && COMMENT_TYPES.has(source.elem.type)) {
     const descartado = (source.dismissedCommentIds || []).includes(source.elem.id);
     if (!descartado) {
       const comment = getWhatsAppComment(source.elem, source.commentCtx, 0);
@@ -219,6 +232,22 @@ export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
       continue;
     }
     out.push({ ...m });
+  }
+
+  // ── El corrector se anota SOBRE la marca consolidada ──────────────────────
+  // `getWhatsAppComment` tiene sus propios detectores de estilo (primera
+  // persona, muletillas, cierre…) y `buildCommentContext` los enciende en
+  // cuanto hay hallazgos del corrector, así que la burbuja y el corrector caen
+  // sobre el MISMO rango. El comentario gana por prioridad y se llevaba el
+  // `title` por delante, dejando el diagnóstico del corrector inalcanzable en
+  // el lienzo. Aquí se reinyecta: el comentario conserva color y ancla (es lo
+  // que la burbuja señala), y el mensaje del corrector queda en el tooltip.
+  for (const d of delCorrector) {
+    const mark = out.find((m) => m.start <= d.start && d.end <= m.end);
+    // Si la marca ES la del corrector, su título ya es el mensaje.
+    if (mark && !mark.title.includes(d.message)) {
+      mark.title = `${mark.title} · Corrector: ${d.message}`;
+    }
   }
   return out;
 }
