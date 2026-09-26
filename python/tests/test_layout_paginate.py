@@ -69,14 +69,14 @@ def _session_dir(tmp_path):
     return d
 
 
-def _result(paragraph_pages, paragraph_cuts):
+def _result(paragraph_pages, paragraph_cuts, notes=None):
     from parsing.page_layout_provider import PageLayoutResult
     return PageLayoutResult(
         paragraph_pages=paragraph_pages,
         total_pages=7,
         provider_used="com",
         confidence=1.0,
-        notes=[],
+        notes=notes or [],
         paragraph_cuts=paragraph_cuts,
         page_setup={"width_pt": 612.0, "height_pt": 792.0,
                     "margin_top_pt": 72.0, "margin_bottom_pt": 72.0,
@@ -128,6 +128,8 @@ def test_service_mapea_pages_y_corts(tmp_path, monkeypatch):
                                  "cuts": [{"offset": 120, "page": 2}]}]
     assert out["page_setup"]["height_pt"] == 792.0
     assert out["elapsed_ms"] >= 0
+    # Sin degradación ni notes → estado limpio (contrato de 9 claves)
+    assert out["degraded"] is False and out["reason"] is None
 
 
 def test_service_unavailable_sin_word(tmp_path, monkeypatch):
@@ -136,6 +138,7 @@ def test_service_unavailable_sin_word(tmp_path, monkeypatch):
     out = paginate_session(_fake_doc(), _session_dir(tmp_path))
     assert out["available"] is False
     assert "Se requiere Microsoft Word" in out["reason"]
+    assert out["degraded"] is False  # rama no disponible: clave siempre presente
     assert out["elements"] == [] and out["total_pages"] is None
 
 
@@ -146,6 +149,20 @@ def test_service_inplace_fallo_usa_original(tmp_path, monkeypatch):
     _patch_inplace(monkeypatch, fail=True)
     out = paginate_session(_fake_doc(), _session_dir(tmp_path))
     assert out["available"] is True  # degrada al original, no se rompe
+    # Degradación honesta: el consumidor debe poder distinguirlo
+    assert out["degraded"] is True
+    assert "Materialización falló" in out["reason"]
+
+
+def test_service_notes_del_provider_en_reason(tmp_path, monkeypatch):
+    from services.layout_service import paginate_session
+    res = _result([1, 1], [], notes=["aviso X"])
+    _patch_provider(monkeypatch, result=res)
+    _patch_inplace(monkeypatch)
+    out = paginate_session(_fake_doc(), _session_dir(tmp_path))
+    assert out["available"] is True
+    assert out["degraded"] is False
+    assert out["reason"] == "aviso X"
 
 
 def test_service_excepcion_com_devuelve_unavailable(tmp_path, monkeypatch):

@@ -12,7 +12,7 @@ Word es la única autoridad de layout (decisión D-a). El flujo es:
    con clamp: offsets fuera del rango del texto del elemento se descartan.
 
 Respuesta con claves SIEMPRE presentes: available, provider, reason,
-total_pages, elements, line_cuts, page_setup, elapsed_ms.
+degraded, total_pages, elements, line_cuts, page_setup, elapsed_ms.
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ def _unavailable(reason: str, t0: float) -> dict:
         "available": False,
         "provider": "none",
         "reason": reason,
+        "degraded": False,
         "total_pages": None,
         "elements": [],
         "line_cuts": [],
@@ -68,11 +69,13 @@ def paginate_session(doc: Any, session_dir: Path) -> dict:
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="apa7-live-"))
     try:
+        degraded = False
         try:
             src = _materialize(doc, original, tmp_dir)
         except Exception as exc:
             logger.warning(f"[Layout] materialize falló, uso original: {exc}")
             src = original
+            degraded = True
 
         result = provider.paginate(src, timeout_seconds=_TIMEOUT_S,
                                    with_cuts=True)
@@ -97,10 +100,19 @@ def paginate_session(doc: Any, session_dir: Path) -> dict:
                 if cuts:
                     line_cuts.append({"element_id": eid, "cuts": cuts})
 
+        # Señal honesta de degradación + warnings del provider (notes).
+        # Ambas → degradación primero, todo unido con "; ".
+        reason_parts: list[str] = []
+        if degraded:
+            reason_parts.append("Materialización falló: se pagina el original")
+        reason_parts.extend(str(n) for n in (result.notes or []))
+        reason = "; ".join(reason_parts) if reason_parts else None
+
         out = {
             "available": True,
             "provider": result.provider_used,
-            "reason": None,
+            "reason": reason,
+            "degraded": degraded,
             "total_pages": int(result.total_pages),
             "elements": elements,
             "line_cuts": line_cuts,
