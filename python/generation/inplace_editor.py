@@ -1,19 +1,19 @@
-"""WordAPA7 — Motor de edición IN-PLACE.
+﻿"""WordAPA7 â€” Motor de ediciÃ³n IN-PLACE.
 
-Abre el .docx ORIGINAL y modifica SOLO los párrafos del cuerpo.
-La portada original (todo párrafo con índice < body_start_paragraph_idx),
+Abre el .docx ORIGINAL y modifica SOLO los pÃ¡rrafos del cuerpo.
+La portada original (todo pÃ¡rrafo con Ã­ndice < body_start_paragraph_idx),
 las secciones (sectPr), headers/footers y estilos existentes NUNCA se tocan:
 python-docx preserva intactas las partes que no se modifican.
 
 Scopes soportados (coinciden con scoped_apply):
-  texto            -> tipografía/interlineado/sangría de párrafos del cuerpo
-  tablas_imagenes  -> estilo APA de tablas (bordes/header row); imágenes intactas
-  bibliografia     -> sangría francesa en el bloque final de referencias
+  texto            -> tipografÃ­a/interlineado/sangrÃ­a de pÃ¡rrafos del cuerpo
+  tablas_imagenes  -> estilo APA de tablas (bordes/header row); imÃ¡genes intactas
+  bibliografia     -> sangrÃ­a francesa en el bloque final de referencias
 
 Contrato duro (testeado):
-  * Ningún párrafo con idx < body_start cambia NI UN BYTE.
-  * sectPr / headers / footers / styles.xml byte-idénticos.
-  * Si scopes está definido, solo esos ámbitos cambian.
+  * NingÃºn pÃ¡rrafo con idx < body_start cambia NI UN BYTE.
+  * sectPr / headers / footers / styles.xml byte-idÃ©nticos.
+  * Si scopes estÃ¡ definido, solo esos Ã¡mbitos cambian.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _sha(data: bytes) -> str:
 
 
 def _canon(data: bytes) -> str:
-    """Hash canónico XML (inmune a re-serialización de python-docx)."""
+    """Hash canÃ³nico XML (inmune a re-serializaciÃ³n de python-docx)."""
     from lxml import etree
     try:
         tree = etree.fromstring(data)
@@ -56,7 +56,7 @@ def _cover_floor_by_content(doc: Any) -> int:
     for i, para in enumerate(doc.paragraphs[:60]):
         txt = (para.text or "").strip()
         style = (para.style.name or "").lower() if para.style is not None else ""
-        if "heading" in style or "título" in style:
+        if "heading" in style or "tÃ­tulo" in style:
             return i
         # parrafo de cuerpo tipico: >180 chars o contiene citas (Autor, 2019)
         if len(txt) > 180 or re.search(r"\([A-Z][^)]{2,40},\s*(19|20)\d{2}\)", txt):
@@ -95,13 +95,13 @@ def _normalize_ref_for_dedup(text: str) -> str:
 
 
 def _is_list_item(para: Any, text: str) -> bool:
-    """Detecta si un parrafo es viñeta o lista numerada."""
+    """Detecta si un parrafo es viÃ±eta o lista numerada."""
     try:
         if para._p.pPr is not None and para._p.pPr.numPr is not None:
             return True
     except Exception:
         pass
-    return bool(re.match(r"^(?:[\u2022\u2023\u25E6\u2043\u2219\*\-\–\—]|\d+[\.\)]|[a-zA-Z][\.\)]|\([a-zA-Z\d]+\))\s+", text))
+    return bool(re.match(r"^(?:[\u2022\u2023\u25E6\u2043\u2219\*\-\â€“\â€”]|\d+[\.\)]|[a-zA-Z][\.\)]|\([a-zA-Z\d]+\))\s+", text))
 
 
 def _is_toc_line(text: str) -> bool:
@@ -123,7 +123,7 @@ def apply_inplace(
 
     orig_bytes = Path(original_path).read_bytes()
 
-    # Snapshots de garantía: portada (párrafos < body_start) y partes globales.
+    # Snapshots de garantÃ­a: portada (pÃ¡rrafos < body_start) y partes globales.
     pre = Document(io.BytesIO(orig_bytes))
     try:
         body_start = max(body_start, _cover_floor_by_content(pre))
@@ -140,7 +140,7 @@ def apply_inplace(
     doc = Document(io.BytesIO(orig_bytes))
     paragraphs = doc.paragraphs
     font_name = getattr(rules, "font_family", None) or "Times New Roman"
-    font_size = Pt(getattr(rules, "font_size", 12) or 12)
+    font_size = Pt(getattr(rules, "font_size_pt", 12) or 12)
     line_sp = float(getattr(rules, "line_spacing", 2.0) or 2.0)
 
     changed = 0
@@ -151,18 +151,18 @@ def apply_inplace(
     removed_refs = 0
     ref_zone_start = len(paragraphs)
     if "texto" in active or "bibliografia" in active:
-        # Localizar inicio de bibliografía: último heading 'Referencias' o primer párrafo-ref
+        # Localizar inicio de bibliografÃ­a: Ãºltimo heading 'Referencias' o primer pÃ¡rrafo-ref
         for i in range(len(paragraphs) - 1, body_start, -1):
-            if paragraphs[i].text.strip().lower().rstrip(":") in ("referencias", "bibliografía", "bibliografia", "references"):
+            if paragraphs[i].text.strip().lower().rstrip(":") in ("referencias", "bibliografÃ­a", "bibliografia", "references"):
                 ref_zone_start = i + 1
                 break
 
     for i, para in enumerate(paragraphs):
         if i < body_start:
-            continue  # PORTADA INTOCABLE — contrato duro
+            continue  # PORTADA INTOCABLE â€” contrato duro
         text = para.text.strip()
         if not text:
-            # Preservar saltos de página manuales (rendered como w:br con type="page" o lastRenderedPageBreak)
+            # Preservar saltos de pÃ¡gina manuales (rendered como w:br con type="page" o lastRenderedPageBreak)
             has_page_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br[@{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type="page"]'))
             has_rendered_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}lastRenderedPageBreak'))
             
@@ -170,13 +170,13 @@ def apply_inplace(
                 para._element.getparent().remove(para._element)
             continue
         style_name = (para.style.name or "").lower() if para.style is not None else ""
-        if "heading" in style_name or "título" in style_name or "titulo" in style_name:
+        if "heading" in style_name or "tÃ­tulo" in style_name or "titulo" in style_name:
             para.paragraph_format.keep_with_next = True
             para.paragraph_format.widow_control = True
             continue  # headings: los maneja la ruta rebuild si el usuario lo pide
 
         # Linea de indice / TOC -> NO aplicar sangria de primera linea
-        if _is_toc_line(text) or text.strip().lower() in ("indice", "índice", "tabla de contenido", "tabla de contenidos"):
+        if _is_toc_line(text) or text.strip().lower() in ("indice", "Ã­ndice", "tabla de contenido", "tabla de contenidos"):
             continue
 
         if "bibliografia" in active and i >= ref_zone_start and _is_ref_paragraph(text):
@@ -196,7 +196,7 @@ def apply_inplace(
             changed += 1
             continue
 
-        # Viñetas o listas -> margen izquierdo 0.5", SIN sangria de primera linea APA
+        # ViÃ±etas o listas -> margen izquierdo 0.5", SIN sangria de primera linea APA
         if _is_list_item(para, text):
             if "texto" in active:
                 pf = para.paragraph_format
@@ -241,7 +241,7 @@ def apply_inplace(
                         trPr.append(OxmlElement("w:cantSplit"))
                 except Exception:
                     pass
-            # Bordes horizontales únicamente (estilo APA clásico)
+            # Bordes horizontales Ãºnicamente (estilo APA clÃ¡sico)
             tblPr = tbl._tbl.tblPr
             borders = tblPr.find(qn("w:tblBorders"))
             if borders is not None:
@@ -261,7 +261,7 @@ def apply_inplace(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(str(out_path))
 
-    # Verificación post: asegurar que la portada no mutó
+    # VerificaciÃ³n post: asegurar que la portada no mutÃ³
     post_bytes = out_path.read_bytes()
     post = Document(io.BytesIO(post_bytes))
     cover_after = [_sha(p._element.xml.encode("utf-8")) for p in post.paragraphs[:body_start]]
