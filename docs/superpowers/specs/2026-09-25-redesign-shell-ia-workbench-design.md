@@ -221,7 +221,11 @@ Deuda anotada, no resuelta aquí:
 
 ## 11. Pruebas
 
-Los 125 tests actuales siguen en verde, con `editorRailToggle.test.tsx` reescrito para el rail nuevo.
+Los 125 tests actuales siguen en verde sin reescribir ninguno:
+Despite su nombre, `editorRailToggle.test.tsx` prueba el toggle de `RightSidePanel` y no el rail, así
+que no le afecta el rediseño. Los tests que sí muerden el shell son `reviewHighlight.test.tsx` y
+`reviewMinimapKeyboard.test.tsx`, que se actualizan cuando `ReadingText` y el rack cambien de
+implementación.
 
 Nuevos:
 
