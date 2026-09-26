@@ -75,7 +75,7 @@ const ENGINE_META: Record<ToolWindowId, {
 const ENGINE_COLORS: Record<ToolWindowId, string> = {
   ai: 'var(--color-danger)',
   style: 'var(--color-warning)',
-  spelling: 'var(--accent-primary)',
+  spelling: 'var(--color-accent)',
   citations: 'var(--color-success)',
   structure: 'var(--text-secondary)',
 };
@@ -793,7 +793,7 @@ export const Step5AuditIAWizard: React.FC = () => {
               height: '30px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--color-accent-soft)',
-              color: 'var(--accent-primary)',
+              color: 'var(--color-accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -825,7 +825,7 @@ export const Step5AuditIAWizard: React.FC = () => {
               padding: '5px 8px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--color-accent-soft)',
-              color: 'var(--accent-primary)',
+              color: 'var(--color-accent)',
               border: '1px solid var(--border-subtle)',
               fontSize: 'var(--text-xs)',
               fontWeight: 700,
@@ -913,9 +913,9 @@ export const Step5AuditIAWizard: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: '1px solid',
-                  borderColor: active ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                  borderColor: active ? 'var(--color-accent)' : 'var(--border-subtle)',
                   backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-                  color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  color: active ? 'var(--color-accent)' : 'var(--text-secondary)',
                   opacity: active ? 1 : 0.7,
                 }}
               >
@@ -1001,8 +1001,8 @@ export const Step5AuditIAWizard: React.FC = () => {
               fontSize: 'var(--text-xs)',
               fontWeight: 800,
               cursor: orderedItems.length ? 'pointer' : 'not-allowed',
-              backgroundColor: 'var(--accent-primary)',
-              color: '#ffffff',
+              backgroundColor: 'var(--color-accent)',
+              color: 'var(--color-text-on-accent)',
               border: 'none',
               opacity: orderedItems.length ? 1 : 0.6,
             }}
@@ -1038,7 +1038,7 @@ export const Step5AuditIAWizard: React.FC = () => {
             flexDirection: 'column',
             backgroundColor: 'var(--sidebar-bg)',
             borderLeft: '1px solid var(--border-subtle)',
-            boxShadow: '-4px 0 20px rgba(0,0,0,0.06)',
+            boxShadow: 'var(--shadow-panel-left)',
             overflow: 'hidden',
             zIndex: 10,
           }}
@@ -1166,7 +1166,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                     >
                       <div
                         style={{
-                          color: hasItems ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                          color: hasItems ? 'var(--color-accent)' : 'var(--text-secondary)',
                           display: 'flex',
                           alignItems: 'center',
                         }}
@@ -1185,7 +1185,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                               padding: '1px 6px',
                               borderRadius: 'var(--radius-full)',
                               backgroundColor: hasItems ? 'var(--color-warning)' : 'var(--border-subtle)',
-                              color: hasItems ? '#ffffff' : 'var(--text-secondary)',
+                              color: hasItems ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
                             }}
                           >
                             {g.items.length}
@@ -1213,7 +1213,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                             borderRadius: 'var(--radius-sm)',
                             backgroundColor: g.id === 'ai' ? 'transparent' : 'var(--surface-elevated)',
                             border: '1px solid var(--border-subtle)',
-                            color: g.id === 'ai' ? 'var(--text-secondary)' : 'var(--accent-primary)',
+                            color: g.id === 'ai' ? 'var(--text-secondary)' : 'var(--color-accent)',
                             cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
                           }}
                         >
@@ -1283,7 +1283,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                               style={{
                                 borderRadius: 'var(--radius-sm)',
                                 backgroundColor: isExpanded ? 'var(--color-accent-soft)' : 'var(--sidebar-bg)',
-                                border: isExpanded ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                border: isExpanded ? '1px solid var(--color-accent)' : '1px solid var(--border-subtle)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '6px',
@@ -1329,16 +1329,16 @@ export const Step5AuditIAWizard: React.FC = () => {
                                       borderRadius: 'var(--radius-full)',
                                       backgroundColor:
                                         current?.severity === 'critical'
-                                          ? 'rgba(220, 38, 38, 0.12)'
+                                          ? 'var(--severity-critical-soft)'
                                           : current?.severity === 'high'
-                                          ? 'rgba(217, 119, 6, 0.12)'
-                                          : 'rgba(59, 130, 246, 0.12)',
+                                          ? 'var(--severity-warning-soft)'
+                                          : 'var(--severity-info-soft)',
                                       color:
                                         current?.severity === 'critical'
                                           ? 'var(--color-danger)'
                                           : current?.severity === 'high'
                                           ? 'var(--color-warning)'
-                                          : 'var(--accent-primary)',
+                                          : 'var(--color-accent)',
                                       flexShrink: 0,
                                     }}
                                   >
@@ -1394,8 +1394,8 @@ export const Step5AuditIAWizard: React.FC = () => {
                                         borderRadius: 'var(--radius-sm)',
                                         cursor: isBatchProcessing ? 'not-allowed' : 'pointer',
                                         border: sub.action === 'mark' ? '1px solid var(--border-subtle)' : 'none',
-                                        backgroundColor: sub.action === 'mark' ? 'transparent' : 'var(--accent-primary)',
-                                        color: sub.action === 'mark' ? 'var(--text-secondary)' : '#ffffff',
+                                        backgroundColor: sub.action === 'mark' ? 'transparent' : 'var(--color-accent)',
+                                        color: sub.action === 'mark' ? 'var(--text-secondary)' : 'var(--color-text-on-accent)',
                                       }}
                                     >
                                       {massLabel[sub.action]}
@@ -1453,16 +1453,16 @@ export const Step5AuditIAWizard: React.FC = () => {
                                         textTransform: 'uppercase',
                                         backgroundColor:
                                           current.severity === 'critical'
-                                            ? 'rgba(220, 38, 38, 0.12)'
+                                            ? 'var(--severity-critical-soft)'
                                             : current.severity === 'high'
-                                            ? 'rgba(217, 119, 6, 0.12)'
-                                            : 'rgba(59, 130, 246, 0.12)',
+                                            ? 'var(--severity-warning-soft)'
+                                            : 'var(--severity-info-soft)',
                                         color:
                                           current.severity === 'critical'
                                             ? 'var(--color-danger)'
                                             : current.severity === 'high'
                                             ? 'var(--color-warning)'
-                                            : 'var(--accent-primary)',
+                                            : 'var(--color-accent)',
                                       }}
                                     >
                                       Pág. {current.pageNumber}
@@ -1526,7 +1526,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                           fontSize: 'var(--text-xs)',
                                           color: 'var(--text-main)',
                                           padding: '4px 6px',
-                                          backgroundColor: 'rgba(220, 38, 38, 0.05)',
+                                          backgroundColor: 'var(--severity-critical-tint)',
                                           borderLeft: '2px solid var(--color-danger)',
                                           borderRadius: 'var(--radius-sm)',
                                           fontFamily: 'monospace',
@@ -1548,7 +1548,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                         fontSize: 'var(--text-xs)',
                                         color: 'var(--text-main)',
                                         padding: '4px 6px',
-                                        backgroundColor: 'rgba(22, 163, 74, 0.05)',
+                                        backgroundColor: 'var(--severity-success-tint)',
                                         borderLeft: '2px solid var(--color-success)',
                                         borderRadius: 'var(--radius-sm)',
                                         fontFamily: 'monospace',
@@ -1616,9 +1616,9 @@ export const Step5AuditIAWizard: React.FC = () => {
                                           fontWeight: 800,
                                           padding: '4px 10px',
                                           borderRadius: 'var(--radius-sm)',
-                                          backgroundColor: 'var(--accent-primary)',
+                                          backgroundColor: 'var(--color-accent)',
                                           border: 'none',
-                                          color: '#ffffff',
+                                          color: 'var(--color-text-on-accent)',
                                           cursor: isProcessingId === current.id ? 'not-allowed' : 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',

@@ -27,6 +27,13 @@
   --color-warning: #d48806;
   --color-danger: #d4382e;
   --color-info: #4f7cff;
+  /* Tintes de severidad (vista de revisión) — definidos UNA sola vez y
+     estables en ambos temas para conservar el valor computado exacto. */
+  --severity-critical-soft: rgba(220, 38, 38, 0.12);
+  --severity-warning-soft: rgba(217, 119, 6, 0.12);
+  --severity-info-soft: rgba(59, 130, 246, 0.12);
+  --severity-critical-tint: rgba(220, 38, 38, 0.05);
+  --severity-success-tint: rgba(22, 163, 74, 0.05);
   --color-paper: #ffffff;
   --color-paper-surface-alt: #f1f5f9;
   --color-paper-border-dashed: #cbd5e1;
@@ -81,6 +88,7 @@
   --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.14);
   --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.12);
   --shadow-focus: 0 0 0 3px rgba(79, 124, 255, 0.2);
+  --shadow-panel-left: -4px 0 20px rgba(0, 0, 0, 0.06);
 
   /* ════════════ ICONOS ════════════ */
   --icon-size-sm: 14px;
