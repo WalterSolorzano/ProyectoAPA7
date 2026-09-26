@@ -3,7 +3,7 @@ import shutil
 import sys
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
@@ -17,6 +17,10 @@ class PageLayoutResult:
     provider_used: str              # "com" | "libreoffice" | "heuristic"
     confidence: float               # 1.0 para COM, 0.95 LibreOffice, 0.5 heurística
     notes: List[str]                # Warnings (ej: "Word colgó, se mató proceso")
+    # FASE 2 — contrato de datos (Task 2). El cómputo real (cuts_for_range /
+    # with_cuts / page_setup_dict) es Task 3; aquí solo los campos con default.
+    paragraph_cuts: List[List[dict]] = field(default_factory=list)
+    page_setup: Optional[dict] = None
 
 class PageLayoutProvider(ABC):
     @abstractmethod
