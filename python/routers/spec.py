@@ -143,8 +143,8 @@ async def generate_from_spec(
         GenerateRequest,
         apply_cover_endpoint,
         generate_docx,
-        start_blank_document,
     )
+    from routers.sessions import start_blank_document
 
     # 1. Resolver presets y portada (404 con available)
     table_rec = _resolve_preset(spec.presets.table, "table")
