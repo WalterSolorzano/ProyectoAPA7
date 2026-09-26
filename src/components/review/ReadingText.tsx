@@ -93,6 +93,16 @@ const TEXT_BLOCK_TYPES = new Set(['paragraph', 'bullet', 'numbered_list', 'block
  */
 const COMMENT_TYPES = new Set([...TEXT_BLOCK_TYPES, 'heading']);
 
+/**
+ * Tipos donde un comentario sin `match` se ancla pintando el elemento entero.
+ * Solo prosa: la burbuja señala "este párrafo", así que pintarlo entero es una
+ * aproximación razonable. Un encabezado con una incidencia de validación o con
+ * referencias huérfanas llega sin `match` porque no hay fragmento que señalar,
+ * y su texto es un rótulo: teñirlo entero deja la hoja hecho un desastre
+ * visual por una incidencia de metadatos. Ahí se dibuja la burbuja sola.
+ */
+const WHOLE_ELEMENT_ANCHOR = TEXT_BLOCK_TYPES;
+
 /** Corrector: qué motor pinta cada tipo de hallazgo. */
 const PROOFREAD_ENGINE: Record<string, MarkKind> = {
   ortografia: 'spelling',
@@ -176,12 +186,19 @@ export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
 
   // ── Hallazgos del corrector, por elemento ─────────────────────────────────
   if (source.elem) {
+    const original = source.elem.text || '';
     for (const f of source.proofreadFindings) {
       if (f.element_id !== source.elem.id) continue;
-      const rango = findingRange(text, f);
+      const rango = findingRange(original, f);
       if (!rango) continue;
-      delCorrector.push({ start: rango.start, end: rango.end, message: f.message });
-      push(rango.start, rango.end, PROOFREAD_ENGINE[f.kind] || 'style', f.message, f.severity);
+      // Los offsets del corrector son sobre `elem.text`. Un encabezado se
+      // pinta numerado ("1. En conclusiones"), así que el offset crudo
+      // caería sobre otras palabras: cuando el texto pintado no es el
+      // original, el rango se reubica buscando su propio fragmento.
+      const hit = original === text ? rango : findAccentAgnostic(text, original.slice(rango.start, rango.end));
+      if (!hit) continue;
+      delCorrector.push({ start: hit.start, end: hit.end, message: f.message });
+      push(hit.start, hit.end, PROOFREAD_ENGINE[f.kind] || 'style', f.message, f.severity);
     }
   }
 
@@ -194,7 +211,7 @@ export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
         const hit = comment.match ? findAccentAgnostic(text, comment.match) : null;
         if (hit) {
           push(hit.start, hit.end, 'comment', comment.text);
-        } else if (text.trim()) {
+        } else if (text.trim() && WHOLE_ELEMENT_ANCHOR.has(source.elem.type)) {
           // Fragmento no localizable → el párrafo entero, para que el
           // comentario siempre ancle a algo visible.
           push(0, text.length, 'comment', comment.text);

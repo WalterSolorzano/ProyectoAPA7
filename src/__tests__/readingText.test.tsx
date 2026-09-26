@@ -446,6 +446,35 @@ describe('T9 — el párrafo de la revisión se localize por elemento', () => {
     const marcas = collectMarks(texto, fuente({ elem: figura }));
     expect(marcas.some((m) => m.kind === 'comment')).toBe(false);
   });
+
+  it('un comentario SIN fragmento no pinta el encabezado entero', () => {
+    // Las incidencias de validación y las referencias huérfanas llegan sin
+    // `match`: no hay fragmento que señalar. En un párrafo el respaldo es
+    // marcar el párrafo entero, que es aproximadamente lo que señala la
+    // burbuja. En un encabezado no: es un rótulo, y pintarlo entero deja el
+    // documento hecho un desastre visual por una incidencia de metadatos.
+    const texto = 'Resultados';
+    const enc = elem(texto, { type: 'heading', heading_level: 1 });
+    const commentCtx = { ...CTX_VACIO, validationIssues: [{ element_id: 'p1', category: 'headings', severity: 'warning', message: 'jerarquía' }] };
+    const burbuja = getWhatsAppComment(enc, commentCtx, 0);
+    expect(burbuja).not.toBeNull();
+    expect(burbuja!.match).toBeUndefined();
+    expect(collectMarks(texto, fuente({ elem: enc, commentCtx }))).toEqual([]);
+  });
+
+  it('los offsets del corrector no se corren cuando el texto pintado lleva prefijo', () => {
+    // Un encabezado se pinta como "1. En conclusiones", pero los offsets del
+    // corrector son sobre `elem.text`. Sin reubicar, el subrayado caería dos
+    // palabras más adelante: peor que no subrayar.
+    const original = 'En conclusiones del estudio';
+    const pintado = '1. En conclusiones del estudio';
+    const marcas = collectMarks(pintado, fuente({
+      elem: elem(original, { type: 'heading', heading_level: 1 }),
+      proofreadFindings: [hallazgo({ start: 3, end: 15, excerpt: 'conclusiones' })],
+    }));
+    expect(marcas).toHaveLength(1);
+    expect(pintado.slice(marcas[0].start, marcas[0].end)).toBe('conclusiones');
+  });
 });
 
 describe('T9 — el lienzo consume ReadingText', () => {
@@ -484,5 +513,59 @@ describe('T9 — el lienzo consume ReadingText', () => {
     const wrap = pintar();
     expect(wrap).toBeTruthy();
     expect(wrap!.querySelector('mark')).toBeNull();
+  });
+});
+
+describe('T9 — el lienzo subraya los ENCABEZADOS', () => {
+  // El nivel de arriba prueba que collectMarks marca un encabezado. Este
+  // prueba que el usuario lo ve: los encabezados tienen que pasar por
+  // ReadingText en PaperCanvas, no renderizarse como texto crudo.
+  const montar = (elements: unknown[], extra: Record<string, unknown> = {}) => {
+    useDocStore.setState({
+      doc: { session_id: 's1', file_name: 't.docx', apa_format: 'student', referencias: [], meta: { page_count: 1 }, elements },
+      portada: { ...defaultPortada },
+      reviewResult: null,
+      proofreadFindings: [],
+      dismissedCommentIds: [],
+      validationIssues: [],
+      ...extra,
+    } as any);
+    return render(<PaperCanvas />).container;
+  };
+
+  const titulo = (texto: string) => elem(texto, { id: 'h1', type: 'heading', heading_level: 1 });
+
+  it('un encabezado con comentario de estilo aparece subrayado en el lienzo', () => {
+    // El revisor corrió (habilita el comentario de redacción) y la burbuja
+    // existe; el subrayado tiene que existir también.
+    const texto = 'En conclusiones';
+    const container = montar([titulo(texto)], { reviewResult: review([parrafo(texto, { element_id: 'h1', type: 'heading' })]) });
+    const mark = container.querySelector('#paper-elem-h1 mark');
+    expect(mark).toBeTruthy();
+    // El encabezado se pinta numerado ("1. En conclusiones"): el subrayado cae
+    // sobre el fragmento real del texto, no sobre el prefijo.
+    expect(mark!.textContent).toBe('En conclusion');
+    expect(mark!.getAttribute('style')).toContain('var(--severity-warning-soft)');
+  });
+
+  it('un encabezado con incidencia de validación NO queda pintado entero', () => {
+    // Sin `match` no hay fragmento que señalar: la burbuja queda sola, que es
+    // la decisión de producto, pero el rótulo no se tiñe.
+    const container = montar([titulo('Resultados')], {
+      validationIssues: [{ element_id: 'h1', category: 'headings', severity: 'warning', message: 'jerarquía', rule_id: 'r1' }],
+    });
+    const wrap = container.querySelector('#paper-elem-h1');
+    expect(wrap).toBeTruthy();
+    expect(wrap!.textContent).toContain('Resultados');
+    expect(wrap!.querySelector('mark')).toBeNull();
+  });
+
+  it('descartar el comentario también limpia el encabezado', () => {
+    const texto = 'En conclusiones';
+    const container = montar([titulo(texto)], {
+      reviewResult: review([parrafo(texto, { element_id: 'h1', type: 'heading' })]),
+      dismissedCommentIds: ['h1'],
+    });
+    expect(container.querySelector('#paper-elem-h1 mark')).toBeNull();
   });
 });

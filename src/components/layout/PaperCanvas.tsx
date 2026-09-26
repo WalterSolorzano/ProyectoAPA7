@@ -1909,7 +1909,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   // El resaltado de revisión usa un fondo sutil, no un borde decorativo.
                                   ...reviewHighlightStyle(elem.id),
                                 }}>
-                                  {headingDisplayText.get(elem.id) ?? elem.text}
+                                  <ReadingText text={headingDisplayText.get(elem.id) ?? elem.text} source={readingSource(elem)} />
                                 </p>
                               );
                             })()}
