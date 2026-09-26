@@ -397,6 +397,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const [editingCoverElemId, setEditingCoverElemId] = useState<string | null>(null);
   const [editingCoverText, setEditingCoverText] = useState<string>('');
 
+  /* Resaltado inline de revisión (vista Paso 5): fondo de acento suave en TODOS
+     los tipos de elemento cuyo id esté en reviewHighlightIds. Sin prop → valores
+     por defecto (fondo transparente), render idéntico al actual. */
+  const reviewHighlightStyle = (id: string) => {
+    const on = reviewHighlightIds?.has(id);
+    return {
+      backgroundColor: on ? 'var(--color-accent-soft)' : 'transparent',
+      borderRadius: on ? 'var(--radius-sm)' : 0,
+      transition: 'background-color 0.15s ease',
+    };
+  };
+
   // ── Medición DOM real (fase 1 motor híbrido): id → altura px ──
   // Solo se miden elementos renderizados COMPLETOS (los fragmentos partidos
   // no re-miden: conservarían solo su trozo y corromperían el total).
@@ -1704,7 +1716,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               whiteSpace: 'pre-line',
                               lineHeight: 1.4,
                               transition: 'background-color 0.12s ease, border-color 0.12s ease',
-                              backgroundColor: isSelected ? 'rgba(79,124,255,0.10)' : 'transparent',
+                              backgroundColor: isSelected
+                                ? 'rgba(79,124,255,0.10)'
+                                : (reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent'),
                               border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
                             }}
                           >
@@ -2001,6 +2015,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                       fontFamily: fontFamily,
                                       fontWeight: 'bold', textAlign: 'center', fontSize: '14pt',
                                       margin: '0 0 12px 0',
+                                      ...reviewHighlightStyle(elem.id),
                                     }}>
                                       {elem.text}
                                     </p>
@@ -2035,11 +2050,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   marginBottom: '8px',
                                   // APA 7: sin decoración visual (bordes, paddings). Solo negrita/itálica/alineación.
                                   // El resaltado de revisión usa un fondo sutil, no un borde decorativo.
-                                  backgroundColor: reviewHighlightIds?.has(elem.id)
-                                    ? 'var(--color-accent-soft)'
-                                    : 'transparent',
-                                  borderRadius: reviewHighlightIds?.has(elem.id) ? 'var(--radius-sm)' : 0,
-                                  transition: 'background-color 0.15s ease',
+                                  ...reviewHighlightStyle(elem.id),
                                 }}>
                                   {headingDisplayText.get(elem.id) ?? elem.text}
                                 </p>
@@ -2052,7 +2063,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 textIndent: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 textAlign: 'justify',
-                                margin: '0 0 8px 0'
+                                margin: '0 0 8px 0',
+                                ...reviewHighlightStyle(elem.id),
                               }}>
                                 {renderReviewedText(elem, elem.text)}
                               </p>
@@ -2064,20 +2076,21 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 marginLeft: '0.5in',
                                 lineHeight: rules.line_spacing,
                                 fontSize: `${rules.font_size_pt - 1}pt`,
-                                marginTop: '6px', marginBottom: '8px'
+                                marginTop: '6px', marginBottom: '8px',
+                                ...reviewHighlightStyle(elem.id),
                               }}>
                                 {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'bullet' && (
-                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0' }}>
+                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0', ...reviewHighlightStyle(elem.id) }}>
                                 • {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
-                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0' }}>
+                              <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0', ...reviewHighlightStyle(elem.id) }}>
                                 {currentItemNum}. {renderReviewedText(elem, elem.text)}
                               </p>
                             )}
@@ -2086,7 +2099,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               <div style={{
                                 margin: '16px 0 24px 0',
                                 padding: '20px 24px',
-                                backgroundColor: 'var(--paper-bg)',
+                                backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'var(--paper-bg)',
                                 border: '1.5px dashed var(--paper-faint)',
                                 borderRadius: '8px',
                                 fontFamily: fontFamily,
@@ -2175,7 +2188,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           <div style={{
                             margin: '16px auto', maxWidth: '95%',
                             border: '1px solid var(--paper-line-strong)', borderRadius: '8px',
-                            backgroundColor: 'var(--paper-near)', padding: '10px',
+                            backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'var(--paper-near)', padding: '10px',
                             position: 'relative',
                             display: 'flex', flexDirection: 'column',
                           }}>
@@ -2411,7 +2424,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           const cellFont = isCompact ? '9pt' : isExpanded ? '12pt' : '11pt';
                           const styleLabel = tableStyle === 'compact' ? 'Compacto' : tableStyle === 'expanded' ? 'Expandido' : 'Estándar';
                           return (
-                          <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto' }}>
+                          <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2px 0' }}>
                               <p style={{ fontWeight: 'bold', margin: 0 }}>
                                 Tabla {elem.table_info.table_number || 1}
