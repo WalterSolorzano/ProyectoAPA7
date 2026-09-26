@@ -160,12 +160,12 @@ const handleResolveGhost = async (i: number) => {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', gap: '6px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: ghosts.length > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{ghostsUnique.length}</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: ghosts.length > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{ghostsUnique.length}</div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Citas sin referencia</div>
               </div>
               <div style={{ width: '1px', backgroundColor: 'var(--border-subtle)' }} />
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: orphans.length > 0 ? 'var(--accent-warning)' : 'var(--accent-success)' }}>{orphans.length}</div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: orphans.length > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{orphans.length}</div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Refs sin cita</div>
               </div>
             </div>
@@ -174,7 +174,7 @@ const handleResolveGhost = async (i: number) => {
               <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {ghosts.slice(0, 5).map((g, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <AlertTriangle size={12} color="var(--accent-warning)" style={{ flexShrink: 0 }} />
+                    <AlertTriangle size={12} color="var(--color-warning)" style={{ flexShrink: 0 }} />
                     <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ghostText(g).slice(0, 70)}
                     </span>
@@ -184,7 +184,7 @@ const handleResolveGhost = async (i: number) => {
                       disabled={resolving === i}
                       style={{
                         flexShrink: 0, fontSize: '10px', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer',
-                        background: 'var(--accent-success)', color: '#fff', border: 'none', fontWeight: 600, fontFamily: 'inherit',
+                        background: 'var(--color-success)', color: '#fff', border: 'none', fontWeight: 600, fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                       }}
                     >
@@ -200,7 +200,7 @@ const handleResolveGhost = async (i: number) => {
             )}
 
             {ghosts.length === 0 && (
-              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '7px', fontSize: '11px', color: 'var(--accent-success)' }}>
+              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '7px', fontSize: '11px', color: 'var(--color-success)' }}>
                 <CheckCircle2 size={13} /> Todas las citas coinciden con la bibliografía.
               </div>
             )}

@@ -17,7 +17,7 @@ export const ReviewStatusBadge: React.FC<ReviewStatusBadgeProps> = ({ confidence
     return (
       <span style={{
         fontSize: '10px', fontWeight: 600,
-        backgroundColor: 'rgba(250,173,20,0.14)', color: 'var(--accent-warning)',
+        backgroundColor: 'rgba(250,173,20,0.14)', color: 'var(--color-warning)',
         padding: '2px 8px', borderRadius: '4px',
         border: '1px solid rgba(250,173,20,0.4)',
         display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -33,7 +33,7 @@ export const ReviewStatusBadge: React.FC<ReviewStatusBadgeProps> = ({ confidence
     return (
       <span style={{
         fontSize: '10px', fontWeight: 600,
-        backgroundColor: 'rgba(255,77,79,0.12)', color: 'var(--accent-danger)',
+        backgroundColor: 'rgba(255,77,79,0.12)', color: 'var(--color-danger)',
         padding: '2px 8px', borderRadius: '4px',
         border: '1px solid rgba(255,77,79,0.4)',
         display: 'inline-flex', alignItems: 'center', gap: '4px',

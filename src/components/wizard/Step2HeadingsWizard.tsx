@@ -299,7 +299,7 @@ export const Step2HeadingsWizard: React.FC = () => {
             padding: '10px 16px',
             borderRadius: '8px',
             backgroundColor: 'var(--surface-elevated)',
-            border: '1px solid var(--accent-warning, #f59e0b)',
+            border: '1px solid var(--color-warning)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -308,7 +308,7 @@ export const Step2HeadingsWizard: React.FC = () => {
             boxShadow: '0 2px 6px rgba(245, 158, 11, 0.08)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-warning, #f59e0b)' }} />
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-warning)' }} />
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   {reviewCount} título{reviewCount > 1 ? 's' : ''} pendiente{reviewCount > 1 ? 's' : ''} de validación en la estructura

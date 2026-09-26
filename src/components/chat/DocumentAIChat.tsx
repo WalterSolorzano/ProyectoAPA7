@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { sendLiveChat, LiveChatAction, suggestCaption } from '../../api/backend';
+import { getApiBase } from '../../api/http';
 
 interface ChatMessage {
   id: string;
@@ -42,14 +43,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: 'Cita en bloque',
     sublabel: 'Formato APA para más de 40 palabras',
     prompt: 'Convierte el texto seleccionado a formato de cita en bloque APA 7 (más de 40 palabras, sangría izquierda de 1.27 cm).',
-    color: 'var(--accent-success)',
+    color: 'var(--color-success)',
   },
   {
     icon: BookOpen,
     label: 'Revisar citas',
     sublabel: 'Cotejar afirmaciones empíricas',
     prompt: 'Analiza el documento y señala qué afirmaciones empíricas requieren respaldo de cita APA 7.',
-    color: 'var(--accent-warning)',
+    color: 'var(--color-warning)',
   },
 ];
 
@@ -267,7 +268,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('/api/references/import-file', {
+      const res = await fetch(`${getApiBase()}/references/import-file`, {
         method: 'POST',
         body: formData,
       });
@@ -698,9 +699,9 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                 fontSize: 'var(--text-xs)',
                 fontWeight: 600,
                 borderRadius: 'var(--radius-sm)',
-                border: filterCategory === 'tables' ? '1px solid var(--accent-success)' : '1px solid var(--border-subtle)',
+                border: filterCategory === 'tables' ? '1px solid var(--color-success)' : '1px solid var(--border-subtle)',
                 backgroundColor: filterCategory === 'tables' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                color: filterCategory === 'tables' ? 'var(--accent-success)' : 'var(--text-secondary)',
+                color: filterCategory === 'tables' ? 'var(--color-success)' : 'var(--text-secondary)',
                 cursor: 'pointer',
               }}
             >
@@ -740,7 +741,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
                       height: '28px',
                       borderRadius: 'var(--radius-sm)',
                       backgroundColor: isTable ? 'var(--color-accent-soft)' : 'var(--color-accent-soft)',
-                      color: isTable ? 'var(--accent-success)' : 'var(--accent-primary)',
+                      color: isTable ? 'var(--color-success)' : 'var(--accent-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -791,7 +792,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
                 <div style={{ flexShrink: 0 }}>
                   {isApplied ? (
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-success)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <CheckCircle2 size={13} /> Listo
                     </span>
                   ) : (
@@ -870,7 +871,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           {ghostCitations.length > 0 && (
             <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <AlertCircle size={15} style={{ color: 'var(--accent-warning)' }} />
+                <AlertCircle size={15} style={{ color: 'var(--color-warning)' }} />
                 <span>Citas sin respaldo bibliográfico ({ghostCitations.length})</span>
               </div>
               {ghostCitations.map((gc: any, gIdx: number) => (
@@ -922,7 +923,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
           {uncaptionedElements.length === 0 && ghostCitations.length === 0 && (
             <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <CheckCircle2 size={32} style={{ color: 'var(--accent-success)', margin: '0 auto 8px auto' }} />
+              <CheckCircle2 size={32} style={{ color: 'var(--color-success)', margin: '0 auto 8px auto' }} />
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)' }}>
                 Todo rotulado y respaldado
               </div>
@@ -1077,7 +1078,7 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
 
                     {m.actions && m.actions.length > 0 && (
                       <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--accent-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Check size={11} /> Aplicado al documento:
                         </div>
                         {m.actions.map((act, idx) => (

@@ -27,10 +27,10 @@ export const UpdateCard: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const busy = state === 'checking' || state === 'downloading';
 
   const iconFor = () => {
-    if (state === 'downloaded') return <CheckCircle2 size={compact ? 13 : 16} color="var(--accent-success)" />;
+    if (state === 'downloaded') return <CheckCircle2 size={compact ? 13 : 16} color="var(--color-success)" />;
     if (state === 'downloading') return <Loader2 size={compact ? 13 : 16} style={{ animation: 'spin 1s linear infinite' }} />;
-    if (state === 'not-available') return <CheckCircle2 size={compact ? 13 : 16} color="var(--accent-success)" />;
-    if (state === 'error') return <AlertTriangle size={compact ? 13 : 16} color="var(--accent-danger)" />;
+    if (state === 'not-available') return <CheckCircle2 size={compact ? 13 : 16} color="var(--color-success)" />;
+    if (state === 'error') return <AlertTriangle size={compact ? 13 : 16} color="var(--color-danger)" />;
     return <MonitorUp size={compact ? 13 : 16} color="var(--accent-primary)" />;
   };
 
@@ -73,7 +73,7 @@ export const UpdateCard: React.FC<{ compact?: boolean }> = ({ compact }) => {
             <span style={{ color: 'var(--accent-primary)', fontWeight: 700 }}> → v{availableVersion}</span>
           )}
           {state === 'downloaded' && availableVersion && (
-            <span style={{ color: 'var(--accent-success)', fontWeight: 700 }}> → v{availableVersion}</span>
+            <span style={{ color: 'var(--color-success)', fontWeight: 700 }}> → v{availableVersion}</span>
           )}
           {state === 'error' && message && (
             <span style={{ display: 'block', marginTop: '4px', color: 'var(--text-muted)', fontSize: '10px' }}>{message.slice(0, 120)}</span>
@@ -122,7 +122,7 @@ export const UpdateCard: React.FC<{ compact?: boolean }> = ({ compact }) => {
             className="btn btn-ghost btn-sm"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: compact ? '11px' : '12px',
-              color: state === 'error' ? 'var(--accent-danger)' : 'var(--accent-primary)',
+              color: state === 'error' ? 'var(--color-danger)' : 'var(--accent-primary)',
               border: state === 'error' ? '1px solid rgba(220,38,38,0.35)' : 'none',
             }}
             title="Abrir la página de releases de GitHub"

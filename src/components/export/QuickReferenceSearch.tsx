@@ -129,7 +129,7 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
       display: 'flex', flexDirection: 'column', gap: '10px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <AlertTriangle size={14} color="var(--accent-warning)" style={{ flexShrink: 0 }} />
+        <AlertTriangle size={14} color="var(--color-warning)" style={{ flexShrink: 0 }} />
         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
           {ghosts.length} cita{ghosts.length === 1 ? '' : 's'} sin referencia
         </span>
@@ -181,13 +181,13 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
           </button>
 
           {resolvedCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--accent-success)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--color-success)' }}>
               <CheckCircle2 size={13} /> {resolvedCount} resuelta{resolvedCount === 1 ? '' : 's'}
             </div>
           )}
 
           {message && (
-            <div style={{ fontSize: '11px', lineHeight: 1.4, color: message.tone === 'success' ? 'var(--accent-success)' : message.tone === 'error' ? 'var(--accent-danger)' : 'var(--accent-warning)' }}>
+            <div style={{ fontSize: '11px', lineHeight: 1.4, color: message.tone === 'success' ? 'var(--color-success)' : message.tone === 'error' ? 'var(--color-danger)' : 'var(--color-warning)' }}>
               {message.text}
             </div>
           )}

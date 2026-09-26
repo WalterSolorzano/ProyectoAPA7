@@ -3,7 +3,7 @@
  *
  * Verifies:
  * - C1: No duplicate <ImageEditPanel> inside ElementInspector (single instance
- *   lives in App.tsx's ImageEditSidePanel).
+ *   lives in RightSidePanel).
  * - C4: The "Estado" section and the "Tipo de Elemento" badge have been removed.
  * - Smoke test: ElementInspector renders without crashing.
  */

@@ -244,7 +244,7 @@ export const PDFPreview: React.FC = () => {
           <div style={{
             position: 'absolute', top: 44, left: 0, right: 0, bottom: 0,
             backgroundColor: 'var(--app-bg)', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', color: 'var(--accent-danger)', zIndex: 10,
+            alignItems: 'center', justifyContent: 'center', color: 'var(--color-danger)', zIndex: 10,
             textAlign: 'center', padding: '24px',
           }}>
             <SvgAlertCircle />

@@ -58,7 +58,7 @@ export const LLMConsentDialog: React.FC = () => {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(250,173,20,0.15)',
           }}>
-            <ShieldAlert size={17} color="var(--accent-warning)" />
+            <ShieldAlert size={17} color="var(--color-warning)" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '14px', fontWeight: 800 }}>Enviar contenido a IA en la nube</div>
@@ -81,7 +81,7 @@ export const LLMConsentDialog: React.FC = () => {
             padding: '12px 14px', borderRadius: 'var(--radius-lg)', marginBottom: '14px',
             background: 'rgba(250,173,20,0.08)', border: '1px solid rgba(250,173,20,0.25)',
           }}>
-            <CloudUpload size={15} color="var(--accent-warning)" style={{ flexShrink: 0, marginTop: '1px' }} />
+            <CloudUpload size={15} color="var(--color-warning)" style={{ flexShrink: 0, marginTop: '1px' }} />
             <div style={{ fontSize: '12px', lineHeight: 1.6, color: 'var(--text-main)' }}>
               Tu documento incluye <strong>nombres, carnets y contenido académico</strong>. Al usar
               "Refinar con IA", fragmentos de tu documento se envían a un servicio externo en la nube

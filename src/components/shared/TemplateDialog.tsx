@@ -7,7 +7,7 @@ import { fetchTemplates, applyTemplate, TemplateInfo } from '../../api/backend';
 
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   'Tesina / Monografía Académica': <BookOpen size={20} color="var(--accent-primary)" />,
-  'Informe Técnico / Laboratorio': <Beaker size={20} color="var(--accent-success)" />,
+  'Informe Técnico / Laboratorio': <Beaker size={20} color="var(--color-success)" />,
   'Artículo IMRyD (Investigación)': <FileSignature size={20} color="var(--color-info)" />,
   'Ensayo Académico': <FileText size={20} color="var(--color-warning)" />,
 };
@@ -119,9 +119,9 @@ export const TemplateDialog: React.FC = () => {
             alignItems: 'center',
             gap: '8px',
             fontSize: '13px',
-            color: result.success ? 'var(--accent-success)' : 'var(--accent-danger)',
+            color: result.success ? 'var(--color-success)' : 'var(--color-danger)',
           }}>
-            {result.success ? <CheckCircle2 size={16} color="var(--accent-success)" /> : <AlertCircle size={16} color="var(--accent-danger)" />}
+            {result.success ? <CheckCircle2 size={16} color="var(--color-success)" /> : <AlertCircle size={16} color="var(--color-danger)" />}
             {result.message}
           </div>
         )}

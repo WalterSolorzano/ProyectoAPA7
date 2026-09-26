@@ -87,7 +87,7 @@ export const DownloadSuccessOverlay: React.FC = () => {
               padding: '3px 8px', cursor: 'pointer', fontFamily: 'inherit',
               background: copied ? 'rgba(82,196,26,0.14)' : 'var(--surface-subtle)',
               border: '1px solid var(--border-subtle)', borderRadius: '999px',
-              color: copied ? 'var(--accent-success)' : 'var(--text-secondary)',
+              color: copied ? 'var(--color-success)' : 'var(--text-secondary)',
             }}
           >
             {copied ? <Check size={10} /> : <Copy size={10} />}

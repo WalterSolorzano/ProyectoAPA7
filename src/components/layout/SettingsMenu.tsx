@@ -152,7 +152,6 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                     background: active ? 'var(--color-accent-soft)' : 'transparent',
                     color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
                     border: 'none',
-                    borderLeft: active ? '3px solid var(--accent-primary)' : '3px solid transparent',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: 'var(--text-sm)', fontWeight: active ? 700 : 500,
                     textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
@@ -188,7 +187,7 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                   <Switch on={marcasVisibles} onChange={(v) => useDocStore.getState().setMarcasVisibles(v)} />
                 </SettingRow>
                 <SettingRow
-                  icon={<Bug size={16} color="var(--accent-danger)" />}
+                  icon={<Bug size={16} color="var(--color-danger)" />}
                   label="Reportar un problema"
                   hint="Abrí un correo con los detalles del error"
                 >
@@ -220,7 +219,7 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
               <>
                 <h2 style={sectionTitle}>Apariencia</h2>
                 <SettingRow
-                  icon={theme === 'dark' ? <Moon size={16} color="var(--accent-primary)" /> : <Sun size={16} color="var(--accent-warning)" />}
+                  icon={theme === 'dark' ? <Moon size={16} color="var(--accent-primary)" /> : <Sun size={16} color="var(--color-warning)" />}
                   label="Tema"
                   hint="Claro u oscuro"
                 >
@@ -275,10 +274,10 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                     <span style={{
                       width: '9px', height: '9px', borderRadius: 'var(--radius-full)', flexShrink: 0,
                       backgroundColor: sideloadState === 'active'
-                        ? 'var(--accent-success)'
+                        ? 'var(--color-success)'
                         : sideloadState === 'outdated'
-                          ? 'var(--accent-warning)'
-                          : 'var(--accent-danger)',
+                          ? 'var(--color-warning)'
+                          : 'var(--color-danger)',
                     }} />
                     <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-main)' }}>
                       {sideloadState === 'active' && 'Complemento activo y registrado en Office'}
@@ -349,7 +348,7 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                 </SettingRow>
 
                 <SettingRow
-                  icon={<Trash2 size={16} color="var(--accent-warning)" />}
+                  icon={<Trash2 size={16} color="var(--color-warning)" />}
                   label="Limpieza de Caché Temporal"
                   hint="Libera espacio en disco de sesiones anteriores"
                 >
@@ -402,7 +401,7 @@ export const SettingsMenu: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                 <h2 style={sectionTitle}>Acerca de WordAPA7</h2>
 
                 <SettingRow
-                  icon={<Info size={16} color="var(--accent-success)" />}
+                  icon={<Info size={16} color="var(--color-success)" />}
                   label="Acerca de WordAPA7"
                   hint={`Versión ${VERSION}`}
                 >

@@ -160,28 +160,34 @@ export const APAModuleToggles: React.FC = () => {
       <button
         type="button"
         onClick={() => setMenuOpen(!menuOpen)}
-        title="Configurar qué módulos APA 7 estandarizar en el documento"
+        aria-label={`Módulos APA (${activeCount}/5 activos)`}
+        aria-expanded={menuOpen}
+        title={`Módulos APA (${activeCount}/5 activos) — configurar qué se estandariza`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '6px',
-          padding: '4px 10px',
+          gap: '4px',
+          padding: '4px 8px',
           borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border-subtle)',
+          border: `1px solid ${menuOpen ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
           backgroundColor: menuOpen ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-          color: 'var(--text-main)',
-          fontSize: 'var(--text-xs)',
-          fontWeight: 700,
+          color: 'var(--accent-primary)',
           cursor: 'pointer',
           fontFamily: 'inherit',
           transition: 'all 0.15s ease',
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', color: 'var(--accent-primary)' }}>
-          <SvgParagraph />
+        <SvgParagraph />
+        <span
+          style={{
+            fontSize: '9px', fontWeight: 800, lineHeight: 1,
+            backgroundColor: 'var(--accent-primary)', color: '#ffffff',
+            borderRadius: 'var(--radius-full)', padding: '2px 4px',
+          }}
+        >
+          {activeCount}
         </span>
-        <span>Estandarización APA ({activeCount}/5)</span>
-        <span style={{ color: 'var(--text-secondary)' }}>
+        <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>
           <SvgChevronDown />
         </span>
       </button>
@@ -206,7 +212,7 @@ export const APAModuleToggles: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px 6px', borderBottom: '1px solid var(--border-subtle)' }}>
             <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>
-              Módulos Activos
+              Módulos APA
             </span>
             <button
               type="button"

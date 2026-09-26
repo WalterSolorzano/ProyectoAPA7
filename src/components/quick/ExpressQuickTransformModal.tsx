@@ -272,7 +272,7 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '11px',
-                  color: 'var(--accent-success, #10b981)',
+                  color: 'var(--color-success)',
                   fontWeight: 600,
                   marginTop: '2px',
                 }}
@@ -469,7 +469,7 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
                 borderRadius: '12px',
               }}
             >
-              <CheckCircle2 size={26} color="var(--accent-success, #10b981)" style={{ flexShrink: 0 }} />
+              <CheckCircle2 size={26} color="var(--color-success)" style={{ flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main, #1a1a2e)' }}>
                   ¡Documento transformado con éxito!
@@ -537,7 +537,7 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               borderRadius: '10px',
-              color: 'var(--accent-danger, #ef4444)',
+              color: 'var(--color-danger)',
               fontSize: '12px',
             }}
           >

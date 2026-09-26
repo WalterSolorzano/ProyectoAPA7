@@ -300,7 +300,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               style={groupHeaderStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle2 size={15} color="var(--accent-success, #16a34a)" />
+                <CheckCircle2 size={15} color="var(--color-success)" />
                 <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
                   Válidas ({validReferences.length})
                 </span>
@@ -346,13 +346,13 @@ export const Step5ReferencesWizard: React.FC = () => {
                               title="Copiar cita en texto"
                               style={iconBtnStyle}
                             >
-                              {copiedId === refItem.id ? <Check size={11} color="var(--accent-success)" /> : <Copy size={11} />}
+                              {copiedId === refItem.id ? <Check size={11} color="var(--color-success)" /> : <Copy size={11} />}
                             </button>
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
                               title="Eliminar"
-                              style={{ ...iconBtnStyle, color: 'var(--accent-danger)' }}
+                              style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
                             >
                               <Trash2 size={11} />
                             </button>
@@ -393,7 +393,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               style={groupHeaderStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <HelpCircle size={15} color="var(--accent-warning, #d97706)" />
+                <HelpCircle size={15} color="var(--color-warning)" />
                 <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
                   Sin verificar ({unverifiedReferences.length})
                 </span>
@@ -424,14 +424,14 @@ export const Step5ReferencesWizard: React.FC = () => {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-warning, #d97706)' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-warning)' }}>
                             Metadatos Incompletos
                           </span>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); }}
                             title="Eliminar"
-                            style={{ ...iconBtnStyle, color: 'var(--accent-danger)' }}
+                            style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
                           >
                             <Trash2 size={11} />
                           </button>
@@ -457,7 +457,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               style={groupHeaderStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={15} color="var(--accent-danger, #dc2626)" />
+                <AlertTriangle size={15} color="var(--color-danger)" />
                 <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
                   En texto, no en biblio ({ghosts.length})
                 </span>
@@ -520,11 +520,11 @@ export const Step5ReferencesWizard: React.FC = () => {
                 </div>
                 <div style={kpiBoxStyle}>
                   <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Verificadas OK</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--accent-success, #16a34a)' }}>{validReferences.length}</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--color-success)' }}>{validReferences.length}</span>
                 </div>
                 <div style={kpiBoxStyle}>
                   <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Por Resolver</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--accent-warning, #d97706)' }}>{unverifiedReferences.length + ghosts.length}</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--color-warning)' }}>{unverifiedReferences.length + ghosts.length}</span>
                 </div>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '400px' }}>

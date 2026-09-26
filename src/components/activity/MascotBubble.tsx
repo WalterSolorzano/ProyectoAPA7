@@ -13,8 +13,8 @@ export const MascotBubble: React.FC = () => {
   if (!mascotMessage) return null;
 
   const toneColor =
-    mascotMessage.tone === 'success' ? 'var(--accent-success)'
-    : mascotMessage.tone === 'warning' ? 'var(--accent-warning)'
+    mascotMessage.tone === 'success' ? 'var(--color-success)'
+    : mascotMessage.tone === 'warning' ? 'var(--color-warning)'
     : 'var(--accent-primary)';
 
   return (

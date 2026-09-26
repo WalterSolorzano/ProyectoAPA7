@@ -89,14 +89,14 @@ function pickFreshPhrase(pool: Phrase[], currentText?: string): Phrase {
 }
 
 const TAG_COLOR: Record<string, string> = {
-  contexto: 'var(--accent-warning)',
+  contexto: 'var(--color-warning)',
   'hora-especial': 'var(--accent-primary)',
   inicio: 'var(--accent-primary)',
   procesando: 'var(--accent-primary)',
   chiste: 'var(--accent-secondary)',
-  dato: 'var(--accent-success)',
+  dato: 'var(--color-success)',
   ai: 'var(--accent-primary)',
-  wordhell: 'var(--accent-warning)',
+  wordhell: 'var(--color-warning)',
   student: 'var(--accent-primary)',
 };
 
@@ -110,7 +110,7 @@ const PILLARS = [
   {
     icon: <Zap size={14} strokeWidth={2} />,
     label: 'Corrección sin tocar tu contenido',
-    color: 'var(--accent-success)',
+    color: 'var(--color-success)',
   },
   {
     icon: <GitBranch size={14} strokeWidth={2} />,

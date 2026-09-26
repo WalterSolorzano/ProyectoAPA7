@@ -3,6 +3,7 @@ import { Download, Sparkles, Undo, Redo, Sun, Moon, CheckCircle2, AlertCircle, L
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
 import { getSideloadStatus, repairSideload, SideloadStatus } from '../../api/backend';
+import { getApiBase } from '../../api/http';
 
 import { APAScoreCard } from './APAScoreCard';
 import { APAModuleToggles } from './APAModuleToggles';
@@ -13,9 +14,9 @@ const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 type SideloadState = 'active' | 'outdated' | 'missing';
 
 const SIDELOAD_CHIP: Record<SideloadState, { color: string; label: string }> = {
-  active: { color: 'var(--accent-success)', label: 'Complemento' },
-  outdated: { color: 'var(--accent-warning)', label: 'Actualizar complemento' },
-  missing: { color: 'var(--accent-danger)', label: 'Instalar complemento' },
+  active: { color: 'var(--color-success)', label: 'Complemento' },
+  outdated: { color: 'var(--color-warning)', label: 'Actualizar complemento' },
+  missing: { color: 'var(--color-danger)', label: 'Instalar complemento' },
 };
 
 export function UnifiedToolbar() {
@@ -47,7 +48,9 @@ export function UnifiedToolbar() {
   const [sideload, setSideload] = useState<SideloadStatus | null>(null);
   const [hbActive, setHbActive] = useState<boolean | null>(null);
   const refreshSideload = useCallback(() => {
-    fetch('/api/addin/sideload-status').then(r=>r.json()).then((d:any)=>setHbActive(!!d?.active_in_word)).catch(()=>{});
+    // v2: único endpoint con active_in_word (heartbeat). URL vía getApiBase()
+    // porque la ruta relativa cae en el proxy de Vite (HTTP) y el backend corre HTTPS.
+    fetch(`${getApiBase()}/addin/sideload-status-v2`).then(r=>r.json()).then((d:any)=>setHbActive(!!d?.active_in_word)).catch(()=>{});
     getSideloadStatus()
       .then(setSideload)
       .catch(() => setSideload(null)); // backend no listo → chip oculto
@@ -57,6 +60,13 @@ export function UnifiedToolbar() {
     const t = setInterval(refreshSideload, 60000); // refetch cada 60s
     return () => clearInterval(t);
   }, [refreshSideload]);
+
+  // ── Badge del Copiloto: hallazgos pendientes (antes vivía en la píldora
+  //    flotante eliminada; ahora viaja en el único botón de la toolbar) ──
+  const citationAudit = useDocStore((s) => s.citationAuditResult);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+  const copilotIssueCount =
+    (citationAudit?.ghost_citations?.length || 0) + (proofreadFindings.length > 0 ? 1 : 0);
 
   const sideloadState: SideloadState | null = !sideload
     ? null
@@ -189,7 +199,7 @@ export function UnifiedToolbar() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '4px',
               fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap',
-              color: hasUnsavedChanges ? 'var(--accent-warning)' : 'var(--accent-success)',
+              color: hasUnsavedChanges ? 'var(--color-warning)' : 'var(--color-success)',
             }}
           >
             {hasUnsavedChanges
@@ -256,9 +266,9 @@ export function UnifiedToolbar() {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                 background: 'var(--color-accent-soft)',
-                border: '1px solid var(--accent-success)',
+                border: '1px solid var(--color-success)',
                 borderRadius: 'var(--radius-sm)',
-                color: 'var(--accent-success)',
+                color: 'var(--color-success)',
                 fontSize: 'var(--text-xs)', fontWeight: 700,
                 padding: '4px 8px', cursor: 'pointer',
               }}
@@ -283,6 +293,20 @@ export function UnifiedToolbar() {
           >
             <MessageSquare size={13} />
             <span className="toolbar-btn-label">Copiloto IA</span>
+            {copilotIssueCount > 0 && (
+              <span
+                title={`${copilotIssueCount} observaciones pendientes`}
+                style={{
+                  minWidth: '16px', height: '16px', borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--color-danger)', color: '#ffffff',
+                  fontSize: '9px', fontWeight: 800, lineHeight: 1,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 4px',
+                }}
+              >
+                {copilotIssueCount > 99 ? '99+' : copilotIssueCount}
+              </span>
+            )}
           </button>
 
           <div style={toolbarDivider} />

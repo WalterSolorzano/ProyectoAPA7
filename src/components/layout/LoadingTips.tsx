@@ -252,10 +252,10 @@ const CATEGORY_SEQUENCE: Tip['category'][] = [
 // Metadatos visuales de categoría (color de marca y etiqueta profesional, sin emojis)
 const CATEGORY_META: Record<Tip['category'], { label: string; color: string; bg: string }> = {
   process:  { label: 'Procesamiento Activo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },
-  apa:      { label: 'Normas APA 7ma Edición', color: 'var(--accent-success, #10b981)', bg: 'rgba(16, 185, 129, 0.12)' },
+  apa:      { label: 'Normas APA 7ma Edición', color: 'var(--color-success)', bg: 'rgba(16, 185, 129, 0.12)' },
   ai:       { label: 'Detección Editorial IA', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
   llm:      { label: 'Modelos Inteligentes', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
-  wordhell: { label: 'Optimizador de Word', color: 'var(--accent-warning, #f59e0b)', bg: 'rgba(245, 158, 11, 0.12)' },
+  wordhell: { label: 'Optimizador de Word', color: 'var(--color-warning)', bg: 'rgba(245, 158, 11, 0.12)' },
   student:  { label: 'Comunidad Estudiantil', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)' },
   jokes:    { label: 'Pausa Académica', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)' },
   honest:   { label: 'Análisis Profundo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },

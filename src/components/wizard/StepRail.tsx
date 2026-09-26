@@ -181,7 +181,7 @@ export function StepRail() {
             </span>
             {!isCollapsed && <span className="step-rail-label" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>}
             {!isCollapsed && done ? (
-              <Check size={13} color="var(--accent-success)" style={{ flexShrink: 0 }} />
+              <Check size={13} color="var(--color-success)" style={{ flexShrink: 0 }} />
             ) : !isCollapsed && badge > 0 ? (
               <span
                 style={{
@@ -194,7 +194,7 @@ export function StepRail() {
                   justifyContent: 'center',
                   fontSize: 'var(--text-xs)',
                   fontWeight: 800,
-                  background: 'var(--accent-warning)',
+                  background: 'var(--color-warning)',
                   color: '#fff',
                   flexShrink: 0,
                 }}

@@ -110,7 +110,7 @@ export const ReferenceForm: React.FC = () => {
         <button type="button" onClick={save} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '12px' }}>
           <Check size={13} /> Guardar
         </button>
-        <button type="button" onClick={remove} className="btn btn-ghost" style={{ color: 'var(--accent-danger)' }} title="Eliminar referencia">
+        <button type="button" onClick={remove} className="btn btn-ghost" style={{ color: 'var(--color-danger)' }} title="Eliminar referencia">
           <Trash2 size={13} />
         </button>
         <button type="button" onClick={() => setSelectedReferenceId(null)} className="btn btn-ghost" title="Cerrar">

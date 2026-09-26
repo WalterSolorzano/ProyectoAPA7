@@ -278,8 +278,8 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImage
 
 
 
-    {/* C1: Image — botón para abrir el panel lateral (ImageEditSidePanel en App.tsx),
-        en lugar de un editor de imagen embebido que duplicaba la UI. */}
+    {/* C1: Image — botón para abrir el panel de edición (integrado en
+        RightSidePanel), en lugar de un editor embebido que duplicaba la UI. */}
     {selectedElem.type === 'image' && (
       <div className="inspector-section" style={{ paddingBottom: 0 }}>
         <SuggestCaptionButton elem={selectedElem} />

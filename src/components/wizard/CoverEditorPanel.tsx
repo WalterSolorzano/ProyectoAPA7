@@ -339,7 +339,7 @@ export const CoverEditorPanel: React.FC = () => {
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
                 padding: '3px 8px', borderRadius: '999px',
                 backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)',
-                color: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--accent-warning, #d97706)' : 'var(--accent-success, #16a34a)',
+                color: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-warning)' : 'var(--color-success)',
                 fontSize: '10.5px', fontWeight: 700,
               }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
@@ -416,7 +416,7 @@ export const CoverEditorPanel: React.FC = () => {
                     borderRadius: '50%',
                     border: 'none',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    color: 'var(--accent-danger, #ef4444)',
+                    color: 'var(--color-danger)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',

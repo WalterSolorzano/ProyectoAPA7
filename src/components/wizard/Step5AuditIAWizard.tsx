@@ -526,17 +526,17 @@ export const Step5AuditIAWizard: React.FC = () => {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Cumplimiento APA</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: 'var(--accent-success)' }}>{apaComplianceScore}%</span>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: 'var(--color-success)' }}>{apaComplianceScore}%</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Índice de IA</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: aiGlobalScore > 40 ? 'var(--accent-warning)' : 'var(--text-main)' }}>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: aiGlobalScore > 40 ? 'var(--color-warning)' : 'var(--text-main)' }}>
                 {aiGlobalScore}%
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Observaciones</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: criticalCount > 0 ? 'var(--accent-danger)' : 'var(--text-main)' }}>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: criticalCount > 0 ? 'var(--color-danger)' : 'var(--text-main)' }}>
                 {totalIssues} {criticalCount > 0 ? `(${criticalCount} críticas)` : ''}
               </span>
             </div>
@@ -597,7 +597,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                             fontWeight: 800,
                             padding: '1px 6px',
                             borderRadius: 'var(--radius-full)',
-                            backgroundColor: hasItems ? 'var(--accent-warning)' : 'var(--border-subtle)',
+                            backgroundColor: hasItems ? 'var(--color-warning)' : 'var(--border-subtle)',
                             color: hasItems ? '#ffffff' : 'var(--text-secondary)',
                           }}
                         >
@@ -648,7 +648,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
-                          color: 'var(--accent-success)',
+                          color: 'var(--color-success)',
                           fontSize: 'var(--text-xs)',
                           fontWeight: 700,
                         }}
@@ -696,9 +696,9 @@ export const Step5AuditIAWizard: React.FC = () => {
                                           : 'rgba(59, 130, 246, 0.12)',
                                       color:
                                         item.severity === 'critical'
-                                          ? 'var(--accent-danger)'
+                                          ? 'var(--color-danger)'
                                           : item.severity === 'high'
-                                          ? 'var(--accent-warning)'
+                                          ? 'var(--color-warning)'
                                           : 'var(--accent-primary)',
                                     }}
                                   >
@@ -765,7 +765,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                               >
                                 {item.originalText && (
                                   <div>
-                                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--accent-danger)' }}>
+                                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-danger)' }}>
                                       Texto Original:
                                     </span>
                                     <div
@@ -774,7 +774,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                         color: 'var(--text-main)',
                                         padding: '4px 6px',
                                         backgroundColor: 'rgba(220, 38, 38, 0.05)',
-                                        borderLeft: '2px solid var(--accent-danger)',
+                                        borderLeft: '2px solid var(--color-danger)',
                                         borderRadius: 'var(--radius-sm)',
                                         fontFamily: 'monospace',
                                         maxHeight: '70px',
@@ -787,7 +787,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                 )}
 
                                 <div>
-                                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--accent-success)' }}>
+                                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-success)' }}>
                                     Sugerencia Académica APA 7:
                                   </span>
                                   <div
@@ -796,7 +796,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                       color: 'var(--text-main)',
                                       padding: '4px 6px',
                                       backgroundColor: 'rgba(22, 163, 74, 0.05)',
-                                      borderLeft: '2px solid var(--accent-success)',
+                                      borderLeft: '2px solid var(--color-success)',
                                       borderRadius: 'var(--radius-sm)',
                                       fontFamily: 'monospace',
                                       maxHeight: '70px',

@@ -37,11 +37,10 @@ import { AIBatteryIndicator } from './components/AIBatteryIndicator';
 import { ExpressQuickTransformModal } from './components/quick/ExpressQuickTransformModal';
 import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
-import { ImageEditPanel } from './components/inspector/ImageEditPanel';
 import { ValidatorView } from './components/validator/ValidatorView';
 import { DocumentAIChat } from './components/chat/DocumentAIChat';
 
-import { X, Sparkles } from 'lucide-react';
+import { X } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
    1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
@@ -105,51 +104,6 @@ const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'heading
   </div>
 );
 
-/** Panel de edición de imagen montado a nivel raíz: visible en cualquier paso
-    del wizard (antes solo existía dentro del paso Figuras y el toggle del canvas
-    quedaba sin efecto en los demás pasos). */
-const ImageEditSidePanel: React.FC = () => {
-  const doc = useDocStore((s) => s.doc);
-  const selectedElementId = useDocStore((s) => s.selectedElementId);
-  const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
-  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
-  if (!doc || !imagePanelOpen || !selectedElementId) return null;
-  const selectedImage = doc.elements.find(
-    (e) => e.id === selectedElementId && e.type === 'image' && !e.is_cover_section
-  );
-  if (!selectedImage) return null;
-  return (
-    <div style={{
-      width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-      backgroundColor: 'var(--sidebar-bg)', borderLeft: '1px solid var(--border-subtle)',
-      overflow: 'hidden',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Panel de edición
-        </span>
-        <button
-          type="button"
-          onClick={() => setImagePanelOpen(false)}
-          title="Ocultar panel"
-          aria-label="Ocultar panel de edición"
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '22px', height: '22px', cursor: 'pointer', background: 'transparent',
-            border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)',
-            fontFamily: 'inherit', fontSize: '14px', lineHeight: 1,
-          }}
-        >
-          X
-        </button>
-      </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <ImageEditPanel elem={selectedImage} />
-      </div>
-    </div>
-  );
-};
-
 /** F4: Drawer del validador global — montado a nivel raíz para que se pueda
     abrir desde cualquier paso del wizard (antes solo existía en Step5). */
 const ValidatorDrawer: React.FC = () => {
@@ -198,66 +152,12 @@ const LiveChatFloatingCard: React.FC = () => {
   const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
   const doc = useDocStore((s) => s.doc);
   const atHome = useDocStore((s) => s.atHome);
-  const citationAudit = useDocStore((s) => s.citationAuditResult);
-  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
 
   if (atHome || !doc) return null;
 
-  const issueCount = (citationAudit?.ghost_citations?.length || 0) + (proofreadFindings.length > 0 ? 1 : 0);
-
-  if (!liveChatOpen) {
-    return (
-      <button
-        type="button"
-        onClick={() => setLiveChatOpen(true)}
-        title="Abrir Copiloto Editorial IA"
-        data-copilot-btn="true"
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '24px',
-          zIndex: 800,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 16px',
-          borderRadius: '999px',
-          background: 'var(--accent-primary)',
-          border: 'none',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.22)',
-          color: '#ffffff',
-          fontSize: '13px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,0,0,0.28)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.22)';
-        }}
-      >
-        <Sparkles size={14} />
-        <span>Copiloto IA</span>
-        {issueCount > 0 && (
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 800,
-            background: 'rgba(255,255,255,0.25)',
-            color: '#ffffff',
-            padding: '2px 7px',
-            borderRadius: '999px',
-          }}>
-            {issueCount}
-          </span>
-        )}
-      </button>
-    );
-  }
+  // Sin píldora flotante: el único disparador del Copiloto es el botón de la
+  // UnifiedToolbar (MessageSquare). Se evita doble CTA para la misma acción.
+  if (!liveChatOpen) return null;
 
   return (
     <aside
@@ -763,9 +663,7 @@ export const App: React.FC = () => {
             </div>
           </>
         )}
-        {/* Panel de edición de imagen a nivel raíz: funciona en cualquier paso */}
-        <ImageEditSidePanel />
-        {/* Copiloto Editorial IA: acoplado en el flex row si está abierto, o píldora si está cerrado */}
+        {/* Copiloto Editorial IA: acoplado en el flex row si está abierto */}
         {doc && <LiveChatFloatingCard />}
       </div>
 

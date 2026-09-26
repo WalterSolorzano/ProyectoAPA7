@@ -380,7 +380,7 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
                       title="Eliminar este panel"
                       style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--color-danger, #ef4444)', padding: '2px', display: 'flex',
+                        color: 'var(--color-danger)', padding: '2px', display: 'flex',
                       }}
                     >
                       <Trash2 size={12} />

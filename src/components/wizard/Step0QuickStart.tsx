@@ -346,10 +346,10 @@ export const Step0QuickStart: React.FC = () => {
         position: 'relative', zIndex: 20,
         ...dragRegion,
       }}>
-        {/* Branding: SVG icon + nombre (sin repetir "APA 7") */}
+        {/* Branding: solo el icono. El nombre "WordAPA7" no se repite aquí
+            porque el hero de inicio ya es el ancla visual de la pantalla. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <BrandIcon size={20} />
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>WordAPA7</span>
         </div>
 
         {/* Divider */}
@@ -451,7 +451,6 @@ export const Step0QuickStart: React.FC = () => {
               cursor: 'pointer',
               background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'transparent',
               border: 'none',
-              borderLeft: settingsMenuOpen ? '3px solid var(--accent-primary)' : '3px solid transparent',
               fontFamily: 'inherit',
               transition: 'all 0.15s ease',
               color: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
@@ -944,8 +943,9 @@ const NavItem: React.FC<{
       width: '100%', padding: '12px 0', display: 'flex', flexDirection: 'column',
       alignItems: 'center', gap: '4px', cursor: 'pointer',
       background: 'none', border: 'none', fontFamily: 'inherit',
+      /* Highlight de fondo (patrón StepRail): prohibido side-tab de 3px */
       backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-      borderLeft: active ? '3px solid var(--accent-primary)' : '3px solid transparent',
+      borderRadius: 'var(--radius-sm)',
       transition: 'background 0.15s',
     }}
     onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}

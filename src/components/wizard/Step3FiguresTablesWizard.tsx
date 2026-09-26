@@ -222,7 +222,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                 cursor: 'pointer', borderRadius: 'var(--radius-sm)', fontFamily: 'inherit',
                 backgroundColor: onlyReview ? 'rgba(250,173,20,0.14)' : 'transparent',
                 border: `1px solid ${onlyReview ? 'rgba(250,173,20,0.4)' : 'var(--border-subtle)'}`,
-                color: onlyReview ? 'var(--accent-warning)' : 'var(--text-secondary)',
+                color: onlyReview ? 'var(--color-warning)' : 'var(--text-secondary)',
               }}
             >
               <Filter size={11} /> Pendientes
@@ -341,7 +341,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontWeight: 600 }}>{label}</span>
-                    {needsAttn && <span style={{ fontSize: '9px', color: 'var(--accent-warning)', fontWeight: 700 }}>revisar</span>}
+                    {needsAttn && <span style={{ fontSize: '9px', color: 'var(--color-warning)', fontWeight: 700 }}>revisar</span>}
                   </div>
                   {(info as any)?.caption && (
                     <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

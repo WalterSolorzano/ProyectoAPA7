@@ -4,8 +4,7 @@ import React from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { NIMDiagnosticsModal } from '../shared/NIMDiagnosticsModal';
 import { RotatingComment } from './RotatingComment';
-import { Sparkles, AlertTriangle, CheckCircle, Download, ZoomIn, ZoomOut, Cpu } from 'lucide-react';
-import { getWhatsAppComment } from './WhatsAppComment';
+import { AlertTriangle, CheckCircle, ZoomIn, ZoomOut, Cpu } from 'lucide-react';
 
 const LABEL: React.CSSProperties = {
   fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)',
@@ -27,15 +26,7 @@ export const StatusBar: React.FC = () => {
     nimLogs,
     isNIMDiagnosticsOpen,
     setIsNIMDiagnosticsOpen,
-    forceRightPanelOpen,
-    setForceRightPanelOpen,
-    activityUnseen,
   } = useDocStore();
-  const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
-  const citationAudit = useDocStore((s) => s.citationAuditResult);
-  const validationIssues = useDocStore((s) => s.validationIssues);
-  const reviewResult = useDocStore((s) => s.reviewResult);
-  const proofreadFindings = useDocStore((s) => s.proofreadFindings);
 
   if (!doc) return null;
 
@@ -49,27 +40,6 @@ export const StatusBar: React.FC = () => {
   const needsReviewCount = elements.filter((e) => e.needs_review).length;
   const estimatedPages = Math.max(1, Math.ceil(totalElements / 14));
 
-  // Sugerencias totales = globos WhatsApp + hallazgos del revisor por lotes.
-  let suggestionCount = proofreadFindings.length;
-  let firstSuggestionId: string | null = null;
-  if (proactivas) {
-    const ctx = {
-      ghostCitations: citationAudit?.ghost_citations || [],
-      orphanReferences: citationAudit?.orphan_references || [],
-      validationIssues: validationIssues || [],
-      styleAuditRun: !!reviewResult,
-    } as any;
-    for (const e of elements) {
-      if (!dismissed(e.id) && getWhatsAppComment(e, ctx, 0)) {
-        suggestionCount += 1;
-        if (!firstSuggestionId) firstSuggestionId = e.id;
-      }
-    }
-  }
-  function dismissed(id: string): boolean {
-    try { return (useDocStore.getState().dismissedCommentIds || []).includes(id); } catch { return false; }
-  }
-
   const warnings: string[] = [];
   if (needsReviewCount > 0) warnings.push(`${needsReviewCount} pendientes de revisión`);
   if (doc.has_landscape_sections) warnings.push('Sección horizontal detectada');
@@ -78,10 +48,6 @@ export const StatusBar: React.FC = () => {
   if (hasCitations && doc.referencias && doc.referencias.length === 0) {
     warnings.push('Citas detectadas sin referencias');
   }
-
-  const goToReview = () => {
-    useDocStore.getState().setWizardStep(5);
-  };
 
   return (
     <>
@@ -97,40 +63,6 @@ export const StatusBar: React.FC = () => {
           padding: '4px 12px',
         }}
       >
-        {/* ── BOTÓN ÚNICO: Acceso a Revisión Editorial ── */}
-        <button
-          type="button"
-          onClick={goToReview}
-          title={suggestionCount > 0 ? `${suggestionCount} observaciones editoriales — clic para ir a Revisión` : 'Paso 5: Revisión y Calidad Editorial'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            background: suggestionCount > 0 ? 'var(--accent-primary)' : 'transparent',
-            border: suggestionCount > 0 ? 'none' : '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-sm)', padding: '5px 12px',
-            color: suggestionCount > 0 ? '#fff' : 'var(--accent-primary)',
-            fontWeight: 700, fontSize: 'var(--text-xs)', fontFamily: 'inherit',
-            cursor: 'pointer', flexShrink: 0,
-            boxShadow: suggestionCount > 0 ? 'var(--shadow-sm)' : 'none',
-          }}
-        >
-          <Sparkles size={14} />
-          <span>Revisión</span>
-          {(suggestionCount > 0 || activityUnseen > 0) && (
-            <span style={{
-              minWidth: '18px', height: '18px', borderRadius: 'var(--radius-full)',
-              backgroundColor: suggestionCount > 0 ? '#fff' : 'var(--accent-primary)',
-              color: suggestionCount > 0 ? 'var(--accent-primary)' : '#fff',
-              fontSize: 'var(--text-xs)', fontWeight: 800,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              padding: '0 5px',
-            }}>
-              {suggestionCount > 0
-                ? (suggestionCount > 99 ? '99+' : suggestionCount)
-                : (activityUnseen > 99 ? '99+' : activityUnseen)}
-            </span>
-          )}
-        </button>
-
         <div style={LABEL as React.CSSProperties}>
           Pág. {estimatedPages}
         </div>
@@ -188,7 +120,7 @@ export const StatusBar: React.FC = () => {
           style={{ ...GHOST_BTN, border: 'none', padding: '3px 5px' }}
           title={apiKey ? 'Motor IA activo — ver diagnóstico' : 'Modo reglas locales — ver diagnóstico'}
         >
-          <Cpu size={13} color={apiKey ? 'var(--accent-secondary)' : 'var(--accent-warning)'} />
+          <Cpu size={13} color={apiKey ? 'var(--accent-secondary)' : 'var(--color-warning)'} />
         </button>
       </footer>
 

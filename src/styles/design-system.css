@@ -117,9 +117,8 @@
   --accent-primary: var(--color-accent);
   --accent-primary-hover: var(--color-accent-hover);
   --accent-secondary: var(--color-accent-secondary);
-  --accent-success: var(--color-success);
-  --accent-warning: var(--color-warning);
-  --accent-danger: var(--color-danger);
+  /* Semánticos canónicos: --color-success / --color-warning / --color-danger
+     (los alias --accent-success|warning|danger fueron eliminados). */
   --font-family: var(--font-sans);
   --shadow-card: var(--shadow-card);       /* autónimo, se mantiene */
   --wizard-step-active: var(--color-accent);
@@ -449,7 +448,7 @@ html, body {
   color: #fff;
 }
 .wizard-step .step-pill.completed {
-  background: var(--accent-success);
+  background: var(--color-success);
   color: #fff;
 }
 .wizard-step .connector {
@@ -713,17 +712,17 @@ html, body {
 }
 
 .wa-bubble-positive {
-  border-left: 3px solid var(--accent-success, #10b981);
+  border-left: 3px solid var(--color-success);
   background: var(--surface-elevated, #ffffff);
 }
 
 .wa-bubble-ghost {
-  border-left: 3px solid var(--accent-danger, #ef4444);
+  border-left: 3px solid var(--color-danger);
   background: var(--surface-elevated, #ffffff);
 }
 
 .wa-bubble-warning {
-  border-left: 3px solid var(--accent-warning, #f59e0b);
+  border-left: 3px solid var(--color-warning);
   background: var(--surface-elevated, #ffffff);
 }
 
@@ -1268,7 +1267,7 @@ html, body {
   font-weight: 700;
 }
 .loading-stage-item.done {
-  color: var(--accent-success);
+  color: var(--color-success);
 }
 .loading-stage-dot {
   width: 16px;
@@ -1286,8 +1285,8 @@ html, body {
   background: rgba(79, 124, 255, 0.14);
 }
 .loading-stage-item.done .loading-stage-dot {
-  border-color: var(--accent-success);
-  background: var(--accent-success);
+  border-color: var(--color-success);
+  background: var(--color-success);
   color: #fff;
 }
 .loading-stage-line {
@@ -1394,7 +1393,7 @@ html, body {
   animation: download-success-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
 }
 .download-success-ring {
-  stroke: var(--color-success, #2d6a4f);
+  stroke: var(--color-success);
   stroke-width: 2.5;
   fill: rgba(45, 106, 79, 0.1);
   stroke-dasharray: 96;
@@ -1402,7 +1401,7 @@ html, body {
   animation: download-success-draw 0.4s ease-out 0.1s forwards;
 }
 .download-success-check {
-  stroke: var(--color-success, #2d6a4f);
+  stroke: var(--color-success);
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
   animation: download-success-draw 0.3s ease-out 0.45s forwards;
@@ -1727,7 +1726,7 @@ html, body {
 }
 
 .custom-stage-card.done .custom-stage-title {
-  color: var(--accent-success, #10b981);
+  color: var(--color-success);
 }
 
 .custom-stage-icon {
@@ -1749,7 +1748,7 @@ html, body {
 }
 
 .custom-stage-card.done .custom-stage-icon {
-  background: var(--accent-success, #10b981);
+  background: var(--color-success);
   color: #ffffff;
 }
 
@@ -1774,7 +1773,7 @@ html, body {
 }
 
 .custom-stage-connector.active {
-  background: var(--accent-success, #10b981);
+  background: var(--color-success);
 }
 
 .custom-loading-card {

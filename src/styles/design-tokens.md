@@ -23,6 +23,8 @@ La aplicación utiliza el tema **Claro nativo de Microsoft Word 365** por defect
 | `--color-warning` | `#d48806` / `#d97706` | Semántico: advertencias y observaciones |
 | `--color-danger` | `#d4382e` / `#dc2626` | Semántico: errores de validación y destrucción |
 
+> **Canonicidad semántica:** `--color-success`, `--color-warning` y `--color-danger` son los únicos nombres válidos. Los alias `--accent-success`, `--accent-warning` y `--accent-danger` fueron eliminados; no usarlos en código nuevo.
+
 ## 2. Componentes Cerrados (src/components/ui/wordapa7.tsx)
 
 - `Card`: Superficie blanca elevada con borde sutil.

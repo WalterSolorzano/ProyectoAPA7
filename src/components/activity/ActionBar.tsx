@@ -73,9 +73,9 @@ const ActionItem: React.FC<ActionItemProps> = ({ icon, title, description, pendi
         {loading ? (
           <Loader2 size={14} style={{ color: 'var(--text-muted)', animation: 'spin 1s linear infinite' }} />
         ) : done ? (
-          <CheckCircle2 size={15} color="var(--accent-success)" />
+          <CheckCircle2 size={15} color="var(--color-success)" />
         ) : (
-          <span style={{ ...pill, backgroundColor: 'rgba(250,173,20,0.16)', color: 'var(--accent-warning)' }}>
+          <span style={{ ...pill, backgroundColor: 'rgba(250,173,20,0.16)', color: 'var(--color-warning)' }}>
             {pending}
           </span>
         )}

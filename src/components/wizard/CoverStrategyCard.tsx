@@ -149,7 +149,7 @@ export const CoverStrategyCard: React.FC = () => {
           </div>
         )}
         {showTemplates && templatesError && (
-          <div style={{ fontSize: '11px', color: 'var(--accent-warning)', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
+          <div style={{ fontSize: '11px', color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
             <AlertTriangle size={12} /> No se pudieron cargar las plantillas.
             <button type="button" onClick={() => setShowTemplates(false)} style={{ border: 'none', background: 'transparent', color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '11px' }}>Reintentar</button>
           </div>

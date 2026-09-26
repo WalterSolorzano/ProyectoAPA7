@@ -662,17 +662,17 @@ const AddinStatusCard: React.FC = () => {
     idle: null,
     loading: {
       icon: <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />,
-      color: 'var(--accent-warning, #f59e0b)',
+      color: 'var(--color-warning)',
       label: 'Importando…',
     },
     success: {
       icon: <CheckCircle2 size={15} />,
-      color: 'var(--accent-success, #22c55e)',
+      color: 'var(--color-success)',
       label: ' Complemento registrado',
     },
     error: {
       icon: <AlertCircle size={15} />,
-      color: 'var(--accent-danger, #ef4444)',
+      color: 'var(--color-danger)',
       label: ' No se pudo registrar',
     },
     unavailable: {
@@ -736,7 +736,7 @@ const AddinStatusCard: React.FC = () => {
           {/* Mensaje de detalle (respuesta del backend) */}
           {detailMsg && (
             <p style={{
-              fontSize: '10px', color: status === 'error' ? 'var(--accent-danger, #ef4444)' : 'var(--text-secondary)',
+              fontSize: '10px', color: status === 'error' ? 'var(--color-danger)' : 'var(--text-secondary)',
               margin: '0 0 12px', lineHeight: 1.5, fontStyle: 'italic',
             }}>
               {detailMsg}
@@ -848,8 +848,8 @@ const ProviderKeyField: React.FC<{ label: string; envVar: string }> = ({ label, 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600 }}>{label}</span>
-        {saved && !syncError && <span style={{ fontSize: '9px', color: 'var(--accent-success)' }}>Guardado</span>}
-        {syncError && <span style={{ fontSize: '9px', color: 'var(--accent-danger)', maxWidth: '160px', textAlign: 'right' }}>{syncError}</span>}
+        {saved && !syncError && <span style={{ fontSize: '9px', color: 'var(--color-success)' }}>Guardado</span>}
+        {syncError && <span style={{ fontSize: '9px', color: 'var(--color-danger)', maxWidth: '160px', textAlign: 'right' }}>{syncError}</span>}
       </div>
       <div style={{ display: 'flex', gap: '6px' }}>
         <input

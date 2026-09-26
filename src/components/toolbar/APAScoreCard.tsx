@@ -170,9 +170,9 @@ export const APAScoreCard: React.FC = () => {
   if (!doc) return null;
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return 'var(--accent-success, #10b981)';
+    if (score >= 90) return 'var(--color-success)';
     if (score >= 75) return 'var(--accent-primary, #4f7cff)';
-    return 'var(--accent-warning, #f59e0b)';
+    return 'var(--color-warning)';
   };
 
   const handleJumpToWarning = (elementId?: string, step: number = 2) => {
@@ -213,7 +213,7 @@ export const APAScoreCard: React.FC = () => {
         {stats.warnings.length > 0 ? (
           <span
             style={{
-              backgroundColor: 'var(--accent-warning, #f59e0b)',
+              backgroundColor: 'var(--color-warning)',
               color: '#ffffff',
               borderRadius: '999px',
               padding: '1px 5px',
@@ -224,7 +224,7 @@ export const APAScoreCard: React.FC = () => {
             {stats.warnings.length}
           </span>
         ) : (
-          <CheckCircle size={12} color="var(--accent-success, #10b981)" />
+          <CheckCircle size={12} color="var(--color-success)" />
         )}
         {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </button>
@@ -297,9 +297,9 @@ export const APAScoreCard: React.FC = () => {
                       </div>
                     </div>
                     {item.status === 'ok' ? (
-                      <CheckCircle size={13} color="var(--accent-success, #10b981)" style={{ flexShrink: 0 }} />
+                      <CheckCircle size={13} color="var(--color-success)" style={{ flexShrink: 0 }} />
                     ) : (
-                      <AlertTriangle size={13} color="var(--accent-warning, #f59e0b)" style={{ flexShrink: 0 }} />
+                      <AlertTriangle size={13} color="var(--color-warning)" style={{ flexShrink: 0 }} />
                     )}
                   </button>
                 );
@@ -309,7 +309,7 @@ export const APAScoreCard: React.FC = () => {
             {/* Lista de Advertencias con salto directo */}
             {stats.warnings.length > 0 && (
               <div style={{ borderTop: '1px solid var(--border-subtle, #e5e7eb)', paddingTop: '10px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--accent-warning, #f59e0b)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-warning)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Avisos para revisión ({stats.warnings.length})
                 </div>
                 <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -338,7 +338,7 @@ export const APAScoreCard: React.FC = () => {
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, paddingRight: '6px' }}>
                         {w.label}
                       </span>
-                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-danger, #ef4444)', backgroundColor: 'var(--surface-subtle, #f3f4f6)', padding: '1px 5px', borderRadius: '4px', marginRight: '6px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-danger)', backgroundColor: 'var(--surface-subtle, #f3f4f6)', padding: '1px 5px', borderRadius: '4px', marginRight: '6px', flexShrink: 0 }}>
                         -{w.penalty}%
                       </span>
                       <ArrowUpRight size={12} color="var(--accent-primary, #4f7cff)" style={{ flexShrink: 0 }} />

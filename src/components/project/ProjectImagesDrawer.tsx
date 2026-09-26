@@ -127,7 +127,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
                     type="button"
                     onClick={() => removeProjectImage(img.id)}
                     title="Eliminar del proyecto"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger, #d4382e)', padding: '2px' }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: '2px' }}
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="18" y1="6" x2="6" y2="18"></line>

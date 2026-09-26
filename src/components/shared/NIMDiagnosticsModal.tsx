@@ -47,7 +47,7 @@ const TYPE_COLOR: Record<string, string> = {
   numbered_list: 'var(--accent-primary)',
   block_quote: 'var(--color-warning)',
   table: 'var(--color-info)',
-  image: 'var(--accent-success)',
+  image: 'var(--color-success)',
   empty: 'var(--text-tertiary)',
 };
 
@@ -239,14 +239,14 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
                           </span>
                           <span style={{
                             fontSize: '10px', fontWeight: 600, flexShrink: 0,
-                            color: e.confidence >= 0.85 ? 'var(--accent-success)' : 'var(--accent-warning)',
+                            color: e.confidence >= 0.85 ? 'var(--color-success)' : 'var(--color-warning)',
                           }}>
                             {Math.round(e.confidence * 100)}%
                           </span>
                           {e.needs_review && (
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', gap: '3px',
-                              fontSize: '9px', fontWeight: 600, color: 'var(--accent-warning)',
+                              fontSize: '9px', fontWeight: 600, color: 'var(--color-warning)',
                               padding: '1px 6px', borderRadius: 'var(--radius-full)', backgroundColor: 'rgba(250,173,20,0.12)',
                               flexShrink: 0,
                             }}>
@@ -311,7 +311,7 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
                         }}>
                           {TYPE_LABEL[e.type] || e.type}
                         </span>
-                        <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--accent-warning)' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-warning)' }}>
                           {Math.round(e.confidence * 100)}%
                         </span>
                       </div>
@@ -348,7 +348,7 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'default', color: 'var(--text-main)' }}>
                 <input type="radio" checked={aiProviderConfig.useLocal} readOnly />
-                <Server size={14} color={aiProviderConfig.useLocal ? 'var(--accent-success)' : 'var(--text-muted)'} /> Servidor Local
+                <Server size={14} color={aiProviderConfig.useLocal ? 'var(--color-success)' : 'var(--text-muted)'} /> Servidor Local
               </label>
             </div>
 
@@ -358,11 +358,11 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
               backgroundColor: 'var(--surface-subtle)', marginBottom: '16px', lineHeight: 1.5,
             }}>
               {apiKey ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-success)', fontWeight: 600 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--color-success)', fontWeight: 600 }}>
                   <ShieldCheck size={14} /> Clave de IA configurada
                 </span>
               ) : (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-warning)', fontWeight: 600 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--color-warning)', fontWeight: 600 }}>
                   <AlertTriangle size={14} /> Sin clave: se usará el modo Reglas (heurístico)
                 </span>
               )}

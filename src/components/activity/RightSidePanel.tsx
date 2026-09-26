@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ElementInspector } from '../inspector/ElementInspector';
+import { ImageEditPanel } from '../inspector/ImageEditPanel';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { ReferencesPanel } from '../referencias/ReferencesPanel';
@@ -68,6 +69,8 @@ export const RightSidePanel: React.FC = () => {
     selectedElementId, selectedReferenceId, doc, wizardStep,
     setSelectedElementId, setSelectedReferenceId,
   } = useDocStore();
+  const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
+  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
 
   const [panelWidth, setPanelWidth] = useState(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -151,6 +154,13 @@ export const RightSidePanel: React.FC = () => {
 
   const hasSelection = !!selectedElementId && !!doc;
   const hasReference = !hasSelection && !!selectedReferenceId;
+  // ── Imagen seleccionada: el editor de imagen vive DENTRO de este panel
+  //    (antes era una cuarta columna propia que aplastaba el documento). ──
+  const selectedImage = doc && imagePanelOpen && selectedElementId
+    ? doc.elements.find(
+        (e) => e.id === selectedElementId && e.type === 'image' && !e.is_cover_section
+      )
+    : undefined;
 
   const sectionNames: Record<number, string> = {
     1: 'Portada', 2: 'Estructura', 3: 'Figuras y tablas', 4: 'Referencias',
@@ -196,7 +206,7 @@ export const RightSidePanel: React.FC = () => {
           <FileText size={14} color="var(--accent-primary)" />
         )}
         <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-          {hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
+          {selectedImage ? 'Imagen' : hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
         </span>
         <div style={{ flex: 1 }} />
         {/* D1: Toggle del Asistente IA integrado en el header */}
@@ -219,8 +229,40 @@ export const RightSidePanel: React.FC = () => {
         </button>
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        {hasSelection ? (
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {selectedImage ? (
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)',
+              flexShrink: 0, background: 'var(--sidebar-bg)',
+            }}>
+              <span style={{
+                fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+                Panel de edición
+              </span>
+              <button
+                type="button"
+                onClick={() => setImagePanelOpen(false)}
+                title="Ocultar panel"
+                aria-label="Ocultar panel de edición"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '22px', height: '22px', cursor: 'pointer', background: 'transparent',
+                  border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
+                  fontFamily: 'inherit', padding: 0,
+                }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <ImageEditPanel elem={selectedImage} />
+            </div>
+          </>
+        ) : hasSelection ? (
           <ElementInspector />
         ) : hasReference ? (
           <ReferenceForm key={selectedReferenceId} />

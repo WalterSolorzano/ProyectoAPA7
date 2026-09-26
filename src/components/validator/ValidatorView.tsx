@@ -187,14 +187,14 @@ export const ValidatorView: React.FC = () => {
                               disabled={fs?.loading}
                               style={{
                                 fontSize: '11px', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
-                                background: 'var(--accent-success)', color: '#fff', border: 'none', fontWeight: 600,
+                                background: 'var(--color-success)', color: '#fff', border: 'none', fontWeight: 600,
                                 opacity: fs?.loading ? 0.6 : 1,
                               }}
                             >
                               {fs?.loading ? '⏳ Buscando...' : 'Resolver'}
                             </button>
                           ) : (
-                            <span style={{ fontSize: '10px', color: 'var(--accent-success)', fontWeight: 600 }}>
+                            <span style={{ fontSize: '10px', color: 'var(--color-success)', fontWeight: 600 }}>
                               Agregada a referencias
                             </span>
                           )}
@@ -230,7 +230,7 @@ export const ValidatorView: React.FC = () => {
                           {fs?.result && (
                             <div style={{
                               marginTop: '4px', padding: '8px 10px', borderRadius: '6px',
-                              background: 'color-mix(in srgb, var(--accent-success) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-success) 25%, transparent)',
+                              background: 'color-mix(in srgb, var(--color-success) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)',
                             }}>
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
                                 Sugerencia IA — {fs.result.reason}

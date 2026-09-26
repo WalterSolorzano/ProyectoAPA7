@@ -12,9 +12,9 @@ export const WORDAPA7_TOKENS = {
     textMuted: 'var(--text-muted)',
     accent: 'var(--accent-primary)',
     accentHover: 'var(--accent-primary-hover)',
-    success: 'var(--accent-success)',
-    warning: 'var(--accent-warning)',
-    danger: 'var(--accent-danger)',
+    success: 'var(--color-success)',
+    warning: 'var(--color-warning)',
+    danger: 'var(--color-danger)',
     border: 'var(--border-subtle)',
   },
   radius: {
@@ -84,9 +84,9 @@ export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: 
 export const Badge: React.FC<React.PropsWithChildren<{ tone?: 'accent' | 'success' | 'warning' | 'danger' | 'muted' | 'neutral' | 'info'; style?: React.CSSProperties }>> = ({ tone = 'muted', style, children }) => {
   const palette: Record<string, React.CSSProperties> = {
     accent: { background: 'rgba(79,124,255,0.16)', color: 'var(--accent-primary)', borderColor: 'rgba(79,124,255,0.2)' },
-    success: { background: 'rgba(82,196,26,0.14)', color: 'var(--accent-success)', borderColor: 'rgba(82,196,26,0.22)' },
-    warning: { background: 'rgba(250,173,20,0.14)', color: 'var(--accent-warning)', borderColor: 'rgba(250,173,20,0.24)' },
-    danger: { background: 'rgba(255,77,79,0.14)', color: 'var(--accent-danger)', borderColor: 'rgba(255,77,79,0.24)' },
+    success: { background: 'rgba(82,196,26,0.14)', color: 'var(--color-success)', borderColor: 'rgba(82,196,26,0.22)' },
+    warning: { background: 'rgba(250,173,20,0.14)', color: 'var(--color-warning)', borderColor: 'rgba(250,173,20,0.24)' },
+    danger: { background: 'rgba(255,77,79,0.14)', color: 'var(--color-danger)', borderColor: 'rgba(255,77,79,0.24)' },
     muted: { background: 'var(--surface-subtle)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
     neutral: { background: 'var(--surface-subtle)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' },
     info: { background: 'rgba(79,124,255,0.14)', color: 'var(--accent-primary)', borderColor: 'rgba(79,124,255,0.2)' },
@@ -132,7 +132,7 @@ export const StepperItem: React.FC<{
       gap: 'var(--space-3)',
       padding: 'var(--space-3) var(--space-4)',
       borderRadius: 'var(--radius-lg)',
-      border: `1px solid ${complete ? 'var(--accent-success)' : active ? 'rgba(79,124,255,0.38)' : 'var(--border-subtle)'}`,
+      border: `1px solid ${complete ? 'var(--color-success)' : active ? 'rgba(79,124,255,0.38)' : 'var(--border-subtle)'}`,
       background: complete ? 'rgba(56,160,23,0.10)' : active ? 'rgba(79,124,255,0.12)' : 'transparent',
       color: 'var(--text-main)',
       cursor: onClick ? 'pointer' : 'default',
@@ -143,7 +143,7 @@ export const StepperItem: React.FC<{
     <div
       className="wizard-step-pill"
       style={{
-        background: complete ? 'var(--accent-success)' : active ? 'var(--accent-primary)' : 'var(--surface-subtle)',
+        background: complete ? 'var(--color-success)' : active ? 'var(--accent-primary)' : 'var(--surface-subtle)',
         color: active || complete ? '#fff' : 'var(--text-secondary)',
         flexShrink: 0,
       }}

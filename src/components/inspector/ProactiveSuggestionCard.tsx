@@ -134,9 +134,9 @@ export const ProactiveSuggestionCard: React.FC = () => {
   };
 
   const getBadgeColor = (category?: string | null) => {
-    if (category === 'HIGH') return 'var(--accent-danger, #ef4444)';
-    if (category === 'MEDIUM') return 'var(--accent-warning, #f59e0b)';
-    return 'var(--accent-success, #10b981)';
+    if (category === 'HIGH') return 'var(--color-danger)';
+    if (category === 'MEDIUM') return 'var(--color-warning)';
+    return 'var(--color-success)';
   };
 
   return (

@@ -175,7 +175,7 @@ export const InlineAILens: React.FC<InlineAILensProps> = ({ containerRef }) => {
       {diffPreview ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px' }}>
           <div style={{ fontSize: '11px', color: 'var(--text-main, #1a1a2e)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span style={{ color: 'var(--accent-success, #10b981)', fontWeight: 700 }}>Propuesta: </span>
+            <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>Propuesta: </span>
             {diffPreview.proposed}
           </div>
           <button

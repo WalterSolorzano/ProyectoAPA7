@@ -34,7 +34,7 @@ const KIND_TONES: Record<string, string> = {
   repeticion: 'var(--color-warning)',
   incompleta: 'var(--color-danger)',
   persona: 'var(--color-warning)',
-  ambigua: 'var(--accent-warning, #f59e0b)',
+  ambigua: 'var(--color-warning)',
 };
 
 /** Registra marca de transparencia para el elemento modificado (H21). */
