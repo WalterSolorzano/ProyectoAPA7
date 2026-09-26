@@ -309,6 +309,33 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
     pages.push(coverElements);
   }
 
+  // ── Verdad de Word: si el backend paginó (Repaginate COM), sus cortes mandan.
+  //    Sin page_number en ningún cuerpo → heurística de estimación (fallback).
+  const hasWordPagination = bodyElements.some((e) => typeof e.page_number === 'number');
+  if (hasWordPagination) {
+    const wordPages: ElementModel[][] = [];
+    let firstPageNum: number | null = null;
+    bodyElements.forEach((elem) => {
+      const pn = typeof elem.page_number === 'number' ? elem.page_number : null;
+      if (pn === null) {
+        // Sin número: sigue al anterior dentro de su página.
+        if (wordPages.length === 0) wordPages.push([]);
+        wordPages[wordPages.length - 1].push(elem);
+        return;
+      }
+      if (firstPageNum === null) firstPageNum = pn;
+      const idx = Math.max(0, pn - firstPageNum);
+      while (wordPages.length <= idx) wordPages.push([]);
+      wordPages[idx].push(elem);
+    });
+    const nonEmpty = wordPages.filter((pg) => pg.length > 0);
+    if (coverElements.length > 0) {
+      // Portada ya está en pages[0]; anexar cuerpo sin páginas vacías.
+      return [...pages, ...nonEmpty];
+    }
+    return nonEmpty.length > 0 ? nonEmpty : [[]];
+  }
+
   let currentPage: ElementModel[] = [];
   let currentEstimatedHeight = 0;
   const MAX_PAGE_UNITS = Math.max(8, Math.round(maxUnits));
@@ -616,14 +643,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       const isCitation = m.kind === 'citation';
       const color = isCitation
         ? (m.severity === 'HIGH' ? 'var(--warn-brown)' : 'var(--ok-deep)')
-        : isComment ? 'var(--warn-dark)' : isSpell ? 'var(--accent-danger, #d4382e)' : m.severity === 'HIGH' ? 'var(--accent-danger, #d4382e)' : m.severity === 'MEDIUM' ? 'var(--warn-amber)' : 'var(--info-blue)';
+        : isComment ? 'var(--warn-dark)' : isSpell ? 'var(--color-danger)' : m.severity === 'HIGH' ? 'var(--color-danger)' : m.severity === 'MEDIUM' ? 'var(--warn-amber)' : 'var(--info-blue)';
       const bg = isCitation
         ? (m.severity === 'HIGH' ? 'rgba(214,137,16,0.22)' : 'rgba(26,127,78,0.15)')
         : isComment ? 'rgba(255, 213, 0, 0.45)' : isSpell ? 'rgba(212,56,46,0.12)' : m.severity === 'HIGH' ? 'rgba(212,56,46,0.15)' : m.severity === 'MEDIUM' ? 'rgba(184,134,11,0.15)' : 'rgba(30,111,217,0.12)';
       out.push(
         <mark key={`${m.start}-${i}`} title={m.title} style={{
           color, backgroundColor: bg,
-          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy var(--accent-danger, #d4382e)' : `underline dotted ${color}`,
+          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy var(--color-danger)' : `underline dotted ${color}`,
           padding: '0 1px', borderRadius: 2,
         }}>
           {frag}
@@ -2296,7 +2323,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   />
                                 ) : (
                                   <div style={{ padding: '12px', textAlign: 'left', maxWidth: '100%' }}>
-                                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--accent-warning)' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--color-warning)' }}>
                                       Previsualización no disponible
                                     </div>
                                     <div style={{ fontSize: '11px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
