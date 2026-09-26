@@ -38,6 +38,7 @@ package-dir = { "" = "python" }
 py-modules = [
     "audit_estudio_trabajo",
     "build_embedded",
+    "build_info",
     "build_manifest",
     "config",
     "constants",

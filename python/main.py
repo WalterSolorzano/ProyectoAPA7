@@ -6,6 +6,7 @@ y sirve la interfaz estatica construida en React (dist/).
 """
 
 import asyncio
+import datetime
 import hashlib
 import json
 import logging
@@ -65,6 +66,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 # ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
+import build_info
+from build_info import _read_build_hash
 from config import BASE_DIR, DIST_DIR, STORAGE_DIR, get_apa7_template_path
 from create_template import ensure_apa7_template
 from generation.generator import generate_apa7_docx
@@ -75,7 +78,6 @@ from models import (
     DocumentModel,
     ElementModel,
     ElementType,
-    HealthResponse,
     PortadaData,
     ReferenciaModel,
 )
@@ -232,6 +234,12 @@ app.include_router(ws_router.router)
 from routers import sessions as sessions_router
 
 app.include_router(sessions_router.router)
+from routers import addin_extras as addin_extras_router
+
+app.include_router(addin_extras_router.router)
+from routers import system as system_router
+
+app.include_router(system_router.router)
 
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
@@ -459,18 +467,6 @@ class CitationFixRequest(BaseModel):
 
 # ── ENDPOINTS DE LA API REST ──────────────────────────────────────────────────
 
-@app.get("/api/health")
-async def health_check() -> HealthResponse:
-    """Health check para Electron y monitoreo."""
-    return HealthResponse(status="ok", version="1.0.0")
-
-
-@app.get("/api/version")
-async def get_version_endpoint() -> dict:
-    """Retorna la versión del backend para detección de protocolo y readiness."""
-    return {"version": "1.0.0", "mode": "main", "status": "ok"}
-
-
 class DoiRequest(BaseModel):
     doi: str
 
@@ -630,54 +626,6 @@ async def api_proactive_diagnose(req: ProactiveDiagnoseRequest) -> dict:
         return {"proposal": diagnosis}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/test/sample-documents")
-async def api_get_sample_documents() -> dict:
-    """Retorna la lista de documentos de prueba y estrés disponibles."""
-    return {
-        "samples": [
-            {
-                "id": "citations",
-                "name": "Citas Complejas y Bibliografía",
-                "desc": "Citas parentéticas, narrativas, 3+ autores (et al.), secundarias, citas fantasma y referencias huérfanas.",
-            },
-            {
-                "id": "headings",
-                "name": "Jerarquía de Títulos y Estructura",
-                "desc": "Títulos desordenados (H1 -> H3 -> H2), numeración romana/arábiga y detección de encabezados.",
-            },
-            {
-                "id": "tables_figures",
-                "name": "Tablas y Figuras sin Formato",
-                "desc": "Tablas estadísticas sin formato APA y párrafos contextuales para auto-captioning.",
-            },
-        ]
-    }
-
-
-@app.get("/api/test/sample-documents/{doc_type}")
-async def api_download_sample_document(doc_type: str):
-    """Genera y descarga el documento de prueba seleccionado."""
-    from tools.stress_doc_generator import (
-        generate_stress_citations_doc,
-        generate_stress_headings_and_structure_doc,
-        generate_stress_tables_and_figures_doc,
-    )
-    if doc_type == "citations":
-        path = generate_stress_citations_doc()
-    elif doc_type == "headings":
-        path = generate_stress_headings_and_structure_doc()
-    elif doc_type == "tables_figures":
-        path = generate_stress_tables_and_figures_doc()
-    else:
-        raise HTTPException(status_code=404, detail="Tipo de documento de prueba no encontrado")
-
-    return FileResponse(
-        path,
-        filename=f"stress_{doc_type}.docx",
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
 
 
 @app.post("/api/ai/chat-comment")
@@ -959,18 +907,6 @@ async def sync_provider_keys_endpoint(request: Request) -> dict:
     return {"applied": applied, "count": len(applied)}
 
 
-@app.get("/api/assets/logo_uni.png")
-async def get_uni_logo() -> FileResponse:
-    """
-    Sirve el logo institucional UNI para la portada universitaria
-    (preview en el lienzo y generacion).
-    """
-    logo_path: Path = Path(__file__).parent / "assets" / "logo_uni.png"
-    if not logo_path.exists():
-        raise HTTPException(status_code=404, detail="Logo UNI no encontrado.")
-    return FileResponse(logo_path)
-
-
 @app.post("/api/resolve-doi")
 async def resolve_doi_endpoint(req: ResolveDoiRequest) -> dict:
     """
@@ -1165,134 +1101,6 @@ try:
     from modules.word_com import release_word_app as _rwa
 except Exception:
     _rwa = None
-
-
-class ClientLogRequest(BaseModel):
-    component: str = "renderer"
-    event: str
-    data: Optional[dict] = None
-    level: str = "info"
-
-
-@app.post("/api/client-log")
-async def client_log_endpoint(req: ClientLogRequest) -> dict:
-    """Receptor de logs del frontend y del add-in."""
-    from wordapa7_logger import log_error as _le2
-    from wordapa7_logger import log_event as _lv2
-    comp = (req.component or "client").replace("/", "_")[:24]
-    if req.level == "error":
-        _le2(comp, req.event, Exception(str(req.data)), req.data)
-    _lv2(comp, req.event, req.data, level=req.level)
-    return {"ok": True}
-
-
-@app.get("/api/diagnostics")
-async def diagnostics_endpoint() -> dict:
-    from wordapa7_logger import collect_diagnostics
-    return collect_diagnostics()
-
-
-_ADDIN_LAST_SEEN: dict = {}
-
-
-@app.post("/api/addin/heartbeat")
-async def addin_heartbeat() -> dict:
-    import time as _t
-    _ADDIN_LAST_SEEN["ts"] = _t.time()
-    return {"ok": True}
-
-
-@app.get("/api/addin/sideload-status-v2")
-async def addin_sideload_status_v2() -> dict:
-    import time as _t
-    age = None
-    if _ADDIN_LAST_SEEN.get("ts"):
-        age = round(_t.time() - _ADDIN_LAST_SEEN["ts"], 1)
-    return {"installed": True, "heartbeat_age_s": age,
-            "active_in_word": age is not None and age < 120}
-
-
-class OpenLocalReq(BaseModel):
-    path: str
-
-
-@app.post("/api/open-local")
-async def open_local_document(req: OpenLocalReq) -> dict:
-    """Flujo click-derecho: abre un .docx local (misma maquina)."""
-    src = Path(req.path)
-    if not src.exists() or src.suffix.lower() != ".docx":
-        raise HTTPException(status_code=400, detail="Archivo .docx no encontrado")
-    import io as _io
-
-    from fastapi import UploadFile as _UF
-    from routers.sessions import upload_docx
-    _up = _UF(file=_io.BytesIO(src.read_bytes()), filename=src.name)
-    return await upload_docx(_up)
-
-
-class FormatPlanReq(BaseModel):
-    texts: List[str] = []
-    full: bool = False
-
-
-class CaptionsPlanReq(BaseModel):
-    texts: List[str] = []
-    tables: List[int] = []   # indices de tablas (orden documento)
-    figures: List[int] = []  # indices de parrafos con imagen
-
-
-@app.post("/api/addin/captions-plan")
-async def addin_captions_plan(req: CaptionsPlanReq) -> dict:
-    """Que captions FALTAN y con que numero (serie continua, idempotente)."""
-    from modules.captions import scan_existing
-    base = scan_existing(req.texts)
-    nt, nf = base["max_table"], base["max_figure"]
-    ops = []
-    for i in req.tables:
-        nt += 1
-        ops.append({"i": i, "kind": "table", "number": nt})
-    for i in req.figures:
-        nf += 1
-        ops.append({"i": i, "kind": "figure", "number": nf})
-    return {"ops": ops}
-
-@app.post("/api/addin/format-plan")
-async def addin_format_plan(req: FormatPlanReq) -> dict:
-    """Piso de portada + reglas desde el MOTOR CENTRAL.
-    El add-in ejecuta; nunca decide formato ni limites por su cuenta."""
-    import re as _re
-
-    from modules.apa_rules import RULES
-
-    def _floor(texts: List[str]) -> int:
-        for i, t in enumerate(texts[:60]):
-            s = (t or "").strip()
-            if not s:
-                continue
-            low = s.lower().rstrip(":")
-            if low in ("introduccion", "introducci?n", "resumen", "abstract") or _re.match(r"^\d+(\.\d+)*\.?\s+\S", s):
-                return i
-            if len(s) > 180 or _re.search(r"\([A-Z??????][^)]{2,40},\s*(19|20)\d{2}\)", s):
-                return i
-        return 0
-
-    if req.full:
-        from modules.plan_engine import classify
-        from modules.plan_engine import findings as _findings
-        plan = classify(req.texts)
-        plan["findings"] = _findings(req.texts, plan["floor"])
-        return plan
-    return {"floor": _floor(req.texts), "rules": RULES}
-
-
-@app.post("/api/addin/setup-catalog")
-async def addin_setup_catalog() -> dict:
-    from routers.addin_static import _purge_wef_cache_full, _setup_trusted_catalog
-    cat = _setup_trusted_catalog()
-    purged = _purge_wef_cache_full()
-    return {"catalog": cat, "wef_purged": purged}
-
-# ????????????????????????? fin bloque add-in bridge ?????????????????????????
 
 
 @app.post("/api/generate-pdf")
@@ -2298,39 +2106,6 @@ async def serve_cover_preview(name: str) -> FileResponse:
     raise HTTPException(status_code=404, detail="Preview no disponible para esta plantilla.")
 
 
-# ── BUILD HASH CACHE ─────────────────────────────────────────────────────────
-
-_build_hash_cache: str | None = None
-_build_hash_cache_time: float = 0.0
-
-
-def _read_build_hash() -> str:
-    """Lee build_hash de dist/version.json con caché de 60 segundos."""
-    global _build_hash_cache, _build_hash_cache_time
-    import time
-    now = time.time()
-    if _build_hash_cache and (now - _build_hash_cache_time) < 60:
-        return _build_hash_cache
-
-    version_file = DIST_DIR / "version.json"
-    try:
-        if version_file.exists():
-            with open(version_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            _build_hash_cache = data.get("build_hash", "unknown")
-            _build_hash_cache_time = now
-            return _build_hash_cache
-    except Exception:
-        pass
-    _build_hash_cache = "unknown"
-    _build_hash_cache_time = now
-    return _build_hash_cache
-
-
-# ── DEBUG LOGGING Y TRACING ───────────────────────────────────────────────────
-import datetime
-
-
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_record = {
@@ -2608,81 +2383,6 @@ async def add_no_cache_headers(request: Request, call_next):
     return response
 
 
-@app.get("/api/version")
-async def get_version():
-    """Retorna la versión y build_hash actual para que el frontend detecte cambios."""
-    build_hash = _read_build_hash()
-    version_file = DIST_DIR / "version.json"
-    build_time = None
-    if version_file.exists():
-        try:
-            with open(version_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            build_time = data.get("build_time")
-        except Exception:
-            pass
-
-    return {
-        "version": "1.0.0",
-        "build_hash": build_hash,
-        "build_time": build_time,
-        "stale": build_hash == "unknown",
-    }
-
-
-# ── Contrato add-in: rutas que core_server también expone (TIER_BOTH) ────────
-# Estas vivían SOLO en core_server y el add-in recibía 404 cuando lo servía
-# la app completa (clase de bug detectada por test_addin_contract_parity).
-
-_BOOT_TS = time.time()
-
-
-class AddinScoreReq(BaseModel):
-    texts: List[str] = []
-    tables: int = 0
-    figures: int = 0
-    visual: Optional[dict] = None
-
-
-@app.post("/api/addin/apa-score")
-async def addin_apa_score(req: AddinScoreReq) -> dict:
-    """Score 'qué tan APA está' — misma implementación que core_server."""
-    from modules.apa_score import compute
-    return compute(req.texts, req.tables, req.figures, req.visual)
-
-
-class OpenInWordReq(BaseModel):
-    path: str
-
-
-@app.post("/api/open-in-word")
-async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
-    """Rescate: abre un .docx del almacenamiento con su app predeterminada (Word).
-
-    Guard idéntico al core_server (config.validate_open_in_word_path): solo
-    se permiten .docx dentro de STORAGE_DIR del proceso."""
-    from config import validate_open_in_word_path
-    try:
-        target = validate_open_in_word_path(req.path)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-    if not target.exists():
-        raise HTTPException(400, "Archivo no encontrado")
-    os.startfile(str(target))
-    return {"ok": True}
-
-
-@app.get("/api/addin/build-info")
-async def addin_build_info() -> dict:
-    """Anti-stale: el taskpane compara su build con este y avisa si difieren."""
-    return {
-        "mode": "app",
-        "version": "1.0.0",
-        "build_hash": _read_build_hash(),
-        "started_at": _BOOT_TS,
-    }
-
-
 def _compute_src_content_hash(src_dir: Path) -> str:
     """Hash SHA-256 compuesto del contenido de src/ para detectar cambios reales."""
     if not src_dir.exists():
@@ -2749,9 +2449,8 @@ def check_and_auto_build_frontend() -> None:
             if res.returncode == 0:
                 print("[AUTO-BUILD] [OK] Recompilacion exitosa del frontend!")
                 # Invalidar caché de build_hash
-                global _build_hash_cache, _build_hash_cache_time
-                _build_hash_cache = None
-                _build_hash_cache_time = 0.0
+                build_info._build_hash_cache = None
+                build_info._build_hash_cache_time = 0.0
             else:
                 print(f"[WARN] Error durante npm run build: {res.stderr[:200]}")
         except Exception as e:
@@ -2887,95 +2586,6 @@ def _setup_ssl_for_addin() -> tuple[Optional[Path], Optional[Path]]:
     except Exception as e:
         print(f"[SSL] Error al generar certificados con mkcert: {e}")
         return None, None
-
-@app.get("/api/addin/ssl-status")
-async def get_addin_ssl_status():
-    """
-    Informa si el backend esta corriendo con HTTPS (necesario para Word Add-ins).
-
-    El frontend puede consultar este endpoint al iniciar para saber si el
-    certificado SSL ya esta disponible. La generacion principal usa el modulo
-    Python ``ssl_cert_gen`` (libreria cryptography); mkcert es solo un respaldo.
-    """
-    import shutil
-
-    certs_dir = STORAGE_DIR / "ssl"
-    cert_path = certs_dir / "localhost.pem"
-    key_path = certs_dir / "localhost-key.pem"
-    mkcert_available = shutil.which("mkcert") is not None
-
-    # El generador Python (cryptography) es el metodo principal.
-    try:
-        import ssl_cert_gen  # noqa: F401
-        python_ssl_available = True
-    except Exception:
-        python_ssl_available = False
-
-    ssl_active = cert_path.exists() and key_path.exists()
-
-    use_ssl_enabled = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip()
-    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
-
-    if use_ssl_enabled:
-        backend_url = "https://127.0.0.1:8742"
-    else:
-        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
-
-    return {
-        "ssl_active": ssl_active,
-        "python_ssl_available": python_ssl_available,
-        "mkcert_available": mkcert_available,
-        "cert_path": str(cert_path) if cert_path.exists() else None,
-        "install_url": "https://github.com/FiloSottile/mkcert#installation",
-        "hint": (
-            "SSL activo — el Add-in puede cargar en Word sin problemas"
-            if ssl_active
-            else "El certificado SSL se genera automaticamente con cryptography al iniciar el backend"
-        ),
-        "mode": "dev_https" if use_ssl_enabled else "production_http",
-        "use_ssl_enabled": use_ssl_enabled,
-        "backend_url": backend_url,
-        "addin_public_url": addin_public_url,
-    }
-
-
-@app.get("/api/addin/config")
-async def get_addin_config():
-    """
-    Devuelve la configuración de conexión del backend para el Add-in.
-
-    En MODO PRODUCCIÓN (por defecto):
-      - El Add-in se carga desde una URL HTTPS pública (WORDAPA7_ADDIN_PUBLIC_URL)
-      - El backend corre localmente en http://127.0.0.1:8742 (HTTP plano)
-      - El frontend del Add-in usa esta URL para las llamadas a la API
-
-    En MODO DESARROLLO HTTPS (WORDAPA7_USE_SSL=true):
-      - El backend genera certificados SSL auto-firmados
-      - El Add-in se sirve desde el propio backend en HTTPS
-    """
-    addin_public_url = os.environ.get("WORDAPA7_ADDIN_PUBLIC_URL", "").strip() or None
-    use_ssl = os.environ.get("WORDAPA7_USE_SSL", "").strip().lower() != "false" and not addin_public_url
-
-    # Determinar la URL del backend que el frontend debe usar
-    if use_ssl:
-        backend_url = "https://127.0.0.1:8742"
-    else:
-        backend_url = os.environ.get("WORDAPA7_BACKEND_URL", "").strip() or "http://127.0.0.1:8742"
-
-    return {
-        "mode": "dev_https" if use_ssl else "production_http",
-        "use_ssl": use_ssl,
-        "backend_url": backend_url,
-        "addin_public_url": addin_public_url,
-        "port": 8742,
-        "hint": (
-            "Add-in cargado desde URL HTTPS pública → backend local HTTP"
-            if not use_ssl and addin_public_url
-            else "Modo desarrollo HTTPS local" if use_ssl
-            else "Backend en HTTP plano — configura WORDAPA7_ADDIN_PUBLIC_URL para producción"
-        ),
-    }
-
 
 def _backend_already_running(port: int) -> bool:
     """Detecta si ya hay una instancia del backend respondiendo en 127.0.0.1:<port>.
