@@ -232,13 +232,19 @@ describe('useDocStore — referencias', () => {
   });
 });
 
+// Se captura en ambito de modulo, al importar, antes de que ningun test mute el
+// store: asi se observa el default real del slice y no el valor que escribe el
+// beforeEach. Un setState crea la clave aunque el slice no la declare, asi que
+// leerla dentro del test solo se comprobaria a si mismo.
+const RAIL_PINNED_DEFAULT = useDocStore.getState().railPinned;
+
 describe('T2 — estado del rail de iconos', () => {
   beforeEach(() => {
     useDocStore.setState({ railPinned: false });
   });
 
   it('empieza desanclado', () => {
-    expect(useDocStore.getState().railPinned).toBe(false);
+    expect(RAIL_PINNED_DEFAULT).toBe(false);
   });
 
   it('setRailPinned ancla y desancla el flyout', () => {
