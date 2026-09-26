@@ -5,10 +5,13 @@
  * Sin listas, tarjetas, columnas ni estadísticas: el resumen de hallazgos ya
  * se mostró en la vista de revisión. Alineada a la IZQUIERDA (no centrada):
  * la continuidad del flujo, no una pantalla de celebración.
- * Auto-se oculta a los ~8s. */
+ * Auto-se oculta a los ~8s; el foco dentro del overlay pausa el timer. */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
+
+/** Auto-ocultado del overlay (ms) */
+const HIDE_DELAY_MS = 8000;
 
 export const DownloadSuccessOverlay: React.FC = () => {
   const exportSuccessAt = useDocStore((s) => s.exportSuccessAt);
@@ -17,6 +20,19 @@ export const DownloadSuccessOverlay: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const lastSeenRef = useRef<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
+  const clearHideTimer = () => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+
+  const startHideTimer = (delay: number = HIDE_DELAY_MS) => {
+    clearHideTimer();
+    hideTimer.current = setTimeout(() => setShow(false), delay);
+  };
 
   useEffect(() => {
     if (!exportSuccessAt) return;
@@ -24,10 +40,38 @@ export const DownloadSuccessOverlay: React.FC = () => {
     lastSeenRef.current = exportSuccessAt;
     setCopied(false);
     setShow(true);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setShow(false), 8000);
-    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+    startHideTimer();
+    return () => clearHideTimer();
   }, [exportSuccessAt]);
+
+  /* El foco dentro del overlay pausa el auto-ocultado para no soltar el foco
+     a mitad de lectura:
+     - focusin → se cancela el timer.
+     - focusout hacia fuera del overlay → se re-arranca con 8s completos
+       (tiempo generoso y simple; si el foco vuelve, focusin lo cancela).
+     - focusout interno (otro botón) → el timer sigue cancelado.
+     Al desmontarse, el return limpia ambos listeners (y el timer lo limpia
+     el return del efecto del evento). */
+  useEffect(() => {
+    if (!show) return;
+    const el = overlayRef.current;
+    if (!el) return;
+    const handleFocusIn = () => {
+      clearHideTimer();
+    };
+    const handleFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && el.contains(next)) return; // cambio de foco interno
+      startHideTimer();
+    };
+    el.addEventListener('focusin', handleFocusIn);
+    el.addEventListener('focusout', handleFocusOut);
+    return () => {
+      el.removeEventListener('focusin', handleFocusIn);
+      el.removeEventListener('focusout', handleFocusOut);
+      clearHideTimer();
+    };
+  }, [show]);
 
   if (!show) return null;
 
@@ -46,7 +90,7 @@ export const DownloadSuccessOverlay: React.FC = () => {
   };
 
   return (
-    <div className="download-success" role="status" aria-live="polite">
+    <div ref={overlayRef} className="download-success" role="status" aria-live="polite">
       <div className="download-success-icon">
         <svg width="30" height="30" viewBox="0 0 34 34" fill="none">
           <circle cx="17" cy="17" r="15" className="download-success-ring" />

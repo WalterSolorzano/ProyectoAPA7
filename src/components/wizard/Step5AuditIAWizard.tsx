@@ -995,7 +995,10 @@ export const Step5AuditIAWizard: React.FC = () => {
                     transition: 'border-color 0.15s ease',
                   }}
                 >
-                  {/* Cabecera del grupo colapsable: motor + conteo + acción masiva */}
+                  {/* Cabecera del grupo colapsable: motor + conteo + acción masiva.
+                      El disparador es un <button> real (teclado + aria-expanded +
+                      aria-controls); la acción masiva y el chevron viven como
+                      hermanos para no anidar botones. */}
                   <div
                     style={{
                       display: 'flex',
@@ -1007,9 +1010,29 @@ export const Step5AuditIAWizard: React.FC = () => {
                       userSelect: 'none',
                       borderBottom: isOpen ? '1px solid var(--border-subtle)' : 'none',
                     }}
-                    onClick={() => toggleWindow(g.id)}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleWindow(g.id)}
+                      aria-expanded={isOpen}
+                      aria-controls={isOpen ? `group-rows-${g.id}` : undefined}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: 0,
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        lineHeight: 'inherit',
+                        color: 'inherit',
+                      }}
+                    >
                       <div
                         style={{
                           color: hasItems ? 'var(--accent-primary)' : 'var(--text-secondary)',
@@ -1041,7 +1064,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                           {g.subtitle}
                         </span>
                       </div>
-                    </div>
+                    </button>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       {hasItems && (
@@ -1066,13 +1089,36 @@ export const Step5AuditIAWizard: React.FC = () => {
                           {engineMassLabel[g.id]}
                         </button>
                       )}
-                      {isOpen ? <ChevronDown size={14} style={{ color: 'var(--text-secondary)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-secondary)' }} />}
+                      {/* Chevron = duplicado solo-mouse del disparador principal
+                          (tabIndex -1 + aria-hidden: UNA parada de tab y UNA
+                          sola lectura de AT por cabecera). */}
+                      <button
+                        type="button"
+                        onClick={() => toggleWindow(g.id)}
+                        aria-expanded={isOpen}
+                        aria-controls={isOpen ? `group-rows-${g.id}` : undefined}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        style={{
+                          padding: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
                     </div>
                   </div>
 
                   {/* Contenido: subtipos agrupados (una fila por subtipo) */}
                   {isOpen && (
-                    <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div
+                      id={`group-rows-${g.id}`}
+                      style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                    >
                       {g.subtypes.length === 0 ? (
                         <div
                           style={{
@@ -1114,14 +1160,34 @@ export const Step5AuditIAWizard: React.FC = () => {
                                 transition: 'all 0.15s ease',
                               }}
                             >
-                              {/* Fila única del subtipo: contador xN + acción */}
+                              {/* Fila única del subtipo: contador xN + acción.
+                                  El área clickeable (etiqueta) es un <button> real
+                                  y el botón de acción vive como HERMANO dentro de
+                                  la fila → cero botones anidados. */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div
-                                  style={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                <button
+                                  type="button"
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: 0,
+                                    background: 'none',
+                                    border: 'none',
+                                    textAlign: 'left',
+                                    fontFamily: 'inherit',
+                                    lineHeight: 'inherit',
+                                    color: 'inherit',
+                                  }}
                                   onClick={() => {
                                     setExpandedSubtype(isExpanded ? null : subKey);
                                     if (!isExpanded && current) handleSelectReview(current);
                                   }}
+                                  aria-expanded={isExpanded}
+                                  aria-controls={isExpanded ? `subtype-detail-${subKey}` : undefined}
                                   title="Ver detalle y recorrer ocurrencias"
                                 >
                                   <span
@@ -1174,7 +1240,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                       Marcado
                                     </span>
                                   )}
-                                </div>
+                                </button>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                                   {sub.action !== 'none' && (
@@ -1204,6 +1270,9 @@ export const Step5AuditIAWizard: React.FC = () => {
                                       {massLabel[sub.action]}
                                     </button>
                                   )}
+                                  {/* Chevron = duplicado solo-mouse de la etiqueta
+                                      (mismo handler); la fila queda con UNA sola
+                                      parada de teclado por control. */}
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -1211,6 +1280,8 @@ export const Step5AuditIAWizard: React.FC = () => {
                                       setExpandedSubtype(isExpanded ? null : subKey);
                                       if (!isExpanded && current) handleSelectReview(current);
                                     }}
+                                    tabIndex={-1}
+                                    aria-hidden="true"
                                     title="Expandir detalle"
                                     style={{
                                       padding: '2px',
@@ -1229,6 +1300,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                               {/* Detalle de la ocurrencia actual (con navegación, sin tarjetas repetidas) */}
                               {isExpanded && current && (
                                 <div
+                                  id={`subtype-detail-${subKey}`}
                                   style={{
                                     padding: '8px',
                                     borderRadius: 'var(--radius-sm)',
