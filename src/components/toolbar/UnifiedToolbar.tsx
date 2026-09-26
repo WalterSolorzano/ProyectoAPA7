@@ -1,167 +1,81 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Download, Sparkles, Undo, Redo, Sun, Moon, CheckCircle2, AlertCircle, Loader2, MessageSquare, BookOpen, Home } from 'lucide-react';
-import { useDocStore } from '../../store/useDocStore';
-import { useUpdateStore } from '../../store/useUpdateStore';
-import { getSideloadStatus, repairSideload, SideloadStatus } from '../../api/backend';
-import { getApiBase } from '../../api/http';
+/* WordAPA7 — toolbar: la barra mínima del mockup (48px).
+   Izquierda: logo/Archivo, título y chip "Guardado". Derecha: Copiloto,
+   botón de más acciones y avatar. Todo lo demas vive en ToolbarOverflowMenu. */
 
-import { APAScoreCard } from './APAScoreCard';
-import { APAModuleToggles } from './APAModuleToggles';
+import React, { useState } from 'react';
+import { BookOpen, Check, MoreHorizontal, Sparkles } from 'lucide-react';
+import { useDocStore } from '../../store/useDocStore';
+import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
-type SideloadState = 'active' | 'outdated' | 'missing';
-
-const SIDELOAD_CHIP: Record<SideloadState, { color: string; label: string }> = {
-  active: { color: 'var(--color-success)', label: 'Complemento' },
-  outdated: { color: 'var(--color-warning)', label: 'Actualizar complemento' },
-  missing: { color: 'var(--color-danger)', label: 'Instalar complemento' },
-};
-
 export function UnifiedToolbar() {
-  const {
-    undo,
-    redo,
-    doc,
-    isBackendReady,
-    isLoading,
-    theme,
-    setTheme,
-    hasUnsavedChanges,
-    viewMode,
-  } = useDocStore();
+  const doc = useDocStore((s) => s.doc);
+  const showFileMenu = useDocStore((s) => s.showFileMenu);
+  const setShowFileMenu = useDocStore((s) => s.setShowFileMenu);
+  const liveChatOpen = useDocStore((s) => s.liveChatOpen);
+  const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
+  const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
-  // Estado del historial de undo/redo (para deshabilitar los botones)
-  const historyIndex = useDocStore((s) => s.historyIndex);
-  const historyLen = useDocStore((s) => s.history.length);
-  const canUndo = !!doc && historyIndex > 0;
-  const canRedo = !!doc && historyIndex < historyLen - 1;
-
-  // Chip de actualización: se muestra cuando la descarga terminó.
-  const updateState = useUpdateStore((s) => s.state);
-  const initUpdate = useUpdateStore((s) => s.init);
-  const installUpdate = useUpdateStore((s) => s.install);
-  useEffect(() => { initUpdate(); }, [initUpdate]);
-
-  // ── T5: chip de estado del complemento de Word ──
-  const [sideload, setSideload] = useState<SideloadStatus | null>(null);
-  const [hbActive, setHbActive] = useState<boolean | null>(null);
-  const refreshSideload = useCallback(() => {
-    // v2: único endpoint con active_in_word (heartbeat). URL vía getApiBase()
-    // porque la ruta relativa cae en el proxy de Vite (HTTP) y el backend corre HTTPS.
-    fetch(`${getApiBase()}/addin/sideload-status-v2`).then(r=>r.json()).then((d:any)=>setHbActive(!!d?.active_in_word)).catch(()=>{});
-    getSideloadStatus()
-      .then(setSideload)
-      .catch(() => setSideload(null)); // backend no listo → chip oculto
-  }, []);
-  useEffect(() => {
-    refreshSideload();
-    const t = setInterval(refreshSideload, 60000); // refetch cada 60s
-    return () => clearInterval(t);
-  }, [refreshSideload]);
-
-  // ── Badge del Copiloto: hallazgos pendientes (antes vivía en la píldora
-  //    flotante eliminada; ahora viaja en el único botón de la toolbar) ──
+  // Badge del Copiloto: hallazgos pendientes. Sigue en la barra porque el
+  // Copiloto es la funcion principal del producto y se queda visible.
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
   const copilotIssueCount =
     (citationAudit?.ghost_citations?.length || 0) + (proofreadFindings.length > 0 ? 1 : 0);
 
-  const sideloadState: SideloadState | null = !sideload
-    ? null
-    : sideload.installed
-      ? (sideload.up_to_date ? 'active' : 'outdated')
-      : 'missing';
-
-  const chipLabel = hbActive === true
-    ? 'Word Add-in'
-    : (sideloadState === 'outdated' ? 'Actualizar Add-in' : (sideloadState === 'missing' ? 'Instalar Add-in' : 'Word Add-in'));
-
-  const handleRepairSideload = async () => {
-    try {
-      await repairSideload();
-      useDocStore.getState().showToast('Complemento de Word reparado', 'success');
-    } catch {
-      useDocStore.getState().showToast('No se pudo reparar el complemento', 'error');
-    } finally {
-      refreshSideload();
-    }
-  };
-
-  // Electron draws native window buttons (min/max/close) over the top-right corner
+  // Electron dibuja los botones nativos de ventana sobre la esquina superior
+  // derecha, asi que la barra reserva ese ancho.
   const isElectron = !!(window as any).electronAPI;
 
   return (
-    <div className="app-drag" style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr auto 1fr',
-      alignItems: 'center',
-      height: '48px',
-      backgroundColor: 'var(--sidebar-bg)',
-      borderBottom: '1px solid var(--border-subtle)',
-      padding: isElectron ? '0 150px 0 16px' : '0 16px',
-      position: 'relative',
-      zIndex: 10,
-      flexShrink: 0,
-    }}>
-      {/* Left: Logo (= menú Archivo) + Brand + Botón Inicio */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
-        <button type="button"
-          onClick={() => useDocStore.getState().setShowFileMenu(!useDocStore.getState().showFileMenu)}
+    <header
+      className="app-drag"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 48,
+        flexShrink: 0,
+        padding: isElectron ? '0 150px 0 16px' : '0 16px',
+        backgroundColor: 'var(--color-bg-surface)',
+        borderBottom: '1px solid var(--color-border-subtle)',
+        position: 'relative',
+        zIndex: 'var(--z-sticky)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <button
+          type="button"
+          onClick={() => setShowFileMenu(!showFileMenu)}
           aria-label="Menú Archivo"
           title="Archivo"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
             background: 'none', border: 'none', padding: '4px 6px',
             cursor: 'pointer', borderRadius: 'var(--radius-sm)',
-            transition: 'background 0.15s',
             ...noDragRegion,
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '26px', height: '26px', borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-          }}>
-            <BookOpen size={16} strokeWidth={2.2} />
-          </div>
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>WordAPA7</span>
+          <BookOpen size={16} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-accent)' }} />
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            WordAPA7
+          </span>
         </button>
 
         {doc && (
-          <button
-            type="button"
-            onClick={() => useDocStore.getState().goHome()}
-            aria-label="Volver al Inicio"
-            title="Volver a la pantalla de bienvenida y plantillas"
-            style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-              padding: '4px 9px', borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer', fontSize: 'var(--text-xs)', fontWeight: 700,
-              color: 'var(--text-secondary)', transition: 'background 0.15s',
-              ...noDragRegion,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Home size={13} />
-            <span>Inicio</span>
-          </button>
-        )}
-
-        {doc && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px', paddingLeft: '8px', borderLeft: '1px solid var(--border-subtle)' }}>
+          <>
+            {/* El nombre viene del .docx que subio el usuario: no hay setter ni
+                endpoint para renombrarlo, asi que se muestra, no se edita. */}
             <span
               title="Nombre del documento activo"
               style={{
-                fontSize: 'var(--text-xs)',
+                maxWidth: 420,
+                fontSize: 'var(--text-sm)',
                 fontWeight: 600,
-                color: 'var(--text-main)',
-                maxWidth: '260px',
+                color: 'var(--color-text-primary)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -169,229 +83,79 @@ export function UnifiedToolbar() {
             >
               {doc.file_name || 'Documento sin título'}
             </span>
-          </div>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+              <Check size={11} strokeWidth={2.5} aria-hidden style={{ color: 'var(--color-success)' }} />
+              Guardado
+            </span>
+          </>
         )}
       </div>
 
-      {/* Center vacío: la navegación por pasos vive en el StepRail izquierdo */}
-      <div />
-
-      {/* Right: action buttons */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
-        {/* ── T5: estado del complemento de Word (independiente del doc) ── */}
-        {sideloadState && (
-          <button type="button"
-            className="app-no-drag"
-            onClick={handleRepairSideload}
-            title={hbActive === true ? 'Activo en Word. Clic para reparar.' : 'Instalado — ábrelo desde Insertar → Mis complementos → Carpeta compartida. Clic para reparar.'}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-full)', padding: '3px 10px',
-              fontSize: 'var(--text-xs)', fontWeight: 600, whiteSpace: 'nowrap',
-              color: 'var(--text-secondary)', cursor: 'pointer',
-              marginRight: '10px', flexShrink: 0,
-              ...noDragRegion,
-            }}
-          >
-            <span style={{
-              width: '7px', height: '7px', borderRadius: 'var(--radius-full)',
-              backgroundColor: SIDELOAD_CHIP[sideloadState].color, flexShrink: 0,
-            }} />
-            <span className="toolbar-btn-label">{chipLabel}</span>
-          </button>
-        )}
-
-        {doc && (
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, ...noDragRegion }}>
-          {/* Tarjeta de Diagnóstico APA 7 */}
-          <APAScoreCard />
-
-          {/* Módulos y Scopes APA 7 (Tachar qué sí y qué no) */}
-          <APAModuleToggles />
-
-          <div style={toolbarDivider} />
-
-          {/* Save status chip (compact, passive) */}
-          <span
-            title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px',
-              fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap',
-              color: hasUnsavedChanges ? 'var(--color-warning)' : 'var(--color-success)',
-            }}
-          >
-            {hasUnsavedChanges
-              ? <><AlertCircle size={11} /> Sin guardar</>
-              : <><CheckCircle2 size={11} /> Guardado</>}
-          </span>
-
-          <div style={toolbarDivider} />
-
-          {/* Undo / Redo (icon only) */}
-          <button type="button"
-            onClick={() => undo()}
-            disabled={!canUndo}
-            title="Deshacer (Ctrl+Z)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Undo size={11} />
-          </button>
-          <button type="button"
-            onClick={() => redo()}
-            disabled={!canRedo}
-            title="Rehacer (Ctrl+Y)"
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <Redo size={11} />
-          </button>
-
-          <div style={toolbarDivider} />
-
-          {/* Copiar PDF para WhatsApp directo (Ctrl+V) */}
-          <button
-            type="button"
-            onClick={() => useDocStore.getState().copyPdfToClipboard()}
-            title="Copiar PDF al portapapeles. Pégalo directamente con Ctrl+V en WhatsApp Desktop o Web."
-            style={{
-              ...ghostBtn,
-              gap: '5px',
-              padding: '4px 8px',
-              color: 'var(--text-main)',
-              fontWeight: 600,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-success)' }}>
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-            </svg>
-            <span className="toolbar-btn-label">Copiar PDF (WhatsApp)</span>
-          </button>
-
-          <div style={toolbarDivider} />
-
-          {/* Update available (only when an update has been downloaded) */}
-          {updateState === 'downloaded' && (
-            <button
-              type="button"
-              onClick={() => installUpdate()}
-              title="Actualización descargada. Clic para reiniciar e instalar."
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => setLiveChatOpen(!liveChatOpen)}
+          aria-label="Copiloto Editorial IA"
+          title="Copiloto Editorial IA"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '5px 10px', borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border-subtle)',
+            background: 'var(--color-accent-soft)', color: 'var(--color-accent)',
+            fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+            ...noDragRegion,
+          }}
+        >
+          <Sparkles size={14} strokeWidth={1.75} aria-hidden />
+          Copiloto
+          {copilotIssueCount > 0 && (
+            <span
+              title={`${copilotIssueCount} observaciones pendientes`}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                background: 'var(--color-accent-soft)',
-                border: '1px solid var(--color-success)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-success)',
-                fontSize: 'var(--text-xs)', fontWeight: 700,
-                padding: '4px 8px', cursor: 'pointer',
+                minWidth: 16, height: 16, borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-danger)', color: 'var(--color-text-on-accent)',
+                fontSize: 9, fontWeight: 800, lineHeight: 1,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 4px',
               }}
             >
-              <Download size={11} />
-              <span className="toolbar-btn-label">Actualización</span>
-            </button>
+              {copilotIssueCount > 99 ? '99+' : copilotIssueCount}
+            </span>
           )}
+        </button>
 
-          {/* Copiloto Editorial IA */}
-          <button
-            type="button"
-            onClick={() => useDocStore.getState().setLiveChatOpen(!useDocStore.getState().liveChatOpen)}
-            title="Copiloto Editorial IA (Edición en vivo en lenguaje natural)"
-            style={{
-              ...ghostBtn,
-              background: useDocStore((s) => s.liveChatOpen) ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-              color: useDocStore((s) => s.liveChatOpen) ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              borderColor: useDocStore((s) => s.liveChatOpen) ? 'var(--accent-primary)' : 'var(--border-subtle)',
-              fontWeight: 700,
-            }}
-          >
-            <MessageSquare size={13} />
-            <span className="toolbar-btn-label">Copiloto IA</span>
-            {copilotIssueCount > 0 && (
-              <span
-                title={`${copilotIssueCount} observaciones pendientes`}
-                style={{
-                  minWidth: '16px', height: '16px', borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--color-danger)', color: '#ffffff',
-                  fontSize: '9px', fontWeight: 800, lineHeight: 1,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '0 4px',
-                }}
-              >
-                {copilotIssueCount > 99 ? '99+' : copilotIssueCount}
-              </span>
-            )}
-          </button>
+        <button
+          type="button"
+          onClick={() => setOverflowOpen((v) => !v)}
+          aria-label="Más acciones"
+          aria-expanded={overflowOpen}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, border: '1px solid var(--color-border-subtle)',
+            borderRadius: 'var(--radius-sm)', background: 'transparent',
+            color: 'var(--color-text-secondary)', cursor: 'pointer',
+            ...noDragRegion,
+          }}
+        >
+          <MoreHorizontal size={15} strokeWidth={1.75} aria-hidden />
+        </button>
+        {overflowOpen && <ToolbarOverflowMenu onClose={() => setOverflowOpen(false)} />}
 
-          <div style={toolbarDivider} />
-
-          {/* Theme toggle (icon only) */}
-          <button type="button"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-            style={ghostBtn}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(128,128,128,0.15)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-          >
-            {theme === 'dark' ? <Sun size={11} /> : <Moon size={11} />}
-          </button>
-
-          <div style={toolbarDivider} />
-
-          {/* User Account / Settings Pill (Estilo Gemini) */}
-          <button
-            type="button"
-            onClick={() => useDocStore.getState().setSettingsStudioOpen(true)}
-            title="Ajustes de Perfil y Configuración de Motores"
-            style={{
-              ...ghostBtn,
-              padding: '2px 8px 2px 4px',
-              borderRadius: 'var(--radius-full)',
-              gap: '6px',
-            }}
-          >
-            <div
-              style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-primary)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: '10px',
-              }}
-            >
-              W
-            </div>
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Walter</span>
-          </button>
-        </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setSettingsStudioOpen(true)}
+          aria-label="Cuenta"
+          title="Cuenta"
+          style={{
+            width: 28, height: 28, borderRadius: 'var(--radius-full)',
+            border: 'none', backgroundColor: 'var(--color-accent)',
+            color: 'var(--color-text-on-accent)', fontSize: 'var(--text-xs)',
+            fontWeight: 700, cursor: 'pointer', ...noDragRegion,
+          }}
+        >
+          W
+        </button>
       </div>
-    </div>
+    </header>
   );
 }
-
-const ghostBtn: React.CSSProperties = {
-  background: 'var(--surface-subtle)',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--text-xs)',
-  padding: '4px 8px',
-  cursor: 'pointer',
-  display: 'flex', alignItems: 'center', gap: '4px',
-  transition: 'background 0.15s',
-};
-
-const toolbarDivider = {
-  width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 2px', flexShrink: 0,
-} as React.CSSProperties;
