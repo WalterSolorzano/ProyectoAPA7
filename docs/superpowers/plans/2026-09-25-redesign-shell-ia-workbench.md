@@ -3387,6 +3387,24 @@ describe('T14 — FocusReadingCard', () => {
 Run: `npx vitest run src/__tests__/focusReadingCard.test.tsx`
 Expected: FAIL — no se puede resolver `../components/review/FocusReadingCard`.
 
+- [ ] **Step 2: Pasa `contentKey` a `useAutoFitText`**
+
+**Enmendado durante la ejecución.** La Task 11 cambió la firma del hook a
+`useAutoFitText(contentKey?)`. Si la tarjeta no le pasa la clave de contenido, el hallazgo 3 de la
+revisión de la Task 11 revive intacto: el `ResizeObserver` no dispara al cambiar el texto en una caja de
+altura fija, así que el párrafo nuevo hereda el cuerpo del anterior, y ningún test ni el compilador lo
+detectan porque el parámetro es opcional.
+
+```tsx
+const { containerRef, fontSize, lineHeight } = useAutoFitText(item?.id ?? null);
+```
+
+**Y la caja tiene que ser un contenedor de scroll acotado.** `useAutoFitText` decide "cabe sin scroll
+interno" comparando `scrollHeight` contra `clientHeight`. Si la tarjeta usa `overflow: hidden` sin tope
+de altura, la comparación es vacía de verdad —siempre se cumple—, la búsqueda colapsa a "cabe en 26
+líneas" y **todo párrafo de más de 26 líneas se encoge sin necesidad visual**. La spec §5.2 pide
+`overflow-y: auto`; eso es lo que hace que la condición signifique algo.
+
 - [ ] **Step 3: Crea `FocusReadingCard.tsx`**
 
 ```tsx
@@ -3413,7 +3431,7 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
   const sugerenciasProactivas = useDocStore((s) => s.sugerenciasProactivas);
-  const { containerRef, fontSize, lineHeight } = useAutoFitText();
+  const { containerRef, fontSize, lineHeight } = useAutoFitText(item?.id ?? null);
 
   const source = useMemo<MarkSource>(
     () => ({
@@ -3460,6 +3478,11 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
         ref={containerRef}
         style={{
           flex: 1,
+          minHeight: 0,
+          // Contenedor de scroll ACOTADO, no `overflow: hidden` sin tope: el
+          // auto-ajuste decide "cabe sin scroll interno" comparando
+          // scrollHeight contra clientHeight, y sin altura acotada esa
+          // comparación se cumple siempre y el ajuste no significa nada.
           overflowY: 'auto',
           padding: '0 40px 32px',
           fontFamily: 'var(--font-family)',
