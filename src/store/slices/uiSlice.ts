@@ -117,7 +117,12 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
     const tab = state.tabs[index];
     const tabDoc = state.tabDocs[tab.session_id];
     if (tabDoc) {
-      return { activeTabIndex: index, doc: tabDoc, references: tabDoc.referencias || [], atHome: false, selectedElementId: null, selectedReferenceId: null, scrollTargetId: null };
+      // Cambio de documento activo → la verdad COM (cortes/eco/D-a) no aplica.
+      const docChanged = state.doc?.session_id !== tabDoc.session_id;
+      return {
+        activeTabIndex: index, doc: tabDoc, references: tabDoc.referencias || [], atHome: false, selectedElementId: null, selectedReferenceId: null, scrollTargetId: null,
+        ...(docChanged ? { layoutCuts: null, layoutEcho: 0, wordLayoutUnavailable: false } : {}),
+      };
     }
     return { activeTabIndex: index, atHome: false };
   }),
@@ -131,6 +136,8 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
     const newDoc = newTabs.length > 0 && newTabs[newIndex]
       ? newTabDocs[newTabs[newIndex].session_id] || null
       : null;
+    // Cambio de documento activo → la verdad COM (cortes/eco/D-a) no aplica.
+    const docChanged = (state.doc?.session_id ?? null) !== (newDoc?.session_id ?? null);
     return {
       tabs: newTabs,
       tabDocs: newTabDocs,
@@ -140,6 +147,7 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       selectedElementId: null,
       selectedReferenceId: null,
       scrollTargetId: null,
+      ...(docChanged ? { layoutCuts: null, layoutEcho: 0, wordLayoutUnavailable: false } : {}),
     };
   }),
   projectImages: [],

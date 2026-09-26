@@ -74,8 +74,10 @@ export interface DocState {
   } | null;
 
   // ── Fase 2 — Motor de render híbrido: verdad COM en vivo ──
-  /** Fase 2 — verdad COM en vivo: cortes de página por elemento (id → cortes). */
-  layoutCuts: Record<string, { offset: number; page: number }[]>;
+  /** Fase 2 — verdad COM en vivo: cortes de página por elemento (id → cortes).
+   *  `null` = sin layout conocido (documento nuevo o sin Word: nunca pintar
+   *  cortes de otro documento, los ids son posicionales). */
+  layoutCuts: Record<string, { offset: number; page: number }[]> | null;
   /** Eco de aplicación: incrementa SOLO cuando una respuesta cambió algo. El hook compara para no re-agendar. */
   layoutEcho: number;
   /** D-a: la última respuesta informó que no hay Word. */

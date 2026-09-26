@@ -113,10 +113,27 @@ export function safeRefText(ref: unknown): string {
   } catch { return ''; }
 }
 
+/** Firma canónica de cortes: invariante al orden de claves de objeto y al orden
+ *  de llegada de la lista de cortes. Solo cambia si cambia el contenido
+ *  (offset/página). Evita `layoutEcho++` ante un payload semánticamente idéntico
+ *  reordenado (defensa anti-bucle). */
+function cutsSignature(cuts: Record<string, { offset: number; page: number }[]> | null | undefined): string {
+  const rec = cuts || {};
+  const keys = Object.keys(rec).sort();
+  return JSON.stringify(
+    keys.map((id) => [
+      id,
+      ...(rec[id] || [])
+        .map((c) => [c.offset, c.page] as [number, number])
+        .sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+    ]),
+  );
+}
+
 export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocState>> = (set, get) => ({
   doc: null,
   // ── Fase 2 — Motor de render híbrido: verdad COM en vivo ──
-  layoutCuts: {},
+  layoutCuts: null,
   layoutEcho: 0,
   wordLayoutUnavailable: false,
   apiKey: (() => {
@@ -398,6 +415,10 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           atHome: false,
           wizardStep: 1,
           liveChatOpen: false,
+          // Documento nuevo → la verdad COM del doc anterior no aplica aquí.
+          layoutCuts: null,
+          layoutEcho: 0,
+          wordLayoutUnavailable: false,
         };
       });
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
@@ -1074,7 +1095,12 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     const { doc } = get();
     if (!doc || resp.session_id !== doc.session_id) return;   // sesión obsoleta
     if (!resp.available) {
-      set({ wordLayoutUnavailable: true });                   // D-a: aviso, sin mutar
+      // D-a: aviso, sin mutar doc. Sin Word el layout es desconocido → no se
+      // pinta un documento con cortes viejos (podrían ser de otro doc).
+      set((s) => ({
+        wordLayoutUnavailable: true,
+        ...(s.layoutCuts ? { layoutCuts: null } : {}),
+      }));
       return;
     }
 
@@ -1095,8 +1121,10 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     for (const c of resp.line_cuts || []) {
       if (c.cuts.length > 0) nextCuts[c.element_id] = c.cuts;
     }
+    // Firma canónica: JSON.stringify crudo dependía del orden de claves/listas
+    // del payload → un reordenamiento semánticamente idéntico re-agendaba.
     const cutsChanged =
-      JSON.stringify(nextCuts) !== JSON.stringify(get().layoutCuts || {});
+      cutsSignature(nextCuts) !== cutsSignature(get().layoutCuts);
     const total = resp.total_pages ?? 0;
     const countChanged = total > 0 && doc.meta.page_count !== total;
 
