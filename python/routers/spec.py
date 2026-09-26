@@ -140,10 +140,9 @@ async def generate_from_spec(
     """Genera un docx APA 7 completo desde un spec JSON (un solo llamado)."""
     from main import (
         ApplyCoverRequest,
-        GenerateRequest,
         apply_cover_endpoint,
-        generate_docx,
     )
+    from routers.generation import GenerateRequest, generate_docx
     from routers.sessions import start_blank_document
 
     # 1. Resolver presets y portada (404 con available)

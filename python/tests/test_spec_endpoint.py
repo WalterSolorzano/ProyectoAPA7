@@ -64,6 +64,7 @@ def test_happy_path_200(client, monkeypatch):
     """Generacion mockeada: valida orquestacion, sesion y respuesta."""
     import docx
     import main
+    from routers import generation
 
     async def fake_generate(req):
         out = Path(main.STORAGE_DIR) / "sessions" / req.session_id
@@ -75,7 +76,7 @@ def test_happy_path_200(client, monkeypatch):
         return {"download_url": f"/api/download/{req.session_id}",
                 "filename": "APA7_test.docx"}
 
-    monkeypatch.setattr(main, "generate_docx", fake_generate)
+    monkeypatch.setattr(generation, "generate_docx", fake_generate)
     r = client.post("/api/spec", json=_spec(presets={"layout": "layout_uni"}))
     assert r.status_code == 200, r.text
     body = r.json()
@@ -87,6 +88,7 @@ def test_happy_path_200(client, monkeypatch):
 def test_missing_image_warning_200(client, monkeypatch):
     import docx
     import main
+    from routers import generation
 
     async def fake_generate(req):
         out = Path(main.STORAGE_DIR) / "sessions" / req.session_id
@@ -97,7 +99,7 @@ def test_missing_image_warning_200(client, monkeypatch):
         return {"download_url": f"/api/download/{req.session_id}",
                 "filename": "APA7_w.docx"}
 
-    monkeypatch.setattr(main, "generate_docx", fake_generate)
+    monkeypatch.setattr(generation, "generate_docx", fake_generate)
     r = client.post("/api/spec", json=_spec(elements=[
         {"type": "paragraph", "text": "x"},
         {"type": "figure", "image": "C:/no_existe/a.png",
@@ -140,6 +142,7 @@ def test_cover_scratch_pasa_portada_a_generate(client, monkeypatch):
     """cover SIN template -> PortadaData scratch (use_original_cover=False)."""
     import docx
     import main
+    from routers import generation
 
     captured = {}
 
@@ -154,7 +157,7 @@ def test_cover_scratch_pasa_portada_a_generate(client, monkeypatch):
         return {"download_url": f"/api/download/{req.session_id}",
                 "filename": "APA7_test.docx"}
 
-    monkeypatch.setattr(main, "generate_docx", fake_generate)
+    monkeypatch.setattr(generation, "generate_docx", fake_generate)
     r = client.post("/api/spec", json=_spec(cover={
         "title": "Balance energetico", "author": "Walter Solorzano",
         "institution": "UNI", "course": "Tecnologia y Medio Ambiente",
