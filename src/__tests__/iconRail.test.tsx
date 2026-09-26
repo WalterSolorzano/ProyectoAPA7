@@ -24,10 +24,11 @@ const mkItems = (over: Partial<RailDestination> = {}): RailDestination[] =>
 const setup = (items = mkItems()) => {
   const onHoverItem = vi.fn();
   const onTogglePin = vi.fn();
+  const onSelect = vi.fn();
   const utils = render(
-    <IconRail items={items} onHoverItem={onHoverItem} onTogglePin={onTogglePin} pinned={false} />,
+    <IconRail items={items} onHoverItem={onHoverItem} onTogglePin={onTogglePin} onSelect={onSelect} pinned={false} />,
   );
-  return { ...utils, onHoverItem, onTogglePin };
+  return { ...utils, onHoverItem, onTogglePin, onSelect };
 };
 
 describe('T4 — IconRail', () => {
@@ -50,7 +51,7 @@ describe('T4 — IconRail', () => {
 
     const onTogglePin2 = vi.fn();
     render(
-      <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={onTogglePin2} pinned={true} />,
+      <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={onTogglePin2} onSelect={vi.fn()} pinned={true} />,
     );
     const anclado = screen.getByRole('button', { name: 'Anclado' });
     expect(anclado.getAttribute('aria-pressed')).toBe('true');
@@ -65,10 +66,33 @@ describe('T4 — IconRail', () => {
     expect(onHoverItem).toHaveBeenLastCalledWith(null);
   });
 
-  it('el clic no navega, solo ancla: la navegación vive en el workbench', () => {
-    const { onTogglePin } = setup();
+  it('el clic de una fase navega, y no ancla: anclar es el pin de abajo', () => {
+    // T4 fijó el clic como "solo ancla" y el hover como el que abría el detalle.
+    // Con el rail permanente, el hover no puede cambiar de fase (barrer el
+    // borde izquierdo desmontaría el documento que se está leyendo), así que
+    // el clic pasó a ser la navegación: es el único camino con teclado.
+    const { onSelect, onTogglePin } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ step: 1 }));
+    expect(onTogglePin).not.toHaveBeenCalled();
+  });
+
+  it('el clic del pin ancla y no navega', () => {
+    const { onSelect, onTogglePin } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
     expect(onTogglePin).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('las fases son botones de verdad, alcanzables con teclado', () => {
+    // El clic de teclado no se puede simular en jsdom, pero un <button> nativo
+    // sí lo dispara: lo que hay que garantizar aquí es que no sea un div con
+    // role, porque entonces el Enter no llegaría nunca.
+    setup();
+    const btn = screen.getByRole('button', { name: 'Figuras' });
+    expect(btn.tagName).toBe('BUTTON');
+    expect(btn.getAttribute('type')).toBe('button');
+    expect(btn.getAttribute('tabindex')).toBeNull();
   });
 
   it('marca como activo solo la fase actual, y la sigue cuando cambia', () => {
@@ -161,7 +185,7 @@ describe('T4 — IconRail', () => {
     const onHoverItem = vi.fn();
     const onTogglePin = vi.fn();
     const { unmount } = render(
-      <IconRail items={mkItems()} onHoverItem={onHoverItem} onTogglePin={onTogglePin} pinned={false} />,
+      <IconRail items={mkItems()} onHoverItem={onHoverItem} onTogglePin={onTogglePin} onSelect={vi.fn()} pinned={false} />,
     );
     expect(screen.queryByLabelText(/pendientes/)).toBeNull();
     unmount();
@@ -171,6 +195,7 @@ describe('T4 — IconRail', () => {
         items={mkItems().map((i) => (i.step === 5 ? { ...i, pending: 7, status: 'pending' as const } : i))}
         onHoverItem={onHoverItem}
         onTogglePin={onTogglePin}
+        onSelect={vi.fn()}
         pinned={false}
       />,
     );

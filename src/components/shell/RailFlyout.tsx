@@ -1,9 +1,11 @@
 /* WordAPA7 — shell: flyout de detalle del rail.
    Flota SOBRE el workbench y no lo empuja: el centro de Revisión no puede
-   estrecharse porque el usuario quiera leer una etiqueta. El cierre lleva
-   120ms de gracia para que el puntero cruce el hueco entre rail y panel. */
+   estrecharse porque el usuario quiera leer una etiqueta. El panel no programa
+   su propio cierre: la entrada y la salida se reportan al shell, que es quien
+   posee el timer de 120ms de la unión rail + flyout. Armarlo aquí lo haría
+   incancelable desde el rail, y el panel se cerraría con el puntero encima. */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Pin, Check, AlertCircle } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { OutlineTree } from '../wizard/OutlineTree';
@@ -23,30 +25,19 @@ const STATUS_COLOR: Record<RailDestination['status'], string> = {
   idle: 'var(--color-text-tertiary)',
 };
 
-export function RailFlyout({ item, onClose, onEnter }: {
+export function RailFlyout({ item, onClose, onEnter, onLeave }: {
   item: RailDestination | null;
   onClose: () => void;
   /** Reporta la entrada del puntero hacia arriba: el shell cancela con esto el
-   *  cierre que él mismo había iniciado al soltarse el rail. Opcional para que
-   *  este componente siga siendo usable sin shell. */
+   *  cierre que él mismo había iniciado. */
   onEnter?: () => void;
+  /** Reporta la salida del puntero hacia arriba: el shell programa con esto su
+   *  timer de gracia. Opcionales para que este componente siga siendo usable
+   *  sin shell. */
+  onLeave?: () => void;
 }): JSX.Element | null {
   const railPinned = useDocStore((s) => s.railPinned);
   const setRailPinned = useDocStore((s) => s.setRailPinned);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const cancelClose = () => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-
-  const scheduleClose = () => {
-    if (railPinned) return;
-    cancelClose();
-    closeTimer.current = setTimeout(onClose, FLYOUT_CLOSE_GRACE_MS);
-  };
 
   useEffect(() => {
     // Sin destino no hay panel que cerrar: el componente se monta siempre (por eso
@@ -63,10 +54,8 @@ export function RailFlyout({ item, onClose, onEnter }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [item, setRailPinned, onClose]);
 
-  // El timer de gracia no sobrevive al desmontaje: si no, cerraría un panel que
-  // ya no existe (y en tests, llamaría onClose sobre un componente muerto).
-  useEffect(() => cancelClose, []);
-
+  // El panel no tiene temporizador propio, así que no hay nada que limpiar al
+  // desmontar: el cierre lo programa y el shell lo cancela.
   if (!item) return null;
 
   const StatusIcon = item.status === 'done' ? Check : item.status === 'pending' ? AlertCircle : null;
@@ -75,11 +64,8 @@ export function RailFlyout({ item, onClose, onEnter }: {
     <aside
       data-testid="rail-flyout"
       aria-label={`Detalle de ${item.label}`}
-      onMouseEnter={() => {
-        cancelClose();
-        onEnter?.();
-      }}
-      onMouseLeave={scheduleClose}
+      onMouseEnter={() => onEnter?.()}
+      onMouseLeave={() => onLeave?.()}
       style={{
         position: 'absolute',
         top: 12,

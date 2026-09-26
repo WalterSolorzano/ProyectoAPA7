@@ -36,7 +36,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // El cierre es de la unión rail + flyout, así que el timer es de la unión y
   // vive aquí: el rail y el panel quedan separados por un hueco de 8px y si cada
   // uno cerrara por su cuenta, el puntero no podría cruzar sin perder el panel
-  // por el camino. El `onEnter` del flyout cancela este mismo timer.
+  // por el camino. Lo programa la salida del rail o la del flyout; lo cancela la
+  // entrada en cualquiera de los dos.
   const scheduleClose = useCallback(() => {
     if (railPinned) return;
     cancelClose();
@@ -50,19 +51,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // existe (y en tests, escribiría estado de un componente muerto).
   useEffect(() => cancelClose, [cancelClose]);
 
+  // El hover solo hace aparecer el detalle. Navegar desde el hover montaría y
+  // desmontaría la fase que el usuario está leyendo cada vez que el puntero
+  // cruza el borde izquierdo, y con el panel anclado el documento de detrás
+  // cambiaría solo.
   const handleHoverItem = useCallback(
     (item: RailDestination | null) => {
-      // El clic ancla; el hover solo hace aparecer. Por eso un clic en el rail
-      // navega y suelta el flyout a la vez.
       if (item) {
         cancelClose();
         setHovered(item);
-        if (item.step !== null) setWizardStep(item.step);
         return;
       }
       scheduleClose();
     },
-    [cancelClose, scheduleClose, setWizardStep],
+    [cancelClose, scheduleClose],
+  );
+
+  // El clic es la acción deliberada: lleva a la fase y ancla el panel. También
+  // lo abre, porque con teclado no hay hover que lo haya abierto.
+  const handleSelect = useCallback(
+    (item: RailDestination) => {
+      cancelClose();
+      setHovered(item);
+      if (item.step !== null) setWizardStep(item.step);
+      setRailPinned(true);
+    },
+    [cancelClose, setRailPinned, setWizardStep],
   );
 
   return (
@@ -86,10 +100,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <IconRail
           items={items}
           onHoverItem={handleHoverItem}
+          onSelect={handleSelect}
           onTogglePin={() => setRailPinned(!railPinned)}
           pinned={railPinned}
         />
-        <RailFlyout item={hovered} onClose={close} onEnter={cancelClose} />
+        <RailFlyout item={hovered} onClose={close} onEnter={cancelClose} onLeave={scheduleClose} />
         <main style={{ flex: 1, minWidth: 0, display: 'flex', overflow: 'hidden' }}>
           {children}
         </main>

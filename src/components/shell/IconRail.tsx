@@ -10,6 +10,9 @@ import type { RailDestination } from './railItems';
 export interface IconRailProps {
   items: RailDestination[];
   onHoverItem: (item: RailDestination | null) => void;
+  /** Clic en un destino: navega a su fase. El hover solo muestra el detalle, así
+   *  que esta es la única vía de navegación con teclado. */
+  onSelect: (item: RailDestination) => void;
   onTogglePin: () => void;
   pinned: boolean;
   /** Inicio pasa "Navegación principal": sus destinos no son fases. */
@@ -27,7 +30,7 @@ const ink = (active: boolean, hovered: boolean) =>
   active ? 'var(--color-accent)' : hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)';
 const BUTTON_TRANSITION = 'background var(--transition-fast), color var(--transition-fast)';
 
-export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }: IconRailProps) {
+export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
   // La fase activa la lee el propio rail, no el shell: una sola fuente, para
   // que el icono y la barra de trabajo no puedan desincronizarse.
   const wizardStep = useDocStore((s) => s.wizardStep);
@@ -77,7 +80,7 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
               onHoverItem(item);
             }}
             onMouseLeave={release(id)}
-            onClick={onTogglePin}
+            onClick={() => onSelect(item)}
             style={{
               position: 'relative',
               width: 40,

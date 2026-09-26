@@ -43,12 +43,24 @@ describe('T6 — AppShell', () => {
     expect(rail.style.width).toBe('56px');
   });
 
-  it('passar el puntero por un destino abre su flyout y lleva a esa fase', () => {
+  it('el hover abre el flyout pero no cambia de fase', () => {
+    // Barrer el puntero por el rail no puede desmontar la fase que se está
+    // leyendo: el hover solo hace aparecer el detalle.
     useDocStore.setState({ wizardStep: 3 });
     render(<AppShell><div>x</div></AppShell>);
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
-    expect(useDocStore.getState().wizardStep).toBe(1);
+    expect(useDocStore.getState().wizardStep).toBe(3);
+  });
+
+  it('el clic lleva a la fase y ancla el panel', () => {
+    useDocStore.setState({ wizardStep: 1 });
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Figuras' }));
+    expect(useDocStore.getState().wizardStep).toBe(3);
+    expect(useDocStore.getState().railPinned).toBe(true);
+    // El clic también abre el detalle: con teclado no hay hover que lo abra.
+    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
   });
 
   it('el clic en el workbench no es lo que ancla: el pin del rail sí', () => {
@@ -78,6 +90,30 @@ describe('T6 — AppShell', () => {
     fireEvent.mouseEnter(screen.getByTestId('rail-flyout'));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+  });
+
+  it('volver al rail desde el flyout cancela el cierre: el panel sobrevive a la gracia', () => {
+    // El timer es de la unión. Si el flyout se cerrara con el suyo, el puntero
+    // que vuelve al rail vería desaparecer el panel 120ms después, con el
+    // icono todavía resaltado y sin detalle que lo explique.
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    const fly = screen.getByTestId('rail-flyout');
+    fireEvent.mouseEnter(fly);
+    fireEvent.mouseLeave(fly);
+    act(() => { vi.advanceTimersByTime(80); });
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Estructura' }));
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+  });
+
+  it('salir del flyout hacia el workbench sí cierra, tras la gracia', () => {
+    // El otro sentido de la unión: si el puntero se va de verdad, el panel se va.
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    fireEvent.mouseLeave(screen.getByTestId('rail-flyout'));
+    act(() => { vi.advanceTimersByTime(120); });
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
   });
 
   it('anclado, el flyout sobrevive a que el puntero se vaya al documento', () => {

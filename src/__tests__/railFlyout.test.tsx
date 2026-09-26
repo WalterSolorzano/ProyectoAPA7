@@ -103,42 +103,42 @@ describe('T5 — RailFlyout', () => {
   });
 
   it('mientras está anclado, salir con el puntero no lo cierra', () => {
+    // La puerta del ancla vive en el shell (`scheduleClose` no programa si está
+    // anclado). Aquí lo que se afirma es la mitad que sí es de este componente:
+    // salir no cierra nada por su cuenta.
     const onClose = vi.fn();
-    render(<RailFlyout item={item} onClose={onClose} />);
+    const onLeave = vi.fn();
+    render(<RailFlyout item={item} onClose={onClose} onLeave={onLeave} />);
     fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
     fireEvent.mouseLeave(screen.getByTestId('rail-flyout'));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(onClose).not.toHaveBeenCalled();
+    expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it('sin anclar, el cierre se aplaza 120ms para que el puntero cruce el hueco', () => {
+  it('salir y reentrar se reportan hacia arriba, y el panel no se cierra solo', () => {
+    // El timer de la gracia es de la unión rail + flyout y lo posee el shell:
+    // si el flyout se armara uno propio, su salida no se podría cancelar desde el
+    // rail. Estos callbacks son el único contrato que necesita.
     const onClose = vi.fn();
-    render(<RailFlyout item={item} onClose={onClose} />);
-    fireEvent.mouseLeave(screen.getByTestId('rail-flyout'));
-    // 119/120 en literal, no desde la constante: si el retardo real se moviera,
-    // este test tiene que caer por sí mismo y no porque ambas se muevan juntas.
-    act(() => { vi.advanceTimersByTime(119); });
-    expect(onClose).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(1); });
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('reentrar antes de la gracia cancela el cierre', () => {
-    const onClose = vi.fn();
-    render(<RailFlyout item={item} onClose={onClose} />);
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    render(<RailFlyout item={item} onClose={onClose} onEnter={onEnter} onLeave={onLeave} />);
     const fly = screen.getByTestId('rail-flyout');
     fireEvent.mouseLeave(fly);
     act(() => { vi.advanceTimersByTime(80); });
     fireEvent.mouseEnter(fly);
+    fireEvent.mouseLeave(fly);
     act(() => { vi.advanceTimersByTime(5000); });
+    expect(onEnter).toHaveBeenCalledTimes(1);
+    expect(onLeave).toHaveBeenCalledTimes(2);
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('la gracia no sobrevive al desmontaje: el timer se limpia', () => {
+  it('sin shell que programe el cierre, el panel se queda: no hay temporizador propio', () => {
     const onClose = vi.fn();
-    const { unmount } = render(<RailFlyout item={item} onClose={onClose} />);
+    render(<RailFlyout item={item} onClose={onClose} />);
     fireEvent.mouseLeave(screen.getByTestId('rail-flyout'));
-    unmount();
     act(() => { vi.advanceTimersByTime(5000); });
     expect(onClose).not.toHaveBeenCalled();
   });
