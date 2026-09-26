@@ -8,7 +8,7 @@ import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend'
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
-import { getPageGeometry } from '../../lib/pageGeometry';
+import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { buildCommentContext } from '../../lib/commentContext';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
@@ -388,6 +388,53 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
   return pages;
 };
 
+/** Reglas de hoja que necesita la geometría (subconjunto de APARuleSet). */
+export type PageRules = Parameters<typeof getPageGeometry>[0];
+
+export interface RenderedPagesInput {
+  elements: ElementModel[];
+  /** Reglas APA vigentes; si faltan, manda el default de getPageGeometry. */
+  rules?: PageRules;
+  /** Formato APA del documento: decide el alto del encabezado de página. */
+  apaFormat?: string;
+  /** Alturas medidas en el DOM (id → px). Sin mediciones no hay reflow. */
+  heights?: Map<string, number> | null;
+}
+
+/**
+ * LAS páginas que el lienzo realmente dibuja. Una sola paginación en la app:
+ * el render del lienzo y el índice de findings llaman a ESTA función, así que
+ * no pueden divergir ni por densidad ni por reglas.
+ *
+ * - La densidad sale de la altura real de la hoja (`maxUnits`), no de un 14 fijo:
+ *   con 14 el índice armaba el doble de páginas que las que dibuja el lienzo.
+ * - `heights` son las mediciones DOM del lienzo. Sin mediciones (índice, primera
+ *   pintura) `applyPageFlow` devuelve las páginas base intactas.
+ */
+export const computeRenderedPages = ({
+  elements,
+  rules,
+  apaFormat,
+  heights,
+}: RenderedPagesInput): { geom: PageGeometry; pages: ElementModel[][] } => {
+  // ── Geometría REAL del documento (Word como verdad): hoja en pt de Word a
+  //    96 DPI + márgenes de rules. El zoom es CSS aparte, no aquí.
+  const geom = getPageGeometry({
+    margins_cm: (rules as any)?.margins_cm,
+    font_size_pt: rules?.font_size_pt,
+    line_spacing: rules?.line_spacing,
+    page_size: (rules as any)?.page_size,
+    professional_running_head: apaFormat === 'professional',
+  });
+  // Capacidad proporcional a la altura real de la hoja (Letter 880 / A4 962).
+  const maxUnits = Math.max(18, Math.floor((Math.round(geom.pageH) - 96) / 34));
+  // Reparto con alturas DOM reales: parte párrafos que exceden la hoja (sin recorte).
+  return {
+    geom,
+    pages: applyPageFlow(computePages(elements, maxUnits), heights ?? new Map(), geom),
+  };
+};
+
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
@@ -630,8 +677,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // Scroll automático y resalte suave al seleccionar cualquier elemento desde el esquema o asistente
   useEffect(() => {
     if (selectedElementId && doc) {
-      // Si el elemento está en una página virtualizada lejana, activar esa página de inmediato
-      const docPages = computePages(doc.elements);
+      // Si el elemento está en una página virtualizada lejana, activar esa página de inmediato.
+      // Mismas páginas que dibuja el lienzo (no una cuenta con otra densidad).
+      const docPages = computeRenderedPages({
+        elements: doc.elements,
+        rules,
+        apaFormat: doc.apa_format,
+        heights: measuredRef.current,
+      }).pages;
       const pIdx = docPages.findIndex((p) => p.some((e) => e.id === selectedElementId));
       if (pIdx !== -1 && pIdx !== activePageIndex) {
         setActivePageIndex(pIdx);
@@ -659,13 +712,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       requestAnimationFrame(tryScroll);
       return () => { if (timer) clearTimeout(timer); };
     }
-  }, [selectedElementId, doc]);
+  }, [selectedElementId, doc, rules]);
 
   // Scroll del DocumentOutline / auto-scroll a Referencias o Figuras SIN abrir el inspector
   const scrollTargetId = useDocStore((s) => s.scrollTargetId);
   useEffect(() => {
     if (scrollTargetId && doc) {
-      const pages = computePages(doc.elements);
+      const pages = computeRenderedPages({
+        elements: doc.elements,
+        rules,
+        apaFormat: doc.apa_format,
+        heights: measuredRef.current,
+      }).pages;
       const pageIdx = pages.findIndex((p) => p.some((e) => e.id === scrollTargetId));
       if (pageIdx !== -1 && pageIdx !== activePageIndex) {
         setActivePageIndex(pageIdx);
@@ -690,7 +748,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       requestAnimationFrame(tryScrollTarget);
       return () => { if (timer) clearTimeout(timer); };
     }
-  }, [scrollTargetId, doc]);
+  }, [scrollTargetId, doc, rules]);
 
   // ── Marcas de transparencia: mapa elemento → etiqueta (SOLO LECTURA) ──
   // Escrito por otro agente en localStorage key `wordapa7_marcas_map`.
@@ -715,23 +773,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
   const fontFamily = rules.font_family || 'Times New Roman';
 
-  // ── Geometría REAL del documento (Word como verdad): hoja en pt de Word a
-  // 96 DPI + márgenes de rules. El zoom es CSS aparte (línea ~1257), no aquí.
-  const geom = getPageGeometry({
-    margins_cm: (rules as any)?.margins_cm,
-    font_size_pt: rules.font_size_pt,
-    line_spacing: rules.line_spacing,
-    page_size: (rules as any)?.page_size,
-    professional_running_head: doc.apa_format === 'professional',
+  // Geometría REAL + paginación REAL en una sola llamada compartida con el
+  // índice de findings (computeRenderedPages): densidad por altura de hoja y
+  // reflow por alturas medidas, sin una segunda cuenta en ningún lado.
+  const { geom, pages } = computeRenderedPages({
+    elements: doc.elements,
+    rules,
+    apaFormat: doc.apa_format,
+    heights: measuredRef.current,
   });
   const PAGE_W = Math.round(geom.pageW);   // Letter 816px · A4 793px
   const PAGE_H = Math.round(geom.pageH);   // Letter 1056px · A4 1123px
-
-    // Algoritmo de paginación virtual respetando salto de página del cuerpo
-    // Capacidad proporcional a la altura real de la hoja (Letter 880 / A4 962)
-    const basePages = computePages(doc.elements, Math.max(18, Math.floor((PAGE_H - 96) / 34)));
-    // Reparto con alturas DOM reales: parte párrafos que exceden la hoja (sin recorte).
-    const pages = applyPageFlow(basePages, measuredRef.current, geom);
 
   // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
   const citationAudit = useDocStore((s) => s.citationAuditResult);
