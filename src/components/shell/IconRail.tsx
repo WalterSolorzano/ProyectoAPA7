@@ -2,7 +2,7 @@
    Ocho botones de 40x40 y nada más. El detalle de cada fase vive en el
    flyout, para que la columna nunca le robe ancho al documento. */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Pin } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import type { RailDestination } from './railItems';
@@ -19,17 +19,35 @@ export interface IconRailProps {
 const RAIL_WIDTH = 56;
 const PinIcon = Pin;
 
+// Superficie y tinta de un botón del rail, en el orden de precedencia que fija
+// la spec 4.2: la fase activa manda, el hover solo sustituye al reposo.
+const surface = (active: boolean, hovered: boolean) =>
+  active ? 'var(--color-accent-soft)' : hovered ? 'var(--color-bg-surface-alt)' : 'transparent';
+const ink = (active: boolean, hovered: boolean) =>
+  active ? 'var(--color-accent)' : hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)';
+const BUTTON_TRANSITION = 'background var(--transition-fast), color var(--transition-fast)';
+
 export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }: IconRailProps) {
   // La fase activa la lee el propio rail, no el shell: una sola fuente, para
   // que el icono y la barra de trabajo no puedan desincronizarse.
   const wizardStep = useDocStore((s) => s.wizardStep);
   const isActive = (step: number | null) => step !== null && wizardStep === step;
+  // El hover vive en estado local: los estilos son inline y no hay :hover.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pinHovered, setPinHovered] = useState(false);
+  const release = (id: string) => () => setHoveredId((cur) => (cur === id ? null : cur));
 
   return (
     <nav
       aria-label={ariaLabel ?? 'Fases de la transformación'}
       data-testid="icon-rail"
-      onMouseLeave={() => onHoverItem(null)}
+      onMouseLeave={() => {
+        // El puntero puede salirse por el borde del rail sin cruzar ningún
+        // botón: aquí también se sueltan las superficies de hover.
+        setHoveredId(null);
+        setPinHovered(false);
+        onHoverItem(null);
+      }}
       style={{
         width: RAIL_WIDTH,
         flexShrink: 0,
@@ -37,7 +55,7 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 'var(--space-1, 8px)',
+        gap: 'var(--space-2)',
         padding: '12px 0',
         backgroundColor: 'var(--color-bg-surface)',
         borderRight: '1px solid var(--color-border-subtle)',
@@ -45,14 +63,20 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
     >
       {items.map((item) => {
         const { id, label, Icon, status, pending, step } = item;
+        const active = isActive(step);
+        const hovered = hoveredId === id;
         return (
           <button
             key={id}
             type="button"
             title={label}
             aria-label={label}
-            data-active={isActive(step) ? 'true' : 'false'}
-            onMouseEnter={() => onHoverItem(item)}
+            data-active={active ? 'true' : 'false'}
+            onMouseEnter={() => {
+              setHoveredId(id);
+              onHoverItem(item);
+            }}
+            onMouseLeave={release(id)}
             onClick={onTogglePin}
             style={{
               position: 'relative',
@@ -63,10 +87,10 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
               justifyContent: 'center',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              background: isActive(step) ? 'var(--color-accent-soft)' : 'transparent',
-              color: isActive(step) ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+              backgroundColor: surface(active, hovered),
+              color: ink(active, hovered),
               cursor: 'pointer',
-              transition: 'background var(--transition-fast), color var(--transition-fast)',
+              transition: BUTTON_TRANSITION,
             }}
           >
             <Icon size={17} strokeWidth={1.75} aria-hidden />
@@ -118,6 +142,8 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
         title={pinned ? 'Anclado' : 'Anclar panel'}
         aria-label={pinned ? 'Anclado' : 'Anclar panel'}
         aria-pressed={pinned}
+        onMouseEnter={() => setPinHovered(true)}
+        onMouseLeave={() => setPinHovered(false)}
         onClick={onTogglePin}
         style={{
           width: 40,
@@ -127,9 +153,10 @@ export function IconRail({ items, onHoverItem, onTogglePin, pinned, ariaLabel }:
           justifyContent: 'center',
           border: 'none',
           borderRadius: 'var(--radius-md)',
-          background: pinned ? 'var(--color-accent-soft)' : 'transparent',
-          color: pinned ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+          backgroundColor: surface(pinned, pinHovered),
+          color: ink(pinned, pinHovered),
           cursor: 'pointer',
+          transition: BUTTON_TRANSITION,
         }}
       >
         <PinIcon size={17} strokeWidth={1.75} aria-hidden />

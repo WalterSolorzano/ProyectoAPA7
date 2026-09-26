@@ -94,6 +94,69 @@ describe('T4 — IconRail', () => {
     expect(activos).toHaveLength(0);
   });
 
+  it('el hueco entre destinos es de 8px, el que dice la spec 4.2', async () => {
+    // Specifiers en variables + imports dinámicos: Vite no debe pasar estos
+    // módulos por nodePolyfills (mismo motivo que designTokens.test.ts).
+    const NODE_FS = 'node:fs';
+    const NODE_PATH = 'node:path';
+    const NODE_URL = 'node:url';
+    const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+    const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
+    const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
+    const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
+    const css = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+    const raiz = css.slice(css.indexOf(':root,'), css.indexOf(':root[data-theme="dark"]'));
+
+    setup();
+    const token = screen.getByTestId('icon-rail').style.gap.match(/var\((--[\w-]+)/)?.[1];
+    expect(token).toBeTruthy();
+    // El token se resuelve contra la hoja real: un `var(--space-1, 8px)` se
+    // vería correcto en el código y valdría 4px.
+    expect(raiz.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim()).toBe('8px');
+  });
+
+  it('el hover de una fase usa la superficie alternativa y se revierte al salir', () => {
+    setup();
+    const btn = screen.getByRole('button', { name: 'Figuras' });
+    expect(btn.style.backgroundColor).toBe('transparent');
+    expect(btn.style.color).toBe('var(--color-text-secondary)');
+    fireEvent.mouseEnter(btn);
+    expect(btn.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
+    expect(btn.style.color).toBe('var(--color-text-primary)');
+    fireEvent.mouseLeave(btn);
+    expect(btn.style.backgroundColor).toBe('transparent');
+    expect(btn.style.color).toBe('var(--color-text-secondary)');
+  });
+
+  it('el hover no borra la marca de la fase activa', () => {
+    setup();
+    const activa = screen.getByRole('button', { name: 'Portada' });
+    fireEvent.mouseEnter(activa);
+    expect(activa.style.backgroundColor).toBe('var(--color-accent-soft)');
+    expect(activa.style.color).toBe('var(--color-accent)');
+  });
+
+  it('salir del rail por su borde suelta el hover, aunque no se cruce ningún botón', () => {
+    setup();
+    const btn = screen.getByRole('button', { name: 'Figuras' });
+    fireEvent.mouseEnter(btn);
+    expect(btn.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
+    fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
+    expect(btn.style.backgroundColor).toBe('transparent');
+  });
+
+  it('el hover del botón de anclar usa la misma superficie', () => {
+    setup();
+    const pin = screen.getByRole('button', { name: 'Anclar panel' });
+    expect(pin.style.backgroundColor).toBe('transparent');
+    fireEvent.mouseEnter(pin);
+    expect(pin.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
+    expect(pin.style.color).toBe('var(--color-text-primary)');
+    fireEvent.mouseLeave(pin);
+    expect(pin.style.backgroundColor).toBe('transparent');
+    expect(pin.style.color).toBe('var(--color-text-secondary)');
+  });
+
   it('el punto de pendientes aparece solo si hay pendientes', () => {
     const onHoverItem = vi.fn();
     const onTogglePin = vi.fn();
