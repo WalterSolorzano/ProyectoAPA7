@@ -1,0 +1,30 @@
+/* WordAPA7 — contexto de comentarios del lienzo.
+   UNA sola construcción para el subrayado inline (renderReviewedText) y para
+   las burbujas del gutter (WhatsAppComment). La regla de styleAuditRun incluye
+   el corrector: si solo corrio proofread, hay burbuja y tiene que haber
+   subrayado, o el hallazgo queda resaltado a medias. */
+
+import type { WhatsAppContext } from '../components/layout/WhatsAppComment';
+import type { AIReviewResult } from '../api/backend';
+import type { ProofreadFinding, ValidationIssue } from '../types';
+
+/** Subconjunto del store que necesita la construcción del contexto. */
+export interface CommentContextSource {
+  citationAuditResult: { ghost_citations: any[]; orphan_references: any[] } | null;
+  validationIssues: ValidationIssue[] | null | undefined;
+  sugerenciasProactivas: boolean;
+  reviewResult: AIReviewResult | null;
+  proofreadFindings: ProofreadFinding[];
+}
+
+export function buildCommentContext(s: CommentContextSource): WhatsAppContext {
+  return {
+    ghostCitations: s.citationAuditResult?.ghost_citations || [],
+    orphanReferences: s.citationAuditResult?.orphan_references || [],
+    validationIssues: s.sugerenciasProactivas ? s.validationIssues || [] : [],
+    // Corrector O revisor de IA habilitan los comentarios de estilo: sin esto,
+    // un hallazgo del corrector se anunciaba en una burbuja sin subrayado.
+    // El `|| []` tolera un store que llegue sin el array (setState parcial).
+    styleAuditRun: !!s.reviewResult || (s.proofreadFindings || []).length > 0,
+  };
+}

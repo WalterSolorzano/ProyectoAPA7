@@ -12,6 +12,7 @@ import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
 import { getPageGeometry } from '../../lib/pageGeometry';
 import { applyPageFlow } from '../../lib/pageSplitter';
+import { buildCommentContext } from '../../lib/commentContext';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
 
@@ -589,19 +590,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     // Si el comentario no trae un fragmento específico (match), se marca el
     // texto completo del elemento para que el comentario SIEMPRE ancle a algo.
     if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
-      const s = useDocStore.getState();
-      const proactivas = s.sugerenciasProactivas !== false;
-      const cmtCtx = proactivas ? {
-        ghostCitations: (s.citationAuditResult?.ghost_citations || []) as any[],
-        orphanReferences: (s.citationAuditResult?.orphan_references || []) as any[],
-        validationIssues: (s.validationIssues || []) as any[],
-        styleAuditRun: !!reviewResult,
-      } : {
-        ghostCitations: [] as any[],
-        orphanReferences: [] as any[],
-        validationIssues: [] as any[],
-        styleAuditRun: false,
-      };
+      const cmtCtx = buildCommentContext({
+        citationAuditResult: useDocStore.getState().citationAuditResult,
+        validationIssues: useDocStore.getState().validationIssues,
+        sugerenciasProactivas: useDocStore.getState().sugerenciasProactivas,
+        reviewResult,
+        proofreadFindings: useDocStore.getState().proofreadFindings,
+      });
       const comment = getWhatsAppComment(elem, cmtCtx, 0);
       const m = comment?.match;
       if (comment) {
@@ -891,18 +886,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
   const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
-  const commentCtx = proactivas ? {
-    ghostCitations: (citationAudit?.ghost_citations || []) as any[],
-    orphanReferences: (citationAudit?.orphan_references || []) as any[],
-    validationIssues: (validationIssues || []) as any[],
-    // Si hay auditoría manual o hallazgos del revisor en segundo plano, habilitar comentarios
-    styleAuditRun: !!reviewResult || ((useDocStore.getState().proofreadFindings || []).length > 0),
-  } : {
-    ghostCitations: [] as any[],
-    orphanReferences: [] as any[],
-    validationIssues: [] as any[],
-    styleAuditRun: false,
-  };
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings);
+  // Mismo constructor que los subrayados inline: si hay burbuja, hay subrayado.
+  const commentCtx = React.useMemo(
+    () => buildCommentContext({
+      citationAuditResult: citationAudit,
+      validationIssues,
+      sugerenciasProactivas: proactivas,
+      reviewResult,
+      proofreadFindings,
+    }),
+    [citationAudit, validationIssues, proactivas, reviewResult, proofreadFindings],
+  );
   // Un solo festejo: SOLO si el documento entero está impecable (cero comentarios).
   const positiveMap = new Map<string, boolean>();
   // Geometría de gutter: SI el documento tiene al menos un comentario, TODAS las

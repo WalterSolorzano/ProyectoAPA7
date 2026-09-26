@@ -15,6 +15,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { generateChatComment, suggestCaption } from '../../api/backend';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
+import { buildCommentContext } from '../../lib/commentContext';
 import { DocumentMascot, MascotExpression } from './DocumentMascot';
 import { PenLine, X, BookOpen, CheckCheck, Sparkles } from 'lucide-react';
 import { hashStr } from '../../lib/utils';
@@ -575,16 +576,25 @@ function getCategoryDetails(kind: string, isPositive: boolean): { label: string;
 }
 
 export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false, onHover, onLeave, onResolve, onDismiss }) => {
-  const ghostCitations = useDocStore((s) => (s.citationAuditResult?.ghost_citations || []) as any[]);
-  const orphanReferences = useDocStore((s) => (s.citationAuditResult?.orphan_references || []) as any[]);
-  const validationIssues = useDocStore((s) => (s.validationIssues || []) as any[]);
+  const citationAudit = useDocStore((s) => s.citationAuditResult);
+  const validationIssues = useDocStore((s) => s.validationIssues);
+  const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
   const reviewResult = useDocStore((s) => s.reviewResult);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const apiKey = useDocStore((s) => s.apiKey);
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
   const sessionId = useDocStore((s) => s.doc?.session_id || '');
 
   const nonceRef = useRef<number>(Math.floor(Math.random() * 1e6));
-  const ctx: WhatsAppContext = { ghostCitations, orphanReferences, validationIssues, styleAuditRun: !!reviewResult };
+  // MISMA construcción que el subrayado inline del lienzo: si esta burbuja
+  // aparece, el resaltado del texto tiene que estar debajo.
+  const ctx: WhatsAppContext = buildCommentContext({
+    citationAuditResult: citationAudit,
+    validationIssues,
+    sugerenciasProactivas: proactivas,
+    reviewResult,
+    proofreadFindings,
+  });
   let comment: WhatsAppCommentData | null = getWhatsAppComment(elem, ctx, nonceRef.current);
   let isPositive = false;
   if (!comment && positive) {
