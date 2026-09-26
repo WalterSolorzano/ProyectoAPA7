@@ -142,4 +142,16 @@ describe('applyPageFlow', () => {
     const uChunks = flat.filter((e) => e.id === 'u');
     expect(uChunks.map((c) => c.text).join('')).toBe(unknown.text);
   });
+
+  it('fragmentos con split_chunk (cortes Word) son atómicos: el flow no los vuelve a partir', () => {
+    // Helpers existentes del archivo: p(id, extra), geom y LH (líneas 12-23).
+    const f1 = { ...p('e1', { text: 'abc ' }), split_chunk: 0 } as ElementModel;
+    const f2 = { ...p('e1', { text: ' def' }), split_chunk: 1 } as ElementModel;
+    // Altura medida STALE (elemento completo antes de expandir): 50 líneas.
+    const heights = new Map<string, number>([['e1', LH * 50]]);
+    const out = applyPageFlow([[f1, f2]], heights, geom);
+    const texts = out.flat().map((e) => e.text);
+    expect(texts).toContain('abc ');
+    expect(texts).toContain(' def');
+  });
 });

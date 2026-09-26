@@ -101,7 +101,10 @@ export function applyPageFlow(
       return {
         elem,
         heightPx: heights.get(elem.id) ?? null,
-        splittable: !isCover && SPLITTABLE_TYPES.has(elem.type),
+        // Fragmento ya cortado por Word (split_chunk): atómico — su corte
+        // es exacto; volver a partirlo usaría la altura STALE del completo.
+        splittable: !isCover && SPLITTABLE_TYPES.has(elem.type)
+          && elem.split_chunk === undefined,
       };
     });
 
@@ -138,6 +141,7 @@ export function applyPageFlow(
           const total = chunkCount.get(c.elem.id) || 1;
           const idx = seen.get(c.elem.id) || 0;
           seen.set(c.elem.id, idx + 1);
+          if (c.elem.split_chunk !== undefined) return c.elem; // corte Word: texto ya exacto
           if (total === 1) return c.elem;
           const lines = totalLinesOf(c.elem, heights, geom);
           const f0 = c.startLine / lines;
