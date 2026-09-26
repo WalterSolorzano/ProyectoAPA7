@@ -193,8 +193,23 @@ export function StepRail() {
               if (!active) e.currentTarget.style.background = 'transparent';
             }}
           >
-            <span className="step-rail-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <span className="step-rail-icon" style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}>
               <Icon size={15} style={{ flexShrink: 0 }} />
+              {isCollapsed && done && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -6, width: '12px', height: '12px',
+                  borderRadius: '50%', backgroundColor: 'var(--color-success)', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 900
+                }}>✓</span>
+              )}
+              {isCollapsed && !done && badge > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -8, minWidth: '13px', height: '13px',
+                  borderRadius: '999px', backgroundColor: 'var(--color-warning)', color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 900,
+                  padding: '0 2px'
+                }}>{badge > 99 ? '99+' : badge}</span>
+              )}
             </span>
             {!isCollapsed && <span className="step-rail-label" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>}
             {!isCollapsed && done ? (

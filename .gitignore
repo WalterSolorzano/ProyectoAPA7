@@ -134,6 +134,7 @@ word-addin/$null
 catalog/
 .perch/
 *.html
+!inspiracion/**
 *.pdf
 python/test_estudio_diag.py
 

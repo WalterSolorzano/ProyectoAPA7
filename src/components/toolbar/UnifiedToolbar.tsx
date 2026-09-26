@@ -152,6 +152,25 @@ export function UnifiedToolbar() {
             <span>Inicio</span>
           </button>
         )}
+
+        {doc && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px', paddingLeft: '8px', borderLeft: '1px solid var(--border-subtle)' }}>
+            <span
+              title="Nombre del documento activo"
+              style={{
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                color: 'var(--text-main)',
+                maxWidth: '260px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {doc.file_name || 'Documento sin título'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Center vacío: la navegación por pasos vive en el StepRail izquierdo */}
@@ -320,6 +339,39 @@ export function UnifiedToolbar() {
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
           >
             {theme === 'dark' ? <Sun size={11} /> : <Moon size={11} />}
+          </button>
+
+          <div style={toolbarDivider} />
+
+          {/* User Account / Settings Pill (Estilo Gemini) */}
+          <button
+            type="button"
+            onClick={() => useDocStore.getState().setSettingsStudioOpen(true)}
+            title="Ajustes de Perfil y Configuración de Motores"
+            style={{
+              ...ghostBtn,
+              padding: '2px 8px 2px 4px',
+              borderRadius: 'var(--radius-full)',
+              gap: '6px',
+            }}
+          >
+            <div
+              style={{
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--accent-primary)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '10px',
+              }}
+            >
+              W
+            </div>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Walter</span>
           </button>
         </div>
       )}

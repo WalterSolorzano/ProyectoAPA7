@@ -169,6 +169,7 @@ export const Step5AuditIAWizard: React.FC = () => {
   const [isScanningAll, setIsScanningAll] = useState<boolean>(false);
   const [dismissedItemIds, setDismissedItemIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [reviewViewMode, setReviewViewMode] = useState<'focus' | 'canvas'>('focus');
   const didInitGroupsRef = useRef(false);
 
   /* Último escaneo observado por motor (dentro de esta vista): guarda los
@@ -987,6 +988,43 @@ export const Step5AuditIAWizard: React.FC = () => {
             </button>
           </div>
 
+          <div style={{ display: 'inline-flex', alignItems: 'center', backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', padding: '2px' }}>
+            <button
+              type="button"
+              onClick={() => setReviewViewMode('focus')}
+              title="Vista de foco en el bloque con error"
+              style={{
+                padding: '3px 8px',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: reviewViewMode === 'focus' ? 'var(--color-accent)' : 'transparent',
+                color: reviewViewMode === 'focus' ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
+              }}
+            >
+              Foco
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewViewMode('canvas')}
+              title="Vista de hoja de papel APA 7 completa"
+              style={{
+                padding: '3px 8px',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                backgroundColor: reviewViewMode === 'canvas' ? 'var(--color-accent)' : 'transparent',
+                color: reviewViewMode === 'canvas' ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
+              }}
+            >
+              Hoja
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleNextFinding}
@@ -1023,9 +1061,57 @@ export const Step5AuditIAWizard: React.FC = () => {
           onPageClick={goToPage}
         />
 
-        {/* Columna 2 (la más ancha): documento con resaltado inline */}
-        <div style={{ flex: 1, height: '100%', minWidth: 0, overflow: 'hidden' }}>
-          <PaperCanvas reviewHighlightIds={highlightIds} />
+        {/* Columna 2: Foco por tarea o PaperCanvas completo */}
+        <div style={{ flex: 1, height: '100%', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
+          {reviewViewMode === 'focus' ? (
+            <div style={{ flex: 1, padding: '24px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflowY: 'auto' }}>
+              <div style={{
+                maxWidth: '720px',
+                width: '100%',
+                backgroundColor: 'var(--paper-white)',
+                color: 'var(--paper-ink)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '32px 36px',
+                boxShadow: 'var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.04))',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-accent)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    Bloque Activo · Página {currentPage} de {Math.max(1, totalPages)}
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    {orderedItems.find((i) => i.id === selectedAuditId)?.summary || 'Contexto de revisión'}
+                  </span>
+                </div>
+
+                <div style={{
+                  fontFamily: 'var(--font-paper, "Times New Roman", Times, serif)',
+                  fontSize: '15px',
+                  lineHeight: '1.9',
+                  color: 'var(--paper-ink)',
+                  whiteSpace: 'pre-wrap',
+                }}>
+                  {(() => {
+                    const currentItem = orderedItems.find((i) => i.id === selectedAuditId) || orderedItems[0];
+                    if (!currentItem) {
+                      return <span style={{ color: 'var(--text-secondary)' }}>Selecciona una observación en el panel derecho para enfocar el texto.</span>;
+                    }
+                    const text = currentItem.originalText || '';
+                    return (
+                      <p style={{ margin: 0, textIndent: '1.27cm' }}>
+                        {text}
+                      </p>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <PaperCanvas reviewHighlightIds={highlightIds} />
+          )}
         </div>
 
         {/* Columna 3: hallazgos agrupados por motor -> subtipo */}
