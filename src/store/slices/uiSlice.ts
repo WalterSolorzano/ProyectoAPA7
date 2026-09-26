@@ -12,8 +12,10 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   backendCheckNonce: 0,
   zoomLevel: 100,
   setZoomLevel: (zoom) => set({ zoomLevel: Math.min(300, Math.max(50, zoom)) }),
-  leftSidebarWidth: 280,
-  setLeftSidebarWidth: (w) => set({ leftSidebarWidth: Math.min(500, Math.max(220, w)) }),
+  // El rail de iconos es de 56px fijos. Su detalle se abre en un flyout al
+  // hover, no estirando la columna, así que ya no hay ancho que ajustar.
+  railPinned: false,
+  setRailPinned: (pinned) => set({ railPinned: pinned }),
   nimLogs: [],
   isNIMDiagnosticsOpen: false,
   setIsNIMDiagnosticsOpen: (open) => set({ isNIMDiagnosticsOpen: open }),

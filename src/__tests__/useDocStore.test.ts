@@ -231,3 +231,25 @@ describe('useDocStore — referencias', () => {
     expect(useDocStore.getState().references).toHaveLength(0);
   });
 });
+
+describe('T2 — estado del rail de iconos', () => {
+  beforeEach(() => {
+    useDocStore.setState({ railPinned: false });
+  });
+
+  it('empieza desanclado', () => {
+    expect(useDocStore.getState().railPinned).toBe(false);
+  });
+
+  it('setRailPinned ancla y desancla el flyout', () => {
+    useDocStore.getState().setRailPinned(true);
+    expect(useDocStore.getState().railPinned).toBe(true);
+    useDocStore.getState().setRailPinned(false);
+    expect(useDocStore.getState().railPinned).toBe(false);
+  });
+
+  it('ya no expone leftSidebarWidth: el ancho del rail es fijo de 56px', () => {
+    expect('leftSidebarWidth' in useDocStore.getState()).toBe(false);
+    expect('setLeftSidebarWidth' in useDocStore.getState()).toBe(false);
+  });
+});
