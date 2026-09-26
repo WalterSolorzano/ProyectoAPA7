@@ -10,6 +10,8 @@ import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { findAccentAgnostic } from '../../lib/accentMatch';
+import { getPageGeometry } from '../../lib/pageGeometry';
+import { applyPageFlow } from '../../lib/pageSplitter';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
 
@@ -394,6 +396,32 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
   const [editingCoverElemId, setEditingCoverElemId] = useState<string | null>(null);
   const [editingCoverText, setEditingCoverText] = useState<string>('');
+
+  // ── Medición DOM real (fase 1 motor híbrido): id → altura px ──
+  // Solo se miden elementos renderizados COMPLETOS (los fragmentos partidos
+  // no re-miden: conservarían solo su trozo y corromperían el total).
+  const measuredRef = useRef<Map<string, number>>(new Map());
+  const [, setMeasureTick] = useState(0);
+
+  // Medición post-render: solo elementos con UN nodo completo (0 = virtualizados,
+  // >1 = fragmentados → no re-medir para conservar la altura total).
+  useEffect(() => {
+    if (!doc) return;
+    const map = measuredRef.current;
+    const nextIds = new Set<string>();
+    doc.elements.forEach((e) => nextIds.add(e.id));
+    let changed = false;
+    for (const id of Array.from(map.keys())) {
+      if (!nextIds.has(id)) { map.delete(id); changed = true; }
+    }
+    nextIds.forEach((id) => {
+      const nodes = document.querySelectorAll(`[id="paper-elem-${id}"]`);
+      if (nodes.length !== 1) return;
+      const h = (nodes[0] as HTMLElement).offsetHeight;
+      if (h > 0 && map.get(id) !== h) { map.set(id, h); changed = true; }
+    });
+    if (changed) setMeasureTick((t) => t + 1);
+  });
 
   useEffect(() => {
     if (!actionToast) return;
@@ -829,17 +857,23 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
   const fontFamily = rules.font_family || 'Times New Roman';
 
-  // ── Geometría de página: aspect fijo según tamaño (A4 / Letter), nunca
-  // crece con el contenido. Antes la hoja solo tenía minHeight y crecía con
-  // tablas/figuras largas → "páginas larguísimas". ──
-  const PAGE_W = 680;
-  const pageSizeRaw = String((rules as any)?.page_size || 'letter').toLowerCase();
-  const pageRatio = pageSizeRaw.includes('a4') ? 297 / 210 : 11 / 8.5;
-  const PAGE_H = Math.round(PAGE_W * pageRatio); // Letter ≈ 880px · A4 ≈ 962px
+  // ── Geometría REAL del documento (Word como verdad): hoja en pt de Word a
+  // 96 DPI + márgenes de rules. El zoom es CSS aparte (línea ~1257), no aquí.
+  const geom = getPageGeometry({
+    margins_cm: (rules as any)?.margins_cm,
+    font_size_pt: rules.font_size_pt,
+    line_spacing: rules.line_spacing,
+    page_size: (rules as any)?.page_size,
+    professional_running_head: doc.apa_format === 'professional',
+  });
+  const PAGE_W = Math.round(geom.pageW);   // Letter 816px · A4 793px
+  const PAGE_H = Math.round(geom.pageH);   // Letter 1056px · A4 1123px
 
     // Algoritmo de paginación virtual respetando salto de página del cuerpo
     // Capacidad proporcional a la altura real de la hoja (Letter 880 / A4 962)
-    const pages = computePages(doc.elements, Math.max(18, Math.floor((PAGE_H - 96) / 34)));
+    const basePages = computePages(doc.elements, Math.max(18, Math.floor((PAGE_H - 96) / 34)));
+    // Reparto con alturas DOM reales: parte párrafos que exceden la hoja (sin recorte).
+    const pages = applyPageFlow(basePages, measuredRef.current, geom);
 
   // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
   const citationAudit = useDocStore((s) => s.citationAuditResult);
@@ -1366,7 +1400,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   overflow: 'hidden',
                   backgroundColor: 'var(--paper-white, #ffffff)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
-                  padding: '54px 54px',
+                  // Margen real del documento (Word: mismo valor en 4 lados)
+                  padding: `${Math.round(geom.marginPx)}px`,
                   boxSizing: 'border-box',
                   position: 'relative',
                   fontFamily: fontFamily,

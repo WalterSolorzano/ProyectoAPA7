@@ -21,7 +21,7 @@ const me = (id: string, lines: number | null, splittable = true): MeasuredElemen
     needs_review: false,
     auto_applied: false,
     cita_ids: [],
-  } as ElementModel,
+  } as unknown as ElementModel,
   heightPx: lines === null ? null : lines * LH,
   splittable,
 });

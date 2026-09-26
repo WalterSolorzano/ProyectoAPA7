@@ -139,6 +139,11 @@ export interface ElementModel {
   image_info?: ImageModel;
   table_info?: TableModel;
   page_number?: number;
+  /**
+   * Fragmento de párrafo partido entre hojas (applyPageFlow/flowPagination).
+   * 0 = primer fragmento; >0 = continuación. undefined = elemento completo.
+   */
+  split_chunk?: number;
 
   // Classification
   needs_review: boolean;
