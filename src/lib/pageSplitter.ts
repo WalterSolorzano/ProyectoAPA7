@@ -107,16 +107,32 @@ export function applyPageFlow(
 
     const flowPages = flowPagination(items, geom, (e) => estimateLines(e, geom));
 
+    // ── APA 7: el título de Nivel 1 SIEMPRE inicia página. Si el reparto lo
+    //    dejó a mitad de hoja (entrada mal cortada o excedente), se corta la
+    //    página justo antes del título.
+    const flowPagesFixed: typeof flowPages = [];
+    for (const fp of flowPages) {
+      const l1 = fp.chunks.findIndex(
+        (c) => c.elem.type === 'heading' && c.elem.heading_level === 1,
+      );
+      if (l1 > 0) {
+        flowPagesFixed.push({ chunks: fp.chunks.slice(0, l1) });
+        flowPagesFixed.push({ chunks: fp.chunks.slice(l1) });
+      } else {
+        flowPagesFixed.push(fp);
+      }
+    }
+
     // Conteo previo: solo elementos con >1 fragmento se clonan y marcan.
     const chunkCount = new Map<string, number>();
-    for (const fp of flowPages) {
+    for (const fp of flowPagesFixed) {
       for (const c of fp.chunks) {
         chunkCount.set(c.elem.id, (chunkCount.get(c.elem.id) || 0) + 1);
       }
     }
     const seen = new Map<string, number>();
 
-    for (const fp of flowPages) {
+    for (const fp of flowPagesFixed) {
       out.push(
         fp.chunks.map((c) => {
           const total = chunkCount.get(c.elem.id) || 1;
