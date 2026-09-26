@@ -8,7 +8,7 @@
    asi que la suscripcion al IPC y la condicion de "descargada" se leen de ahi. */
 
 import React, { useEffect } from 'react';
-import { Undo2, Redo2, Copy, Puzzle, Download, Settings, Sun, Moon } from 'lucide-react';
+import { Home, Undo2, Redo2, Copy, Puzzle, Download, Settings, Sun, Moon } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
 import { APAScoreCard } from './APAScoreCard';
@@ -93,6 +93,11 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
         zIndex: 'var(--z-dropdown)',
       }}
     >
+      {/* Navegacion, no edicion: por eso abre el menu y no vive en la barra,
+          que se queda con los tres elementos del mockup. */}
+      <Item label="Inicio" onClick={run(() => st.goHome())} disabled={st.atHome}>
+        <Home size={14} strokeWidth={1.75} aria-hidden />
+      </Item>
       <Item label="Deshacer" onClick={run(() => st.undo())} disabled={!canUndo}>
         <Undo2 size={14} strokeWidth={1.75} aria-hidden />
       </Item>

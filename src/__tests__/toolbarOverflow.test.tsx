@@ -20,14 +20,14 @@ vi.mock('../components/toolbar/APAScoreCard', () => ({ APAScoreCard: () => <div 
 vi.mock('../components/toolbar/APAModuleToggles', () => ({ APAModuleToggles: () => <div data-testid="toggles" /> }));
 
 const ENTRADAS = [
-  'Deshacer', 'Rehacer',
+  'Inicio', 'Deshacer', 'Rehacer',
   'Puntuación APA', 'Módulos APA', 'Copiar PDF para WhatsApp',
   'Complemento de Word', 'Tema', 'Ajustes',
 ];
 
 // Entradas que son comandos: siempre habilitadas y siempre accionables.
 const COMANDOS = [
-  'Copiar PDF para WhatsApp', 'Complemento de Word', 'Tema', 'Ajustes',
+  'Inicio', 'Copiar PDF para WhatsApp', 'Complemento de Word', 'Tema', 'Ajustes',
 ];
 
 const DOC_A = { session_id: 's1', file_name: 'A.docx', elements: [] } as never;
@@ -44,6 +44,7 @@ describe('T7 — menú de desbordamiento', () => {
       settingsStudioTab: 'format',
       liveChatOpen: false,
       showFileMenu: false,
+      atHome: false,
     } as never);
     useUpdateStore.setState({ state: 'idle' } as never);
   });
@@ -63,11 +64,24 @@ describe('T7 — menú de desbordamiento', () => {
   it('cada comando ejecuta su acción y cierra el menú', () => {
     for (const nombre of COMANDOS) {
       const onClose = vi.fn();
+      // "Inicio" navega y cambia el store, asi que cada vuelta arranca igual.
+      useDocStore.setState({ atHome: false } as never);
       const { unmount } = render(<ToolbarOverflowMenu onClose={onClose} />);
       fireEvent.click(screen.getByRole('menuitem', { name: nombre }));
       expect(onClose).toHaveBeenCalled();
       unmount();
     }
+  });
+
+  it('“Inicio” es la primera entrada y devuelve a la pantalla de inicio', () => {
+    useDocStore.setState({ doc: DOC_B, atHome: false } as never);
+    render(<ToolbarOverflowMenu onClose={vi.fn()} />);
+
+    const entradas = screen.getAllByRole('menuitem');
+    expect(entradas[0]).toHaveAccessibleName('Inicio');
+
+    fireEvent.click(entradas[0]);
+    expect(useDocStore.getState().atHome).toBe(true);
   });
 
   it('Deshacer y Rehacer caminan el historial del documento', () => {
@@ -138,6 +152,7 @@ describe('T7 — la barra mínima', () => {
   beforeEach(() => {
     useDocStore.setState({
       doc: DOC_B,
+      hasUnsavedChanges: false,
       liveChatOpen: false,
       settingsStudioOpen: false,
       showFileMenu: false,
@@ -151,6 +166,19 @@ describe('T7 — la barra mínima', () => {
     expect(screen.queryByText(/Copiar PDF/)).toBeNull();
     expect(screen.queryByTestId('score')).toBeNull();
     expect(screen.queryByTestId('toggles')).toBeNull();
+  });
+
+  it('el chip de guardado refleja el estado real del documento', () => {
+    useDocStore.setState({ doc: DOC_B, hasUnsavedChanges: false } as never);
+    const { unmount } = render(<UnifiedToolbar />);
+    expect(screen.getByText('Guardado')).toBeTruthy();
+    expect(screen.queryByText('Sin guardar')).toBeNull();
+    unmount();
+
+    useDocStore.setState({ hasUnsavedChanges: true } as never);
+    render(<UnifiedToolbar />);
+    expect(screen.getByText('Sin guardar')).toBeTruthy();
+    expect(screen.queryByText('Guardado')).toBeNull();
   });
 
   it('el botón de más acciones abre y cierra el menú de desborde', () => {

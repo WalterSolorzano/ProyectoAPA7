@@ -3,7 +3,7 @@
    botón de más acciones y avatar. Todo lo demas vive en ToolbarOverflowMenu. */
 
 import React, { useState } from 'react';
-import { BookOpen, Check, MoreHorizontal, Sparkles } from 'lucide-react';
+import { BookOpen, Check, AlertCircle, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 
@@ -12,6 +12,7 @@ const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
 export function UnifiedToolbar() {
   const doc = useDocStore((s) => s.doc);
+  const hasUnsavedChanges = useDocStore((s) => s.hasUnsavedChanges);
   const showFileMenu = useDocStore((s) => s.showFileMenu);
   const setShowFileMenu = useDocStore((s) => s.setShowFileMenu);
   const liveChatOpen = useDocStore((s) => s.liveChatOpen);
@@ -83,9 +84,18 @@ export function UnifiedToolbar() {
             >
               {doc.file_name || 'Documento sin título'}
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              <Check size={11} strokeWidth={2.5} aria-hidden style={{ color: 'var(--color-success)' }} />
-              Guardado
+            {/* El chip afirma lo que el store afirma: hasUnsavedChanges lo levanta
+                documentSlice en cada cambio de historial y lo bajan las
+                exportaciones, y FileMenu lo lee antes de descartar el documento.
+                Mostrar "Guardado" sin mirar ese campo seria mentir. */}
+            <span
+              title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: hasUnsavedChanges ? 'var(--color-warning)' : 'var(--color-text-tertiary)' }}
+            >
+              {hasUnsavedChanges
+                ? <AlertCircle size={11} strokeWidth={1.75} aria-hidden />
+                : <Check size={11} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-success)' }} />}
+              {hasUnsavedChanges ? 'Sin guardar' : 'Guardado'}
             </span>
           </>
         )}
