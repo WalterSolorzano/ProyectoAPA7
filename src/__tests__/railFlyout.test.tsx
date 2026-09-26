@@ -43,6 +43,30 @@ describe('T5 — RailFlyout', () => {
     expect(screen.getByText('4 pendientes')).toBeTruthy();
   });
 
+  it('el conteo solo acompaña al estado pending, no a "Listo" ni a "Sin pendientes"', () => {
+    const { unmount } = render(
+      <RailFlyout item={{ ...item, status: 'done', pending: 3 }} onClose={vi.fn()} />,
+    );
+    expect(screen.getByText('Listo')).toBeTruthy();
+    expect(screen.queryByText('3 Listo')).toBeNull();
+    unmount();
+
+    render(<RailFlyout item={{ ...item, status: 'idle', pending: 3 }} onClose={vi.fn()} />);
+    expect(screen.getByText('Sin pendientes')).toBeTruthy();
+    expect(screen.queryByText('3 Sin pendientes')).toBeNull();
+  });
+
+  it('sin destino, el componente es inerte: Esc no cierra ni suelta el ancla', () => {
+    // AppShell lo monta siempre; con `item: null` no hay panel que Esc pueda
+    // cerrar, y el ancla de la próxima apertura debe sobrevivir intacta.
+    const onClose = vi.fn();
+    act(() => useDocStore.setState({ railPinned: true }));
+    render(<RailFlyout item={null} onClose={onClose} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(useDocStore.getState().railPinned).toBe(true);
+  });
+
   it('la gracia de cierre son 120ms exactos', () => {
     expect(FLYOUT_CLOSE_GRACE_MS).toBe(120);
   });

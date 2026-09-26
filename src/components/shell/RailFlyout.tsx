@@ -42,6 +42,10 @@ export function RailFlyout({ item, onClose }: { item: RailDestination | null; on
   };
 
   useEffect(() => {
+    // Sin destino no hay panel que cerrar: el componente se monta siempre (por eso
+    // `item` acepta null) y con la suscripción viva cada Esc de la app —un modal
+    // del asistente, el copiloto— soltaría el ancla de la próxima apertura.
+    if (!item) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setRailPinned(false);
@@ -50,7 +54,7 @@ export function RailFlyout({ item, onClose }: { item: RailDestination | null; on
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setRailPinned, onClose]);
+  }, [item, setRailPinned, onClose]);
 
   // El timer de gracia no sobrevive al desmontaje: si no, cerraría un panel que
   // ya no existe (y en tests, llamaría onClose sobre un componente muerto).
@@ -111,7 +115,13 @@ export function RailFlyout({ item, onClose }: { item: RailDestination | null; on
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' }}>
         {StatusIcon && <StatusIcon size={12} strokeWidth={1.75} aria-hidden style={{ color: STATUS_COLOR[item.status] }} />}
         <span style={{ color: STATUS_COLOR[item.status], fontWeight: 600 }}>
-          {item.pending > 0 ? `${item.pending} ${STATUS_TEXT[item.status]}` : STATUS_TEXT[item.status]}
+          {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
+              o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
+          {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
+              o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
+          {item.status === 'pending' && item.pending > 0
+            ? `${item.pending} ${STATUS_TEXT.pending}`
+            : STATUS_TEXT[item.status]}
         </span>
       </div>
 
