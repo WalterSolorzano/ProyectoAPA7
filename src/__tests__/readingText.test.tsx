@@ -1,0 +1,406 @@
+/**
+ * WordAPA7 — T9: ReadingText es la unica implementacion de los resaltados
+   inline. Ningun color hardcodeado: todo sale de MARK_STYLE, que son tokens.
+   Y los dos canales (subrayado y burbuja) coinciden: lo que la burbuja
+   descarta, el subrayado lo descarta; lo que la burbuja ancla, el subrayado
+   lo ancla.
+ */
+import React from 'react';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { render } from '@testing-library/react';
+import { ReadingText, collectMarks, MARK_STYLE, type MarkSource } from '../components/review/ReadingText';
+import { getWhatsAppComment } from '../components/layout/WhatsAppComment';
+import { PaperCanvas } from '../components/layout/PaperCanvas';
+import { useDocStore } from '../store/useDocStore';
+import { defaultPortada } from '../store/slices/coverSlice';
+import type { AIReviewResult, AIReviewParagraph } from '../api/backend';
+import type { ElementModel, ProofreadFinding } from '../types';
+
+vi.mock('../api/backend', () => ({
+  getApiBase: vi.fn().mockReturnValue('http://localhost:8742'),
+  getApiBaseAsync: vi.fn().mockResolvedValue('http://localhost:8742'),
+  fetchWithTrace: vi.fn(),
+  resolveAssetUrl: vi.fn(),
+  explainElement: vi.fn(),
+  suggestCaption: vi.fn(),
+  generateChatComment: vi.fn(),
+  rewriteText: vi.fn(),
+}));
+
+// Specifier en variables + import dinamico: si Vite puede analizarlos los pasa
+// por vite-plugin-node-polyfills, cuyos shims de browser no traen
+// readFileSync. Mismo truco que designTokens.test.ts (T1).
+const NODE_FS = 'node:fs';
+const NODE_PATH = 'node:path';
+const NODE_URL = 'node:url';
+
+let SRC = '';
+let CSS = '';
+
+beforeAll(async () => {
+  const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+  const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
+  const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
+  const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
+  SRC = readFileSync(resolve(testDir, '../components/review/ReadingText.tsx'), 'utf8');
+  CSS = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+});
+
+const CTX_VACIO = {
+  ghostCitations: [],
+  orphanReferences: [],
+  validationIssues: [],
+  styleAuditRun: false,
+};
+
+const parrafo = (text: string, extra: Partial<AIReviewParagraph> = {}): AIReviewParagraph => ({
+  element_id: 'p1',
+  index: 0,
+  type: 'paragraph',
+  text,
+  ai_score: 0.5,
+  ai_category: 'MEDIUM',
+  findings: [],
+  spelling: [],
+  ...extra,
+});
+
+const review = (paragraphs: AIReviewParagraph[]): AIReviewResult => ({
+  session_id: 's1',
+  total_paragraphs: paragraphs.length,
+  ai_avg_score: 0.5,
+  flagged_count: 0,
+  spelling_count: 0,
+  spelling_status: 'ok',
+  paragraphs,
+  table_signals: [],
+  document_signals: [],
+});
+
+const elem = (text: string, extra: Partial<ElementModel> = {}): ElementModel => ({
+  id: 'p1',
+  type: 'paragraph',
+  text,
+  style_name: 'Normal',
+  alignment: 'left',
+  font_name: 'Times New Roman',
+  font_size: 12,
+  is_bold: false,
+  is_italic: false,
+  is_bullet: false,
+  left_indent_cm: 0,
+  confidence: 1,
+  is_user_modified: false,
+  needs_review: false,
+  auto_applied: false,
+  cita_ids: [],
+  ...extra,
+});
+
+const hallazgo = (extra: Partial<ProofreadFinding> = {}): ProofreadFinding => ({
+  element_id: 'p1',
+  start: 0,
+  end: 4,
+  excerpt: '…texto…',
+  kind: 'first_person',
+  severity: 'info',
+  message: 'primera persona',
+  source: 'local',
+  ...extra,
+});
+
+const fuente = (extra: Partial<MarkSource> = {}): MarkSource => ({
+  reviewResult: null,
+  proofreadFindings: [],
+  commentCtx: CTX_VACIO,
+  showCitations: false,
+  ...extra,
+});
+
+describe('T9 — ReadingText', () => {
+  it('no contiene hex literales', () => {
+    expect(SRC).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it('cada tipo de marca se pinta con variables CSS, nunca con un color fijo', () => {
+    for (const style of Object.values(MARK_STYLE)) {
+      const colores = Object.values(style).join(' ');
+      expect(colores).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+      expect(colores).not.toMatch(/rgba?\(/);
+    }
+    expect(String(MARK_STYLE.spelling.borderBottom)).toContain('var(--color-danger)');
+    expect(String(MARK_STYLE.style.borderBottom)).toContain('var(--color-accent)');
+  });
+
+  it('el detector de IA usa el token dedicado, para que se lea en oscuro', () => {
+    expect(String(MARK_STYLE.ai.backgroundColor)).toContain('var(--mark-ai-bg)');
+  });
+
+  it('cada token que MARK_STYLE usa está definido en design-system.css', () => {
+    // Un var(--x) sin definir no falla en build: el navegador lo ignora en
+    // silencio y el resaltado desaparece. Por eso se comprueba, no se supone.
+    const usados = new Set<string>();
+    for (const style of Object.values(MARK_STYLE)) {
+      for (const v of Object.values(style)) {
+        for (const m of String(v).matchAll(/var\((--[a-z0-9-]+)\)/g)) usados.add(m[1]);
+      }
+    }
+    expect(usados.size).toBeGreaterThan(0);
+    for (const token of usados) {
+      expect(CSS, `${token} no está definido`).toMatch(new RegExp(`${token}\\s*:`));
+    }
+  });
+
+  it('resalta la ortografía sin partir la palabra', () => {
+    const texto = 'El alcance de la campaña alcanze el objetivo.';
+    const marcas = collectMarks(texto, fuente({
+      reviewResult: review([parrafo(texto, { spelling: [{ word: 'alcanze', suggestions: ['alcance'] }] })]),
+    }));
+    const m = marcas.find((x) => x.kind === 'spelling');
+    expect(m).toBeTruthy();
+    expect(texto.slice(m!.start, m!.end)).toBe('alcanze');
+  });
+
+  it('encuentra la palabra aunque venga con acentos distintos', () => {
+    const texto = 'Se aplicó el ANALISIS a los datos.';
+    const marcas = collectMarks(texto, fuente({
+      reviewResult: review([parrafo(texto, { spelling: [{ word: 'análisis', suggestions: [] }] })]),
+    }));
+    const m = marcas.find((x) => x.kind === 'spelling');
+    expect(m).toBeTruthy();
+    // Y el subrayado cae sobre el texto REAL, con su capitalización.
+    expect(texto.slice(m!.start, m!.end)).toBe('ANALISIS');
+  });
+
+  it('marca todas las apariciones, no solo la primera', () => {
+    const texto = 'Cabe destacar A. Luego, cabe destacar B.';
+    const marcas = collectMarks(texto, fuente({
+      reviewResult: review([parrafo(texto, { findings: [{ phrase: 'cabe destacar', detail: 'muletilla', severity: 'HIGH' }] })]),
+    }));
+    expect(marcas.filter((m) => m.kind === 'ai')).toHaveLength(2);
+  });
+
+  it('una frase entre paréntesis la deja al motor de citas, no al de IA', () => {
+    // '(García 2023)' es una cita mal formada: el motor de citas la diagnostica
+    // con su propio color. Pintarla además como patrón de IA sería ruido.
+    const texto = 'El autor (García 2023) lo afirma.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      showCitations: true,
+      reviewResult: review([parrafo(texto, { findings: [{ phrase: '(García 2023)', detail: 'dato', severity: 'LOW' }] })]),
+    }));
+    expect(marcas).toEqual([]);
+  });
+
+  it('un texto sin marcas se renderiza limpio, sin <mark>', () => {
+    const { container } = render(
+      <ReadingText text="Texto sin observaciones." source={fuente()} />,
+    );
+    expect(container.querySelectorAll('mark')).toHaveLength(0);
+    expect(container.textContent).toBe('Texto sin observaciones.');
+  });
+
+  it('el texto acentuado se conserva íntegro tras el resaltado', () => {
+    const texto = 'La metodología fue rigurosa según el análisis, según la muestra.';
+    const { container } = render(
+      <ReadingText text={texto} source={fuente({
+        reviewResult: review([parrafo(texto, { spelling: [{ word: 'análisis', suggestions: ['analisis'] }] })]),
+      })} />,
+    );
+    expect(container.textContent).toBe(texto);
+  });
+
+  it('un párrafo vacío no inventa marcas', () => {
+    expect(collectMarks('', fuente({ elem: elem('') }))).toEqual([]);
+    const { container } = render(<ReadingText text="" source={fuente({ elem: elem('') })} />);
+    expect(container.querySelectorAll('mark')).toHaveLength(0);
+  });
+});
+
+describe('T9 — el subrayado y la burbuja dicen lo mismo', () => {
+  it('subraya el mismo fragmento que ancla la burbuja', () => {
+    const texto = 'En conclusión, el método es válido.';
+    const ctx = { ...CTX_VACIO, styleAuditRun: true };
+    const comment = getWhatsAppComment(elem(texto), ctx, 0);
+    const marcas = collectMarks(texto, fuente({ elem: elem(texto), commentCtx: ctx }));
+    const mark = marcas.find((m) => m.kind === 'comment');
+    expect(mark).toBeTruthy();
+    // Mismo fragmento, mismo texto y mismo ancla que la burbuja del gutter.
+    expect(texto.slice(mark!.start, mark!.end).toLowerCase()).toBe('En conclusión'.toLowerCase());
+    expect(mark!.title).toBe(comment!.text);
+  });
+
+  it('un hallazgo descartado no deja subrayado huérfano', () => {
+    // Defecto 1: la burbuja respeta dismissedCommentIds y el subrayado no.
+    const texto = 'En conclusión, el método es válido.';
+    const base = {
+      elem: elem(texto),
+      commentCtx: { ...CTX_VACIO, styleAuditRun: true },
+    };
+    const visible = collectMarks(texto, fuente({ ...base, dismissedCommentIds: [] }));
+    const descartado = collectMarks(texto, fuente({ ...base, dismissedCommentIds: ['p1'] }));
+    expect(visible.some((m) => m.kind === 'comment')).toBe(true);
+    expect(descartado.some((m) => m.kind === 'comment')).toBe(false);
+  });
+
+  it('si el fragmento no aparece, ancla el párrafo entero en vez de no marcar', () => {
+    const texto = 'Cero filas.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      commentCtx: { ...CTX_VACIO, ghostCitations: [{ element_id: 'p1', raw_text: '(Fantasma, 1999)' }] },
+    }));
+    const comment = marcas.find((m) => m.kind === 'comment');
+    expect(comment).toEqual(expect.objectContaining({ start: 0, end: texto.length }));
+  });
+});
+
+describe('T9 — consolidation de marcas solapadas', () => {
+  it('el solapamiento produce un solo <mark>, sin perder el tramo de la izquierda', () => {
+    // Tres motores caen sobre rangos que NO coinciden: la cita y el comentario
+    // ancla en 13..27, el patrón de IA arranca en 0. Si se consolidara por
+    // prioridad en vez de por posición, el "start" se quedaría en 13 y el
+    // primer tramo del párrafo quedaría sin marcar.
+    const texto = 'El dato duro (García, 2023) sostiene la tesis.';
+    const source = fuente({
+      elem: elem(texto),
+      showCitations: true,
+      commentCtx: { ...CTX_VACIO, styleAuditRun: true },
+      reviewResult: review([parrafo(texto, { findings: [{ phrase: 'El dato duro (García, 2023)', detail: 'rigidez', severity: 'LOW' }] })]),
+    });
+    expect(collectMarks(texto, source)).toEqual([
+      // Una sola marca, con el rango completo y ganando el motor de mayor
+      // prioridad: comment > citation > spelling > style > ai.
+      expect.objectContaining({ kind: 'comment', start: 0, end: 27 }),
+    ]);
+    const { container } = render(<ReadingText text={texto} source={source} />);
+    expect(container.textContent).toBe(texto);
+    const marks = container.querySelectorAll('mark');
+    // Un solo <mark>: dos rangos solapados renderizados aparte duplicarían
+    // el texto, que es el defecto que la consolidación viene a matar.
+    expect(marks).toHaveLength(1);
+    expect(marks[0].textContent).toBe('El dato duro (García, 2023)');
+    expect(marks[0].getAttribute('title')).toContain('Cita APA 7 detectada');
+  });
+});
+
+describe('T9 — hallazgos del corrector', () => {
+  it('un hallazgo de estilo se marca con el motor de estilo', () => {
+    const texto = 'Yo creo que el estudio funciona.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      proofreadFindings: [hallazgo({ start: 0, end: 2, excerpt: 'Yo creo' })],
+    }));
+    const style = marcas.find((m) => m.kind === 'style');
+    expect(style).toBeTruthy();
+    expect(texto.slice(style!.start, style!.end)).toBe('Yo');
+    expect(style!.title).toContain('primera persona');
+  });
+
+  it('un hallazgo de ortografía o de muletilla va a su motor, no al de estilo', () => {
+    const texto = 'Re LunezDrive fallo terribly y es un error grave.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      proofreadFindings: [
+        hallazgo({ kind: 'ortografia', start: 3, end: 12, excerpt: 'LunezDrive' }),
+        hallazgo({ kind: 'muletilla', start: 27, end: 39, excerpt: 'es un error' }),
+      ],
+    }));
+    expect(marcas.some((m) => m.kind === 'spelling')).toBe(true);
+    expect(marcas.some((m) => m.kind === 'ai')).toBe(true);
+    expect(marcas.some((m) => m.kind === 'style')).toBe(false);
+  });
+
+  it('los hallazgos de OTROS elementos no se filtran a este párrafo', () => {
+    const texto = 'Yo creo que el estudio funciona.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto, { id: 'p1' }),
+      proofreadFindings: [hallazgo({ element_id: 'otro', start: 0, end: 2, excerpt: 'Yo creo' })],
+    }));
+    expect(marcas).toEqual([]);
+  });
+
+  it('sin offsets válidos, el excerpt localiza el fragmento', () => {
+    const texto = 'La metodología de la investigación fue rigurosa.';
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      proofreadFindings: [hallazgo({ start: 900, end: 901, excerpt: '…de la investigación fue…' })],
+    }));
+    const style = marcas.find((m) => m.kind === 'style');
+    expect(texto.slice(style!.start, style!.end)).toBe('de la investigación fue');
+  });
+});
+
+describe('T9 — el párrafo de la revisión se localize por elemento', () => {
+  it('cada párrafo toma SUS hallazgos, no los del primero', () => {
+    const p1 = 'Introducción sin nada que corregir.';
+    const p2 = 'El alcance alcanze el objetivo.';
+    const marcas = collectMarks(p2, fuente({
+      elem: elem(p2, { id: 'p2' }),
+      reviewResult: review([
+        parrafo(p1, { element_id: 'p1' }),
+        parrafo(p2, { element_id: 'p2', spelling: [{ word: 'alcanze', suggestions: ['alcance'] }] }),
+      ]),
+    }));
+    expect(marcas).toEqual([expect.objectContaining({ kind: 'spelling' })]);
+  });
+
+  it('las citas solo se marcan en bloques de texto, no en un encabezado', () => {
+    const texto = 'La OIT (2007) lo define así.';
+    const conCita = (type: string) => collectMarks(texto, fuente({
+      elem: elem(texto, { type: type as ElementModel['type'] }),
+      showCitations: true,
+    }));
+    expect(conCita('paragraph').some((m) => m.kind === 'citation')).toBe(true);
+    expect(conCita('heading').some((m) => m.kind === 'citation')).toBe(false);
+  });
+
+  it('el comentario solo se subraya en bloques de texto, no en una figura', () => {
+    // Una figura sin leyenda SÍ recibe burbuja ("Figura sin rotulación"), pero
+    // su `text` no es prosa: subrayarlo no significaría nada. La compuerta por
+    // tipo viene del renderReviewedText original y se preserva.
+    const texto = 'Figura 1';
+    const figura = elem(texto, { type: 'image', image_info: { relative_url: 'f.png', caption: '', figure_number: 0, alignment: 'center' } as any });
+    expect(getWhatsAppComment(figura, CTX_VACIO, 0)).not.toBeNull();
+    const marcas = collectMarks(texto, fuente({ elem: figura }));
+    expect(marcas.some((m) => m.kind === 'comment')).toBe(false);
+  });
+});
+
+describe('T9 — el lienzo consume ReadingText', () => {
+  // Sin esto, el defecto 1 seguiría vivo en la app aunque la función lo
+  // arreglara: basta con que el lienzo no le pase la lista de descartados.
+  beforeEach(() => {
+    const texto = 'En conclusión, el método es válido.';
+    useDocStore.setState({
+      doc: {
+        session_id: 's1', file_name: 't.docx', apa_format: 'student', referencias: [],
+        meta: { page_count: 1 },
+        elements: [elem(texto)],
+      },
+      portada: { ...defaultPortada },
+      // El revisor ya corrió: es lo que habilita el comentario de estilo y,
+      // con él, el subrayado que se está comprobando.
+      reviewResult: review([parrafo(texto, { element_id: 'p1' })]),
+      proofreadFindings: [],
+      dismissedCommentIds: [],
+    } as any);
+  });
+
+  const pintar = () => render(<PaperCanvas />).container.querySelector('#paper-elem-p1');
+
+  it('el lienzo pinta el mismo mark que collectMarks', () => {
+    const wrap = pintar();
+    const mark = wrap!.querySelector('mark');
+    expect(mark).toBeTruthy();
+    expect(mark!.textContent).toBe('En conclusión');
+    // Y con los tokens, no con el rgba de antes.
+    expect(mark!.getAttribute('style')).toContain('var(--severity-warning-soft)');
+  });
+
+  it('descartar el comentario saca el subrayado, igual que saca la burbuja', () => {
+    useDocStore.setState({ dismissedCommentIds: ['p1'] } as any);
+    const wrap = pintar();
+    expect(wrap).toBeTruthy();
+    expect(wrap!.querySelector('mark')).toBeNull();
+  });
+});

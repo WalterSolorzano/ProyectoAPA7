@@ -578,7 +578,7 @@ function getCategoryDetails(kind: string, isPositive: boolean): { label: string;
 export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false, onHover, onLeave, onResolve, onDismiss }) => {
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
-  const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
+  const proactivas = useDocStore((s) => s.sugerenciasProactivas);
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const apiKey = useDocStore((s) => s.apiKey);

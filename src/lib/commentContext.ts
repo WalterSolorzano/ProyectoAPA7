@@ -12,7 +12,11 @@ import type { ProofreadFinding, ValidationIssue } from '../types';
 export interface CommentContextSource {
   citationAuditResult: { ghost_citations: any[]; orphan_references: any[] } | null;
   validationIssues: ValidationIssue[] | null | undefined;
-  sugerenciasProactivas: boolean;
+  /** Opcional a propósito: quien llama pasa el valor crudo del store y la
+   *  normalización vive acá. `undefined` (store sin la tecla) se trata como
+   *  habilitado, igual que el `!== false` que ya usaban dos de los tres
+   *  llamadores: sin sugerencias solo significa "el usuario las apagó". */
+  sugerenciasProactivas?: boolean;
   reviewResult: AIReviewResult | null;
   proofreadFindings: ProofreadFinding[];
 }
@@ -21,7 +25,9 @@ export function buildCommentContext(s: CommentContextSource): WhatsAppContext {
   return {
     ghostCitations: s.citationAuditResult?.ghost_citations || [],
     orphanReferences: s.citationAuditResult?.orphan_references || [],
-    validationIssues: s.sugerenciasProactivas ? s.validationIssues || [] : [],
+    // Normalizar DENTRO: los dos canales (subrayado y burbuja) tienen que
+    // coincidir, y eso no puede depender de que cada llamador se acuerde.
+    validationIssues: s.sugerenciasProactivas === false ? [] : s.validationIssues || [],
     // Corrector O revisor de IA habilitan los comentarios de estilo: sin esto,
     // un hallazgo del corrector se anunciaba en una burbuja sin subrayado.
     // El `|| []` tolera un store que llegue sin el array (setState parcial).

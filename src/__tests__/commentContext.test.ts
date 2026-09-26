@@ -75,4 +75,12 @@ describe('T8 — buildCommentContext', () => {
     const ctx = buildCommentContext({ ...base, sugerenciasProactivas: false, validationIssues: [issue] });
     expect(ctx.validationIssues).toEqual([]);
   });
+
+  it('normaliza dentro, no en el llamador: el valor crudo del store da lo mismo', () => {
+    // Defecto: el normalizado (`!== false`) vivía en dos de los tres
+    // llamadores. Si el store llega sin la tecla, el tercer canal mentiría.
+    // Ahora `undefined` se lee como habilitado, igual que en los otros dos.
+    expect(buildCommentContext({ ...base, validationIssues: [issue] }).validationIssues).toEqual([issue]);
+    expect(buildCommentContext({ ...base, sugerenciasProactivas: undefined, validationIssues: [issue] }).validationIssues).toEqual([issue]);
+  });
 });

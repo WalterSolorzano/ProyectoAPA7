@@ -8,11 +8,10 @@ import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend'
 import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
-import { findCitationsInText } from '../../lib/citationHighlighter';
-import { findAccentAgnostic } from '../../lib/accentMatch';
 import { getPageGeometry } from '../../lib/pageGeometry';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { buildCommentContext } from '../../lib/commentContext';
+import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
 
@@ -548,154 +547,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     setResizeState(null);
   };
 
-  // Render de texto con resaltado inline de frases IA y errores de ortografía
-  // (marcas tipo Word: subrayado ondulado para ortografía, punteado para IA)
-  // + resaltador amarillo para lo que un comentario WhatsApp está señalando
-  // (solo preview; nunca llega al export).
-  const renderReviewedText = (elem: ElementModel, plain: string): React.ReactNode => {
-    const para = reviewResult?.paragraphs.find((p) => p.element_id === elem.id);
-    type Mark = { start: number; end: number; kind: 'ai' | 'spelling' | 'comment' | 'citation'; severity?: string; title: string }[];
-    const marks: Mark = [];
-    const lower = plain.toLowerCase();
-
-    if (para && (para.findings?.length || para.spelling?.length)) {
-      (para.findings || []).forEach((f) => {
-        const phraseList: string[] = (f as any).phrases?.length ? (f as any).phrases : [f.phrase || ''];
-        phraseList.forEach((rawPhrase) => {
-          const phrase = rawPhrase.toLowerCase();
-          if (!phrase || phrase.startsWith('(')) return;
-          let idx = lower.indexOf(phrase);
-          while (idx >= 0) {
-            marks.push({ start: idx, end: idx + phrase.length, kind: 'ai', severity: f.severity, title: f.detail });
-            idx = lower.indexOf(phrase, idx + phrase.length);
-          }
-        });
-      });
-
-      (para.spelling || []).forEach((s) => {
-        const word = (s.word || '').toLowerCase();
-        if (!word) return;
-        let idx = lower.indexOf(word);
-        while (idx >= 0) {
-          marks.push({
-            start: idx, end: idx + word.length, kind: 'spelling',
-            title: s.suggestions?.length ? `Sugerencias: ${s.suggestions.slice(0, 3).join(', ')}` : 'Posible error ortográfico',
-          });
-          idx = lower.indexOf(word, idx + word.length);
-        }
-      });
-    }
-
-    // Resaltador del comentario estilo WhatsApp (lo que señala la burbuja).
-    // Si el comentario no trae un fragmento específico (match), se marca el
-    // texto completo del elemento para que el comentario SIEMPRE ancle a algo.
-    if (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote') {
-      const cmtCtx = buildCommentContext({
-        citationAuditResult: useDocStore.getState().citationAuditResult,
-        validationIssues: useDocStore.getState().validationIssues,
-        sugerenciasProactivas: useDocStore.getState().sugerenciasProactivas,
-        reviewResult,
-        proofreadFindings: useDocStore.getState().proofreadFindings,
-      });
-      const comment = getWhatsAppComment(elem, cmtCtx, 0);
-      const m = comment?.match;
-      if (comment) {
-        if (m) {
-          // Búsqueda insensible a acentos/case para que el "tachado" aparezca
-          // siempre que la burbuja esté señalando un fragmento real del texto.
-          const found = findAccentAgnostic(plain, m);
-          if (found) {
-            marks.push({ start: found.start, end: found.end, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
-          } else if (plain.trim()) {
-            // Fragmento no localizable → marcamos el párrafo completo.
-            marks.push({ start: 0, end: plain.length, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
-          }
-        } else if (plain.trim()) {
-          marks.push({ start: 0, end: plain.length, kind: 'comment', title: `${comment.emoji} ${comment.text}` });
-        }
-      }
-    }
-
-    // Marcado de citas APA 7 detectadas en el texto (indicador visual al usuario)
-    if (showCitationMarks && (elem.type === 'paragraph' || elem.type === 'bullet' || elem.type === 'numbered_list' || elem.type === 'block_quote')) {
-      const citations = findCitationsInText(plain);
-      for (const c of citations) {
-        const hasIssue = !!c.error;
-        marks.push({
-          start: c.start,
-          end: c.end,
-          kind: 'citation',
-          severity: hasIssue ? 'HIGH' : 'OK',
-          title: hasIssue
-            ? `Cita detectada ·  ${c.error}`
-            : `Cita detectada · ${c.authors.join(', ')} (${c.year}) — formato APA 7 correcto`,
-        });
-      }
-    }
-
-    if (marks.length === 0) return plain;
-
-    marks.sort((a, b) => a.start - b.start);
-
-    // ── Consolidación de marcas solapadas ───────────────────────────────────
-    // Cuando dos marcas cubren el mismo rango (p.ej. comment + citation sobre
-    // "La OIT (2007)"), se renderizan dos <mark> y el texto se duplica.
-    // Prioridad: comment > citation > spelling > ai. La marca ganadora absorbe
-    // el rango extendido y la otra se descarta.
-    const KIND_PRIORITY: Record<Mark[0]['kind'], number> = {
-      comment: 4, citation: 3, spelling: 2, ai: 1,
-    };
-    const merged: Mark = [];
-    for (const m of marks) {
-      const prev = merged[merged.length - 1];
-      if (prev && m.start <= prev.end) {
-        // Solapamiento: la de mayor prioridad absorbe; si empate, la primera.
-        if (KIND_PRIORITY[m.kind] > KIND_PRIORITY[prev.kind]) {
-          // m "gana": extendemos su start al inicio del solapamiento
-          const extendedStart = prev.start;
-          const extendedEnd = Math.max(prev.end, m.end);
-          prev.start = extendedStart;
-          prev.end = extendedEnd;
-          prev.kind = m.kind;
-          prev.severity = m.severity;
-          prev.title = m.title;
-        } else {
-          // prev "gana": extendemos su end si es necesario
-          prev.end = Math.max(prev.end, m.end);
-        }
-      } else {
-        merged.push({ ...m });
-      }
-    }
-
-    const out: React.ReactNode[] = [];
-    let cursor = 0;
-    merged.forEach((m, i) => {
-      if (m.start > cursor) out.push(plain.slice(cursor, m.start));
-      const frag = plain.slice(m.start, m.end);
-      const isSpell = m.kind === 'spelling';
-      const isComment = m.kind === 'comment';
-      const isCitation = m.kind === 'citation';
-      const color = isCitation
-        ? (m.severity === 'HIGH' ? 'var(--warn-brown)' : 'var(--ok-deep)')
-        : isComment ? 'var(--warn-dark)' : isSpell ? 'var(--color-danger)' : m.severity === 'HIGH' ? 'var(--color-danger)' : m.severity === 'MEDIUM' ? 'var(--warn-amber)' : 'var(--info-blue)';
-      const bg = isCitation
-        ? (m.severity === 'HIGH' ? 'rgba(214,137,16,0.22)' : 'rgba(26,127,78,0.15)')
-        : isComment ? 'rgba(255, 213, 0, 0.45)' : isSpell ? 'rgba(212,56,46,0.12)' : m.severity === 'HIGH' ? 'rgba(212,56,46,0.15)' : m.severity === 'MEDIUM' ? 'rgba(184,134,11,0.15)' : 'rgba(30,111,217,0.12)';
-      out.push(
-        <mark key={`${m.start}-${i}`} title={m.title} style={{
-          color, backgroundColor: bg,
-          textDecoration: isComment ? 'line-through underline rgba(124,94,0,0.55)' : isCitation ? 'none' : isSpell ? 'underline wavy var(--color-danger)' : `underline dotted ${color}`,
-          padding: '0 1px', borderRadius: 2,
-        }}>
-          {frag}
-        </mark>
-      );
-      cursor = m.end;
-    });
-    if (cursor < plain.length) out.push(plain.slice(cursor));
-    return out;
-  };
 
   const handleSuggestCaption = async (elem: ElementModel) => {
     if (!doc) return;
@@ -885,7 +736,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
   const citationAudit = useDocStore((s) => s.citationAuditResult);
   const validationIssues = useDocStore((s) => s.validationIssues);
-  const proactivas = useDocStore((s) => s.sugerenciasProactivas !== false);
+  const proactivas = useDocStore((s) => s.sugerenciasProactivas);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   // Mismo constructor que los subrayados inline: si hay burbuja, hay subrayado.
   const commentCtx = React.useMemo(
@@ -898,6 +749,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     }),
     [citationAudit, validationIssues, proactivas, reviewResult, proofreadFindings],
   );
+  // Los resaltados inline tienen una sola implementación (ReadingText). Acá solo
+  // se le pasa de qué estado del store se sacan las marcas: el marcado lo hace
+  // el componente, no este archivo.
+  const readingSource = (target: ElementModel): MarkSource => ({
+    elem: target,
+    reviewResult,
+    proofreadFindings,
+    commentCtx,
+    showCitations: showCitationMarks,
+    dismissedCommentIds,
+  });
   // Un solo festejo: SOLO si el documento entero está impecable (cero comentarios).
   const positiveMap = new Map<string, boolean>();
   // Geometría de gutter: SI el documento tiene al menos un comentario, TODAS las
@@ -2061,7 +1923,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 margin: '0 0 8px 0',
                                 ...reviewHighlightStyle(elem.id),
                               }}>
-                                {renderReviewedText(elem, elem.text)}
+                                <ReadingText text={elem.text} source={readingSource(elem)} />
                               </p>
                             )}
 
@@ -2074,19 +1936,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 marginTop: '6px', marginBottom: '8px',
                                 ...reviewHighlightStyle(elem.id),
                               }}>
-                                {renderReviewedText(elem, elem.text)}
+                                <ReadingText text={elem.text} source={readingSource(elem)} />
                               </p>
                             )}
 
                             {elem.type === 'bullet' && (
                               <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0', ...reviewHighlightStyle(elem.id) }}>
-                                • {renderReviewedText(elem, elem.text)}
+                                • <ReadingText text={elem.text} source={readingSource(elem)} />
                               </p>
                             )}
 
                             {elem.type === 'numbered_list' && (
                               <p style={{ fontFamily: fontFamily, lineHeight: rules.line_spacing, marginLeft: `${((elem.list_level || 1) - 1) * 24 + 24}px`, textIndent: '-12px', marginBottom: '8px', marginTop: '0', ...reviewHighlightStyle(elem.id) }}>
-                                {currentItemNum}. {renderReviewedText(elem, elem.text)}
+                                {currentItemNum}. <ReadingText text={elem.text} source={readingSource(elem)} />
                               </p>
                             )}
 
