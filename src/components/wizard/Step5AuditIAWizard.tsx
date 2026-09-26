@@ -28,8 +28,17 @@ import {
   Layout, Bot, SpellCheck, CheckCircle2
 } from 'lucide-react';
 import * as api from '../../api/backend';
+import { summarizeScanOutcomes, toReason, ScanEngineId, EngineScanOutcome } from './scanOutcome';
 
 export type ToolWindowId = 'ai' | 'style' | 'spelling' | 'citations' | 'structure';
+
+/* Motores que corre el "Escanear" global, en el orden de Promise.allSettled.
+   labels = nombre corto usado en el toast de fallo (chip de la UI). */
+const SCAN_ENGINES: { id: ScanEngineId; label: string }[] = [
+  { id: 'ai', label: 'IA' },
+  { id: 'proofread', label: 'Ortografía' },
+  { id: 'citations', label: 'Citas' },
+];
 
 export interface AuditItem {
   id: string;
@@ -133,6 +142,7 @@ export const Step5AuditIAWizard: React.FC = () => {
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const aiIndices = useDocStore((s) => s.aiIndices);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
   const runQuickFix = useDocStore((s) => s.runQuickFix);
@@ -160,6 +170,12 @@ export const Step5AuditIAWizard: React.FC = () => {
   const [dismissedItemIds, setDismissedItemIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState<number>(1);
   const didInitGroupsRef = useRef(false);
+
+  /* Último escaneo observado por motor (dentro de esta vista): guarda los
+     resultados de store en el momento de correr. Si los refs no cambiaron,
+     ese sigue siendo el último resultado (éxito o fallo); si cambiaron, un
+     éxito posterior — desde cualquier vista — limpia el fallo registrado. */
+  const lastScanRef = useRef<Partial<Record<ScanEngineId, { ok: boolean; snap: unknown }>>>({});
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
@@ -492,11 +508,52 @@ export const Step5AuditIAWizard: React.FC = () => {
     return map;
   }, [visibleItems]);
 
-  // Métricas Globales
+  /* ── Estado honesto por motor ───────────────────────────────────────────
+     "Sin datos" = el motor nunca corrió en esta sesión, O su último
+     resultado fue un fallo. Un resultado real — aunque malo — se muestra
+     tal cual; solo se elimina el número inventado. */
+  const snapMatches = (id: ScanEngineId, snap: unknown): boolean => {
+    if (id === 'ai') return snap === reviewResult;
+    if (id === 'citations') return snap === citationAuditResult;
+    const snapProofread = snap as readonly [typeof proofreadFindings, typeof aiIndices];
+    return snapProofread[0] === proofreadFindings && snapProofread[1] === aiIndices;
+  };
+
+  const lastRunState = (id: ScanEngineId): 'ok' | 'failed' | null => {
+    const record = lastScanRef.current[id];
+    if (!record || !snapMatches(id, record.snap)) return null;
+    return record.ok ? 'ok' : 'failed';
+  };
+
+  const aiEngineHasData = reviewResult !== null && lastRunState('ai') !== 'failed';
+  const proofreadEngineHasData =
+    (aiIndices !== null || proofreadFindings.length > 0 || lastRunState('proofread') === 'ok')
+    && lastRunState('proofread') !== 'failed';
+  const citationsEngineHasData =
+    citationAuditResult !== null && lastRunState('citations') !== 'failed';
+
+  // Métricas Globales: null = sin escaneo real → "—" / "Sin analizar"
   const totalIssues = allItems.length;
   const criticalCount = allItems.filter((i) => i.severity === 'critical').length;
-  const aiGlobalScore = Math.round((reviewResult?.ai_indices?.score || 0.08) * 100);
-  const apaComplianceScore = Math.max(70, Math.min(100, 100 - (totalIssues * 3)));
+
+  const resolveAiIndexScore = (): number | null => {
+    const fromProofread = aiIndices?.score;
+    if (proofreadEngineHasData && typeof fromProofread === 'number' && Number.isFinite(fromProofread)) {
+      return fromProofread;
+    }
+    const fromReview = reviewResult?.ai_indices?.score;
+    if (aiEngineHasData && typeof fromReview === 'number' && Number.isFinite(fromReview)) {
+      return fromReview;
+    }
+    return null;
+  };
+  const aiIndexScore = resolveAiIndexScore();
+  const aiGlobalScore = aiIndexScore === null ? null : Math.round(aiIndexScore * 100);
+
+  const apaComplianceScore =
+    aiEngineHasData && proofreadEngineHasData && citationsEngineHasData
+      ? Math.max(0, Math.min(100, 100 - totalIssues * 3))
+      : null;
 
   const goToPage = (page: number) => {
     const target = pages[page - 1];
@@ -534,14 +591,63 @@ export const Step5AuditIAWizard: React.FC = () => {
     setIsScanningAll(true);
     showToast('Iniciando escaneo integral con IA y heurística local…', 'info');
     try {
-      await Promise.allSettled([
-        runAIReview(),
-        runProofreadBatch(),
-        runCitationAudit(),
+      /* Los motores del store tragan sus errores internos: además del catch,
+         comprobamos si cada motor dejó resultados NUEVOS en el store. Sin
+         esa comprobación, un fallo total parecería un escaneo exitoso. */
+      const before = {
+        review: useDocStore.getState().reviewResult,
+        findings: useDocStore.getState().proofreadFindings,
+        indices: useDocStore.getState().aiIndices,
+        citations: useDocStore.getState().citationAuditResult,
+      };
+      const settleEngine = async (
+        run: () => Promise<void>,
+        producedFreshResult: () => boolean,
+      ): Promise<void> => {
+        try {
+          await run();
+        } catch (err) {
+          throw err instanceof Error ? err : new Error(String(err));
+        }
+        if (!producedFreshResult()) {
+          throw new Error('sin resultados nuevos');
+        }
+      };
+
+      const settled = await Promise.allSettled([
+        settleEngine(runAIReview, () => useDocStore.getState().reviewResult !== before.review),
+        settleEngine(runProofreadBatch, () => {
+          const state = useDocStore.getState();
+          return state.proofreadFindings !== before.findings || state.aiIndices !== before.indices;
+        }),
+        settleEngine(runCitationAudit, () => useDocStore.getState().citationAuditResult !== before.citations),
       ]);
-      showToast('Auditoría integral completada', 'success');
-    } catch {
-      showToast('Error al ejecutar el escaneo completo', 'error');
+
+      const outcomes: EngineScanOutcome[] = SCAN_ENGINES.map((engine, index) => {
+        const result = settled[index];
+        return {
+          ...engine,
+          ok: result.status === 'fulfilled',
+          reason: result.status === 'rejected' ? toReason(result.reason) : undefined,
+        };
+      });
+
+      /* Registrar el último resultado observado por motor: los motores OK
+         actualizan sus resultados y un fallo deja de aplicar en cuanto un
+         éxito posterior cambie el resultado en el store. */
+      const state = useDocStore.getState();
+      outcomes.forEach((outcome) => {
+        const snap =
+          outcome.id === 'ai'
+            ? state.reviewResult
+            : outcome.id === 'proofread'
+            ? ([state.proofreadFindings, state.aiIndices] as const)
+            : state.citationAuditResult;
+        lastScanRef.current[outcome.id] = { ok: outcome.ok, snap };
+      });
+
+      const toast = summarizeScanOutcomes(outcomes);
+      showToast(toast.message, toast.type);
     } finally {
       setIsScanningAll(false);
     }
@@ -698,7 +804,7 @@ export const Step5AuditIAWizard: React.FC = () => {
           </div>
           <div style={{ minWidth: 0 }}>
             <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-              Revisión & Calidad IA
+              Revisión & IA
             </h2>
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
               Suite de control editorial y estilo académico
@@ -948,13 +1054,38 @@ export const Step5AuditIAWizard: React.FC = () => {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Cumplimiento APA</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: 'var(--color-success)' }}>{apaComplianceScore}%</span>
+              <span
+                style={{
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 900,
+                  color: apaComplianceScore !== null ? 'var(--color-success)' : 'var(--text-secondary)',
+                }}
+              >
+                {apaComplianceScore !== null ? `${apaComplianceScore}%` : '—'}
+              </span>
+              {apaComplianceScore === null && (
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Sin analizar</span>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Índice de IA</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 900, color: aiGlobalScore > 40 ? 'var(--color-warning)' : 'var(--text-main)' }}>
-                {aiGlobalScore}%
+              <span
+                style={{
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 900,
+                  color:
+                    aiGlobalScore === null
+                      ? 'var(--text-secondary)'
+                      : aiGlobalScore > 40
+                      ? 'var(--color-warning)'
+                      : 'var(--text-main)',
+                }}
+              >
+                {aiGlobalScore === null ? '—' : `${aiGlobalScore}%`}
               </span>
+              {aiGlobalScore === null && (
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Sin analizar</span>
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Observaciones</span>
@@ -1343,7 +1474,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                           const prev = sub.items[(currentIdx - 1 + sub.items.length) % sub.items.length];
                                           handleSelectReview(prev);
                                         }}
-                                        title="Ocultación anterior"
+                                        title="Ocurrencia anterior"
                                         style={{
                                           padding: '2px',
                                           border: '1px solid var(--border-subtle)',
@@ -1365,7 +1496,7 @@ export const Step5AuditIAWizard: React.FC = () => {
                                           const next = sub.items[(currentIdx + 1) % sub.items.length];
                                           handleSelectReview(next);
                                         }}
-                                        title="Ocultación siguiente"
+                                        title="Ocurrencia siguiente"
                                         style={{
                                           padding: '2px',
                                           border: '1px solid var(--border-subtle)',
