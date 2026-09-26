@@ -319,6 +319,11 @@ class PortadaMapRequest(BaseModel):
     profile_name: Optional[str] = None
 
 
+class LayoutPaginateRequest(BaseModel):
+    """FASE 2 — repaginación en vivo: Word COM como autoridad de layout."""
+    session_id: str
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "1.0.0"
