@@ -2165,6 +2165,118 @@ git commit -m "feat(layout): usePageIndex, el computePages real como unica fuent
 
 ---
 
+### Task 10b: Calibrar las unidades de página y dar al índice las alturas reales
+
+> **Añadida durante la ejecución**, no en la redacción inicial. La Task 10 entregó el índice honesto
+> pero descubrió que el defecto que venía a matar sobrevivía por debajo: la escala de unidades de
+> `computePages` está calibrada al revés, así que el índice y el lienzo cuentan páginas distintas por
+> un factor de ~2x en prosa corriente. Va antes de la Task 12 porque la 12 es la que pone el `N` de
+> "Página X de N" y dibuja el minimapa: hasta que esto aterrice, ningún número visible depende del
+> índice, y después dependería de un número que miente.
+
+**Files:**
+- Modify: `src/components/layout/PaperCanvas.tsx:356` (la escala de unidades) y `:1292` (la ventana de
+  virtualización)
+- Modify: `src/hooks/usePageIndex.ts`
+- Modify: `src/lib/pageSplitter.ts` y `src/lib/flowPagination.ts` (solo si la calibración lo exige)
+- Modify: `src/store/slices/layoutSlice.ts` o el slice que corresponda, para publicar las alturas
+- Test: `src/__tests__/pageCalibration.test.ts`, más el centinela de `usePageIndex.test.ts:83`
+
+**Interfaces:**
+- Consumes: `computeRenderedPages` (exportada por `PaperCanvas` en la Task 10),
+  `applyPageFlow` de `src/lib/pageSplitter.ts`, `flowPagination` de `src/lib/flowPagination.ts`,
+  `getPageGeometry` de `src/lib/pageGeometry.ts`, `estimateLines` de `pageSplitter.ts:24`.
+- Produces: un almacén de alturas de elemento publicable y legible, y un índice cuya página coincide
+  con la del lienzo para el mismo documento.
+
+- [ ] **Step 1: Escribe el test que falla**
+
+El defecto, medido por el revisor contra la función ya entregada, en prosa corriente de 100 a 300
+caracteres:
+
+| Documento | Índice hoy | Lienzo medido |
+|---|---|---|
+| 28 × 100 car. | 1 | 3 – 5 |
+| 56 × 100 car. | 2 | 6 – 10 |
+| 120 × 100 car. | 5 | 13 – 22 |
+| 120 × 300 car. | 9 | 17 – 26 |
+
+Crea `src/__tests__/pageCalibration.test.ts` con un test que construya un documento de prosa
+corriente, calcule las páginas **como las calcula el lienzo con alturas reales**, y afirme que coinciden
+con las del índice una vez que el índice recibe esas alturas. Hoy falla por un factor de ~2.
+
+- [ ] **Step 2: Corrige el test y verifica que falla**
+
+Run: `npx vitest run src/__tests__/pageCalibration.test.ts`
+Expected: FAIL — el índice y el lienzo no coinciden.
+
+- [ ] **Step 3: Diagnostica antes de tocar**
+
+La causa raíz está medida, pero verifícala tú mismo antes de cambiar números:
+
+`src/components/layout/PaperCanvas.tsx:356` calcula `units = Math.ceil(totalLines / 2.0)` — una unidad
+por **dos** líneas renderizadas — mientras el presupuesto de `:430` gasta 34px por unidad, cerca de una
+línea de 32px. Las dos escalas difieren ~2x, así que una página base lleva 1792px contra un `contentH`
+de 832. El presupuesto está en px y la unidad cuenta líneas: no son la misma magnitud.
+
+Antes de corregir, escribe en el informe tu propia medición de la escala, no la del informe del revisor.
+
+- [ ] **Step 4: Pon las dos escalas en la misma unidad**
+
+Haz que la unidad de cómputo y el presupuesto signifiquen lo mismo. La opción que el revisor señaló
+como mínima, y que conviene preferir: hacer la medición completa y singular — medir **todos** los
+elementos en una pasada sin virtualizar (contenedor oculto o render con `visibility:hidden`),
+publicar `heights` en el store, y hacer que `PaperCanvas` consuma `usePageIndex().pages` como la lista
+de páginas en vez de recalcular la suya. Eso invierte la dependencia y mata la clase de bug de una vez,
+no el síntoma.
+
+El punto crítico: publicar solo `measuredRef` **no basta**. La lista del lienzo es dependiente del
+scroll —solo se renderizan páginas dentro de `activePageIndex ± 4` (`PaperCanvas.tsx:1292`), y fuera de
+esa ventana no hay medición—, así que el lienzo hoy mezcla páginas reflowadas y páginas base en un
+mismo array. La medición tiene que ser completa antes de publicarse, o el índice seguirá divergiendo.
+
+- [ ] **Step 5: Convierte el centinela en una prueba real**
+
+`src/__tests__/usePageIndex.test.ts:83` es hoy un centinela que falla a propósito cuando las dos ramas
+se unifican sin que nadie reescriba la expectativa. Deja de ser un centinela: ahora que las ramas deben
+unificarse, su expectativa pasa a ser la de igualdad real, y el comentario que explica el centinela se
+sustituye por el que explica la garantía. Agrega el marcador de una línea sobre la aserción de `:88`,
+que es la que salta primero bajo el escenario que el centinela advertía.
+
+- [ ] **Step 6: Corrige los tests y verifica que pasan**
+
+Run: `npx vitest run src/__tests__/usePageIndex.test.ts src/__tests__/pageCalibration.test.ts`
+Expected: PASS.
+
+- [ ] **Step 7: Corre la suite completa**
+
+Run: `npm test` y `npm run build`
+Expected: verdes. La paginación del lienzo cambia —ese es el punto— así que es esperable que
+`computePages.test.ts`, `pageSplitter.test.ts`, `pageGeometry.test.ts` o `pageGeometry.integration.test.ts`
+necesiten actualizar. Actualízalos a la calibración nueva y explica cada cambio: si alguno falla por una
+razón que no sea la escala de unidades, **para y repórtalo**, porque significaría que la calibración
+tenía un efecto lateral que no se考慮ó.
+
+- [ ] **Step 8: Si la calibración altera el número de páginas visible, para y pide ruling**
+
+Calibrar las unidades correctamente **cambia cuántas páginas dibuja el lienzo**: hoy una página base
+lleva 1792px contra un `contentH` de 832, así que la calibración nueva produce menos páginas para el
+mismo documento. Eso no es un refactor, es comportamiento de producto, y el número de páginas del
+documento que el usuario exporta puede moverse. Si tu medición confirma que el conteo visible cambia
+de forma apreciable, **para aquí y pide ruling** con las cifras antes de seguir. Si el cambio es
+marginal, sigue y dilo en el informe.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/components/layout/PaperCanvas.tsx src/hooks/usePageIndex.ts src/lib/pageSplitter.ts \
+        src/lib/flowPagination.ts src/store/slices src/__tests__/usePageIndex.test.ts \
+        src/__tests__/pageCalibration.test.ts
+git commit -m "fix(layout): una sola escala de paginas, y el indice ve las alturas reales"
+```
+
+---
+
 ### Task 11: `useAutoFitText` con piso duro de 13px
 
 **Files:**
