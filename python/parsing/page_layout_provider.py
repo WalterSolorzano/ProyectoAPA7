@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,63 @@ class PageLayoutResult:
     # with_cuts / page_setup_dict) es Task 3; aquí solo los campos con default.
     paragraph_cuts: List[List[dict]] = field(default_factory=list)
     page_setup: Optional[dict] = None
+
+
+def _page_at(doc: Any, pos: int) -> int:
+    """Página que contiene pos. Rango COLAPSADO (a==b): start==end → sin
+    ambigüedad (Information(3) sobre rango abierto es start o end según COM)."""
+    return int(doc.Range(pos, pos).Information(3))
+
+
+def cuts_for_range(doc: Any, rng: Any) -> List[dict]:
+    """Offsets relativos al párrafo donde Word rompe la página.
+
+    Binary search por quiebre: O(log n) sondas por corte. Rango que no cruza
+    → []. Cualquier fallo COM → [] (el canvas cae a medición DOM).
+    """
+    try:
+        a, b = int(rng.Start), int(rng.End)
+        if b - a < 2:
+            return []
+        cur = _page_at(doc, a)
+        final = _page_at(doc, b - 1)
+        out: List[dict] = []
+        pos = a
+        guard = 0
+        while final > cur and guard < 64:
+            guard += 1
+            lo, hi = pos + 1, b
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if _page_at(doc, mid) > cur:
+                    hi = mid
+                else:
+                    lo = mid + 1
+            nxt = _page_at(doc, lo)
+            if nxt <= cur:
+                break  # sin progreso (defensa)
+            out.append({"offset": int(lo - a), "page": int(nxt)})
+            pos, cur = lo, nxt
+        return out
+    except Exception:
+        return []
+
+
+def page_setup_dict(doc: Any) -> Optional[dict]:
+    """Dimensiones/márgenes REALES de Word (puntos)."""
+    try:
+        ps = doc.PageSetup
+        return {
+            "width_pt": float(ps.PageWidth),
+            "height_pt": float(ps.PageHeight),
+            "margin_top_pt": float(ps.TopMargin),
+            "margin_bottom_pt": float(ps.BottomMargin),
+            "margin_left_pt": float(ps.LeftMargin),
+            "margin_right_pt": float(ps.RightMargin),
+        }
+    except Exception:
+        return None
+
 
 class PageLayoutProvider(ABC):
     @abstractmethod
@@ -48,25 +105,26 @@ class COMPageLayoutProvider(PageLayoutProvider):
         except ImportError:
             return False
 
-    def paginate(self, docx_path: Path, timeout_seconds: int = 30) -> PageLayoutResult:
+    def paginate(self, docx_path: Path, timeout_seconds: int = 30,
+                 with_cuts: bool = False) -> PageLayoutResult:
         try:
             # Timeout externo: si Word se cuelga, matar WINWORD.EXE
             result = self._paginate_with_timeout(
-                docx_path, timeout_seconds
+                docx_path, timeout_seconds, with_cuts
             )
             return result
         finally:
             # Limpieza agresiva de procesos zombies por si acaso
             self._kill_orphan_winword_processes()
 
-    def _paginate_with_timeout(self, docx_path, timeout):
+    def _paginate_with_timeout(self, docx_path, timeout, with_cuts=False):
         # Usar concurrent.futures con timeout.
         # IMPORTANTE: no usar `with ThreadPoolExecutor` — su shutdown(wait=True)
         # se bloquearía esperando un hilo colgado en COM. Usamos wait=False y
         # matamos el proceso de Word para que el hilo termine solo.
         import concurrent.futures
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(self._do_paginate, docx_path)
+        future = executor.submit(self._do_paginate, docx_path, with_cuts)
         try:
             return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
@@ -82,7 +140,7 @@ class COMPageLayoutProvider(PageLayoutProvider):
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
-    def _do_paginate(self, docx_path) -> PageLayoutResult:
+    def _do_paginate(self, docx_path, with_cuts: bool = False) -> PageLayoutResult:
         import pythoncom
         pythoncom.CoInitialize()
         word = None
@@ -122,12 +180,16 @@ class COMPageLayoutProvider(PageLayoutProvider):
             t_repag = time.time() - t0
 
             paragraph_pages: List[int] = []
+            paragraph_cuts: List[List[dict]] = []
             for para in doc.Paragraphs:
                 # wdActiveEndPageNumber = 3
                 page_num = para.Range.Information(3)
                 paragraph_pages.append(int(page_num))
+                if with_cuts:
+                    paragraph_cuts.append(cuts_for_range(doc, para.Range))
 
             total_pages = doc.ComputeStatistics(2)  # wdStatisticPages = 2
+            page_setup = page_setup_dict(doc)   # barato: 6 propiedades
             t_total = time.time() - t0
 
             logger.info(f"[COM Layout] docx={docx_path.name}, total_pages={total_pages}, paragraphs={len(paragraph_pages)}, time_repag={t_repag:.2f}s, time_total={t_total:.2f}s")
@@ -138,6 +200,8 @@ class COMPageLayoutProvider(PageLayoutProvider):
                 provider_used="com",
                 confidence=1.0,
                 notes=[],
+                paragraph_cuts=paragraph_cuts,
+                page_setup=page_setup,
             )
         finally:
             try:
