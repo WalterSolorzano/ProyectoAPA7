@@ -182,8 +182,10 @@ class COMPageLayoutProvider(PageLayoutProvider):
             paragraph_pages: List[int] = []
             paragraph_cuts: List[List[dict]] = []
             for para in doc.Paragraphs:
-                # wdActiveEndPageNumber = 3
-                page_num = para.Range.Information(3)
+                # Página de INICIO: sonda colapsada. Information(3) sobre el
+                # rango abierto daría la página del FIN (wdActiveEndPageNumber)
+                # y contradiría cuts[].page.
+                page_num = _page_at(doc, para.Range.Start)
                 paragraph_pages.append(int(page_num))
                 if with_cuts:
                     paragraph_cuts.append(cuts_for_range(doc, para.Range))
