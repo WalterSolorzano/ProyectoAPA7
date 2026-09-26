@@ -404,12 +404,18 @@ export interface RenderedPagesInput {
 /**
  * LAS páginas que el lienzo realmente dibuja. Una sola paginación en la app:
  * el render del lienzo y el índice de findings llaman a ESTA función, así que
- * no pueden divergir ni por densidad ni por reglas.
+ * la densidad, la geometría y el reparto salen del mismo código.
  *
- * - La densidad sale de la altura real de la hoja (`maxUnits`), no de un 14 fijo:
- *   con 14 el índice armaba el doble de páginas que las que dibuja el lienzo.
- * - `heights` son las mediciones DOM del lienzo. Sin mediciones (índice, primera
- *   pintura) `applyPageFlow` devuelve las páginas base intactas.
+ * - La densidad sale de la altura real de la hoja (`maxUnits`), no de un 14 fijo.
+ * - `heights` son las mediciones DOM del lienzo, y SÍ cambian el resultado:
+ *   sin ellas `applyPageFlow` devuelve las páginas base intactas, que traen
+ *   ~el doble de contenido que una hoja real (ver la calibración de `maxUnits`).
+ *   Quien llame sin `heights` cuenta menos páginas que el lienzo: en prosa
+ *   corriente de 100-300 caracteres por párrafo, del orden de 2x a 3x menos
+ *   (1.7x a 2.6x con las alturas DOM reales que mide el lienzo).
+ *   Además la lista del lienzo es una mezcla: fuera de la ventana de
+ *   virtualización (`activePageIndex ± 4`) no hay medición, así que esas páginas
+ *   se quedan en paginación base mientras las de adentro van refloweadas.
  */
 export const computeRenderedPages = ({
   elements,
@@ -426,7 +432,14 @@ export const computeRenderedPages = ({
     page_size: (rules as any)?.page_size,
     professional_running_head: apaFormat === 'professional',
   });
-  // Capacidad proporcional a la altura real de la hoja (Letter 880 / A4 962).
+  // Densidad tomada de la altura real de la hoja: pageH (Letter 1056px ·
+  // A4 1123px) menos 96px de chrome, a 34px por unidad → 28 unidades en Letter,
+  // 30 en A4.
+  // OJO, calibración preexistente y AJENA a esta función: `computePages` carga
+  // ~1 unidad por cada DOS líneas renderizadas (~64px) mientras este presupuesto
+  // gasta 34px por unidad, así que una página base trae cerca del doble de
+  // contenido que una hoja real (contentH: Letter 832px · A4 899px). Nadie lo
+  // arregla acá porque cambia cuántas páginas dibuja el lienzo.
   const maxUnits = Math.max(18, Math.floor((Math.round(geom.pageH) - 96) / 34));
   // Reparto con alturas DOM reales: parte párrafos que exceden la hoja (sin recorte).
   return {

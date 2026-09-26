@@ -3,10 +3,11 @@
    El mapa de 1800 caracteres por pagina moria con este hook: un hallazgo
    caia en una pagina que el minimapa no marcaba.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { computeRenderedPages, type PageRules } from '../components/layout/PaperCanvas';
 import { buildPageIndex, usePageIndex } from '../hooks/usePageIndex';
+import { estimateLines } from '../lib/pageSplitter';
 import { useDocStore } from '../store/useDocStore';
 import type { APARuleSet, ElementModel } from '../types';
 
@@ -18,6 +19,14 @@ const rulesLetter: PageRules = {
   font_size_pt: 12,
   line_spacing: 2,
   page_size: 'letter',
+};
+
+/** Alturas que mediría el DOM. No inventamos un modelo: `applyPageFlow` cae
+ *  justo a esta `estimateLines` cuando un elemento no tiene altura medida, así
+ *  que el modelo es el del propio motor de reparto. */
+const alturasComoElDom = (elements: ElementModel[], rules: PageRules) => {
+  const { geom } = computeRenderedPages({ elements, rules });
+  return new Map(elements.map((e) => [e.id, estimateLines(e, geom) * geom.lineHeightPx]));
 };
 
 describe('T10 — usePageIndex', () => {
@@ -71,19 +80,43 @@ describe('T10 — usePageIndex', () => {
     expect(idx.pageOf('b0')).toBe(2);
   });
 
-  it('la densidad es la de la hoja real, no la del 14 por defecto', () => {
-    // 20 párrafos de una unidad: la densidad vieja (14) los partía en 2 páginas
-    // y el minimapa dibujaba otra cosa. La hoja real (Letter ≈ 28 unidades) los
-    // entra en una sola.
-    const elementos = Array.from({ length: 20 }, (_, i) => parrafo(`d${i}`));
-    const idx = buildPageIndex(elementos, { rules: rulesLetter });
+  it('la densidad es la hoja real, y contra el lienzo medido se ve la deriva', () => {
+    // 1) El presupuesto del índice es el de la hoja real, no el 14 por defecto.
+    //    20 párrafos de una unidad entran en una Letter (28 unidades).
+    const veinte = Array.from({ length: 20 }, (_, i) => parrafo(`d${i}`));
+    const idx = buildPageIndex(veinte, { rules: rulesLetter });
     expect(idx.totalPages).toBe(1);
     expect(idx.pageOf('d19')).toBe(1);
-    // Y más allá de la densidad, el índice no se adelanta al lienzo.
-    const muchos = Array.from({ length: 40 }, (_, i) => parrafo(`m${i}`));
-    const idx2 = buildPageIndex(muchos, { rules: rulesLetter });
-    expect(idx2.totalPages).toBe(2);
-    expect(idx2.pageOf('m39')).toBe(2);
+
+    // 2) MISMO documento, paginado como lo hace el lienzo (con alturas medidas):
+    //    el índice no ve esas alturas, así que cuenta MENOS páginas. Esto no es
+    //    un caso exótico de párrafos gigantes: pasa con prosa de 100 caracteres.
+    const elementos = Array.from({ length: 28 }, (_, i) => parrafo(`p${i}`));
+    const conMedicion = computeRenderedPages({
+      elements: elementos,
+      rules: rulesLetter,
+      heights: alturasComoElDom(elementos, rulesLetter),
+    }).pages;
+    const idxMedido = buildPageIndex(elementos, { rules: rulesLetter });
+
+    expect(idxMedido.totalPages).toBeLessThan(conMedicion.length);
+    // La deriva es de ~2x, no de un detalle: el índice se queda con la mitad de
+    // las páginas que el lienzo dibuja. Si alguien calibra las unidades de
+    // `computePages` (hoy 1 unidad ≈ 2 líneas contra 34px de presupuesto), esta
+    // aserción tiene que ENCENDERSE y el arreglo reescribir el test: no se
+    // deja pasar en silencio.
+    expect(conMedicion.length).toBeGreaterThanOrEqual(2 * idxMedido.totalPages);
+
+    // 3) La deriva es SOLO la falta de alturas: con las mismas alturas, el índice
+    //    reproduce página por página lo que dibuja el lienzo.
+    const idxConAlturas = buildPageIndex(elementos, {
+      rules: rulesLetter,
+      heights: alturasComoElDom(elementos, rulesLetter),
+    });
+    expect(idxConAlturas.totalPages).toBe(conMedicion.length);
+    for (const [i, pagina] of conMedicion.entries()) {
+      for (const el of pagina) expect(idxConAlturas.pageOf(el.id)).toBe(i + 1);
+    }
   });
 
   it('la página es donde el elemento empieza, aunque siga en la siguiente', () => {
@@ -115,6 +148,10 @@ describe('T10 — usePageIndex', () => {
 });
 
 describe('T10 — usePageIndex sobre el store', () => {
+  // El store es global: sin restaurar, este archivo deja un documento cargado
+  // atrás y cualquier corrida sin aislamiento por archivo depende del orden.
+  const estadoInicial = { doc: useDocStore.getState().doc, rules: useDocStore.getState().rules };
+
   // APARuleSet todavía no declara page_size (el lienzo también lo lee con cast).
   const setRules = (rules: PageRules) => {
     act(() => {
@@ -127,6 +164,10 @@ describe('T10 — usePageIndex sobre el store', () => {
   beforeEach(() => {
     useDocStore.setState({ doc: null });
     setRules(rulesLetter);
+  });
+
+  afterEach(() => {
+    useDocStore.setState(estadoInicial);
   });
 
   it('sin documento en el store no hay páginas', () => {
