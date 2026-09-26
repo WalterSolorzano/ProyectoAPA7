@@ -1,6 +1,7 @@
 import * as api from '../api/backend';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding } from '../types';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
+import type { LayoutPaginateResult } from '../api/layout';
 
 /** Un evento del feed de actividad del panel derecho unificado (Layer 4). */
 export interface ActivityEvent {
@@ -71,6 +72,15 @@ export interface DocState {
     ghost_citations: any[];
     orphan_references: any[];
   } | null;
+
+  // ── Fase 2 — Motor de render híbrido: verdad COM en vivo ──
+  /** Fase 2 — verdad COM en vivo: cortes de página por elemento (id → cortes). */
+  layoutCuts: Record<string, { offset: number; page: number }[]>;
+  /** Eco de aplicación: incrementa SOLO cuando una respuesta cambió algo. El hook compara para no re-agendar. */
+  layoutEcho: number;
+  /** D-a: la última respuesta informó que no hay Word. */
+  wordLayoutUnavailable: boolean;
+  applyLayoutPagination: (resp: LayoutPaginateResult) => void;
 
   /** Engine V2 (P2): resultado de la auditoría estructural global via LLM. */
   structureAuditResult: import('../api/backend').StructureAuditResult | null;

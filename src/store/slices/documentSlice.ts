@@ -115,6 +115,10 @@ export function safeRefText(ref: unknown): string {
 
 export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocState>> = (set, get) => ({
   doc: null,
+  // ── Fase 2 — Motor de render híbrido: verdad COM en vivo ──
+  layoutCuts: {},
+  layoutEcho: 0,
+  wordLayoutUnavailable: false,
   apiKey: (() => {
     try {
       const providers = [
@@ -1065,5 +1069,61 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     } finally {
       set({ isLoading: false });
     }
+  },
+  applyLayoutPagination: (resp) => {
+    const { doc } = get();
+    if (!doc || resp.session_id !== doc.session_id) return;   // sesión obsoleta
+    if (!resp.available) {
+      set({ wordLayoutUnavailable: true });                   // D-a: aviso, sin mutar
+      return;
+    }
+
+    const pagesById = new Map<string, number>(
+      (resp.elements || []).map((e) => [e.element_id, e.page_start]),
+    );
+    let elementsChanged = false;
+    const elements = doc.elements.map((el) => {
+      const pn = pagesById.get(el.id);
+      if (pn !== undefined && pn !== el.page_number) {
+        elementsChanged = true;
+        return { ...el, page_number: pn };
+      }
+      return el;
+    });
+
+    const nextCuts: Record<string, { offset: number; page: number }[]> = {};
+    for (const c of resp.line_cuts || []) {
+      if (c.cuts.length > 0) nextCuts[c.element_id] = c.cuts;
+    }
+    const cutsChanged =
+      JSON.stringify(nextCuts) !== JSON.stringify(get().layoutCuts || {});
+    const total = resp.total_pages ?? 0;
+    const countChanged = total > 0 && doc.meta.page_count !== total;
+
+    if (!elementsChanged && !cutsChanged && !countChanged) {
+      // Respuesta idéntica → nada cambió → SIN layoutEcho → el hook NO
+      // re-agenda. Este es el guard que corta el bucle de repaginación.
+      if (get().wordLayoutUnavailable) set({ wordLayoutUnavailable: false });
+      return;
+    }
+
+    set({
+      doc: {
+        ...doc,
+        elements: elementsChanged ? elements : doc.elements,
+        meta: countChanged
+          ? {
+              ...doc.meta,
+              page_count: total,
+              page_count_exact: true,
+              page_layout_provider: resp.provider || 'com',
+              page_layout_confidence: 1,
+            }
+          : doc.meta,
+      },
+      layoutCuts: nextCuts,
+      layoutEcho: (get().layoutEcho || 0) + 1,
+      wordLayoutUnavailable: false,
+    });
   },
 });
