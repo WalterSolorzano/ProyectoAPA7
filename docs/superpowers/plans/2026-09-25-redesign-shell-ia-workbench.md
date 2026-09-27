@@ -4186,6 +4186,22 @@ export function ReviewWorkbench() {
 }
 ```
 
+- [ ] **Step 3b: Una sola construcción del origen de marcas, y la bandera de citas compartida**
+
+**Añadido durante la ejecución.** La revisión de la Task 14 encontró dos copias divergentes de la misma
+decisión de canal:
+
+1. `FocusReadingCard.tsx:52` pasa `showCitations: true` como constante, mientras
+   `PaperCanvas.tsx:825` pasa `showCitations: showCitationMarks` (estado local, por defecto `true`,
+   `:538`). Apaga las marcas de cita en el lienzo y la tarjeta de lectura las sigue subrayando: un
+   defecto, dos canales, dos verdades — lo que `AGENTS.md` §2 prohíbe.
+2. `buildCommentContext(...)` se construye en dos sitios (`PaperCanvas.tsx:805-816` y
+   `FocusReadingCard.tsx:51`), con seis campos que hay que mantener sincronizados a mano.
+
+Extrae un único `buildMarkSource({ elem, showCitations })` — en el sitio que ya posee esa decisión — y
+ úsalo en los dos canales. La bandera de citas sube al store o viaja como prop de `PaperCanvas`; lo que
+ no vale es que la tarjeta la fije sola. Añade un test que falle si los dos canales divergen.
+
 - [ ] **Step 4: Reduce `Step5AuditIAWizard` a un envoltorio**
 
 Reemplaza el contenido completo de `src/components/wizard/Step5AuditIAWizard.tsx` por:
