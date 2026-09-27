@@ -667,3 +667,138 @@ GLOBAL_CHECKS.update({
     "g53_segunda_persona": _check_g53_segunda_persona,
     "g11_variaacion_oracion": _check_g11_variacion_oracion,
 })
+
+
+# ── R-G34, R-G35, R-G61, R-G63: las que necesitan estado de documento ───────
+
+# R-G34: siglas y acronimos. Se definen la primera vez: "Producto Interno Bruto
+# (PIB)". "Mayor" en el catalogo.
+_ACRONYM_RE = re.compile(r"\b[A-ZÁÉÍÓÚÑ]{2,6}\b")
+_DEFINES_ACRONYM = re.compile(r"\(\s*([A-ZÁÉÍÓÚÑ]{2,6})\s*\)")
+# Siglas que no son acronimos: dias, meses, numeros romanos, y APA que ya es
+# una sigla que todo el campo conoce. Sin esta lista, R-G34 marca "IV" en
+# cada encabezado numerado del documento.
+_NOT_ACRONYM = {"APA", "MSN", "DPI", "DOI", "ISBN", "PDF", "TCA", "I", "II",
+                "III", "IV", "V", "VI", "U", "N", "S", "ENE", "ABR", "AGO", "DIC"}
+
+
+def _check_g34_sigla_sin_definir(eid, text, ctx, mk):
+    texto = text or ""
+    # Definida en este mismo parrafo: "Producto Interno Bruto (PIB)".
+    definidas = {m.group(1) for m in _DEFINES_ACRONYM.finditer(texto)}
+    out = []
+    for m in _ACRONYM_RE.finditer(texto):
+        sigla = m.group(0)
+        if sigla in definidas or sigla in _NOT_ACRONYM:
+            continue
+        if sigla in ctx.seen_acronyms:
+            # Ya se reporto en su primera aparicion. Marcarla en cada parrafo
+            # produce una tanda de hallazgos identicos, y lo que el autor tiene
+            # que hacer es definirse UNA vez.
+            continue
+        out.append(mk(eid, texto, m.start(), m.end(), "g34_sigla_sin_definir",
+                      "medium",
+                      f'La sigla "{sigla}" no esta definida. Se define la primera '
+                      f"vez: Nombre completo ({sigla}), y despues solo la sigla",
+                      phase="global"))
+    return out
+
+
+# R-G35: consistencia de unidades. "Menor". Un numero con sigla y el mismo
+# concepto escrito en palabras, en el mismo parrafo.
+_UNITS = {
+    "kg": "kilogramos", "g": "gramos", "cm": "centimetros", "mm": "milimetros",
+    "m": "metros", "km": "kilometros", "l": "litros", "ml": "mililitros",
+}
+_UNITS_SIGLA = sorted(_UNITS, key=len, reverse=True)
+_UNITS_PALABRA = sorted(set(_UNITS.values()), key=len, reverse=True)
+_UNIT_SIGLA_RE = re.compile(
+    r"(\d+)\s*\b(" + "|".join(_UNITS_SIGLA) + r")\b")
+_UNIT_PALABRA_RE = re.compile(r"\b(" + "|".join(_UNITS_PALABRA) + r")\b")
+
+
+def _check_g35_unidades_mixtas(eid, text, ctx, mk):
+    low = (text or "").lower()
+    con_sigla = {_UNITS[m.group(2)]: m.start(2)
+                 for m in _UNIT_SIGLA_RE.finditer(low)}
+    out = []
+    for m in _UNIT_PALABRA_RE.finditer(low):
+        larga = m.group(1)
+        if larga in con_sigla:
+            out.append(mk(eid, text, m.start(), m.end(), "g35_unidades_mixtas", "info",
+                          f'Alternas "{_UNITS_INV[larga]}" y "{larga}" para lo '
+                          f"mismo. Una sola forma de unidad en todo el documento",
+                          phase="global"))
+            break
+    return out
+
+
+_UNITS_INV = {v: k for k, v in _UNITS.items()}
+
+
+# R-G61: triadas como muletilla. "Menor". Tres o mas "A, B y C" en el parrafo.
+_TRIPLE_RE = re.compile(
+    r"\b([a-záéíóúñ]{4,}),\s+([a-záéíóúñ]{4,})\s+y\s+([a-záéíóúñ]{4,})\b")
+_TRIPLE_MIN = 3
+
+
+def _check_g61_triada(eid, text, ctx, mk):
+    triadas = list(_TRIPLE_RE.finditer(text or ""))
+    if len(triadas) < _TRIPLE_MIN:
+        return []
+    return [mk(eid, text, triadas[0].start(), triadas[0].end(), "g61_triada", "info",
+              f"La estructura 'A, B y C' se repite {len(triadas)} veces en el "
+              f"parrafo. Es una muletilla estructural", phase="global")]
+
+
+# R-G63: densidad de conectores de contraste y adicion. "Menor".
+#
+# Se mide POR MIL PALABRAS DEL DOCUMENTO, no por repeticion textual: tres "sin
+# embargo" en 300 palabras es un problema y en 12.000 no. Es la Review Focus 3
+# del plan, y la razon por la que esta regla necesita el contexto.
+_DENSITY_CONNECTORS = (
+    "sin embargo", "no obstante", "por otro lado", "en consecuencia",
+    "por lo tanto", "asimismo", "en conclusion", "ademas", "por consiguiente",
+)
+_DENSITY_LIMIT_PER_1K = 4.0
+
+
+def _check_g63_conectores_densidad(eid, text, ctx, mk):
+    if ctx.doc_words <= 0:
+        return []
+    low = (text or "").lower()
+    cuenta = 0
+    primero = None
+    for conector in _DENSITY_CONNECTORS:
+        patron = r"(?<![a-záéíóúñ])" + re.escape(conector) + r"(?![a-záéíóúñ])"
+        for m in re.finditer(patron, low):
+            if _in_quoted(text, m.start()):
+                continue
+            cuenta += 1
+            if primero is None:
+                primero = m
+    if primero is None:
+        return []
+    por_1k = cuenta / (ctx.doc_words / 1000.0)
+    if por_1k <= _DENSITY_LIMIT_PER_1K:
+        return []
+    return [mk(eid, text, primero.start(), primero.end(), "g63_conectores_densidad",
+               "info",
+               f"{cuenta} conectores de contraste en {ctx.doc_words} palabras "
+               f"({por_1k:.1f} por cada mil). Varia el conector o quitalo",
+               phase="global")]
+
+
+RULE_SCOPES.update({
+    "g34_sigla_sin_definir": GLOBAL,
+    "g35_unidades_mixtas": GLOBAL,
+    "g61_triada": GLOBAL,
+    "g63_conectores_densidad": GLOBAL,
+})
+
+GLOBAL_CHECKS.update({
+    "g34_sigla_sin_definir": _check_g34_sigla_sin_definir,
+    "g35_unidades_mixtas": _check_g35_unidades_mixtas,
+    "g61_triada": _check_g61_triada,
+    "g63_conectores_densidad": _check_g63_conectores_densidad,
+})

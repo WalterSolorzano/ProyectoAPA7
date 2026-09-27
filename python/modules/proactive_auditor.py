@@ -22,7 +22,9 @@ from modules.phase_scope import (  # noqa: E402
     GLOBAL,
     NO_PHASE_KEY,
     PORTADA_KEY,
+    build_global_context,
     build_phase_map,
+    global_findings,
     phase_findings,
 )
 
@@ -405,6 +407,12 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
     # ámbito del texto del elemento, que es el defecto que este mapa elimina.
     phase_by_id, _phase_spans = build_phase_map(elements)
 
+    # Capa de reglas GLOBALES: el contexto se calcula UNA vez, antes del bucle,
+    # porque R-G63 normaliza por mil palabras del documento entero y R-G34
+    # recuerda que siglas ya se reportaron. Ver `phase_scope.global_findings`
+    # para por que viven ahi y no sueltas aca.
+    global_ctx = build_global_context(elements)
+
     for e in elements:
         etype = getattr(getattr(e, "type", None), "value", getattr(e, "type", ""))
         if str(etype) not in ("paragraph", "para"):
@@ -490,6 +498,11 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         # cualquier parrafo que mencionara "objetivo" tambien. Ahora el ambito
         # viene del H1 que contiene el elemento, nunca de su texto.
         findings.extend(phase_findings(phase, eid, text, mk=_mk))
+
+        # -- Reglas globales: corren en TODO el documento, sin importar la
+        # fase. Van despues de las de fase y no saben cual es: si lo supieran,
+        # serian de fase.
+        findings.extend(global_findings(eid, text, global_ctx, mk=_mk))
 
         # -- B1 repetición / B2 incompleta / B4 persona / B5 ambigüedad
         findings.extend(_audit_repeticion(eid, text))

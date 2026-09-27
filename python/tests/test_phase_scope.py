@@ -426,3 +426,51 @@ def test_ritmo_variado_no_es_hallazgo():
              "documentadas en la literatura. Los datos del 2024 muestran un "
              "aumento sostenido que nadie explica.")
     assert "g11_variacion_oracion" not in {f["kind"] for f in _g(texto)}
+
+
+def _ctx(n, siglas=frozenset()):
+    from modules.phase_scope import GlobalContext
+    return GlobalContext(doc_words=n, seen_acronyms=siglas, connector_counts={})
+
+
+def test_sigla_sin_definir_en_su_primera_aparicion():
+    assert "g34_sigla_sin_definir" in {f["kind"] for f in _g("El PIBPIO crecio un 3% durante el periodo.", ctx=_ctx(200))}
+
+
+def test_sigla_ya_definida_no_se_vuelve_a_marcar():
+    # Review Focus 2: marcar la sigla en cada parrafo produce una tanda de
+    # hallazgos identicos. Solo la primera aparicion es el error.
+    assert _g("El PIB seguia creciendo en el segundo trimestre.", ctx=_ctx(400, frozenset({"PIB"}))) == []
+
+
+def test_sigla_definida_en_el_mismo_parrafo_no_es_hallazgo():
+    out = _g("El Producto Interno Bruto (PIB) crecio un 3% durante el periodo.")
+    assert "g34_sigla_sin_definir" not in {f["kind"] for f in out}
+
+
+def test_unidades_mixtas_para_el_mismo_concepto():
+    out = _g("Se midieron 5 kg de muestra y luego cinco kilogramos en la segunda tanda.")
+    assert "g35_unidades_mixtas" in {f["kind"] for f in out}
+
+
+def test_una_sola_forma_de_unidad_no_es_hallazgo():
+    out = _g("Se midieron 5 kg de muestra.")
+    assert [f for f in out if f["kind"] == "g35_unidades_mixtas"] == []
+
+
+def test_triada_repetida_como_muletilla():
+    texto = ("Es rapido, eficiente y confiable. Es claro, conciso y directo. "
+             "Es seguro, estable y veloz.")
+    assert "g61_triada" in {f["kind"] for f in _g(texto)}
+
+
+def test_una_triada_suelta_no_es_hallazgo():
+    assert "g61_triada" not in {f["kind"] for f in _g("El sistema es rapido, eficiente y confiable.")}
+
+
+def test_conectores_por_mil_palabras_y_no_por_repeticion():
+    # Review Focus 3: dos "sin embargo" en un documento corto son normales; tres
+    # en 300 palabras no. El umbral depende del largo real.
+    texto = "Sin embargo, A. Sin embargo, B. Sin embargo, C."
+    assert _g(texto, ctx=_ctx(200)) != []
+    assert _g(texto, ctx=_ctx(20000)) == []
