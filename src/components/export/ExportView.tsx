@@ -4,19 +4,19 @@
    dos botones pegados (principal sólida + secundaria fantasma).
    - Sin listas, tarjetas, columnas ni scroll en el estado por defecto.
    - Formato, opciones, aviso de citas fantasma y vista previa viven OCULTOS
-     bajo el botón "Opciones" (toggle "Previsualizar" para el panel derecho).
+     tras el toggle "Opciones", que va DEBAJO de las dos acciones para no competir con ellas.
    - El resumen de hallazgos/estadísticas se mostró en la vista de revisión:
      no se repite aquí. El espacio en blanco es intencional.
    Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark. */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
 import { resolveAssetUrl } from '../../api/backend';import {
   FileText, FileType, FileCode, CheckCircle2,
-  AlertTriangle, Download, Loader2,
+  AlertTriangle,
   Eye, ZoomIn, ZoomOut,
   Columns2
 } from 'lucide-react';
@@ -58,50 +58,6 @@ const FORMATS: {
   },
 ];
 
-/* ── Paletas de iconos para el resumen (colores fijos que funcionan en light/dark) ── */
-const ICON_PALETTES = {
-  accent:  { bg: 'rgba(79, 124, 255, 0.12)',  fg: '#4f7cff' },
-  purple:  { bg: 'rgba(139, 92, 246, 0.12)',  fg: '#8b5cf6' },
-  indigo:  { bg: 'rgba(99, 102, 241, 0.12)',  fg: '#6366f1' },
-  amber:   { bg: 'rgba(245, 158, 11, 0.12)',  fg: '#d97706' },
-  teal:    { bg: 'rgba(20, 184, 166, 0.12)',  fg: '#14b8a6' },
-} as const;
-
-/* ── Estilos reutilizables ── */
-const summaryItemStyle: React.CSSProperties = {
-  padding: '12px 16px',
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: '12px',
-};
-
-const summaryTitleStyle: React.CSSProperties = {
-  fontWeight: 'var(--font-semibold)',
-  color: 'var(--color-text-primary)',
-  fontSize: 'var(--text-xs)',
-};
-
-const summaryDescStyle: React.CSSProperties = {
-  color: 'var(--color-text-secondary)',
-  fontSize: 'var(--text-xs)',
-  marginTop: '2px',
-  lineHeight: 'var(--leading-normal)',
-};
-
-function iconBox(palette: { bg: string; fg: string }): React.CSSProperties {
-  return {
-    padding: '6px',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: palette.bg,
-    color: palette.fg,
-    marginTop: '2px',
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  };
-}
-
 export const ExportView: React.FC = () => {
   const {
     doc, isLoading,
@@ -109,6 +65,7 @@ export const ExportView: React.FC = () => {
     setViewMode,
     citationAuditResult, sayMascot, clearQuickExport,
     zoomLevel, setZoomLevel,
+    goHome,
   } = useDocStore();
 
   const [format, setFormat] = useState<Format>('docx');
@@ -137,6 +94,27 @@ export const ExportView: React.FC = () => {
     };
   }, [isLoading]);
 
+  const ghostCount = citationAuditResult?.ghost_citations?.length || 0;
+
+  // Ambos handlers van memoizados: el atajo de teclado depende de
+  // `handleDownloadClick`, y sin `useCallback` esa dependencia cambia en cada
+  // render, lo que devuelve el efecto a suscribirse en cada render.
+  const doExport = useCallback(() => {
+    clearQuickExport();
+    if (format === 'pdf') exportPdf();
+    else if (format === 'latex') exportLatex();
+    else exportDocx(tracked);
+  }, [clearQuickExport, format, tracked, exportPdf, exportLatex, exportDocx]);
+
+  const handleDownloadClick = useCallback(() => {
+    if (ghostCount > 0 && friction === 'idle') {
+      setOptionsOpen(true);
+      setFriction('ask');
+      return;
+    }
+    doExport();
+  }, [ghostCount, friction, doExport]);
+
   // Atajo de teclado: Ctrl + S o Cmd + S para descargar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -147,27 +125,9 @@ export const ExportView: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [handleDownloadClick]);
 
   if (!doc) return null;
-
-  const ghostCount = citationAuditResult?.ghost_citations?.length || 0;
-
-  const doExport = () => {
-    clearQuickExport();
-    if (format === 'pdf') exportPdf();
-    else if (format === 'latex') exportLatex();
-    else exportDocx(tracked);
-  };
-
-  const handleDownloadClick = () => {
-    if (ghostCount > 0 && friction === 'idle') {
-      setOptionsOpen(true);
-      setFriction('ask');
-      return;
-    }
-    doExport();
-  };
 
   return (
     <div
@@ -192,7 +152,7 @@ export const ExportView: React.FC = () => {
           alignItems: 'flex-start',
           justifyContent: 'flex-start',
           gap: '16px',
-          padding: '56px 44px',
+          padding: '60px 48px',
           backgroundColor: 'transparent',
           borderRight: previewOpen ? '1px solid var(--color-border-subtle)' : 'none',
           overflowY: 'auto',
@@ -200,97 +160,61 @@ export const ExportView: React.FC = () => {
           zIndex: 10,
         }}
       >
-        {/* 1. Ícono de éxito pequeño */}
-        <CheckCircle2 size={22} color="var(--color-success)" aria-hidden="true" />
+        {/* 1. Check de 22px */}
+        <CheckCircle2 size={22} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-success)' }} />
 
         {/* 2. Título */}
-        <h1
-          style={{
-            fontSize: 'var(--text-xl, 20px)',
-            fontWeight: 'var(--font-bold)',
-            color: 'var(--color-text-primary)',
-            lineHeight: 1.2,
-            margin: 0,
-          }}
-        >
-          Exportación Rápida
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          Documento listo
         </h1>
 
-        {/* 3. Una sola línea de descripción (máximo ~50 caracteres de ancho) */}
-        <p
-          style={{
-            fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-secondary)',
-            margin: 0,
-            maxWidth: '50ch',
-            lineHeight: 'var(--leading-normal)',
-          }}
-        >
-          Tu archivo está listo para descargar.
+        {/* 3. Una línea de 50ch de ancho máximo. Sin cifras: el usuario acaba de
+            revisar el documento y un recap aquí deshace esa pantalla. */}
+        <p style={{ margin: 0, maxWidth: '50ch', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+          Tu trabajo cumple con el formato APA 7. Puedes descargarlo o convertir otro archivo.
         </p>
 
-        {/* 4. Dos botones pegados: principal sólida + secundaria fantasma */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        {/* 4. Las dos decisiones que quedan: este archivo u otro archivo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <button
             type="button"
             onClick={handleDownloadClick}
             disabled={isLoading}
             style={{
-              padding: '11px 18px',
-              backgroundColor: 'var(--color-accent)',
-              color: 'var(--color-text-on-accent)',
-              borderRadius: 'var(--radius-lg)',
-              fontWeight: 'var(--font-bold)',
-              fontSize: 'var(--text-sm)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 'var(--space-2)',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              opacity: isLoading ? 0.7 : 1,
-              transition: 'all var(--transition-base)',
-              border: 'none',
-              whiteSpace: 'nowrap',
+              padding: '10px 18px', border: 'none', borderRadius: 'var(--radius-md)',
+              background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
+              fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 600, cursor: 'pointer',
             }}
           >
-            {isLoading ? (
-              <>
-                <Loader2 size={16} style={{ color: 'var(--color-text-on-accent)', animation: 'spin 1s linear infinite' }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {loadingPhase}
-                </span>
-              </>
-            ) : (
-              <>
-                <Download size={16} />
-                <span>
-                  Descargar {format === 'docx' ? 'Word APA 7 (.docx)' : format === 'pdf' ? 'Documento PDF' : 'Código LaTeX (.tex)'}
-                </span>
-              </>
-            )}
+            {isLoading ? loadingPhase : 'Descargar documento'}
           </button>
-
           <button
             type="button"
-            onClick={() => setOptionsOpen((v) => !v)}
-            aria-expanded={optionsOpen}
+            onClick={() => goHome()}
             style={{
-              padding: '11px 16px',
-              backgroundColor: 'transparent',
-              color: 'var(--color-text-secondary)',
-              border: '1px solid var(--border-strong, var(--color-border-subtle))',
-              borderRadius: 'var(--radius-lg)',
-              fontWeight: 'var(--font-semibold)',
-              fontSize: 'var(--text-sm)',
-              cursor: 'pointer',
-              transition: 'background var(--transition-fast), border-color var(--transition-fast)',
+              padding: '10px 16px', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)',
+              background: 'transparent', color: 'var(--color-text-secondary)',
+              fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 500, cursor: 'pointer',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover, rgba(79,124,255,0.08))'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            Opciones
+            Convertir otro
           </button>
         </div>
+
+        {/* Lo secundario (formato, avisos, vista previa) se abre y se cierra desde
+            acá: la columna final no lo muestra, solo lo guarda. */}
+        <button
+          type="button"
+          onClick={() => setOptionsOpen((v) => !v)}
+          aria-expanded={optionsOpen}
+          style={{
+            padding: 0, border: 'none', background: 'transparent',
+            color: 'var(--color-text-tertiary)', fontFamily: 'inherit',
+            fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
+          }}
+        >
+          Opciones
+        </button>
 
         {/* Zona OCULTA por defecto: formato, opciones, fricción y vista previa */}
         {optionsOpen && (
@@ -887,19 +811,19 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const tableNum = elem.table_info?.table_number || (idx + 1);
       const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Tabla {tableNum}
           </div>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: '#111827', marginBottom: '8px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: 'var(--paper-ink)', marginBottom: '8px' }}>
             {title}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Times New Roman", Times, serif', fontSize: '11pt', borderTop: '2px solid #111827', borderBottom: '2px solid #111827' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Times New Roman", Times, serif', fontSize: '11pt', borderTop: '2px solid var(--paper-ink)', borderBottom: '2px solid var(--paper-ink)' }}>
             {rows.length > 0 && (
               <thead>
-                <tr style={{ borderBottom: '1px solid #111827' }}>
+                <tr style={{ borderBottom: '1px solid var(--paper-ink)' }}>
                   {(rows[0].cells || rows[0] || []).map((c: any, cIdx: number) => (
-                    <th key={cIdx} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 'bold', color: '#111827' }}>
+                    <th key={cIdx} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </th>
                   ))}
@@ -910,7 +834,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
               {rows.slice(1, 6).map((r: any, rIdx: number) => (
                 <tr key={rIdx}>
                   {(r.cells || r || []).map((c: any, cIdx: number) => (
-                    <td key={cIdx} style={{ padding: '5px 10px', color: '#111827' }}>
+                    <td key={cIdx} style={{ padding: '5px 10px', color: 'var(--paper-ink)' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </td>
                   ))}
@@ -928,11 +852,11 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const figNum = elem.image_info?.figure_number || 1;
       const caption = elem.image_info?.caption || 'Ilustración del proceso';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: '#111827' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Figura {figNum}
           </div>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: '#111827', marginBottom: '6px' }}>
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: 'var(--paper-ink)', marginBottom: '6px' }}>
             {caption}
           </div>
           {elem.image_info?.relative_url && (
@@ -953,7 +877,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
         fontFamily: '"Times New Roman", Times, serif',
         fontSize: '12pt',
         lineHeight: 2.0,
-        color: '#111827',
+        color: 'var(--paper-ink)',
         textAlign: isHeading && (elem.heading_level === 1 || !elem.heading_level) ? 'center' : 'left',
         fontWeight: isHeading ? 'bold' : 'normal',
         fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
@@ -998,7 +922,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
           onScroll={onScrollRight}
           style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', backgroundColor: 'var(--canvas-bg)' }}
         >
-          <div style={{ backgroundColor: '#ffffff', color: '#111827', padding: '36px 40px', borderRadius: 'var(--radius-sm)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
+          <div style={{ backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)', padding: '36px 40px', borderRadius: 'var(--radius-sm)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
             {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
           </div>
         </div>
