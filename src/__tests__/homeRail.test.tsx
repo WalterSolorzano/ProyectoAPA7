@@ -4,7 +4,7 @@
  */
 import React, { act } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { HOME_RAIL_ITEMS } from '../components/shell/railItems';
 import { IconRail } from '../components/shell/IconRail';
 import { Step0QuickStart } from '../components/wizard/Step0QuickStart';
@@ -22,10 +22,11 @@ vi.mock('../api/backend', () => ({
 }));
 
 const montarInicio = async () => {
+  let utils!: ReturnType<typeof render>;
   await act(async () => {
-    render(<Step0QuickStart />);
+    utils = render(<Step0QuickStart />);
   });
-  return screen.getByTestId('icon-rail');
+  return utils;
 };
 
 // Estado global que el rail y los destinos tocan: `beforeEach` lo deja en un
@@ -56,6 +57,16 @@ const esperar = (ms: number) => act(async () => {
   await new Promise((r) => setTimeout(r, ms));
 });
 
+/* Todo lo del rail se busca DENTRO del rail: un botón de Inicio que se llamara
+   "Inicio" en el hero no debe romper estos tests, y el nombre del destino es lo
+   que se está probando. */
+const enRail = () => within(screen.getByTestId('icon-rail'));
+const destino = (label: string) => enRail().getByRole('button', { name: label });
+
+/** El picker de .docx, no el de carpeta: se distinguen por su `accept`. */
+const pickerDeDocumento = () =>
+  document.querySelector('input[type="file"][accept=".docx"]') as HTMLInputElement;
+
 describe('T19 — rail de Inicio', () => {
   it('tiene sus propios destinos, sin emojis', () => {
     expect(HOME_RAIL_ITEMS.length).toBeGreaterThan(0);
@@ -64,10 +75,12 @@ describe('T19 — rail de Inicio', () => {
     }
   });
 
-  it('ningún destino de Inicio es una fase: sin `step` no se puede encender', () => {
-    // El rail pinta la fase activa leyendo `wizardStep` del store. Un destino de
-    // Inicio no es una fase, así que todos llevan step null y ninguno se marca.
+  it('el catálogo no inventa fases ni un "donde estás": eso lo aplica la pantalla', () => {
+    // La decisión sigue siendo `step: null` para todo destino de Inicio. El
+    // "dónde estás" no es una fase: lo marca `current`, y lo pone la pantalla al
+    // montar, no el catálogo estático.
     expect(HOME_RAIL_ITEMS.map((i) => i.step)).toEqual(HOME_RAIL_ITEMS.map(() => null));
+    expect(HOME_RAIL_ITEMS.every((i) => i.current === undefined)).toBe(true);
     expect(new Set(HOME_RAIL_ITEMS.map((i) => i.id)).size).toBe(HOME_RAIL_ITEMS.length);
   });
 
@@ -92,26 +105,50 @@ describe('T19 — rail de Inicio', () => {
     expect(screen.getByLabelText('Navegación principal')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Configuraciones' })).toBeNull();
     for (const label of HOME_RAIL_ITEMS.map((i) => i.label)) {
-      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+      expect(destino(label)).toBeTruthy();
     }
   });
 
-  it('con el rail de Inicio nada queda encendido, aunque haya una fase activa', async () => {
+  it('el rail dice dónde estás: la pestaña actual se enciende y se anuncia', async () => {
+    // El sidebar de 64px llevaba `aria-current` y el acento en la pestaña viva.
+    // Sin esto, Inicio ⇄ Recientes no dejaba ni rastro visual ni de lector de
+    // pantalla, y la gramática nueva era más débil que la que reemplaza.
+    await montarInicio();
+    const encendidos = () =>
+      enRail().getAllByRole('button').filter((b) => b.getAttribute('data-active') === 'true');
+    expect(encendidos().map((b) => b.getAttribute('aria-label'))).toEqual(['Inicio']);
+    expect(destino('Inicio').getAttribute('aria-current')).toBe('page');
+    expect(destino('Inicio').style.backgroundColor).toBe('var(--color-accent-soft)');
+    expect(destino('Inicio').style.color).toBe('var(--color-accent)');
+    expect(destino('Recientes').getAttribute('aria-current')).toBeNull();
+    expect(destino('Recientes').style.backgroundColor).toBe('transparent');
+
+    fireEvent.click(destino('Recientes'));
+    expect(encendidos().map((b) => b.getAttribute('aria-label'))).toEqual(['Recientes']);
+    expect(destino('Recientes').getAttribute('aria-current')).toBe('page');
+    expect(destino('Inicio').getAttribute('aria-current')).toBeNull();
+    expect(destino('Inicio').style.backgroundColor).toBe('transparent');
+  });
+
+  it('el único encendido es la pestaña actual, no la fase que marque el store', async () => {
+    // `wizardStep` sigue siendo del editor: un destino de Inicio no es una fase y
+    // no tiene por qué encenderse porque haya una fase 3 abierta detrás.
     act(() => useDocStore.setState({ wizardStep: 3 } as never));
-    const rail = await montarInicio();
-    expect(rail.querySelectorAll('[data-active="true"]')).toHaveLength(0);
+    await montarInicio();
+    const encendidos = enRail().getAllByRole('button').filter((b) => b.getAttribute('data-active') === 'true');
+    expect(encendidos.map((b) => b.getAttribute('aria-label'))).toEqual(['Inicio']);
   });
 
   it('Recientes del rail cambia el contenido, igual que el botón del sidebar viejo', async () => {
     await montarInicio();
     expect(screen.queryByRole('heading', { name: 'Documentos Recientes' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Recientes' }));
+    fireEvent.click(destino('Recientes'));
     expect(screen.getByRole('heading', { name: 'Documentos Recientes' })).toBeTruthy();
   });
 
   it('Ajustes abre el panel de Configuraciones, con sus secciones propias', async () => {
     await montarInicio();
-    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }));
+    fireEvent.click(destino('Ajustes'));
     // "Mantenimiento y Desinstalación" solo existe en SettingsMenu: es lo que
     // distingue esta superficie de SettingsPreviewStudio.
     expect(screen.getByRole('button', { name: 'Mantenimiento y Desinstalación' })).toBeTruthy();
@@ -119,25 +156,23 @@ describe('T19 — rail de Inicio', () => {
 
   it('Complemento de Word abre su sección del estudio, como el menú de la barra', async () => {
     await montarInicio();
-    fireEvent.click(screen.getByRole('button', { name: 'Complemento de Word' }));
+    fireEvent.click(destino('Complemento de Word'));
     expect(useDocStore.getState().settingsStudioOpen).toBe(true);
     expect(useDocStore.getState().settingsStudioTab).toBe('addin');
   });
 
-  it('Tema alterna el tema sin abrir ningún panel', async () => {
+  it('Tema alterna el tema sin abrir el panel de ajustes', async () => {
     await montarInicio();
     const antes = useDocStore.getState().theme;
-    fireEvent.click(screen.getByRole('button', { name: 'Tema' }));
+    fireEvent.click(destino('Tema'));
     expect(useDocStore.getState().theme).toBe(antes === 'light' ? 'dark' : 'light');
-    expect(screen.queryByTestId('rail-flyout')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mantenimiento y Desinstalación' })).toBeNull();
   });
 
   it('Nueva transformación abre el selector de archivo', async () => {
     await montarInicio();
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const click = vi.spyOn(input, 'click');
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva transformación' }));
+    const click = vi.spyOn(pickerDeDocumento(), 'click');
+    fireEvent.click(destino('Nueva transformación'));
     expect(click).toHaveBeenCalled();
   });
 
@@ -147,20 +182,45 @@ describe('T19 — rail de Inicio', () => {
     // motor está iniciando mucho después de que arrancó.
     act(() => useDocStore.setState({ isBackendReady: false } as never));
     await montarInicio();
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const click = vi.spyOn(input, 'click');
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva transformación' }));
+    const click = vi.spyOn(pickerDeDocumento(), 'click');
+    fireEvent.click(destino('Nueva transformación'));
     expect(click).not.toHaveBeenCalled();
 
     act(() => useDocStore.setState({ isBackendReady: true } as never));
-    fireEvent.click(screen.getByRole('button', { name: 'Nueva transformación' }));
+    fireEvent.click(destino('Nueva transformación'));
     expect(click).toHaveBeenCalled();
+  });
+
+  it('el clic también abre el detalle y lo ancla, como en el editor', async () => {
+    // `AppShell.handleSelect` abre y ancla el panel, porque con teclado no hay
+    // hover que lo haya abierto. Si Inicio no lo hiciera, el flyout y su pin
+    // quedarían solo con ratón: dos comportamientos para el mismo componente.
+    await montarInicio();
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+    fireEvent.click(destino('Recientes'));
+    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+    expect(useDocStore.getState().railPinned).toBe(true);
+    // Y con el ancla puesto, salir del rail ya no lo cierra.
+    fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
+    await esperar(200);
+    expect(screen.queryByTestId('rail-flyout')).toBeTruthy();
+  });
+
+  it('al salir de Inicio suelta el ancla: no se la lleva al editor', async () => {
+    // `railPinned` es global y este rail es su segundo escritor. Un pin puesto
+    // acá significaba un panel que no seguía ahí y aparecía en el editor al
+    // abrir el siguiente documento.
+    const { unmount } = await montarInicio();
+    fireEvent.click(destino('Recientes'));
+    expect(useDocStore.getState().railPinned).toBe(true);
+    unmount();
+    expect(useDocStore.getState().railPinned).toBe(false);
   });
 
   it('el hover de un destino abre su detalle y salir del rail lo deja ir', async () => {
     await montarInicio();
     expect(screen.queryByTestId('rail-flyout')).toBeNull();
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Recientes' }));
+    fireEvent.mouseEnter(destino('Recientes'));
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     // Hay una gracia de 120ms: el puntero cruza el hueco entre rail y panel.
@@ -170,16 +230,18 @@ describe('T19 — rail de Inicio', () => {
   });
 
   it('anclar el panel lo deja abierto aunque el puntero salga del rail', async () => {
-    const rail = await montarInicio();
-    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
+    await montarInicio();
+    const rail = screen.getByTestId('icon-rail');
+    fireEvent.click(enRail().getByRole('button', { name: 'Anclar panel' }));
     expect(useDocStore.getState().railPinned).toBe(true);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Ajustes' }));
+    fireEvent.mouseEnter(destino('Ajustes'));
     fireEvent.mouseLeave(rail);
     await esperar(200);
     // El pin del rail y el del panel comparten el flag del store: si el panel
     // leyera otro, cerraría en spite del ancla.
-    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' })); // el del panel
+    expect(screen.getByRole('complementary', { name: 'Detalle de Ajustes' })).toBeTruthy();
+    const flyout = within(screen.getByTestId('rail-flyout'));
+    fireEvent.click(flyout.getByRole('button', { name: 'Anclar panel' }));
     expect(useDocStore.getState().railPinned).toBe(false);
   });
 });

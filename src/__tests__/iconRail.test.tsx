@@ -118,6 +118,56 @@ describe('T4 — IconRail', () => {
     expect(activos).toHaveLength(0);
   });
 
+  // `current` es la señal de los destinos que NO son fases (Inicio ⇄ Recientes):
+  // el rail acepta las dos, pero cada una en su carril.
+  const homeDestino = (over: Partial<RailDestination> = {}): RailDestination => ({
+    ...mkItems()[0],
+    id: 'home-inicio',
+    step: null,
+    label: 'Inicio',
+    current: true,
+    ...over,
+  });
+
+  it('`current` enciende un destino que no es fase, y lo anuncia como la página actual', () => {
+    setup([homeDestino(), homeDestino({ id: 'home-recientes', label: 'Recientes', current: false })]);
+    const inicio = screen.getByRole('button', { name: 'Inicio' });
+    const recientes = screen.getByRole('button', { name: 'Recientes' });
+    // A lo visto: la superficie de acento, como el sidebar que este rail reemplaza.
+    expect(inicio.getAttribute('data-active')).toBe('true');
+    expect(inicio.style.backgroundColor).toBe('var(--color-accent-soft)');
+    expect(inicio.style.color).toBe('var(--color-accent)');
+    // Y a lo leído por un lector de pantalla, que si no solo vería el color.
+    expect(inicio.getAttribute('aria-current')).toBe('page');
+    expect(recientes.getAttribute('data-active')).toBe('false');
+    expect(recientes.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('la fase del editor la sigue mandando el store, aunque haya un `current` al lado', () => {
+    // El editor no fija `current`: si el rail lo tomara como prioridad, dejaría de
+    // seguir a `wizardStep` y el icono se desincronizaría de la barra.
+    const { unmount } = setup([homeDestino(), ...mkItems()]);
+    const activos = () =>
+      screen.getAllByRole('button').filter((b) => b.getAttribute('data-active') === 'true');
+    expect(activos()).toHaveLength(2);
+    expect(activos()[1]).toBe(screen.getByRole('button', { name: 'Portada' }));
+    // Una fase del asistente es un "step" del recorrido, no una página.
+    expect(activos()[1].getAttribute('aria-current')).toBe('step');
+    unmount();
+
+    setup([homeDestino(), ...mkItems()]);
+    act(() => useDocStore.setState({ wizardStep: 3 }));
+    const tras = screen.getAllByRole('button').filter((b) => b.getAttribute('data-active') === 'true');
+    expect(tras).toHaveLength(2);
+    expect(tras[1]).toBe(screen.getByRole('button', { name: 'Figuras' }));
+  });
+
+  it('sin `current` y sin fase, ningún destino se anuncia como actual', () => {
+    setup([homeDestino({ current: undefined })]);
+    expect(screen.getByRole('button', { name: 'Inicio' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Inicio' }).getAttribute('data-active')).toBe('false');
+  });
+
   it('el hueco entre destinos es de 8px, el que dice la spec 4.2', async () => {
     // Specifiers en variables + imports dinámicos: Vite no debe pasar estos
     // módulos por nodePolyfills (mismo motivo que designTokens.test.ts).

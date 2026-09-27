@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
@@ -142,6 +142,13 @@ function getGreeting(): string {
   if (h < 19) return 'Buenas tardes';
   return 'Buenas noches';
 }
+
+/** Los destinos del rail de Inicio que son pestañas y no acciones. El resto
+ *  (nueva transformación, complemento, ajustes, tema) no se encienden nunca. */
+const HOME_PESTANAS: Record<string, 'inicio' | 'recientes'> = {
+  'home-inicio': 'inicio',
+  'home-recientes': 'recientes',
+};
 
 /** DEV: diagnóstico del complemento de Word (sideload System Feed). */
 const AddinDiagnosticCard: React.FC = () => {
@@ -366,6 +373,18 @@ export const Step0QuickStart: React.FC = () => {
   // El timer en vuelo no sobrevive al desmontaje: cerraría un panel que ya no existe.
   useEffect(() => cancelClose, [cancelClose]);
 
+  // El ancla es un flag global y este rail es su segundo escritor. Inicio no tiene
+  // un panel que sobreviva a la pantalla, así que un pin puesto acá sería un
+  // fantasma que aparece en el editor al abrir el siguiente documento. No se
+  // silencia el pin: se suelta al salir, que es lo que el editor no puede hacer
+  // porque su panel sí es persistente.
+  useEffect(
+    () => () => {
+      useDocStore.getState().setRailPinned(false);
+    },
+    [],
+  );
+
   // El hover solo muestra el detalle; el clic es la acción deliberada.
   const handleHoverItem = useCallback(
     (item: RailDestination | null) => {
@@ -379,6 +398,18 @@ export const Step0QuickStart: React.FC = () => {
     [cancelClose, scheduleClose],
   );
 
+  /* Los destinos de Inicio son datos, pero dos de ellos son pestañas: el "dónde
+     estás" lo pone la pantalla, que es la única que sabe cuál está a la vista.
+     El resto de destinos son acciones y no se encienden nunca. */
+  const homeItems = useMemo(
+    () =>
+      HOME_RAIL_ITEMS.map((item) => {
+        const tab = HOME_PESTANAS[item.id];
+        return tab ? { ...item, current: tab === activeTab } : item;
+      }),
+    [activeTab],
+  );
+
   // Cada destino hace lo mismo que su botón del sidebar de 64px, y los tres
   // destinos nuevos llevan a la misma acción que ya ofrece el resto de la app.
   // Sin useCallback a propósito: el picker de archivos se decide con el estado
@@ -386,6 +417,14 @@ export const Step0QuickStart: React.FC = () => {
   // con el `isBackendReady` del primer render para siempre.
   const handleSelect = (item: RailDestination) => {
     const st = useDocStore.getState();
+    // Igual que `AppShell.handleSelect`: el clic también abre y ancla el
+    // detalle, porque con teclado no hay hover que lo haya abierto. Si acá solo
+    // ejecutara la acción, el flyout y su pin quedarían solo con ratón y los dos
+    // rails se comportarían distinto siendo el mismo componente.
+    cancelClose();
+    setHoveredHome(item);
+    st.setRailPinned(true);
+
     switch (item.id) {
       case 'home-inicio':
         setActiveTab('inicio');
@@ -508,7 +547,7 @@ export const Step0QuickStart: React.FC = () => {
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
       {/* ── RAIL DE ICONOS (mismo componente que el editor) ─── */}
       <IconRail
-        items={HOME_RAIL_ITEMS}
+        items={homeItems}
         ariaLabel="Navegación principal"
         onHoverItem={handleHoverItem}
         onSelect={handleSelect}

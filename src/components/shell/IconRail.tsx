@@ -32,9 +32,12 @@ const BUTTON_TRANSITION = 'background var(--transition-fast), color var(--transi
 
 export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
   // La fase activa la lee el propio rail, no el shell: una sola fuente, para
-  // que el icono y la barra de trabajo no puedan desincronizarse.
+  // que el icono y la barra de trabajo no puedan desincronizarse. `current` es la
+  // otra mitad de la misma pregunta —"¿dónde estoy?"— para los destinos que no
+  // son fases: el editor no lo fija, así que acá sigue mandando el store.
   const wizardStep = useDocStore((s) => s.wizardStep);
-  const isActive = (step: number | null) => step !== null && wizardStep === step;
+  const isActive = (item: RailDestination) =>
+    item.current === true || (item.step !== null && wizardStep === item.step);
   // El hover vive en estado local: los estilos son inline y no hay :hover.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinHovered, setPinHovered] = useState(false);
@@ -66,7 +69,7 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
     >
       {items.map((item) => {
         const { id, label, Icon, status, pending, step } = item;
-        const active = isActive(step);
+        const active = isActive(item);
         const hovered = hoveredId === id;
         return (
           <button
@@ -74,6 +77,11 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             type="button"
             title={label}
             aria-label={label}
+            /* El color de la superficie activa no le dice nada a un lector de
+               pantalla: el estado va también en `aria-current`. Una fase del
+               asistente es un paso del recorrido; un destino de Inicio, una
+               página — que es como lo nombraba el sidebar que este rail reemplaza. */
+            aria-current={active ? (step === null ? 'page' : 'step') : undefined}
             data-active={active ? 'true' : 'false'}
             onMouseEnter={() => {
               setHoveredId(id);

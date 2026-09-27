@@ -20,6 +20,10 @@ export interface RailDestination {
   pending: number;
   /** Si el flyout de este destino debe incluir el mapa del documento. */
   showOutline: boolean;
+  /** "Estás acá", para los destinos que no son fases (Inicio ⇄ Recientes).
+   *  El editor no lo usa: su fase activa la sigue mandando `wizardStep`, y un
+   *  destino sin fase no tiene nada que aportar a ese store. */
+  current?: boolean;
 }
 
 export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
@@ -37,8 +41,9 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
 ];
 
 /* Inicio tiene su propio juego de destinos, pero el MISMO componente de rail.
-   Todos con `step: null`: el rail marca la fase activa leyendo `wizardStep` del
-   store, y un destino de Inicio no es una fase, así que ninguno se enciende. */
+   Todos con `step: null`: un destino de Inicio no es una fase, así que ninguno
+   se enciende por `wizardStep`. Los dos que son "pestañas" (Inicio, Recientes)
+   reciben `current` desde la pantalla, que es la que sabe cuál está a la vista. */
 export const HOME_RAIL_ITEMS: RailDestination[] = [
   { id: 'home-inicio', step: null, label: 'Inicio', Icon: Home, status: 'idle', pending: 0, showOutline: false },
   { id: 'home-recientes', step: null, label: 'Recientes', Icon: History, status: 'idle', pending: 0, showOutline: false },
