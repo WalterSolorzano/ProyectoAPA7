@@ -36,6 +36,24 @@
      vez por tema: en claro sobre superficie blanca, en oscuro con más alfa
      porque la superficie oscura se come el gris suave. */
   --mark-ai-bg: rgba(107, 114, 128, 0.12);
+  /* RAMPA DE INTENSIDAD del detector de IA — cuatro escalones, un solo canal.
+     El color de un mosaico carga UNA variable y ninguna más: cuánta proporción
+     del bloque parece IA. El motor, la severidad y el tipo de problema van
+     como texto, porque si el color también los codificara, tres variables
+     competirían por el mismo canal y la vista dejaría de leerse.
+
+     Cuatro escalones y no un degradado: doce matices no se ordenan de un
+     vistazo, cuatro sí. Y el tope es el `--color-danger` de la paleta, no un
+     rojo nuevo: la rampa es una sola tinta, la del error que ya existe, así
+     que no se introduce una familia de color que el resto de la app no tiene.
+
+     El primer escalón es casi neutro a propósito. Un bloque donde el detector
+     no vio nada no es una advertencia, y si su cuadrado se viera levemente rojo
+     el mapa estaría mintiendo sobre la mitad del documento. */
+  --ia-nivel-1: rgba(212, 56, 46, 0.06);
+  --ia-nivel-2: rgba(212, 56, 46, 0.16);
+  --ia-nivel-3: rgba(212, 56, 46, 0.34);
+  --ia-nivel-4: #d4382e;
   --severity-critical-tint: rgba(220, 38, 38, 0.05);
   --severity-success-tint: rgba(22, 163, 74, 0.05);
   --color-paper: #ffffff;
@@ -186,6 +204,15 @@
   --color-accent-pressed: #3b66e0;
   --color-accent-soft: rgba(79, 124, 255, 0.15);
   --mark-ai-bg: rgba(156, 163, 175, 0.22);
+  /* La rampa de IA, en oscuro, con MÁS alfa en los tres escalones bajos: la
+     superficie oscura se come el rojo suave (es lo mismo que pasó con
+     `--mark-ai-bg` y está anotado arriba). El tope es el `--color-danger` de
+     ESTE tema, no el de claro, para que el escalón 4 sea el mismo rojo que el
+     que marca un error en el resto de la app. */
+  --ia-nivel-1: rgba(255, 77, 79, 0.10);
+  --ia-nivel-2: rgba(255, 77, 79, 0.24);
+  --ia-nivel-3: rgba(255, 77, 79, 0.48);
+  --ia-nivel-4: #ff4d4f;
   --color-success: #52c41a;
   --color-warning: #faad14;
   --color-danger: #ff4d4f;

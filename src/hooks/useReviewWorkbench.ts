@@ -1,4 +1,4 @@
-﻿/* WordAPA7 — review: capa de DERIVACIÓN del workbench.
+/* WordAPA7 — review: capa de DERIVACIÓN del workbench.
    Todo lo que antes eran 20 useState y 300 líneas de memos dentro del
    componente. Sin JSX, para poder probar el filtrado, el agrupado, la
    paginación real y la honestidad de las métricas sin DOM.
@@ -157,8 +157,8 @@ export interface ReviewWorkbenchApi {
   /** `compliance` es `null` hasta que los tres motores dejaron resultados (ver
    *  `threeEnginesRan`): un motor sin correr no produce un número. */
   metrics: { total: number; compliance: number | null };
-  viewMode: 'focus' | 'canvas';
-  setViewMode: (m: 'focus' | 'canvas') => void;
+  viewMode: 'focus' | 'canvas' | 'ia';
+  setViewMode: (m: 'focus' | 'canvas' | 'ia') => void;
 }
 
 /** Orden de motores para grupos, chips y minimapa. El motor probabilístico
@@ -501,7 +501,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const { totalPages, pages, pageOf } = usePageIndex();
   const [filter, setFilter] = useState<EngineFilter>('all');
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all');
-  const [viewMode, setViewMode] = useState<'focus' | 'canvas'>('focus');
+  const [viewMode, setViewMode] = useState<'focus' | 'canvas' | 'ia'>('focus');
   const [openEngines, setOpenEngines] = useState<EngineId[]>([]);
   const [openSubtypes, setOpenSubtypes] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);

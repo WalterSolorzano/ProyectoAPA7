@@ -1,4 +1,4 @@
-/* WordAPA7 — review: el workbench.
+﻿/* WordAPA7 — review: el workbench.
    Tres columnas: minimapa de páginas, tarjeta de lectura y rack de hallazgos
    agrupados por motor. La tira de arriba es la única barra. El grid retira el
    rack en ventana estrecha para que el centro siga siendo legible.
@@ -35,6 +35,7 @@ import { ReviewStrip } from './ReviewStrip';
 import { FocusReadingCard } from './FocusReadingCard';
 import { EngineGroupCard, SubtypeRow } from './EngineGroupCard';
 import { FindingDetail } from './FindingDetail';
+import { AiMosaic } from './AiMosaic';
 import { useDocStore } from '../../store/useDocStore';
 
 /** Por debajo de este ancho, el rack de 400px deja el centro inservible. */
@@ -181,7 +182,26 @@ export function ReviewWorkbench() {
           onPageClick={wb.goToPage}
         />
 
-        {wb.viewMode === 'canvas' ? (
+        {wb.viewMode === 'ia' ? (
+          /* El mapa de IA ocupa el CENTRO y el rack sigue a su derecha: el
+             rack no desaparece porque el mapa no lo reemplaza, lo complementa. */
+          <AiMosaic
+            elements={doc?.elements ?? null}
+            items={wb.items}
+            activa={wb.phaseFilter}
+            onSelect={(key) => {
+              /* Un clic en un bloque NO abre nada: aplica el filtro de fase y
+                 el de motor que ya existen, y vuelve a la lectura secuencial.
+                 Es la misma ruta que el chip de fase de la barra, y por eso el
+                 mapa no puede contradecirlo: `useReviewWorkbench` intersecta el
+                 filtro en `visibles`, así que "Siguiente hallazgo" respeta el
+                 recorte por construcción y no por un acuerdo nuevo. */
+              wb.setPhaseFilter(key);
+              wb.setFilter('ai');
+              wb.setViewMode('focus');
+            }}
+          />
+        ) : wb.viewMode === 'canvas' ? (
           <div style={{ minWidth: 0, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             /* El lavado de acento es "qué bloques tienen hallazgos": sin él, el
                modo Hoja pierde la única señal de dónde mirar, que es justo lo

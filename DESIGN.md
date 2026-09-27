@@ -136,7 +136,23 @@ El layout no es fijo entre pantallas: **el espacio se le quita a lo que ya está
 - **CoverCarouselStudio**: Selector de carrusel horizontal con previsualización en vivo de portadas institucionales.
 - **PaperCanvas**: Renderizador con paginación geométrica estricta y protección de portada indivisible.
 - **ReviewMinimap**: Minimapa de ~19px con una marca por página (color = motor dominante, página actual con contorno de acento) para ubicarse en documentos de cientos de páginas.
+- **AiMosaic**: Mapa de calor de IA. El documento entero como cuadritos en orden de sección, en su propio modo de vista (no es una columna más de la revisión). **El color carga UNA sola variable: la intensidad.** Motor, severidad y tipo de problema van como texto; si el color también los codificara, tres variables competirían por el mismo canal y la vista dejaría de leerse. El **área** de cada bloque es su cantidad de párrafos (canal distinto, variable distinta); el **número impreso** es el porcentaje.
 - **ExportView / DownloadSuccessOverlay**: Pantalla final de descarga en columna única alineada a la izquierda; dos botones pegados (sólida + fantasma), resto bajo toggle.
+
+### Rampa de intensidad de IA (`--ia-nivel-1..4`)
+
+Cuatro escalones, no un degradado: doce matices no se ordenan de un vistazo, cuatro sí. Es **una sola tinta** —la del `--color-danger` de cada tema—, así que no se introduce una familia de color que el resto de la app no tiene.
+
+| Token | Claro | Oscuro | Lectura |
+|---|---|---|---|
+| `--ia-nivel-1` | `rgba(212, 56, 46, 0.06)` | `rgba(255, 77, 79, 0.10)` | nada |
+| `--ia-nivel-2` | `rgba(212, 56, 46, 0.16)` | `rgba(255, 77, 79, 0.24)` | algo |
+| `--ia-nivel-3` | `rgba(212, 56, 46, 0.34)` | `rgba(255, 77, 79, 0.48)` | bastante |
+| `--ia-nivel-4` | `#d4382e` | `#ff4d4f` | casi todo |
+
+**El escalón 1 es casi neutro a propósito.** Una sección donde el detector no vio nada no es una advertencia, y si su cuadrado se viera levemente rojo el mapa estaría mintiendo sobre la mitad del documento.
+
+**Los cortes son del documento, no absolutos** (percentiles P30/P60/P90 de *ese* documento), y con la regla de que **el escalón 4 es una excepción**: si todas las secciones se parecen, ninguna llega a 4 y el mapa se lee neutro. Sin esa regla, un documento uniforme sale entero en rojo de alarma, el usuario lee "peligro" veinte veces y no lee nada — que es el modo de fallo exacto de "mucho color pero que no se vea cargado".
 
 ## Do's and Don'ts
 

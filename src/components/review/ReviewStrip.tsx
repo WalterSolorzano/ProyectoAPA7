@@ -15,7 +15,7 @@
    flechas (6) y el gutter del toggle (2), porque no existe token para 2, 6 ni 44. */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, ArrowRight, ScanLine, LayoutList, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, ScanLine, LayoutList, FileText, Sparkles } from 'lucide-react';
 import type { EngineGroup, EngineFilter } from '../../hooks/useReviewWorkbench';
 
 export interface ReviewStripProps {
@@ -41,8 +41,8 @@ export interface ReviewStripProps {
   /** `null` = nadie midió el cumplimiento. La tira lo DICE ("sin medir") en
    *  vez de callar: un hueco y un 0 se leen igual. */
   compliance: number | null;
-  viewMode: 'focus' | 'canvas';
-  onViewMode: (m: 'focus' | 'canvas') => void;
+  viewMode: 'focus' | 'canvas' | 'ia';
+  onViewMode: (m: 'focus' | 'canvas' | 'ia') => void;
   hasFindings: boolean;
   /** Hay hallazgos VISIBLES con el filtro activo. Lo publica el hook
    *  (`visibleCount`), que es quien tiene el predicado del filtro: derivarlo
@@ -301,7 +301,15 @@ export function ReviewStrip(p: ReviewStripProps) {
             background: 'var(--color-bg-surface-alt)',
           }}
         >
-          {([['focus', 'Foco', LayoutList], ['canvas', 'Hoja', FileText]] as const).map(
+          {([
+            ['focus', 'Foco', LayoutList],
+            ['canvas', 'Hoja', FileText],
+            /* El mapa de IA es un TERCER modo, no una columna más. La revisión
+               es un párrafo a la vez y esa es su decisión de diseño; el mapa
+               contesta otra pregunta (dónde está el trabajo) y meterlo en la
+               misma pantalla la volvería lo que no es. */
+            ['ia', 'IA', Sparkles],
+          ] as const).map(
             ([id, label, Icon]) => (
               <button
                 key={id}
