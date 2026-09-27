@@ -9,13 +9,21 @@
      Institucional UNI, Profesional APA y Personalizada (+ Subir plantilla .docx).
 
    Reglas que este archivo tiene que respetar además de las del proyecto:
-   - La portada es INDIVISIBLE. `computePages` agrupa todo lo marcado como
-     `is_cover_section` / `portada_block` en la página 1 como un bloque único, y
-     esa regla solo vale si nadie vuelve a medir el lienzo por su cuenta. Por eso
-     la columna del centro y la vista previa van ACOTADAS (`overflow: hidden` +
-     `minHeight: 0`) y el scroll —el que sea— lo maneja el propio lienzo, que
-     ya sabe paginarse. Un `overflow: auto` alrededor del lienzo haría que
-     "cabe en una página" dejara de significar nada.
+   - La portada es INDIVISIBLE, y eso lo sostiene `PaperCanvas`, no esta vista.
+     La paginación sale de `computeRenderedPages`: la geometría del documento
+     (`geom.pageW/pageH`), el alto de cada elemento (`offsetHeight`) y el
+     agrupamiento de la portada en la página 1. El `overflow` de un ancestro no
+     entra en esa cuenta —`offsetHeight` es alto de contenido y `PaperCanvas` no
+     lee `clientHeight` en ningún lado—, así que este archivo no re-declara
+     paginación ni vuelve a medir la hoja: usa `PaperCanvas` y nada más. Lo que
+     SÍ tiene que hacer es dejarle un alto DEFINIDO (abajo) para que el panel
+     de la derecha se pueda desplazar.
+   - La cadena de alto no se rompe. `Step1PortadaWizard` envuelve esto en una
+     caja de BLOQUE (`position: relative; height: 100%`), y un hijo de bloque no
+     es ítem flexible: sin `height: '100%'` aquí, el `flex: 1` de la raíz es
+     inerte, el árbol se dimensiona por contenido, el editor de 320px crece sin
+     tope, su cuerpo nunca se desplaza y el `overflow: hidden` del envoltorio
+     se lleva por delante el botón "Continuar a Estructura".
    - `use_original_cover: true` jamás muta la portada del documento: elegir
      "Conservar original" solo escribe banderas, nunca campos de texto. */
 
@@ -144,16 +152,24 @@ const chipStyle = (active: boolean): React.CSSProperties => ({
 });
 
 /**
- * La tira REPRESENTA `mode` y delega la elección: no guarda el modo, que es
+ * La tira REPRESENTA el modo y delega la elección: no lo guarda, que es
  * derivado de `portada` y se comparte con el carrusel. Un chip con estado
  * propio se desincroniza de la tarjeta en cuanto cambia el modo por otra vía.
+ *
+ * `modo` llega `null` cuando el documento trae un `cover_mode` que la app no
+ * reconoce. En ese caso NO se enciende ningún chip —encender "APA 7" para un
+ * documento que no es APA 7 es una afirmación falsa— y la barra lo dice.
  */
 const CoverStrategyStrip: React.FC<{
-  mode: CoverMode;
+  modo: CoverMode | null;
+  /** El `cover_mode` crudo y no reconocido, para nombrarlo en la barra. */
+  coverModeDesconocido: string | null;
+  /** Id de la plantilla cargada, si hay: sin esto, la barra no dice cuál. */
+  plantilla: string | null;
   onSelect: (m: CoverMode) => void;
   onUpload: () => void;
   onContinue: () => void;
-}> = ({ mode, onSelect, onUpload, onContinue }) => (
+}> = ({ modo, coverModeDesconocido, plantilla, onSelect, onUpload, onContinue }) => (
   <div
     style={{
       height: 44,
@@ -181,14 +197,46 @@ const CoverStrategyStrip: React.FC<{
         <button
           key={c.id}
           type="button"
-          aria-pressed={mode === c.id}
+          /* La última tarjeta es una ACCIÓN (abrir el selector de archivos), no
+             un estado: con `aria-pressed` un lector de pantalla anuncia
+             "no presionado" y lo que hace es abrir un diálogo. */
+          aria-pressed={c.isUpload ? undefined : modo === c.id}
           onClick={() => (c.isUpload ? onUpload() : onSelect(c.id))}
-          style={chipStyle(mode === c.id)}
+          style={chipStyle(modo === c.id)}
         >
           {c.title}
         </button>
       ))}
+
+      {/* Qué plantilla está puesta. Sin esto, quien sube un .docx ve la misma
+          barra de siempre y no tiene cómo saber que el documento ya lo usa. */}
+      {plantilla && (
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center', padding: `var(--space-1) var(--space-2)`,
+            fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
+        >
+          <span>Plantilla cargada: {plantilla}</span>
+        </span>
+      )}
     </div>
+
+    {coverModeDesconocido !== null && (
+      /* Un modo que la app no conoce no se disfraza de APA 7: se dice. El
+         `role="status"` lo anuncia sin robarle el foco a quien está trabajando. */
+      <span
+        role="status"
+        style={{
+          minWidth: 0, flex: '1 1 auto', textAlign: 'right',
+          fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}
+      >
+        <span>Este documento trae un modo de portada que la app no reconoce ({coverModeDesconocido}): elige una estrategia.</span>
+      </span>
+    )}
 
     {/* La salida del paso vive en la barra, no en el centro: el paso 1 tiene
         que poder avanzar sin volver a la barra de la derecha. */}
@@ -210,14 +258,26 @@ export const CoverCarouselStudio: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  // Modo actual derivado
-  const currentMode: CoverMode = useMemo(() => {
+  /* Modo actual derivado, o `null` si el documento trae un `cover_mode` que la
+     app no reconoce.
+
+     El backend habla otro vocabulario (`python/generation/generator.py`:
+     `keep_original`, `keep_design_update_data`, `generate_apa7_template`), así
+     que un valor desconocido no es hipotético: llega. La lista de abajo es todo
+     lo que esta barra sabe afirmar. Lo que cae fuera se DICE en la tira en vez de
+     encender el chip de APA 7 para un documento que no es APA 7. */
+  const currentMode: CoverMode | null = useMemo(() => {
     if (portada.use_original_cover !== false) return 'original';
     if (portada.cover_mode === 'generate_uni_cover') return 'uni';
     if (portada.cover_mode === 'apa_pro') return 'pro';
     if (portada.cover_template_id) return 'custom';
-    return 'apa7';
+    /* La app escribe APA 7 como `cover_mode: ''`; el backend lo llama
+       `generate_apa7_template`. Los dos son el mismo estado. */
+    if (!portada.cover_mode || portada.cover_mode === 'generate_apa7_template') return 'apa7';
+    return null;
   }, [portada.use_original_cover, portada.cover_mode, portada.cover_template_id]);
+
+  const coverModeDesconocido = currentMode === null ? (portada.cover_mode ?? null) : null;
 
   const selectMode = (mode: CoverMode, templateId?: string) => {
     if (mode === 'original') {
@@ -275,10 +335,19 @@ export const CoverCarouselStudio: React.FC = () => {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0,
+      /* `height: '100%'` NO es opcional aquí. `Step1PortadaWizard` envuelve esto
+         en una caja de BLOQUE, y un hijo de bloque no es ítem flexible: sin un
+         alto definido el `flex: 1` de arriba es inerte, el árbol se dimensiona
+         por contenido, el editor de 320px crece sin tope (su cuerpo nunca se
+         desplaza) y el `overflow: hidden` del envoltorio recorta el botón
+         "Continuar a Estructura" fuera de pantalla. */
+      height: '100%',
       overflow: 'hidden', backgroundColor: 'var(--color-bg-canvas)',
     }}>
       <CoverStrategyStrip
-        mode={currentMode}
+        modo={currentMode}
+        coverModeDesconocido={coverModeDesconocido}
+        plantilla={portada.cover_template_id || null}
         onSelect={(m) => selectMode(m)}
         onUpload={abrirSelector}
         onContinue={() => {
@@ -288,14 +357,20 @@ export const CoverCarouselStudio: React.FC = () => {
       />
 
       {/* ── CUERPO: carrusel + vista previa al centro, editor a la derecha ── */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex', flex: 1, minHeight: 0,
+        /* La fila se dimensiona por lo que quede debajo de la tira de 44px
+           (`flex: 1` manda sobre este `height`), y lo necesita definido para
+           que el `aside` de 320px tenga alto y su panel pueda desplazarse. */
+        height: '100%',
+        overflow: 'hidden',
+      }}>
         <div
           data-testid="cover-carousel"
           style={{
             flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column',
-            /* Acotada a propósito: el lienzo de abajo mide sus páginas, y medir
-               dentro de una caja sin alto definido (o con scroll propio) hace
-               que su paginación deje de decidir. */
+            /* Recorta, no desplaza: el scroll del documento es el del propio
+               `PaperCanvas` (`overflowY: auto`), que ya sabe paginarse. */
             overflow: 'hidden',
           }}
         >

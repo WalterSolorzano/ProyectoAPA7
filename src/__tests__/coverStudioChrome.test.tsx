@@ -13,11 +13,20 @@
  *  2. Tira y carrusel eligen LO MISMO: son dos controles del mismo estado
  *     derivado de `portada`, y el chip tiene que seguir a la tarjeta.
  *  3. El editor de 320px es `CoverEditorPanel` de verdad, no una caja vacía con
- *     el ancho correcto.
- *  4. La portada sigue siendo INDIVISIBLE: el lienzo no queda dentro de un
- *     contenedor con scroll propio que lo vuelva a medir, y la vista previa
- *     vive en una caja ACOTADA (`flex: 1` + `minHeight: 0`), no en una que
- *     crece con la hoja.
+ *     el ancho correcto, y la cadena de alto llega hasta él: sin alto definido
+ *     en la raíz, el panel crece, su cuerpo nunca se desplaza y
+ *     `Step1PortadaWizard` recorta el botón "Continuar a Estructura" fuera de
+ *     pantalla. OJO: eso lo que se comprueba aquí son DECLARACIONES. jsdom no
+ *     calcula layout; el tamaño real se verificó en un navegador (ver el
+ *     reporte de T18), no aquí.
+ *  4. La portada sigue siendo INDIVISIBLE porque este componente NO pagina ni
+ *     vuelve a medir el documento: la paginación es de `PaperCanvas`
+ *     (`computeRenderedPages`, geometría del documento), y un `overflow` de un
+ *     ancestro no la cambia —`offsetHeight` es alto de contenido y
+ *     `PaperCanvas` no lee `clientHeight` en ningún lado. Lo que sí rompería la
+ *     invariante es un SEGUNDO paginador o una re-medición, y por eso el test
+ *     buscaImports y llamadas de medición en este archivo, no estilos.
+ *  5. La tira no enciende un chip para un modo que no reconoce, y lo dice.
  *
  * `PaperCanvas` va simulado (como en T16) porque no hace falta la hoja real para
  * probar el chrome, y porque medirse a sí mismo en jsdom no significa nada.
@@ -71,7 +80,17 @@ const ESTRATEGIAS = [
 
 /* ── Lectura del archivo ──────────────────────────────────────────────────── */
 
+let SRC = '';
 let TIRA = '';
+let TARJETAS = '';
+let CHROME = '';
+/* Los dos bloques de antes de este commit que la guarda estricta no mira, por
+   pares [inicio, fin]. Ver el comentario del `beforeAll`. */
+const CONGELADOS: [string, string][] = [
+  ['{COVER_CARDS.map((c) => {', '{/* Previsualizador'],
+  ['{/* Previsualizador', '{/* COLUMNA DERECHA'],
+];
+const CONGELADO: string[] = [];
 let declarados = new Set<string>();
 /** Lo que se busca es un color en un ESTILO, no en un comentario. */
 const codigo = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -90,16 +109,37 @@ beforeAll(async () => {
   const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
   const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
   const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
-  const src = readFileSync(resolve(testDir, '../components/wizard/CoverCarouselStudio.tsx'), 'utf8');
-  /* La región del chrome nuevo va ACOTADA por sus dos marcadores —la lista de
-     estrategias y el componente que la usa—, y el test que la mira exige que los
-     dos sigan ahí: sin esa comprobación, un archivo reordenado devolvería una
-     cadena vacía y esas pruebas pasarían sin mirar nada. */
-  const desde = src.indexOf('const COVER_CARDS');
-  const hasta = src.indexOf('export const CoverCarouselStudio');
-  TIRA = desde > -1 && hasta > desde ? src.slice(desde, hasta) : '';
+  SRC = readFileSync(resolve(testDir, '../components/wizard/CoverCarouselStudio.tsx'), 'utf8');
   const css = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
   declarados = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
+
+  /* El chrome nuevo va de `COVER_CARDS` al FINAL del archivo: la raíz, la fila
+     del cuerpo, las flechas y el `aside` están en el cuerpo del componente, y
+     una guarda que termina en `export const` no los mira. */
+  const desde = SRC.indexOf('const COVER_CARDS');
+  expect(desde).toBeGreaterThan(-1);
+  TIRA = desde > -1 ? SRC.slice(desde) : '';
+
+  /* Se CONGELAN dos bloques: el de las tarjetas del carrusel y el de los
+     envoltorios de la vista previa. Los dos son de antes de este commit -este
+     solo los reindento-, y sus literales (`rgba` de sombras y de la hoja, el
+     fallback de `--paper-white`, el `borderRadius: '4px'`) estan en el reporte
+     de T18 para triaje. No se tapan: su cuenta exacta queda FIJADA mas abajo,
+     asi que la deuda no crece en silencio, y este comentario marca que hay que
+     quitar cuando se arregle. Los dos marcadores de cada bloque se comprueban:
+     sin eso, un archivo reordenado dejaria la guarda sin region congelada y
+     "pasaria" sin mirar nada. */
+  let resto = TIRA;
+  for (const [ini, fin] of CONGELADOS) {
+    const a = resto.indexOf(ini);
+    const b = resto.indexOf(fin);
+    expect(a, `no se encuentra el inicio del bloque congelado ${ini}`).toBeGreaterThan(-1);
+    expect(b, `no se encuentra el fin del bloque congelado ${fin}`).toBeGreaterThan(a);
+    CONGELADO.push(resto.slice(a, b));
+    resto = resto.slice(0, a) + resto.slice(b);
+  }
+  TARJETAS = CONGELADO.join('\n');
+  CHROME = resto;
 });
 
 /* ── La tira de estrategias ───────────────────────────────────────────────── */
@@ -131,13 +171,13 @@ describe('T18 — la tira lista las estrategias que la app tiene', () => {
     expect(chip('Conservar original').getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('una plantilla ya cargada enciende su chip, y los otros cuatro siguen ahí', () => {
-    // Un documento con `cover_template_id` NO es un modo que la app no conozca:
-    // es el modo 'custom'. Si la tira lo perdiera, la persona no tendría cómo
-    // volver a su plantilla ni a ver cuál tiene puesta.
+  it('una plantilla ya cargada no enciende el chip de acción, y la nombra', () => {
+    /* Un documento con `cover_template_id` SÍ tiene un modo —el 'custom'—, pero
+       su chip es una acción, así que no puede quedar "presionado". Lo que dice
+       qué plantilla está puesta es el rótulo de al lado. */
     portada({ use_original_cover: false, cover_mode: '', cover_template_id: 'custom-7' });
     render(<CoverCarouselStudio />);
-    expect(chip('+ Subir plantilla').getAttribute('aria-pressed')).toBe('true');
+    expect(chip('+ Subir plantilla').hasAttribute('aria-pressed')).toBe(false);
     expect(chips().map((c) => (c.textContent || '').trim())).toEqual(ESTRATEGIAS);
   });
 
@@ -162,6 +202,52 @@ describe('T18 — la tira lista las estrategias que la app tiene', () => {
     expect(abierto).toHaveBeenCalled();
     expect(estado().cover_template_id).toBeUndefined();
     abierto.mockRestore();
+  });
+
+  it('el chip de plantilla NO se anuncia como un interruptor', () => {
+    /* Un `aria-pressed` sobre una acción: el lector de pantalla anuncia
+       "botón, no presionado" y lo que hace es abrir un diálogo de archivos. Y
+       con una plantilla ya cargada el chip queda "presionado" sin decir cuál. */
+    portada();
+    render(<CoverCarouselStudio />);
+    const subir = chip('+ Subir plantilla');
+    expect(subir.hasAttribute('aria-pressed')).toBe(false);
+    // Los otros cuatro sí son interruptores: eligen un modo.
+    for (const modo of ['Conservar original', 'APA 7 Estándar', 'Institucional UNI', 'Profesional APA']) {
+      expect(chip(modo).hasAttribute('aria-pressed')).toBe(true);
+    }
+  });
+
+  it('la plantilla cargada se nombra en la tira', () => {
+    /* Sin esto, la persona ve la misma barra que antes de subir nada y no
+       tiene cómo saber que su .docx está puesto. */
+    portada({ use_original_cover: false, cover_mode: '', cover_template_id: 'custom-7' });
+    render(<CoverCarouselStudio />);
+    expect(within(tira()).getByText(/custom-7/)).toBeTruthy();
+  });
+
+  it('un modo que la app no reconoce no enciende ningún chip, y lo dice', () => {
+    /* El backend tiene su propio vocabulario de `cover_mode`
+       (`keep_original`, `keep_design_update_data`, `generate_apa7_template`), así
+       que un valor desconocido es real, no hipotético. Encender "APA 7" para un
+       documento que no es APA 7 es una afirmación falsa en la barra; lo honesto
+       es no encender nada y decirlo. */
+    portada({ use_original_cover: false, cover_mode: 'cover_del_año_que_viene' });
+    render(<CoverCarouselStudio />);
+    for (const modo of ['Conservar original', 'APA 7 Estándar', 'Institucional UNI', 'Profesional APA']) {
+      expect(chip(modo).getAttribute('aria-pressed')).toBe('false');
+    }
+    expect(within(tira()).getByText(/no reconoce/i)).toBeTruthy();
+    expect(within(tira()).getByText(/cover_del_año_que_viene/)).toBeTruthy();
+  });
+
+  it('un cover_mode del backend que SÍ es APA 7 enciende el chip de APA 7', () => {
+    // `generate_apa7_template` es la palabra del backend por el mismo estado que
+    // la app escribe como `cover_mode: ''`. Tratarlo como desconocido haría que
+    // un documento APA 7 real no encendiera nada.
+    portada({ use_original_cover: false, cover_mode: 'generate_apa7_template' });
+    render(<CoverCarouselStudio />);
+    expect(chip('APA 7 Estándar').getAttribute('aria-pressed')).toBe('true');
   });
 });
 
@@ -225,41 +311,68 @@ describe('T18 — el editor vive a la derecha, en 320px', () => {
   });
 });
 
-/* ── La portada no se mide dos veces ──────────────────────────────────────── */
+/* ── La altura llega hasta el panel ───────────────────────────────────────── */
 
-describe('T18 — la portada sigue siendo un bloque que no se parte', () => {
-  it('el lienzo no queda dentro de un contenedor que lo vuelva a medir', () => {
-    /* El aviso de T18: si la columna del centro trae `overflow: auto`, el
-       lienzo se mide contra una caja que crece con la hoja y la paginación deja
-       de decidir nada. `computePages` agrupa la portada en la página 1 como un
-       bloque, y esa regla solo vale si nadie mide el lienzo por su cuenta. */
+describe('T18 — la cadena de alto llega hasta el panel de 320px', () => {
+  it('la raíz y la fila del cuerpo tienen alto DEFINIDO', () => {
+    /* Esto son DECLARACIONES, no layout: jsdom no calcula cajas. Pero el
+       defecto que cubren es literal —una declaración que faltaba—, y sin ella
+       el `flex: 1` de la raíz no hace nada, porque `Step1PortadaWizard` es una
+       caja de BLOQUE (`position: relative; height: 100%`) y un hijo de bloque no
+       es ítem flexible. El tamaño real se verificó en un navegador. */
     portada();
     const { container } = render(<CoverCarouselStudio />);
     const raiz = container.firstElementChild as HTMLElement;
-    const cadena: HTMLElement[] = [];
-    for (let n = screen.getByTestId('canvas').parentElement; n && n !== raiz; n = n.parentElement) {
-      cadena.push(n);
-    }
-    expect(cadena.length).toBeGreaterThan(0);
-    for (const n of cadena) {
-      expect(`${n.style.overflow} ${n.style.overflowY} ${n.style.overflowX}`).not.toMatch(/auto|scroll/);
-    }
-    expect(raiz.style.overflow).toBe('hidden');
+    const fila = raiz.children[1] as HTMLElement;
+    expect(raiz.style.height).toBe('100%');
+    expect(fila.style.height).toBe('100%');
+    // Y las dos cajas se pueden encoger: sin `minHeight: 0` el `flex: 1` de
+    // abajo no llega a mandar y el contenido manda en el alto.
+    expect(raiz.style.minHeight).toBe('0px');
+    expect(fila.style.minHeight).toBe('0px');
   });
 
-  it('la vista previa tiene una caja acotada por el alto, no la que le da la hoja', () => {
+  it('la columna del centro reparte el alto entre la pista y la vista previa', () => {
     portada();
     render(<CoverCarouselStudio />);
     const centro = screen.getByTestId('cover-carousel');
     const vista = screen.getByTestId('canvas').parentElement as HTMLElement;
-    // El centro es columna: la pista de arriba no puede empujar al lienzo.
     expect(centro.style.display).toBe('flex');
     expect(centro.style.flexDirection).toBe('column');
     expect(centro.style.minHeight).toBe('0px');
-    // Y el preview crece hasta llenar lo que queda, con `minHeight: 0` para que
+    // El preview crece hasta llenar lo que queda, con `minHeight: 0` para que
     // pueda encogerse: sin esto el `flex: 1` de abajo no manda.
     expect(vista.style.flex).not.toBe('');
     expect(vista.style.minHeight).toBe('0px');
+  });
+});
+
+/* ── La portada no se mide dos veces ──────────────────────────────────────── */
+
+describe('T18 — la portada sigue siendo un bloque que no se parte', () => {
+  it('este componente no pagina el documento: eso es de `PaperCanvas`', () => {
+    /* La invariante real. La paginación sale de `computeRenderedPages`, de la
+       geometría del documento (`geom.pageH`) y del alto de cada elemento
+       (`offsetHeight`), y un `overflow` de un ancestro no entra en esa cuenta:
+       `offsetHeight` es alto de contenido y `PaperCanvas` no lee `clientHeight`
+       en ningún lado. Lo que sí partiría la portada en dos es un SEGUNDO
+       paginador aquí, o algo que vuelva a medir la hoja. Se comprueba sobre el
+       archivo, que es donde podría aparecer. */
+    expect(SRC).toMatch(/import \{ PaperCanvas \}/);
+    for (const modulo of ['computePages', 'computeRenderedPages', 'applyPageFlow', 'applyLayout', 'usePageIndex', 'computeRenderedPages']) {
+      expect(SRC, `este archivo importa ${modulo}`).not.toMatch(new RegExp(`import[^;]*\\b${modulo}\\b`));
+    }
+  });
+
+  it('este componente no vuelve a medir la hoja', () => {
+    // Una re-medición es la otra forma de partir la portada: si este archivo
+    // buscara los nodos de la hoja para medirlos, tendría su propia cuenta de
+    // páginas, y dos cuentas no pueden coincidir. Se mira el CÓDIGO, no los
+    // comentarios: este archivo explica la regla y nombra `offsetHeight` al
+    // hablar de ella.
+    for (const llamada of ['querySelectorAll', 'getBoundingClientRect', 'offsetHeight', 'clientHeight', 'scrollHeight', 'paper-elem']) {
+      expect(codigo(SRC), `este archivo usa ${llamada}`).not.toMatch(new RegExp(`[^\\w.]${llamada}\\b`));
+    }
   });
 });
 
@@ -267,16 +380,29 @@ describe('T18 — la portada sigue siendo un bloque que no se parte', () => {
 
 describe('T18 — el chrome nuevo usa tokens declarados', () => {
   it('el chrome nuevo no lleva colores literales ni radios fuera de token', () => {
-    // El archivo arrastra estilos viejos que esta task no tocó (las miniaturas
-    // esqueleto); la comprobación va ACOTADA a la región que este commit
-    // escribió: la lista de estrategias, el estilo de chip y la tira.
-    expect(TIRA).toContain('Estrategias de portada');
-    expect(codigo(TIRA)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
-    expect(codigo(TIRA)).not.toMatch(/rgba?\(/);
-    const radios = [...codigo(TIRA).matchAll(/borderRadius:\s*'([^']+)'/g)].map((m) => m[1]);
+    /* Cubre `COVER_CARDS`..fin de archivo: la lista, el chip, la tira Y el
+       cuerpo del componente (raíz, flechas, `aside`), que es donde están la
+       mayoría de las declaraciones nuevas. */
+    expect(CHROME).toContain('Estrategias de portada');
+    expect(codigo(CHROME)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(codigo(CHROME)).not.toMatch(/rgba?\(/);
+    const radios = [...codigo(CHROME).matchAll(/borderRadius:\s*'([^']+)'/g)].map((m) => m[1]);
     // Sin radios la comprobación de abajo no miraría nada.
     expect(radios.length).toBeGreaterThan(0);
     for (const radio of radios) expect(radio).toMatch(/^var\(--radius-/);
+  });
+
+  it('la deuda literal de los bloques re-indentados no crece', () => {
+    /* Los dos bloques congelados (tarjetas y envoltorios de la vista previa) son
+       de antes de este commit, que solo los reindento. Sus literales están en el
+       reporte de T18 para triaje. La cuenta va FIJADA a proposito -ni sube ni
+       baja en silencio-, y cuando se arregle este numero baja y hay que
+       actualizarlo aqui. */
+    const cuenta = (re: RegExp) => (codigo(TARJETAS).match(re) || []).length;
+    expect(cuenta(/rgba?\(/g)).toBe(5);
+    expect(cuenta(/#[0-9a-fA-F]{3,8}\b/g)).toBe(1);
+    expect(cuenta(/var\(\s*--[a-z0-9-]+\s*,/gi)).toBe(1);
+    expect(cuenta(/borderRadius:\s*'(?!\s*var\()/g)).toBe(1);
   });
 
   it('cada token que usa el chrome nuevo está declarado en design-system.css', () => {
