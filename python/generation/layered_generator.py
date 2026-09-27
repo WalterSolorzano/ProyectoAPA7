@@ -44,24 +44,19 @@ from generation.table_engine import format_apa_table
 
 
 # ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
-
-_REF_SECTION_HEADINGS = {"referencias", "bibliografia", "referencias bibliograficas"}
-
-
-def _normalize_accent_simple(text: str) -> str:
-    """Elimina acentos/diacríticos para comparación insensible a tildes."""
-    import unicodedata
-    return ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
+# El vocabulario NO vive acá: antes era una copia de la de generator.py y las
+# dos ya no coincidían (sólo una quitaba la numeración del título). Ahora ambas
+# preguntan a `phase_scope.is_references_title`, el mismo motor del auditor.
+# Ver `test_references_heading_single_source.py`.
 
 
 def _is_references_section_heading(elem) -> bool:
     """True si ``elem`` es un heading que abre la sección de Referencias/Bibliografía."""
+    from modules.phase_scope import is_references_title
+
     if elem is None or elem.type != ElementType.HEADING:
         return False
-    raw = (elem.text or "").strip().rstrip(".:; ")
-    if not raw:
-        return False
-    return _normalize_accent_simple(raw.lower()) in _REF_SECTION_HEADINGS
+    return is_references_title(elem.text or "")
 
 
 def _is_reference_entry_text(text: str) -> bool:

@@ -191,6 +191,26 @@ def match_phase_exact(title: str) -> Optional[str]:
     return _BY_TITLE.get(norm)
 
 
+REFERENCES_PHASE = "referencias"
+
+
+def is_references_title(title: str) -> bool:
+    """True si este titulo abre la seccion de Referencias / Bibliografia.
+
+    La unica definicion del proyecto. Antes contestaban cuatro lugares con tres
+    vocabularios distintos: los dos generadores llevaban su propia lista (y solo
+    uno sabia quitar la numeracion, asi que "3. Referencias" se deduplicaba en
+    un camino y no en el otro), y el motor de fases conocia un quarto titulo. Un
+    generador mas permisivo que el auditor es un bug esperando: uno deduplica
+    una seccion que el otro no reconoce, y el resultado es que la bibliografia
+    se come el contenido de una seccion del autor.
+
+    Se usa `match_phase_exact` y no `match_phase` a proposito: "Referencias de
+    la encuesta" es una seccion de datos, no la bibliografia.
+    """
+    return match_phase_exact(title) == REFERENCES_PHASE
+
+
 # ── Ambitos declarados por regla ────────────────────────────────────────────
 
 RULE_SCOPES: Dict[str, str] = {

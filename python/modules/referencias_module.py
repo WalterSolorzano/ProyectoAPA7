@@ -473,38 +473,153 @@ def sort_referencias_alphabetically(references: List[ReferenciaModel]) -> List[R
     return sorted(references, key=get_sort_key)
 
 
+def _texto_de_elemento(el) -> str:
+    """Texto de un ``<w:p>`` crudo, sin depender de la capa de python-docx."""
+    return "".join(t.text or "" for t in el.iter(qn("w:t")))
+
+
+def _estilo_de_parrafo(el) -> str:
+    pPr = el.find(qn("w:pPr"))
+    if pPr is None:
+        return ""
+    pStyle = pPr.find(qn("w:pStyle"))
+    if pStyle is None:
+        return ""
+    return pStyle.get(qn("w:val")) or ""
+
+
+def _es_titulo_estilado(el) -> bool:
+    """True si el estilo del parrafo lo declara un heading de Word."""
+    return _estilo_de_parrafo(el).lower().startswith("heading")
+
+
+def _buscar_seccion_referencias(doc: docx.Document):
+    """El parrafo que abre la seccion de Referencias, o ``None`` si no hay.
+
+    Unica fuente de verdad: ``phase_scope.match_phase_exact``. Antes de esto la
+    respuesta vivia en cuatro lugares con tres vocabularios distintos, y
+    ``format_apa_referencias_section`` no la consultaba a ninguno — se limitaba
+    a escribir "Referencias" a mano y append al final, por lo que una tesis
+    que ya traia bibliografia salia con dos titulos y un salto de pagina en el
+    medio.
+    """
+    from modules.phase_scope import match_phase_exact
+
+    for p in doc.paragraphs:
+        if match_phase_exact(p.text or "") == "referencias":
+            return p
+    return None
+
+
+def _purgar_seccion_referencias(doc: docx.Document, header) -> None:
+    """Borra el contenido de la seccion, conservando su titulo.
+
+    Se detiene en la primera frontera —un heading de Word, un nombre de fase, o
+    una tabla— porque lo que hay despues ya no es bibliografia. Si se pasara de
+    largo se llevaria el capitulo siguiente, que es peor que el bug original.
+    """
+    from modules.phase_scope import match_phase_exact
+
+    a_borrar = []
+    el = header._p.getnext()
+    while el is not None:
+        tag = el.tag.split("}")[-1]
+        if tag != "p":
+            break  # tabla o seccion: frontera dura, no se toca
+        texto = _texto_de_elemento(el)
+        if _es_titulo_estilado(el) or match_phase_exact(texto):
+            break  # el siguiente capitulo: dejarle su contenido
+        a_borrar.append(el)
+        el = el.getnext()
+
+    for el in a_borrar:
+        el.getparent().remove(el)
+
+
+def _armar_apa_desde_campos(ref: ReferenciaModel) -> str:
+    """Construye la linea APA desde los campos sueltos de la referencia.
+
+    Reutiliza `_format_apa_reference` del store del add-in: existe una sola
+    regla de armado de APA en el proyecto y esta funcion no es una segunda
+    version. Lo que faltaba no era el formato, era la llamada.
+
+    Devuelve "" si no hay con que armar una linea. Sin esta guarda, una
+    referencia totalmente vacia salia como "(s.f.).": el formateador le pone
+    anio "s.f." y `_strip_ref_prefix` se come el "(s." de paso.
+    """
+    from modules.addin_references_store import _format_apa_reference
+
+    if not (ref.authors or ref.title.strip() or ref.source.strip()
+            or (ref.doi_or_url or "").strip()):
+        return ""
+
+    return _format_apa_reference({
+        "authors": ref.authors or [],
+        "year": ref.year,
+        "title": ref.title,
+        "source": ref.source,
+        "doi_or_url": ref.doi_or_url,
+        "raw_text": ref.raw_text,
+    })
+
+
 def format_apa_referencias_section(
     doc: docx.Document,
     references: List[ReferenciaModel],
     rules: APARuleSet,
 ) -> None:
-    """
-    Inserta la seccion de Referencias al final del documento con sangria francesa estricta.
+    """Inserta o REEMPLAZA la seccion de Referencias, con sangria francesa.
+
+    Antes de crear nada, PREGUNTA si la seccion ya existe. Un documento que ya
+    trae su bibliografia —escrita a mano o generada antes— recibia un salto de
+    pagina, un segundo titulo "Referencias" y las entradas viejas pegadas a las
+    nuevas. La funcion tenia "Referencias" escrito a mano mientras
+    `_is_references_section_heading` —que ya sabia contestarlo— estaba a cien
+    lineas: cuatro lugares decidiendo lo mismo con tres vocabularios distintos.
+
+    Ahora la unica definicion de "esto es la seccion de Referencias" es
+    `phase_scope.match_phase_exact`, y la seccion que se conserva es la que el
+    autor escribio: si puso "Bibliografia", sigue diciendo "Bibliografia".
     """
     if not references:
         return
 
-    # Salto de pagina antes de Referencias
-    doc.add_page_break()
+    existing = _buscar_seccion_referencias(doc)
+    if existing is not None:
+        _purgar_seccion_referencias(doc, existing)
+    else:
+        # Salto de pagina antes de Referencias
+        doc.add_page_break()
 
-    # Titulo Nivel 1 Centrado
-    p_hdr = doc.add_paragraph()
-    p_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_hdr.paragraph_format.line_spacing = rules.line_spacing
-    p_hdr.paragraph_format.first_line_indent = Inches(0)
-    p_hdr.paragraph_format.space_before = Pt(0)
-    p_hdr.paragraph_format.space_after = Pt(0)
+    # Titulo Nivel 1 Centrado. Si la seccion YA existia se conserva el titulo del
+    # autor: si puso "Bibliografia", el documento sigue diciendo "Bibliografia".
+    if existing is not None:
+        p_hdr, ancla = None, existing._p
+    else:
+        p_hdr = doc.add_paragraph()
+        p_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_hdr.paragraph_format.line_spacing = rules.line_spacing
+        p_hdr.paragraph_format.first_line_indent = Inches(0)
+        p_hdr.paragraph_format.space_before = Pt(0)
+        p_hdr.paragraph_format.space_after = Pt(0)
 
-    r_hdr = p_hdr.add_run("Referencias")
-    r_hdr.bold = True
-    set_run_font(r_hdr, rules.font_family, rules.font_size_pt)
-    r_hdr.font.color.rgb = RGBColor(0, 0, 0)
+        r_hdr = p_hdr.add_run("Referencias")
+        r_hdr.bold = True
+        set_run_font(r_hdr, rules.font_family, rules.font_size_pt)
+        r_hdr.font.color.rgb = RGBColor(0, 0, 0)
+        ancla = p_hdr._p
 
     # Ordenar referencias
     sorted_refs = sort_referencias_alphabetically(references)
 
     for ref in sorted_refs:
         p_ref = doc.add_paragraph()
+        # `add_paragraph` deja el parrafo al FINAL del body. Cuando la seccion
+        # ya existia hay que devolverlo adentro: se crea y se reubica, que es la
+        # unica via que da python-docx para insertar en una posicion.
+        if existing is not None:
+            ancla.addnext(p_ref._p)
+            ancla = p_ref._p
         try:
             p_ref.style = None
         except Exception:
@@ -527,9 +642,13 @@ def format_apa_referencias_section(
         # Si tenemos texto crudo formateado o campos individuales
         text: str = ref.formatted_apa if ref.formatted_apa else ref.raw_text
 
-        # Validacion: si text esta vacio, intentar raw_text; si aun vacio, saltar
+        # Si no hay texto, se ARMA desde los campos. Antes se saltaba con
+        # `continue` y dejaba la seccion vacia bajo el titulo "Referencias", sin
+        # error: una referencia con autores, ano y titulo —todo lo que hace
+        # falta para la APA— desaparecia en silencio. Solo se omite cuando no
+        # hay NADA con que armar una linea.
         if not text or not text.strip():
-            text = ref.raw_text
+            text = _armar_apa_desde_campos(ref)
         if not text or not text.strip():
             continue
 

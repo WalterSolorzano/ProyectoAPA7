@@ -308,29 +308,21 @@ def _strip_existing_numbering(text: str) -> str:
 
 
 # ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
-
-_REF_SECTION_HEADINGS = {
-    "referencias",
-    "bibliografia",                    # "Bibliografía" normalizado (sin tilde)
-    "referencias bibliograficas",      # "Referencias bibliográficas"
-}
-
-
-def _normalize_accent_simple(text: str) -> str:
-    """Elimina acentos/diacríticos para comparación insensible a tildes."""
-    import unicodedata
-    nfkd = unicodedata.normalize('NFKD', text)
-    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+# El vocabulario NO vive acá. Antes vivía en una lista propia que era copia de
+# la de layered_generator, y las dos ya no coincidían: sólo una de las dos
+# quitaba la numeración del título, así que "3. Referencias" se deduplicaba en
+# un camino y no en el otro. La respuesta ahora la da
+# `phase_scope.is_references_title`, que es el mismo motor que usa el auditor.
+# Ver `test_references_heading_single_source.py`.
 
 
 def _is_references_section_heading(elem) -> bool:
     """True si ``elem`` es un heading que abre la sección de Referencias/Bibliografía."""
+    from modules.phase_scope import is_references_title
+
     if elem is None or elem.type != ElementType.HEADING:
         return False
-    raw = _strip_existing_numbering((elem.text or "")).strip().rstrip(".:; ")
-    if not raw:
-        return False
-    return _normalize_accent_simple(raw.lower()) in _REF_SECTION_HEADINGS
+    return is_references_title(_strip_existing_numbering(elem.text or ""))
 
 
 def _is_reference_entry_text(text: str) -> bool:
