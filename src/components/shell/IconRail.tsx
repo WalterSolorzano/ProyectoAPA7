@@ -68,15 +68,25 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
       }}
     >
       {items.map((item) => {
-        const { id, label, Icon, status, pending, step } = item;
+        const { id, label, Icon, status, pending = 0, step } = item;
         const active = isActive(item);
         const hovered = hoveredId === id;
+        /* El punto de estado NO alcanza como información: un `aria-label` en un
+           <span> dentro de un botón no le suma nada al nombre accesible, que lo
+           da el `aria-label` del botón. El nombre que anuncia el lector es
+           "Figuras" haya 3 pendientes o ninguno, así que el conteo y el "Listo"
+           van dentro del nombre del botón. */
+        const nombre = status === 'pending' && pending > 0
+          ? `${label}, ${pending} pendientes`
+          : status === 'done'
+            ? `${label}, listo`
+            : label;
         return (
           <button
             key={id}
             type="button"
             title={label}
-            aria-label={label}
+            aria-label={nombre}
             /* El color de la superficie activa no le dice nada a un lector de
                pantalla: el estado va también en `aria-current`. Una fase del
                asistente es un paso del recorrido; un destino de Inicio, una
@@ -107,7 +117,7 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             <Icon size={17} strokeWidth={1.75} aria-hidden />
             {pending > 0 && (
               <span
-                aria-label={`${pending} pendientes`}
+                aria-hidden
                 style={{
                   position: 'absolute',
                   top: 6,
@@ -121,7 +131,7 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             )}
             {status === 'done' && (
               <span
-                aria-label="Listo"
+                aria-hidden
                 style={{
                   position: 'absolute',
                   top: 6,
@@ -148,10 +158,18 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
         }}
       />
 
+      {/* El nombre NO cambia con el estado: `aria-pressed` ya lo lleva, y un
+          control cuyo nombre muta con el estado es dos controles distintos
+          para el lector de pantalla. Además, este pin y el del flyout son el
+          MISMO flag global, y se nombran igual.
+
+          La superficie anclada es un contorno, no un relleno de acento: dentro
+          de esta misma columna de 56px, `--color-accent-soft` significa "fase
+          actual" a ocho píxeles de distancia, y el pin no es una fase. */}
       <button
         type="button"
-        title={pinned ? 'Anclado' : 'Anclar panel'}
-        aria-label={pinned ? 'Anclado' : 'Anclar panel'}
+        title="Anclar panel"
+        aria-label="Anclar panel"
         aria-pressed={pinned}
         onMouseEnter={() => setPinHovered(true)}
         onMouseLeave={() => setPinHovered(false)}
@@ -162,10 +180,10 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: 'none',
           borderRadius: 'var(--radius-md)',
-          backgroundColor: surface(pinned, pinHovered),
-          color: ink(pinned, pinHovered),
+          border: pinned ? '1px solid var(--color-accent)' : '1px solid transparent',
+          backgroundColor: pinned ? 'transparent' : pinHovered ? 'var(--color-bg-surface-alt)' : 'transparent',
+          color: pinned ? 'var(--color-accent)' : pinHovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
           cursor: 'pointer',
           transition: BUTTON_TRANSITION,
         }}

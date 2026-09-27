@@ -15,9 +15,16 @@ export interface RailDestination {
   step: number | null;
   label: string;
   Icon: LucideIcon;
-  status: RailStatus;
+  /**
+   * Estado del trabajo de este destino, u `undefined` si NO tiene estado: un
+   * destino que no es una fase (Ajustes, Tema, el Complemento de Word) no se
+   * completa ni se postpone, y tampoco tiene un cero honesto que announce. Sin
+   * este opcional, la gramática obligaba a fabricar un `idle` que el flyout
+   * imprimía como "Sin pendientes" sobre un botón.
+   */
+  status?: RailStatus;
   /** Cantidad de pendientes, para el punto del icono. */
-  pending: number;
+  pending?: number;
   /** Si el flyout de este destino debe incluir el mapa del documento. */
   showOutline: boolean;
   /** "Estás acá", para los destinos que no son fases (Inicio ⇄ Recientes).
@@ -44,11 +51,15 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
    Todos con `step: null`: un destino de Inicio no es una fase, así que ninguno
    se enciende por `wizardStep`. Los dos que son "pestañas" (Inicio, Recientes)
    reciben `current` desde la pantalla, que es la que sabe cuál está a la vista. */
+/* Ninguno lleva `status`: son ACCIONES y pestañas, no fases del asistente. No
+   hay trabajo pendiente de completar en "Ajustes", así que el flyout no
+   dibuja fila de estado y el rail no pone punto. Este es el motivo por el que
+   `status` es opcional en `RailDestination` y no un `idle` obligatorio. */
 export const HOME_RAIL_ITEMS: RailDestination[] = [
-  { id: 'home-inicio', step: null, label: 'Inicio', Icon: Home, status: 'idle', pending: 0, showOutline: false },
-  { id: 'home-recientes', step: null, label: 'Recientes', Icon: History, status: 'idle', pending: 0, showOutline: false },
-  { id: 'home-nueva', step: null, label: 'Nueva transformación', Icon: PlusCircle, status: 'idle', pending: 0, showOutline: false },
-  { id: 'home-addin', step: null, label: 'Complemento de Word', Icon: Puzzle, status: 'idle', pending: 0, showOutline: false },
-  { id: 'home-ajustes', step: null, label: 'Ajustes', Icon: Settings, status: 'idle', pending: 0, showOutline: false },
-  { id: 'home-tema', step: null, label: 'Tema', Icon: SunMoon, status: 'idle', pending: 0, showOutline: false },
+  { id: 'home-inicio', step: null, label: 'Inicio', Icon: Home, showOutline: false },
+  { id: 'home-recientes', step: null, label: 'Recientes', Icon: History, showOutline: false },
+  { id: 'home-nueva', step: null, label: 'Nueva transformación', Icon: PlusCircle, showOutline: false },
+  { id: 'home-addin', step: null, label: 'Complemento de Word', Icon: Puzzle, showOutline: false },
+  { id: 'home-ajustes', step: null, label: 'Ajustes', Icon: Settings, showOutline: false },
+  { id: 'home-tema', step: null, label: 'Tema', Icon: SunMoon, showOutline: false },
 ];

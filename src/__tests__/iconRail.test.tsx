@@ -41,7 +41,10 @@ describe('T4 — IconRail', () => {
     expect(screen.getByTestId('icon-rail').textContent).toBe('');
   });
 
-  it('el botón de anclar expone su estado, y lo refleja desde props', () => {
+  it('el botón de anclar expone su estado por `aria-pressed`, con nombre fijo', () => {
+    // El nombre de un toggle no cambia con el estado: `aria-pressed` ya lo
+    // lleva, y mutar el nombre hace que el control se anuncie como otro. El
+    // pin del flyout y este son el mismo flag global y se nombran igual.
     const { onTogglePin, unmount } = setup();
     const pin = screen.getByRole('button', { name: 'Anclar panel' });
     expect(pin.getAttribute('aria-pressed')).toBe('false');
@@ -53,8 +56,26 @@ describe('T4 — IconRail', () => {
     render(
       <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={onTogglePin2} onSelect={vi.fn()} pinned={true} />,
     );
-    const anclado = screen.getByRole('button', { name: 'Anclado' });
+    const anclado = screen.getByRole('button', { name: 'Anclar panel' });
     expect(anclado.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('anclado, el pin NO se pinta con la superficie de acento: ahí vive "fase actual"', () => {
+    // En esta misma columna de 56px, `--color-accent-soft` significa fase
+    // activa. El pin no es una fase, y a ocho píxeles no puede usar su tinta.
+    const { unmount } = setup();
+    const pin = screen.getByRole('button', { name: 'Anclar panel' });
+    expect(pin.style.backgroundColor).toBe('transparent');
+    unmount();
+
+    render(
+      <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={vi.fn()} onSelect={vi.fn()} pinned={true} />,
+    );
+    const anclado = screen.getByRole('button', { name: 'Anclar panel' });
+    expect(anclado.style.backgroundColor).not.toBe('var(--color-accent-soft)');
+    // Contorno de acento, sin relleno: se distingue de la fase activa por
+    // forma y no solo por color.
+    expect(anclado.style.border).toBe('1px solid var(--color-accent)');
   });
 
   it('avisa al hover y avisa al salir con null', () => {
@@ -231,13 +252,16 @@ describe('T4 — IconRail', () => {
     expect(pin.style.color).toBe('var(--color-text-secondary)');
   });
 
-  it('el punto de pendientes aparece solo si hay pendientes', () => {
+  it('el conteo de pendientes llega al NOMBRE del botón, no a un span por dentro', () => {
+    // Un `aria-label` en un <span> dentro de un botón no suma nada al nombre
+    // accesible: el nombre lo da el botón. El punto es decorativo; el número
+    // tiene que estar en el `aria-label` del botón.
     const onHoverItem = vi.fn();
     const onTogglePin = vi.fn();
     const { unmount } = render(
       <IconRail items={mkItems()} onHoverItem={onHoverItem} onTogglePin={onTogglePin} onSelect={vi.fn()} pinned={false} />,
     );
-    expect(screen.queryByLabelText(/pendientes/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /pendientes/ })).toBeNull();
     unmount();
 
     render(
@@ -249,15 +273,25 @@ describe('T4 — IconRail', () => {
         pinned={false}
       />,
     );
-    expect(screen.getByLabelText('7 pendientes')).toBeTruthy();
+    const btn = screen.getByRole('button', { name: 'Revisión & IA, 7 pendientes' });
+    expect(btn.getAttribute('aria-label')).toBe('Revisión & IA, 7 pendientes');
   });
 
-  it('el punto de listo aparece solo en la fase completada', () => {
+  it('"Listo" también es parte del nombre, y solo en la fase completada', () => {
     const { unmount } = setup(mkItems());
-    expect(screen.queryByLabelText('Listo')).toBeNull();
+    expect(screen.queryByRole('button', { name: /listo/ })).toBeNull();
     unmount();
 
     setup(mkItems().map((i) => (i.step === 2 ? { ...i, status: 'done' as const } : i)));
-    expect(screen.getAllByLabelText('Listo')).toHaveLength(1);
+    const listos = screen.getAllByRole('button', { name: /, listo$/ });
+    expect(listos).toHaveLength(1);
+    expect(listos[0]).toHaveAccessibleName('Estructura, listo');
+  });
+
+  it('sin estado, el nombre es el de la fase pelado: un destino que no se completa no dice nada', () => {
+    setup(mkItems().map(({ pending, status, ...rest }) => rest));
+    for (const label of ['Portada', 'Figuras', 'Revisión & IA']) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+    }
   });
 });
