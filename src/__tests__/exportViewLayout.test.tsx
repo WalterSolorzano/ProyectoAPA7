@@ -4,14 +4,21 @@
  * columna no repite nada de lo que el usuario acaba de revisar.
  *
  * La afirmacion central de este archivo es negativa ("no hay resumenes"), y
- * una prueba negativa solo vale si puede fallar. Por eso el texto visible de
- * la columna se compara contra la cadena EXACTA que debe verse, con un
- * documento que tiene 3 citas fantasma cargadas: cualquier recap que alguien
- * vuelva a colar (un conteo, un porcentaje, un "corregiste N cosas") rompe esa
- * igualdad. Y como el recap podria usar otras palabras, hay una segunda regla
- * mas general: en toda la columna el unico digito es el 7 de "APA 7".
- * La version del brief (un grep de tres frases) solo detectaba esas tres
- * frases literales, y una vista que los repitiera con otra redaccion pasaba.
+ * una prueba negativa solo vale si puede fallar. Por eso el texto visible se
+ * compara contra la cadena EXACTA que debe verse, con un documento que tiene
+ * 3 citas fantasma cargadas: cualquier recap que alguien vuelva a colar (un
+ * conteo, un porcentaje, un "corregiste N cosas") rompe esa igualdad. Se
+ * afirma sobre `document.body`, no sobre la columna, para que un recap en un
+ * hermano o en un portal tambien la rompa, y se agrega que ningun `title` ni
+ * `aria-label` de la columna tenga un digito (el conteo que solo oye el
+ * lector de pantalla). La version del brief (un grep de tres frases) solo
+ * detectaba esas tres frases literales, y una vista que los repitiera con
+ * otra redaccion pasaba.
+ *
+ * Hubo tambien una "regla de los digitos" (el unico digito visible es el 7 de
+ * "APA 7"): se borro porque con el formato nombrado en el boton ya son dos, y
+ * durante la exportacion `loadingPhase` mete un tercero. Era una prueba que
+ * iba a fallar por copy, no por una violacion.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
@@ -53,7 +60,7 @@ beforeAll(async () => {
 /* ── Lo que la columna final DEBE mostrar, y nada mas ── */
 const TITULO = 'Documento listo';
 const LINEA = 'Tu trabajo cumple con el formato APA 7. Puedes descargarlo o convertir otro archivo.';
-const TEXTO_ESPERADO = `${TITULO}${LINEA}Descargar documentoConvertir otroOpciones`;
+const TEXTO_ESPERADO = `${TITULO}${LINEA}Descargar Word APA 7 (.docx)Convertir otroOpciones`;
 
 /* Un documento con hallazgos de sobra: si la vista final los repitiera,
    estos datos serian justo lo que feedearia el recap que no debe existir. */
@@ -94,9 +101,12 @@ describe('T17 — ExportView: la columna final', () => {
   it('respeta el orden fijo: check, título, una línea y los dos botones pegados', () => {
     render(<ExportView />);
 
-    /* svg del check, h1 del titulo, p de la linea, div de los botones.
-       El quinto hijo es el toggle fantasma de Opciones: sin el, el formato y
-       la vista previa quedan inalcanzables. */
+    /* Esta lista ES la lista de la spec, no la forma que salio: los cuatro
+       primeros hijos son el orden fijo (check, titulo, linea, dos botones) y
+       el quinto es el toggle terciario "Opciones", que la spec deja
+       especificado para que formato, avisos y vista previa sigan alcanzables.
+       La lista es exacta a proposito: un sexto hijo —un recap, una tarjeta, un
+       separador— rompe el test, que es justo lo que esta columna no puede hacer. */
     const hijos = Array.from(columna().children).map((el) => el.tagName.toLowerCase());
     expect(hijos).toEqual(['svg', 'h1', 'p', 'div', 'button']);
 
@@ -106,9 +116,13 @@ describe('T17 — ExportView: la columna final', () => {
     expect(linea.tagName).toBe('P');
     expect(linea.style.maxWidth).toBe('50ch');
 
-    const fila = columna().children[3];
+    const fila = columna().children[3] as HTMLElement;
     const botones = Array.from(fila.querySelectorAll('button')).map((b) => b.textContent);
-    expect(botones).toEqual(['Descargar documento', 'Convertir otro']);
+    expect(botones).toEqual(['Descargar Word APA 7 (.docx)', 'Convertir otro']);
+
+    /* El contenido de la columna puede bajar de 340px: los dos botones no
+       entran, y sin wrap el texto se parte a media frase. */
+    expect(fila.style.flexWrap).toBe('wrap');
   });
 
   it('no repite hallazgos ni estadísticas, ni aunque el documento los tenga', () => {
@@ -117,16 +131,24 @@ describe('T17 — ExportView: la columna final', () => {
     cargar({ citationAuditResult: TRES_CITAS_FANTASMA });
     render(<ExportView />);
 
-    expect(columna().textContent).toBe(TEXTO_ESPERADO);
+    /* Se afirma sobre TODO el body, no sobre el `<aside>`: asi un recap
+       montado en un hermano, o en un portal, tambien rompe la igualdad. Los
+       tres hijos pesados estan simulados a nada, asi que no agregan texto. */
+    expect(document.body.textContent).toBe(TEXTO_ESPERADO);
 
-    /* Y la regla que no depende de la cadena exacta: el unico digito que se
-       ve en toda la columna es el 7 de "APA 7". Ningun conteo, ninguna
-       pagina, ningun porcentaje. */
-    const digitos = columna().textContent!.match(/\d/g);
-    expect(digitos).toEqual(['7']);
+    /* Y los canales que solo lee el lector de pantalla: un `title=` o un
+       `aria-label=` con un numero esconde el conteo a la vista y se lo
+       anuncia a ciegas. Tampoco puede haberlos. */
+    const conCifras = Array.from(columna().querySelectorAll('[title], [aria-label]'))
+      .map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`)
+      .filter((texto) => /\d/.test(texto));
+    expect(conCifras).toEqual([]);
   });
 
-  it('no trae listas, tarjetas ni columnas en el estado por defecto', () => {
+  it('la columna no trae listas, tablas ni subtitulos en el estado por defecto', () => {
+    /* Lo que este test puede ver: estructura semantica. Una "tarjeta" hecha
+       de `div` con un icono y sin encabezado no es detectable en jsdom, asi
+       que el nombre no promete mas de lo que afirma. */
     render(<ExportView />);
     expect(columna().querySelectorAll('ul, ol, dl, table, section, article')).toHaveLength(0);
     expect(columna().querySelectorAll('h2, h3, h4')).toHaveLength(0);
@@ -158,15 +180,48 @@ describe('T17 — ExportView: acciones', () => {
     expect(useDocStore.getState().clearQuickExport).not.toHaveBeenCalled();
   });
 
-  it('“Descargar documento” avisa de las citas fantasma antes de exportar', () => {
+  it('“Descargar” avisa de las citas fantasma antes de exportar', () => {
     cargar({ citationAuditResult: TRES_CITAS_FANTASMA });
     render(<ExportView />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Descargar documento' }));
+    fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
 
     /* La friccion se mantiene: primer clic avisa, no exporta. */
     expect(useDocStore.getState().exportDocx).not.toHaveBeenCalled();
     expect(screen.getByText(/sin referencia en la bibliograf/i)).toBeTruthy();
+  });
+
+  it('el boton principal nombra el formato que se va a descargar', () => {
+    render(<ExportView />);
+    expect(screen.getByRole('button', { name: /Descargar/ }).textContent).toBe('Descargar Word APA 7 (.docx)');
+
+    /* Eligió PDF, cerró el panel, y el botón sigue diciendo PDF: quien va a
+       descargar un archivo tiene que saber de qué tipo es antes de hacerlo. */
+    fireEvent.click(screen.getByRole('button', { name: 'Opciones' }));
+    const formatos = screen.getByLabelText('Selector de formato');
+    fireEvent.click(
+      Array.from(formatos.querySelectorAll('button')).find((b) => b.textContent!.includes('PDF Listo'))!,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Opciones' }));
+
+    expect(screen.getByRole('button', { name: /Descargar/ }).textContent).toBe('Descargar documento PDF');
+  });
+
+  it('el boton principal se ve deshabilitado mientras exporta', () => {
+    render(<ExportView />);
+    expect(screen.getByRole('button', { name: /Descargar/ }).style.cursor).toBe('pointer');
+
+    act(() => {
+      useDocStore.setState({ isLoading: true });
+    });
+
+    /* Exportar tarda 2.6s y pasa por tres fases. Con `disabled` pero con
+       relleno de acento y cursor de puntero, el botón pide un clic que no
+       hace nada: hay que verlo muerto. */
+    const durante = screen.getByRole('button', { name: /Generando/ }) as HTMLButtonElement;
+    expect(durante.disabled).toBe(true);
+    expect(durante.style.cursor).toBe('not-allowed');
+    expect(durante.style.opacity).toBe('0.7');
   });
 
   it('el atajo Ctrl+S exporta una vez y se queda con el atajo del navegador', () => {

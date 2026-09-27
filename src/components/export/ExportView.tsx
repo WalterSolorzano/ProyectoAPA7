@@ -129,6 +129,11 @@ export const ExportView: React.FC = () => {
 
   if (!doc) return null;
 
+  /* El botón principal nombra el archivo que se va a descargar. Quien elige
+     PDF en el panel y después lo cierra tiene que saber que sale un PDF, no
+     un "documento" de tipo desconocido. */
+  const destino = format === 'pdf' ? 'documento PDF' : format === 'latex' ? 'código LaTeX (.tex)' : 'Word APA 7 (.docx)';
+
   return (
     <div
       style={{
@@ -175,7 +180,7 @@ export const ExportView: React.FC = () => {
         </p>
 
         {/* 4. Las dos decisiones que quedan: este archivo u otro archivo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={handleDownloadClick}
@@ -183,10 +188,15 @@ export const ExportView: React.FC = () => {
             style={{
               padding: '10px 18px', border: 'none', borderRadius: 'var(--radius-md)',
               background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
-              fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 'var(--text-base)', fontWeight: 600,
+              /* La exportacion tarda 2.6s: deshabilitado pero con relleno de
+                 acento y cursor de puntero, el boton pide un clic que no
+                 hace nada. Tiene que verse muerto. */
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.7 : 1,
             }}
           >
-            {isLoading ? loadingPhase : 'Descargar documento'}
+            {isLoading ? loadingPhase : `Descargar ${destino}`}
           </button>
           <button
             type="button"
