@@ -74,7 +74,11 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
         maxHeight: 'calc(100% - 24px)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-1, 8px)',
+        /* T20: era `var(--space-1, 8px)`. El token existe y vale 4px, así que el
+           fallback nunca se aplicaba: era una línea que PROMETÍA 8px en el
+           fuente y pintaba 4px en pantalla. Un specifier en variable no lleva
+           fallback (lint R2). */
+        gap: 'var(--space-1)',
         padding: '14px',
         backgroundColor: 'var(--color-bg-surface)',
         border: '1px solid var(--color-border-subtle)',

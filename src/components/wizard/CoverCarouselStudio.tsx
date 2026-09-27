@@ -28,59 +28,23 @@
      "Conservar original" solo escribe banderas, nunca campos de texto. */
 
 import React, { useState, useRef, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight,
+  Check, CloudUpload, FileText, GraduationCap, Layers, Star,
+} from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { APACoverEditor } from '../layout/APACoverEditor';
 import { UNICoverPreview } from '../layout/UNICoverPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { CoverEditorPanel } from './CoverEditorPanel';
 
-/* ── Iconos SVG nativos a mano (sin librerías ni dependencias) ── */
-const SvgOriginalStar = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-  </svg>
-);
-
-const SvgDocText = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-    <polyline points="10 9 9 9 8 9" />
-  </svg>
-);
-
-const SvgAcademicUni = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-    <path d="M6 12v5c3 3 9 3 12 0v-5" />
-  </svg>
-);
-
-const SvgLayersStack = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 2 7 12 12 22 7 12 2" />
-    <polyline points="2 17 12 22 22 17" />
-    <polyline points="2 12 12 17 22 12" />
-  </svg>
-);
-
-const SvgUploadCloud = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="16 16 12 12 8 16" />
-    <line x1="12" y1="12" x2="12" y2="21" />
-    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
-    <polyline points="16 16 12 12 8 16" />
-  </svg>
-);
-
-const SvgCheckSmall = () => (
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
+/* ── Iconos ──────────────────────────────────────────────────────────────────
+   T20: aquí havia SEIS `<svg>` escritos a mano, con `strokeWidth="2"` y uno con
+   `"3"`, al lado de los iconos de lucide a 1.75. Un svg a mano no hereda el
+   token `--icon-stroke` y nadie lo nota cuando el grosor de la app cambia: por
+   eso el lint prohíbe el elemento, no solo el número. Los seis son de
+   lucide-react ahora, y su grosor es el del token. */
+const ICONO = { size: 14, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
 /** Los modos de portada que la app sabe construir. `original` gana sobre los
  *  demás porque conservar la portada del documento no es un estilo más. */
@@ -105,31 +69,31 @@ const COVER_CARDS: CoverCard[] = [
     id: 'original',
     title: 'Conservar original',
     subtitle: 'Mantiene logos y diseño · recomendado',
-    icon: <SvgOriginalStar />,
+    icon: <Star {...ICONO} />,
   },
   {
     id: 'apa7',
     title: 'APA 7 Estándar',
     subtitle: 'Formato oficial 7ª edición',
-    icon: <SvgDocText />,
+    icon: <FileText {...ICONO} />,
   },
   {
     id: 'uni',
     title: 'Institucional UNI',
     subtitle: 'Plantilla oficial universitaria',
-    icon: <SvgAcademicUni />,
+    icon: <GraduationCap {...ICONO} />,
   },
   {
     id: 'pro',
     title: 'Profesional APA',
     subtitle: 'Con running head y página',
-    icon: <SvgLayersStack />,
+    icon: <Layers {...ICONO} />,
   },
   {
     id: 'custom',
     title: '+ Subir plantilla',
     subtitle: 'Sube tu propia plantilla .docx',
-    icon: <SvgUploadCloud />,
+    icon: <CloudUpload {...ICONO} />,
     isUpload: true,
   },
 ];
@@ -423,10 +387,31 @@ export const CoverCarouselStudio: React.FC = () => {
             <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".docx" style={{ display: 'none' }} />
             {COVER_CARDS.map((c) => {
               const isSelected = currentMode === c.id;
+              const elegir = () => (c.isUpload ? abrirSelector() : selectMode(c.id));
               return (
                 <div
                   key={c.id}
-                  onClick={() => (c.isUpload ? abrirSelector() : selectMode(c.id))}
+                  /* T20: la tarjeta era un `<div onClick>` sin teclado: se podía
+                     VER y elegir con el ratón, y no se podía alcanzar. Ahora es
+                     un control: `role="button"`, enfocable, y Enter y Espacio
+                     eligen —Espacio no hace scroll porque se previene, que es lo
+                     que un `<button>` real hace solo. Se queda en `div` (y no
+                     un `<button>`) porque la miniatura es esqueleto de `div`s y
+                     el modelo de contenido de un botón es contenido en línea. */
+                  role="button"
+                  tabIndex={0}
+                  /* La última tarjeta es una ACCIÓN, no un estado: con
+                     `aria-pressed` el lector de pantalla anuncia "no
+                     presionado" y lo que hace es abrir el selector de archivos.
+                     Es el mismo criterio que aplica al chip de la tira. */
+                  aria-pressed={c.isUpload ? undefined : isSelected}
+                  onClick={elegir}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                      e.preventDefault();
+                      elegir();
+                    }
+                  }}
                   style={{
                     minWidth: '190px',
                     maxWidth: '220px',
@@ -437,7 +422,7 @@ export const CoverCarouselStudio: React.FC = () => {
                     cursor: 'pointer',
                     backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
                     border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    boxShadow: isSelected ? '0 4px 14px rgba(79,124,255,0.14)' : '0 1px 3px rgba(0,0,0,0.04)',
+                    boxShadow: isSelected ? 'var(--shadow-accent)' : 'var(--shadow-sm)',
                     transition: 'all 0.15s ease',
                     display: 'flex',
                     flexDirection: 'column',
@@ -451,22 +436,22 @@ export const CoverCarouselStudio: React.FC = () => {
                       borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-primary)', display: 'flex',
                       alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-on-accent)', zIndex: 10,
                     }}>
-                      <SvgCheckSmall />
+                      <Check size={10} strokeWidth={1.75} aria-hidden />
                     </div>
                   )}
 
                   {/* Miniatura visual de portada */}
                   <div style={{
                     height: '56px',
-                    backgroundColor: 'var(--paper-white, #ffffff)',
+                    backgroundColor: 'var(--paper-white)',
                     border: '1px solid var(--border-subtle)',
-                    borderRadius: '4px',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '6px 8px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
+                    boxShadow: 'var(--shadow-inset)',
                     overflow: 'hidden',
                   }}>
                     {c.id === 'original' && (
@@ -514,7 +499,7 @@ export const CoverCarouselStudio: React.FC = () => {
                     )}
                     {c.id === 'custom' && (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '3px', color: 'var(--accent-primary)' }}>
-                        <SvgUploadCloud />
+                        <CloudUpload {...ICONO} />
                         <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>.docx</span>
                       </div>
                     )}
@@ -541,13 +526,13 @@ export const CoverCarouselStudio: React.FC = () => {
           }}>
             {currentMode === 'uni' ? (
               <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                   <UNICoverPreview />
                 </div>
               </div>
             ) : currentMode === 'apa7' || currentMode === 'pro' ? (
               <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                   <APACoverEditor />
                 </div>
               </div>

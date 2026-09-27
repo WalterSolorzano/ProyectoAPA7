@@ -18,7 +18,8 @@ import { resolveAssetUrl } from '../../api/backend';import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle,
   Eye, ZoomIn, ZoomOut,
-  Columns2
+  Columns2,
+  Copy
 } from 'lucide-react';
 
 type Format = 'docx' | 'pdf' | 'latex';
@@ -457,10 +458,9 @@ export const ExportView: React.FC = () => {
                 }}
                 title="Copiar archivo PDF al portapapeles de Windows para pegar con Ctrl+V en WhatsApp"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
+                {/* T20: era un <svg> a mano con `strokeWidth="2"`. Los iconos
+                    vienen de lucide-react y su grosor es `--icon-stroke`. */}
+                <Copy size={14} strokeWidth={1.75} aria-hidden />
                 <span>Copiar PDF para WhatsApp (Ctrl+V)</span>
               </button>
             )}
@@ -477,7 +477,7 @@ export const ExportView: React.FC = () => {
                   fontWeight: 'var(--font-semibold)',
                   color: previewOpen ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                   background: previewOpen ? 'var(--color-accent-soft)' : 'transparent',
-                  border: '1px solid var(--border-strong, var(--color-border-subtle))',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   transition: 'background var(--transition-fast), border-color var(--transition-fast)',
@@ -494,7 +494,7 @@ export const ExportView: React.FC = () => {
                   fontWeight: 'var(--font-semibold)',
                   color: 'var(--color-accent)',
                   background: 'transparent',
-                  border: '1px solid var(--border-strong, var(--color-border-subtle))',
+                  border: '1px solid var(--border-strong)',
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   transition: 'background var(--transition-fast), border-color var(--transition-fast)',
@@ -802,7 +802,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
     }
     return (
       <div key={idx} style={{
-        fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+        fontFamily: 'var(--font-sans)',
         fontSize: elem.type === 'heading' ? 'var(--text-sm)' : 'var(--text-xs)',
         fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
         color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.4,
@@ -821,7 +821,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const tableNum = elem.table_info?.table_number || (idx + 1);
       const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-sm)', margin: '12px 0' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Tabla {tableNum}
           </div>
@@ -862,7 +862,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
       const figNum = elem.image_info?.figure_number || 1;
       const caption = elem.image_info?.caption || 'Ilustración del proceso';
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-sm)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Figura {figNum}
           </div>
@@ -932,7 +932,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
           onScroll={onScrollRight}
           style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', backgroundColor: 'var(--canvas-bg)' }}
         >
-          <div style={{ backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)', padding: '36px 40px', borderRadius: 'var(--radius-sm)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)', minHeight: '100%' }}>
+          <div style={{ backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)', padding: '36px 40px', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)', minHeight: '100%' }}>
             {elements.map((elem: any, idx: number) => renderApaElem(elem, idx))}
           </div>
         </div>

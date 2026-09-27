@@ -123,12 +123,10 @@ beforeAll(async () => {
   /* Se CONGELAN dos bloques: el de las tarjetas del carrusel y el de los
      envoltorios de la vista previa. Los dos son de antes de este commit -este
      solo los reindento-, y sus literales (`rgba` de sombras y de la hoja, el
-     fallback de `--paper-white`, el `borderRadius: '4px'`) estan en el reporte
-     de T18 para triaje. No se tapan: su cuenta exacta queda FIJADA mas abajo,
-     asi que la deuda no crece en silencio, y este comentario marca que hay que
-     quitar cuando se arregle. Los dos marcadores de cada bloque se comprueban:
-     sin eso, un archivo reordenado dejaria la guarda sin region congelada y
-     "pasaria" sin mirar nada. */
+     fallback de `--paper-white`, el `borderRadius: '4px'`) estaban en el reporte
+     de T18 para triaje. T20 los saldó, y la cuenta de abajo quedó en cero; los
+     marcadores de cada bloque se comprueban igual: sin eso, un archivo reordenado
+     dejaria la guarda sin region congelada y "pasaria" sin mirar nada. */
   let resto = TIRA;
   for (const [ini, fin] of CONGELADOS) {
     const a = resto.indexOf(ini);
@@ -275,7 +273,47 @@ describe('T18 — tira y carrusel no cuentan historias distintas', () => {
       expect(within(pista).getByText(titulo, { selector: 'span' })).toBeTruthy();
     }
   });
-});
+
+  it('la tarjeta del carrusel se alcanza y se elige con el teclado', () => {
+    /* Una tarjeta que solo responde al clic es un modo que no se puede elegir
+       sin ratón. El control tiene que estar en el orden de tabulación, con
+       `role="button"`, y Enter y Espacio tienen que elegir. */
+    portada();
+    render(<CoverCarouselStudio />);
+    const pista = screen.getByTestId('cover-model-track');
+    const tarjetas = within(pista).getAllByRole('button');
+    expect(tarjetas).toHaveLength(ESTRATEGIAS.length);
+    for (const t of tarjetas) expect(t.getAttribute('tabindex')).toBe('0');
+
+    const uni = within(pista).getByRole('button', { name: /Institucional UNI/ });
+    uni.focus();
+    expect(document.activeElement).toBe(uni);
+    fireEvent.keyDown(uni, { key: 'Enter' });
+    expect(chip('Institucional UNI').getAttribute('aria-pressed')).toBe('true');
+    expect(estado().cover_mode).toBe('generate_uni_cover');
+
+    // Y Espacio, que además no debe dejar desplazar la página: `fireEvent`
+    // devuelve `false` cuando el evento fue cancelado.
+    const pro = within(pista).getByRole('button', { name: /Profesional APA/ });
+    expect(fireEvent.keyDown(pro, { key: ' ' })).toBe(false);
+    expect(estado().cover_mode).toBe('apa_pro');
+  });
+
+  it('la tarjeta de plantilla es una acción y no se anuncia como interruptor', () => {
+    /* Igual que su chip: abrir un selector de archivos no es un estado, y con
+       `aria-pressed` el lector de pantalla dice "no presionado". Con teclado,
+       además, tiene que abrir el selector. */
+    portada();
+    const abierto = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    render(<CoverCarouselStudio />);
+    const tarjeta = within(screen.getByTestId('cover-model-track')).getByRole('button', {
+      name: /Subir plantilla/,
+    });
+    expect(tarjeta.hasAttribute('aria-pressed')).toBe(false);
+    fireEvent.keyDown(tarjeta, { key: 'Enter' });
+    expect(abierto).toHaveBeenCalled();
+    abierto.mockRestore();
+  });});
 
 /* ── Las tres zonas ───────────────────────────────────────────────────────── */
 
@@ -392,17 +430,22 @@ describe('T18 — el chrome nuevo usa tokens declarados', () => {
     for (const radio of radios) expect(radio).toMatch(/^var\(--radius-/);
   });
 
-  it('la deuda literal de los bloques re-indentados no crece', () => {
-    /* Los dos bloques congelados (tarjetas y envoltorios de la vista previa) son
-       de antes de este commit, que solo los reindento. Sus literales están en el
-       reporte de T18 para triaje. La cuenta va FIJADA a proposito -ni sube ni
-       baja en silencio-, y cuando se arregle este numero baja y hay que
-       actualizarlo aqui. */
+  it('la deuda literal de los bloques re-indentados está saldada', () => {
+    /* Los dos bloques que T18 congeló —las tarjetas del carrusel y los
+       envoltorios de la vista previa— eran de antes de ese commit, que solo los
+       reindentó, y su cuenta exacta quedó FIJADA para que la deuda no creciera
+       en silencio. T20 la saldó: los `rgba` de las sombras son tokens
+       (`--shadow-sm`, `--shadow-accent`, `--shadow-card`, `--shadow-inset`), el
+       fallback de `--paper-white` desapareció, el `borderRadius: '4px'` es
+       `--radius-sm` y los seis `<svg>` a mano son iconos de lucide-react.
+       Los cuatro contadores quedan en CERO, y `noHardcodedColors.test.ts` los
+       vigila sobre el archivo entero ahora, así que esta cuenta ya no es la
+       única red: si vuelve un literal, salta allá con el nombre de la línea. */
     const cuenta = (re: RegExp) => (codigo(TARJETAS).match(re) || []).length;
-    expect(cuenta(/rgba?\(/g)).toBe(5);
-    expect(cuenta(/#[0-9a-fA-F]{3,8}\b/g)).toBe(1);
-    expect(cuenta(/var\(\s*--[a-z0-9-]+\s*,/gi)).toBe(1);
-    expect(cuenta(/borderRadius:\s*'(?!\s*var\()/g)).toBe(1);
+    expect(cuenta(/rgba?\(/g)).toBe(0);
+    expect(cuenta(/#[0-9a-fA-F]{3,8}\b/g)).toBe(0);
+    expect(cuenta(/var\(\s*--[a-z0-9-]+\s*,/gi)).toBe(0);
+    expect(cuenta(/borderRadius:\s*'(?!\s*var\()/g)).toBe(0);
   });
 
   it('cada token que usa el chrome nuevo está declarado en design-system.css', () => {
