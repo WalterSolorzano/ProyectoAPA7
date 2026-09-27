@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 # ── Claves de ambito ────────────────────────────────────────────────────────
 
@@ -218,6 +218,11 @@ RULE_SCOPES: Dict[str, str] = {
     "parafraisis_vs_cita": "marco_teorico",
     "portada_title_larga": PORTADA_KEY,
     "portada_punto_final": PORTADA_KEY,
+    # Las ocho universales baratas del spec §12 NO se declaran todas aca: cada
+    # una se declara en la misma linea donde se implementa, en `GLOBAL_CHECKS`.
+    # Declararlas todas aqui y programarlas mas adelante deja un commit con
+    # reglas muertas declaradas, que es justo lo que el guard de
+    # `test_toda_regla_global_declarada_tiene_implementacion` prohibe.
 }
 
 
@@ -476,3 +481,56 @@ def build_phase_map(elements: Sequence[Any]) -> Tuple[Dict[str, str], List[Phase
     if spans:
         spans[-1] = _close(spans[-1], len(elements))
     return phase_by_id, spans
+
+# ── Capa 2: reglas globales ─────────────────────────────────────────────────
+#
+# Las reglas GLOBALES corren en todo el documento, sin importar la fase. No
+# pueden recibir el ambito: si lo reciben, son de fase. Viven aca y no sueltas
+# dentro de `audit_elements` por la misma razon que las de fase viven en
+# `phase_findings`: para que "esta regla existe" sea una fila de un diccionario
+# y no un `if` que hay que encontrar en 500 lineas.
+#
+# Estas SI necesitan estado de documento —una sigla se define una vez, una
+# unidad se compara contra todo el texto, los conectores se cuentan por
+# frecuencia—, asi que reciben un contexto que se calcula UNA vez antes del
+# bucle, igual que hoy hace `repeat_muletilla`.
+
+
+class GlobalContext(NamedTuple):
+    """Estado de documento que las reglas globales necesitan.
+
+    `doc_words` es el largo REAL en palabras, porque las frecuencias de R-G63
+    se normalizan por mil palabras: tres "sin embargo" en un documento de 300
+    palabras es un problema y en uno de 12.000 no.
+    """
+    doc_words: int
+    seen_acronyms: frozenset
+    connector_counts: dict
+
+
+def build_global_context(elements: Sequence[Any]) -> GlobalContext:
+    textos = [(getattr(e, "text", "") or "") for e in elements]
+    return GlobalContext(
+        doc_words=sum(len(_WORD_SPLIT.findall(t)) for t in textos),
+        seen_acronyms=frozenset(),
+        connector_counts={},
+    )
+
+
+def global_findings(eid: str, text: str, ctx: GlobalContext, *, mk) -> List[Dict[str, Any]]:
+    """Hallazgos de las reglas globales sobre un parrafo.
+
+    Nunca recibe el ambito, y eso no es una omision: una regla que lo recibiera
+    seria de fase, y confundir las dos capas es exactamente el defecto que este
+    modulo vino a eliminar.
+    """
+    out: List[Dict[str, Any]] = []
+    for check in GLOBAL_CHECKS.values():
+        out.extend(check(eid, text, ctx, mk))
+    return out
+
+
+# Los ids son los del catalogo (spec §12) y el `kind` que viaja al frontend es
+# el mismo id: asi la fila de `PROOFREAD_SPECS` y el mapa de transparencia
+# hablan del mismo nombre.
+GLOBAL_CHECKS: Dict[str, Any] = {}

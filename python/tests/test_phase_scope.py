@@ -309,3 +309,47 @@ def test_el_flag_se_llama_cover_title_para_que_nadie_lo_reuse():
     import inspect
     from modules.phase_scope import phase_findings
     assert "is_cover_title" in inspect.signature(phase_findings).parameters
+
+
+# ── Capa de reglas globales ─────────────────────────────────────────────────
+
+def test_toda_regla_global_declarada_tiene_implementacion():
+    """El hermano del guard de criterios: una regla global declarada y sin
+    codigo es una regla muerta, y nadie la notaria — `phase_findings` solo
+    recorre los `criteria` de las fases, no estas."""
+    from modules.phase_scope import GLOBAL_CHECKS, RULE_SCOPES
+
+    # Las que ya viven sueltas dentro de `audit_elements` todavia no pasan por
+    # `global_findings`: se declaran aca para que el guard las cuente.
+    sueltas = {"first_person", "ai_phrase", "muletilla", "pegado", "ortografia",
+               "repeticion", "persona", "incompleta", "ambigua", "passive_voice",
+               "long_sentence", "ngram_repetition", "bloom_low"}
+    declaradas = {k for k, v in RULE_SCOPES.items() if v == "global"}
+    sin_codigo = sorted((declaradas - sueltas) - set(GLOBAL_CHECKS))
+    assert not sin_codigo, f"reglas globales declaradas sin implementacion: {sin_codigo}"
+
+
+def test_toda_regla_global_implementada_esta_declarada():
+    from modules.phase_scope import GLOBAL_CHECKS, RULE_SCOPES
+
+    declaradas = {k for k, v in RULE_SCOPES.items() if v == "global"}
+    huerfanas = sorted(set(GLOBAL_CHECKS) - declaradas)
+    assert not huerfanas, f"reglas implementadas sin ambito declarado: {huerfanas}"
+
+
+def test_un_texto_limpio_no_produce_hallazgos_globales():
+    # Review Focus 4: una regla global que encuentra algo siempre es un falso
+    # positivo. Un parrafo bien escrito tiene que salir vacio.
+    from modules.phase_scope import build_global_context, global_findings
+
+    texto = ("La desercion estudiantil se asocia a factores economicos y "
+             "familiares segun la literatura revisada. Estos factores se "
+             "midieron con una encuesta aplicada a 480 estudiantes.")
+    assert global_findings("e1", texto, build_global_context([]), mk=mk) == []
+
+
+def test_global_findings_no_recibe_el_ambito():
+    # Una regla global no puede mirar la fase: si lo hiciera, seria de fase.
+    import inspect
+    from modules.phase_scope import global_findings
+    assert "phase" not in inspect.signature(global_findings).parameters
