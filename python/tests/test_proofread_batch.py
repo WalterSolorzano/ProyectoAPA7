@@ -248,3 +248,44 @@ class TestAIReviewProactiveAuditor:
                 )
         finally:
             _cleanup_session(sid)
+
+
+# ── Ambitos de fase en la respuesta ──────────────────────────────────────────
+# Review Focus: el modo `texts` no trae H1 (los elementos llegan con
+# heading_level=None y type="paragraph"), luego no hay fase. Solo reglas
+# generales, y sin inventar una fase que el documento no declara.
+
+def test_la_respuesta_publica_los_ambitos_de_fase():
+    resp = client.post("/api/proofread-batch", json={
+        "texts": ["Conocer las causas del fenomeno en la muestra", "otro texto"],
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "phases" in data
+    # Sin H1, todo cae en portada: se reconoce, no se inventa nada.
+    assert [p["key"] for p in data["phases"]] == ["portada"]
+    assert data["phases"][0]["start_index"] == 0
+
+
+def test_todo_hallazgo_trae_fase():
+    resp = client.post("/api/proofread-batch", json={
+        "texts": ["Yo creo que si, el proceso fue evidente", "mal escrito esto"],
+    })
+    for f in resp.json()["findings"]:
+        assert "phase" in f
+        assert "read_only" in f
+
+
+def test_el_modo_texts_no_produce_reglas_de_fase():
+    # El texto lleva un verbo impreciso, pero nadie lo metio en una seccion de
+    # objetivos: sin H1 no hay fase, y sin fase no hay criterio de verbos.
+    resp = client.post("/api/proofread-batch", json={
+        "texts": ["Conocer las causas del fenomeno en la muestra"],
+    })
+    assert [f for f in resp.json()["findings"] if f["kind"] == "bloom_vague"] == []
+
+
+def test_la_respuesta_vacia_tambien_declara_phases():
+    resp = client.post("/api/proofread-batch", json={"texts": []})
+    assert resp.status_code == 200
+    assert resp.json()["phases"] == []
