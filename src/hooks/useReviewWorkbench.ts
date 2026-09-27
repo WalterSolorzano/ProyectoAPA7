@@ -400,6 +400,16 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const sessionId = doc?.session_id;
   useEffect(() => {
     seeded.current = false;
+    /* Los descartes y las marcas SON de un documento. Un id de hallazgo es
+       estable dentro de una sesión (id de elemento + tipo + rango, el texto
+       citado, la referencia), así que sobreviven a un reescaneo del MISMO
+       documento —que es lo que deben hacer— pero no tienen nada que ver con los
+       hallazgos de otro: sin este reinicio, abrir una segunda tesis cuyos
+       hallazgos caen sobre las mismas claves escondía los suyos detrás de
+       descartes que la persona nunca hizo aquí. La lista de findings y la de
+       descartes son del MISMO documento o no son nada. */
+    setDismissedIds([]);
+    setMarkedIds([]);
   }, [sessionId]);
 
   /* Solo el grupo más crítico abre por defecto, una vez por sesión de datos. */

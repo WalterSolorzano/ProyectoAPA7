@@ -70,6 +70,37 @@ interface ProofreadSpec {
 
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
+/* ── La IDENTIDAD de un hallazgo ───────────────────────────────────────────
+   `AuditItem.id` no es una etiqueta: es la clave de React del detalle, la que
+   filtra `dismissedIds` y la que anota `markedIds`. Con un id POSICIONAL
+   (`proact_${element_id}_${idx}`) las tres se rompen en cuanto la lista se
+   mueve, y la lista se mueve: una segunda corrida del motor devuelve los
+   mismos hallazgos en otro orden, resolver una cita fantasma la corre un
+   puesto, y abrir otro documento repite las posiciones. El descarte que la
+   persona acaba de hacer se queda apuntando al hallazgo que ocupa ese lugar, y
+   el hallazgo de al lado desaparece de la cola sin que nada lo diga.
+
+   La clave es CONTENIDO, y el contenido es lo que no cambia entre corridas:
+   el elemento y el tipo para el corrector, el elemento para el revisor, el
+   texto citado (con su elemento, porque la misma cita en dos párrafos son dos
+   apariciones) para las fantasma, y la referencia entera para las huérfanas. El
+   `element_id` va dentro a propósito, no por adorno: sin él, dos apariciones de
+   la misma cita en el mismo documento —el caso normal en una tesis— se
+   fundirían en un hallazgo, y descartar una se llevaría la otra.
+
+   El último recurso es un índice, y por eso `collectAuditItems` lo usa SOLO
+   para desempatar dos hallazgos que de verdad son indistinguibles (el mismo
+   elemento, tipo y rango: el mismo hallazgo reportado dos veces). Al ser un
+   desempate y no la identidad, cambiar la lista no lo mueve. */
+const clave = (...partes: Array<string | number | undefined | null>): string =>
+  partes
+    .map((p) => (p == null ? '' : String(p)))
+    .join('_')
+    // Un id es una clave de React y un valor de un `Set`: los separadores que
+    // vienen del contenido no pueden reescribir la separación del id.
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const DEL_MOTOR = (f: ProofreadSource) => clip(f.message, 70);
 
 const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
@@ -188,6 +219,21 @@ export function collectAuditItems(
   const byId = new Map(elements.map((e) => [e.id, e]));
   const page = pageOf ?? (() => null);
 
+  /* Dos ids iguales en la MISMA lista serían dos filas con la misma clave de
+     React y un descarte compartido: una borra las dos. Ningún motor debería
+     producirlos —la clave ya incluye todo lo que distingue un hallazgo de
+     otro—, así que esto es una red, no la identidad: si un backend futuro
+     duplica un hallazgo, se le da un sufijo y las dos filas siguen siendo
+     distinguibles. El sufijo cuenta REPETICIONES de la misma clave, no
+     posiciones: la lista puede reordenarse sin que el id se mueva. */
+  const vistos = new Set<string>();
+  const registrar = (base: string): string => {
+    let id = base;
+    for (let n = 2; vistos.has(id); n += 1) id = `${base}_${n}`;
+    vistos.add(id);
+    return id;
+  };
+
   // 1. Detector de IA: párrafos con probabilidad alta o categoría MEDIA+.
   for (const [idx, p] of (reviewResult?.paragraphs || []).entries()) {
     const score = p.ai_score || 0;
@@ -197,7 +243,10 @@ export function collectAuditItems(
     // y mostrarle un número al usuario sería inventarlo.
     const medido = score > 0;
     out.push({
-      id: `ai_rev_${p.element_id}_${idx}`,
+      // El elemento es la identidad del párrafo. Solo se recurre al índice
+      // cuando el revisor no lo trajo: sin él no hay nada estable, y un id
+      // ausente fundiría todos esos párrafos en un hallazgo.
+      id: registrar(clave('ai_rev', p.element_id || `origen_${idx}`)),
       element_id: p.element_id || '',
       category: 'ai',
       subtype: 'parrafo_ia',
@@ -214,10 +263,14 @@ export function collectAuditItems(
   }
 
   // 2. Hallazgos proactivos locales: TODOS los `kind` que emite el auditor.
-  for (const [idx, f] of (proofreadFindings ?? []).entries()) {
+  for (const f of proofreadFindings ?? []) {
     const row = proofreadRow(String(f.kind), f);
     out.push({
-      id: `proact_${f.element_id}_${idx}`,
+      // Elemento + tipo + rango: el tipo porque dos auditores señalan el mismo
+      // tramo por motivos distintos, y el rango porque `palabra_repetida`
+      // señala la misma palabra en cada repetición. El índice de la lista no
+      // entra: cambiar el orden de los motors no cambia qué es qué hallazgo.
+      id: registrar(clave('proact', f.element_id, String(f.kind), f.start, f.end)),
       element_id: f.element_id,
       category: row.category,
       subtype: row.subtype,
@@ -231,7 +284,7 @@ export function collectAuditItems(
   }
 
   // 3. Citas fantasma (aparecen en el texto, no en la bibliografía).
-  for (const [idx, ghost] of (citationAuditResult?.ghost_citations || []).entries()) {
+  for (const ghost of citationAuditResult?.ghost_citations || []) {
     const g = ghost as {
       element_id?: string;
       citation_text?: string;
@@ -239,7 +292,9 @@ export function collectAuditItems(
     };
     const texto = g.citation_text || g.raw_text || 'Desconocida';
     out.push({
-      id: `ghost_cite_${idx}`,
+      // Elemento + texto citado: el elemento porque la misma referencia citada
+      // en dos párrafos son dos apariciones que se resuelven por separado.
+      id: registrar(clave('ghost_cite', g.element_id, texto)),
       element_id: g.element_id || '',
       category: 'citations',
       subtype: 'cita_fantasma',
@@ -252,10 +307,13 @@ export function collectAuditItems(
   }
 
   // 4. Referencias huérfanas (en la bibliografía, nunca citadas).
-  for (const [idx, orphan] of (citationAuditResult?.orphan_references || []).entries()) {
+  for (const orphan of citationAuditResult?.orphan_references || []) {
     const o = orphan as { authors?: string[]; year?: string | number; raw_text?: string };
     out.push({
-      id: `orphan_ref_${idx}`,
+      // Sin elemento al que anclarse, la identidad es la referencia entera. La
+      // cruda manda porque distingue dos entradas del mismo autor y año; los
+      // autores y el año están detrás por si el backend no la manda.
+      id: registrar(clave('orphan_ref', o.raw_text || '', (o.authors || []).join(' '), o.year)),
       element_id: '',
       category: 'citations',
       subtype: 'referencia_huerfana',
@@ -274,7 +332,7 @@ export function collectAuditItems(
   for (const e of elements) {
     if (e.type === 'heading' && e.needs_review) {
       out.push({
-        id: `struct_head_${e.id}`,
+        id: registrar(`struct_head_${e.id}`),
         element_id: e.id,
         category: 'structure',
         subtype: 'encabezado',
@@ -286,7 +344,7 @@ export function collectAuditItems(
       });
     } else if (e.type === 'image' && !e.is_cover_section && !e.image_info?.caption) {
       out.push({
-        id: `struct_fig_${e.id}`,
+        id: registrar(`struct_fig_${e.id}`),
         element_id: e.id,
         category: 'structure',
         subtype: 'figura',
@@ -299,7 +357,7 @@ export function collectAuditItems(
       });
     } else if (e.type === 'table' && !e.table_info?.caption) {
       out.push({
-        id: `struct_tbl_${e.id}`,
+        id: registrar(`struct_tbl_${e.id}`),
         element_id: e.id,
         category: 'structure',
         subtype: 'tabla',

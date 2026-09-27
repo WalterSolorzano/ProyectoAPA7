@@ -119,6 +119,18 @@ export function ReviewWorkbench() {
     <div
       style={{
         flex: 1,
+        /* El alto tiene que ser EXPLÍCITO, y no por gusto: el padre de esta
+           vista (`App.tsx`) es una caja de bloque, así que `flex: 1` no estira
+           nada y el alto de la raíz saldría del contenido. Con un alto
+           indefinido, la pista `minmax(0, 1fr)` de abajo resuelve contra
+           max-content, las dos cajas que se desplazan crecen con su contenido
+           (y no desplazan nunca), y el padre las recorta sin que haya a dónde
+           llegar. Lo que se caía sin esto era el AUTO-AJUSTE: `cabe()`
+           compara `scrollHeight` contra `clientHeight` de una caja que jamás
+           desborda, así que "cabe" siempre y el tope de 26 líneas nunca llega a
+           morder. Todos los pasos hermanos lo declaran (`Step2HeadingsWizard`,
+           `Step3FiguresTablesWizard`); esta vista es el único lugar donde faltaba. */
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         minWidth: 0,

@@ -152,6 +152,32 @@ describe('T16 — ReviewWorkbench: las tres columnas', () => {
     expect(centro.style.overflow).toBe('hidden');
   });
 
+  it('la RAÍZ declara su alto: sin eso la cadena de alturas no cierra', () => {
+    /* El aserto de arriba mira la PISTA de la grilla, que es donde se rompe la
+       cadena hacia arriba, no donde se rompe. El padre de esta vista
+       (`App.tsx`) es una caja de BLOQUE, así que el `flex: 1` de la raíz no
+       la estira: sin un `height` explícito su alto sale del contenido, la
+       pista `minmax(0, 1fr)` resuelve contra max-content, y las dos cajas que
+       sí se desplazan crecen con lo que contienen. Lo que se rompe entonces es
+       el AUTO-AJUSTE: `cabe()` compara `scrollHeight` contra `clientHeight` de
+       una caja que nunca desborda, así que siempre "cabe" a 19px y el tope de
+       26 líneas nunca llega a morder — la función que da nombre a la rama
+       midiendo un nombre, no una altura.
+
+       jsdom no hace layout, así que esto no prueba geometría: ata la
+       DECLARACIÓN de la que la geometría depende. La medición en navegador se
+       reporta aparte. */
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
+    const { container } = render(<ReviewWorkbench />);
+    const raiz = container.firstElementChild as HTMLElement;
+    expect(raiz.style.height).toBe('100%');
+    /* Y la cadena entera, de arriba abajo: raíz → pista → centro. Las tres
+       mitades, porque basta que caiga una para que el auto-ajuste sea inerte. */
+    expect(raiz.style.minHeight).toBe('0px');
+    const pista = raiz.children[1] as HTMLElement;
+    expect(pista.style.gridTemplateRows).toBe('minmax(0, 1fr)');
+  });
+
   it('en ventana estrecha el rack se retira y el centro conserva el ancho', () => {
     store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
     fijarAncho(900);

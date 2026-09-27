@@ -341,6 +341,56 @@ describe('T12 — useReviewWorkbench', () => {
     expect(result.current.viewMode).toBe('focus');
   });
 
+  it('cargar otro documento devuelve sus descartes y sus marcas al vacío', () => {
+    /* Los descartes son decisiones sobre hallazgos de UN documento. Un id de
+       hallazgo es estable dentro de una sesión, así que tiene que sobrevivir a
+       un reescaneo del mismo documento (que es lo que quiere la persona: no
+       volver a descartar lo que ya descartó), pero no puede aplicarle a otro.
+       Sin el reinicio, un segundo documento cuyos hallazgos caen sobre las
+       mismas claves aparecía con filas faltantes y nadie había descartado
+       nada: una cola que pierde elementos sin aviso. */
+    useDocStore.setState({ proofreadFindings: [hallazgo()] });
+    const { result } = renderHook(() => useReviewWorkbench());
+    const [unico] = result.current.items;
+    act(() => result.current.dismiss(unico));
+
+    act(() => {
+      useDocStore.setState({
+        doc: { session_id: 'sesion-2', elements: [{ id: 'z1', type: 'paragraph', text: 'otro' }] } as never,
+        proofreadFindings: [hallazgo({ element_id: 'z1', kind: 'ortografia', start: 0, end: 6 })],
+      });
+    });
+    // El hallazgo del otro documento está, y no filtrado: el descarte de la
+    // sesión anterior ya no pesa sobre él.
+    expect(result.current.items.map((i) => i.element_id)).toEqual(['z1']);
+  });
+
+  it('descartar un hallazgo sobrevive a un reescaneo del MISMO documento', () => {
+    // La otra mitad de la misma regla: el reescaneo reordena la lista, y el
+    // descarte tiene que seguir apuntando al hallazgo que la persona descartó,
+    // no al que quede en su lugar.
+    const fantasma = (element_id: string, texto: string) => ({ element_id, citation_text: texto });
+    useDocStore.setState({
+      citationAuditResult: {
+        ghost_citations: [fantasma('e1', '(García, 2020)'), fantasma('e2', '(López, 2021)')],
+        orphan_references: [],
+      } as never,
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    const garcia = result.current.items.find((i) => i.originalText.includes('García'))!;
+    act(() => result.current.dismiss(garcia));
+    expect(result.current.items).toHaveLength(1);
+
+    // García se resolvió: la lista se acorta y lo de López corre al principio.
+    act(() => {
+      useDocStore.setState({
+        citationAuditResult: { ghost_citations: [fantasma('e2', '(López, 2021)')], orphan_references: [] } as never,
+      });
+    });
+    // La de López —que nadie descartó— sigue a la vista.
+    expect(result.current.items.map((i) => i.originalText)).toEqual(['(López, 2021)']);
+  });
+
   it('cargar otro documento vuelve a elegir su grupo más crítico', () => {
     useDocStore.setState({ proofreadFindings: [hallazgo()] });
     const { result } = renderHook(() => useReviewWorkbench());
