@@ -7,6 +7,7 @@ vi.mock('../api/backend', () => ({
   uploadDocxFile: vi.fn(), updateElement: vi.fn(), getApiBase: vi.fn(),
   getApiBaseAsync: vi.fn().mockResolvedValue('http://x'), fetchWithTrace: vi.fn(),
   resolveAssetUrl: vi.fn(), explainElement: vi.fn(), suggestCaption: vi.fn(),
+  recoverSession: vi.fn(), startBlankDocument: vi.fn(), createFromTemplate: vi.fn(),
 }));
 
 import * as api from '../api/backend';
@@ -177,5 +178,75 @@ describe('applyLayoutPagination', () => {
     useDocStore.getState().applyLayoutPagination(b);   // mismo contenido, otro orden
     expect(useDocStore.getState().layoutEcho).toBe(echo1);            // sin eco nuevo
     expect(useDocStore.getState().layoutCuts).toBe(cuts1);            // sin set de cortes (misma referencia)
+  });
+});
+
+describe('reset de layout en rutas de cambio de documento activo (round 2)', () => {
+  const simpleDoc = (sessionId: string, fileName: string) =>
+    ({
+      session_id: sessionId,
+      file_name: fileName,
+      elements: [{ id: 'e0', type: 'paragraph', text: 'x', page_number: 1 }],
+      meta: { page_count: 1 },
+      referencias: [],
+    }) as any;
+
+  // Estado "sucio" heredado del documento anterior: cortes + eco + aviso D-a.
+  const dirty = {
+    layoutCuts: { e1: [{ offset: 2, page: 3 }] },
+    layoutEcho: 5,
+    wordLayoutUnavailable: true,
+  };
+
+  type Route = [name: string, expectedSessionId: string, run: () => Promise<void>];
+  const routes: Route[] = [
+    [
+      'openSession (rama: tab existente)',
+      's-exist',
+      async () => {
+        useDocStore.setState({ tabs: [{ session_id: 's-exist', file_name: 'existente.docx' }] });
+        (api.recoverSession as any).mockResolvedValue(simpleDoc('s-exist', 'existente.docx'));
+        await useDocStore.getState().openSession('s-exist');
+      },
+    ],
+    [
+      'openSession (rama: nueva tab)',
+      's-nueva',
+      async () => {
+        useDocStore.setState({ tabs: [] });
+        (api.recoverSession as any).mockResolvedValue(simpleDoc('s-nueva', 'nueva.docx'));
+        await useDocStore.getState().openSession('s-nueva');
+      },
+    ],
+    [
+      'startBlankDocument',
+      's-blank',
+      async () => {
+        (api.startBlankDocument as any).mockResolvedValue(simpleDoc('s-blank', 'blanco.docx'));
+        await useDocStore.getState().startBlankDocument();
+      },
+    ],
+    [
+      'createFromTemplate',
+      's-tpl',
+      async () => {
+        (api.createFromTemplate as any).mockResolvedValue(simpleDoc('s-tpl', 'plantilla.docx'));
+        await useDocStore.getState().createFromTemplate('tpl');
+      },
+    ],
+  ];
+
+  beforeEach(() => {
+    useDocStore.setState({ doc: simpleDoc('s1', 't.docx'), ...dirty });
+  });
+
+  it.each(routes)('%s: instala doc nuevo y devuelve los 3 campos al valor inicial', async (_name, sessionId, run) => {
+    await run();
+    const s = useDocStore.getState();
+    // La ruta DEBE instalar el documento (si no, el test sería vacuo).
+    expect(s.doc!.session_id).toBe(sessionId);
+    expect(s.layoutCuts).toBeNull();
+    expect(s.layoutEcho).toBe(0);
+    expect(s.wordLayoutUnavailable).toBe(false);
   });
 });

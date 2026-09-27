@@ -130,6 +130,22 @@ function cutsSignature(cuts: Record<string, { offset: number; page: number }[]> 
   );
 }
 
+/** Campos de reset de la verdad COM del motor de render: cortes, eco y aviso
+ *  D-a pertenecen al documento ANTERIOR. Se aplican SIEMPRE que una ruta
+ *  instale un documento activo distinto (upload, openSession, blanco,
+ *  plantilla). En este mismo slice no existe otra ruta que cambie la sesión
+ *  activa: undo/redo navegan el history de la sesión activa y el resto de
+ *  `set({ doc })` son mutaciones in-place con el mismo `session_id`.
+ *  (Los resets por pestaña viven en uiSlice: switchToTab/removeTab, slice
+ *  distinto → fuera de este helper a propósito.) */
+function layoutResetFields() {
+  return {
+    layoutCuts: null as Record<string, { offset: number; page: number }[]> | null,
+    layoutEcho: 0,
+    wordLayoutUnavailable: false,
+  };
+}
+
 export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocState>> = (set, get) => ({
   doc: null,
   // ── Fase 2 — Motor de render híbrido: verdad COM en vivo ──
@@ -298,6 +314,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
             selectedElementId: null,
             selectedReferenceId: null,
             scrollTargetId: null,
+            // Sesión recuperada → la verdad COM de la sesión anterior no aplica.
+            ...layoutResetFields(),
           };
         }
         const newTab = { session_id: recovered.session_id, file_name: recovered.file_name };
@@ -317,6 +335,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           selectedElementId: null,
           selectedReferenceId: null,
           scrollTargetId: null,
+          // Sesión recuperada → la verdad COM de la sesión anterior no aplica.
+          ...layoutResetFields(),
         };
       });
     } catch (err: any) {
@@ -416,9 +436,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           wizardStep: 1,
           liveChatOpen: false,
           // Documento nuevo → la verdad COM del doc anterior no aplica aquí.
-          layoutCuts: null,
-          layoutEcho: 0,
-          wordLayoutUnavailable: false,
+          ...layoutResetFields(),
         };
       });
       if (doc.portada?.fields && Object.keys(doc.portada.fields).length > 0) {
@@ -469,6 +487,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
+          // Documento nuevo → la verdad COM del doc anterior no aplica aquí.
+          ...layoutResetFields(),
         };
       });
     } catch (err: any) {
@@ -499,6 +519,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
+          // Documento nuevo → la verdad COM del doc anterior no aplica aquí.
+          ...layoutResetFields(),
         };
       });
       get().showToast('Documento creado desde la plantilla: completá la portada y escribí.', 'success');
