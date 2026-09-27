@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { railPendingInputFrom } from './hooks/useRailDestinations';
 import { pendingCountForPhase as pendingCountForPhaseIn } from './lib/railPending';
+import { crearRefrescador, refrescarDesdeWord } from './lib/wordRefresh';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
 import { TemplateDialog } from './components/shared/TemplateDialog';
@@ -260,23 +261,34 @@ export const App: React.FC = () => {
 
   // ── Sincronización en Paralelo con Word (Live Watcher) ──────────────────────
   const activeFilePath = useDocStore((s) => s.activeFilePath);
+  const sessionId = doc?.session_id;
   useEffect(() => {
     const ew = window as any;
-    if (!ew.electronAPI?.watchDocumentFile || !activeFilePath) return;
+    if (!ew.electronAPI?.watchDocumentFile || !activeFilePath || !sessionId) return;
 
+    // Lo que dice el aviso lo decide el DIFF, no el watcher. Antes este bloque
+    // decia "el documento esta sincronizado" sin reparsear nada: la frase
+    // describia un trabajo que no se hacia. `mensajeDeRefresco` es lo unico que
+    // arma texto aca, y hay pruebas que le prohiben esas palabras.
+    //
+    // El "una vez a la vez" vive adentro del refrescador y no en el disparador:
+    // si estuviera aca, dos disparos seguidos abririan dos lecturas del mismo
+    // `.docx`, y la segunda se llevaria un `BadZipFile` que no es real.
+    const refrescador = crearRefrescador({
+      pedir: (ruta) => refrescarDesdeWord(sessionId, ruta),
+      avisar: (texto, tipo) => useDocStore.getState().showToast(texto, tipo),
+      archivo: () => activeFilePath,
+    });
     const cleanup = ew.electronAPI.watchDocumentFile(
       activeFilePath,
-      (data: { filePath: string; fileName: string; timestamp: number }) => {
-        useDocStore.getState().showToast(
-          `Word guardó cambios en "${data.fileName}". El documento está sincronizado.`,
-          'info'
-        );
+      (_data: { filePath: string; fileName: string; timestamp: number }) => {
+        void refrescador.refrescar();
       }
     );
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [activeFilePath]);
+  }, [activeFilePath, sessionId]);
 
   // ── Global backend readiness ──────────────────────────────────────────────
   // CRITICAL: Cuando el backend se vuelve ready, reseteamos el cache de

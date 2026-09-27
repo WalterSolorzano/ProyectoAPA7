@@ -1,0 +1,233 @@
+/**
+ * Lo que el watcher de Word le dice a la persona, deducido del diff y solo del diff.
+ *
+ * EL PROBLEMA QUE ESTE ARCHIVO EXISTE PARA ARREGLAR
+ *
+ * El watcher de Word (`App.tsx`) detectaba que el `.docx` cambio y mostraba un
+ * toast que decia "el documento esta sincronizado". No reparseaba, no reauditaba
+ * y no recargaba nada: la frase describia un trabajo que no se hacia. Es la clase
+ * de mentira que no se nota porque suena razonable, y es exactamente la que
+ * hace que una app deje de ser creible.
+ *
+ * La regla que la reemplaza cabe en una linea: **si el diff no lo prueba, no se
+ * dice**. Ni "sincronizado", ni "revisado", ni "actualizado". El texto se arma
+ * con los conteos que vuelven del backend y nada mas, y por eso hay pruebas que
+ * recorren todos los caminos verificando que esas palabras no aparezcan.
+ *
+ * HAY UN SEGUNDO CASO QUE MAS SE VA A REPETIR, Y NO ES UN ERROR
+ *
+ * Un `.docx` es un ZIP y Word lo reescribe entero en cada guardado, mientras el
+ * watcher mira cada 5 segundos. Leerlo en medio de eso es lo NORMAL, no la
+ * excepcion: `parse_docx_bytes` revienta con `BadZipFile` y el backend lo
+ * traduce a `{listo: false}` en vez de a un 500. Por eso `listo: false` no
+ * produce ningun aviso: no hay nada que contar y un error aqui seria mentir de
+ * otra manera, culpando al usuario de algo que no hizo.
+ *
+ * UN `.docx` A MEDIAS ESCRIBIR NO ES UN DOCUMENTO CON MENOS PARRAFOS
+ *
+ * Esa confusion es el fallo caro. Si "a medias escribir" se tratara como un
+ * documento vacio, el diff saldria limpio y la app diria "no cambio nada" — que
+ * es una afirmacion, y es falsa: no se pudo mirar. Lo que se sabe cuando el
+ * archivo esta a medias es que no se sabe nada.
+ *
+ * LO QUE ESTE ARCHIVO NO HACE, Y ES DELIBERADO
+ *
+ * No recarga el documento en memoria ni dispara los motores. El diff solo dice
+ * que texto entro; todavia no hay veredicto sobre el, asi que decir "se
+ * reaudito" seria falso. Ese bucle —recargar, reauditar lo nuevo, reusar lo que
+ * no se toco— vive en el registro de auditoria; este modulo se limita a no
+ * mentir antes de tiempo.
+ */
+
+import { getApiBase } from '../api/http';
+
+export interface ElementoDiff {
+  id: string;
+  hash: string;
+  nuevo: boolean;
+}
+
+export interface DiffWord {
+  session_id: string;
+  /** `false` cuando el archivo se estaba escribiendo: no se pudo mirar. */
+  listo: boolean;
+  /** Solo con `listo: false`: por que no se pudo. */
+  motivo?: string;
+  /** Texto del error de transporte, si lo hubo. */
+  error?: string;
+  /** El documento, o su estructura, cambio algo que el diff si ve. */
+  cambiado: boolean;
+  hash_estructura: string;
+  elementos: ElementoDiff[];
+  ids_nuevos: string[];
+  ids_eliminados: string[];
+}
+
+export type MensajeRefresco = { texto: string; tipo: 'info' | 'success' | 'warning' };
+
+/**
+ * El viaje al backend, con los errores traducidos a cosas que el visor sabe
+ * leer.
+ *
+ * Un `404` NO se propaga como excepcion: es el unico error de este camino que
+ * significa algo concreto —el archivo no esta donde la app cree— y se traduce a
+ * `listo: false, motivo: 'no_existe'` para que el mensaje pueda nombrarlo. La
+ * diferencia con "todavia no" es la diferencia entre "reintenta solo" y
+ * "decile a la persona que mueva el archivo", y confundirlas hace que un
+ * archivo renombrado parezca un glitch de cinco segundos.
+ */
+export async function refrescarDesdeWord(
+  sessionId: string,
+  ruta: string
+): Promise<DiffWord> {
+  const res = await fetch(`${getApiBase()}/refresh-from-word/${sessionId}?ruta=${encodeURIComponent(ruta)}`, {
+    method: 'POST',
+  });
+  if (res.status === 404) {
+    return {
+      session_id: sessionId,
+      listo: false,
+      motivo: 'no_existe',
+      error: 'HTTP 404',
+      cambiado: false,
+      hash_estructura: '',
+      elementos: [],
+      ids_nuevos: [],
+      ids_eliminados: [],
+    };
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** "3 párrafos nuevos", "1 párrafo nuevo": el plural no es decorativo, es gramática. */
+function enPlural(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+/**
+ * Que se dice de un diff. `null` es una respuesta valida y es la mayoria de las
+ * veces: el watcher dispara cada 5 segundos y casi siempre no hay nada que
+ * contar, asi que un aviso por guardado seria ruido con forma de informacion.
+ */
+export function mensajeDeRefresco(diff: DiffWord, nombreArchivo: string): MensajeRefresco | null {
+  // Un archivo a medio escribir: todavia no. Se reintenta solo.
+  if (!diff.listo) {
+    // Un `404` SI es un problema real y con nombre —el archivo no esta ahi— y se
+    // dice. Lo que no se hace es distinguir "todavia no" de "no se pudo": el
+    // primero se reintenta solo y el segundo no, y mezclarlos hace que un
+    // archivo movido de carpeta parezca un glitch.
+    if (diff.motivo === 'no_existe' || (diff.error && /404/.test(diff.error))) {
+      return {
+        texto: `No se encuentra "${nombreArchivo}". Si lo moviste o lo renombraste, actualiza la ruta del documento.`,
+        tipo: 'warning',
+      };
+    }
+    return null;
+  }
+
+  // Word guardo y no cambio ni un texto ni la estructura de titulos: estilos, una
+  // imagen, una propiedad del documento. No hay nada que contar y el aviso
+  // seria ruido.
+  if (!diff.cambiado) return null;
+
+  const nuevos = diff.ids_nuevos.length;
+  const eliminados = diff.ids_eliminados.length;
+
+  if (nuevos === 0 && eliminados === 0) {
+    // Solo cambio la estructura: los textos siguen siendo los mismos y las
+    // listas de parrafos no cambiaron. Eso pasa cuando alguien mueve o borra un
+    // titulo en Word, y es informacion real — un H1 organiza todo lo que tiene
+    // debajo— asi que se nombra en vez de inventar un conteo de parrafos.
+    return {
+      texto: `Word guardó cambios en "${nombreArchivo}": se movieron los títulos.`,
+      tipo: 'info',
+    };
+  }
+
+  const partes: string[] = [];
+  if (nuevos > 0) partes.push(enPlural(nuevos, 'párrafo nuevo', 'párrafos nuevos'));
+  if (eliminados > 0) partes.push(enPlural(eliminados, 'párrafo eliminado', 'párrafos eliminados'));
+
+  return {
+    texto: `Word guardó cambios en "${nombreArchivo}": ${partes.join(' y ')}.`,
+    tipo: 'info',
+  };
+}
+
+export interface RefrescadorDeps {
+  /** Llamada al backend. Se inyecta para que la prueba no dependa de la red. */
+  pedir: (ruta: string) => Promise<DiffWord>;
+  avisar: (texto: string, tipo: 'info' | 'success' | 'warning') => void;
+  /** La ruta del archivo que Word tiene abierto, o `null` si no hay. */
+  archivo: () => string | null;
+}
+
+export interface Refrescador {
+  refrescar: () => Promise<void>;
+  /** Si hay un refresco en vuelo, para que la UI pueda no depender de el. */
+  pendiente: () => boolean;
+}
+
+/**
+ * El watcher, con las dos garantias que un `setTimeout` no da.
+ *
+ * UNA A LA VEZ. El watcher dispara cada 5 segundos y releer el archivo entero
+ * dos veces en paralelo es leer el mismo `.docx` mientras el otro lo esta
+ * leyendo: el que llega segundo se lleva un `BadZipFile` que no es real, y el
+ * que llega primero pudo haber leido un archivo a medio escribir.
+ *
+ * PERO SIN PERDER UN GUARDADO. Un Ctrl+S que cae en medio del refresco no se
+ * descarta: se marca y se vuelve a mirar cuando el anterior termina. Si se
+ * tirara, la pantalla no se enteraria nunca y el fallo seria invisible — que es
+ * la peor clase de fallo, porque no hay nada que reportar.
+ *
+ * UN ERROR NO MUERE EL WATCHER. Si `refrescar` propaga la excepcion, el
+ * `useEffect` que lo llama se cae y el watcher deja de existir para el resto de
+ * la sesion: Word guarda veinte veces y no pasa absolutamente nada. Un backend
+ * que recien arranco no puede dejar la app sin vigilante.
+ */
+export function crearRefrescador(deps: RefrescadorDeps): Refrescador {
+  let enVuelo = false;
+  let hayQueVolverAMirar = false;
+
+  async function unaPasada(): Promise<void> {
+    const ruta = deps.archivo();
+    if (!ruta) return;
+    try {
+      const diff = await deps.pedir(ruta);
+      const mensaje = mensajeDeRefresco(diff, nombreDe(ruta));
+      if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
+    } catch (e) {
+      // No se avisa del error de transporte: si el backend esta reiniciandose,
+      // sale un toast por cada 5 segundos hasta que alguien lo reinicie a mano.
+      // Lo unico que hace falta es no morir y volver a mirar al proximo guardado.
+      void e;
+    }
+  }
+
+  async function refrescar(): Promise<void> {
+    if (enVuelo) {
+      hayQueVolverAMirar = true;
+      return;
+    }
+    enVuelo = true;
+    try {
+      do {
+        hayQueVolverAMirar = false;
+        await unaPasada();
+      } while (hayQueVolverAMirar);
+    } finally {
+      enVuelo = false;
+    }
+  }
+
+  return { refrescar, pendiente: () => enVuelo };
+}
+
+/** El nombre pelado, sin la ruta: una ruta local completa en un toast es ruido
+ * y a veces es informacion que no hace falta mostrar. */
+function nombreDe(ruta: string): string {
+  const partes = ruta.split(/[\\/]/);
+  return partes[partes.length - 1] || ruta;
+}
