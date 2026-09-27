@@ -206,6 +206,11 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   references: [],
   validationIssues: [],
   hasUnsavedChanges: false,
+  /* El estado del chip de guardado arranca sin hora y sin vuelo. "Sin hora"
+     porque al abrir la app todavía no se guardó nada en esta sesión, y el chip
+     lo dice a secas en vez de inventar un "hace 0 min". */
+  lastSavedAt: null,
+  isSaving: false,
   setHasUnsavedChanges: (val) => set({ hasUnsavedChanges: val }),
   setApiKey: (key) => {
     try { localStorage.setItem('wordapa7-provider-key:NVIDIA_API_KEY', key); } catch { /* noop */ }
@@ -347,11 +352,16 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   saveSnapshot: async () => {
     const { doc } = get();
     if (!doc) return;
+    set({ isSaving: true });
     try {
       await api.saveSessionSnapshot(doc.session_id);
-      set({ hasUnsavedChanges: false });
-      get().showToast('Progreso guardado', 'success');
+      /* La hora se fija acá y no con la latencia de la llamada: el chip informa
+         de cuándo quedó guardado, no de cuánto tardó el servidor. Medir el
+         reloj del cliente alrededor del `await` incluiría la red en la
+         respuesta a "¿cuándo se guardó?", que es una pregunta distinta. */
+      set({ hasUnsavedChanges: false, lastSavedAt: Date.now(), isSaving: false });
     } catch (err: any) {
+      set({ isSaving: false });
       get().showToast(err.message || 'Error al guardar', 'error');
     }
   },
@@ -535,7 +545,24 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     const newHistory = state.history.slice(0, state.historyIndex + 1);
     newHistory.push(structuredClone(doc));
     if (newHistory.length > 50) newHistory.shift();
-    return { history: newHistory, historyIndex: newHistory.length - 1, hasUnsavedChanges: true };
+    /* `pushHistory` es el punto donde el SERVIDOR ya confirmó: se la llama con
+       el documento que volvió de la mutación, y cada una de esas mutaciones
+       persiste server-side. Por eso la hora del chip se sella acá y no en un
+       guardado aparte —que además no lo llama nadie—: si se sellara en un
+       temporizador, el chip iría diciendo "hace 0 min" con cambios que el
+       servidor todavía no vio.
+
+       Y `hasUnsavedChanges` sigue significando lo que siempre significo: hay
+       trabajo sin confirmar en ESTA sesión, que es lo que usa el aviso de
+       descartar. No es "el servidor no lo tiene", y por eso el chip ya no lo
+       usa para su aviso. */
+    return {
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
+      hasUnsavedChanges: true,
+      lastSavedAt: Date.now(),
+      isSaving: false,
+    };
   }),
   undo: () => set((state) => {
     if (state.historyIndex <= 0 || !state.doc) return {};

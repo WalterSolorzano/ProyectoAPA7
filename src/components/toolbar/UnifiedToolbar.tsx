@@ -2,17 +2,62 @@
    Izquierda: logo/Archivo, título y chip "Guardado". Derecha: Copiloto,
    botón de más acciones y avatar. Todo lo demas vive en ToolbarOverflowMenu. */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { BookOpen, Check, AlertCircle, MoreHorizontal, Sparkles } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, Check, Loader2, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
+/** "hace 2 min", o `null` si todavía no se sabe cuándo se guardó.
+ *
+ *  `null` es la respuesta para "no lo sé", y por eso se devuelve en vez de
+ *  inventar un "hace 0 min": un reloj que arranca en cero en cuanto se abre la
+ *  app es un reloj que dice que acabás de guardar algo que no guardaste.
+ *
+ *  Y pasa a horas pasada la hora, porque "hace 61 min" no informa de nada y
+ *  ocupa más ancho que "hace 1 h". */
+export function tiempoRelativo(lastSavedAt: number | null, ahora = Date.now()): string | null {
+  if (lastSavedAt == null) return null;
+  const minutos = Math.floor((ahora - lastSavedAt) / 60_000);
+  if (minutos < 1) return '0 min';
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return `${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
 export function UnifiedToolbar() {
   const doc = useDocStore((s) => s.doc);
   const hasUnsavedChanges = useDocStore((s) => s.hasUnsavedChanges);
+  const lastSavedAt = useDocStore((s) => s.lastSavedAt);
+  const isSaving = useDocStore((s) => s.isSaving);
+  /* La hora avanza sola. `lastSavedAt` es un número y no cambia; si no lo
+     miramos con un temporizador, "hace 2 min" se queda congelado en 2 para
+     siempre y un reloj que miente es peor que no tener reloj. Se re-renderiza
+     una vez por minuto: más fino sería gasto de CPU para un texto que la
+     persona lee de reojo. */
+  /* El VALOR del tick, no su setter. `setState` devuelve una función estable en
+     todas las rendereizadas, así que ponerlo en las dependencias del `memo` no
+     cambiaba nunca: el reloj se congelaba en "hace 0 min" para siempre. Es el
+     error clásico de depender de un setter, y la prueba lo agarró porque el
+     texto que buscaba era exactamente el número congelado. */
+  const [tick, forzarTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forzarTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  /* SOLO `isSaving`. `hasUnsavedChanges` dejó de mandarlo: significa "hay
+     trabajo sin confirmar en esta sesión" y lo levanta `pushHistory`, que se
+     llama después de que el servidor ya guardó — usarlo hacía que la barra
+     anunciara "Sin guardar" con el documento en el servidor. */
+  const esGuardando = isSaving;
+  const haceCuanto = useMemo(
+    () => tiempoRelativo(lastSavedAt),
+    [lastSavedAt, isSaving, tick],
+  );
   const showFileMenu = useDocStore((s) => s.showFileMenu);
   const setShowFileMenu = useDocStore((s) => s.setShowFileMenu);
   const liveChatOpen = useDocStore((s) => s.liveChatOpen);
@@ -116,18 +161,39 @@ export function UnifiedToolbar() {
             >
               {doc.file_name || 'Documento sin título'}
             </span>
-            {/* El chip afirma lo que el store afirma: hasUnsavedChanges lo levanta
-                documentSlice en cada cambio de historial y lo bajan las
-                exportaciones, y FileMenu lo lee antes de descartar el documento.
-                Mostrar "Guardado" sin mirar ese campo seria mentir. */}
+            {/* EL CHIP DE GUARDADO. Muestra cuándo quedó guardado el documento,
+                no cuándo YOU decidiste guardarlo: el backend ya persiste en
+                cada mutación (`save_session_state` en diez endpoints), así que
+                la pregunta que responde es "¿el servidor tiene mi última
+                versión?" y la hora viene de `lastSavedAt`.
+
+                Y NO usa `hasUnsavedChanges` para el aviso, que era el defecto:
+                ese flag significa "hay trabajo sin confirmar en esta sesión" y
+                lo levanta `pushHistory`, que se llama DESPUÉS de que el
+                servidor ya guardó. Con él, la app decía "Sin guardar" con el
+                documento guardado — un aviso falso en la barra de arriba, que
+                es el lugar donde nadie perdona una mentira. La señal honesta de
+                "falta guardar" es `isSaving`: hay una mutación en vuelo y el
+                servidor todavía no confirmó. */}
             <span
-              title={hasUnsavedChanges ? 'Hay cambios sin guardar. Se guardan automáticamente.' : 'Progreso guardado automáticamente.'}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: hasUnsavedChanges ? 'var(--color-warning)' : 'var(--color-text-tertiary)' }}
+              title={esGuardando
+                ? 'Guardando en el servidor…'
+                : 'Este documento se guarda automáticamente en el servidor. Para bajar el .docx, usá Exportar.'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 'var(--text-xs)',
+                color: esGuardando ? 'var(--color-warning)' : 'var(--color-text-tertiary)',
+                /* La hora sola NO es un anuncio cambiante: sin esta marca se
+                   muta el texto del medio y eso se lee como alerta, no como un
+                   reloj. Con la línea de fondo no. */
+                WebkitLineClamp: 1,
+              }}
             >
-              {hasUnsavedChanges
-                ? <AlertCircle size={11} strokeWidth={1.75} aria-hidden />
+              {esGuardando
+                ? <Loader2 size={11} strokeWidth={1.75} aria-hidden />
                 : <Check size={11} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-success)' }} />}
-              {hasUnsavedChanges ? 'Sin guardar' : 'Guardado'}
+              {esGuardando ? 'Guardando…' : 'Guardado'}
+              {!esGuardando && haceCuanto && <span>{` · hace ${haceCuanto}`}</span>}
             </span>
           </>
         )}

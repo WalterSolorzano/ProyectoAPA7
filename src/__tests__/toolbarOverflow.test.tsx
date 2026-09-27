@@ -181,15 +181,23 @@ describe('T7 — la barra mínima', () => {
   });
 
   it('el chip de guardado refleja el estado real del documento', () => {
-    useDocStore.setState({ doc: DOC_B, hasUnsavedChanges: false } as never);
+    /* `hasUnsavedChanges` dejó de mandar el chip, y esta prueba es la que lo
+       fijaba. La razón: ese flag lo levanta `pushHistory`, que se llama DESPUÉS
+       de que el servidor ya guardó, así que la barra anunciaba "Sin guardar"
+       con el documento en el servidor. Ver `chipGuardado.test.tsx`.
+
+       Ahora lo que manda es `isSaving`: hay una mutación en vuelo y el servidor
+       todavía no confirmó. Y el estado guardado lleva la hora. */
+    useDocStore.setState({ doc: DOC_B, hasUnsavedChanges: false, isSaving: false, lastSavedAt: null } as never);
     const { unmount } = render(<UnifiedToolbar />);
     expect(screen.getByText('Guardado')).toBeTruthy();
-    expect(screen.queryByText('Sin guardar')).toBeNull();
+    /* Sin `lastSavedAt` no se inventa una hora. */
+    expect(screen.queryByText(/hace/)).toBeNull();
     unmount();
 
-    useDocStore.setState({ hasUnsavedChanges: true } as never);
+    useDocStore.setState({ hasUnsavedChanges: true, isSaving: true, lastSavedAt: Date.now() } as never);
     render(<UnifiedToolbar />);
-    expect(screen.getByText('Sin guardar')).toBeTruthy();
+    expect(screen.getByText('Guardando…')).toBeTruthy();
     expect(screen.queryByText('Guardado')).toBeNull();
   });
 

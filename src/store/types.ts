@@ -268,6 +268,26 @@ export interface DocState {
 
   hasUnsavedChanges: boolean;
   setHasUnsavedChanges: (val: boolean) => void;
+  /**
+   * CUÁNDO quedó guardado el documento por última vez, en epoch ms, o `null`
+   * si todavía no se sabe.
+   *
+   * El backend ya guarda solo: `python/routers/sessions.py` llama a
+   * `save_session_state` en diez endpoints de mutación. Lo que faltaba era que
+   * la app lo DIJERA, y sin una marca de tiempo no puede: un chip que solo
+   * dice "Guardado" no le da a nadie ninguna confianza.
+   *
+   * `null` es un valor de verdad y no una comodidad: cuando todavía no se sabe,
+   * el chip dice "Guardado" a secas. Poner "hace 0 min" ahí sería inventar una
+   * hora para parecer vivo.
+   */
+  lastSavedAt: number | null;
+  /**
+   * Hay un guardado en vuelo. Sin este tercer estado el reloj miente: entre
+   * una edición y la siguiente el documento ya está limpio y el chip diría
+   * "Guardado" aunque nada se acabara de escribir.
+   */
+  isSaving: boolean;
 
   // Acciones Principales
   sugerenciasProactivas: boolean;
