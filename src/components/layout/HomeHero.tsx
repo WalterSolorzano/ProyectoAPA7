@@ -235,7 +235,24 @@ function drawCrescentMoon(
   ctx.restore();
 }
 
-function drawCartoonSun(
+/**
+ * El sol: una fuente de luz, no un personaje.
+ *
+ * Lo que habia antes eran doce puas gruesas de punta redonda (el comentario del
+ * código las llamaba "chunky spiky rays"), dos óvalos por ojo y un arco de
+ * sonrisa. Eso es un sol de dibujos animados, y el usuario lo identificó como
+ * tal al mirar la pantalla: "se ve demasiado de niño". No es una cuestión de
+ * gusto ni de saturación, es un registro visual, y lo que lo cambia es dejar de
+ * dibujar una cara.
+ *
+ * Ahora: una CORONA de tres paradas y un disco con degradado interior. Es
+ * degradado radial y no lineal porque el color de un sol baja hacia el borde en
+ * todas las direcciones a la vez. Y sin púas: una fuente de luz real no tiene
+ * bordes, y las púas son la mitad de lo que hace que un sol parezca un dibujo.
+ *
+ * `homeHeroSol.test.tsx` falla si vuelve a aparecer un óvalo.
+ */
+function drawSolCinematico(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
@@ -249,51 +266,26 @@ function drawCartoonSun(
   ctx.translate(cx, cy);
   ctx.rotate(rotation);
 
-  // Glow
-  const glow = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2.4);
-  glow.addColorStop(0, 'rgba(255,238,0,0.35)');
-  glow.addColorStop(0.5, 'rgba(255,215,0,0.12)');
-  glow.addColorStop(1, 'rgba(255,200,0,0)');
+  // La CORONA, que es lo único que hace que un disco se lea como sol.
+  const corona = ctx.createRadialGradient(0, 0, r * 0.9, 0, 0, r * 3.2);
+  corona.addColorStop(0, 'rgba(255, 226, 150, 0.30)');
+  corona.addColorStop(0.35, 'rgba(255, 208, 110, 0.12)');
+  corona.addColorStop(1, 'rgba(255, 200, 90, 0)');
   ctx.beginPath();
-  ctx.arc(0, 0, r * 2.4, 0, Math.PI * 2);
-  ctx.fillStyle = glow;
+  ctx.arc(0, 0, r * 3.2, 0, Math.PI * 2);
+  ctx.fillStyle = corona;
   ctx.fill();
 
-  // 12 chunky spiky rays
-  const rayCount = 12;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = color;
-  ctx.lineWidth = r * 0.28;
-  for (let i = 0; i < rayCount; i++) {
-    const a = (i / rayCount) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * (r * 1.08), Math.sin(a) * (r * 1.08));
-    ctx.lineTo(Math.cos(a) * (r * 1.72), Math.sin(a) * (r * 1.72));
-    ctx.stroke();
-  }
-
-  // Sun circle
+  // El disco. El degradado interior va de un blanco cálido al color que le pasa
+  // el llamador, y es lo que le da volumen a un círculo plano.
+  const disco = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  disco.addColorStop(0, 'rgba(255, 253, 240, 0.95)');
+  disco.addColorStop(0.65, color);
+  disco.addColorStop(1, color);
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fillStyle = color;
+  ctx.fillStyle = disco;
   ctx.fill();
-
-  // Eyes
-  ctx.fillStyle = '#333';
-  ctx.beginPath();
-  ctx.ellipse(-r * 0.3, -r * 0.15, r * 0.1, r * 0.13, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(r * 0.3, -r * 0.15, r * 0.1, r * 0.13, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Smile
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = r * 0.09;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.arc(0, r * 0.1, r * 0.38, 0.1, Math.PI - 0.1);
-  ctx.stroke();
 
   ctx.restore();
 }
@@ -866,7 +858,7 @@ export const HomeHero: React.FC = () => {
         }
         case 'manana': {
           // Cartoon sun top-center
-          drawCartoonSun(ctx, w * 0.78, h * 0.22, 36, sunRotation, '#ffee58');
+          drawSolCinematico(ctx, w * 0.78, h * 0.22, 36, sunRotation, '#ffee58');
           // Drifting clouds
           clouds.forEach((c) => {
             c.x = (c.x + c.speed) % 1.2;
@@ -877,7 +869,7 @@ export const HomeHero: React.FC = () => {
         case 'mediodia': {
           // Sun near zenith
           const pulse = 1 + 0.04 * Math.sin(tRef.current * 3);
-          drawCartoonSun(ctx, w * 0.5, h * 0.18, 38 * pulse, sunRotation, '#ffd740');
+          drawSolCinematico(ctx, w * 0.5, h * 0.18, 38 * pulse, sunRotation, '#ffd740');
           // Heat shimmer near horizon
           ctx.save();
           ctx.globalAlpha = 0.08;
@@ -901,7 +893,7 @@ export const HomeHero: React.FC = () => {
         }
         case 'tarde': {
           // Sun lower-right with warm long rays
-          drawCartoonSun(ctx, w * 0.82, h * 0.55, 32, sunRotation, '#ffa726');
+          drawSolCinematico(ctx, w * 0.82, h * 0.55, 32, sunRotation, '#ffa726');
           // Warm drifting clouds
           clouds.forEach((c) => {
             c.x = (c.x + c.speed * 0.8) % 1.2;
