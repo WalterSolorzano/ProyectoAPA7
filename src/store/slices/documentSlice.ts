@@ -973,6 +973,55 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       set({ isLoading: false });
     }
   },
+  resolveDoisBlock: async (text: string) => {
+    /* Tipo Zotero: pegar un bloque de DOIs, uno por linea, y que se arme la
+       lista. El backend ya deduplica por DOI normalizado y separa lo que
+       resolvio de lo que fallo, asi que aca solo se agregan las resueltas y se
+       reporta el resto: un DOI malo NO puede tirar abajo las otras 19. */
+    set({ isLoading: true });
+    try {
+      const res = await fetch(`${getApiBase()}/resolve-dois`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        get().showToast(`No se pudieron resolver los DOI (error ${res.status})`, 'error');
+        return;
+      }
+      const data = await res.json();
+      const resueltas: any[] = data.resueltas || [];
+      const fallidas: any[] = data.fallidas || [];
+      for (const r of resueltas) {
+        get().addReference({
+          id: `doi-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          authors: r.authors ?? [],
+          year: r.year ?? 's.f.',
+          title: r.title ?? '',
+          source: r.source ?? '',
+          doi_or_url: r.doi_or_url ?? '',
+          raw_text: r.apa_formatted ?? '',
+          formatted_apa: r.apa_formatted ?? '',
+        });
+      }
+      if (resueltas.length && !fallidas.length) {
+        get().showToast(`${resueltas.length} referencia(s) agregada(s)`, 'success');
+      } else if (resueltas.length && fallidas.length) {
+        get().showToast(
+          `${resueltas.length} agregada(s), ${fallidas.length} sin resolver: ` +
+          fallidas.map((f: any) => f.entrada).join(', '),
+          'warning',
+        );
+      } else if (fallidas.length) {
+        get().showToast(`Ninguno se pudo resolver: ${fallidas[0]?.entrada ?? ''}`, 'error');
+      }
+    } catch (e) {
+      console.error('Error resolving DOI block:', e);
+      get().showToast(e instanceof Error ? e.message : 'Error al resolver los DOI', 'error');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
   resolveGhostCitation: async (authors: string[], year: string) => {
     // NOTA: sin isLoading global — el overlay fullscreen de carga tapaba toda
     // la UI (parecía "volver al menú de carga"). El panel ya muestra su propio

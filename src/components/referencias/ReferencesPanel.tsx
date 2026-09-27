@@ -1,4 +1,4 @@
-/* WordAPA7 — Panel de Referencias compacto (RightSidePanel, paso 5).
+﻿/* WordAPA7 — Panel de Referencias compacto (RightSidePanel, paso 5).
    Mantiene el documento visible: la bibliografía se edita desde el panel
    derecho mientras el canvas muestra el texto completo. */
 
@@ -10,7 +10,7 @@ import { QuickReferenceSearch } from '../export/QuickReferenceSearch';
 export const ReferencesPanel: React.FC = () => {
   const {
     references, selectedReferenceId, setSelectedReferenceId,
-    addReference, removeReference, resolveDoiReference, isLoading,
+    addReference, removeReference, resolveDoisBlock, isLoading,
     citationAuditResult, runCitationAudit, setValidatorOpen, resolveGhostCitation, autoResolveAllGhostCitations,
   } = useDocStore();
 
@@ -24,7 +24,12 @@ export const ReferencesPanel: React.FC = () => {
     if (!rawInput.trim()) return;
     const text = rawInput.trim();
     setRawInput('');
-    resolveDoiReference(text);
+    /* Tipo Zotero: el mismo campo acepta UN DOI o un bloque de ellos, uno por
+       linea, y va SIEMPRE al endpoint de LOTE. Un solo camino, no dos que
+       divergen: el de un DOI es un caso de un elemento del lote, y el backend
+       lo resuelve igual. `resolveDoiReference` sigue existiendo para el add-in
+       y el uso programatico, pero el panel no lo usa. */
+    resolveDoisBlock(text);
     useDocStore.getState().showToast('Buscando DOI…', 'info');
   };
 
@@ -107,13 +112,18 @@ const handleResolveGhost = async (i: number) => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '5px 9px', backgroundColor: 'var(--canvas-bg)' }}>
           <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <input
-            type="text"
+          <textarea
+            aria-label="DOI o referencias"
             value={rawInput}
             onChange={(e) => setRawInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleResolveDoi(); }}
-            placeholder="DOI o cita cruda: García, A. (2023). …"
-            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: '12px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit' }}
+            /* Enter RESUELVE y Shift+Enter parte linea. Al reves no habria forma
+               de pegar un bloque de varios DOIs. */
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResolveDoi(); }
+            }}
+            rows={3}
+            placeholder="DOI o varios, uno por línea: 10.1038/s41586-020-2649-2"
+            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: '12px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit', resize: 'vertical' }}
           />
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>

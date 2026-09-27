@@ -173,7 +173,7 @@ WORK_UNO = {
 
 
 def test_resuelve_un_doi_y_lo_devuelve_en_la_forma_del_store(monkeypatch):
-    from routers import addin as addin_router
+    from routers import references as addin_router
 
     async def falso_get(url, **kw):
         class R:
@@ -204,7 +204,7 @@ def test_un_link_que_no_es_doi_dice_que_no_es_doi(monkeypatch):
 
 
 def test_un_doi_que_crossref_no_conoce_dice_que_no_se_encontro(monkeypatch):
-    from routers import addin as addin_router
+    from routers import references as addin_router
 
     async def falso_get(url, **kw):
         class R:
@@ -212,14 +212,14 @@ def test_un_doi_que_crossref_no_conoce_dice_que_no_se_encontro(monkeypatch):
         return R()
 
     monkeypatch.setattr(addin_router.httpx, "AsyncClient", _ClienteFalso(falso_get))
-    r = client.post("/api/resolve-doi", json={"doi": "10.9999/no-existe"})
+    r = client.post("/api/resolve-doi", json={"doi": "10.9999/no-existe-este"})
     assert r.status_code == 404
     assert r.json()["detail"]["codigo"] == "no_resuelto"
 
 
 def test_guardar_una_referencia_resuelta_pone_el_draft_en_definitiva(monkeypatch):
     from modules import addin_references_store as store
-    from routers import addin as addin_router
+    from routers import references as addin_router
 
     async def falso_get(url, **kw):
         class R:
@@ -272,3 +272,108 @@ def limpio():
     from modules.addin_references_store import clear
 
     clear()
+
+
+# ── Lote: pegar un bloque y que se arme la lista ────────────────────────────
+# Tipo Zotero: se seleccionan 20 papers en el navegador, se copia, se pega.
+# El bloque se resuelve ENTERO y lo que falla se reporta uno por uno, porque un
+# DOI malo no puede tirar abajo los otros 19.
+
+TRES = {
+    "message": {
+        "DOI": "10.1000/a", "title": ["Uno"], "container-title": ["Revista A"],
+        "author": [{"given": "A", "family": "Uno"}], "issued": {"date-parts": [[2020]]},
+    }
+}
+TRES_B = dict(TRES, message=dict(TRES["message"], DOI="10.1000/b", title=["Dos"]))
+
+
+def _mock(por_doi, monkeypatch):
+    from routers import references as ref_router
+
+    async def get(url, **kw):
+        # El DOI va tras "/works/" y CONTIENE "/" ("10.1000/a"), asi que no
+        # sirve un rsplit por "/": hay que cortar por el marcador.
+        doi = url.split("/works/", 1)[-1]
+        clase = type("R", (), {})
+        if doi in por_doi:
+            r = clase()
+            r.status_code = 200
+            # CrossRef envuelve en {"status","message"}; el endpoint hace
+            # `.get("message")`. Un fixture sin la envoltura hace que el
+            # mapeo reciba {} y la referencia salga vacia sin que se note.
+            r.json = lambda d=por_doi[doi]: {"status": "ok", "message": d["message"]}
+        else:
+            r = clase()
+            r.status_code = 404
+            r.json = lambda: {}
+        return r
+
+    monkeypatch.setattr(ref_router.httpx, "AsyncClient", _ClienteFalso(get))
+
+
+def test_lote_de_dois_todos_validos(monkeypatch):
+    _mock({"10.1000/a": TRES, "10.1000/b": TRES_B}, monkeypatch)
+    r = client.post("/api/resolve-dois", json={
+        "text": "10.1000/a\n10.1000/b"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["total"] == 2
+    assert len(d["resueltas"]) == 2
+    assert d["fallidas"] == []
+    assert {x["doi_or_url"] for x in d["resueltas"]} == {"10.1000/a", "10.1000/b"}
+
+
+def test_un_doi_malo_no_tira_abajo_el_lote(monkeypatch):
+    # Es lo esencial: 19 papers buenos y 1 malo tiene que dar 19.
+    _mock({"10.1000/a": TRES, "10.1000/b": TRES_B}, monkeypatch)
+    r = client.post("/api/resolve-dois", json={
+        "text": "10.1000/a\n10.9999/no-existe-este\n10.1000/b"})
+    d = r.json()
+    assert d["total"] == 3
+    assert len(d["resueltas"]) == 2
+    assert len(d["fallidas"]) == 1
+    assert d["fallidas"][0]["codigo"] == "no_resuelto"
+    assert d["fallidas"][0]["entrada"] == "10.9999/no-existe-este"
+
+
+def test_lineas_vacias_no_cuentan(monkeypatch):
+    _mock({"10.1000/a": TRES}, monkeypatch)
+    r = client.post("/api/resolve-dois", json={"text": "\n\n10.1000/a\n\n  \n"})
+    assert r.json()["total"] == 1
+
+
+def test_un_doi_repetido_se_resuelve_una_vez(monkeypatch):
+    # Pegar dos veces el mismo enlace no tiene que duplicar la referencia.
+    _mock({"10.1000/a": TRES}, monkeypatch)
+    r = client.post("/api/resolve-dois", json={
+        "text": "10.1000/a\nhttps://doi.org/10.1000/a\ndoi:10.1000/a"})
+    assert r.json()["total"] == 1
+    assert len(r.json()["resueltas"]) == 1
+
+
+def test_una_linea_que_no_es_doi_se_reporta_sin_matar_el_resto(monkeypatch):
+    _mock({"10.1000/a": TRES}, monkeypatch)
+    r = client.post("/api/resolve-dois", json={
+        "text": "Perez, A. (2020). Titulo de revista.\n10.1000/a"})
+    d = r.json()
+    assert len(d["resueltas"]) == 1
+    assert d["fallidas"][0]["codigo"] == "no_es_doi"
+
+
+def test_lote_vacio_no_es_error(monkeypatch):
+    r = client.post("/api/resolve-dois", json={"text": "   \n  "})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["total"] == 0
+    assert d["resueltas"] == []
+
+
+def test_el_lote_no_crea_referencias_por_si_solo(monkeypatch):
+    # Guardar es opt-in del llamador, igual que en el endpoint de uno.
+    _mock({"10.1000/a": TRES}, monkeypatch)
+    limpio()
+    client.post("/api/resolve-dois", json={"text": "10.1000/a"})
+    from modules.addin_references_store import list_references
+    assert list_references() == []
+    limpio()

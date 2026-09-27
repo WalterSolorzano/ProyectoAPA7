@@ -1,4 +1,4 @@
-"""Referencias: resolver un DOI a una referencia APA 7.
+﻿"""Referencias: resolver un DOI a una referencia APA 7.
 
 Vive en su propio router, y sin prefijo del `/api`, por una razon concreta:
 `documentSlice.resolveDoiReference` llama a `${getApiBase()}/resolve-doi`, o sea
@@ -11,7 +11,7 @@ llamador ya lee. Cambiar el consumidor para que calce con un backend nuevo es al
 reves: el que manda el contrato es el que ya esta en uso.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -29,6 +29,60 @@ class ResolveDoiRequest(BaseModel):
     pidio. Se activa con `guardar: true` desde los flujos que si usan ese store.
     """
     guardar: bool = False
+
+
+class ResolveDoisRequest(BaseModel):
+    """Un bloque de DOIs, uno por linea. Tipo Zotero: copiar y pegar."""
+    text: str
+    guardar: bool = False
+
+
+@router.post("/api/resolve-dois")
+async def resolve_dois(req: ResolveDoisRequest) -> Dict[str, Any]:
+    """Resuelve un BLOQUE de DOIs, uno por linea, y devuelve el lote.
+
+    Tipo Zotero: se seleccionan veinte papers en el navegador, se copian, se
+    pega. El bloque se resuelve entero y **lo que falla se reporta uno por uno**,
+    porque un DOI malo no puede tirar abajo los otros diecinueve: perder el
+    trabajo de veinte referencias por un typo es la peor falla posible de un
+    pegado masivo.
+
+    Reutiliza `resolve_doi` en vez de reimplementar la consulta a CrossRef: dos
+    caminos a la misma API significa que uno de los dos se queda sin arreglar.
+    """
+    from modules.doi_resolver import normalize_doi
+
+    lineas = [ln.strip() for ln in (req.text or "").splitlines()]
+    entradas: List[str] = []
+    vistas = set()
+    for ln in lineas:
+        if not ln:
+            continue
+        # Deduplicar POR NORMALIZADO: "10.1/a", "doi:10.1/a" y
+        # "https://doi.org/10.1/a" son el mismo DOI, y pegarlo dos veces no
+        # tiene que duplicar la referencia.
+        clave = normalize_doi(ln) or ln.lower()
+        if clave in vistas:
+            continue
+        vistas.add(clave)
+        entradas.append(ln)
+
+    resueltas: List[Dict[str, Any]] = []
+    fallidas: List[Dict[str, str]] = []
+
+    for entrada in entradas:
+        try:
+            resueltas.append(await resolve_doi(
+                ResolveDoiRequest(doi=entrada, guardar=req.guardar)))
+        except HTTPException as e:
+            det = e.detail if isinstance(e.detail, dict) else {"mensaje": str(e.detail)}
+            fallidas.append({
+                "entrada": entrada,
+                "codigo": str(det.get("codigo", "error")),
+                "mensaje": str(det.get("mensaje", "No se pudo resolver.")),
+            })
+
+    return {"total": len(entradas), "resueltas": resueltas, "fallidas": fallidas}
 
 
 @router.post("/api/resolve-doi")

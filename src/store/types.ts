@@ -326,6 +326,9 @@ export interface DocState {
 
   removeReference: (id: string) => void;
   resolveDoiReference: (doi: string) => Promise<void>;
+  /** Tipo Zotero: un bloque de DOIs, uno por linea. Lo que falla se reporta
+   *  sin tirar lo demas. */
+  resolveDoisBlock: (text: string) => Promise<void>;
   resolveGhostCitation: (authors: string[], year: string) => Promise<{
     id: string; authors: string[]; year: string; title: string;
     source: string; doi_or_url: string; raw_text: string; formatted_apa: string;
