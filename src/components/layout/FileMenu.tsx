@@ -6,12 +6,12 @@ import { listSessions, recoverSession } from '../../api/backend';
 import { SessionRecovery } from '../../types';
 import { UpdateCard } from '../shared/UpdateCard';
 import {
-  FileText, FilePlus, FolderOpen, Save, Download, X, ArrowLeft,
+  FileText, FilePlus, FolderOpen, Download, X, ArrowLeft,
   Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate,
   Type, Image, Table, ListOrdered, Quote,
 } from 'lucide-react';
 
-type FileMenuPage = 'home' | 'new' | 'open' | 'save' | 'export' | 'update';
+type FileMenuPage = 'home' | 'new' | 'open' | 'export' | 'update';
 
 interface SidebarItem {
   id: FileMenuPage;
@@ -19,11 +19,20 @@ interface SidebarItem {
   icon: React.ReactNode;
 }
 
+/* Sin entrada "Guardar". El documento se guarda solo —el backend persiste en
+   cada mutación, a SQLite, no al `.docx`— y la página que había decía
+   "Guardar documento" tenía por única acción "Exportar .DOCX APA 7", la misma
+   de la página de al lado. Leía como un botón de guardado y no guardaba nada,
+   que es peor que no tenerlo: una persona que lo aprieta cree que su trabajo
+   está a salvo.
+
+   Lo que queda es Inicio, Nuevo, Abrir, Exportar y Actualización, y cada una
+   hace algo distinto. Exportar no se toca: es lo único que escribe en el
+   archivo del usuario, y es deliberado. `fileMenu.test.tsx` lo verifica. */
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'home', label: 'Inicio', icon: <FileText size={18} /> },
   { id: 'new', label: 'Nuevo', icon: <FilePlus size={18} /> },
   { id: 'open', label: 'Abrir', icon: <FolderOpen size={18} /> },
-  { id: 'save', label: 'Guardar', icon: <Save size={18} /> },
   { id: 'export', label: 'Exportar', icon: <Download size={18} /> },
   { id: 'update', label: 'Actualización', icon: <RefreshCw size={18} /> },
 ];
@@ -321,25 +330,10 @@ export const FileMenu: React.FC = () => {
           </div>
         );
 
-      case 'save':
-        return (
-          <div className="filemenu-content">
-            <h2 className="filemenu-heading">Guardar documento</h2>
-            <p className="filemenu-description">
-              El documento se guarda automaticamente en el servidor. Usa "Exportar" para descargar el archivo .docx formateado.
-            </p>
-            <div className="filemenu-actions">
-              <button
-                className="btn btn-primary"
-                onClick={handleExportStandard}
-                disabled={isLoading || !doc}
-              >
-                <Download size={16} />
-                Exportar .DOCX APA 7
-              </button>
-            </div>
-          </div>
-        );
+      /* No hay `case 'save'`. La página entera se fue con la entrada, y no solo
+         el botón: la página decía "Guardar documento" y ofrecía Exportar, así
+         que era la página de Exportar con otro nombre. Dejarla como página
+         huérfana sin entrada sería código muerto con ruta de entrada. */
 
       case 'export':
         return (
