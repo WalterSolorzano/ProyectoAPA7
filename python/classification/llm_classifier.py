@@ -195,9 +195,23 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
         providers.append({
             "name": "ZenMux",
             "id": "zenmux",
-            "url": "https://zenmux.ai/v1/chat/completions",
+            # La URL lleva `/api`. `zenmux.ai/v1/...` devuelve 302 a una pagina
+            # de error; `zenmux.ai/api/v1/...` responde 200. Sonda, no
+            # inferencia: con la URL mala, el unico proveedor que funcionaba
+            # parecia caido y las tres especialidades caian.
+            "url": "https://zenmux.ai/api/v1/chat/completions",
             "key": zm_key,
-            "model": "meta-llama/llama-3.3-70b-instruct",
+            # El modelo era `meta-llama/llama-3.3-70b-instruct` fijo y devolvia
+            # 404 invalid_model: el nombre estaba retirado del catalogo, no era
+            # la key. La key servia y el catalogo tiene 203 modelos.
+            #
+            # El default es un modelo FREE a proposito: la cuota de esta cuenta
+            # solo alcanza para unos pocos del catalogo y todos los demas dan
+            # 402 sin credito. `z-ai/glm-4.6v-flash-free` es el que responde sin
+            # pagar, y para corregir prosa y registrar conectores alcanza de
+            # sobra. Salir de `ZENMUX_MODEL` para cambiarlo, no editar codigo.
+            # Sonda: python tools/llm_probe.py --modelos
+            "model": os.getenv("ZENMUX_MODEL", "z-ai/glm-4.6v-flash-free"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 

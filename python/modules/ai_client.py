@@ -16,9 +16,23 @@ CACHE_FILE_PATH = Path("storage/ai_cache.json")
 
 # Definición de Especialidades
 PROVIDER_SPECIALTIES = {
-    "FAST": ["groq", "cerebras", "cloudflare", "aion", "kilocode"],
-    "HEAVY": ["gemini", "nvidia_nim", "openrouter", "ollama_cloud"],
-    "REASONING": ["nvidia_nim", "openrouter", "mistral", "opencodezen", "zenmux", "aion", "kilocode", "ollama_cloud"]
+    # El orden importa y estaba mal. Una sonda contra los ocho proveedores
+    # configurados (2026-09-27) dio: NVIDIA NIM 410 en TODOS sus modelos (el
+    # Llama 3.1 70b murio el 2026-08-26), Groq 401 key invalida, OpenRouter 402
+    # sin credito, Gemini 401, Cerebras 404 en todos los gratuitos y 402 en los
+    # de pago, OpenCodeZen con DNS muerto. Los unicos que responden son ZenMux y
+    # Mistral, este ultimo con throttling.
+    #
+    # Y `zenmux` NO estaba en HEAVY ni en FAST: era el unico que funcionaba y no
+    # lo probaban nunca. Por eso caian las tres especialidades.
+    #
+    # Esto se va a volver a envejecer. El arreglo de raiz no es esta tabla sino
+    # un cortocircuito por proveedor que deje de reintentar uno que ya respondio
+    # 410 o 401. Puesto aca mientras tanto.
+    "FAST": ["zenmux", "mistral", "groq", "cerebras", "cloudflare", "aion", "kilocode"],
+    "HEAVY": ["zenmux", "mistral", "gemini", "nvidia_nim", "openrouter", "ollama_cloud"],
+    "REASONING": ["zenmux", "mistral", "nvidia_nim", "openrouter", "opencodezen",
+                  "aion", "kilocode", "ollama_cloud"],
 }
 
 # --- Predictive Token Bucket Rate Limiter ---
@@ -89,7 +103,7 @@ async def _try_provider(
 
     for attempt in range(retries):
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                 resp = await client.post(
                     provider["url"],
                     json=payload,
@@ -146,9 +160,19 @@ async def execute_with_specialty(
         if prompt_hash in cache:
             return (cache[prompt_hash], "cache", "cache") if return_provider_info else cache[prompt_hash]
 
-    # 2. Ordenar proveedores: Primero los de la especialidad, luego el resto (FIFO Queue)
+    # 2. Ordenar proveedores: primero los de la especialidad, en el ORDEN que
+    #    declara la especialidad, y luego el resto.
+    #
+    #    El orden importa porque el primero es al que se le pega primero: si
+    #    empieza por uno que responde 410, cada request paga ese error antes de
+    #    llegar al que sí funciona. Y antes NO tenía efecto: la lista se
+    #    filtraba por pertenencia pero conservaba el orden del REGISTRO
+    #    (NVIDIA 1, Groq 2, OpenRouter 3...), así que reordenar
+    #    `PROVIDER_SPECIALTIES` no cambiaba nada. La sonda del 2026-09-27 dio
+    #    que eso tumbaba las tres especialidades.
     specialty_ids = PROVIDER_SPECIALTIES.get(specialty, [])
-    preferred_providers = [p for p in providers if p["id"] in specialty_ids]
+    por_id = {p["id"]: p for p in providers}
+    preferred_providers = [por_id[i] for i in specialty_ids if i in por_id]
     fallback_providers = [p for p in providers if p["id"] not in specialty_ids]
 
     routing_queue = preferred_providers + fallback_providers
