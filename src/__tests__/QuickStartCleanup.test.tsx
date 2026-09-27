@@ -25,16 +25,15 @@ describe('Step0QuickStart cleanup', () => {
     expect(screen.queryByText(/sesiones recientes disponibles/i)).toBeNull();
   });
 
-  it('no longer has the redundant "Ajustes y vista previa" button (moved to sidebar Configuraciones)', async () => {
+  it('no longer has the redundant "Ajustes y vista previa" button (settings live in the rail)', async () => {
     useDocStore.setState({ isBackendReady: true, error: null });
     await act(async () => {
       render(<Step0QuickStart />);
     });
     // The "Ajustes y vista previa" button was removed from the top bar.
-    // Settings are now accessed exclusively via the sidebar's "Configuraciones" button.
+    // Settings are now accessed exclusively via the rail's "Ajustes" button,
+    // which replaced the old 64px sidebar's "Configuraciones" button.
     expect(screen.queryByRole('button', { name: /Ajustes y vista previa/i })).toBeNull();
-    // The "Configuraciones" button in the sidebar should exist.
-    const configBtn = screen.getByRole('button', { name: 'Configuraciones' });
-    expect(configBtn).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ajustes' })).toBeTruthy();
   });
 });

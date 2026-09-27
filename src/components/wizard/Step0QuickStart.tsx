@@ -1,15 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
-  FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, Settings2, ArrowLeft,
-  FileUp, Home, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers
+  FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, ArrowLeft,
+  FileUp, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
 import { SettingsMenu } from '../layout/SettingsMenu';
+import { IconRail } from '../shell/IconRail';
+import { RailFlyout, FLYOUT_CLOSE_GRACE_MS } from '../shell/RailFlyout';
+import { HOME_RAIL_ITEMS } from '../shell/railItems';
+import type { RailDestination } from '../shell/railItems';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
@@ -326,6 +330,85 @@ export const Step0QuickStart: React.FC = () => {
     }
   };
 
+  // ── RAIL COMPARTIDO ──────────────────────────────────────────────────────
+  // Inicio ya no tiene columna propia: usa el mismo IconRail que el editor, con
+  // su propio juego de destinos. El ancla se lee del store porque el botón del
+  // rail y el del flyout la comparten: si fuera local, un clic en el panel
+  // cerraría el panel que el rail acaba de abrir.
+  const railPinned = useDocStore((s) => s.railPinned);
+  const setRailPinned = useDocStore((s) => s.setRailPinned);
+  const [hoveredHome, setHoveredHome] = useState<RailDestination | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+
+  const closeFlyout = useCallback(() => {
+    cancelClose();
+    setHoveredHome(null);
+  }, [cancelClose]);
+
+  // El cierre es de la unión rail + flyout: hay 8px de hueco entre los dos y sin
+  // esta gracia el puntero perdería el panel por el camino.
+  const scheduleClose = useCallback(() => {
+    if (railPinned) return;
+    cancelClose();
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      setHoveredHome(null);
+    }, FLYOUT_CLOSE_GRACE_MS);
+  }, [railPinned, cancelClose]);
+
+  // El timer en vuelo no sobrevive al desmontaje: cerraría un panel que ya no existe.
+  useEffect(() => cancelClose, [cancelClose]);
+
+  // El hover solo muestra el detalle; el clic es la acción deliberada.
+  const handleHoverItem = useCallback(
+    (item: RailDestination | null) => {
+      if (item) {
+        cancelClose();
+        setHoveredHome(item);
+        return;
+      }
+      scheduleClose();
+    },
+    [cancelClose, scheduleClose],
+  );
+
+  // Cada destino hace lo mismo que su botón del sidebar de 64px, y los tres
+  // destinos nuevos llevan a la misma acción que ya ofrece el resto de la app.
+  // Sin useCallback a propósito: el picker de archivos se decide con el estado
+  // del render actual (¿ya arrancó el motor?), y una versión congelada respondería
+  // con el `isBackendReady` del primer render para siempre.
+  const handleSelect = (item: RailDestination) => {
+    const st = useDocStore.getState();
+    switch (item.id) {
+      case 'home-inicio':
+        setActiveTab('inicio');
+        break;
+      case 'home-recientes':
+        setActiveTab('recientes');
+        break;
+      case 'home-nueva':
+        triggerFilePicker();
+        break;
+      case 'home-addin':
+        // Igual que la entrada homónima del menú de la barra.
+        st.setSettingsStudioOpen(true, 'addin');
+        break;
+      case 'home-ajustes':
+        setSettingsMenuOpen(true);
+        break;
+      case 'home-tema':
+        st.setTheme(st.theme === 'light' ? 'dark' : 'light');
+        break;
+    }
+  };
+
   const busy = isLoading || !isBackendReady;
   const isElectron = !!(window as any).electronAPI;
 
@@ -337,7 +420,7 @@ export const Step0QuickStart: React.FC = () => {
     }}>
       {/* ── Franja superior de arrastre (ventana) ──
           Simplificada: solo branding + Archivo. El botón "Ajustes y vista
-          previa" fue eliminado porque duplica "Configuraciones" del sidebar. */}
+          previa" fue eliminado porque duplica los Ajustes del rail. */}
       <div style={{
         height: '44px', flexShrink: 0, display: 'flex', alignItems: 'center',
         gap: '8px', padding: '0 16px 0 20px',
@@ -421,64 +504,18 @@ export const Step0QuickStart: React.FC = () => {
         style={{ display: 'none' }}
       />
 
-      {/* ── CONTENIDO (sidebar + principal) ── */}
+      {/* ── CONTENIDO (rail + principal) ── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-      {/* ── SIDEBAR IZQUIERDA (estilo Word) ─── */}
-      <div style={{
-        width: '64px', backgroundColor: 'var(--sidebar-bg)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        paddingTop: '24px', gap: '4px', zIndex: 10, flexShrink: 0,
-        borderRight: '1px solid var(--border-subtle)'
-      }}>
-        <NavItem icon={<Home size={22} />} label="Inicio" active={activeTab === 'inicio'} onClick={() => setActiveTab('inicio')} />
-        <NavItem icon={<Clock size={22} />} label="Recientes" active={activeTab === 'recientes'} onClick={() => setActiveTab('recientes')} />
-
-        {/* Configuraciones — único punto de acceso a ajustes */}
-        <div style={{ marginTop: 'auto', width: '100%', paddingBottom: '16px' }}>
-          <button
-            type="button"
-            aria-label="Configuraciones"
-            onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-            aria-expanded={settingsMenuOpen}
-            title="Configuración general y de IA"
-            style={{
-              width: '100%',
-              padding: '12px 0',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              background: settingsMenuOpen ? 'var(--color-accent-soft)' : 'transparent',
-              border: 'none',
-              fontFamily: 'inherit',
-              transition: 'all 0.15s ease',
-              color: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-            }}
-            onMouseEnter={e => { if (!settingsMenuOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
-            onMouseLeave={e => { if (!settingsMenuOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-          >
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: 'var(--radius-lg)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: settingsMenuOpen ? 'var(--accent-primary)' : 'var(--surface-elevated)',
-              color: settingsMenuOpen ? '#ffffff' : 'var(--text-main)',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-              transition: 'all 0.15s ease',
-            }}>
-              <Settings2 size={22} />
-            </div>
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.02em' }}>
-              Ajustes
-            </span>
-          </button>
-        </div>
-      </div>
+      {/* ── RAIL DE ICONOS (mismo componente que el editor) ─── */}
+      <IconRail
+        items={HOME_RAIL_ITEMS}
+        ariaLabel="Navegación principal"
+        onHoverItem={handleHoverItem}
+        onSelect={handleSelect}
+        onTogglePin={() => setRailPinned(!railPinned)}
+        pinned={railPinned}
+      />
+      <RailFlyout item={hoveredHome} onClose={closeFlyout} onEnter={cancelClose} onLeave={scheduleClose} />
 
       {/* Menú "Configuraciones" estilo Notion */}
         {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
@@ -486,7 +523,7 @@ export const Step0QuickStart: React.FC = () => {
 
 
       {/* ── ÁREA PRINCIPAL ─── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 48px 40px' }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '60px 48px' }}>
 
         {/* Error global */}
         {error && (
@@ -930,33 +967,6 @@ export const Step0QuickStart: React.FC = () => {
 };
 
 // ── SUB-COMPONENTES ──────────────────────────────────────────────────────────
-
-const NavItem: React.FC<{
-  icon: React.ReactNode; label: string; active: boolean; onClick: () => void;
-}> = ({ icon, label, active, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-current={active ? 'page' : undefined}
-    title={label}
-    style={{
-      width: '100%', padding: '12px 0', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', gap: '4px', cursor: 'pointer',
-      background: 'none', border: 'none', fontFamily: 'inherit',
-      /* Highlight de fondo (patrón StepRail): prohibido side-tab de 3px */
-      backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-      borderRadius: 'var(--radius-sm)',
-      transition: 'background 0.15s',
-    }}
-    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-subtle)'; }}
-    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-  >
-    <div style={{ color: active ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>{icon}</div>
-    <span style={{ color: active ? 'var(--accent-primary)' : 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: active ? 600 : 500, letterSpacing: '0.3px' }}>
-      {label}
-    </span>
-  </button>
-);
 
 const RecentsList: React.FC<{
   sessions: any[];
