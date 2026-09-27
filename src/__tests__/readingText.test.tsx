@@ -602,4 +602,114 @@ describe('T9 — el lienzo subraya los ENCABEZADOS', () => {
     });
     expect(container.querySelector('#paper-elem-h1 mark')).toBeNull();
   });
+
+  /* Un título de bibliografía con un emoji: la familia de comentario más
+     simple de reproducir y la que no depende del store. El título no se numera
+     (`isRefHeading` lo saca de la jerarquía), así que el texto pintado es
+     exactamente `elem.text` y el rango del mark coincide sin desplazamiento. */
+  const TITULO_CON_EMOJI = 'Referencias \u2705';
+
+  it('el encabezado de REFERENCIAS también pasa por ReadingText', () => {
+    /* El título de la bibliografía tiene su propia rama de render (lista de
+       referencias estructuradas, sin numeración jerárquica) y esa rama emitía
+       `{elem.text}` crudo mientras su hermana de dos líneas más abajo usa
+       `ReadingText`. Consecuencia: un "Referencias" con emoji recibía burbuja
+       del gutter y NINGÚN subrayado, que es la contradicción entre canales que
+       AGENTS.md §2 prohíbe por nombre.
+
+       El caso del emoji y no el de la cita fantasma a propósito: la cita
+       fantasma trae un `match` que puede no estar en el texto del título, y en
+       ese caso la regla declarada es "el encabezado con comentario sin
+       fragmento se queda con la burbuja sola" (`WHOLE_ELEMENT_ANCHOR` excluye
+       los encabezados). El emoji sí trae fragmento, así que aquí lo que se
+       está probando es exactamente el hueco: un título CON fragmento
+       localizable que salía sin subrayado. */
+    const container = montar([
+      elem(TITULO_CON_EMOJI, { id: 'h1', type: 'heading', heading_level: 1 }),
+    ]);
+    const wrap = container.querySelector('#paper-elem-h1');
+    expect(wrap).toBeTruthy();
+    // El texto sigue siendo el del documento...
+    expect(wrap!.textContent).toContain('Referencias');
+    // ...y ahora además lleva el subrayado del mismo hallazgo que anuncia la
+    // burbuja.
+    const mark = wrap!.querySelector('mark');
+    expect(mark).toBeTruthy();
+    expect(mark!.getAttribute('style')).toContain('var(--severity-warning-soft)');
+  });
+
+  it('descartar también limpia el título de Referencias', () => {
+    // La otra mitad de la sincronía: si el subrayado aparece, tiene que
+    // desaparecer con el mismo descarte que saca la burbuja.
+    const container = montar(
+      [elem(TITULO_CON_EMOJI, { id: 'h1', type: 'heading', heading_level: 1 })],
+      { dismissedCommentIds: ['h1'] },
+    );
+    expect(container.querySelector('#paper-elem-h1 mark')).toBeNull();
+  });
+});
+
+/* ── La excepción declarada: figuras y tablas NO llevan subrayado ─────────── */
+
+describe('T9 — la excepción a los dos canales está probada, no solo explicada', () => {
+  /* `COMMENT_TYPES` deja fuera `image` y `table` a propósito, y está escrito
+     en el módulo. Lo que faltaba era que NADA lo afirmara: hoy el único tests
+     era el de la figura, y el de la tabla no existía. La próxima persona que
+     agregue una familia de comentario sobre una figura no tiene forma de saber
+     que la excepción fue elegida y no olvidada — y el forgets más caro de este
+     módulo es exactamente ese.
+
+     Los dos lados se prueban: la burbuja EXISTE (o el comentario no se
+     anunciaba, y entonces tampoco hay excepción que justificar) y el
+     subrayado NO (o el rótulo de la figura se pinta como si fuera una frase,
+     que es lo que `COMMENT_TYPES` dice que no se hace). */
+  const fig = elem('Figura 1', {
+    id: 'f1', type: 'image',
+    image_info: { relative_url: 'f.png', caption: '', figure_number: 0, alignment: 'center' } as any,
+  });
+  const tbl = elem('Tabla 1', {
+    id: 't1', type: 'table',
+    /* `rows` es una lista de filas (lista de celdas): `getWhatsAppComment` las
+       recorre con `forEach` para buscar emojis en las celdas. */
+    table_info: { caption: '', table_number: 0, rows: [['x']], columns: 1, headers: ['x'] } as any,
+  });
+  const SIN_LEYENDA = {
+    validationIssues: [
+      { element_id: 'f1', category: 'figuras', severity: 'warning', message: 'falta leyenda' },
+      { element_id: 't1', category: 'tablas', severity: 'warning', message: 'falta título' },
+    ],
+  } as any;
+
+  it('una FIGURA sin leyenda recibe burbuja y NO underline: su texto es un rótulo', () => {
+    const ctx = { ...CTX_VACIO, ...SIN_LEYENDA };
+    const burbuja = getWhatsAppComment(fig, ctx, 0);
+    expect(burbuja).not.toBeNull();
+    expect(collectMarks('Figura 1', fuente({ elem: fig, commentCtx: ctx })).some((m) => m.kind === 'comment')).toBe(false);
+  });
+
+  it('una TABLA sin leyenda recibe burbuja y NO underline: su texto es un rótulo', () => {
+    const ctx = { ...CTX_VACIO, ...SIN_LEYENDA };
+    const burbuja = getWhatsAppComment(tbl, ctx, 0);
+    expect(burbuja).not.toBeNull();
+    expect(collectMarks('Tabla 1', fuente({ elem: tbl, commentCtx: ctx })).some((m) => m.kind === 'comment')).toBe(false);
+  });
+
+  it('la lista de tipos SIN subrayado es exactamente figuras y tablas', () => {
+    /* La otra forma de la misma afirmación, y la que no se rompe al añadir un
+       tipo nuevo: todo tipo que NO sea figura o tabla sí lleva subrayado cuando
+       tiene comentario. */
+    const conComentario = (type: string) => {
+      const texto = 'En conclusión, el método es válido.';
+      const e = elem(texto, { id: 'x1', type: type as ElementModel['type'] });
+      const ctx = { ...CTX_VACIO, styleAuditRun: true };
+      return getWhatsAppComment(e, ctx, 0)
+        ? collectMarks(texto, fuente({ elem: e, commentCtx: ctx })).some((m) => m.kind === 'comment')
+        : true;
+    };
+    for (const type of ['paragraph', 'bullet', 'numbered_list', 'block_quote', 'heading']) {
+      expect(conComentario(type), type).toBe(true);
+    }
+    expect(conComentario('image')).toBe(false);
+    expect(conComentario('table')).toBe(false);
+  });
 });

@@ -119,7 +119,7 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote,
                 : atenuado
                   ? 'var(--color-text-secondary)'
                   : 'var(--color-text-primary)',
-              font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+              font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 600,
             }}
           >
             {group.massLabel}

@@ -1,7 +1,13 @@
-/* WordAPA7 — review: capa de datos del workbench.
+﻿/* WordAPA7 — review: capa de DERIVACIÓN del workbench.
    Todo lo que antes eran 20 useState y 300 líneas de memos dentro del
    componente. Sin JSX, para poder probar el filtrado, el agrupado, la
    paginación real y la honestidad de las métricas sin DOM.
+
+   Este archivo DERIVA: qué hallazgos hay, cómo se agrupan, qué página es cuál,
+   cuántas marcas hay. La mitad que ESCRIBE —aceptar, marcar, descartar, el
+   alcance de cada acción— está en `useReviewActions`, que es donde vive cada
+   defecto de este módulo: el que escribe en el documento no es el mismo código
+   que el que decide qué se ve. El contrato público no cambió al partirlo.
 
    Tres reglas que este módulo no negocia:
    1. El detector de IA es PROBABILÍSTICO: propone, la persona decide. Ninguna
@@ -34,7 +40,7 @@ import {
   type EngineScanOutcome,
   type ScanEngineId,
 } from '../components/wizard/scanOutcome';
-import * as api from '../api/backend';
+import { useReviewActions } from './useReviewActions';
 import { collectAuditItems, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 
 /* La LISTA de hallazgos vive en `lib/auditItems` porque el rail necesita contar
@@ -114,6 +120,13 @@ export interface ReviewWorkbenchApi {
   openSubtypes: string[];
   setOpenSubtypes: Dispatch<SetStateAction<string[]>>;
   acceptOne: (item: AuditItem) => Promise<void>;
+  /** El LOTE, no el botón: aplica la corrección a varios hallazgos objetivo de
+   *  una vez, en secuencia, con el cerrojo de `isApplying`. No hay ninguna
+   *  vista que la llame directamente —la vista pregunta con `runGroupAction` y
+   *  el hook despacha— pero es la mitad observable de esa ruta: si `acceptMany`
+   *  se comiera un hallazgo de IA, la prueba de "el detector de IA nunca
+   *  acepta" que la cubre no podría ejercitar el mecanismo que de verdad
+   *  escribe. Por eso se publica y no se borra. */
   acceptMany: (items: AuditItem[]) => Promise<void>;
   markForReview: (item: AuditItem) => void;
   /**
@@ -123,6 +136,9 @@ export interface ReviewWorkbenchApi {
    */
   runGroupAction: (group: EngineGroup | SubtypeGroup) => Promise<void>;
   dismiss: (item: AuditItem) => void;
+  /** Las marcas de "para revisar". La vista las PINTA (el rótulo del detalle
+   *  pasa a "Marcado para revisar" y se apaga), así que ya no es estado que
+   *  nadie lee. */
   markedIds: string[];
   scanAll: () => Promise<void>;
   isScanning: boolean;
@@ -130,7 +146,9 @@ export interface ReviewWorkbenchApi {
    *  acción en masa es SECUENCIAL y hace una llamada de red por hallazgo, así
    *  que sin cerrojo un segundo "Aceptar todas" duplica la tanda. */
   isApplying: boolean;
-  metrics: { total: number; critical: number; compliance: number | null };
+  /** `compliance` es `null` hasta que los tres motores dejaron resultados (ver
+   *  `threeEnginesRan`): un motor sin correr no produce un número. */
+  metrics: { total: number; compliance: number | null };
   viewMode: 'focus' | 'canvas';
   setViewMode: (m: 'focus' | 'canvas') => void;
 }
@@ -371,16 +389,6 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isScanning, setIsScanning] = useState(false);
-  /* Hay UNA acción en curso a la vez. `acceptMany` recorre los hallazgos de uno
-     en uno y `aplicar` hace una llamada de red por hallazgo sin sugerencia: un
-     "Aceptar todas" grande son N llamadas secuenciales, y sin este cerrojo el
-     botón se puede volver a apretar mientras la primera tanda sigue corriendo.
-     La segunda tanda vuelve a disparar las MISMAS llamadas sobre los MISMOS
-     elementos, y el último que escribe gana de forma no determinista: el
-     documento queda con una corrección arbitraria de entre las dos. El cerrojo
-     no es una decoración de estado: es lo que hace la acción idempotente. */
-  const [isApplying, setIsApplying] = useState(false);
-  const aplicando = useRef(false);
   const seeded = useRef(false);
 
   /* La página actual SIEMPRE vive en el rango real del documento. Es un
@@ -546,203 +554,16 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     if (siguiente.pageNumber) setCurrentPage(clipPage(siguiente.pageNumber, totalPages));
   }, [visibles, selectedId, select, totalPages]);
 
-  /** El motor probabilístico no aplica nada: sus hallazgos no se aceptan. */
-  const aceptaDeIA = (item: AuditItem) => item.category !== 'ai';
-
-  /** Aplica la corrección de un hallazgo objetivo. `false` = el texto original
-   *  sigue intacto y el hallazgo sigue en la lista. */
-  const aplicar = useCallback(
-    async (item: AuditItem): Promise<boolean> => {
-      if (!aceptaDeIA(item) || !doc || !item.element_id) return false;
-      try {
-        if (item.suggestedText) {
-          await updateElementText(item.element_id, item.suggestedText);
-        } else {
-          const reescrito = await api.rewriteText(
-            doc.session_id,
-            item.element_id,
-            item.originalText,
-            'Reescribir en voz formal impersonal académica según APA 7, eliminando rigidez y muletillas',
-          );
-          if (!reescrito) {
-            showToast('No se pudo generar la corrección. El texto original se conserva.', 'error');
-            return false;
-          }
-          await updateElementText(item.element_id, reescrito);
-        }
-        setDismissedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-        setSelectedId((prev) => (prev === item.id ? null : prev));
-        showToast('Corrección aplicada al documento', 'success');
-        return true;
-      } catch {
-        showToast('Error al aplicar la sugerencia', 'error');
-        return false;
-      }
-    },
-    [doc, updateElementText, showToast],
-  );
-
-  const acceptOne = useCallback(
-    async (item: AuditItem) => {
-      if (!aceptaDeIA(item)) {
-        showToast('El detector de IA propone, no aplica: márcalo para revisión manual.');
-        return;
-      }
-      /* Mismo cerrojo que la tanda: aceptar uno y aceptar todos son la misma
-         escritura sobre el documento. */
-      if (aplicando.current) return;
-      aplicando.current = true;
-      setIsApplying(true);
-      try {
-        await aplicar(item);
-      } finally {
-        aplicando.current = false;
-        setIsApplying(false);
-      }
-    },
-    [aplicar, showToast],
-  );
-
-  const acceptMany = useCallback(
-    async (lista: AuditItem[]) => {
-      const targets = lista.filter((i) => i.element_id && aceptaDeIA(i));
-      if (!targets.length) return;
-      /* El ref, no el estado: dos pulsaciones en el mismo tick de React leen
-         el mismo `isApplying` del render anterior, y con estado las dos
-         entrarían. El ref se escribe en el momento de la llamada. */
-      if (aplicando.current) return;
-      aplicando.current = true;
-      setIsApplying(true);
-      let ok = 0;
-      try {
-        for (const it of targets) {
-          if (await aplicar(it)) ok += 1;
-        }
-      } finally {
-        aplicando.current = false;
-        setIsApplying(false);
-      }
-      if (ok > 0) showToast(`${ok} corrección(es) aplicada(s)`, 'success');
-      else showToast('No se pudieron aplicar las correcciones', 'error');
-    },
-    [aplicar, showToast],
-  );
-
-  const markMany = useCallback(
-    (lista: AuditItem[]) => {
-      if (!lista.length) return;
-      setMarkedIds((prev) => [...new Set([...prev, ...lista.map((i) => i.id)])]);
-      showToast(
-        lista.length === 1
-          ? 'Marcado para revisar. El texto original no se modifica.'
-          : `${lista.length} hallazgos marcados para revisar. El texto original no se modifica.`,
-        'info',
-      );
-    },
-    [showToast],
-  );
-
-  const markForReview = useCallback((item: AuditItem) => markMany([item]), [markMany]);
-
-  /** Una acción, sobre los ítems que esa acción cubre. */
-  const despachar = useCallback(
-    async (action: SubtypeAction, objetivos: AuditItem[]) => {
-      switch (action) {
-        case 'accept':
-          await acceptMany(objetivos);
-          return;
-        case 'mark':
-          markMany(objetivos);
-          return;
-        case 'resolveGhosts':
-          await autoResolveGhosts();
-          return;
-        case 'autoCaption':
-          await autoCaptionAll();
-          return;
-        case 'none':
-          // Sin corrección objetiva no hay nada que ejecutar: se dice, para que
-          // el silencio no se lea como "se aplicó y no pasó nada".
-          showToast('Este hallazgo no tiene corrección automática: revísalo o descártalo.', 'info');
-          return;
-      }
-    },
-    [acceptMany, markMany, autoResolveGhosts, autoCaptionAll, showToast],
-  );
-
-  /**
-   * La vista NO ejecuta acciones: pregunta. Este hook es la única autoridad
-   * sobre qué acción tiene un grupo (su `action`/`massAction`) y sobre cómo se
-   * ejecuta, así que la vista no tiene que volver al store para resolver
-   * citas fantasma ni rotular figuras, ni adivinar qué hacer con 'none'.
-   * Acepta un `EngineGroup` (cabecera de motor) o un `SubtypeGroup` (fila).
-   *
-   * LA REGLA, en una línea: **la cabecera de un motor actúa solo sobre los
-   * subtipos que comparten su acción.** Un subtipo que discrepa no se toca.
-   *
-   * Sin esa regla, el botón "Aceptar todas" de Redacción & Bloom se llevaba
-   * también `palabra_repetida`, `pronombre_ambiguo`, `voz_pasiva`,
-   * `oracion_larga`, `idea_incompleta` y el fallback `otro`: subtipos a los que
-   * el propio hook les asignó 'mark' porque el motor los detecta con certeza
-   * pero no sabe corregirlos. `aplicar` los habría mandado a
-   * `api.rewriteText` y escrito prosa generada en el documento del usuario,
-   * una llamada de red por hallazgo. Lo mismo con un motor cuyas acciones son
-   * de documento (`resolveGhosts`, `autoCaption`): no disparan si ningún
-   * subtipo comparte su acción, así que un grupo de citas que solo tenga
-   * referencias huérfanas ('none') no resuelve nada.
-   *
-   * Y lo que NO puede garantizar esta función: `autoResolveGhosts` y
-   * `autoCaptionAll` son del store y trabajan sobre todo el documento. Hoy su
-   * alcance coincide exactamente con los subtipos que las piden (todas las
-   * fantasmas son 'cita_fantasma'; todas las figuras/tablas, 'autoCaption'),
-   * así que el filtro de subtipos basta. Si algún día un motor marcara una
-   * de esas clases como 'mark', la garantía tendría que bajar al store.
-   */
-  const runGroupAction = useCallback(
-    async (group: EngineGroup | SubtypeGroup) => {
-      /* La presencia de una PROPIEDAD, no su ausencia: un discriminante de
-         unión escrito al revés (`!'massAction' in group`) no lo cubre `tsc` en
-         ninguna forma —agregar una propiedad opcional nueva al tipo lo rompe en
-         silencio—, y un `EngineGroup` sin `massAction` sería un tipo
-         imposible. `groups` es la propiedad que hace único al motor. */
-      if (!('groups' in group)) {
-        // Fila de subtipo: su propia acción sobre sus propios ítems, sin más.
-        await despachar(group.action, group.items);
-        return;
-      }
-      const deAcuerdo = group.groups.filter((g) => g.action === group.massAction);
-      if (!deAcuerdo.length) {
-        // El rótulo promete una acción en bloque y no hay ninguna: se dice, para
-        // que el silencio no se lea como "se aplicó y no pasó nada".
-        showToast(
-          'Este motor no tiene nada que aplicar en bloque: revisa sus hallazgos uno por uno.',
-          'info',
-        );
-        return;
-      }
-      await despachar(group.massAction, deAcuerdo.flatMap((g) => g.items));
-    },
-    [despachar, showToast],
-  );
-
-  /* DESCARTAR tiene que salir por los DOS canales, y no por el de esta vista.
-     AGENTS.md §2: un hallazgo se anuncia en el subrayado inline y en la burbuja
-     del gutter, y se descarta en los dos a la vez — el canal del lienzo es
-     `dismissComment(elementId)` del store, que es lo que leen `ReadingText` y
-     `WhatsAppComment`. Filtrar solo `dismissedIds` sacaba la fila del rack y
-     dejaba la burbuja y su subrayado pegados a la página: la misma
-     contradicción, al revés. Un hallazgo sin elemento (una referencia huérfana
-     vive en la bibliografía) no tiene a qué anclarse en el lienzo, y por eso
-     no hay nada que descartar ahí. */
-  const dismiss = useCallback(
-    (item: AuditItem) => {
-      setDismissedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-      setSelectedId((prev) => (prev === item.id ? null : prev));
-      if (item.element_id) dismissComment(item.element_id);
-      showToast('Alerta descartada. Texto original conservado.', 'info');
-    },
-    [dismissComment, showToast],
-  );
+  /* La capa EFECTIVA vive en `useReviewActions`: escribir en el documento,
+     llamar a la red, descartar por los dos canales. Este archivo se queda con
+     lo que se DERIVA, que es lo que se puede probar sin DOM. El contrato
+     público no cambia: los cinco verbos y `isApplying` se publican igual, y
+     quien importa este hook no tiene que saber que ahora hay dos archivos. */
+  const { acceptOne, acceptMany, markForReview, runGroupAction, dismiss, isApplying } =
+    useReviewActions(
+      { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, showToast },
+      { setDismissedIds, setMarkedIds, setSelectedId },
+    );
 
   const scanAll = useCallback(async () => {
     setIsScanning(true);
@@ -830,7 +651,10 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     lastRunState('citations') !== 'failed';
 
   const total = items.length;
-  const critical = items.filter((i) => i.severity === 'critical').length;
+  /* `metrics.critical` se fue: lo leía una prueba y ninguna vista. El conteo
+     de gravedad que sí se usa vive donde se ve —`EngineGroup.criticalHigh`, que
+     la tarjeta de motor pinta y la siembra de apertura ordena— y duplicarlo acá
+     era una segunda cuenta de lo mismo que nadie mostraba. */
 
   return {
     items,
@@ -863,7 +687,6 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     isApplying,
     metrics: {
       total,
-      critical,
       compliance: threeEnginesRan ? Math.max(0, Math.min(100, 100 - total * 3)) : null,
     },
     viewMode,

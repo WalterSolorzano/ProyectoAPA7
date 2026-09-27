@@ -99,12 +99,18 @@ export const ReviewMinimap: React.FC<ReviewMinimapProps> = ({
               setActiveIndex(page - 1); // las flechas continúan desde el click
               onPageClick(page);
             }}
+            /* El conteo es el del ÍNDICE DE REVISIÓN, no el de la hoja medida, y
+               en modo Hoja el minimapa está al lado de la hoja con la que
+               discrepa. Por eso el alcance se LEE (aria-label y tooltip), igual
+               que en la tira: "de la revisión". La calibración de la paginación
+               del lienzo es un trabajo aparte, más grande, y sigue ABIERTO: esto
+               dice de qué número se trata, no arregla la diferencia. */
             title={
               mark
-                ? `Página ${page} — ${mark.count} hallazgo(s) · ${mark.label}`
-                : `Página ${page}`
+                ? `Página ${page} de ${totalPages} de la revisión — ${mark.count} hallazgo(s) · ${mark.label}`
+                : `Página ${page} de ${totalPages} de la revisión`
             }
-            aria-label={`Página ${page} de ${totalPages}, ${count} ${
+            aria-label={`Página ${page} de ${totalPages} de la revisión, ${count} ${
               count === 1 ? 'hallazgo' : 'hallazgos'
             }`}
             style={{
@@ -115,7 +121,13 @@ export const ReviewMinimap: React.FC<ReviewMinimapProps> = ({
               width: mark || isCurrent ? '100%' : '50%',
               margin: mark || isCurrent ? '0' : '0 auto',
               padding: 0,
-              borderRadius: '1px',
+              /* Token, no literal: los cinco radios del sistema son
+                 `--radius-sm|md|lg|xl|full`, y un `1px` escrito a mano es un
+                 radio fuera del vocabulario. `--radius-sm` es lo más cercano a
+                 la intención (una marca de 4-7px de alto apenas redondeada) y
+                 el navegador lo recorta a la mitad del lado corto, que es
+                 exactamente lo que se veía antes. */
+              borderRadius: 'var(--radius-sm)',
               border: 'none',
               cursor: 'pointer',
               backgroundColor: isCurrent

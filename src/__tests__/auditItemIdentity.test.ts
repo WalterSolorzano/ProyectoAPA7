@@ -25,12 +25,13 @@ const hallazgo = (over: Partial<ProofreadFinding>): ProofreadFinding => ({
   ...over,
 });
 
+/* A la capa de datos solo le interesan `id`, `type` y `text` de cada elemento
+   (para el texto original y el tipo de figura/tabla/encabezado); el modelo
+   completo tiene treinta campos. */
+const parrafo = (id: string) => ({ id, type: 'paragraph', text: 'texto' }) as never;
+
 const fuentes = (over: Partial<AuditSources>): AuditSources => ({
-  elements: [
-    { id: 'e1', type: 'paragraph', text: 'primer parrafo' },
-    { id: 'e2', type: 'paragraph', text: 'segundo parrafo' },
-    { id: 'e3', type: 'paragraph', text: 'tercer parrafo' },
-  ],
+  elements: [parrafo('e1'), parrafo('e2'), parrafo('e3')],
   reviewResult: null,
   proofreadFindings: [],
   citationAuditResult: null,

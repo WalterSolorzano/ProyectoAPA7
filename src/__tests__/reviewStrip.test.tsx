@@ -24,6 +24,7 @@ const grupo = (engine: EngineGroup['engine'], count: number): EngineGroup => ({
   groups: [],
   massAction: 'accept',
   massLabel: 'Aceptar todas',
+  covered: count,
 });
 
 const setup = (over: Partial<React.ComponentProps<typeof ReviewStrip>> = {}) => {

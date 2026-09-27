@@ -1917,13 +1917,23 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               if (isRef) {
                                 return (
                                   <div style={{ marginTop: '20px', marginBottom: '8px' }}>
+                                    /* Por `ReadingText`, como su hermano de dos
+                                       líneas más abajo (`:1961`) y como todos los
+                                       demás bloques: un título de Referencias o
+                                       de Conclusiones recibe burbuja del gutter
+                                       —cita fantasma, emoji, gatillo de
+                                       conclusión o de IA— y sin pasar por acá
+                                       esa burbuja no tenía subrayado. Tres
+                                       familias de comentario con anuncio y sin
+                                       marca, que es el defecto exacto que este
+                                       módulo existe para matar. */
                                     <p style={{
                                       fontFamily: fontFamily,
                                       fontWeight: 'bold', textAlign: 'center', fontSize: '14pt',
                                       margin: '0 0 12px 0',
                                       ...reviewHighlightStyle(elem.id),
                                     }}>
-                                      {elem.text}
+                                      <ReadingText text={elem.text} source={readingSource(elem)} />
                                     </p>
                                     {/* Lista de referencias estructuradas */}
                                     {doc.referencias && doc.referencias.length > 0 ? (

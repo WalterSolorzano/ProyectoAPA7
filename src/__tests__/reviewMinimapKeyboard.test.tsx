@@ -73,8 +73,25 @@ describe('ReviewMinimap — teclado (roving tabindex)', () => {
 
   it('cada marca anuncia página, total y hallazgos', () => {
     const { buttons } = setup();
-    expect(buttons[0].getAttribute('aria-label')).toBe('Página 1 de 5, 0 hallazgos');
-    expect(buttons[1].getAttribute('aria-label')).toBe('Página 2 de 5, 3 hallazgos');
-    expect(buttons[2].getAttribute('aria-label')).toBe('Página 3 de 5, 0 hallazgos');
+    expect(buttons[0].getAttribute('aria-label')).toBe('Página 1 de 5 de la revisión, 0 hallazgos');
+    expect(buttons[1].getAttribute('aria-label')).toBe('Página 2 de 5 de la revisión, 3 hallazgos');
+    expect(buttons[2].getAttribute('aria-label')).toBe('Página 3 de 5 de la revisión, 0 hallazgos');
+  });
+
+  it('el número de página dice DE QUÉ revisión es, como la tira', () => {
+    /* El conteo sale de `usePageIndex` (el índice de revisión), no del reflujo
+       medido del lienzo, y en modo Hoja el minimapa está al lado de la hoja con
+       la que puede discrepar. La tira ya lo decía ("de la revisión"); el
+       minimapa no, y ese es el que la persona tiene al lado. La calibración de
+       la paginación del lienzo sigue siendo un trabajo aparte: esto declara de
+       qué número se trata, no borra la diferencia. */
+    const { buttons } = setup();
+    for (const b of buttons) expect(b.getAttribute('aria-label')).toContain('de la revisión');
+    expect(buttons[0].getAttribute('title') || '').toContain('de la revisión');
+  });
+
+  it('las marcas usan un radio del sistema, no un literal', () => {
+    const { buttons } = setup();
+    for (const b of buttons) expect(b.getAttribute('style') || '').toContain('border-radius: var(--radius-sm)');
   });
 });

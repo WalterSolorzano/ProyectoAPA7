@@ -285,7 +285,26 @@ describe('T12 — useReviewWorkbench', () => {
     // solo el motor con señales. Cumplimiento = 100 - 1x3.
     expect(result.current.items).toHaveLength(1);
     expect(result.current.metrics.compliance).toBe(97);
-    expect(result.current.metrics.critical).toBe(0);
+  });
+
+  it('el conteo de gravedad vive donde se ve, no en una métrica que nadie lee', () => {
+    /* `metrics.critical` se elimino: lo leia esta prueba y ninguna vista. El
+       conteo que se Pinta es `EngineGroup.criticalHigh` (la tarjeta de motor lo
+       muestra y la siembra de apertura ordena por el), y mantener las dos
+       cuentas era una que podia divergir de la otra sin que nada lo dijera. */
+    useDocStore.setState({
+      proofreadFindings: [hallazgo({ element_id: 'e1', severity: 'error', kind: 'ortografia' })],
+      citationAuditResult: {
+        ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e2' }],
+        orphan_references: [],
+      } as never,
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    const citas = result.current.groups.find((g) => g.engine === 'citations')!;
+    // La cita fantasma es 'critical': la gravedad alta se ve en la tarjeta.
+    expect(citas.criticalHigh).toBe(1);
+    // Y no hay una segunda cuenta de la misma cosa.
+    expect(Object.keys(result.current.metrics).sort()).toEqual(['compliance', 'total']);
   });
 
   it('“Siguiente hallazgo” avanza, selecciona y abre el grupo del que elige', () => {

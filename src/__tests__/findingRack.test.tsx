@@ -22,9 +22,13 @@ const subgrupo = (over: Partial<SubtypeGroup> = {}): SubtypeGroup => ({
   action: 'accept', massLabel: 'Aceptar todos', ...over,
 });
 
+/* `covered` lo publica el hook con la MISMA regla que decide a quién toca la
+   acción en masa (los subtipos que comparten su acción). Este motor de ejemplo
+   cubre entero: su único subtipo es 'accept' y la del motor también. */
 const motor = (over: Partial<EngineGroup> = {}): EngineGroup => ({
   engine: 'spelling', title: 'Ortografía', chip: 'Ortografía', count: 48,
-  criticalHigh: 2, groups: [subgrupo()], massAction: 'accept', massLabel: 'Aceptar todas', ...over,
+  criticalHigh: 2, groups: [subgrupo()], massAction: 'accept', massLabel: 'Aceptar todas',
+  covered: 48, ...over,
 });
 
 const detalle = (over: Partial<React.ComponentProps<typeof FindingDetail>> = {}) => {
