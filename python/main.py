@@ -1,4 +1,4 @@
-"""
+﻿"""
 WordAPA7 — Servidor Principal FastAPI
 
 Servidor Web unificado que expone los endpoints REST para la manipulacion de documentos
@@ -205,8 +205,14 @@ app.include_router(admin.router)
 # ── WORD ADD-IN ROUTERS (Office.js) ──────────────────────────────────────────
 # Endpoints del Task Pane que vive dentro de Microsoft Word + archivos estaticos.
 from routers import addin
+from routers import references as references_router
 
 app.include_router(addin.router)
+# `/api/resolve-doi`: la ruta que llama `documentSlice.resolveDoiReference`
+# (`${getApiBase()}/resolve-doi`). Estaba montado en `/api/addin/resolve-doi`,
+# una ruta que no existia, y por eso el boton de resolver DOI de la interfaz
+# no resolvia nada.
+app.include_router(references_router.router)
 
 from routers import addin_static
 

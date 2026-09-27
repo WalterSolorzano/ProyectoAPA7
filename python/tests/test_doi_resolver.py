@@ -184,18 +184,20 @@ def test_resuelve_un_doi_y_lo_devuelve_en_la_forma_del_store(monkeypatch):
         return R()
 
     monkeypatch.setattr(addin_router.httpx, "AsyncClient", _ClienteFalso(falso_get))
-    r = client.post("/api/addin/resolve-doi", json={"doi": "https://doi.org/10.1016/j.educ.2024.001"})
+    r = client.post("/api/resolve-doi", json={"doi": "https://doi.org/10.1016/j.educ.2024.001"})
     assert r.status_code == 200
-    ref = r.json()["reference"]
-    assert ref["authors"] == ["Perez, A."]
-    assert ref["title"] == "Desercion estudiantil en el turno nocturno"
-    assert ref["is_draft"] is False
+    data = r.json()
+    # El contrato que lee `documentSlice.resolveDoiReference`: PLANO, con
+    # `apa_formatted`. Se devuelve plano porque ese es el que esta en uso.
+    assert data["authors"] == ["Perez, A."]
+    assert data["title"] == "Desercion estudiantil en el turno nocturno"
+    assert data["apa_formatted"].startswith("Perez, A. (2024).")
 
 
 def test_un_link_que_no_es_doi_dice_que_no_es_doi(monkeypatch):
     # Nada de red: se rechaza antes. Un 404 de CrossRef seria un error de red
     # cuando lo que paso es que el usuario pego otra cosa.
-    r = client.post("/api/addin/resolve-doi",
+    r = client.post("/api/resolve-doi",
                     json={"doi": "https://scholar.google.com/citations?user=abc"})
     assert r.status_code == 400
     assert r.json()["detail"]["codigo"] == "no_es_doi"
@@ -210,7 +212,7 @@ def test_un_doi_que_crossref_no_conoce_dice_que_no_se_encontro(monkeypatch):
         return R()
 
     monkeypatch.setattr(addin_router.httpx, "AsyncClient", _ClienteFalso(falso_get))
-    r = client.post("/api/addin/resolve-doi", json={"doi": "10.9999/no-existe"})
+    r = client.post("/api/resolve-doi", json={"doi": "10.9999/no-existe"})
     assert r.status_code == 404
     assert r.json()["detail"]["codigo"] == "no_resuelto"
 
@@ -233,7 +235,7 @@ def test_guardar_una_referencia_resuelta_pone_el_draft_en_definitiva(monkeypatch
     store.add_citation(raw_text="(Perez, 2024)", authors=["Perez, A."], year="2024",
                        citation_type="parentetica", page=None)
     assert any(x.get("is_draft") for x in store.list_references())
-    r = client.post("/api/addin/resolve-doi",
+    r = client.post("/api/resolve-doi",
                     json={"doi": "10.1016/j.educ.2024.001", "guardar": True})
     assert r.status_code == 200
     assert r.json()["guardada"] is True
