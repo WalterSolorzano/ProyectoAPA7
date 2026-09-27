@@ -148,11 +148,10 @@ const SEVERITY_COLOR: Record<AuditItem['severity'], string> = {
 
 /* El ORDEN de gravedad NO se re-declara aquí: `SEVERITY_RANK` se importa del
    hook, que es quien ordena los subtipos. Tener las dos tablas era un modo de
-   fallo silencioso —un nivel nuevo en el vocabulario iba al hook, el badge se
-   quedaba con el viejo, y el ×N decoreaba una gravedad que el sort no
-   compartía—. Ahora `peorSeveridad` lee la MISMA tabla que el sort, así que no
-   pueden discrepar, y el `Record<Severity, number>` del hook hace que agregar un
-   nivel sea un error de compilación y no un badge que clasifique distinto. */
+   fallo silencioso —un nivel nuevo en el vocabulario iba al hook y el badge se
+   quedaba con el viejo, de modo que el ×N se teñía con una gravedad que el sort
+   no compartía, sin que nada lo dijera—. Ahora `peorSeveridad` lee la MISMA
+   tabla que el sort, así que no pueden discrepar. */
 
 /** El badge se tiñe por la PEOR severidad del grupo, no por su primer ítem:
  *  el orden de los ítems lo produce el motor, no la gravedad, y un grupo con

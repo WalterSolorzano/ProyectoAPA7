@@ -238,15 +238,17 @@ const massLabelFor = (action: SubtypeAction): string =>
   action === 'none' ? '' : MASS_LABELS[action];
 
 /**
- * El ORDEN de gravedad, y la tabla más grave de un grupo. Es la única definición
- * en el código, y está aquí porque el hook es quien ordena subtipos y decide qué
- * motor tiñe cada página del minimapa. `EngineGroupCard` la importa para el
- * badge: dos copias de esta tablaían dos verdades, y con un nivel nuevo en el
- * vocabulario de severidad la del badge se quedaría callada mientras el orden
- * cambiaba.
+ * El ORDEN de gravedad, y con él la severidad más grave de un grupo. Es la
+ * única definición en el código, y vive aquí porque el hook es quien ordena los
+ * subtipos y quien decide qué motor tiñe cada página del minimapa.
+ * `EngineGroupCard` la importa para el badge: dos copias de esta tabla serían
+ * dos verdades, y con un nivel nuevo en el vocabulario de severidad la del
+ * badge se quedaría atrás mientras el orden cambiaba, sin que nada lo dijera.
  *
- * El tipo `Record<Severity, number>` es lo que hace que agregar un nivel NO sea
- * un cambio silencioso: la compilación falla en las dos tablas que lo usen.
+ * El tipo es lo que hace que agregar un nivel NO sea un cambio silencioso: la
+ * compilación falla en esta tabla y en el `Record<AuditItem['severity'], string>`
+ * del color del badge, que son los dos únicos sitios donde el vocabulario se
+ * escribe.
  */
 export const SEVERITY_RANK: Record<Severity, number> = {
   critical: 0,

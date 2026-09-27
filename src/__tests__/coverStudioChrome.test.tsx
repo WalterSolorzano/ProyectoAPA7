@@ -313,7 +313,8 @@ describe('T18 — tira y carrusel no cuentan historias distintas', () => {
     fireEvent.keyDown(tarjeta, { key: 'Enter' });
     expect(abierto).toHaveBeenCalled();
     abierto.mockRestore();
-  });});
+  });
+});
 
 /* ── Las tres zonas ───────────────────────────────────────────────────────── */
 

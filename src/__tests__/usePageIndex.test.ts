@@ -116,10 +116,7 @@ describe('T10 — usePageIndex', () => {
     const idxMedido = buildPageIndex(elementos, { rules: rulesLetter });
 
     expect(idxMedido.totalPages).toBeLessThan(conMedicion.length);
-    const deriva = conMedicion.length / idxMedido.totalPages;
     expect(conMedicion.length).toBeGreaterThanOrEqual(2 * idxMedido.totalPages);
-    // Que quede el número a la vista: "la mitad" es una frase, esto es una cuenta.
-    expect(deriva).toBeGreaterThan(1.5);
   });
 
   it('la deriva es SOLO la falta de alturas medidas', () => {
