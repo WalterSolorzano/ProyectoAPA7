@@ -141,6 +141,26 @@ def match_phase(title: str) -> Optional[str]:
     return None
 
 
+def match_phase_exact(title: str) -> Optional[str]:
+    """Como `match_phase`, pero SOLO si el titulo ES el nombre de la fase.
+
+    La diferencia es la que separa un error de una decision del autor. Un H2
+    que dice "Resultados" a secas es una fase mal nivelada y conviene
+    promoverla. Un H2 que dice "Resultados de la encuesta" bajo "Metodo" es
+    una subseccion que el autor puso ahi a proposito: el calificador es la
+    senal de que quiere decir algo concreto, no la fase genérica.
+
+    Por eso el editor usa ESTA y el auditor usa la otra. El auditor quiere
+    medir el cuerpo de la fase, y "Resultados de la encuesta" pertenece a la
+    fase Resultados. El editor quiere corregir niveles, y ahi el calificador
+    significa lo contrario.
+    """
+    norm = normalize_title(title)
+    if not norm:
+        return None
+    return _BY_TITLE.get(norm)
+
+
 # ── Ambitos declarados por regla ────────────────────────────────────────────
 
 RULE_SCOPES: Dict[str, str] = {

@@ -21,6 +21,7 @@ from modules.phase_scope import (  # noqa: E402
     PORTADA_KEY,
     build_phase_map,
     match_phase,
+    match_phase_exact,
     normalize_title,
     phase_label,
 )
@@ -81,6 +82,20 @@ def test_metodologia_es_nombre_de_fase_y_nunca_disparador_de_objetivos():
 def test_titulo_vacio_no_abre_fase():
     assert match_phase("") is None
     assert normalize_title("   ") == ""
+
+
+def test_match_exacto_rechaza_el_calificador():
+    # La diferencia entre un error de nivel y una decision del autor.
+    assert match_phase_exact("Resultados") == "resultados"
+    assert match_phase_exact("Resultados de la encuesta") is None
+    assert match_phase_exact("Discusion de los hallazgos") is None
+    # Y no coincide con el caso limite: el calificador es lo que decide.
+    assert match_phase("Resultados de la encuesta") == "resultados"
+
+
+def test_match_exacto_no_abre_fase():
+    assert match_phase_exact("Agradecimientos") is None
+    assert match_phase_exact("") is None
 
 
 # ── El vocabulario esta completo ────────────────────────────────────────────

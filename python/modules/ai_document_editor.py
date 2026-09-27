@@ -266,15 +266,44 @@ def _deterministic_chat_fallback(
 
     # 3. Revisar jerarquía de títulos
     if any(w in instruction_lower for w in ["jerarquía", "jerarquia", "título", "titulo", "h1", "h2", "h3"]):
+        from modules.phase_scope import PORTADA_KEY, match_phase_exact
+
+        # Un H1 de esa fase ya presente: promover otro la duplicaría. Antes se
+        # comparaba el título contra una lista de SUBCADENAS y se promovía
+        # "Resultados de la encuesta" que el autor anidó bajo "Método" a
+        # propósito, aplanando la jerarquía que él mismo había construido.
+        # Ahora solo se promueve un título que ES el nombre de la fase: un
+        # calificador ("de la encuesta") es la señal de que el autor quiso
+        # decir algo concreto, no la fase genérica.
+        fases = {
+            match_phase_exact(e.text or "") for e in document.elements
+            if e.type == ElementType.HEADING and (e.heading_level or 1) == 1
+        }
+        fases.discard(None)
+
         for elem in document.elements:
-            if elem.type == ElementType.HEADING and not elem.is_cover_section:
-                text = (elem.text or "").strip().lower()
-                if any(sec in text for sec in ["resumen", "abstract", "introducción", "introduccion", "método", "metodologia", "resultados", "discusión", "discusion", "conclusiones", "referencias"]):
-                    if elem.heading_level != 1:
-                        actions.append({"type": "set_type", "element_id": elem.id, "element_type": "heading", "level": 1})
+            if elem.type != ElementType.HEADING or elem.is_cover_section:
+                continue
+            if (elem.heading_level or 1) == 1:
+                continue
+            fase = match_phase_exact(elem.text or "")
+            if fase is None or fase in fases:
+                continue
+            # La portada es zona protegida: `use_original_cover` no la muta y
+            # `computePages` la trata como bloque indivisible (AGENTS.md §1).
+            if fase == PORTADA_KEY:
+                continue
+            fases.add(fase)
+            actions.append({"type": "set_type", "element_id": elem.id,
+                            "element_type": "heading", "level": 1})
         return {
-            "reply": f"Se verificó la jerarquía de títulos del documento y se ajustaron {len(actions)} encabezados principales al Nivel 1 centrado según APA 7.",
-            "actions": actions
+            "reply": (
+                f"Se ajustaron {len(actions)} encabezados principales al Nivel 1 "
+                f"centrado según APA 7."
+                if actions else
+                "La jerarquía de títulos ya respeta los Niveles 1 de APA 7; no hubo ajustes."
+            ),
+            "actions": actions,
         }
 
     # 4. Respuesta general instructiva APA 7
