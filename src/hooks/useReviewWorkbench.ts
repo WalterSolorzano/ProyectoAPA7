@@ -35,27 +35,15 @@ import {
   type ScanEngineId,
 } from '../components/wizard/scanOutcome';
 import * as api from '../api/backend';
+import { collectAuditItems, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 
-export type EngineId = 'ai' | 'style' | 'spelling' | 'citations' | 'structure';
+/* La LISTA de hallazgos vive en `lib/auditItems` porque el rail necesita contar
+   la misma que esta vista abre. Estos `export type` siguen siendo su puerta:
+   media app importa `AuditItem` desde acá y no tiene por qué saber dónde se
+   escribieron los tipos. */
+export type { AuditItem, EngineId, Severity };
 export type EngineFilter = EngineId | 'all';
 export type SubtypeAction = 'accept' | 'mark' | 'resolveGhosts' | 'autoCaption' | 'none';
-export type Severity = 'critical' | 'high' | 'medium' | 'low';
-
-export interface AuditItem {
-  id: string;
-  element_id: string;
-  category: EngineId;
-  /** Subtipo para agrupar: una fila por subtipo, no una por aparición */
-  subtype: string;
-  severity: Severity;
-  summary: string;
-  detail: string;
-  originalText: string;
-  suggestedText?: string;
-  /** Página REAL del elemento, o `null` si no está en el índice */
-  pageNumber: number | null;
-  aiScore?: number;
-}
 
 export interface SubtypeGroup {
   key: string;
@@ -267,120 +255,6 @@ const engineAction = (engine: EngineId): SubtypeAction => {
   return 'accept';
 };
 
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}…` : s);
-
-/* ── Hallazgos del proofreador local ──────────────────────────────────────
-   Una fila por `kind`, y la fila es TOTAL: `ProofreadFinding['kind']` es
-   `'ortografia' | ... | string`, así que el tipo admite kinds que todavía no
-   existen. Un hallazgo que este archivo no conoce NO se descarta: se muestra
-   bajo "Otro hallazgo del corrector" con acción 'mark'. Antes se descartaba
-   en silencio, y el store ya lo publicaba en el mapa de transparencia
-   (`auditSlice` KIND_LABELS → localStorage + StorageEvent): el usuario leía
-   en el lienzo un aviso que el panel de Revisión no tenía. Un panel que
-   calla un hallazgo que el lienzo enseña rompe la sincronización que
-   AGENTS.md §2 exige entre los dos canales. */
-interface ProofreadSource {
-  excerpt?: string;
-  message: string;
-}
-
-interface ProofreadRow {
-  category: EngineId;
-  subtype: string;
-  severity: Severity;
-  summary: string;
-  suggestedText?: string;
-}
-
-interface ProofreadSpec {
-  category: EngineId;
-  subtype: string;
-  severity: Severity;
-  /** Texto fijo de la fila, o el mensaje del motor si este ya lo explica. */
-  summary: string | ((f: ProofreadSource) => string);
-  suggestedText?: string;
-}
-
-const DEL_MOTOR = (f: ProofreadSource) => clip(f.message, 70);
-
-const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
-  // Ortografía y pegado: la corrección es mecánica (objetivos, 'accept').
-  ortografia: {
-    category: 'spelling',
-    subtype: 'ortografia',
-    severity: 'high',
-    summary: (f) => `Falta ortográfica o tilde: ${f.excerpt ?? ''}`,
-  },
-  pegado: {
-    category: 'spelling',
-    subtype: 'texto_pegado',
-    severity: 'medium',
-    summary: 'Texto pegado sin espaciado correcto',
-  },
-
-  // Redacción y Bloom.
-  first_person: {
-    category: 'style',
-    subtype: 'primera_persona',
-    severity: 'medium',
-    summary: 'Uso de primera persona gramatical',
-  },
-  persona: {
-    category: 'style',
-    subtype: 'mezcla_personas',
-    severity: 'medium',
-    summary: DEL_MOTOR,
-  },
-  bloom_vague: {
-    category: 'style',
-    subtype: 'verbo_bloom',
-    severity: 'high',
-    summary: 'Verbo impreciso en objetivo académico',
-    suggestedText: 'Determinar y analizar de forma rigurosa',
-  },
-  bloom_low: {
-    category: 'style',
-    subtype: 'verbo_bloom',
-    severity: 'high',
-    summary: 'Nivel de Bloom por debajo del objetivo del trabajo',
-    suggestedText: 'Determinar y analizar de forma rigurosa',
-  },
-
-  // Lo que el detector probabilístico señala: se marca, nunca se aplica.
-  ai_phrase: { category: 'ai', subtype: 'frase_ia', severity: 'medium', summary: DEL_MOTOR },
-  muletilla: { category: 'ai', subtype: 'muletilla', severity: 'medium', summary: DEL_MOTOR },
-  ngram_repetition: { category: 'ai', subtype: 'repeticion', severity: 'medium', summary: DEL_MOTOR },
-
-  /* Detectados con certeza, pero sin corrección automática posible: cuál de
-     las tres repeticiones se corta, a qué antecedente apunta "esto", dónde
-     partir una oración de 60 palabras, qué idea falta al final. Todos 'mark'
-     (la severidad espeja la que emite el auditor: incomplete → 'error',
-     long_sentence → 'warn', el resto → 'info'). */
-  repeticion: { category: 'style', subtype: 'palabra_repetida', severity: 'low', summary: DEL_MOTOR },
-  ambigua: { category: 'style', subtype: 'pronombre_ambiguo', severity: 'low', summary: DEL_MOTOR },
-  passive_voice: { category: 'style', subtype: 'voz_pasiva', severity: 'low', summary: DEL_MOTOR },
-  long_sentence: { category: 'style', subtype: 'oracion_larga', severity: 'medium', summary: DEL_MOTOR },
-  incompleta: { category: 'style', subtype: 'idea_incompleta', severity: 'high', summary: DEL_MOTOR },
-};
-
-/** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo
- *  que llegue nuevo. Nunca devuelve `null`: no hay kinds que se pierdan. */
-function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
-  const spec = PROOFREAD_SPECS[kind] ?? {
-    category: 'style' as EngineId,
-    subtype: 'otro',
-    severity: 'low' as Severity,
-    summary: DEL_MOTOR,
-  };
-  return {
-    category: spec.category,
-    subtype: spec.subtype,
-    severity: spec.severity,
-    summary: typeof spec.summary === 'function' ? spec.summary(f) : spec.summary,
-    suggestedText: spec.suggestedText,
-  };
-}
-
 /* ── Agrupación por motor y por subtipo ────────────────────────────────────
    Función pura y fuera del hook: la usan las DOS listas que publica la API
    (`groups`, filtrada, y `allGroups`, completa). Que sea la misma función es
@@ -482,137 +356,18 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
-  const items = useMemo<AuditItem[]>(() => {
-    const out: AuditItem[] = [];
-    const byId = new Map(elements.map((e) => [e.id, e]));
-
-    // 1. Detector de IA: párrafos con probabilidad alta o categoría MEDIA+.
-    for (const [idx, p] of (reviewResult?.paragraphs || []).entries()) {
-      const score = p.ai_score || 0;
-      if (!(score >= 45 || p.ai_category === 'HIGH' || p.ai_category === 'MEDIUM')) continue;
-      // `ai_score` ausente o cero no es un 60% ni un 50%: es "no medido". Un
-      // párrafo puede entrar por `ai_category` con la puntuación sin calcular,
-      // y mostrarle un número al usuario sería inventarlo.
-      const medido = score > 0;
-      out.push({
-        id: `ai_rev_${p.element_id}_${idx}`,
-        element_id: p.element_id,
-        category: 'ai',
-        subtype: 'parrafo_ia',
-        severity: score >= 70 ? 'high' : 'medium',
-        summary: medido
-          ? `Índice de IA ${score}% — rigidez sintética detectada`
-          : 'Índice de IA alto — rigidez sintética detectada',
-        detail: 'Estructura reiterativa y conectores sintéticos característicos de modelos generativos.',
-        originalText: (p.element_id ? byId.get(p.element_id)?.text : '') || p.text || '',
-        suggestedText: undefined,
-        pageNumber: p.element_id ? pageOf(p.element_id) : null,
-        aiScore: medido ? score / 100 : undefined,
-      });
-    }
-
-    // 2. Hallazgos proactivos locales: TODOS los `kind` que emite el auditor.
-    for (const [idx, f] of proofreadFindings.entries()) {
-      const row = proofreadRow(String(f.kind), f);
-      out.push({
-        id: `proact_${f.element_id}_${idx}`,
-        element_id: f.element_id,
-        category: row.category,
-        subtype: row.subtype,
-        severity: row.severity,
-        summary: row.summary,
-        detail: f.message,
-        originalText: (f.element_id ? byId.get(f.element_id)?.text : '') || f.excerpt || '',
-        suggestedText: f.suggestion || row.suggestedText,
-        pageNumber: f.element_id ? pageOf(f.element_id) : null,
-      });
-    }
-
-    // 3. Citas fantasma (aparecen en el texto, no en la bibliografía).
-    for (const [idx, ghost] of (citationAuditResult?.ghost_citations || []).entries()) {
-      const g = ghost as {
-        element_id?: string;
-        citation_text?: string;
-        raw_text?: string;
-      };
-      const texto = g.citation_text || g.raw_text || 'Desconocida';
-      out.push({
-        id: `ghost_cite_${idx}`,
-        element_id: g.element_id || '',
-        category: 'citations',
-        subtype: 'cita_fantasma',
-        severity: 'critical',
-        summary: `Cita "${texto}" ausente en bibliografía`,
-        detail: 'Aparece citada en el cuerpo del documento pero no figura en la lista final de referencias.',
-        originalText: g.citation_text || '',
-        pageNumber: g.element_id ? pageOf(g.element_id) : null,
-      });
-    }
-
-    // 4. Referencias huérfanas (en la bibliografía, nunca citadas).
-    for (const [idx, orphan] of (citationAuditResult?.orphan_references || []).entries()) {
-      const o = orphan as { authors?: string[]; year?: string | number; raw_text?: string };
-      out.push({
-        id: `orphan_ref_${idx}`,
-        element_id: '',
-        category: 'citations',
-        subtype: 'referencia_huerfana',
-        severity: 'medium',
-        summary: `Referencia "${o.authors?.[0] || 'Autor'} (${o.year || 's.f.'})" no citada en texto`,
-        detail: 'Consta en la bibliografía final pero ninguna sección del documento la referencia expresamente.',
-        originalText: o.raw_text || '',
-        // Sin elemento que anclar: una referencia huérfana vive en la lista
-        // final, y la lista no tiene página. `null` antes que la página del
-        // último elemento (que era la estimación que se reemplaza aquí).
-        pageNumber: null,
-      });
-    }
-
-    // 5. Estructura y rotulación APA 7.
-    for (const e of elements) {
-      if (e.type === 'heading' && e.needs_review) {
-        out.push({
-          id: `struct_head_${e.id}`,
-          element_id: e.id,
-          category: 'structure',
-          subtype: 'encabezado',
-          severity: 'medium',
-          summary: `Encabezado nivel ${e.heading_level || 1} requiere confirmación de jerarquía`,
-          detail: 'Verificar que no existan saltos ilegales de nivel (ej. H1 a H3 sin H2 intermedio).',
-          originalText: e.text || '',
-          pageNumber: pageOf(e.id),
-        });
-      } else if (e.type === 'image' && !e.is_cover_section && !e.image_info?.caption) {
-        out.push({
-          id: `struct_fig_${e.id}`,
-          element_id: e.id,
-          category: 'structure',
-          subtype: 'figura',
-          severity: 'high',
-          summary: 'Figura sin rotulación APA 7 (Figura N y Nota)',
-          detail: 'Las normas APA 7 exigen numeración secuencial en negrita, título cursivo y nota explicativa.',
-          originalText: '[Figura sin rotular]',
-          suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
-          pageNumber: pageOf(e.id),
-        });
-      } else if (e.type === 'table' && !e.table_info?.caption) {
-        out.push({
-          id: `struct_tbl_${e.id}`,
-          element_id: e.id,
-          category: 'structure',
-          subtype: 'tabla',
-          severity: 'high',
-          summary: 'Tabla sin rotulación reglamentaria APA 7',
-          detail: 'Requiere etiqueta "Tabla N" superior y nota al pie con la fuente o especificación.',
-          originalText: '[Tabla sin rotular]',
-          suggestedText: 'Tabla 1. Datos recopilados durante la fase experimental.',
-          pageNumber: pageOf(e.id),
-        });
-      }
-    }
-
-    return out.filter((it) => !dismissedIds.includes(it.id));
-  }, [reviewResult, proofreadFindings, citationAuditResult, elements, dismissedIds, pageOf]);
+  /* La lista la construye `lib/auditItems` — la MISMA función que cuenta el
+     rail: lo que esta vista abre y lo que el rail promete tienen que ser el
+     mismo conjunto, o el punto verde de Revisión & IA miente. `pageOf` es lo
+     único que esta vista le aporta. Los descartes (`dismissedIds`) son estado
+     de la vista, así que se aplican acá y no en el módulo compartido. */
+  const items = useMemo<AuditItem[]>(
+    () => collectAuditItems(
+      { elements, reviewResult, proofreadFindings, citationAuditResult },
+      pageOf,
+    ).filter((it) => !dismissedIds.includes(it.id)),
+    [reviewResult, proofreadFindings, citationAuditResult, elements, dismissedIds, pageOf],
+  );
 
   /* El resumen COMPLETO, sin filtro: es lo que pinta los chips. El conjunto
      estrecho sale de aquí, no al revés, para que los dos coincidan siempre. */

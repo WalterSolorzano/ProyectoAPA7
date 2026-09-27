@@ -105,13 +105,16 @@ describe('T3b — estado por destino', () => {
     expect(byStep(items, 3).status).toBe('done');
   });
 
-  it('cuenta como pendientes solo las imágenes y tablas marcadas para revisar', () => {
+  it('cuenta como pendientes solo las imágenes y tablas NUMERADAS y marcadas', () => {
+    // La fase 3 exige lo mismo que el atajo de teclado: una figura sin número
+    // o con error de render no es rotulable desde esa fase, así que no cuenta.
     useDocStore.setState({
       doc: docWith({
         elements: [
-          elem({ id: 'i1', type: 'image', needs_review: true }),
-          elem({ id: 't1', type: 'table', needs_review: true }),
-          elem({ id: 'i2', type: 'image', needs_review: false }),
+          elem({ id: 'i1', type: 'image', needs_review: true, image_info: { figure_number: 1 } }),
+          elem({ id: 't1', type: 'table', needs_review: true, table_info: { table_number: 1 } }),
+          elem({ id: 'i2', type: 'image', needs_review: false, image_info: { figure_number: 2 } }),
+          elem({ id: 'i3', type: 'image', needs_review: true, image_info: {} }),
           elem({ id: 'p1', type: 'paragraph', needs_review: true }),
         ],
       }),

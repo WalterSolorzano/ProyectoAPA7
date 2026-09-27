@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
-import { needsReview } from './lib/portadaAuthors';
+import { railPendingInputFrom } from './hooks/useRailDestinations';
+import { pendingCountForPhase as pendingCountForPhaseIn } from './lib/railPending';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
 import { TemplateDialog } from './components/shared/TemplateDialog';
@@ -49,33 +50,12 @@ import { X } from 'lucide-react';
    5. Exportar                         — openExportTunnel() (viewMode='export')
 */
 
-const pendingCountForPhase = (phaseId: number) => {
-  const doc = useDocStore.getState().doc;
-  if (!doc) return 0;
-
-  // Step 1: Portada — verificar si faltan campos requeridos
-  if (phaseId === 1) {
-    const portada = useDocStore.getState().portada;
-    let pending = 0;
-    if (!portada.title?.trim()) pending++;
-    if (!portada.author?.trim()) pending++;
-    return pending;
-  }
-
-  // Step 2: Estructura (headings pending review)
-  if (phaseId === 2) {
-    return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
-  }
-
-  // Step 3: Figuras y tablas (figures + tables pending review)
-  if (phaseId === 3) {
-    const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
-    const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
-    return figures + tables;
-  }
-
-  return 0;
-};
+/* Ctrl+Enter salta a la primera fase con trabajo pendiente. La cuenta sale de
+   `lib/railPending` —la misma del rail y de la fase 5 del workbench—: un
+   atajo que cuenta otra cosa salta a una fase que el rail acaba de declarar
+   "Lista". */
+const pendingCountForPhase = (phaseId: number) =>
+  pendingCountForPhaseIn(railPendingInputFrom(useDocStore.getState()), phaseId);
 
 /** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
 const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'headings' | 'body') => void }> = ({ tab, setTab }) => (
@@ -557,11 +537,12 @@ export const App: React.FC = () => {
   if (!doc || atHome) {
     return (
       <>
-        {tabs.length > 0 && (
-          <div style={{ position: 'sticky', top: 0, zIndex: 15 }}>
-            <ProjectTabs />
-          </div>
-        )}
+        {/* El guard de pestañas vive en `ProjectTabs`, que además es el único
+            montaje del Explorador de proyecto y del cajón de figuras. El
+            envoltorio `sticky` que había acá aplicaba un segundo criterio
+            (`tabs.length > 0`) que, con el guard nuevo, dejaba un div vacío en
+            el caso común de un solo documento. */}
+        <ProjectTabs />
         {isBackendReady ? <Step0QuickStart /> : <div style={{ flex: 1 }} />}
         <LoadingTips />
       </>
@@ -570,6 +551,14 @@ export const App: React.FC = () => {
 
   return (
     <AppShell>
+      {/* `viewMode: 'result'` y `viewMode: 'split'` no tienen hoy ningún escritor
+          en `src/`: son ramas MUERTAS, y se dejan como están. Un modo de vista
+          inalcanzable hoy puede ser alcanzable mañana, y borrar la rama es una
+          decisión de producto, no una limpieza. Lo que sí se arregla es el
+          desajuste que sí ocurre hoy: el rail, siempre montado, tiene que tener
+          una fase a la vista. `handleSelect` vuelve a 'edit' cuando el destino es otra
+          fase (AppShell.tsx), y Exportar se marca como destino actual mientras el
+          túnel está abierto (`useRailDestinations`). */}
       {viewMode === 'result' ? (
         <div key="view-result" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
           <PDFPreview />
