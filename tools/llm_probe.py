@@ -1,4 +1,4 @@
-"""Sonda de proveedores de LLM: cual key hay, cual responde, y con que limites.
+﻿"""Sonda de proveedores de LLM: cual key hay, cual responde, y con que limites.
 
 Por que vive aca y no en `python/`: `test_packaging.py` falla si aparece un `.py`
 suelto en `python/` sin registrar en `py-modules`, y esta es una herramienta de
@@ -7,6 +7,11 @@ diagnostico, no codigo de producto. Va en `tools/`.
 Por que existe: `get_ai_system_health()` lee CONFIGURACION, no prueba nada. El
 2026-09-27|reportaba las tres especialidades en "good" con ocho proveedores
 configurados, y al pegarle una peticion a cada uno **ninguno respondia**.
+
+Ojo con una cosa que ya se dio mal una vez: esta sonda tiene que cargar
+`.env` como lo hace la app (`main.py:27`, `load_dotenv`). Sin eso lee el entorno
+del proceso, que es un subconjunto, y reporta "SIN KEY" de proveedores que si la
+tienen en el archivo. La razon de que `tools/llm_probe.py` imports dotenv.
 
 Uso:
     python tools/llm_probe.py            # estado y detalle
@@ -21,7 +26,17 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "python"))
+_RAIZ = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_RAIZ / "python"))
+
+# La app lee el .env de la raiz; esta sonda tiene que leerlo tambien o mide una
+# configuracion que no es la que corre.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(_RAIZ / ".env")
+except ImportError:
+    print("AVISO: sin python-dotenv, se lee solo el entorno del proceso")
 
 NAV = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
@@ -92,7 +107,7 @@ def sondea(pid, modelo_override=None):
     if pid == "gemini":
         url = url % modelo
         h = {**NAV, "x-goog-api-key": key, "Content-Type": "application/json"}
-        body = {"contents": [{"parts": [{"text": "di OK"}]},
+        body = {"contents": [{"parts": [{"text": "di OK"}]}],
                 "generationConfig": {"maxOutputTokens": 8}}
     elif pid == "cloudflare":
         acct = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")

@@ -1,4 +1,4 @@
-"""El ruteo de especialidades tiene que tener providers que respondan.
+﻿"""El ruteo de especialidades tiene que tener providers que respondan.
 
 El 2026-09-27 la sonda encontro que las tres especialidades caian: FAST apuntaba
 a Groq (key invalida) y Cerebras (404 en todos los gratuitos), HEAVY a Gemini
@@ -18,19 +18,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from modules.ai_client import PROVIDER_SPECIALTIES  # noqa: E402
 
-# Estado verificado por sonda el 2026-09-27. Un proveedor sale de aca cuando deja
-# de responder; entra cuando se le agrega una key. Actualizar esta lista y la
-# tabla de arriba JUNTAS, que es el error que se produjo.
+# Estado verificado por sonda el 2026-09-27 con `tools/llm_connect.py`, que carga
+# `.env` COMO HACE LA APP. Sin ese load la sonda lee el entorno del proceso, que
+# es un subconjunto, y reporta "SIN KEY" de proveedores que si la tienen: ya
+# paso y dio un diagnostico equivocado.
 #
-# Un proveedor no sale de esta lista por estar lento ni por dar 429 una vez: sale
-# por responder con un error que no se arregla esperando. `mistral` devuelve
-# `x-ratelimit-limit-req-minute: 0` — key valida, cuota CERO — asi que responde
-# 429 para siempre, no "a ratos".
-RESPONDEN = {"zenmux"}
-# 410 = modelo retirado, 401 = key invalida, 402 = sin credito, 429 con cuota 0
-# = sin cuota, DNS = endpoint muerto. Ninguno se arregla esperando.
-MUERTOS = {"nvidia_nim", "groq", "openrouter", "gemini", "cerebras", "mistral",
-           "opencodezen"}
+# Un proveedor sale de aca cuando deja de responder; entra cuando se le agrega
+# una key. Actualizar esta lista y la tabla de arriba JUNTAS.
+#
+# Un proveedor NO sale por estar lento ni por dar 429 una vez. Sale por un error
+# que no se arregla esperando:
+#   410 = modelo retirado   401 = key invalida   402 = sin credito
+#   DNS = endpoint muerto   404 = modelo sin despliegue en la cuenta
+RESPONDEN = {"zenmux", "aion", "kilocode", "ollama_cloud", "huggingface"}
+MUERTOS = {"nvidia_nim", "groq", "gemini", "openrouter", "cerebras", "mistral",
+           "opencodezen", "cloudflare", "modelscope", "sambanova", "agnes_ai"}
 
 
 def test_toda_especialidad_tiene_un_proveedor_que_responde():

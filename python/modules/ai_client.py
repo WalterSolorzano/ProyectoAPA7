@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import hashlib
 import json
 import logging
@@ -29,10 +29,12 @@ PROVIDER_SPECIALTIES = {
     # Esto se va a volver a envejecer. El arreglo de raiz no es esta tabla sino
     # un cortocircuito por proveedor que deje de reintentar uno que ya respondio
     # 410 o 401. Puesto aca mientras tanto.
-    "FAST": ["zenmux", "mistral", "groq", "cerebras", "cloudflare", "aion", "kilocode"],
-    "HEAVY": ["zenmux", "mistral", "gemini", "nvidia_nim", "openrouter", "ollama_cloud"],
-    "REASONING": ["zenmux", "mistral", "nvidia_nim", "openrouter", "opencodezen",
-                  "aion", "kilocode", "ollama_cloud"],
+    "FAST": ["zenmux", "huggingface", "ollama_cloud", "aion", "kilocode",
+             "groq", "cerebras", "cloudflare"],
+    "HEAVY": ["ollama_cloud", "zenmux", "aion", "huggingface", "kilocode",
+              "gemini", "nvidia_nim", "openrouter", "ollama_cloud"],
+    "REASONING": ["ollama_cloud", "aion", "zenmux", "huggingface", "kilocode",
+                  "nvidia_nim", "openrouter", "opencodezen", "ollama_cloud"],
 }
 
 # --- Predictive Token Bucket Rate Limiter ---

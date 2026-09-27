@@ -66,6 +66,8 @@ PROVIDER_CAPACITY = {
     "kilocode": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 5},
     # Ollama Cloud / API — Modelos Cloud (gpt-oss:20b, nemotron-3-nano)
     "ollama_cloud": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 5},
+    # HuggingFace Inference Router - OpenAI-compatible, capa gratuita
+    "huggingface": {"timeout": 30, "max_tokens_per_request": 3000, "requests_per_minute": 20, "typical_latency_s": 4},
 }
 
 # ── Progress tracking (in-memory, keyed by session_id) ──────────────────────
@@ -274,6 +276,21 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "url": "https://ollama.com/v1/chat/completions",
             "key": ollama_key,
             "model": os.getenv("OLLAMA_MODEL", "gpt-oss:20b"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 13. HuggingFace Inference Router (Priority 13)
+    #     OpenAI-compatible, mismo formato que el resto. La capa gratuita del
+    #     router responde sin tarjeta; el modelo sale del catalogo, asi que el
+    #     default es uno chico y de proposito.
+    hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
+    if hf_key:
+        providers.append({
+            "name": "HuggingFace",
+            "id": "huggingface",
+            "url": "https://router.huggingface.co/v1/chat/completions",
+            "key": hf_key,
+            "model": os.getenv("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
