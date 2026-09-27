@@ -88,24 +88,56 @@ El objetivo declarado del usuario es "ver los fallos de una forma más amigable,
 cada fase". Hoy la pantalla agrupa por motor y luego por subtipo. Falta la tercera agrupación: la fase
 del documento a la que pertenece el hallazgo, que es la unidad en la que el usuario piensa.
 
-## Preguntas abiertas — responder antes de escribir el spec
+## D5 — Vocabulario de fases: que H1 abren que criterios
 
-1. **¿Qué H1 abren qué criterios?** Hace falta el vocabulario: qué títulos de fase existen, y qué
-   criterios se enganchan a cada uno. Los candidatos que ya aparecen en el código son resumen/abstract,
-   introducción, método y objetivos; faltan conclusión, marco teórico, resultados, discusión y
-   referencias. ¿Es una lista cerrada y configurable, o se reconoce por patrón sobre el título?
-2. **¿Qué pasa con el contenido anterior al primer H1, y con lo que está dentro de un H2?** Los H2 y
-   H3 (`OutlineTree`, `models.py:119` ya tiene config por nivel) ¿heredan el ámbito del H1 o son ámbito
-   propio?
-3. **¿Anida?** Un H1 "Resultados" que contiene un H2 "Resultados por sección" — ¿el H2 abre un ámbito
-   hijo que puede endurecer los criterios, o es decorativo?
-4. **¿Cómo se muestra en Revisión sin volver a una tabla de hallazgos?** La pantalla es hoy un párrafo a
-   la vez; la fase necesita ser visible sin convertirse en el eje de navegación y competir con la
-   lectura secuencial. No repoblar las tres columnas que `AGENTS.md` §1 prohíbe.
-5. **Alcance del arreglo del defecto.** El patrón de subcadena aparece en al menos dos módulos. ¿Se
-   arreglan todos los detectores con este patrón, o solo los que pertenecen a la taxonomía por fase?
-   Arreglar solo algunos deja la misma clase de falso positivo en el resto.
+Lista cerrada y configurable, reconocida sobre el titulo del H1. Un H1 que no esta en la lista es una
+seccion cualquiera: lleva reglas generales y nada mas. Ese es el limite que impide el malinterprete.
 
+| H1 | Criterios de fase | Nota |
+|---|---|---|
+| Resumen | un solo parrafo, sin citas, verbo en pasado, sin "este trabajo va a" | No es un tramo de tesis; es un standalone de 150-250 palabras |
+| **Titulo** | **NINGUNO — zona protegida** | Ver abajo. Este H1 es la Portada |
+| Objetivos / Proposito | verbo Bloom medible, jerarquia general<->especificos, vaguedad | Es el que dispara el bug actual |
+| Introduccion | tamano de parrafo, primera persona, formuleos vagos | |
+| Marco teorico | parafrasis vs. cita, tamano de parrafo | |
+| Metodo | reproducibilidad, verbo medible, tamano de parrafo | |
+| Resultados | verbo en pasado, sin interpretacion | |
+| Discusion | conecta con resultados, no repite | |
+| Conclusiones | responde a los objetivos, no introduce nada nuevo | |
+| Referencias | cita presente, ano parseable | Ya tiene motor propio: citas fantasma y huerfanas |
+| Anexos | sensibilidad material, criterios de otro tipo | Ver abajo |
+
+**Titulo / Portada: ambito reconocido, cero criterios.** El usuario lo senalo explicitamente. Este H1 no
+es una fase mas: es la Portada, y `AGENTS.md` §1 protege dos cosas que un criterio de redaccion tocaria.
+
+1. **`use_original_cover` no puede mutar la portada original.** Un criterio que ofrezca reescribir el
+   titulo es exactamente el fallo que la regla existe para impedir.
+2. **La portada es indivisible en `computePages`.** Todo elemento con `is_cover_section` o
+   `portada_block` va a la pagina 1 como bloque y nunca se parte. Un ambito que re-dimensionara
+   elementos romperia esa invariante.
+
+Decision: el H1 de Portada **abre ambito pero no declara criterios**. Se reconoce y se nombra en la
+revision, y no dispara ninguna regla de taxonomia. Es la diferencia entre "conozco la fase" y "la fase
+tiene reglas". Ninguna regla de esta fase puede **escribir**; a lo sumo reportar.
+
+**Anexos: sensibilidad material.** Los anexos suelen ser tablas, figuras, cuestionarios o instrumentos
+con forma propia. Aplicarles criterios de prosa argumental generaria ruido sobre material que no la es.
+Abren ambito con criterios de otro tipo: presencia de titulo, de fuente citada, coherencia de
+nomenclatura interna. **A confirmar por el usuario.**
+
+## Preguntas abiertas — responder antes de escribir el plan
+
+1. ~~¿Que H1 abren que criterios?~~ **Resuelta en D5.**
+2. ~~¿Y el H2?~~ **Resuelta en D3:** el H2 hereda. **Pendiente:** el contenido anterior al primer H1 sigue
+   sin dueno. Es la portada, y la portada es zona protegida, asi que su respuesta probable es "reglas
+   generales, nada mas". Confirmar.
+3. ~~¿Anida?~~ **Resuelta en D3:** no.
+4. **Abierta.** Ver D4 para lo decidido; falta decidir si la fase se nombra como texto arriba o como un
+   chip mas en la tira de filtros.
+5. **Abierta y es la mas importante.** El patron de subcadena aparece en `proactive_auditor.py:479` y en
+   `ai_document_editor.py:272`. Arreglar solo los detectores de taxonomia deja la misma clase de falso
+   positivo —subcadena en cualquier texto— en el resto. Recomiendo arreglar el patron en los dos modulos
+   y no solo en los detectores que participan en la taxonomia.
 ## Restricciones que sigue mandando
 
 - `AGENTS.md` §1: la revisión es un párrafo a la vez; nunca reintroducir las tres columnas.
