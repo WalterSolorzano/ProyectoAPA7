@@ -12,7 +12,7 @@ from typing import List, Optional
 from classification.llm_classifier import classify_document_with_llm, get_classify_progress
 from config import STORAGE_DIR, get_apa7_template_path
 from create_template import ensure_apa7_template
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from generation.layered_generator import generate_apa7_from_scratch
 from generation.templates import (
@@ -661,7 +661,9 @@ async def classify_with_llm(
             detail="Sesion no encontrada. El documento debe ser subido primero con /api/upload.",
         )
 
-    updated_doc: DocumentModel = await classify_document_with_llm(doc, api_key, nim_url, use_local == 'true')
+    updated_doc: DocumentModel = await classify_document_with_llm(
+        doc, api_key, nim_url, use_local == 'true', provider_id=provider_id
+    )
     save_session_state(updated_doc, STORAGE_DIR)
     return updated_doc
 
@@ -1002,6 +1004,104 @@ async def save_session_snapshot_endpoint(session_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Sesion no encontrada")
     save_session_snapshot(doc_model, STORAGE_DIR)
     return {"status": "ok", "message": "Progreso guardado", "session_id": session_id}
+
+
+@router.post("/api/refresh-from-word/{session_id}")
+async def refresh_from_word(session_id: str, ruta: str = Query(...)) -> dict:
+    """Relee el `.docx` que tiene Word abierto y devuelve el diff por elemento.
+
+    LO QUE HACE HOY Y NO HACIA: `src/App.tsx:267` atiende el watcher de Word con
+    un unico `showToast` que decia "el documento esta sincronizado", y no
+    reparseaba nada. Este endpoint es lo que hace que esa frase sea cierta, o la
+    frase se va.
+
+    `ruta` la manda el frontend porque el backend no la conoce: Word escribe
+    sobre el archivo donde la persona lo tiene, no sobre la copia de la sesion
+    (`sessions/<id>/original.docx`). Es leer un archivo del disco local desde
+    un backend que escucha en localhost y al que solo habla la app de Electron,
+    asi que la confianza es de proceso, no de red — pero aun asi se valida que
+    sea un `.docx` y que exista, y no se acepta una ruta arbitraria a ciegas.
+
+    Un `.docx` es un ZIP, y Word lo reescribe entero en cada guardado: si se lee
+    a mitad de eso, `zipfile` revienta. Por eso el `BadZipFile` NO es un error
+    para la persona sino una respuesta de "todavia no" — el watcher reintenta y
+    en el peor caso se queda un guardado sin ver, que es recuperable con el
+    siguiente Ctrl+S. Devolver un 500 pondria un error en la cara de alguien que
+    esta escribiendo.
+    """
+    import zipfile
+
+    from modules.word_refresh import diff_por_elemento
+
+    previo = load_session_state(session_id, STORAGE_DIR)
+    if not previo:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada")
+
+    ruta_docx = Path(ruta)
+    if ruta_docx.suffix.lower() != ".docx":
+        raise HTTPException(
+            status_code=400,
+            detail="La ruta tiene que apuntar a un archivo .docx de Word.",
+        )
+    if not ruta_docx.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encuentra el archivo: {ruta_docx.name}",
+        )
+
+    try:
+        content = ruta_docx.read_bytes()
+    except OSError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No se pudo leer el archivo: {e}",
+        )
+
+    # El archivo puede estar a medio escribir. No es un error: se responde
+    # "todavia no" y el watcher vuelve a mirar.
+    try:
+        with zipfile.ZipFile(ruta_docx):
+            pass
+    except zipfile.BadZipFile:
+        return {
+            "session_id": session_id,
+            "cambiado": False,
+            "listo": False,
+            "motivo": "archivo_a_medio_escribir",
+            "hash_estructura": "",
+            "elementos": [],
+            "ids_nuevos": [],
+            "ids_eliminados": [],
+        }
+
+    try:
+        # EL MISMO parser que usa /api/upload. Un segundo parser es la clase de
+        # divergencia que este proyecto ha pagado varias veces: los dos leen
+        # distinto y el diff entre lo que guardo y lo que leyo no dice nada.
+        reparseado: DocumentModel = await asyncio.to_thread(
+            parse_docx_bytes, content, ruta_docx.name, session_id, STORAGE_DIR,
+            skip_page_layout=True,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(
+            status_code=422,
+            detail=f"El archivo se abrio pero no se pudo interpretar: {e}",
+        )
+
+    diff = diff_por_elemento(previo, reparseado)
+    diff["session_id"] = session_id
+    diff["listo"] = True
+    if not diff["cambiado"]:
+        # No se reparsea para nada: sin cambios, el estado guardado sigue siendo
+        # el bueno y no hay por qué reemplazarlo.
+        return diff
+
+    reparseado.file_name = previo.file_name or ruta_docx.name
+    reparseado.apa_format = previo.apa_format
+    reparseado.profile_id = previo.profile_id
+    reparseado.apa_rules = previo.apa_rules
+    save_session_state(reparseado, STORAGE_DIR)
+    return diff
 
 
 @router.post("/api/audit-structure/{session_id}")
