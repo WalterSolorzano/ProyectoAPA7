@@ -1,4 +1,4 @@
-"""Ambitos de fase: los H1 abren un ambito y cada ambito tiene sus criterios.
+﻿"""Ambitos de fase: los H1 abren un ambito y cada ambito tiene sus criterios.
 
 Este modulo es la UNA fuente de verdad. Antes, el alcance de una regla se
 deducia del TEXTO del elemento con `any(kw in low_t for kw in ...)`:
@@ -169,6 +169,135 @@ RULE_SCOPES: Dict[str, str] = {
     "portada_title_larga": PORTADA_KEY,
     "portada_punto_final": PORTADA_KEY,
 }
+
+
+# ── Criterios de fase ───────────────────────────────────────────────────────
+
+# Verbos imprecisos para un objetivo de investigacion: no dicen QUE se va a
+# hacer ni COMO se va a medir. Esta lista es de aqui y no de
+# `proactive_auditor`, que la importa: `audit_objective` (proactive_auditor)
+# la usa tambien, y dos copias de la misma lista divergen solas.
+#
+# Ojo con las entradas de varias palabras: "tener idea de" se busca como
+# subcadena, asi que "no tener idea de" tambien matchea. Es aceptable porque
+# las dos son igual de imprecisas.
+VAGUE_VERBS: Tuple[str, ...] = (
+    "conocer", "entender", "aprender", "saber", "comprender", "estudiar",
+    "familiarizarse", "tener idea de", "estar al tanto de", "darse cuenta de",
+)
+
+# Verbos que en una fase de resultados/discusion/conclusion deberian estar en
+# pasado, porque en esas fases ya se reporto lo que se hizo.
+_PAST_ONLY_VERBS: Tuple[str, ...] = (
+    "proponer", "buscar", "describir", "analizar", "evaluar", "determinar",
+    "medir", "desarrollar", "aplicar", "comparar",
+)
+
+_WORD_SPLIT = re.compile(r"\S+")
+
+
+def _check_bloom_verb(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    low = text.lower()
+    for verb in VAGUE_VERBS:
+        pos = low.find(verb)
+        if pos >= 0:
+            return [mk(eid, text, pos, pos + len(verb), "bloom_vague", "warn",
+                       f'Verbo impreciso "{text[pos:pos + len(verb)]}" en la fase '
+                       f"{cfg.label}; usa un verbo en infinitivo medible "
+                       f"(determinar, medir, evaluar)",
+                       suggestion="determinar", phase=cfg.key,
+                       read_only=cfg.read_only)]
+    return []
+
+
+def _check_paragraph_words(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    if not cfg.paragraph_words:
+        return []
+    lo, hi = cfg.paragraph_words
+    n = len(_WORD_SPLIT.findall(text or ""))
+    if lo <= n <= hi:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "paragraph_words",
+               "info" if n > hi else "warn",
+               f"Este parrafo tiene {n} palabras y la fase {cfg.label} pide "
+               f"entre {lo} y {hi}",
+               phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_verbo_pasado(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    low = text.lower()
+    for verb in _PAST_ONLY_VERBS:
+        pos = low.find(verb)
+        if pos >= 0:
+            return [mk(eid, text, pos, pos + len(verb), "verbo_pasado", "info",
+                       f'"{text[pos:pos + len(verb)]}" esta en infinitivo; la fase '
+                       f"{cfg.label} ya reporto lo que se hizo, asi que va en pasado",
+                       phase=cfg.key, read_only=cfg.read_only)]
+    return []
+
+
+def _check_portada_title_larga(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    n = len(_WORD_SPLIT.findall(text or ""))
+    if n <= 20:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "portada_title_larga", "warn",
+               f"El titulo tiene {n} palabras; un titulo de portada no suele "
+               f"pasar de 20", phase=cfg.key, read_only=True)]
+
+
+def _check_portada_punto_final(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    stripped = (text or "").strip()
+    if not stripped.endswith("."):
+        return []
+    return [mk(eid, text, max(0, len(stripped) - 1), len(stripped),
+               "portada_punto_final", "info",
+               "El titulo de portada no lleva punto final",
+               phase=cfg.key, read_only=True)]
+
+
+# Criterios que solo tienen sentido sobre el ELEMENTO DE PORTADA, no sobre
+# cualquier elemento que caiga en su ambito.
+#
+# El ambito `portada` tambien cubre "todo lo que hay antes del primer H1", que
+# en el modo `texts` del endpoint es el documento entero. Aplicar "el titulo no
+# lleva punto final" ahi hacia que CADA parrafo terminara en punto fuera
+# senalado, y el test `test_no_findings_clean_text` lo cazo. Un criterio sobre
+# el titulo necesita el titulo.
+_PORTADA_ONLY = {"portada_title_larga", "portada_punto_final"}
+
+
+_CHECKS = {
+    "bloom_verb": _check_bloom_verb,
+    "paragraph_words": _check_paragraph_words,
+    "verbo_pasado": _check_verbo_pasado,
+    "portada_title_larga": _check_portada_title_larga,
+    "portada_punto_final": _check_portada_punto_final,
+}
+
+
+def phase_findings(phase: str, eid: str, text: str, *, mk,
+                   is_cover: bool = False) -> List[Dict[str, Any]]:
+    """Hallazgos de los criterios de la fase a la que pertenece este elemento.
+
+    Un elemento en `sin_fase` no esta en ninguna fase del vocabulario y no
+    dispara nada. Las reglas generales NO pasan por aca: ya corrieron, y lo
+    hacen en todas las fases.
+
+    `is_cover` habilita los criterios que son sobre el titulo de portada. Sin
+    el, un documento sin H1 —que es TODO documento en el modo `texts` del
+    endpoint—hacia que cada parrafo con punto final se reportara como un titulo mal escrito.
+    """
+    cfg = PHASE_BY_KEY.get(phase)
+    if cfg is None or not cfg.criteria:
+        return []
+    out: List[Dict[str, Any]] = []
+    for cid in cfg.criteria:
+        if cid in _PORTADA_ONLY and not is_cover:
+            continue
+        check = _CHECKS.get(cid)
+        if check is not None:
+            out.extend(check(eid, text, cfg, mk))
+    return out
 
 
 # ── Mapa de ambitos ─────────────────────────────────────────────────────────

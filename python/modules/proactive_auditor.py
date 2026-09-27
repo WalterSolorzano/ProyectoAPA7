@@ -17,6 +17,15 @@ import re
 from typing import Any, Dict, List
 from collections import Counter
 
+from modules.finding import mk
+from modules.phase_scope import (  # noqa: E402
+    GLOBAL,
+    NO_PHASE_KEY,
+    PORTADA_KEY,
+    build_phase_map,
+    phase_findings,
+)
+
 _WORD = re.compile(r"[a-záéíóúñü]+", re.IGNORECASE)
 _STOPWORDS = set("""el la los las un una unos unas de del al a en por para con sin sobre
 entre y o u que como su sus mi tu se lo le nos me te es son fue fueron ha han haya sido
@@ -65,8 +74,11 @@ BLOOM_LEVELS = {
     'analizar': 4, 'evaluar': 5, 'crear': 6,
 }
 
-VAGUE_VERBS = ['conocer', 'entender', 'aprender', 'saber', 'comprender', 'estudiar',
-               'familiarizarse', 'tener idea de', 'estar al tanto de', 'darse cuenta de']
+# La lista de verbos imprecisos vive en `phase_scope`, que es su dueno: la
+# usan el criterio de la fase de objetivos y `audit_objective` mas abajo, y dos
+# copias de la misma lista divergen solas. Se reexporta porque el resto del
+# modulo —y sus tests— la siguen importando desde aca.
+from modules.phase_scope import VAGUE_VERBS  # noqa: E402,F401
 
 # ---------------------------------------------------------------- B1 repetición
 _SENT_START_DUP = re.compile(r"^(?:el|la|los|las|un|una|es|se|su|en|al|de)\b", re.IGNORECASE)
@@ -358,25 +370,15 @@ def _words(text: str) -> List[str]:
 
 
 def _mk(element_id: str, text: str, start: int, end: int, kind: str,
-        severity: str, message: str, suggestion: str | None = None) -> Dict[str, Any]:
-    lo = max(0, start - 25)
-    hi = min(len(text), end + 25)
-    prefix = ("…" if lo > 0 else "") + text[lo:start]
-    core = text[start:end]
-    suffix = text[end:hi] + ("…" if hi < len(text) else "")
-    f: Dict[str, Any] = {
-        "element_id": element_id,
-        "start": start,
-        "end": end,
-        "excerpt": f"{prefix}{core}{suffix}".strip(),
-        "kind": kind,
-        "severity": severity,
-        "message": message,
-        "source": "local",
-    }
-    if suggestion:
-        f["suggestion"] = suggestion
-    return f
+        severity: str, message: str, suggestion: str | None = None,
+        **extra: Any) -> Dict[str, Any]:
+    # Envoltura de `finding.mk`. Los ~30 call sites de este modulo usan el
+    # nombre y la firma de siempre, y por eso el hallazgo ahora lleva `phase` y
+    # `read_only` sin que ninguno se haya tocado. `_mk` se vivio aqui para no
+    # cambiar 30 lineas; ahora vive en `modules/finding.py` para que
+    # `phase_scope` pueda construir hallazgos sin ciclo de import.
+    return mk(element_id, text, start, end, kind, severity, message, suggestion,
+              **extra)
 
 
 def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
@@ -397,12 +399,19 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
 
     repeat_muletilla = muletilla_count > 3
 
+    # Ámbito de fase por elemento, calculado UNA vez antes del bucle. Los H1
+    # no se auditan como párrafos (el filtro de abajo los excluye): solo
+    # delimitan. Sin este mapa cada regla tendría que volver a deducir su
+    # ámbito del texto del elemento, que es el defecto que este mapa elimina.
+    phase_by_id, _phase_spans = build_phase_map(elements)
+
     for e in elements:
         etype = getattr(getattr(e, "type", None), "value", getattr(e, "type", ""))
         if str(etype) not in ("paragraph", "para"):
             continue
         eid = str(getattr(e, "id", ""))
         text = getattr(e, "text", "") or ""
+        phase = phase_by_id.get(eid, NO_PHASE_KEY)
 
         # -- primera persona
         fp_matches = []
@@ -474,18 +483,13 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
                                 f'Ortografía: "{m.group(0)}" → "{correct}"',
                                 suggestion=correct))
 
-        # -- verbos imprecisos en objetivos / Bloom
-        low_t = text.lower()
-        if any(kw in low_t for kw in ("objetivo", "propósito", "finalidad", "meta")):
-            for vv in VAGUE_VERBS:
-                pos = low_t.find(vv)
-                if pos >= 0:
-                    findings.append(_mk(
-                        eid, text, pos, pos + len(vv), "bloom_vague", "warn",
-                        f'Verbo impreciso "{text[pos:pos+len(vv)]}" en objetivo; usa un verbo en infinitivo medible (analizar, determinar, evaluar)',
-                        suggestion="analizar"
-                    ))
-                    break
+        # -- Criterios de la fase a la que pertenece este elemento.
+        # Antes esto era `if any(kw in low_t for kw in ("objetivo", ...,
+        # "meta"))`: "meta" esta dentro de "metodologia", asi que un parrafo
+        # sobre metodologia disparaba la regla de verbos de objetivos, y
+        # cualquier parrafo que mencionara "objetivo" tambien. Ahora el ambito
+        # viene del H1 que contiene el elemento, nunca de su texto.
+        findings.extend(phase_findings(phase, eid, text, mk=_mk))
 
         # -- B1 repetición / B2 incompleta / B4 persona / B5 ambigüedad
         findings.extend(_audit_repeticion(eid, text))
@@ -493,6 +497,21 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         findings.extend(_audit_persona(eid, text))
         findings.extend(_audit_ambigua(eid, text))
         findings.extend(_audit_spacy_and_spellchecker(eid, text))
+
+    # Pasada de portada: los elementos de portada NO son prosa, asi que el
+    # filtro de arriba los excluye y no llegan al bucle principal. Pero la
+    # portada SE MIDE: si su titulo esta mal, el usuario tiene que verlo en
+    # Revision. Los criterios son de solo lectura, nunca traen `suggestion`, y
+    # por eso no hay nada que la aplicadora pueda escribir sobre la portada
+    # original (AGENTS.md §1, use_original_cover).
+    for e in elements:
+        etype_ = str(getattr(getattr(e, "type", None), "value", getattr(e, "type", "")))
+        if not (getattr(e, "is_cover_section", False) or etype_ == "portada_block"):
+            continue
+        eid = str(getattr(e, "id", ""))
+        findings.extend(phase_findings(
+            phase_by_id.get(eid, PORTADA_KEY), eid,
+            getattr(e, "text", "") or "", mk=_mk, is_cover=True))
 
     # Repetición de n-gramas a nivel de documento
     findings.extend(detect_repeated_ngrams(elements))

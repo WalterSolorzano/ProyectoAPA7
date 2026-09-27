@@ -133,3 +133,80 @@ def test_burstiness_score_calculation():
     assert res["burstiness_score"] >= 0.5
     assert "Sospecha IA" not in res["interpretation"]
 
+
+
+# ── Ambitos de fase: el H1 manda, no el texto ────────────────────────────────
+
+def _h(eid, text, level=1):
+    return ElementModel(id=eid, type=ElementType.HEADING, heading_level=level,
+                        text=text)
+
+
+def test_metodologia_en_el_cuerpo_no_atribuye_a_objetivos():
+    # El bug, y su espejo. El parrafo necesita LAS DOS cosas que el bug
+    # miraba: una palabra disparadora ("objetivo", y "meta" dentro de
+    # "metodologia") y un verbo impreciso. Sin el verbo el test pasaba sin
+    # probar nada, porque el bug nunca habria disparado.
+    #
+    # Lo que se asserta es la ATRIBUCION, no la ausencia: la fase de metodo
+    # si tiene criterio de verbo medible (D5), asi que un hallazgo aqui es
+    # legitimo. Lo ilegitimo era que se le atribuyera a la fase de objetivos.
+    els = [_h("h1", "Metodologia"),
+           _para("El objetivo de este trabajo es conocer la percepcion.")]
+    f = audit_elements(els)
+    assert all(x["phase"] != "objetivos" for x in f), f
+    # Y el hallazgo que sí sale pertenece a la fase que realmente lo contiene.
+    assert [x["phase"] for x in _kinds(f, "bloom_vague")] == ["metodo"]
+
+
+def test_metodologia_como_palabra_suelta_no_atribuye_a_objetivos():
+    # Sin ningun H1 no hay fase de prosa: el elemento cae en portada y no
+    # dispara el criterio de verbos.
+    f = audit_elements([_para("La metodologia pretende conocer la percepcion.")])
+    assert all(x["phase"] != "objetivos" for x in f), f
+    assert _kinds(f, "bloom_vague") == []
+
+
+def test_bloom_vague_sigue_disparando_dentro_de_objetivos():
+    els = [_h("h1", "Objetivos"), _para("Conocer las causas del fenomeno X.")]
+    assert len(_kinds(audit_elements(els), "bloom_vague")) == 1
+
+
+def test_bloom_vague_fuera_de_objetivos_no_dispara():
+    # Mismo verbo, ambito equivocado: no hay hallazgo.
+    els = [_h("h1", "Agradecimientos"),
+           _para("Conocer las causas del fenomeno X.")]
+    assert _kinds(audit_elements(els), "bloom_vague") == []
+
+
+def test_todo_hallazgo_declara_su_fase():
+    els = [_h("h1", "Objetivos"),
+           _para("Conocer las causas y ademas hay un erro aqui."),
+           _h("h2", "Conclusiones"),
+           _para("En conclusion se demostro que Io creo que si.")]
+    for f in audit_elements(els):
+        # "global" es un valor legitimo: son las reglas generales, que no
+        # pertenecen a ninguna fase. Lo que NO puede pasar es un hallazgo sin
+        # fase declarada.
+        assert f["phase"] in {"global", "objetivos", "conclusiones"}, f
+        assert isinstance(f["read_only"], bool)
+
+
+def test_las_reglas_generales_no_tienen_fase():
+    els = [_h("h1", "Objetivos"), _para("Yo creo que si.")]
+    f = audit_elements(els)
+    assert [x["phase"] for x in _kinds(f, "first_person")] == ["global"]
+
+
+def test_reglas_generales_corrigen_en_cualquier_fase():
+    els = [_h("h1", "Agradecimientos"),
+           _para("Yo creo que el proceso fue eviden te.")]
+    kinds = {f["kind"] for f in audit_elements(els)}
+    assert "first_person" in kinds
+
+
+def test_h1_no_se_audita_como_parrafo():
+    # El H1 es un delimitador: no produce hallazgos propios.
+    f = audit_elements([_h("h1", "Objetivos"),
+                        _para("Conocer el fenomeno X.")])
+    assert all(x["element_id"] == "e1" for x in f)
