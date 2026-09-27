@@ -1,5 +1,15 @@
 /* WordAPA7 — Complete Stylesheet for Microsoft Word 365 UI */
 
+/* T20: FUERA DEL ALCANCE DEL LINT DE TOKENS, y aquí está dicho para que el que
+   llegue no tenga que preguntarlo. Esta es la segunda hoja viva del proyecto
+   (la importa `main.tsx` para toda la app) y tiene color literal: según la
+   regla del proyecto, el hex solo puede existir en `design-system.css`. La regla
+   R9 de `src/__tests__/noHardcodedColors.test.ts` ve estas líneas y tiene la
+   cuenta FIJADA por nombre (`DEUDA_FLUENT_CSS`), así que un literal nuevo aquí
+   rompe la prueba: no es una exención, es una deuda contada. Saldarla es
+   trabajo de otra task —es una hoja importada globalmente— y cuando baje la
+   cuenta hay que bajar el número del test. */
+
 /* Tailwind directives — necesarias para que los componentes shadcn/ui
    (Button, Tabs, ToggleGroup, Input) y las utility classes (w-4 h-4 mr-2, etc.)
    usadas en UnifiedToolbar tengan estilo. Preflight está desactivado en

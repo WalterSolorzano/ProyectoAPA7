@@ -1,5 +1,14 @@
 /* WordAPA7 — Comentario estilo WhatsApp animado para el previsualizador.
  *
+ * T20: FUERA DEL ALCANCE DEL LINT DE TOKENS, y aquí está dicho para que el que
+ *   llegue no tenga que preguntarlo. Este archivo es la BURBUJA del comentario, y
+ *   AGENTS.md §2 exige que un hallazgo aparezca en DOS canales a la vez —el
+ *   subrayado inline y la burbuja— y que digan lo mismo. El canal inline es
+ *   `ReadingText`, que SÍ está en el alcance del lint; este, su hermano, no:
+ *   la guarda cubre media pareja. No es una exención: el veto al color literal
+ *   alcanza a este archivo cuando alguien meta el diseño en tokens, y mientras
+ *   tanto el que lo lea tiene el aviso delante.
+ *
  * Sistema híbrido de comentarios:
  *  - BIBLIOTECA: plantillas instantáneas y variadas (emojis, muletillas IA,
  *    citas fantasma, formato APA, redacción, estructura, positivo).

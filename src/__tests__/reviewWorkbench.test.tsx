@@ -36,6 +36,13 @@ vi.mock('../components/wizard/ReviewMinimap', () => ({
 const codigoDe = (src: string): string =>
   src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
+/** Comparar la CATEGORÍA de un hallazgo es re-derivar el predicado del filtro, y
+ *  el predicado es del hook. Se busca el campo, no el nombre de la variable: una
+ *  re-derivación con otro nombre (`f.category === filtro`) tiene que caer
+ *  también. */
+const COMPARA_CATEGORIA = (codigo: string): string[] =>
+  [...codigo.matchAll(/[\w$]+\.category\s*(===|!==)/g)].map((m) => m[0]);
+
 const elemento = (over: Record<string, unknown> = {}) => ({
   id: 'e1', type: 'paragraph', text: 'primer parrafo', style_name: 'Normal',
   alignment: 'left', font_name: 'Times New Roman', font_size: 12, is_bold: false,
@@ -384,28 +391,40 @@ describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
 /* ── El filtro y el número de páginas: reglas que son del hook ───────────── */
 
 describe('T16 — la vista no vuelve a escribir las reglas del hook', () => {
-  it('el workbench no re-aplica el predicado del filtro', () => {
+  it('el workbench no compara la categoría de un hallazgo con NADA', () => {
     /* El filtro POR MOTOR es del hook. Si la vista lo escribiera sobre `items`
        para contar lo que hay, la regla estaría en dos archivos: un cambio de
        semántica aquí dejaría "Siguiente hallazgo" encendido e inerte, que es el
        defecto exacto de la corrección 7. El conteo por ELEMENTO (`enElBloque`)
        sí es de la vista y no se toca: no es el filtro.
 
-       T20: la guarda era Literal y solo conocía dos escrituras
-       (`wb.filter === 'all'` e `i.category === wb.filter`). Re-derivar el
-       predicado con otro nombre de variable —`f.category === filtro`,
-       `hallazgo.category === wb.filter`, un `.includes`— pasaba. Ahora lo que se
-       prohíbe es la COMPARACIÓN, que es lo que un predicado del filtro tiene que
-       hacer: la vista no compara la categoría de un hallazgo con nada. Y el
-       predicado se cuenta: sin comparaciones, la prueba sigue teniendo algo que
-       mirar. */
-    expect(codigoDe(SRC)).not.toMatch(/\.category\s*(===|!==|==|!=)/);
+       T20 (fix round): la guarda era literal y solo conocía dos escrituras
+       (`wb.filter === 'all'` e `i.category === wb.filter`); re-derivar el
+       predicado con otro nombre de variable pasaba. Y el "anti-vacuity" que le
+       puse encima —contar las comparaciones y esperar cero— era una tautología:
+       la línea de arriba ya afirmaba lo mismo y no protegía nada. Eso se fue; en
+       su lugar el DETECTOR se prueba con violaciones, que es lo que sí puede
+       fallar.
+
+       Y el alcance de la prohibición, que es más ancho de lo que parece: en esta
+       vista está prohibido CUALQUIER `x.category === …`, no solo la que compara
+       con el filtro. Si algún día hace falta
+       `hallazgos.filter(h => h.category === 'cita_fantasma')`, esta prueba lo va a
+       bloquear, y no es un falso positivo: el predicado de un filtro por
+       categoría vive en el hook —`SUBTYPE_ACTION`, `engineAction`, `visibleCount`—
+       y la regla nueva se escribe ahí, no aquí. */
+    expect(COMPARA_CATEGORIA(codigoDe(SRC))).toEqual([]);
     expect(codigoDe(SRC)).not.toMatch(/wb\.filter\s*(===|!==|==|!=)/);
+    /* Y la parte que de verdad importa: la vista CONSUME la cuenta del hook, no
+       la re-deriva. Sin esto, "no compara" también lo cumpliría una vista vacía. */
     expect(SRC).toMatch(/wb\.visibleCount/);
-    /* Y la cuenta de comparaciones: si alguien vaciara la vista de todo
-       predicado, esta guarda no podría distinguirlo de "nunca hubo filtro". */
-    const comparaciones = [...codigoDe(SRC).matchAll(/\.category\s*(===|!==)/g)].length;
-    expect(comparaciones).toBe(0);
+
+    // El detector se enciende con dos escrituras que la guarda literal no veía.
+    expect(COMPARA_CATEGORIA('items.filter((f) => f.category === wb.filter);')).toHaveLength(1);
+    expect(COMPARA_CATEGORIA('hallazgos.filter((h) => h.category === filtro);')).toHaveLength(1);
+    // Y NO se enciende con una comparación que no es de categoría: la regla es
+    // sobre el campo, no sobre cualquier `===`.
+    expect(COMPARA_CATEGORIA('items.filter((i) => i.pageNumber === 3);')).toEqual([]);
   });
 
   it('el filtro del hook es UNO, y la vista lo pasa sin reescribirlo', () => {
@@ -457,9 +476,34 @@ const fuentes: Record<string, string> = {};
  *  tabla de severidad). Antes estas guardas solo miraban la vista, y una regla
  *  que solo mira un lado no sabe cuál de los dos está mintiendo. */
 let HOOK = '';
-/** Tokens DECLARADOS en la hoja de estilos: una línea que empieza por
- *  `--token:`. Buscar el nombre "en algún lugar" daba por definido lo que solo
- *  aparecía dentro del valor de otro token, y eso no es una declaración. */
+/** Tokens DECLARADOS en la hoja de estilos: una línea `--token:` **dentro de un
+ *  bloque `:root`**. T20 (fix round): esto era un `/^\s*(--x)\s*:/gm` sobre la
+ *  hoja entera, que daba por declarado un `--x:` escrito dentro de una regla de
+ *  selector —y ahí no es un token: es un custom property de esa regla, que solo
+ *  existe cuando esa regla está en pantalla. Con las dos definiciones
+ *  conviviendo, un token declarado solo en `.wa-bubble` lo marcaba el lint de
+ *  tokens y lo daba por bueno esta prueba. La DEFINICIÓN de "declarado" es una
+ *  sola en el proyecto, y vive en `noHardcodedColors.test.ts` (`analizarHoja`);
+ *  aquí se reproduce la misma, no una aproximada. */
+const declaradosEnRaiz = (css: string): Set<string> => {
+  const declarados = new Set<string>();
+  for (const m of css.matchAll(/^\s*:root\b[^{]*\{/gm)) {
+    const abierto = css.indexOf('{', m.index);
+    let nivel = 0;
+    let cierre = css.length;
+    for (let i = abierto; i < css.length; i++) {
+      if (css[i] === '{') nivel++;
+      else if (css[i] === '}' && --nivel === 0) {
+        cierre = i;
+        break;
+      }
+    }
+    for (const d of css.slice(abierto + 1, cierre).matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) {
+      declarados.add(d[1]);
+    }
+  }
+  return declarados;
+};
 let declarados = new Set<string>();
 beforeAll(async () => {
   const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
@@ -473,7 +517,7 @@ beforeAll(async () => {
     fuentes[nombre] = readFileSync(resolve(testDir, `../components/review/${nombre}`), 'utf8');
   }
   const css = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
-  declarados = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
+  declarados = declaradosEnRaiz(css);
 });
 
 describe('T16 — tokens y copy de lo que esta task escribió', () => {
@@ -508,6 +552,11 @@ describe('T16 — tokens y copy de lo que esta task escribió', () => {
     // token. Un patrón que lo diera por definido aprobaría un `var(--x-typo)`.
     expect(declarados.has('--color-text-tertiary')).toBe(true);
     expect(declarados.has('--text-tertiary')).toBe(false);
+    // T20 (fix round): y tampoco cuenta un `--x:` escrito dentro de una regla de
+    // selector. Hoy la hoja no tiene ninguno, así que el caso se prueba sobre una
+    // hoja sintética: es la guarda de la definición, que es lo que se arregló.
+    const conRegla = [':root {', '  --token-real: #fff;', '}', '.wa {', '  --solo-aqui: 3px;', '}'].join('\n');
+    expect([...declaradosEnRaiz(conRegla)]).toEqual(['--token-real']);
   });
 
   it('ninguna cadena del workbench lleva emojis', () => {
