@@ -2,7 +2,7 @@
    Estilo clásico con jerarquía legible: filas redondeadas, hover suave,
    activo en acento, chevrons para colapsar secciones (H2/H3 bajo un H1)
    y peso tipográfico que marca la jerarquía (H1 extra negrita).
-   Usado por el paso 2 (Estructura), el mapa bajo el StepRail y el
+   Usado por el paso 2 (Estructura), el flyout del rail (RailFlyout) y el
    tab "Mapa" del RightSidePanel. Click navega y selecciona el título. */
 
 import React, { useMemo, useState } from 'react';

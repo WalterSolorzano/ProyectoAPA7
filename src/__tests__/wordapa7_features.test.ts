@@ -242,14 +242,14 @@ describe('R3: Structural Revision Panel (Step2HeadingsWizard)', () => {
     expect(container.querySelectorAll('[id^="paper-elem-h_lvl"]').length).toBeGreaterThan(0);
   });
 
-  it('does not show a duplicate heading map (unified in StepRail); sequential reviewer appears in Revisar mode', () => {
+  it('does not show a duplicate heading map (unified in the rail flyout); sequential reviewer appears in Revisar mode', () => {
     render(React.createElement(Step2HeadingsWizard));
 
     // "Ver todos" is the default
     const todosBtn = screen.getByRole('button', { name: 'Ver todos (2)' });
     expect(todosBtn).toBeDefined();
-    // El "Mapa de títulos" se unificó en el StepRail (visible en pasos 2-4):
-    // ya no se duplica dentro de Step2.
+    // El "Mapa de títulos" se unificó en el flyout del rail (visible en pasos
+    // 2-4): ya no se duplica dentro de Step2.
     expect(screen.queryByText('Mapa de títulos')).toBeNull();
 
     // The reviewer header should NOT be visible yet

@@ -1550,34 +1550,9 @@ html, body {
   transition: opacity 0.12s ease;
 }
 
-/* ════════════ RESPONSIVE: toolbar labels & StepRail compact mode ════════════ */
-.toolbar-btn-label { display: none; }
-@media (min-width: 1120px) {
-  .toolbar-btn-label { display: inline; }
-}
-
-/* En anchos medianos (768px a 1150px): oculta el icono en el StepRail para mostrar solo texto y ahorrar espacio */
-@media (max-width: 1150px) and (min-width: 768px) {
-  .step-rail-nav {
-    width: clamp(110px, 13vw, 145px) !important;
-    padding: 10px 6px !important;
-  }
-  .step-rail-btn .step-rail-icon { display: none !important; }
-  .step-rail-btn .step-rail-label {
-    display: inline-block !important;
-    font-size: var(--text-xs) !important;
-  }
-}
-
-/* En pantallas angostas (< 768px): colapsa a iconos compactos */
-@media (max-width: 767px) {
-  .step-rail-nav {
-    width: 52px !important;
-    padding: 8px 4px !important;
-  }
-  .step-rail-btn .step-rail-label { display: none !important; }
-  .step-rail-btn .step-rail-icon { display: inline-flex !important; }
-}
+/* (Aquí vivían `.step-rail-*` y `.toolbar-btn-label`, el modo compacto de
+   StepRail. StepRail ya no existe y el rail nuevo es `IconRail`, de 56px fijos
+   sin etiquetas: sus estilos van inline. Ninguna de esas reglas tiene usuario. */
 
 /* ════════════ HERO: animación del badge ════════════ */
 @keyframes hero-badge-bounce {

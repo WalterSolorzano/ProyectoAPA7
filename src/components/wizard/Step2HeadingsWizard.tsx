@@ -97,7 +97,7 @@ export const Step2HeadingsWizard: React.FC = () => {
   reviewCountRef.current = reviewCount;
 
   // El árbol jerárquico de títulos ya NO se renderiza acá (D2): se unificó en
-  // el "Mapa del documento" que vive bajo el StepRail (visible en pasos 2-4).
+  // el "Mapa del documento" del flyout del rail (visible en pasos 2-4).
   // Step2 queda con solo el lienzo + el Revisor secuencial.
 
   const reviewHighlightIds = useMemo(() => {
