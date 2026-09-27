@@ -25,6 +25,11 @@ export interface ReviewStripProps {
   engineGroups: EngineGroup[];
   filter: EngineFilter;
   onFilter: (f: EngineFilter) => void;
+  /** Filtro de fase: acota la lista a una fase del documento. */
+  phaseFilter: string | 'all';
+  onPhaseFilter: (p: string | 'all') => void;
+  /** Fases con hallazgo, en orden de documento y SIN filtro. */
+  phases: { key: string; label: string; pending: number }[];
   /** Total de hallazgos del DOCUMENTO (`metrics.total`), no la suma de los
    *  chips: esa suma es lo que el filtro deja ver, y "Todo" tiene que decir
    *  todo. */
@@ -151,6 +156,43 @@ export function ReviewStrip(p: ReviewStripProps) {
           ))}
         </div>
       </div>
+
+      {/* Fila de FASE. Los H1 son las fases del documento y cada una tiene sus
+          criterios (spec D1), así que el chip es el atajo natural. Filtra; no
+          navega: la revisión sigue siendo un párrafo a la vez (AGENTS.md §1).
+
+          Los conteos vienen de `allPhases`, que el hook deriva de los hallazgos
+          COMPLETOS. Si esta fila los re-derivara de lo que ya está filtrado, un
+          chip mostraría "0" justo cuando lo activás, que es la forma más
+          confusa de mostrar un filtro. */}
+      {p.phases.length > 0 && (
+        <div
+          role="group"
+          aria-label="Filtrar por fase del documento"
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', minWidth: 0, flexWrap: 'wrap' }}
+        >
+          <button
+            type="button"
+            aria-pressed={p.phaseFilter === 'all'}
+            onClick={() => p.onPhaseFilter('all')}
+            style={chipStyle(p.phaseFilter === 'all')}
+          >
+            <span>Todas las fases</span>
+          </button>
+          {p.phases.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              aria-pressed={p.phaseFilter === f.key}
+              onClick={() => p.onPhaseFilter(f.key)}
+              style={chipStyle(p.phaseFilter === f.key)}
+            >
+              <span>{f.label}</span>{' '}
+              <span style={countStyle}>{f.pending}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}

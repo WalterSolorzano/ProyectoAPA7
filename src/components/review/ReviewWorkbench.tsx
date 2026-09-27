@@ -139,6 +139,9 @@ export function ReviewWorkbench() {
         engineGroups={wb.allGroups}
         filter={wb.filter}
         onFilter={wb.setFilter}
+        phaseFilter={wb.phaseFilter}
+        onPhaseFilter={wb.setPhaseFilter}
+        phases={wb.allPhases}
         total={wb.metrics.total}
         totalPages={wb.totalPages}
         currentPage={wb.currentPage}

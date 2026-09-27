@@ -41,7 +41,7 @@ import {
   type ScanEngineId,
 } from '../components/wizard/scanOutcome';
 import { useReviewActions } from './useReviewActions';
-import { collectAuditItems, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
+import { collectAuditItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 
 /* La LISTA de hallazgos vive en `lib/auditItems` porque el rail necesita contar
    la misma que esta vista abre. Estos `export type` siguen siendo su puerta:
@@ -49,6 +49,8 @@ import { collectAuditItems, type AuditItem, type EngineId, type Severity } from 
    escribieron los tipos. */
 export type { AuditItem, EngineId, Severity };
 export type EngineFilter = EngineId | 'all';
+/** Ortogonal al filtro de motor: la fase y el motor se acotan a la vez. */
+export type PhaseFilter = string | 'all';
 export type SubtypeAction = 'accept' | 'mark' | 'resolveGhosts' | 'autoCaption' | 'none';
 
 export interface SubtypeGroup {
@@ -109,6 +111,12 @@ export interface ReviewWorkbenchApi {
   highlightIds: Set<string>;
   filter: EngineFilter;
   setFilter: (f: EngineFilter) => void;
+  /** Filtro de fase, ortogonal al de motor. */
+  phaseFilter: PhaseFilter;
+  setPhaseFilter: (p: PhaseFilter) => void;
+  /** Fases con hallazgo, en orden de documento, SIN filtro. Alimenta los chips:
+   *  un chip que desaparece al activarlo deja al usuario sin salida. */
+  allPhases: { key: string; label: string; pending: number }[];
   totalPages: number;
   currentPage: number;
   goToPage: (p: number) => void;
@@ -317,7 +325,13 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
     const subgrupos: SubtypeGroup[] = [...porSubtipo.entries()].map(([key, susItems]) => {
       // Sin subtipo conocido, la acción es la del motor: un motor IA jamás
       // cae en 'accept' aunque el subtipo no esté en la tabla.
-      const action = SUBTYPE_ACTION[key] || engineAction(engine);
+      let action = SUBTYPE_ACTION[key] || engineAction(engine);
+      // Un grupo donde TODO es de solo lectura no ofrece acción. La portada es
+      // el caso: `AGENTS.md` §1 dice que no se muta, así que un botón que
+      // dice "aceptar" sobre material intocable es la forma más directa de
+      // romperlo. Va acá y no en un sitio aparte para que `covered` y
+      // `massLabel` lo respeten por derivación y no puedan mentir.
+      if (action !== 'none' && susItems.every((i) => i.readOnly)) action = 'none';
       return {
         key: `${engine}:${key}`,
         label: SUBTYPE_LABELS[key] || key,
@@ -352,6 +366,67 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
   });
 }
 
+/* ── Fase ───────────────────────────────────────────────────────────────────
+   Los H1 son las fases del documento (spec D1) y cada una tiene sus criterios.
+   La vista las AGRUPA y las FILTRA; no las usa como eje de navegación, porque
+   la revisión sigue siendo un párrafo a la vez (AGENTS.md §1).
+
+   El conteo sale de los propios hallazgos, nunca de un re-derivado: si un día
+   el rail y esta función contaran cada una por su lado, uno de los dos
+   mentiría, que es el mismo modo de fallo que ya arregló `railPending.ts`. */
+
+export interface PhaseGroup {
+  key: string;
+  label: string;
+  items: AuditItem[];
+  count: number;
+  action: SubtypeAction;
+  massLabel: string;
+}
+
+/** La acción que corresponde a un conjunto de hallazgos. */
+function accionDeItems(items: AuditItem[]): SubtypeAction {
+  // Lo de solo lectura no cuenta: no hay nada que aplicar. Un grupo con una
+  // mezcla ofrece la acción de lo que SÍ se puede tocar.
+  const aplicables = items.filter((i) => !i.readOnly);
+  if (aplicables.length === 0) return 'none';
+  // El motor IA es probabilístico y jamás se "acepta" (AGENTS.md §1).
+  if (aplicables.every((i) => i.category === 'ai')) return 'mark';
+  return 'accept';
+}
+
+export function agruparHallazgosPorFase(items: AuditItem[]): PhaseGroup[] {
+  const porFase = new Map<string, AuditItem[]>();
+  for (const it of items) {
+    const k = it.phase ?? 'global';
+    const arr = porFase.get(k);
+    if (arr) arr.push(it);
+    else porFase.set(k, [it]);
+  }
+  const conocidas = PHASE_ORDER as readonly string[];
+  const orden = [
+    ...conocidas.filter((k) => porFase.has(k)),
+    // Una fase que el backend agrego y este archivo no conoce: se muestra
+    // con su etiqueta genérica en vez de desaparecer. Un hallazgo que no se
+    // ve es peor que uno con el nombre feo.
+    ...[...porFase.keys()].filter((k) => !conocidas.includes(k) && k !== 'global'),
+    // Las reglas generales van al final: no pertenecen a ninguna fase.
+    ...(porFase.has('global') ? ['global'] : []),
+  ];
+  return orden.map((key) => {
+    const susItems = porFase.get(key)!;
+    const action = accionDeItems(susItems);
+    return {
+      key,
+      label: phaseLabel(key === 'global' ? null : key),
+      items: susItems,
+      count: susItems.length,
+      action,
+      massLabel: massLabelFor(action),
+    };
+  });
+}
+
 /** Una página dentro del rango real del documento. `totalPages` 0 (documento sin
  *  páginas) recorta a 1, no a 0: el 0 es "no hay páginas", no "la página 0". */
 const clipPage = (page: number, totalPages: number): number => {
@@ -381,6 +456,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const { totalPages, pages, pageOf } = usePageIndex();
   const [filter, setFilter] = useState<EngineFilter>('all');
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all');
   const [viewMode, setViewMode] = useState<'focus' | 'canvas'>('focus');
   const [openEngines, setOpenEngines] = useState<EngineId[]>([]);
   const [openSubtypes, setOpenSubtypes] = useState<string[]>([]);
@@ -428,15 +504,30 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
      estrechos, `nextFinding` y el `visibleCount` que la vista usa para no
      dejar "Siguiente hallazgo" encendido sin destino: si el predicado estuviera
      escrito en la vista también, cambiarlo aquí encendería el botón y lo
-     dejaría inerte, que es el defecto que esta cuenta existe para evitar. */
-  const visibles = useMemo(
-    () => (filter === 'all' ? items : items.filter((i) => i.category === filter)),
-    [items, filter],
-  );
+     dejaría inerte, que es el defecto que esta cuenta existe para evitar.
+
+     El filtro de FASE se intersecta acá y no en la vista, por el mismo motivo:
+     dos filtros escritos en dos sitios se desincronizan. `allGroups` sigue
+     siendo sin filtro, para que los chips de motor no pierdan a los demás
+     motores al filtrar por fase. */
+  const visibles = useMemo(() => {
+    // `items` ya viene sin los descartes, así que acá solo se acota.
+    let out = items;
+    if (filter !== 'all') out = out.filter((i) => i.category === filter);
+    if (phaseFilter !== 'all') out = out.filter((i) => (i.phase ?? 'global') === phaseFilter);
+    return out;
+  }, [items, filter, phaseFilter]);
 
   const groups = useMemo(
-    () => (filter === 'all' ? allGroups : agruparHallazgos(visibles)),
-    [allGroups, visibles],
+    () => (filter === 'all' && phaseFilter === 'all' ? allGroups : agruparHallazgos(visibles)),
+    [allGroups, visibles, filter, phaseFilter],
+  );
+
+  /* Los chips de fase, derivados de los hallazgos COMPLETOS y sin filtro: si
+     un chip desapareciera al activarlo, no habría forma de desactivarlo. */
+  const allPhases = useMemo(
+    () => agruparHallazgosPorFase(items).map((g) => ({ key: g.key, label: g.label, pending: g.count })),
+    [items],
   );
 
   /* Los bloques con hallazgo, en el mismo conjunto que cuenta `visibleCount`. */
@@ -666,6 +757,9 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     highlightIds,
     filter,
     setFilter,
+    phaseFilter,
+    setPhaseFilter,
+    allPhases,
     totalPages,
     currentPage,
     goToPage,

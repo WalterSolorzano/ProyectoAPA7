@@ -37,6 +37,12 @@ const setup = (over: Partial<React.ComponentProps<typeof ReviewStrip>> = {}) => 
       engineGroups={[grupo('spelling', 48), grupo('ai', 14)]}
       filter="all"
       onFilter={onFilter}
+      phaseFilter="all"
+      onPhaseFilter={vi.fn()}
+      phases={[
+        { key: 'objetivos', label: 'Objetivos', pending: 6 },
+        { key: 'conclusiones', label: 'Conclusiones', pending: 2 },
+      ]}
       totalPages={132}
       currentPage={14}
       onPage={onPage}

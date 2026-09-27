@@ -22,6 +22,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, Check, Flag, Quote, Tags, X, type LucideIcon } from 'lucide-react';
 import type { AuditItem, SubtypeAction } from '../../hooks/useReviewWorkbench';
+import { phaseLabel } from '../../lib/auditItems';
 
 export interface FindingDetailProps {
   item: AuditItem;
@@ -156,6 +157,15 @@ export function FindingDetail({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+        {/* La FASE como contexto, no como eje. Los H1 son las fases del
+            documento (spec D1) y el usuario piensa en ellas, así que el
+            hallazgo dice en qué fase está en vez de que el usuario lo adivine
+            por el subtipo del motor. Una regla general no pertenece a ninguna
+            fase: se nombra como "todo el documento", que es lo que es. */}
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+          {phaseLabel(item.phase)}
+          {item.readOnly && ' · solo lectura'}
+        </span>
         {item.pageNumber != null ? (
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>Pág. {item.pageNumber}</span>
         ) : (
@@ -236,7 +246,12 @@ export function FindingDetail({
             title={marked ? 'Este hallazgo ya está marcado para revisión manual.' : undefined}
           />
         )}
-        {action === 'accept' && conSugerencia && (
+        {action === 'accept' && conSugerencia && !item.readOnly && (
+          /* `!item.readOnly` no es redundante con `conSugerencia`: el motor
+             garantiza que un hallazgo de solo lectura no trae sugerencia, pero
+             esta puerta no depende de esa garantía. Si mañana un motor nuevo
+             publica un hallazgo de portada con texto sugerido, el botón igual
+             no aparece — y la portada original no se muta (AGENTS.md §1). */
           <Accion label="Aplicar corrección" Icon={Check} onClick={() => onAccept(item)} disabled={busy} primary />
         )}
         {motor && onEngineAction && (

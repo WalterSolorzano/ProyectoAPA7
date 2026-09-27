@@ -62,8 +62,26 @@ describe('T8 — buildCommentContext', () => {
     expect(buildCommentContext({ ...base, reviewResult: reviewRun }).styleAuditRun).toBe(true);
   });
 
-  it('propaga citas fantasma y huérfanas', () => {
-    const ctx = buildCommentContext({
+  it('un hallazgo de fase se anuncia en la burbuja igual que uno general', () => {
+    // La burbuja NO nombra fases: recibe una bandera, no los hallazgos. Eso está
+    // bien, porque entonces no puede contradecir al subrayado. Lo que AGENTS.md
+    // §2 sí exige es que un hallazgo de fase se ANUNCIE, no que quede subrayado
+    // en un canal y mudo en el otro. Si algún día las reglas de fase tomaran un
+    // camino propio, esta aserción es la que lo caza.
+    const deFase: ProofreadFinding = {
+      element_id: 'e1', start: 0, end: 6, excerpt: 'Conocer',
+      kind: 'bloom_vague', severity: 'warn', message: 'verbo impreciso',
+      source: 'local', phase: 'objetivos', read_only: false,
+    };
+    const dePortada: ProofreadFinding = {
+      ...deFase, element_id: 'c1', kind: 'portada_title_larga',
+      phase: 'portada', read_only: true,
+    };
+    expect(buildCommentContext({ ...base, proofreadFindings: [deFase] }).styleAuditRun).toBe(true);
+    expect(buildCommentContext({ ...base, proofreadFindings: [dePortada] }).styleAuditRun).toBe(true);
+  });
+
+  it('propaga citas fantasma y huérfanas', () => {    const ctx = buildCommentContext({
       ...base,
       citationAuditResult: { ghost_citations: [{ key: '(García, 2021)' }], orphan_references: [{ ref: 'x' }] },
     });
