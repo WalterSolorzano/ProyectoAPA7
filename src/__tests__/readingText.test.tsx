@@ -475,6 +475,40 @@ describe('T9 — el párrafo de la revisión se localize por elemento', () => {
     expect(marcas).toHaveLength(1);
     expect(pintado.slice(marcas[0].start, marcas[0].end)).toBe('conclusiones');
   });
+
+  it('la reubicación marca cada aparición, no siempre la primera', () => {
+    /* T20: `palabra_repetida` señala la MISMA palabra cada vez que se repite, y
+       cada hallazgo trae su offset. La reubicación buscaba el fragmento con
+       `findAccentAgnostic`, que devuelve SIEMPRE la primera aparición: los tres
+       hallazgos caían sobre la misma palabra, la consolidación los fundía en
+       una marca y dos de las tres repeticiones quedaban sin señalar — el
+       subrayado señalaba algo que el corrector no dijo. */
+    const original = 'Tesis de tesis: la tesis';
+    const pintado = '1. Tesis de tesis: la tesis';
+    const repeticion = (inicio: number) =>
+      hallazgo({ kind: 'palabra_repetida', start: inicio, end: inicio + 5, excerpt: 'tesis' });
+    const marcas = collectMarks(pintado, fuente({
+      elem: elem(original, { type: 'heading', heading_level: 1 }),
+      proofreadFindings: [repeticion(0), repeticion(9), repeticion(19)],
+    }));
+    expect(marcas.map((m) => pintado.slice(m.start, m.end))).toEqual(['Tesis', 'tesis', 'tesis']);
+    // Y cada una en SU lugar: la numeración del encabezado no las corre.
+    expect(marcas.map((m) => m.start)).toEqual([3, 12, 22]);
+  });
+
+  it('sin prefijo, el corrector también marca cada aparición', () => {
+    /* El caso normal del corrector, sin headed de por medio: el texto pintado ES
+       el original, y por eso las tres repeticiones tienen que salir en su
+       sitio. Si este caso se rompiera, la reubicación no sería el problema. */
+    const texto = 'Tesis de tesis: la tesis';
+    const repeticion = (inicio: number) =>
+      hallazgo({ kind: 'palabra_repetida', start: inicio, end: inicio + 5, excerpt: 'tesis' });
+    const marcas = collectMarks(texto, fuente({
+      elem: elem(texto),
+      proofreadFindings: [repeticion(0), repeticion(9), repeticion(19)],
+    }));
+    expect(marcas.map((m) => m.start)).toEqual([0, 9, 19]);
+  });
 });
 
 describe('T9 — el lienzo consume ReadingText', () => {

@@ -7,7 +7,7 @@ import React from 'react';
 import type { ElementModel, ProofreadFinding } from '../../types';
 import type { AIReviewParagraph, AIReviewResult } from '../../api/backend';
 import { getWhatsAppComment, type WhatsAppContext } from '../layout/WhatsAppComment';
-import { findAccentAgnostic } from '../../lib/accentMatch';
+import { accentAgnosticRegex, findAccentAgnostic } from '../../lib/accentMatch';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 
 export type MarkKind = 'ai' | 'spelling' | 'style' | 'comment' | 'citation';
@@ -110,6 +110,12 @@ const PROOFREAD_ENGINE: Record<string, MarkKind> = {
   muletilla: 'ai',
 };
 
+/** La clave con la que `occurrences` compara: sin tildes y en minúscula, que es
+ *  exactamente lo que su búsqueda ignora. "Tesis" y "tesis" son la MISMA palabra
+ *  para esa búsqueda, así que también tienen que ser la misma clave. */
+const forma = (s: string): string =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 /**
  * Todas las apariciones de `phrase`, sin distinguir acentos ni mayúsculas.
  * Se usa el rango real del match (no `start + phrase.length`): el texto
@@ -187,15 +193,43 @@ export function collectMarks(text: string, source: MarkSource): ReadingMark[] {
   // ── Hallazgos del corrector, por elemento ─────────────────────────────────
   if (source.elem) {
     const original = source.elem.text || '';
+    /* Dónde empieza el original dentro de lo que se PINTA. Un encabezado se
+       pinta numerado ("1. En conclusiones") y el corrector manda offsets sobre
+       `elem.text`: si el original aparece entero en la pantalla, el offset se
+       traslada con este delta y cada hallazgo cae en SU sitio, diga lo que diga
+       la capitalización de esa aparición. Cuando el original no aparece entero
+       (una hoja truncada, o algo que no es un prefijo) se busca el fragmento
+       aparición por aparición, y por eso hace falta el contador: `palabra_
+       repetida` señala la misma palabra cada vez que se repite, y sin él los
+       tres hallazgos caerían sobre la primera, se fundirían en una marca y dos
+       de las tres repeticiones quedarían sin señalar. */
+    const delta = original === text ? 0 : text.indexOf(original);
+    const yaPintadas = new Map<string, number>();
     for (const f of source.proofreadFindings) {
       if (f.element_id !== source.elem.id) continue;
       const rango = findingRange(original, f);
       if (!rango) continue;
-      // Los offsets del corrector son sobre `elem.text`. Un encabezado se
-      // pinta numerado ("1. En conclusiones"), así que el offset crudo
-      // caería sobre otras palabras: cuando el texto pintado no es el
-      // original, el rango se reubica buscando su propio fragmento.
-      const hit = original === text ? rango : findAccentAgnostic(text, original.slice(rango.start, rango.end));
+      const fragmento = original.slice(rango.start, rango.end);
+      let hit: { start: number; end: number } | null = null;
+      if (original === text) {
+        hit = rango;
+      } else if (delta >= 0 && fragmento) {
+        const trasladado = { start: rango.start + delta, end: rango.end + delta };
+        /* El traslado solo vale si el texto de destino sigue siendo el
+           fragmento: si el prefijo no era del tamaño que se creía, este
+           traslado marcaría otras palabras y es mejor buscarlo. */
+        if (
+          trasladado.end <= text.length &&
+          accentAgnosticRegex(fragmento).test(text.slice(trasladado.start, trasladado.end))
+        ) {
+          hit = trasladado;
+        }
+      }
+      if (!hit) {
+        const n = yaPintadas.get(forma(fragmento)) ?? 0;
+        yaPintadas.set(forma(fragmento), n + 1);
+        hit = occurrences(text, fragmento)[n] ?? null;
+      }
       if (!hit) continue;
       delCorrector.push({ start: hit.start, end: hit.end, message: f.message });
       push(hit.start, hit.end, PROOFREAD_ENGINE[f.kind] || 'style', f.message, f.severity);
