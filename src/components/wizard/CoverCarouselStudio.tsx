@@ -1,17 +1,26 @@
 /* WordAPA7 — CoverCarouselStudio (Estudio e Interfaz de Selección y Edición de Portadas).
-   Modulo dedicado para el Paso 1 (Portada) alineado con la propuesta visual:
-   - Barra superior horizontal "ESTILO DE PORTADA" con 5 tarjetas seleccionables:
-     1. Conservar original (Recomendado)
-     2. APA 7 Estándar
-     3. Institucional UNI
-     4. Profesional APA
-     5. Personalizada (+ Subir plantilla .docx)
-   - Disposición en 2 columnas:
-     - Izquierda: Editor de campos en vivo (Título, Institución, Fecha, Autores/Roster).
-     - Derecha: Previsualizador nativo en tiempo real (PaperCanvas, UNICoverPreview o APACoverEditor).
-   Cumple las reglas estrictas de diseño: cero emojis, design tokens, blanco papel. */
+   El paso de portada usa el MISMO chrome que el resto del workbench (T18):
+     - Tira de 44px arriba: un chip por ESTRATEGIA (las cinco de `COVER_CARDS`)
+       y, a la derecha, la salida del paso.
+     - Centro: el carrusel de tarjetas con su miniatura esqueleto, las flechas de
+       desplazamiento y, debajo, la vista previa en vivo del modo elegido.
+     - Derecha: el editor de portada, 320px.
+   - Las CINCO estrategias: Conservar original (Recomendado), APA 7 Estándar,
+     Institucional UNI, Profesional APA y Personalizada (+ Subir plantilla .docx).
+
+   Reglas que este archivo tiene que respetar además de las del proyecto:
+   - La portada es INDIVISIBLE. `computePages` agrupa todo lo marcado como
+     `is_cover_section` / `portada_block` en la página 1 como un bloque único, y
+     esa regla solo vale si nadie vuelve a medir el lienzo por su cuenta. Por eso
+     la columna del centro y la vista previa van ACOTADAS (`overflow: hidden` +
+     `minHeight: 0`) y el scroll —el que sea— lo maneja el propio lienzo, que
+     ya sabe paginarse. Un `overflow: auto` alrededor del lienzo haría que
+     "cabe en una página" dejara de significar nada.
+   - `use_original_cover: true` jamás muta la portada del documento: elegir
+     "Conservar original" solo escribe banderas, nunca campos de texto. */
 
 import React, { useState, useRef, useMemo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { APACoverEditor } from '../layout/APACoverEditor';
 import { UNICoverPreview } from '../layout/UNICoverPreview';
@@ -65,21 +74,144 @@ const SvgCheckSmall = () => (
   </svg>
 );
 
-const SvgChevronRightSmall = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
+/** Los modos de portada que la app sabe construir. `original` gana sobre los
+ *  demás porque conservar la portada del documento no es un estilo más. */
+type CoverMode = 'original' | 'apa7' | 'uni' | 'pro' | 'custom';
+
+interface CoverCard {
+  id: CoverMode;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  /* La última no es un modo que se elija: es la acción de subir una plantilla.
+     Por eso su chip abre el selector de archivos en vez de poner
+     `cover_template_id` —una portada sin plantilla detrás no existe. */
+  isUpload?: boolean;
+}
+
+/* La lista vive FUERA del componente y es la única: la tira y el carrusel se
+   dibujan de aquí, así que no puede haber un modo con chip y sin tarjeta, ni una
+   tarjeta con su modo inalcanzable desde la tira. */
+const COVER_CARDS: CoverCard[] = [
+  {
+    id: 'original',
+    title: 'Conservar original',
+    subtitle: 'Mantiene logos y diseño · recomendado',
+    icon: <SvgOriginalStar />,
+  },
+  {
+    id: 'apa7',
+    title: 'APA 7 Estándar',
+    subtitle: 'Formato oficial 7ª edición',
+    icon: <SvgDocText />,
+  },
+  {
+    id: 'uni',
+    title: 'Institucional UNI',
+    subtitle: 'Plantilla oficial universitaria',
+    icon: <SvgAcademicUni />,
+  },
+  {
+    id: 'pro',
+    title: 'Profesional APA',
+    subtitle: 'Con running head y página',
+    icon: <SvgLayersStack />,
+  },
+  {
+    id: 'custom',
+    title: '+ Subir plantilla',
+    subtitle: 'Sube tu propia plantilla .docx',
+    icon: <SvgUploadCloud />,
+    isUpload: true,
+  },
+];
+
+/* ── Tira de estrategias (el chrome de 44px) ──────────────────────────────── */
+
+const chipStyle = (active: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  padding: `var(--space-1) var(--space-2)`,
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid transparent',
+  background: active ? 'var(--color-accent-soft)' : 'transparent',
+  color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+  fontFamily: 'inherit',
+  fontSize: 'var(--text-xs)',
+  fontWeight: active ? 600 : 500,
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+});
+
+/**
+ * La tira REPRESENTA `mode` y delega la elección: no guarda el modo, que es
+ * derivado de `portada` y se comparte con el carrusel. Un chip con estado
+ * propio se desincroniza de la tarjeta en cuanto cambia el modo por otra vía.
+ */
+const CoverStrategyStrip: React.FC<{
+  mode: CoverMode;
+  onSelect: (m: CoverMode) => void;
+  onUpload: () => void;
+  onContinue: () => void;
+}> = ({ mode, onSelect, onUpload, onContinue }) => (
+  <div
+    style={{
+      height: 44,
+      flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 'var(--space-3)',
+      padding: `0 var(--space-5)`,
+      backgroundColor: 'var(--color-bg-surface)',
+      borderBottom: '1px solid var(--color-border-subtle)',
+    }}
+  >
+    <div
+      role="group"
+      aria-label="Estrategias de portada"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 'var(--space-1)', minWidth: 0,
+        /* En ventana estrecha la fila de chips se desplaza en vez de recortarse:
+           un chip que no se alcanza es una estrategia que no se puede elegir. */
+        overflowX: 'auto',
+      }}
+    >
+      {COVER_CARDS.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          aria-pressed={mode === c.id}
+          onClick={() => (c.isUpload ? onUpload() : onSelect(c.id))}
+          style={chipStyle(mode === c.id)}
+        >
+          {c.title}
+        </button>
+      ))}
+    </div>
+
+    {/* La salida del paso vive en la barra, no en el centro: el paso 1 tiene
+        que poder avanzar sin volver a la barra de la derecha. */}
+    <button
+      type="button"
+      onClick={onContinue}
+      className="btn btn-primary btn-sm"
+      style={{ fontSize: 'var(--text-xs)', fontWeight: 800, gap: 'var(--space-1)', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}
+    >
+      <span>Usar este diseño y Continuar</span>
+      <ChevronRight size={14} strokeWidth={1.75} aria-hidden />
+    </button>
+  </div>
 );
 
 export const CoverCarouselStudio: React.FC = () => {
   const { portada, setPortada, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
-  const [showCoverEditor, setShowCoverEditor] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   // Modo actual derivado
-  const currentMode: 'original' | 'apa7' | 'uni' | 'pro' | 'custom' = useMemo(() => {
+  const currentMode: CoverMode = useMemo(() => {
     if (portada.use_original_cover !== false) return 'original';
     if (portada.cover_mode === 'generate_uni_cover') return 'uni';
     if (portada.cover_mode === 'apa_pro') return 'pro';
@@ -87,7 +219,7 @@ export const CoverCarouselStudio: React.FC = () => {
     return 'apa7';
   }, [portada.use_original_cover, portada.cover_mode, portada.cover_template_id]);
 
-  const selectMode = (mode: 'original' | 'apa7' | 'uni' | 'pro' | 'custom', templateId?: string) => {
+  const selectMode = (mode: CoverMode, templateId?: string) => {
     if (mode === 'original') {
       setPortada({
         use_original_cover: true,
@@ -138,272 +270,229 @@ export const CoverCarouselStudio: React.FC = () => {
     }
   };
 
-  const cards = [
-    {
-      id: 'original',
-      title: 'Conservar original',
-      subtitle: 'Mantiene logos y diseño · recomendado',
-      icon: <SvgOriginalStar />,
-    },
-    {
-      id: 'apa7',
-      title: 'APA 7 Estándar',
-      subtitle: 'Formato oficial 7ª edición',
-      icon: <SvgDocText />,
-    },
-    {
-      id: 'uni',
-      title: 'Institucional UNI',
-      subtitle: 'Plantilla oficial universitaria',
-      icon: <SvgAcademicUni />,
-    },
-    {
-      id: 'pro',
-      title: 'Profesional APA',
-      subtitle: 'Con running head y página',
-      icon: <SvgLayersStack />,
-    },
-    {
-      id: 'custom',
-      title: '+ Subir plantilla',
-      subtitle: 'Sube tu propia plantilla .docx',
-      icon: <SvgUploadCloud />,
-      isUpload: true,
-    },
-  ];
+  const abrirSelector = () => fileInputRef.current?.click();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
-      {/* ── BARRA SUPERIOR HORIZONAL: ESTILO DE PORTADA ── */}
-      <div style={{
-        backgroundColor: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border-subtle)',
-        padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Carrusel de Portadas
-            </div>
-            {/* Controles de navegación del carrusel */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  carouselRef.current?.scrollBy({ left: -220, behavior: 'smooth' });
-                }}
-                title="Desplazar a la izquierda"
-                style={{
-                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-main)',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  carouselRef.current?.scrollBy({ left: 220, behavior: 'smooth' });
-                }}
-                title="Desplazar a la derecha"
-                style={{
-                  background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-main)',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
-              </button>
-            </div>
+    <div style={{
+      display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0,
+      overflow: 'hidden', backgroundColor: 'var(--color-bg-canvas)',
+    }}>
+      <CoverStrategyStrip
+        mode={currentMode}
+        onSelect={(m) => selectMode(m)}
+        onUpload={abrirSelector}
+        onContinue={() => {
+          setCoverSetupDone(true);
+          setWizardStep(2);
+        }}
+      />
+
+      {/* ── CUERPO: carrusel + vista previa al centro, editor a la derecha ── */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div
+          data-testid="cover-carousel"
+          style={{
+            flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column',
+            /* Acotada a propósito: el lienzo de abajo mide sus páginas, y medir
+               dentro de una caja sin alto definido (o con scroll propio) hace
+               que su paginación deje de decidir. */
+            overflow: 'hidden',
+          }}
+        >
+          {/* Controles de desplazamiento del carrusel */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            gap: 'var(--space-1)', padding: `var(--space-2) var(--space-5) 0`, flexShrink: 0,
+          }}>
             <button
               type="button"
-              onClick={() => setShowCoverEditor(!showCoverEditor)}
+              aria-label="Desplazar a la izquierda"
+              onClick={() => carouselRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
               style={{
-                fontSize: 'var(--text-xs)', fontWeight: 700, background: 'transparent',
-                border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
-                padding: '3px 10px', color: 'var(--accent-primary)', cursor: 'pointer',
-                marginLeft: '6px',
+                background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-primary)',
               }}
             >
-              {showCoverEditor ? 'Ocultar Formulario' : 'Mostrar Formulario'}
+              <ChevronLeft size={12} strokeWidth={1.75} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Desplazar a la derecha"
+              onClick={() => carouselRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+              style={{
+                background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-primary)',
+              }}
+            >
+              <ChevronRight size={12} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setCoverSetupDone(true);
-              setWizardStep(2);
+          {/* Carrusel Desplazable de Tarjetas con Mini-Preview */}
+          <div
+            ref={carouselRef}
+            data-testid="cover-model-track"
+            className="cover-carousel-track"
+            style={{
+              display: 'flex',
+              gap: '12px',
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              padding: `var(--space-2) 0 var(--space-1)`,
+              scrollbarWidth: 'thin',
+              flexShrink: 0,
             }}
-            className="btn btn-primary btn-sm"
-            style={{ fontSize: 'var(--text-xs)', fontWeight: 800, gap: '6px', display: 'inline-flex', alignItems: 'center' }}
           >
-            <span>Usar este diseño y Continuar</span>
-            <SvgChevronRightSmall />
-          </button>
-        </div>
-
-        {/* Carrusel Desplazable de Tarjetas con Mini-Preview */}
-        <div
-          ref={carouselRef}
-          className="cover-carousel-track"
-          style={{
-            display: 'flex',
-            gap: '12px',
-            overflowX: 'auto',
-            scrollSnapType: 'x mandatory',
-            paddingBottom: '4px',
-            scrollbarWidth: 'thin',
-          }}
-        >
-          <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".docx" style={{ display: 'none' }} />
-          {cards.map((c) => {
-            const isSelected = currentMode === c.id;
-            return (
-              <div
-                key={c.id}
-                onClick={() => {
-                  if (c.isUpload) {
-                    fileInputRef.current?.click();
-                  } else {
-                    selectMode(c.id as any);
-                  }
-                }}
-                style={{
-                  minWidth: '190px',
-                  maxWidth: '220px',
-                  flex: '0 0 auto',
-                  scrollSnapAlign: 'start',
-                  padding: '8px 10px',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                  border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                  boxShadow: isSelected ? '0 4px 14px rgba(79,124,255,0.14)' : '0 1px 3px rgba(0,0,0,0.04)',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  position: 'relative',
-                }}
-              >
-                {isSelected && (
-                  <div style={{
-                    position: 'absolute', top: '8px', right: '8px', width: '18px', height: '18px',
-                    borderRadius: '50%', backgroundColor: 'var(--accent-primary)', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', color: '#fff', zIndex: 10,
-                  }}>
-                    <SvgCheckSmall />
-                  </div>
-                )}
-
-                {/* Miniatura visual de portada */}
-                <div style={{
-                  height: '56px',
-                  backgroundColor: 'var(--paper-white, #ffffff)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '4px',
-                  padding: '6px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
-                  overflow: 'hidden',
-                }}>
-                  {c.id === 'original' && (
-                    <>
-                      <div style={{ width: '80%', height: '4px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.6 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
-                        <div style={{ width: '60%', height: '3px', backgroundColor: 'var(--text-secondary)', opacity: 0.5 }} />
-                        <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                      </div>
-                      <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                    </>
-                  )}
-                  {c.id === 'apa7' && (
-                    <>
-                      <div style={{ width: '15%', height: '2px', alignSelf: 'flex-end', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '2px' }}>
-                        <div style={{ width: '70%', height: '4px', backgroundColor: 'var(--text-main)', borderRadius: 'var(--radius-sm)', opacity: 0.8 }} />
-                        <div style={{ width: '50%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.7 }} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
-                        <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                        <div style={{ width: '30%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                      </div>
-                    </>
-                  )}
-                  {c.id === 'uni' && (
-                    <>
-                      <div style={{ width: '16px', height: '10px', border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.7 }} />
-                      <div style={{ width: '65%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width: '100%', alignItems: 'center' }}>
-                        <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--accent-primary)', opacity: 0.6 }} />
-                        <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                      </div>
-                    </>
-                  )}
-                  {c.id === 'pro' && (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', opacity: 0.5 }}>
-                        <div style={{ width: '25%', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
-                        <div style={{ width: '6px', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
-                      </div>
-                      <div style={{ width: '60%', height: '4px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
-                      <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                    </>
-                  )}
-                  {c.id === 'custom' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '3px', color: 'var(--accent-primary)' }}>
-                      <SvgUploadCloud />
-                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>.docx</span>
+            <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".docx" style={{ display: 'none' }} />
+            {COVER_CARDS.map((c) => {
+              const isSelected = currentMode === c.id;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => (c.isUpload ? abrirSelector() : selectMode(c.id))}
+                  style={{
+                    minWidth: '190px',
+                    maxWidth: '220px',
+                    flex: '0 0 auto',
+                    scrollSnapAlign: 'start',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                    boxShadow: isSelected ? '0 4px 14px rgba(79,124,255,0.14)' : '0 1px 3px rgba(0,0,0,0.04)',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    position: 'relative',
+                  }}
+                >
+                  {isSelected && (
+                    <div style={{
+                      position: 'absolute', top: '8px', right: '8px', width: '18px', height: '18px',
+                      borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-primary)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-on-accent)', zIndex: 10,
+                    }}>
+                      <SvgCheckSmall />
                     </div>
                   )}
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)' }}>
-                  {c.icon}
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.title}
+                  {/* Miniatura visual de portada */}
+                  <div style={{
+                    height: '56px',
+                    backgroundColor: 'var(--paper-white, #ffffff)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '4px',
+                    padding: '6px 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
+                    overflow: 'hidden',
+                  }}>
+                    {c.id === 'original' && (
+                      <>
+                        <div style={{ width: '80%', height: '4px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.6 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
+                          <div style={{ width: '60%', height: '3px', backgroundColor: 'var(--text-secondary)', opacity: 0.5 }} />
+                          <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
+                        </div>
+                        <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
+                      </>
+                    )}
+                    {c.id === 'apa7' && (
+                      <>
+                        <div style={{ width: '15%', height: '2px', alignSelf: 'flex-end', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '2px' }}>
+                          <div style={{ width: '70%', height: '4px', backgroundColor: 'var(--text-main)', borderRadius: 'var(--radius-sm)', opacity: 0.8 }} />
+                          <div style={{ width: '50%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.7 }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
+                          <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
+                          <div style={{ width: '30%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
+                        </div>
+                      </>
+                    )}
+                    {c.id === 'uni' && (
+                      <>
+                        <div style={{ width: '16px', height: '10px', border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.7 }} />
+                        <div style={{ width: '65%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width: '100%', alignItems: 'center' }}>
+                          <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--accent-primary)', opacity: 0.6 }} />
+                          <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
+                        </div>
+                      </>
+                    )}
+                    {c.id === 'pro' && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', opacity: 0.5 }}>
+                          <div style={{ width: '25%', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
+                          <div style={{ width: '6px', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
+                        </div>
+                        <div style={{ width: '60%', height: '4px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
+                        <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
+                      </>
+                    )}
+                    {c.id === 'custom' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '3px', color: 'var(--accent-primary)' }}>
+                        <SvgUploadCloud />
+                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>.docx</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)' }}>
+                    {c.icon}
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.title}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.subtitle}
                   </span>
                 </div>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {c.subtitle}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── CUERPO PRINCIPAL (Editor Form + Previsualizador en Vivo) ── */}
-      <div style={{ display: 'flex', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' }}>
-        {/* COLUMNA IZQUIERDA: Panel Editor de Datos (Width: 440px) */}
-        {showCoverEditor && (
-          <div style={{ width: '440px', flexShrink: 0, height: '100%', borderRight: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
-            <CoverEditorPanel />
+              );
+            })}
           </div>
-        )}
 
-        {/* COLUMNA DERECHA: Previsualizador Dinámico en Vivo (Flex 1) */}
-        <div style={{ flex: 1, height: '100%', overflow: 'hidden', position: 'relative', backgroundColor: 'var(--canvas-bg)' }}>
-          {currentMode === 'uni' ? (
-            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                <UNICoverPreview />
+          {/* Previsualizador Dinámico en Vivo */}
+          <div style={{
+            flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden',
+            backgroundColor: 'var(--canvas-bg)',
+          }}>
+            {currentMode === 'uni' ? (
+              <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                  <UNICoverPreview />
+                </div>
               </div>
-            </div>
-          ) : currentMode === 'apa7' || currentMode === 'pro' ? (
-            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                <APACoverEditor />
+            ) : currentMode === 'apa7' || currentMode === 'pro' ? (
+              <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                  <APACoverEditor />
+                </div>
               </div>
-            </div>
-          ) : (
-            <PaperCanvas />
-          )}
+            ) : (
+              <PaperCanvas />
+            )}
+          </div>
         </div>
+
+        {/* COLUMNA DERECHA: Editor de portada (320px) */}
+        <aside
+          data-testid="cover-editor"
+          aria-label="Editor de portada"
+          style={{
+            width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0,
+            borderLeft: '1px solid var(--color-border-subtle)',
+          }}
+        >
+          <CoverEditorPanel />
+        </aside>
       </div>
     </div>
   );
