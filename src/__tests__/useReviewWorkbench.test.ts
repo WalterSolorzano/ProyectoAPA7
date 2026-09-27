@@ -14,6 +14,7 @@ import type { ProofreadFinding } from '../types';
  *  los elementos. */
 const DOC_SIN_MOTORES = {
   doc: {
+    session_id: 'sesion-1',
     elements: [
       { id: 'e1', type: 'paragraph', text: 'tambien' },
       { id: 'e2', type: 'paragraph', text: 'otro parrafo' },
@@ -55,6 +56,7 @@ const parrafoIA = (
 /** Documento con figuras y tablas sin rotular (motor Estructura). */
 const DOC_CON_ESTRUCTURA = {
   doc: {
+    session_id: 'sesion-1',
     elements: [
       { id: 'e1', type: 'paragraph', text: 'tambien' },
       { id: 'fig1', type: 'image', text: '', image_info: { url: 'data:' } },
@@ -289,15 +291,40 @@ describe('T12 — useReviewWorkbench', () => {
     const { result } = renderHook(() => useReviewWorkbench());
     expect(result.current.openEngines).toEqual(['spelling']);
 
-    // Mismo hook, otro documento: si la siembra no se reinicia, el grupo del
-    // documento anterior seguiría abierto y el nuevo no abriría ninguno.
+    // Mismo hook, otra sesión = otro documento: si la siembra no se reinicia, el
+    // grupo del documento anterior seguiría abierto y el nuevo no abriría ninguno.
     act(() => {
       useDocStore.setState({
-        doc: { elements: [{ id: 'z1', type: 'paragraph', text: 'otro' }] } as never,
+        doc: { session_id: 'sesion-2', elements: [{ id: 'z1', type: 'paragraph', text: 'otro' }] } as never,
         proofreadFindings: [hallazgo({ element_id: 'z1', kind: 'muletilla', message: 'Muletilla' })],
       });
     });
     expect(result.current.openEngines).toEqual(['ai']);
+  });
+
+  it('una edición en el documento NO vuelve a elegir el grupo', () => {
+    // Ortografía y Bloom empatan en gravedad, así que la siembra elige el
+    // primero de ENGINE_ORDER: 'spelling'. La persona abre el otro.
+    useDocStore.setState({
+      proofreadFindings: [
+        hallazgo(),
+        hallazgo({ element_id: 'e2', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'x' }),
+      ],
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.openEngines).toEqual(['spelling']);
+    act(() => result.current.setOpenEngines(['style']));
+
+    // Esto es lo que hace `updateElementText` -> `updateElementType`: el
+    // backend devuelve el documento entero y el store reemplaza el objeto
+    // (documentSlice.ts:695). Si la siembra se reiniciara por identidad de
+    // objeto, aceptar una sola tilde tiraría abajo lo que la persona abrió.
+    act(() => {
+      useDocStore.setState({
+        doc: { session_id: 'sesion-1', elements: [{ id: 'e1', type: 'paragraph', text: 'también' }] } as never,
+      });
+    });
+    expect(result.current.openEngines).toEqual(['style']);
   });
 
   it('“Página X de N” nunca muestra una página que no existe', () => {
@@ -472,6 +499,102 @@ describe('T12 — useReviewWorkbench', () => {
       // El motor da la sugerencia por defecto para Bloom, y se aplica a los dos.
       expect(updateElementText).toHaveBeenCalledTimes(2);
       expect(result.current.items).toHaveLength(0);
+    });
+
+    it('"Aceptar todas" de un motor NO se lleva los subtipos que solo se marcan', async () => {
+      // El caso MIXTO que la ronda 1 no probó: un motor 'accept' que contiene
+      // subtipos 'mark'. Los 'mark' son los que el motor detecta con certeza
+      // pero no sabe corregir (palabra repetida, oración colgada, voz pasiva):
+      // si la cabecera se los llevara, `aplicar` los mandaría a
+      // api.rewriteText y escribiría prosa generada en el documento.
+      const updateElementText = vi.fn(async () => {});
+      useDocStore.setState({
+        updateElementText,
+        proofreadFindings: [
+          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'verbo preciso' }),
+          // Los dos de abajo llevan `suggestion` a propósito: sin ella, un apply
+          // indebido caería en la red y el doble no se vería llamado.
+          hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante', suggestion: 'prosa inventada' }),
+          hallazgo({ element_id: 'e2', kind: 'repeticion', message: 'Palabra repetida', suggestion: 'prosa inventada' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const estilo = result.current.groups.find((g) => g.engine === 'style')!;
+      expect(estilo.massAction).toBe('accept');
+      // El motor mixto: un subtipo 'accept' y dos 'mark'.
+      expect(estilo.groups.map((g) => [g.label, g.action])).toEqual([
+        ['Verbo impreciso en objetivo (Bloom)', 'accept'],
+        ['Idea incompleta', 'mark'],
+        ['Palabra repetida', 'mark'],
+      ]);
+
+      await act(async () => {
+        await result.current.runGroupAction(estilo);
+      });
+      // Solo el Bloom se escribe. Los otros dos siguen ahí, sin marcar y sin
+      // tocar: el rótulo era "aceptar", no "marcar por detrás".
+      expect(updateElementText).toHaveBeenCalledTimes(1);
+      expect(updateElementText).toHaveBeenCalledWith('e1', 'verbo preciso');
+      expect(result.current.items.map((i) => i.subtype)).toEqual(['idea_incompleta', 'palabra_repetida']);
+      expect(result.current.markedIds).toEqual([]);
+    });
+
+    it('un motor cuyos subtipos no comparten su acción no ejecuta nada', async () => {
+      // Citas cuyo único subtipo es 'referencia_huerfana' ('none'): el botón
+      // dice "Aceptar todas" pero no hay nada que el motor de citas sepa
+      // resolver, así que no dispara el resolvedor de todo el documento.
+      const autoResolveGhosts = vi.fn(async () => {});
+      const autoCaptionAll = vi.fn(async () => {});
+      useDocStore.setState({
+        autoResolveGhosts,
+        autoCaptionAll,
+        proofreadFindings: [hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante' })],
+        citationAuditResult: {
+          ghost_citations: [],
+          orphan_references: [{ authors: ['Pérez'], year: 2019, raw_text: 'Pérez (2019).' }],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      // Motor de estilo: solo hay 'mark', y su acción de cabecera es 'accept'.
+      const estilo = result.current.groups.find((g) => g.engine === 'style')!;
+      expect(estilo.massAction).toBe('accept');
+      expect(estilo.groups.every((g) => g.action === 'mark')).toBe(true);
+      await act(async () => {
+        await result.current.runGroupAction(estilo);
+      });
+      // Motor de citas: su único subtipo es 'none' y su acción es
+      // 'resolveGhosts'. Tampoco hay nada que resolver.
+      const citas = result.current.groups.find((g) => g.engine === 'citations')!;
+      await act(async () => {
+        await result.current.runGroupAction(citas);
+      });
+
+      expect(autoResolveGhosts).not.toHaveBeenCalled();
+      expect(autoCaptionAll).not.toHaveBeenCalled();
+      expect(result.current.items).toHaveLength(2);
+      expect(result.current.markedIds).toEqual([]);
+      expect(useDocStore.getState().toastMessage).toMatch(/nada que aplicar en bloque/);
+    });
+
+    it('el grupo de estructura no rota figuras si su único subtipo es un encabezado', async () => {
+      const autoCaptionAll = vi.fn(async () => {});
+      useDocStore.setState({
+        autoCaptionAll,
+        // Solo un encabezado por revisar: subtipo 'none', no 'autoCaption'.
+        doc: {
+          session_id: 'sesion-1',
+          elements: [{ id: 'h1', type: 'heading', text: 'Método', needs_review: true }],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const estructura = result.current.groups.find((g) => g.engine === 'structure')!;
+      expect(estructura.massAction).toBe('autoCaption');
+      expect(estructura.groups.map((g) => g.action)).toEqual(['none']);
+      await act(async () => {
+        await result.current.runGroupAction(estructura);
+      });
+      expect(autoCaptionAll).not.toHaveBeenCalled();
+      expect(result.current.items).toHaveLength(1);
     });
 
     it('el grupo de IA marca todo y no borra nada', async () => {

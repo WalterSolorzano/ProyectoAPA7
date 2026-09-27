@@ -551,12 +551,19 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     });
   }, [items, filter]);
 
-  /* La siembra es POR DOCUMENTO: cargar otro documento en la misma sesión
-     tiene su propio grupo más crítico, y dejarlo sin abrir obligaría a la
-     persona a desplegar todo a mano para ver qué encontró. */
+  /* La siembra es POR DOCUMENTO, y el documento se identifica por su sesión,
+     no por la identidad del objeto: `updateElementText` (aceptar una
+     corrección) reemplaza el `doc` entero en el store, así que con `[doc]`
+     cada corrección aceptada borraba la siembra y el panel volvía a
+     desplegarse solo, tirándose abajo lo que la persona acababa de abrir.
+     Un documento nuevo es otra `session_id` (las pestañas del Explorador de
+     Proyecto son sesiones distintas), así que reiniciar por `session_id`
+     conserva el comportamiento de "otro documento, otros grupos" sin el
+     efecto colateral. */
+  const sessionId = doc?.session_id;
   useEffect(() => {
     seeded.current = false;
-  }, [doc]);
+  }, [sessionId]);
 
   /* Solo el grupo más crítico abre por defecto, una vez por sesión de datos. */
   useEffect(() => {
@@ -717,18 +724,9 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const markForReview = useCallback((item: AuditItem) => markMany([item]), [markMany]);
 
-  /**
-   * La vista NO ejecuta acciones: pregunta. Este hook es la única autoridad
-   * sobre qué acción tiene un grupo (su `action`/`massAction`) y sobre cómo se
-   * ejecuta, así que la vista no tiene que volver al store para resolver
-   * citas fantasma ni rotular figuras, ni adivinar qué hacer con 'none'.
-   * Acepta un `EngineGroup` (usa todos sus subtipos) o un `SubtypeGroup`.
-   */
-  const runGroupAction = useCallback(
-    async (group: EngineGroup | SubtypeGroup) => {
-      const esMotor = 'massAction' in group;
-      const action = esMotor ? group.massAction : group.action;
-      const objetivos = esMotor ? group.groups.flatMap((g) => g.items) : group.items;
+  /** Una acción, sobre los ítems que esa acción cubre. */
+  const despachar = useCallback(
+    async (action: SubtypeAction, objetivos: AuditItem[]) => {
       switch (action) {
         case 'accept':
           await acceptMany(objetivos);
@@ -750,6 +748,56 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
       }
     },
     [acceptMany, markMany, autoResolveGhosts, autoCaptionAll, showToast],
+  );
+
+  /**
+   * La vista NO ejecuta acciones: pregunta. Este hook es la única autoridad
+   * sobre qué acción tiene un grupo (su `action`/`massAction`) y sobre cómo se
+   * ejecuta, así que la vista no tiene que volver al store para resolver
+   * citas fantasma ni rotular figuras, ni adivinar qué hacer con 'none'.
+   * Acepta un `EngineGroup` (cabecera de motor) o un `SubtypeGroup` (fila).
+   *
+   * LA REGLA, en una línea: **la cabecera de un motor actúa solo sobre los
+   * subtipos que comparten su acción.** Un subtipo que discrepa no se toca.
+   *
+   * Sin esa regla, el botón "Aceptar todas" de Redacción & Bloom se llevaba
+   * también `palabra_repetida`, `pronombre_ambiguo`, `voz_pasiva`,
+   * `oracion_larga`, `idea_incompleta` y el fallback `otro`: subtipos a los que
+   * el propio hook les asignó 'mark' porque el motor los detecta con certeza
+   * pero no sabe corregirlos. `aplicar` los habría mandado a
+   * `api.rewriteText` y escrito prosa generada en el documento del usuario,
+   * una llamada de red por hallazgo. Lo mismo con un motor cuyas acciones son
+   * de documento (`resolveGhosts`, `autoCaption`): no disparan si ningún
+   * subtipo comparte su acción, así que un grupo de citas que solo tenga
+   * referencias huérfanas ('none') no resuelve nada.
+   *
+   * Y lo que NO puede garantizar esta función: `autoResolveGhosts` y
+   * `autoCaptionAll` son del store y trabajan sobre todo el documento. Hoy su
+   * alcance coincide exactamente con los subtipos que las piden (todas las
+   * fantasmas son 'cita_fantasma'; todas las figuras/tablas, 'autoCaption'),
+   * así que el filtro de subtipos basta. Si algún día un motor marcara una
+   * de esas clases como 'mark', la garantía tendría que bajar al store.
+   */
+  const runGroupAction = useCallback(
+    async (group: EngineGroup | SubtypeGroup) => {
+      if (!('massAction' in group)) {
+        // Fila de subtipo: su propia acción sobre sus propios ítems, sin más.
+        await despachar(group.action, group.items);
+        return;
+      }
+      const deAcuerdo = group.groups.filter((g) => g.action === group.massAction);
+      if (!deAcuerdo.length) {
+        // El rótulo promete una acción en bloque y no hay ninguna: se dice, para
+        // que el silencio no se lea como "se aplicó y no pasó nada".
+        showToast(
+          'Este motor no tiene nada que aplicar en bloque: revisa sus hallazgos uno por uno.',
+          'info',
+        );
+        return;
+      }
+      await despachar(group.massAction, deAcuerdo.flatMap((g) => g.items));
+    },
+    [despachar, showToast],
   );
 
   const dismiss = useCallback(
