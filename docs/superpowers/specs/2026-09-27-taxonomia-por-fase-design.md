@@ -1,4 +1,4 @@
-# Taxonomía por fase: los H1 abren ámbitos con criterios
+﻿# Taxonomía por fase: los H1 abren ámbitos con criterios
 
 > **Estado: en diseño.** Decisiones confirmadas por el usuario. Faltan preguntas antes del spec.
 > Creado durante la ejecución de `2026-09-25-redesign-shell-ia-workbench.md`.
@@ -29,6 +29,43 @@ Los **títulos de nivel 1 son las fases del documento**. Cada fase tiene sus pro
 objetivos tienen reglas; las conclusiones tienen reglas; el resto de fases tienen las suyas. La
 taxonomía **solo aplica dentro de títulos 1**, no sobre todo el documento, para que el motor no malinterprete
 palabras que casualmente coincidan.
+
+## El modelo: dos capas de reglas
+
+**Capa 1 — Reglas generales.** Aplican a **todo** el documento, sin importar dónde esté el elemento. El
+detector de IA es el ejemplo canónica: un párrafo con 6 marcas de IA es un problema en cualquier fase. Hoy
+estas reglas ya funcionan así; el cambio no las toca, solo las **declara** como generales para que dejar
+de inferir su ámbito del texto.
+
+**Capa 2 — Reglas de fase (H1).** Aplican **solo dentro** del ámbito que abre su H1. Tamaño de párrafo,
+tipo de redacción, taxonomía de Bloom, estructura de la fase. Son las que hoy se disparan por palabra
+suelta y hay que acotar.
+
+Una regla pasa a tener un ámbito explícito: `global` o el nombre de la fase que la declara. El motor ya
+no deduce el ámbito del texto en ningún caso.
+
+## D3 — Los H2 no abren ámbito propio
+
+El usuario lo resolvió: un H2 seria irse más específico sin ganar nada. El H2 **hereda**: su contenido
+sigue sometido a las reglas generales y a las reglas de la fase que abrió el H1 ancestor. No crea un
+ámbito hijo, no endurece criterios, y no puede contradecir a su H1.
+
+Consecuencia de implementación: el mapa de ámbitos se construye **solo con H1**. Un H2 es simplemente un
+elemento más dentro del ámbito abierto por su H1 ancestor. Esto también evita el problema de anidamiento:
+no hay ambigüedad posible porque no hay dos niveles de ámbito.
+
+## D4 — La revisión agrupa por fase además de por motor
+
+La pantalla ya agrupa por motor y luego por subtipo. Falta la fase. El orden sería:
+
+    fase (H1) → motor → subtipo → hallazgo
+
+con las reglas generales visibles en su propio lugar, porque no pertenecen a ninguna fase. El usuario
+lo formulo como "ver los fallos de una forma mas amigable, ya sea en objetivos o en cada fase": la
+fase es la unidad en la que el usuario piensa, y hoy la interfaz no la nombra nunca.
+
+Sin volver a una tabla de hallazgos: `AGENTS.md` §1 prohibe las tres columnas y la revision sigue siendo
+un parrafo a la vez. La fase se nombra arriba, como contexto, no como eje de navegacion.
 
 ## Decisiones confirmadas
 
