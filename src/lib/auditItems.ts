@@ -239,6 +239,18 @@ const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
      la vista sin depender del `readOnly` que ya viaja. */
   portada_title_larga: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
   portada_punto_final: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
+
+  /* Las ocho universales baratas del spec §12. Todas 'mark': ninguna trae un
+     texto corregido, y una reescritura automática de prosa argumental sería
+     decidir por el usuario. El motor detecta, la persona corrige. */
+  g11_variacion_oracion: { category: 'style', subtype: 'ritmo_oracion', severity: 'low', summary: DEL_MOTOR },
+  g34_sigla_sin_definir: { category: 'style', subtype: 'sigla_sin_definir', severity: 'medium', summary: DEL_MOTOR },
+  g35_unidades_mixtas: { category: 'style', subtype: 'unidad_mixta', severity: 'low', summary: DEL_MOTOR },
+  g51_registro_coloquial: { category: 'style', subtype: 'registro_coloquial', severity: 'high', summary: DEL_MOTOR },
+  g52_exclamacion: { category: 'style', subtype: 'exclamacion', severity: 'low', summary: DEL_MOTOR },
+  g53_segunda_persona: { category: 'style', subtype: 'segunda_persona', severity: 'medium', summary: DEL_MOTOR },
+  g61_triada: { category: 'style', subtype: 'triada', severity: 'low', summary: DEL_MOTOR },
+  g63_conectores_densidad: { category: 'style', subtype: 'densidad_conectores', severity: 'low', summary: DEL_MOTOR },
 };
 
 /** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo
