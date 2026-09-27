@@ -198,24 +198,49 @@ siempre y sin red, y la de LLM es **estrictamente aditiva** — nunca puede quit
 un hallazgo local: un motor que se cae no puede borrar evidencia que el código
 ya encontró y que la persona tiene que ver.
 
-## D10 — El LLM se llama una vez por párrafo, no una vez por regla
+## D10 — El LLM CONFIRMA lo que las reglas baratas marcaron; no escanea
 
-Doce reglas por párrafo son doce llamadas. La matriz completa es inviable por
-costo y por latencia, y además varias reglas necesitan ver el párrafo entero
-para poder juzgarse: R-G23 (correferencia) y R-G42 (una idea central) no tienen
-respuesta si el modelo recibe un fragmento.
+Esta decisión cambió después de medir los límites reales (sonda del 2026-09-27,
+`tools/llm_probe.py`).
 
-Por eso la unidad de la pasada de LLM es el **párrafo completo con todas las
-reglas que le corresponden**, en una sola llamada, con salida estructurada:
+**Lo que se pensó primero y está mal:** una llamada de LLM por párrafo, con todas
+las reglas que le corresponden. Doce reglas por párrafo es además inviable por
+costo, pero el motivo real es peor.
 
-```json
-{ "incidencias": [ { "regla": "R-G71", "cumple": false,
-                     "inicio": 120, "fin": 168,
-                     "justificacion": "..." } ] }
-```
+**Lo que manda el dato:** los RPM declarados en `PROVIDER_CAPACITY` van de **10 a
+30 por minuto**. Una tesis de 300 párrafos son 300 llamadas: diez veces la cuota
+del proveedor más generoso. Y el único modelo que responde sin pagar
+(`z-ai/glm-4.6v-flash-free`) dio 429 en la misma sonda: un endpoint free
+compartido se estrangula con facilidad. Un barrido por párrafo no es una decisión
+de calidad, es aritmética.
 
-`inicio`/`fin` son offsets en el texto del párrafo, igual que el resto de los
-hallazgos, para que el subrayado inline funcione sin código nuevo.
+**La arquitectura correcta es la inversa:** las reglas baratas, que son deterministas y gratis, **marcan**; el LLM **confirma o descarta** lo marcado, con
+la evidencia a la vista. Es la forma que `refine_with_llm` ya tiene, y por eso no
+hay que inventar nada.
+
+Consecuencias:
+
+- Un documento con 40 hallazgos son 40 llamadas, no 300. La cuota aguanta.
+- El LLM nunca ve prosa que las reglas dejaron pasar: recibe el hallazgo, su tramo y
+  su regla, y juzga **eso**.
+- La salida es auditable: "esta frase no es coloquial, es una cita" es una
+  decisión que se puede leer, no un barrido opaco.
+- R-G14, R-G23, R-G25, R-G32, R-G33, R-G42, R-G44, R-G62, R-G64, R-G71, R-G72 y
+  R-G75 dejan de necesitar "una regla por párrafo" y pasan a ser **el filtro de
+  las que ya dispararon algo**.
+
+## D10-bis — El presupuesto de llamadas es explícito, no implícito
+
+Toda pasada de LLM lleva un tope de llamadas por documento, y si lo alcanza lo
+dice. Un motor que se calla en silencio es indistinguible de uno que no encontró
+nada, y esa es la peor falla posible en una herramienta de revisión: le dice a la
+persona que su tesis está limpia cuando lo que pasó es que se quedó sin cuota.
+
+El número sale de `PROVIDER_CAPACITY[proveedor]["requests_per_minute"]`, que ya
+existe y que este trabajo había leído y no estaba usando. Un documento que exceda
+el tope **reporta cuántos quedaron sin verificar**, igual que el corrector ya
+reporta `used_llm`.
+
 
 ## D11 — Tres reglas no son de LLM
 
@@ -228,8 +253,7 @@ El §12 del documento fuente las cuenta como LLM y no lo son:
   párrafos)** son relaciones **entre** párrafos, así que van en una pasada
   **por sección**, no por párrafo.
 
-Quedan nueve reglas de LLM en la pasada por párrafo, una llamada cada una, con
-la caché del router haciendo gratis las repetidas.
+El numero de llamadas lo fija D10: una por hallazgo marcado, no una por parrafo.
 
 ## D12 — El veredicto del LLM es un aviso, no un dictamen
 
