@@ -3,6 +3,24 @@ import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, Po
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
 import type { LayoutPaginateResult } from '../api/layout';
 
+/**
+ * Que paso cuando se leyo el `.docx` que Word tiene abierto.
+ *
+ * `hallazgos` es `number | null` y no `number` a proposito: `0` y "no se conto"
+ * son cosas distintas. Poner `0` cuando no se re-audito haria que el aviso
+ * dijera "0 hallazgos", que es una afirmacion sobre algo que nadie miro — y es la
+ * misma mentira que ya se elimino del watcher. `null` es la respuesta honesta, y
+ * es la misma distincion que `reusar` devuelve `None` en vez de `[]`.
+ */
+export interface RefrescoResultado {
+  listo: boolean;
+  cambiado: boolean;
+  nuevos: number;
+  eliminados: number;
+  /** Lo que la reauditoria REALMENTE encontro. `null` = no se re-audito. */
+  hallazgos: number | null;
+}
+
 /** Un evento del feed de actividad del panel derecho unificado (Layer 4). */
 export interface ActivityEvent {
   id: string;
@@ -176,6 +194,18 @@ export interface DocState {
   atHome: boolean;
   goHome: () => void;
   openSession: (sessionId: string) => Promise<void>;
+  /**
+   * Lee el `.docx` que Word tiene abierto y, SOLO si el diff ve un cambio real,
+   * recarga el documento desde el backend.
+   *
+   * No toca tabs, no levanta `isLoading` y no resetea la geometria de pagina:
+   * esto no es abrir un documento, es el mismo documento con el texto nuevo, y
+   * un guardado de Word no puede mandar a la persona al primer paso del asistente.
+   *
+   * Un archivo a medias (`listo: false`) no recarga nada, porque el backend no
+   * guardo nada y recargar seria tirar el estado guardado para atras.
+   */
+  refrescarDesdeWord: (ruta: string) => Promise<RefrescoResultado>;
   saveSnapshot: () => Promise<void>;
 
   // Revisor IA + Ortografía (Fase F)
