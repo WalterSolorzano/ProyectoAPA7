@@ -6,7 +6,6 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, Zap, GitBranch } from 'lucide-react';
 import { PROCESS_VERBS, JOKES, APA_FACTS, AI_JOKES, WORD_HELL_JOKES, STUDENT_JOKES } from './LoadingTips';
 import { getTimeSlotPhrases } from '../../lib/studentJokes';
 
@@ -89,36 +88,22 @@ function pickFreshPhrase(pool: Phrase[], currentText?: string): Phrase {
   return picked;
 }
 
-const TAG_COLOR: Record<string, string> = {
-  contexto: 'var(--color-warning)',
-  'hora-especial': 'var(--accent-primary)',
-  inicio: 'var(--accent-primary)',
-  procesando: 'var(--accent-primary)',
-  chiste: 'var(--accent-secondary)',
-  dato: 'var(--color-success)',
-  ai: 'var(--accent-primary)',
-  wordhell: 'var(--color-warning)',
-  student: 'var(--accent-primary)',
-};
-
-/** Tres pilares de producto — iconos nativos de la app, sin decir lo obvio. */
-const PILLARS = [
-  {
-    icon: <BookOpen size={14} strokeWidth={2} />,
-    label: 'Portada, cuerpo y referencias',
-    color: 'var(--accent-primary)',
-  },
-  {
-    icon: <Zap size={14} strokeWidth={2} />,
-    label: 'Corrección sin tocar tu contenido',
-    color: 'var(--color-success)',
-  },
-  {
-    icon: <GitBranch size={14} strokeWidth={2} />,
-    label: 'Citas, DOI y referencias cruzadas',
-    color: 'var(--accent-primary)',
-  },
-];
+/* `TAG_COLOR` y `PILLARS` se fueron, y no por gusto.
+ *
+ * `TAG_COLOR` mapeaba siete etiquetas y su único consumidor era
+ * `void TAG_COLOR;`: estaba muerto antes de este cambio.
+ *
+ * `PILLARS` eran tres tarjetas que decían "Portada, cuerpo y referencias",
+ * "Corrección sin tocar tu contenido" y "Citas, DOI y referencias cruzadas".
+ * El criterio para sacarlas no es que sean Largas ni que ocupen: es que
+ * describen lo que la app ya deja ver en cinco pantallas. En el hero —que es
+ * la única línea de aire de la pantalla— se leen como publicidad y le quitan
+ * el lugar a la escena. Un texto que anuncia la app es ruido en una pantalla
+ * cuya función es que la persona empiece a trabajar.
+ *
+ * También se fueron con ellas los tres `strokeWidth={2}` que traían: la norma
+ * del proyecto es el token `--icon-stroke`, que vale 1.75.
+ */
 
 // ─── Canvas scene types ───────────────────────────────────────────────────────
 
@@ -1019,8 +1004,19 @@ export const HomeHero: React.FC = () => {
       rafRef.current = requestAnimationFrame(loop);
     };
 
-    // Respect prefers-reduced-motion
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    /* `matchMedia` no es una API con garantía: no está en el jsdom de las
+       pruebas y no está en WebViews viejos. La escena del cielo es decorativa,
+       así que si la API falta lo correcto es dibujar el fondo y seguir —en
+       movimiento, porque no nos dijo que lo quiere apagado— y no romper la
+       pantalla de inicio, que es donde la persona decide si sube su tesis. */
+    const reduceMotion =
+      typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* Y si sí lo pidió, un fotograma y nada más: la escena se ve, no se
+       mueve. Un cuadro estático es la manera correcta de respetarlo; apagar el
+       canvas entero leería como un fallo. */
+    if (reduceMotion) {
       // Draw a single static frame
       requestAnimationFrame((ts) => {
         lastRef.current = ts;
@@ -1042,14 +1038,15 @@ export const HomeHero: React.FC = () => {
     return cleanup;
   }, [initCanvas]);
 
-  // TAG_COLOR kept for potential future use
-  void TAG_COLOR;
-
   return (
     <div
       style={{
         textAlign: 'center',
-        padding: '6px 0 18px',
+        /* Padding vertical generoso: con seis píxeles arriba y el cielo de dos
+           cientos de alto detrás, la frase queda pegada al borde y el
+           contenedor se lee como un recorte en vez de como una escena. El
+           pedido fue "expande un poco ese contenedor". */
+        padding: '44px 24px 52px',
         position: 'relative',
         overflow: 'hidden',
         borderRadius: 'var(--radius-xl)',
@@ -1089,15 +1086,23 @@ export const HomeHero: React.FC = () => {
           key={fadeKey}
           className="hero-phrase-in"
           style={{
-            fontSize: '36px',
+            /* 40px, no 36. El pedido fue que se veía demasiado pequeño, y
+               agrandar el contenedor sin agrandar la frase deja más cielo con el
+               mismo texto: eso es un fondo vacío. */
+            fontSize: '40px',
             fontWeight: 900,
             lineHeight: 1.18,
             letterSpacing: '-0.02em',
             color: '#ffffff',
             textShadow: '0 2px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)',
             margin: '0 auto',
-            maxWidth: '860px',
-            minHeight: '86px',
+            maxWidth: '960px',
+            /* El alto reservado sigue al `line-clamp`: 2 renglones × 40px ×
+               1.18 ≈ 95px. Con los 86px de antes, una frase de dos renglones se
+               recortaba en silencio y la persona creía que la app no había
+               cargado. `homeHeroAire.test.tsx` deriva uno del otro, así que
+               cambiar la tipografía sin cambiar esto rompe la prueba. */
+            minHeight: '96px',
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -1106,39 +1111,6 @@ export const HomeHero: React.FC = () => {
           }}
         >
           {phrase.text}
-        </div>
-
-        {/* Tres pilares de producto */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            flexWrap: 'wrap',
-            marginTop: '18px',
-          }}
-        >
-          {PILLARS.map((p) => (
-            <div
-              key={p.label}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--surface-elevated)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: 'var(--text-xs)',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <span style={{ color: p.color, display: 'flex', alignItems: 'center' }}>{p.icon}</span>
-              <span>{p.label}</span>
-            </div>
-          ))}
         </div>
       </div>
     </div>

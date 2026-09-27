@@ -556,11 +556,22 @@ export const Step0QuickStart: React.FC = () => {
               overflow: 'hidden',
               marginBottom: '32px',
             }}>
-              {/* Barra superior integrada: Selector de perfil sutil */}
+              {/* Barra superior integrada: solo el selector de perfil.
+
+                  Se fueron "Norma APA 7ma Edición" y "· Motor editorial local"
+                  porque el usuario los nombró como texto que se repite demasiado,
+                  y porque la barra queda a la derecha con un solo hijo: con dos
+                  justificaba el espacio repartido, con uno no, y el espacio
+                  sobrante se va.
+
+                  Y con el rótulo "Perfil:" pasó lo mismo: el `<select>` ya
+                  muestra el nombre del perfil elegido, así que la etiqueta sólo
+                  decía lo obvio. El CONTROL se queda, que es otra cosa: es la
+                  única forma de cambiar de perfil sin entrar a Ajustes. */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-end',
                 padding: '12px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
                 background: 'var(--surface-subtle)',
@@ -568,19 +579,6 @@ export const Step0QuickStart: React.FC = () => {
                 gap: '12px',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ShieldCheck size={15} color="var(--accent-primary)" />
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)', letterSpacing: '0.01em' }}>
-                    Norma APA 7ma Edición
-                  </span>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                    · Motor editorial local
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label htmlFor="apa-profile-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Perfil:
-                  </label>
                   <select
                     id="apa-profile-select"
                     value={activeProfileId}
