@@ -15,7 +15,7 @@ vi.mock('../components/layout/StatusBar', () => ({ StatusBar: () => <div data-te
 describe('T6 — AppShell', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    useDocStore.setState({ railPinned: false, wizardStep: 1 });
+    useDocStore.setState({ railPinned: false, wizardStep: 1, viewMode: 'edit' });
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -61,6 +61,63 @@ describe('T6 — AppShell', () => {
     expect(useDocStore.getState().railPinned).toBe(true);
     // El clic también abre el detalle: con teclado no hay hover que lo abra.
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+  });
+
+  it('el bloque contenedor del flyout es `.app-main`, positioned: el panel arranca en el primer botón', () => {
+    // El bug de geometría: `.app-main` era `static`, así que el `top: 12` del
+    // flyout se medía desde el BORDE DE LA VENTANA, no desde el rail —cuyo
+    // primer botón está 48 (barra) + 12 (padding) = 60px más abajo—. Con la
+    // barra de 48px opaca y `z-index: 200` contra los 100 del panel, los
+    // primeros ~36px del panel quedaban debajo: la fila con la etiqueta del
+    // destino y el único pin visible.
+    //
+    // jsdom no hace layout, así que esto prueba la DECLARACIÓN que decide la
+    // relación: sin ancestro posicionado, esos 12px no son los 12 del rail.
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    const fly = screen.getByTestId('rail-flyout');
+    const parent = fly.parentElement as HTMLElement;
+    expect(parent.className).toContain('app-main');
+    expect(getComputedStyle(parent).position).toBe('relative');
+    // Y el número sigue siendo el del padding del rail, no 60.
+    expect(fly.style.top).toBe('12px');
+  });
+
+  it('el flyout está detrás de la barra, no encima: su z-index es el de un desplegable', () => {
+    // No es que el panel tapara la barra: es que la barra lo tapaba a él. Por
+    // eso el arreglo es de geometría, no de `z-index` —subir el panel lo
+    // pondría por encima de la barra y taparía el título del documento.
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    expect(screen.getByTestId('rail-flyout').style.zIndex).toBe('var(--z-dropdown)');
+  });
+
+  it('con el túnel de export abierto, un clic en otra fase vuelve al editor', () => {
+    // El rail vive en todas las vistas, incluso en la de exportación. Un clic
+    // en "Figuras" que solo cambiara `wizardStep` repintaría el acento sobre
+    // una fase cuya vista no se monta: el rail afirmaría dónde está el
+    // trabajo mientras la pantalla muestra el túnel. Reachable hoy por la
+    // paleta de comandos ("Abrir túnel de exportación").
+    useDocStore.setState({ wizardStep: 2, viewMode: 'export' });
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Figuras' }));
+    expect(useDocStore.getState().viewMode).toBe('edit');
+    expect(useDocStore.getState().wizardStep).toBe(3);
+  });
+
+  it('en la vista nativa de PDF el mismo clic también vuelve al editor', () => {
+    useDocStore.setState({ wizardStep: 2, viewMode: 'native-pdf' });
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Referencias' }));
+    expect(useDocStore.getState().viewMode).toBe('edit');
+    expect(useDocStore.getState().wizardStep).toBe(4);
+  });
+
+  it('ya en el editor, un clic de fase NO toca la vista', () => {
+    useDocStore.setState({ wizardStep: 1, viewMode: 'edit' });
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Estructura' }));
+    expect(useDocStore.getState().viewMode).toBe('edit');
   });
 
   it('el clic en el workbench no es lo que ancla: el pin del rail sí', () => {

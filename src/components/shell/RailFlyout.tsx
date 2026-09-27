@@ -6,20 +6,20 @@
    incancelable desde el rail, y el panel se cerraría con el puntero encima. */
 
 import React, { useEffect } from 'react';
-import { Pin, Check, AlertCircle } from 'lucide-react';
+import { Pin, X, Check, AlertCircle } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { OutlineTree } from '../wizard/OutlineTree';
 import type { RailDestination } from './railItems';
 
 export const FLYOUT_CLOSE_GRACE_MS = 120;
 
-const STATUS_TEXT: Record<RailDestination['status'], string> = {
+const STATUS_TEXT: Record<NonNullable<RailDestination['status']>, string> = {
   done: 'Listo',
   pending: 'pendientes',
   idle: 'Sin pendientes',
 };
 
-const STATUS_COLOR: Record<RailDestination['status'], string> = {
+const STATUS_COLOR: Record<NonNullable<RailDestination['status']>, string> = {
   done: 'var(--color-success)',
   pending: 'var(--color-warning)',
   idle: 'var(--color-text-tertiary)',
@@ -59,6 +59,8 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
   if (!item) return null;
 
   const StatusIcon = item.status === 'done' ? Check : item.status === 'pending' ? AlertCircle : null;
+  const pinned = railPinned;
+  const pending = item.pending ?? 0;
 
   return (
     <aside
@@ -95,33 +97,60 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
             {item.label}
           </span>
         </div>
-        <button
-          type="button"
-          aria-label="Anclar panel"
-          aria-pressed={railPinned}
-          onClick={() => setRailPinned(!railPinned)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-sm)',
-            background: railPinned ? 'var(--color-accent-soft)' : 'transparent',
-            color: railPinned ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
-            cursor: 'pointer', flexShrink: 0,
-          }}
-        >
-          <Pin size={13} strokeWidth={1.75} aria-hidden />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <button
+            type="button"
+            aria-label="Anclar panel"
+            aria-pressed={pinned}
+            onClick={() => setRailPinned(!pinned)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-sm)',
+              background: pinned ? 'var(--color-accent-soft)' : 'transparent',
+              color: pinned ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <Pin size={13} strokeWidth={1.75} aria-hidden />
+          </button>
+          {/* El cierre es un botón, no una tecla: un clic en una fase anclaba el
+              panel y lo dejaba sobre el documento con un único cierre posible
+              (Esc), y un usuario de ratón se quedaba con 240px de overlay sin
+              salida visible. El nombre "Cerrar detalle" dice qué se cierra —
+              el panel, no la fase— porque el clic no desancla. */}
+          <button
+            type="button"
+            aria-label="Cerrar detalle"
+            onClick={onClose}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-sm)',
+              background: 'transparent', color: 'var(--color-text-tertiary)',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <X size={13} strokeWidth={1.75} aria-hidden />
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' }}>
-        {StatusIcon && <StatusIcon size={12} strokeWidth={1.75} aria-hidden style={{ color: STATUS_COLOR[item.status] }} />}
-        <span style={{ color: STATUS_COLOR[item.status], fontWeight: 600 }}>
-          {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
-              o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
-          {item.status === 'pending' && item.pending > 0
-            ? `${item.pending} ${STATUS_TEXT.pending}`
-            : STATUS_TEXT[item.status]}
-        </span>
-      </div>
+      {/* La fila de estado se omite entera cuando el destino NO tiene estado.
+          Ajustes, Tema y el Complemento de Word son acciones: no se completan,
+          no tienen nada pendiente, y un "Sin pendientes" sobre ellos es un
+          vocabulario de estado aplicado a un botón. El rail no inventa el
+          cero; no dibuja la fila. */}
+      {item.status && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' }}>
+          {StatusIcon && <StatusIcon size={12} strokeWidth={1.75} aria-hidden style={{ color: STATUS_COLOR[item.status] }} />}
+          <span style={{ color: STATUS_COLOR[item.status], fontWeight: 600 }}>
+            {/* El conteo es parte de la frase "N pendientes": prefijarlo a "Listo"
+                o a "Sin pendientes" produce "3 Listo". Solo la rama pending cuenta. */}
+            {item.status === 'pending' && pending > 0
+              ? `${pending} ${STATUS_TEXT.pending}`
+              : STATUS_TEXT[item.status]}
+          </span>
+        </div>
+      )}
 
       {item.showOutline && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 8 }}>

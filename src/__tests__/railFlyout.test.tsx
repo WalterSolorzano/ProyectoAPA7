@@ -102,6 +102,46 @@ describe('T5 — RailFlyout', () => {
     expect(fly.style.width).toBe('240px');
   });
 
+  it('`top: 12` son los 12px del padding del RAIL, no los 12px de la ventana', () => {
+    // `12` solo no dice nada: el mismo número es correcto en Inicio y estaba
+    // 48px alto en el editor, porque `.app-main` era `static` y el offset se
+    // resolvía contra la raíz del shell (borde de la ventana). Lo que decide es
+    // el ancestro posicionado, y esa parte se afirma en appShell.test.tsx sobre
+    // el DOM real. Acá queda el número, que es el que depende de él.
+    render(<RailFlyout item={item} onClose={vi.fn()} />);
+    expect(screen.getByTestId('rail-flyout').style.top).toBe('12px');
+    // `left` comparte la misma causa: 56 del rail + 8 de hueco.
+    expect(screen.getByTestId('rail-flyout').style.left).toBe('64px');
+  });
+
+  it('un destino SIN estado no dibuja fila de estado: "Sin pendientes" sobre Ajustes miente', () => {
+    // Ajustes, Tema y el Complemento de Word no se completan ni se posponen:
+    // no tienen un cero honesto que anunciar. `status` es opcional justamente
+    // para eso, y la fila se omite en vez de inventarse.
+    const { unmount } = render(
+      <RailFlyout item={{ ...item, id: 'home-ajustes', step: null, status: undefined, pending: undefined }} onClose={vi.fn()} />,
+    );
+    expect(screen.queryByText('Sin pendientes')).toBeNull();
+    expect(screen.queryByText('Listo')).toBeNull();
+    unmount();
+
+    // Un destino de fase SÍ la dibuja, aunque sea para decir que no hay nada.
+    render(<RailFlyout item={{ ...item, status: 'idle' }} onClose={vi.fn()} />);
+    expect(screen.getByText('Sin pendientes')).toBeTruthy();
+  });
+
+  it('el panel anclado se cierra con un botón, no solo con Esc', () => {
+    // Con teclado no hay hover que abra el panel: el clic en una fase lo ancla.
+    // Antes el único cierre era Esc, así que un usuario de ratón se quedaba
+    // con 240px de overlay sobre el documento y sin salida visible.
+    const onClose = vi.fn();
+    render(<RailFlyout item={item} onClose={onClose} />);
+    const cerrar = screen.getByRole('button', { name: 'Cerrar detalle' });
+    expect(cerrar.tagName).toBe('BUTTON');
+    fireEvent.click(cerrar);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('mientras está anclado, salir con el puntero no lo cierra', () => {
     // La puerta del ancla vive en el shell (`scheduleClose` no programa si está
     // anclado). Aquí lo que se afirma es la mitad que sí es de este componente:

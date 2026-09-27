@@ -246,6 +246,29 @@ describe('T19 — rail de Inicio', () => {
     expect(screen.queryByTestId('rail-flyout')).toBeNull();
   });
 
+  it('el detalle de un destino de Inicio no inventa un estado de trabajo', async () => {
+    // Ajustes, Tema y el Complemento de Word no se completan ni se posponen.
+    // Con `status` obligatorio, el catálogo tenía que mentir con un `idle` y el
+    // flyout imprimía "Sin pendientes" encima de un botón.
+    await montarInicio();
+    fireEvent.mouseEnter(destino('Ajustes'));
+    const fly = within(screen.getByTestId('rail-flyout'));
+    expect(fly.queryByText('Sin pendientes')).toBeNull();
+    expect(fly.queryByText('Listo')).toBeNull();
+    // Pero sí dice qué es y qué se puede hacer con él.
+    expect(fly.getByText('Ajustes')).toBeTruthy();
+  });
+
+  it('el bloque contenedor del flyout es el `position: relative` del contenido', async () => {
+    // El mismo bug de geometría que en el editor: sin ancestro posicionado, el
+    // `top: 12` del panel se mide desde el borde de la ventana y la franja de
+    // arriba se come su primera fila. Acá la franja son 44px.
+    await montarInicio();
+    fireEvent.mouseEnter(destino('Ajustes'));
+    const padre = screen.getByTestId('rail-flyout').parentElement as HTMLElement;
+    expect(getComputedStyle(padre).position).toBe('relative');
+  });
+
   it('anclar el panel lo deja abierto aunque el puntero salga del rail', async () => {
     await montarInicio();
     const rail = screen.getByTestId('icon-rail');

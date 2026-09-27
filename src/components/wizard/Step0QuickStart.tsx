@@ -11,7 +11,8 @@ import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
 import { SettingsMenu } from '../layout/SettingsMenu';
 import { IconRail } from '../shell/IconRail';
-import { RailFlyout, FLYOUT_CLOSE_GRACE_MS } from '../shell/RailFlyout';
+import { RailFlyout } from '../shell/RailFlyout';
+import { useRailFlyout } from '../../hooks/useRailFlyout';
 import { HOME_RAIL_ITEMS } from '../shell/railItems';
 import type { RailDestination } from '../shell/railItems';
 
@@ -339,70 +340,12 @@ export const Step0QuickStart: React.FC = () => {
 
   // ── RAIL COMPARTIDO ──────────────────────────────────────────────────────
   // Inicio ya no tiene columna propia: usa el mismo IconRail que el editor, con
-  // su propio juego de destinos. El ancla se lee del store porque el botón del
-  // rail y el del flyout la comparten: si fuera local, un clic en el panel
-  // cerraría el panel que el rail acaba de abrir.
-  const railPinned = useDocStore((s) => s.railPinned);
-  const setRailPinned = useDocStore((s) => s.setRailPinned);
-  const [hoveredHome, setHoveredHome] = useState<RailDestination | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const cancelClose = useCallback(() => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }, []);
-
-  const closeFlyout = useCallback(() => {
-    cancelClose();
-    setHoveredHome(null);
-  }, [cancelClose]);
-
-  // El cierre es de la unión rail + flyout: hay 8px de hueco entre los dos y sin
-  // esta gracia el puntero perdería el panel por el camino.
-  const scheduleClose = useCallback(() => {
-    if (railPinned) return;
-    cancelClose();
-    closeTimer.current = setTimeout(() => {
-      closeTimer.current = null;
-      setHoveredHome(null);
-    }, FLYOUT_CLOSE_GRACE_MS);
-  }, [railPinned, cancelClose]);
-
-  // El timer en vuelo no sobrevive al desmontaje: cerraría un panel que ya no existe.
-  useEffect(() => cancelClose, [cancelClose]);
-
-  // El ancla es un flag global y este rail es su segundo escritor. Inicio no tiene
-  // un panel que sobreviva a la pantalla, así que un pin puesto acá sería un
-  // fantasma que aparece en el editor al abrir el siguiente documento. No se
-  // silencia el pin: se suelta en los dos bordes.
-  //
-  // Los dos importan, y el de entrar es el que duele: toda fase del editor se
-  // ancla al hacer clic, así que `goHome` monta esta pantalla con el flag en true.
-  // Si solo se limpiara al salir, el rail llegaría con "Anclado" sin panel y el
-  // hover no cerraría nunca, porque `scheduleClose` no programa nada anclado.
-  useEffect(() => {
-    const soltar = () => {
-      const st = useDocStore.getState();
-      if (st.railPinned) st.setRailPinned(false);
-    };
-    soltar();
-    return soltar;
-  }, []);
-
-  // El hover solo muestra el detalle; el clic es la acción deliberada.
-  const handleHoverItem = useCallback(
-    (item: RailDestination | null) => {
-      if (item) {
-        cancelClose();
-        setHoveredHome(item);
-        return;
-      }
-      scheduleClose();
-    },
-    [cancelClose, scheduleClose],
-  );
+  // su propio juego de destinos. Toda la máquina de abrir/cerrar el detalle —
+  //incluido que el ancla entre limpia, porque es un flag global y Inicio no
+  // tiene un panel que sobreviva a la pantalla— vive en `useRailFlyout`, el
+  // MISMO hook que usa `AppShell`. La copia de acá era la segunda, y dos copias
+  // de una máquina de estados que comparte un flag global es donde se separan.
+  const flyout = useRailFlyout();
 
   /* Los destinos de Inicio son datos, pero dos de ellos son pestañas: el "dónde
      estás" lo pone la pantalla, que es la única que sabe cuál está a la vista.
@@ -423,13 +366,11 @@ export const Step0QuickStart: React.FC = () => {
   // con el `isBackendReady` del primer render para siempre.
   const handleSelect = (item: RailDestination) => {
     const st = useDocStore.getState();
-    // Igual que `AppShell.handleSelect`: el clic también abre y ancla el
-    // detalle, porque con teclado no hay hover que lo haya abierto. Si acá solo
-    // ejecutara la acción, el flyout y su pin quedarían solo con ratón y los dos
-    // rails se comportarían distinto siendo el mismo componente.
-    cancelClose();
-    setHoveredHome(item);
-    st.setRailPinned(true);
+    // Igual que `AppShell`: el clic también abre y ancla el detalle, porque con
+    // teclado no hay hover que lo haya abierto. Si acá solo ejecutara la
+    // acción, el flyout y su pin quedarían solo con ratón y los dos rails se
+    // comportarían distinto siendo el mismo componente.
+    flyout.selectItem(item);
 
     switch (item.id) {
       case 'home-inicio':
@@ -550,17 +491,25 @@ export const Step0QuickStart: React.FC = () => {
       />
 
       {/* ── CONTENIDO (rail + principal) ── */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      {/* `position: relative` es el bloque contenedor del flyout: sin él, el
+          `top: 12` del panel se mediría desde el borde de la ventana y la
+          franja de 44px de arriba se comería su primera fila. */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
       {/* ── RAIL DE ICONOS (mismo componente que el editor) ─── */}
       <IconRail
         items={homeItems}
         ariaLabel="Navegación principal"
-        onHoverItem={handleHoverItem}
+        onHoverItem={flyout.hoverItem}
         onSelect={handleSelect}
-        onTogglePin={() => setRailPinned(!railPinned)}
-        pinned={railPinned}
+        onTogglePin={flyout.togglePin}
+        pinned={flyout.railPinned}
       />
-      <RailFlyout item={hoveredHome} onClose={closeFlyout} onEnter={cancelClose} onLeave={scheduleClose} />
+      <RailFlyout
+        item={flyout.item}
+        onClose={flyout.close}
+        onEnter={flyout.onEnterPanel}
+        onLeave={flyout.onLeavePanel}
+      />
 
       {/* Menú "Configuraciones" estilo Notion */}
         {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
