@@ -331,32 +331,69 @@ function drawVignette(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillRect(0, 0, w, h);
 }
 
-// ─── Easter egg drawing ───────────────────────────────────────────────────────
+// ─── Objetos en el cielo ─────────────────────────────────────────────────────
+
+/**
+ * LA PALETA DE LAS FIGURITAS, en un solo lugar. Y el motivo de que esté en un
+ * solo lugar es el arreglo entero, no unaomanera de ordenar el código.
+ *
+ * Antes cada función se inventó sus colores: el ovni llevaba tres luces en
+ * amarillo, rojo y verde —un semáforo— y el globo un degradado rojo, naranja y
+ * amarillo a plena saturación, que es un globo de feria. Los marrones de las
+ * cuerdas no eran un color de cielo. Y había cinco grosores de línea distintos
+ * en cuatro figuras. Cuatro objetos dibujados por cuatro manos: eso es lo que
+ * se leía como "de niño", y no las figuritas en sí.
+ *
+ * Ahora es un juego. Un pizarra azulado apagado para la masa, un azul un poco
+ * más claro para lo que se le superpone, un marfil cálido para la luz —nunca
+ * amarillo saturado—, un borde translúcido frío y un solo grosor de trazo.
+ * Todo por debajo de 0.6 de saturación: un color puro se lee como juguete en
+ * cuanto tiene una silueta alrededor.
+ *
+ * `homeHeroFiguritas.test.ts` falla si vuelve a aparecer un hex o un
+ * `lineWidth = <número>` dentro de una figurita.
+ */
+
+const FIGURITA = {
+  masa: '#2f3b57',
+  masaTenue: '#46557a',
+  luz: '#e8dcc4',
+  borde: 'rgba(206, 216, 238, 0.5)',
+  sombra: 'rgba(10, 14, 26, 0.22)',
+  trazo: 1.1,
+} as const;
 
 function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.save();
   ctx.translate(x, y);
-  // Body ellipse
+
+  // La masa: un disco achatado. La silueta se lee antes que el detalle, y a
+  // 26 píxeles de ancho el detalle es ruido.
   ctx.beginPath();
-  ctx.ellipse(0, 0, 26, 10, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#b0bec5';
+  ctx.ellipse(0, 0, 26, 9, 0, 0, Math.PI * 2);
+  ctx.fillStyle = FIGURITA.masa;
   ctx.fill();
-  ctx.strokeStyle = '#78909c';
-  ctx.lineWidth = 1.2;
+
+  // La cúpula, más clara: es lo que da volumen a un disco plano.
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 13, 9, 0, Math.PI, Math.PI * 2);
+  ctx.fillStyle = FIGURITA.masaTenue;
+  ctx.fill();
+
+  // UNA luz, no tres. El semáforo de antes era lo más literal de juguete que
+  // había en el archivo: tres colores puros en fila sobre una nave.
+  ctx.beginPath();
+  ctx.arc(0, 5, 3, 0, Math.PI * 2);
+  ctx.fillStyle = FIGURITA.luz;
+  ctx.fill();
+
+  // El borde, un solo trazo para toda la figura.
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 26, 9, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
   ctx.stroke();
-  // Dome
-  ctx.beginPath();
-  ctx.ellipse(0, -7, 14, 10, 0, Math.PI, Math.PI * 2);
-  ctx.fillStyle = '#80deea';
-  ctx.fill();
-  // Lights underneath
-  const lightColors = ['#ffee58', '#ef5350', '#66bb6a'];
-  lightColors.forEach((c, i) => {
-    ctx.beginPath();
-    ctx.arc(-12 + i * 12, 6, 3, 0, Math.PI * 2);
-    ctx.fillStyle = c;
-    ctx.fill();
-  });
+
   ctx.restore();
 }
 
@@ -382,23 +419,27 @@ function drawShootingStar(ctx: CanvasRenderingContext2D, x: number, y: number, p
 function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#90caf9';
-  ctx.lineWidth = 1;
+  // La más limpia de las cinco ya: un pliegue y nada más. Pasa a la paleta
+  // compartida y suelta el azul propio, que era un color que no aparecía en
+  // ninguna otra figura.
   ctx.beginPath();
   ctx.moveTo(20, 0);
   ctx.lineTo(-14, -10);
   ctx.lineTo(-8, 0);
   ctx.lineTo(-14, 10);
   ctx.closePath();
+  ctx.fillStyle = FIGURITA.masaTenue;
   ctx.fill();
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
   ctx.stroke();
-  // Wing crease
+  // El pliegue, en la masa y no en el borde: es una arista de la figura, no un
+  // adorno.
   ctx.beginPath();
   ctx.moveTo(-8, 0);
   ctx.lineTo(20, 0);
-  ctx.strokeStyle = '#90caf9';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = FIGURITA.masa;
+  ctx.lineWidth = FIGURITA.trazo;
   ctx.stroke();
   ctx.restore();
 }
@@ -406,53 +447,66 @@ function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number) 
 function drawHotAirBalloon(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.save();
   ctx.translate(x, y);
-  // Balloon
+  /* El degradado va de la masa a la masa clara en vez de rojo, naranja y
+     amarillo a plena saturación. Un globo de feria se reconoce por el arcoíris;
+     un globo bonito se reconoce por la silueta y por una sola luz. */
   const bg = ctx.createRadialGradient(-8, -18, 4, 0, -15, 28);
-  bg.addColorStop(0, '#ef5350');
-  bg.addColorStop(0.5, '#ffa726');
-  bg.addColorStop(1, '#ffee58');
+  bg.addColorStop(0, FIGURITA.masaTenue);
+  bg.addColorStop(0.62, FIGURITA.masa);
+  bg.addColorStop(1, FIGURITA.masa);
   ctx.beginPath();
   ctx.arc(0, -18, 26, 0, Math.PI * 2);
   ctx.fillStyle = bg;
   ctx.fill();
-  // Stripes
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-  ctx.lineWidth = 2;
-  for (let i = -2; i <= 2; i++) {
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
+  ctx.stroke();
+
+  // Dos costuras, no cinco rayas. Cinco era el patrón de toldo.
+  ctx.strokeStyle = FIGURITA.sombra;
+  ctx.lineWidth = FIGURITA.trazo;
+  for (const x0 of [-8, 8]) {
     ctx.beginPath();
-    ctx.moveTo(i * 9, -44);
-    ctx.lineTo(i * 6, 8);
+    ctx.moveTo(x0 * 1.2, -40);
+    ctx.lineTo(x0 * 0.7, 6);
     ctx.stroke();
   }
-  // Ropes
-  ctx.strokeStyle = '#8d6e63';
-  ctx.lineWidth = 1;
+
+  // Cuerdas y cesta en la masa, no en dos marrones distintos. El marrón no es
+  // un color de cielo.
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
   ctx.beginPath();
   ctx.moveTo(-12, 6);
   ctx.lineTo(-8, 18);
   ctx.moveTo(12, 6);
   ctx.lineTo(8, 18);
   ctx.stroke();
-  // Basket
-  ctx.fillStyle = '#8d6e63';
-  ctx.fillRect(-10, 18, 20, 12);
-  ctx.strokeStyle = '#5d4037';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(-10, 18, 20, 12);
+  ctx.fillStyle = FIGURITA.masa;
+  ctx.fillRect(-9, 18, 18, 11);
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
+  ctx.strokeRect(-9, 18, 18, 11);
   ctx.restore();
 }
 
 function drawLightningCloud(ctx: CanvasRenderingContext2D, x: number, y: number, flash: boolean) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.fillStyle = '#546e7a';
+  // La nube: una masa suave, no tres círculos que se tocan. Tres círculos con
+  // radio 20, 15 y 15 dibujados uno encima del otro se leen como una cara.
   ctx.beginPath();
-  ctx.arc(0, 0, 20, 0, Math.PI * 2);
-  ctx.arc(18, 4, 15, 0, Math.PI * 2);
-  ctx.arc(-18, 4, 15, 0, Math.PI * 2);
+  ctx.moveTo(-22, 10);
+  ctx.bezierCurveTo(-30, -6, -14, -16, -2, -10);
+  ctx.bezierCurveTo(10, -20, 28, -8, 24, 8);
+  ctx.bezierCurveTo(14, 16, -12, 16, -22, 10);
+  ctx.closePath();
+  ctx.fillStyle = FIGURITA.masa;
   ctx.fill();
-  // Lightning bolt
-  ctx.fillStyle = flash ? '#ffee58' : '#ffd740';
+
+  // El rayo en marfil, y el destello es el MISMO color con más opacidad: antes
+  // alternaba entre dos amarillos puros y eso es unfoque de dibujo.
+  ctx.globalAlpha = flash ? 0.95 : 0.55;
   ctx.beginPath();
   ctx.moveTo(4, 12);
   ctx.lineTo(-4, 26);
@@ -461,23 +515,24 @@ function drawLightningCloud(ctx: CanvasRenderingContext2D, x: number, y: number,
   ctx.lineTo(10, 22);
   ctx.lineTo(4, 22);
   ctx.closePath();
+  ctx.fillStyle = FIGURITA.luz;
   ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
 function drawSatellite(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.save();
   ctx.translate(x, y);
-  // Body
-  ctx.fillStyle = '#b0bec5';
+  // El cuerpo y los paneles en la misma masa, con las líneas en la masa clara.
+  // Antes eran dos azules que no aparecían en ninguna otra figura.
+  ctx.fillStyle = FIGURITA.masa;
   ctx.fillRect(-8, -5, 16, 10);
-  // Solar panels
-  ctx.fillStyle = '#1565c0';
   ctx.fillRect(-26, -3, 16, 6);
   ctx.fillRect(10, -3, 16, 6);
-  // Panel lines
-  ctx.strokeStyle = '#42a5f5';
-  ctx.lineWidth = 0.8;
+
+  ctx.strokeStyle = FIGURITA.masaTenue;
+  ctx.lineWidth = FIGURITA.trazo;
   for (let i = 1; i < 4; i++) {
     ctx.beginPath();
     ctx.moveTo(-26 + i * 4, -3);
@@ -488,15 +543,19 @@ function drawSatellite(ctx: CanvasRenderingContext2D, x: number, y: number) {
     ctx.lineTo(10 + i * 4, 3);
     ctx.stroke();
   }
-  // Antenna
-  ctx.strokeStyle = '#cfd8dc';
-  ctx.lineWidth = 1.2;
+
+  // La antena en el borde frío, y un punto de luz: el satélite también tiene
+  // que leerse como un objeto del mismo mundo que las otras cuatro.
+  ctx.strokeStyle = FIGURITA.borde;
+  ctx.lineWidth = FIGURITA.trazo;
   ctx.beginPath();
   ctx.moveTo(0, -5);
   ctx.lineTo(0, -12);
-  ctx.moveTo(0, -12);
-  ctx.arc(0, -12, 4, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -14, 3, 0, Math.PI * 2);
+  ctx.fillStyle = FIGURITA.luz;
+  ctx.fill();
   ctx.restore();
 }
 
