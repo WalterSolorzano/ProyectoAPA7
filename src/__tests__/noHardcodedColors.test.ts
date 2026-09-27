@@ -9,7 +9,7 @@
  * con calma. Ninguno de los dos rompe la compilación. Por eso las reglas viven
  * AQUÍ, y cada detector se prueba contra una violación inyectada.
  *
- * LAS REGLAS (una prueba cada una, para que un rojo diga cuál se rompió):
+ * LAS REGLAS (diez, una prueba cada una, para que un rojo diga cuál se rompió):
  *
  *  R1 sin colores literales. Ni hex, ni rgb/rgba/hsl/hsla/oklch/color-mix en el
  *     código del rediseño. Los comentarios NO se miran: un comentario puede y
@@ -45,6 +45,21 @@
  *     el `strokeWidth` equivocado.
  *  R7 la hoja de papel es la misma en los dos temas: `--paper-white` es
  *     `#ffffff` y `--paper-ink` es `#111827` en claro Y en oscuro, sin excepción.
+ *  R8 un token no se declara a sí mismo. `--x: var(--x)` dentro de `:root` es un
+ *     CICLO, y el ciclo es inválido en tiempo de valor calculado: la
+ *     declaración es inválida y no la de arriba la salva. No es cosmético: este
+ *     lint encontró dos vivos en la hoja, y uno de ellos (`--shadow-card`)
+ *     tapaba la declaración válida de arriba, así que TODOS los
+ *     `var(--shadow-card)` de la app resolvían a nada, en los dos temas, sin que
+ *     nada se viera. Un ciclo se detecta solo si se busca el ciclo: R2 no lo ve,
+ *     porque un `var(--x)` sin coma no es un fallback.
+ *  R9 el veto al color literal también es para las HOJAS DE ESTILO, no solo para
+ *     el código. `design-system.css` es la única hoja donde un hex puede
+ *     DEFINIR un token; cualquier otra hoja con literales es una-infacción de la
+ *     misma regla, y una segunda hoja viva con hex es lo que hace que un token
+ *     "canónico" deje de serlo. La deuda que ya existe en `fluent.css` está
+ *     FIJADA por su nombre y su cuenta (ver la prueba): una lista de exenciones
+ *     no, porque es así como un lint de tokens se muere.
  *
  * EL ALCANCE, y por qué es una lista y no un `src/**`. Este lint gobierna lo que
  * el rediseño ESCRIBIÓ, que es lo que se puede hacer cumplir sin reescribir de
@@ -57,6 +72,20 @@
  * esta tarea en un proyecto de reescritura y, peor, haría que alguien metiera
  * una exención silenciosa para que el lint pasara. Esa deuda está nombrada en el
  * reporte de T20, no perdonada en el código.
+ *
+ * LO QUE QUEDA SIN GOBIERNO, CON SEÑAL EN EL ARCHIVO. Dos archivos se escapan de
+ * las reglas y llevan su propio aviso en la primera línea, porque "está fuera
+ * de alcance" y "nadie lo sabe" no son lo mismo:
+ *   - `src/styles/fluent.css`: segunda hoja viva, importada globalmente desde
+ *     `main.tsx`, con color literal. R9 lo ve y su cuenta queda FIJADA con su
+ *     nombre; la deuda está en el reporte de T20.
+ *   - `src/components/layout/WhatsAppComment.tsx`: la BURBUJA del comentario.
+ *     AGENTS.md §2 exige que un hallazgo aparezca en DOS canales a la vez y que
+ *     digan lo mismo, y el canal inline es `ReadingText`, que sí está en el
+ *     alcance. El hermano de la pareja, no. Eso es un agujero conocido, no una
+ *     exención: por eso el aviso está en el archivo.
+ * Ninguno de los dos está en una lista de exenciones del lint, y ninguno puede
+ * crecer sin que una cuenta se mueva.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 
@@ -80,6 +109,15 @@ const ARCHIVOS = [
 ];
 /** La hoja canónica. Los tokens se declaran AQUÍ y en ningún otro sitio. */
 const HOJA = 'styles/design-system.css';
+/** R9 mira el resto de las hojas de `src`: no es una exención, es la regla. */
+const DIR_HOJAS = 'styles';
+/** R9, la deuda que ya existe: `fluent.css` con este número de LÍNEAS de color
+ *  literal, ya sin contar las dos que están dentro de un comentario (un
+ *  comentario puede citar el valor, igual que en el código). Saldarla es trabajo
+ *  de otra task —es una hoja importada globalmente desde `main.tsx`—; lo que
+ *  hace esta task es que el número NO pueda crecer sin que alguien lo mire.
+ *  Cuando baje, hay que bajar este número: es el recordatorio de hacerlo. */
+const DEUDA_FLUENT_CSS = 89;
 
 /* ── La hoja: qué está DECLARADO y qué vive dentro de un bloque :root ───────
    El detalle que hace que R2 y R3 no sean reglas de adivinanza. Una hoja de
@@ -163,6 +201,31 @@ function fallbackDeToken(codigo: string, enRaiz?: (linea: number) => boolean): O
   );
 }
 
+/**
+ * R8: un token que se DECLARA a sí mismo, dentro de un bloque `:root`.
+ * `--x: var(--x)` es un ciclo: CSS lo invalida en tiempo de valor calculado, así
+ * que la declaración no vale —y como una declaración inválida no borra la de
+ * arriba, pero sí se lleva por delante el valor en cualquier consumidor posterior
+ * que la espere—. R2 no lo encuentra: un ciclo no lleva coma, así que no es un
+ * fallback, y R2-bis salta las líneas de `:root` por construcción.
+ *
+ * Solo el ciclo DIRECTO. Un ciclo indirecto (`--a: var(--b)` con
+ * `--b: var(--a)`) es legal en CSS —se resuelve como valor inicial— y queda
+ * fuera de esta regla a propósito: se documenta como tal en vez de fingir que
+ * se cubre.
+ */
+function tokensAutoDeclarados(codigo: string, enRaiz: (linea: number) => boolean): Ofensa[] {
+  const salida: Ofensa[] = [];
+  codigo.split('\n').forEach((linea, i) => {
+    if (!enRaiz(i + 1)) return;
+    const d = linea.match(/^\s*(--[a-z0-9-]+)\s*:\s*([^;]*);/);
+    if (!d) return;
+    const usa = new RegExp(`var\\(\\s*${d[1]}\\s*[,)]`).test(d[2]);
+    if (usa) salida.push({ linea: i + 1, detalle: `${d[1]} se declara a sí mismo (ciclo)` });
+  });
+  return salida;
+}
+
 /** Los tokens que el código usa. */
 function tokensUsados(codigo: string): Set<string> {
   const usados = new Set<string>();
@@ -205,6 +268,10 @@ function radiosLiterales(codigo: string): Ofensa[] {
   const formas = [
     /borderRadius:\s*'([^']*)'/g,
     /borderRadius:\s*"([^"]*)"/g,
+    /* El número pelado también: `borderRadius: 8` es tan literal como
+       `borderRadius: '8px'`, y en JSX sale solo cuando alguien copia el valor
+       de un `border-radius` de CSS. */
+    /borderRadius:\s*([0-9.]+)\s*[,}]/g,
     /border-radius:\s*([^;}\n]+)/g,
   ];
   const salida: Ofensa[] = [];
@@ -250,6 +317,8 @@ let declarados = new Set<string>();
 let enRaizDeHoja = (_linea: number): boolean => true;
 let grosorDeIcono = 0;
 let hoja = '';
+/** R9: toda hoja de `src/styles` que no sea la canónica, por nombre. */
+let otrasHojas: Record<string, string> = {};
 let bloquesDeTema: Record<string, string> = {};
 let fuenteDe = (_ruta: string): string => '';
 
@@ -278,12 +347,26 @@ beforeAll(async () => {
   fuenteDe = (ruta) => readFileSync(ruta, 'utf8');
 
   hoja = readFileSync(join(raiz, HOJA), 'utf8');
+  /* La hoja se lee SIN comentarios, como el código: un comentario puede citar un
+     hex o un `var(--x, 8px)` para explicar una decisión, y leerlo como si fuera
+     una declaración es exactamente la asimetría que R1 evita en el código. */
+  hoja = sinComentarios(hoja);
   /* Declarado = una línea que DECLARA un token dentro de un bloque `:root`.
      `--text-tertiary` sale dentro del valor de `--text-secondary` y eso no es
      una declaración; un `--x:` dentro de `.wa-bubble` es un custom property de
      esa regla, tampoco. */
   ({ declarados, raiz: enRaizDeHoja } = analizarHoja(hoja));
   grosorDeIcono = Number(hoja.match(/--icon-stroke\s*:\s*([^;]+);/)?.[1].trim());
+
+  /* R9: el resto de las hojas de `src/styles`. Se listan por nombre para que una
+     hoja NUEVA con literales sea un archivo más en la lista, y no un forgot. */
+  otrasHojas = {};
+  for (const nombre of readdirSync(join(raiz, DIR_HOJAS))) {
+    if (!nombre.endsWith('.css')) continue;
+    const relativa = `${DIR_HOJAS}/${nombre}`;
+    if (relativa === HOJA) continue;
+    otrasHojas[relativa] = sinComentarios(readFileSync(join(raiz, relativa), 'utf8'));
+  }
 
   /* R7 necesita los dos temas POR SEPARADO: un token puede estar bien en claro
      y haber cambiado en oscuro, que es lo que no puede pasar con la hoja. Los
@@ -305,7 +388,7 @@ beforeAll(async () => {
   };
 });
 
-/* ── Las siete reglas, sobre el archivo real ─────────────────────────────── */
+/* ── Las reglas, sobre el archivo real ─────────────────────────────────────── */
 
 const nombreDe = (ruta: string): string => ruta.split(/[\\/]/).pop() || ruta;
 
@@ -320,8 +403,8 @@ const comoTexto = (regla: (codigo: string) => Ofensa[]): string[] =>
 describe('T20 — el lint de tokens del rediseño', () => {
   it('el alcance existe: sin archivos, estas reglas no mirarían nada', () => {
     /* La guarda que este proyecto necesitó nueve veces. Un alcance que se vacía
-       —un directorio renombrado, una lista mal escrita— haría que las siete
-       reglas siguientes PASARAN sin haber leído una línea. */
+       —un directorio renombrado, una lista mal escrita— haría que las reglas
+       siguientes PASARAN sin haber leído una línea. */
     expect(rutas.length).toBeGreaterThanOrEqual(20);
     const nombres = rutas.map(nombreDe);
     /* Los que el rediseño creó, para que un archivo nuevo caiga dentro sin que
@@ -350,10 +433,10 @@ describe('T20 — el lint de tokens del rediseño', () => {
 
   it('R2 — ningún specifier en variable con fallback', () => {
     expect(comoTexto(fallbackDeToken)).toEqual([]);
-    /* Y en la hoja, DENTRO de un bloque `:root`: un token que se define a sí
-       mismo no declara nada, y ahí un fallback no puede ser "el valor de esta
-       regla", porque la regla es la del token. (Fuera de `:root` el fallback sí
-       se permite: ver R2-bis.) */
+    /* Y en la hoja, DENTRO de un bloque `:root`: ahí la ley es la de un token, y
+       su valor no puede ser "el valor de esta regla" porque la regla es la del
+       token. Ojo: esto NO cubre el auto-referenciado —`--x: var(--x)` no lleva
+       coma, así que no es un fallback y no aparece aquí. Eso es R8. */
     expect(fallbackDeToken(hoja, enRaizDeHoja)).toEqual([]);
   });
 
@@ -378,9 +461,14 @@ describe('T20 — el lint de tokens del rediseño', () => {
     const sinDeclarar: string[] = [];
     let total = 0;
     for (const ruta of rutas) {
-      const usados = tokensUsados(sinComentarios(fuenteDe(ruta)));
+      /* El MISMO texto para contar y para juzgar: si el conteo pasa por
+         `sinComentarios` y el juicio por el fuente crudo, un token citado en un
+         comentario cuenta como uso y falla la regla —la asimetría que R1 evita
+         al revés, y que hace que la guarda de vacuidad proteja de nada. */
+      const codigo = sinComentarios(fuenteDe(ruta));
+      const usados = tokensUsados(codigo);
       total += usados.size;
-      for (const token of tokensSinDeclarar(fuenteDe(ruta), declarados)) {
+      for (const token of tokensSinDeclarar(codigo, declarados)) {
         sinDeclarar.push(`${nombreDe(ruta)}: ${token}`);
       }
     }
@@ -415,6 +503,39 @@ describe('T20 — el lint de tokens del rediseño', () => {
       expect(bloque, `--paper-white del tema ${tema}`).toMatch(/--paper-white:\s*#ffffff\s*;/);
       expect(bloque, `--paper-ink del tema ${tema}`).toMatch(/--paper-ink:\s*#111827\s*;/);
     }
+  });
+
+  it('R8 — ningún token se declara a sí mismo', () => {
+    /* Un ciclo es inválido en tiempo de valor calculado: la declaración es
+       inválida y todo `var(--x)` que dependa de ella se queda sin valor, sin
+       error y sin aviso. Aquí se encontraron DOS vivos, y uno (`--shadow-card`)
+       pisaba la declaración válida de arriba. */
+    const ciclos = tokensAutoDeclarados(hoja, enRaizDeHoja);
+    expect(ciclos).toEqual([]);
+    /* Que no se vacíe: si `enRaiz` fallara y no mirara nada, esto pasaría. */
+    expect([...declarados].length).toBeGreaterThan(80);
+  });
+
+  it('R9 — el veto al color literal también es para las hojas de estilo', () => {
+    /* `design-system.css` es la única hoja donde un hex puede definir un token.
+       Cualquier otra hoja de `src/styles` con literales es una-infacción de la
+       MISMA regla, y una segunda hoja viva con hex es justo lo que hace que un
+       token "canónico" deje de serlo.
+
+       La deuda que ya existe NO se perdona con una lista de exenciones —que es
+       como un lint de tokens se muere— sino con una cuenta FIJADA y POR NOMBRE:
+       una hoja nueva con literales es un archivo más en la lista y rompe la
+       prueba; un literal nuevo en una hoja existente mueve la cuenta y rompe la
+       prueba; y cuando alguien salde la deuda, la cuenta baja y hay que
+       actualizar el número aquí, que es el recordatorio de hacerlo. */
+    const conColor = Object.entries(otrasHojas)
+      .map(([nombre, css]) => [nombre, coloresLiterales(css).length] as const)
+      .filter(([, n]) => n > 0);
+    /* La hoja tiene que existir y ser leída: si el listado se vacía, la regla
+       pasa por nada. */
+    expect(Object.keys(otrasHojas).length).toBeGreaterThan(0);
+    expect(conColor.map(([nombre]) => nombre)).toEqual(['styles/fluent.css']);
+    expect(conColor[0][1]).toBe(DEUDA_FLUENT_CSS);
   });
 });
 
@@ -516,5 +637,53 @@ describe('T20 — el detector se enciende con una violación y se calla sin ella
        y un svg a mano puede cambiarlo sin que nadie lo note. */
     expect(svgsAMano('<Check size={14} strokeWidth={1.75} />')).toEqual([]);
     expect(svgsAMano('<svg width="14" height="14" strokeWidth="2">')).toHaveLength(1);
+  });
+
+  it('R8: el ciclo se ve aunque no haya coma, y no se ve fuera de :root', () => {
+    /* El caso que R2 no podía ver: `var(--x)` sin coma no es un fallback. Este
+       es el defecto que apareció en la hoja, y el que más daño hacía: */
+    const css = [
+      ':root {', // 1
+      '  --color-accent: #4f7cff;', // 2
+      '  --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.12);', // 3
+      '  --titlebar-bg: var(--titlebar-bg);', // 4  <- el ciclo
+      '  --acento: var(--color-accent);', // 5  <- alias sano
+      '}', // 6
+      '.btn {', // 7
+      '  --local: var(--local);', // 8  (ciclo en un custom property, no es token)
+      '  color: var(--acento);', // 9
+      '}', // 10
+    ].join('\n');
+    const h = analizarHoja(css);
+    /* R2 no lo ve: sin coma no es fallback. Esta es la demostración del hueco. */
+    expect(fallbackDeToken(css, h.raiz)).toEqual([]);
+    /* R8 sí: solo la línea 4, porque es la única que se declara en `:root`. */
+    expect(tokensAutoDeclarados(css, h.raiz).map((o) => o.linea)).toEqual([4]);
+    expect(tokensAutoDeclarados(css, h.raiz)[0].detalle).toBe(
+      '--titlebar-bg se declara a sí mismo (ciclo)',
+    );
+    /* Y el alias sano no se toca: un token que apunte a OTRO no es un ciclo. */
+    expect(h.declarados.has('--acento')).toBe(true);
+  });
+
+  it('R9: el mismo color literal es delito en una hoja que no es la canónica', () => {
+    /* La regla es la de R1 aplicada a las hojas: en `design-system.css` un hex
+       define un token, y en ninguna otra hoja un hex no define nada. */
+    const conColor = 'a { color: #4f7cff; }';
+    expect(coloresLiterales(conColor)).toHaveLength(1);
+    expect(coloresLiterales(sinComentarios('/* #4f7cff es el acento */\na { color: var(--color-accent); }')))
+      .toEqual([]);
+    /* Una hoja nueva con literales no se cuela: el listado la nombra. */
+    expect(Object.keys(otrasHojas)).toContain('styles/fluent.css');
+  });
+
+  it('R4: un radio numérico también es literal', () => {
+    /* `borderRadius: 8` sale solo cuando alguien pega el valor de un
+       `border-radius` de CSS en un estilo de React, y es tan literal como
+       `borderRadius: '8px'`. */
+    expect(radiosLiterales("const s = { borderRadius: 8, color: 'red' };")).toHaveLength(1);
+    expect(radiosLiterales("const s = { borderRadius: 8 }")).toHaveLength(1);
+    expect(radiosLiterales("const s = { borderRadius: 1.5, color: 'red' };")).toHaveLength(1);
+    expect(radiosLiterales("const s = { borderRadius: 'var(--radius-sm)' };")).toEqual([]);
   });
 });
