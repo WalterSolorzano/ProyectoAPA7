@@ -532,3 +532,42 @@ def test_una_afirmacion_cualitativa_no_es_hallazgo():
 def test_la_cita_cerca_en_la_misma_oracion_alcanza():
     texto = "El 68% la adopto (Perez, 2020; Lopez, 2021)."
     assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g(texto)}
+
+
+# ── R-G74-primo: un tramo largo copiado y sin entrecomillar ─────────────────
+
+def test_trozo_copiado_sin_comillas_es_hallazgo():
+    texto = ("El phenomenono se define como la ausencia total de esta relacion "
+             "entre los factores socioeconómicos y el rendimiento academico del "
+             "estudiante en el primer año de la carrera.")
+    out = _g(texto)
+    assert "g74_verbatim_sin_comillas" in {f["kind"] for f in out}
+
+
+def test_una_cita_textual_si_lleva_comillas_no_es_hallazgo():
+    texto = ('Segun el autor, "la ausencia total de esta relacion entre los '
+             'factores socioeconómicos y el rendimiento academico del estudiante '
+             'en el primer año de la carrera" es la definicion del phenomenono.')
+    assert "g74_verbatim_sin_comillas" not in {f["kind"] for f in _g(texto)}
+
+
+def test_una_prosa_escrita_en_frases_cortas_no_es_hallazgo():
+    texto = ("El phenomenono se define como la relacion entre los factores. "
+             "Esta relacion se mide con un indice. El indice se calcula por anualidad. "
+             "Su valor va de cero a uno.")
+    assert "g74_verbatim_sin_comillas" not in {f["kind"] for f in _g(texto)}
+
+
+def test_un_parrafo_de_prosa_larga_normal_no_es_hallazgo():
+    texto = ("La desercion estudiantil no es un fenomeno reciente en la region. "
+             "Los informes del sector education nationally muestran un aumento "
+             "sostenido desde 2015 que los investigadores atribuyen a factores "
+             "economicos y a laExpansion de la oferta en la educacion superior. "
+             "Este trabajo analiza esos factores en el turno nocturno.")
+    assert "g74_verbatim_sin_comillas" not in {f["kind"] for f in _g(texto)}
+
+
+def test_una_ley_o_un_nombre_propio_largo_no_es_hallazgo():
+    texto = ("La Ley Organica de la Educacion Superior y su Reglamento interno "
+             "establecen los procedimientos que deben seguir las instituciones.")
+    assert "g74_verbatim_sin_comillas" not in {f["kind"] for f in _g(texto)}

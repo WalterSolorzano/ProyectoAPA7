@@ -255,6 +255,10 @@ const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
      siendo 'mark' y no 'accept': el motor dice que le falta la cita, no sabe
      cual es. */
   g71_cifra_sin_cita: { category: 'citations', subtype: 'cifra_sin_cita', severity: 'high', summary: DEL_MOTOR },
+  /* El primo de R-G74, y NO es R-G74: mide un tramo largo sin entrecomillar, no
+     similitud contra la fuente, porque el documento solo guarda la entrada
+     bibliografica. El mensaje PREGUNTA, no acusa. */
+  g74_verbatim_sin_comillas: { category: 'citations', subtype: 'verbatim_sin_comillas', severity: 'low', summary: DEL_MOTOR },
 };
 
 /** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo

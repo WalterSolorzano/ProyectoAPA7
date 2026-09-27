@@ -896,3 +896,80 @@ def _check_g71_cifra_sin_cita(eid, text, ctx, mk):
 RULE_SCOPES.update({"g71_cifra_sin_cita": GLOBAL})
 
 GLOBAL_CHECKS.update({"g71_cifra_sin_cita": _check_g71_cifra_sin_cita})
+
+
+# ── R-G74-primo: tramo largo copiado y sin entrecomillar ────────────────────
+#
+# ESTO NO ES R-G74. R-G74 mide similitud contra el TEXTO de la fuente, y el
+# documento solo guarda la entrada bibliografica (autores, ano, titulo, DOI):
+# no hay con que comparar. Un detector que se presentara como R-G74 estaria
+# midiendo contra el titulo del articulo y vendiendolo como control de plagio,
+# que es peor que no tenerlo.
+#
+# Lo que SI es medible sin las fuentes: un tramo largo que se lee como copiado
+# y que no esta entrecomillado ni citada. El mensaje no acusa, PREGUNTA.
+
+# Un solo "chunked" de N palabras seguidas dentro de una sola oracion de oracion. Trece
+# palabras seguidas pueden ser una enumeracion legitima; veinticinco ya no.
+_RG74_MIN_PALABRAS = 25
+
+# Palabras funcionales: su proporcion distingue prosa propia de un bloque
+# citado. En espanol ronda el 45-55% de las palabras de una oracion normal; un
+# fragmento copiado de un texto academico tecnico la mantiene, y una frase
+# de opinion la rompe.
+_FUNC = {
+    "de", "la", "el", "los", "las", "un", "una", "unos", "unas", "y", "o", "que",
+    "en", "con", "por", "para", "del", "al", "es", "son", "fue", "se", "su",
+    "sus", "como", "entre", "sobre", "este", "esta", "esto", "esta", "no", "mas",
+    "lo", "le", "les", "nos", "se", "sin", "ante", "cuando", "donde", "porque",
+    "the", "and", "of", "to", "in", "is", "are", "that", "for", "with", "as",
+}
+_RG74_MIN_FUNCIONAL = 0.40
+
+
+def _check_g74_verbatim_sin_comillas(eid, text, ctx, mk):
+    texto = text or ""
+    out = []
+    for a, b in _g71_frases(texto):
+        oracion = texto[a:b]
+        # Se mide SOLO lo que esta FUERA de comillas. Una cita textual puede
+        # estar embebida en una oracion mas larga, y mirar la oracion entera
+        # marcaba la cita como si fuera texto copiado sin entrecomillar, que es
+        # lo contrario de la regla.
+        medible = _rg74_sin_citas(oracion)
+        palabras = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]+", medible)
+        if len(palabras) < _RG74_MIN_PALABRAS:
+            continue
+        func = sum(1 for w in palabras if w.lower() in _FUNC)
+        if func / len(palabras) < _RG74_MIN_FUNCIONAL:
+            continue
+        # Una oracion de definicion nominal larga ("Ley Organica de la...")
+        # no es texto copiado: no tiene verbo.
+        verbos = sum(1 for w in palabras if w.lower() in {
+            "es", "son", "fue", "fueron", "se", "tiene", "puede", "debe", "define",
+            "representa", "consiste", "implica", "significa"})
+        if verbos == 0 and len(palabras) > _RG74_MIN_PALABRAS + 6:
+            continue
+        out.append(mk(eid, texto, a, b, "g74_verbatim_sin_comillas", "info",
+                      f"Esta oracion tiene {len(palabras)} palabras seguidas sin "
+                      f"comillas ni cita. Si viene de una fuente, entrecomillala "
+                      f"y citala; si es tuya, parafraseala un poco para que se "
+                      f"lea como tuya", phase="global"))
+    return out
+
+
+RULE_SCOPES.update({"g74_verbatim_sin_comillas": GLOBAL})
+
+GLOBAL_CHECKS.update({"g74_verbatim_sin_comillas": _check_g74_verbatim_sin_comillas})
+
+
+_QUOTED_SPAN = re.compile(r"\"[^\"]{3,}\"|\u201c[^\u201d]{3,}\u201d")
+
+
+def _rg74_sin_citas(fragmento):
+    """El fragmento con los tramos citados tapados por espacios.
+
+    Tapar en vez de borrar mantiene los offsets alineados con el texto original,
+    que es lo que necesita `mk` para señalar el fragmento exacto.
+    """
+    return _QUOTED_SPAN.sub(lambda m: " " * len(m.group(0)), fragmento)
