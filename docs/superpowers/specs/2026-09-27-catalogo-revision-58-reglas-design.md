@@ -175,9 +175,69 @@ El documento fuente aparenta unas 50 reglas. Son **58**:
 
 **Las dos que más valen y no existen: R-G71 y R-G74.** Afirmación con cifra sin
 cita, y similitud con la fuente. Son Críticas, son las que un revisor humano
-detecta de entrada, y son las que el producto no tiene hoy. R-G74 es plagio
-medido **contra el documento fuente**, no interno como el `ngram_repetition`
-actual, así que necesita las fuentes indexadas y es trabajo de verdad.
+detecta de entrada, y son las que el producto no tiene hoy.
+
+## D9 — Las reglas de LLM no necesitan cola: el router ya es la cola
+
+El usuario asume que hace falta un sistema de colas. **No hay ninguna, y
+no hace falta.** Lo que existe es mejor:
+
+- `modules/ai_client.execute_with_specialty(prompt, system_prompt, specialty, ...)`:
+  router con **caché por hash del prompt**, **failover automático** entre
+  proveedores, `json_mode` y `return_provider_info`. Sus especialidades ya
+  están mapeadas y sanas: `FAST → groq`, `HEAVY → gemini`,
+  `REASONING → nvidia_nim`, los tres en `good`.
+- `proactive_auditor.refine_with_llm(findings, elements, api_key)`: el patrón
+  ya establecido para "reglas locales primero, LLM después". Nunca lanza: ante
+  cualquier error devuelve los hallazgos intactos y `False`.
+
+`refine_with_llm` es un **filtro** (quita falsos positivos de lo local). Las 12
+reglas de LLM son **detectores** (agregan hallazgos). Son formas distintas y no
+se pueden compartir la función, pero sí el contrato: la capa local corre
+siempre y sin red, y la de LLM es **estrictamente aditiva** — nunca puede quitar
+un hallazgo local: un motor que se cae no puede borrar evidencia que el código
+ya encontró y que la persona tiene que ver.
+
+## D10 — El LLM se llama una vez por párrafo, no una vez por regla
+
+Doce reglas por párrafo son doce llamadas. La matriz completa es inviable por
+costo y por latencia, y además varias reglas necesitan ver el párrafo entero
+para poder juzgarse: R-G23 (correferencia) y R-G42 (una idea central) no tienen
+respuesta si el modelo recibe un fragmento.
+
+Por eso la unidad de la pasada de LLM es el **párrafo completo con todas las
+reglas que le corresponden**, en una sola llamada, con salida estructurada:
+
+```json
+{ "incidencias": [ { "regla": "R-G71", "cumple": false,
+                     "inicio": 120, "fin": 168,
+                     "justificacion": "..." } ] }
+```
+
+`inicio`/`fin` son offsets en el texto del párrafo, igual que el resto de los
+hallazgos, para que el subrayado inline funcione sin código nuevo.
+
+## D11 — Tres reglas no son de LLM
+
+El §12 del documento fuente las cuenta como LLM y no lo son:
+
+- **R-G74 (similitud con la fuente)** es una **comparación**, no un juicio: el
+  propio documento dice "n-gramas / embeddings contra los textos fuente
+  indexados". No necesita modelo; necesita que las fuentes estén indexadas.
+- **R-G33 (consistencia terminológica)** y **R-G25 (transición entre
+  párrafos)** son relaciones **entre** párrafos, así que van en una pasada
+  **por sección**, no por párrafo.
+
+Quedan nueve reglas de LLM en la pasada por párrafo, una llamada cada una, con
+la caché del router haciendo gratis las repetidas.
+
+## D12 — El veredicto del LLM es un aviso, no un dictamen
+
+Una salida del LLM se reporta como `source: "llm"` y con la acción de **marcar**,
+igual que el detector de IA. `AGENTS.md` §1: el motor probabilístico no aplica.
+R-G71 y R-G74 son Críticas en el catálogo, pero Crítica significa "se listan
+siempre y no se diluyen" (§12.9), no "se aplican sin revisión".
+
 
 ## Orden de ejecución
 
