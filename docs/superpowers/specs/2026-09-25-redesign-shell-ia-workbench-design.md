@@ -196,6 +196,13 @@ scroll. Orden fijo: check de 22px en `--color-success` → `h1` de 22px → una 
 Sin listas, tarjetas, columnas, scroll ni resúmenes de hallazgos. Formato, opciones y vista previa
 permanecen bajo `optionsOpen`, sin cambios de lógica. `DownloadSuccessOverlay` no se toca.
 
+**Enmendado:** el disparador de `optionsOpen` es un enlace textual terciario **debajo** de los dos
+botones, no el propio botón fantasma. El JSX del plan ponía "Convertir otro" donde estaba el fantasma y
+dejaba el panel sin disparador, con lo cual PDF y LaTeX quedaban inexportables y la vista previa perdía
+su único acceso — contradiciendo el párrafo anterior de esta misma sección. El orden fijo se refiere a
+las cuatro piezas *principales*; un enlace terciario debajo no reordena ninguna. La columna queda:
+icono → título → línea → dos botones → "Opciones".
+
 Se borran `ICON_PALETTES` y `summaryItemStyle` (código muerto) y se le añade el array de dependencias
 al `useEffect` del atajo `Ctrl+S`, que hoy se re-registra en cada render.
 
