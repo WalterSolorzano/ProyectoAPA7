@@ -191,6 +191,10 @@ const SCAN_ENGINES: { id: ScanEngineId; label: string }[] = [
  * nadie ha revisado.
  */
 const SUBTYPE_LABELS: Record<string, string> = {
+  portada: 'Título de portada',
+  largo_parrafo: 'Extensión del párrafo',
+  tiempo_verbal: 'Tiempo verbal de la fase',
+  parafrasis: 'Paráfrasis o cita',
   parrafo_ia: 'Párrafo con índice IA alto',
   frase_ia: 'Frase típica de IA',
   muletilla: 'Muletilla o repetición',
@@ -227,6 +231,13 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   voz_pasiva: 'mark',
   oracion_larga: 'mark',
   idea_incompleta: 'mark',
+  /* La portada: se informa y no se aplica. `AGENTS.md` §1 dice que la portada
+     original no se muta, y acá la regla no depende de que el `readOnly` que
+     viaja siga siendo correcto. */
+  portada: 'mark',
+  largo_parrafo: 'mark',
+  tiempo_verbal: 'mark',
+  parafrasis: 'mark',
   otro: 'mark',
   primera_persona: 'accept',
   mezcla_personas: 'accept',
@@ -345,7 +356,17 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
       const rb = Math.min(...b.items.map((i) => SEVERITY_RANK[i.severity]));
       return ra - rb || b.items.length - a.items.length;
     });
-    const massAction = engineAction(engine);
+    /* La acción en masa del MOTOR. Un motor cuyos hallazgos son todos de solo
+       lectura no ofrece "Aceptar todas": el botón que promete aplicar sobre
+       material intocable es la forma más directa de romper `AGENTS.md` §1. Con
+       un documento cuya única falla sea la portada, la tarjeta de redacción
+       mostraba el botón y al pulsarlo salía un toast de que no había nada. */
+    /* La acción en masa del MOTOR. Un motor cuyos hallazgos son todos de solo
+       lectura no ofrece "Aceptar todas": el botón que promete aplicar sobre
+       material intocable es la forma más directa de romper `AGENTS.md` §1. Con
+       un documento cuya única falla sea la portada, la tarjeta de redacción
+       mostraba el botón y al pulsarlo salía un toast de que no había nada. */
+    const massAction = propios.every((i) => i.readOnly) ? 'none' : engineAction(engine);
     return {
       engine,
       title: ENGINE_META[engine].title,
@@ -558,6 +579,13 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
        descartes son del MISMO documento o no son nada. */
     setDismissedIds([]);
     setMarkedIds([]);
+    /* El filtro de FASE también es de un documento. Un chip de "Objetivos"
+       activo en la tesis anterior deja el rack vacío al abrir la siguiente, y
+       la fila de chips no se renderiza si el documento nuevo no tiene
+       hallazgos de fase: sin salida visible, un callejón sin salida. El
+       filtro de MOTOR no se reinicia y es un problema real preexistente, pero
+       no lo toco acá: cambiarlo es otro cambio de comportamiento. */
+    setPhaseFilter('all');
   }, [sessionId]);
 
   /* Solo el grupo más crítico abre por defecto, una vez por sesión de datos. */

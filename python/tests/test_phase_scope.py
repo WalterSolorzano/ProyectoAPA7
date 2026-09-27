@@ -192,7 +192,7 @@ def test_phase_label_de_ambito_desconocido_no_crashea():
 # ── Criterios de fase: la portada se mide, no se escribe ─────────────────────
 
 def _f(phase, text, eid="e1", is_cover=False):
-    return phase_findings(phase, eid, text, mk=mk, is_cover=is_cover)
+    return phase_findings(phase, eid, text, mk=mk, is_cover_title=is_cover)
 
 
 def _portada(text, eid="c1"):
@@ -268,3 +268,44 @@ def test_un_titulo_de_portada_mal_escrito_llega_al_auditor():
     assert "suggestion" not in portada[0]
     # Y el parrafo normal no arrastra ruido de portada.
     assert all(x["phase"] != "portada" or x["element_id"] == "c1" for x in f)
+
+
+# Review Focus: los criterios de portada solo miran el TITULO.
+
+def test_solo_el_titulo_de_la_portada_se_mide():
+    els = [
+        ElementModel(id="c1", type=ElementType.PORTADA_BLOCK, is_cover_section=True,
+                     text="Percepcion de la identidad en estudiantes universitarios de Managua."),
+        ElementModel(id="c2", type=ElementType.PORTADA_BLOCK, is_cover_section=True,
+                     text="Br. Juan Carlos Perez Martinez."),
+        ElementModel(id="c3", type=ElementType.PORTADA_BLOCK, is_cover_section=True,
+                     text="Managua, Nicaragua. Abril 2024."),
+    ]
+    f = audit_elements(els)
+    portada = [x for x in f if x["phase"] == "portada"]
+    # Todas las lineas terminan en punto, asi que sin el filtro el mensaje
+    # "el titulo no lleva punto final" caeria en el autor y en la fecha.
+    assert all(x["element_id"] == "c1" for x in portada), f
+    assert [x["kind"] for x in portada] == ["portada_punto_final"]
+
+
+def test_un_titulo_de_portada_largo_si_se_reporta():
+    largo = ("Percepcion de la identidad en estudiantes universitarios de Managua "
+             "durante el proceso de admision del turno nocturno en la facultad "
+             "de ciencias medicas")
+    assert len(largo.split()) > 20, "el caso de prueba tiene que ser largo de verdad"
+    els = [ElementModel(id="c1", type=ElementType.PORTADA_BLOCK, is_cover_section=True,
+                        text=largo + "."),
+           ElementModel(id="c2", type=ElementType.PORTADA_BLOCK, is_cover_section=True,
+                        text="Docente: Dr. Martin Perez.")]
+    portada = [x for x in audit_elements(els) if x["phase"] == "portada"]
+    assert "portada_title_larga" in {x["kind"] for x in portada}
+    assert all(x["element_id"] == "c1" for x in portada)
+
+
+def test_el_flag_se_llama_cover_title_para_que_nadie_lo_reuse():
+    # El nombre viejo (`is_cover`) ya causo este bug: decia "es portada" y el
+    # criterio lo leia como "es el titulo".
+    import inspect
+    from modules.phase_scope import phase_findings
+    assert "is_cover_title" in inspect.signature(phase_findings).parameters

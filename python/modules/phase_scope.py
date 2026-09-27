@@ -58,31 +58,39 @@ PHASES: Tuple[PhaseConfig, ...] = (
                 criteria=("portada_title_larga", "portada_punto_final"),
                 read_only=True),
     PhaseConfig("objetivos", "Objetivos",
-                ("objetivos", "objetivo", "proposito", "propositos", "finalidad"),
+                ("objetivos", "objetivo", "proposito", "propositos", "finalidad",
+                 "objetivo general", "objetivos generales", "objetivo especifico",
+                 "objetivos especificos", "objetivos especificos de la investigacion",
+                 "objetivos especificos de la investigacion"),
                 criteria=("bloom_verb",)),
-    PhaseConfig("introduccion", "Introduccion", ("introduccion",),
+    PhaseConfig("introduccion", "Introduccion",
+                ("introduccion", "introduccion al problema", "planteamiento del problema"),
                 criteria=("paragraph_words",), paragraph_words=(80, 200)),
     PhaseConfig("marco_teorico", "Marco teorico",
-                ("marco teorico", "marco referencial", "antecedentes",
-                 "revision de literatura"),
+                ("marco teorico", "marco referencial", "marco de referencia",
+                 "antecedentes", "revision de la literatura", "revision teorica",
+                 "fundamentacion teorica", "bases teoricas"),
                 criteria=("paragraph_words", "parafraisis_vs_cita"),
                 paragraph_words=(80, 200)),
     PhaseConfig("metodo", "Metodo",
                 ("metodo", "metodologia", "materiales y metodos",
-                 "diseno metodologico"),
+                 "diseno metodologico", "metodologia de la investigacion",
+                 "enfoque metodologico"),
                 criteria=("bloom_verb", "paragraph_words"),
                 paragraph_words=(80, 200)),
     PhaseConfig("resultados", "Resultados", ("resultados", "resultado"),
                 criteria=("verbo_pasado",)),
-    PhaseConfig("discusion", "Discusion", ("discusion",),
+    PhaseConfig("discusion", "Discusion", ("discusion", "analisis de resultados"),
                 criteria=("verbo_pasado",)),
     PhaseConfig("conclusiones", "Conclusiones",
-                ("conclusiones", "conclusion", "consideraciones finales"),
+                ("conclusiones", "conclusion", "consideraciones finales",
+                 "consideraciones finales y recomendaciones"),
                 criteria=("verbo_pasado",)),
     PhaseConfig("referencias", "Referencias",
-                ("referencias", "bibliografia", "works cited")),
+                ("referencias", "referencias bibliograficas", "bibliografia",
+                 "bibliografia consultada", "works cited")),
     PhaseConfig("anexos", "Anexos",
-                ("anexos", "apendice", "apendices")),
+                ("anexos", "anexo", "apendice", "apendices")),
 )
 
 PHASE_BY_KEY: Dict[str, PhaseConfig] = {p.key: p for p in PHASES}
@@ -90,29 +98,51 @@ PHASE_BY_KEY: Dict[str, PhaseConfig] = {p.key: p for p in PHASES}
 
 # ── Normalizacion y comparacion de titulos ───────────────────────────────────
 
-# El `\s+` del final es lo que hace seguro este patron. `[ivxlcdm]+` acepta
-# "m" y "d", asi que sin el, "Metodologia" perdia la primera letra y ninguna
-# fase del documento seellia. Ver test_normalize_no_comer_una_palabra_...
-_NUM_PREFIX = re.compile(r"^(?:[ivxlcdm]+|\d+(?:\.\d+)*)[.)]?\s+", re.IGNORECASE)
+# "Capitulo III. Metodologia" -> "Metodologia". Sin esto, ningun titulo de
+# tesis con ese prefijo abria fase, y es la forma mas comun en un capitulo.
+_CHAPTER_PREFIX = re.compile(
+    r"^\s*(?:capitulo|capitulo|parte|seccion|unit)\s+[ivxlcdm]+[.)]?\s+",
+    re.IGNORECASE,
+)
+
+# El prefijo de numeración se quita SOLO si lo que sigue arranca en mayúscula.
+#
+# `[ivxlcdm]` acepta m, i, l, d, c, v, x: sin el filtro de mayúscula, "Mi
+# metodología" perdía "Mi" y "Mil y una noches" se volvía "y una noches". Con
+# el filtro, "3. Objetivos" y "IV. METODO" se siguen limpiando, que es lo
+# único que el patrón es para. El comentario anterior afirmaba que el `\s+`
+# final bastaba; no bastaba, y este es el arreglo.
+_NUM_PREFIX = re.compile(r"^(?:[ivxlcdmIVXLCDM]+|\d+(?:\.\d+)*)[.)]?\s+")
 _NON_ALNUM = re.compile(r"[^a-z0-9\s]")
 _WS = re.compile(r"\s+")
 
 # "Resultados de la encuesta" -> cabeza "resultados". Se corta por la palabra
 # calificador, NO por subcadena: "Analisis de los datos" da cabeza "analisis",
 # que no esta en el vocabulario, asi que NO abre fase.
-_QUALIFIER = re.compile(r"^(?P<head>[a-z0-9]+)\s+(?:de|del|la|el|los|las|para|sobre|y)\s+")
+#
+# Se toleran hasta DOS palabras modificadoras antes del calificador porque los
+# títulos de tesis las traen: "Objetivos específicos de la investigación" tiene
+# "específicos" en el medio y sin él la fase se quedaba muda.
+_QUALIFIER = re.compile(
+    r"^(?P<head>[a-z0-9]+)(?:\s+[a-z0-9]+){0,2}?\s+"
+    r"(?:de|del|la|el|los|las|para|sobre|y)\s+"
+)
 
 
 def normalize_title(raw: str) -> str:
     """Minusculas, sin acentos, sin numeracion inicial, sin puntuacion.
 
-    "3. Objetivos" / "IV. METODO:" / "  Discusion  "
-      -> "objetivos" / "metodo" / "discusion"
+    "3. Objetivos" / "IV. METODO:" / "Capitulo III. Metodologia" / "  Discusion  "
+      -> "objetivos" / "metodo" / "metodologia" / "discusion"
     """
     text = unicodedata.normalize("NFKD", raw or "")
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = text.lower().strip()
-    text = _NUM_PREFIX.sub("", text)
+    text = text.strip()
+    text = _CHAPTER_PREFIX.sub(" ", text)
+    num = _NUM_PREFIX.match(text)
+    if num and text[num.end():num.end() + 1].isupper():
+        text = text[num.end():]
+    text = text.lower()
     text = _NON_ALNUM.sub(" ", text)
     return _WS.sub(" ", text).strip()
 
@@ -275,44 +305,90 @@ def _check_portada_punto_final(eid: str, text: str, cfg: PhaseConfig, mk) -> Lis
                phase=cfg.key, read_only=True)]
 
 
-# Criterios que solo tienen sentido sobre el ELEMENTO DE PORTADA, no sobre
-# cualquier elemento que caiga en su ambito.
+# Una cita APA en el cuerpo: (Perez, 2020) o Perez (2020). Su ausencia es lo
+# que hace que una atribucion sea sospechosa.
+_CITE_RE = re.compile(r"\([^()]{2,60},\s*(?:19|20)\d{2}[a-z]?\)")
+_WORD_RE = re.compile(r"\S+")
+# Nombres propios que NO son autores citados: propios de la propia institucion,
+# paises y el nombre de la disciplina.
+_NOT_A_CITED_AUTHOR = {
+    "managua", "nicaragua", "universidad", "republica", "ministerio", "instituto",
+    "escuela", "facultad", "departamento", "america", "latinoamerica", "espana",
+    "estados", "datos", "tabla", "figura", "grafico", "anexo", "capitulo",
+}
+
+
+def _check_parafraisis_vs_cita(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """Atribucion con forma de autor y sin cita.
+
+    Version minima y honesta: mira un token con forma de apellido (mayuscula
+    inicial, no al inicio de oracion, no en la lista de palabras que no son
+    autores) y avisa si el parrafo no trae ninguna cita APA. NO decide si la
+    parafrasis esta bien: eso es juicio, y lo hace la capa semantica. Esto
+    solo dice "mencionaste a alguien y no lo citaste", que es determinista.
+    """
+    if _CITE_RE.search(text or ""):
+        return []
+    for m in re.finditer(r"(?<!^)(?<![.!?:;]\s)(?<!¿)([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,})", text or ""):
+        apellido = m.group(1).lower()
+        if apellido in _NOT_A_CITED_AUTHOR:
+            continue
+        return [mk(eid, text, m.start(1), m.end(1), "parafraisis_vs_cita", "info",
+                   f'Mencionas "{m.group(1)}" sin una cita (Autor, año) en el '
+                   f"párrafo. En marco teórico, lo que se atribuye a un autor "
+                   f"lleva cita o se parafrasea explícito.",
+                   phase=cfg.key, read_only=cfg.read_only)]
+    return []
+
+
+# Criterios que solo tienen sentido sobre el TITULO de la portada, no sobre
+# cualquier elemento de ella.
 #
-# El ambito `portada` tambien cubre "todo lo que hay antes del primer H1", que
-# en el modo `texts` del endpoint es el documento entero. Aplicar "el titulo no
-# lleva punto final" ahi hacia que CADA parrafo terminara en punto fuera
-# senalado, y el test `test_no_findings_clean_text` lo cazo. Un criterio sobre
-# el titulo necesita el titulo.
+# El elemento de portada no es el titulo: `pre_classifier` convierte CADA
+# parrafo anterior al limite de portada en `portada_block`, o sea el autor, el
+# docente, la fecha y el lugar tambien lo son. Aplicar "el titulo no lleva
+# punto final" a todos ellos hacia que cada linea puntuada de la portada fuera
+# un hallazgo, y como son de solo lectura el usuario solo los descarta de a
+# uno. El flag que decide se llama `is_cover_title` y lo calcula el llamador;
+# su nombre viejo (`is_cover`) es exactamente lo que confundo.
 _PORTADA_ONLY = {"portada_title_larga", "portada_punto_final"}
 
 
 _CHECKS = {
+    "parafraisis_vs_cita": _check_parafraisis_vs_cita,
     "bloom_verb": _check_bloom_verb,
     "paragraph_words": _check_paragraph_words,
     "verbo_pasado": _check_verbo_pasado,
     "portada_title_larga": _check_portada_title_larga,
     "portada_punto_final": _check_portada_punto_final,
+    # `parafraisis_vs_cita` se vivio DOS TAREAS declarado en `marco_teorico`
+    # y en RULE_SCOPES sin entrada aca, y `phase_findings` lo ignoraba en
+    # silencio: la fase marco teorico tenia 1 criterio vivo de 2 y nadie lo
+    # notaba. `test_criterios_declarados_estan_implementados` es el guard que
+    # faltaba; ver la nota de R12 en el ledger.
 }
 
 
 def phase_findings(phase: str, eid: str, text: str, *, mk,
-                   is_cover: bool = False) -> List[Dict[str, Any]]:
+                   is_cover_title: bool = False) -> List[Dict[str, Any]]:
     """Hallazgos de los criterios de la fase a la que pertenece este elemento.
 
     Un elemento en `sin_fase` no esta en ninguna fase del vocabulario y no
     dispara nada. Las reglas generales NO pasan por aca: ya corrieron, y lo
     hacen en todas las fases.
 
-    `is_cover` habilita los criterios que son sobre el titulo de portada. Sin
-    el, un documento sin H1 —que es TODO documento en el modo `texts` del
-    endpoint—hacia que cada parrafo con punto final se reportara como un titulo mal escrito.
+    `is_cover_title` habilita los criterios que son sobre el titulo de portada.
+    Lo que cuenta es ser EL TITULO (la primera linea con texto de la portada),
+    no estar en la portada: sin esa distincion, cada linea puntuada de la
+    portada —el autor, el docente, la fecha— salia reportada como un titulo
+    mal escrito.
     """
     cfg = PHASE_BY_KEY.get(phase)
     if cfg is None or not cfg.criteria:
         return []
     out: List[Dict[str, Any]] = []
     for cid in cfg.criteria:
-        if cid in _PORTADA_ONLY and not is_cover:
+        if cid in _PORTADA_ONLY and not is_cover_title:
             continue
         check = _CHECKS.get(cid)
         if check is not None:

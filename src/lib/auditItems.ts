@@ -225,6 +225,20 @@ const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
   passive_voice: { category: 'style', subtype: 'voz_pasiva', severity: 'low', summary: DEL_MOTOR },
   long_sentence: { category: 'style', subtype: 'oracion_larga', severity: 'medium', summary: DEL_MOTOR },
   incompleta: { category: 'style', subtype: 'idea_incompleta', severity: 'high', summary: DEL_MOTOR },
+
+  /* Los criterios DE FASE. Sin fila propia caían todos en `otro` —"Otro
+     hallazgo del corrector"—, con el `kind` crudo en el mapa de transparencia
+     del lienzo (`portada_punto_final` literal en el chip). El subtipo es la
+     tercera agrupación de la vista: fase → motor → subtipo. */
+  paragraph_words: { category: 'style', subtype: 'largo_parrafo', severity: 'low', summary: DEL_MOTOR },
+  verbo_pasado: { category: 'style', subtype: 'tiempo_verbal', severity: 'low', summary: DEL_MOTOR },
+  parafrasis_vs_cita: { category: 'style', subtype: 'parafraisis', severity: 'low', summary: DEL_MOTOR },
+  /* Los dos de portada son de SOLO LECTURA: sin `suggestedText` y con subtipo
+     `portada`, que `SUBTYPE_ACTION` manda a 'mark'. Que un hallazgo se informe
+     y no se pueda aplicar es la invariante D6, y el subtipo la hace cumplir en
+     la vista sin depender del `readOnly` que ya viaja. */
+  portada_title_larga: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
+  portada_punto_final: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
 };
 
 /** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo

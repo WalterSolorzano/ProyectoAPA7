@@ -601,10 +601,16 @@ async def normalize_headings_endpoint(req: NormalizeHeadingsRequest) -> Document
     if not doc:
         raise HTTPException(status_code=404, detail="Sesion no encontrada.")
 
-    LEVEL1_PATTERNS = re.compile(
-        r"^(resumen|abstract|introducci[oÃ³]n|m[eÃ©]todo|metodolog[iÃ­]a|resultados|discusi[oÃ³]n|conclusiones?|recomendaciones?|referencias|bibliograf[iÃ­]a|anexos?|ap[eÃ©]ndices?)$",
-        re.I
-    )
+    # No hay lista local de secciones: `match_phase_exact` es la UNICA fuente
+    # de verdad. Antes este endpoint tenia su propio `LEVEL1_PATTERNS`, y eso
+    # era el mismo defecto por tercera puerta: no conocia `objetivos`, asi que
+    # un H2 "Objetivos" no se promovia, la fase no abria y `bloom_vague` no
+    # disparaba nunca; tampoco quita numeracion romana; y promovia
+    # `recomendaciones`, que no esta en el vocabulario y quedaba abriendo
+    # `sin_fase`. Se usa `match_phase_exact` y no `match_phase` a proposito: un
+    # "Resultados de la encuesta" bajo "Metodo" es una subseccion que el autor
+    # puso ahi, y aplanarla es el defecto que este arreglo viene a cerrar.
+    from modules.phase_scope import match_phase_exact
 
     last_level = 1
     for elem in doc.elements:
@@ -612,13 +618,12 @@ async def normalize_headings_endpoint(req: NormalizeHeadingsRequest) -> Document
             continue
 
         text = (elem.text or "").strip()
-        clean_text = re.sub(r"^\d+(\.\d+)*\s*", "", text).strip().lower()
 
         num_match = re.match(r"^(\d+(?:\.\d+)*)", text)
         if num_match:
             parts = [p for p in num_match.group(1).split(".") if p]
             level = min(len(parts), 5)
-        elif LEVEL1_PATTERNS.match(clean_text):
+        elif match_phase_exact(text) is not None:
             level = 1
         else:
             level = elem.heading_level if elem.heading_level in (1, 2, 3, 4, 5) else 2

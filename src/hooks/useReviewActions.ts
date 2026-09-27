@@ -84,6 +84,17 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
    *  sigue intacto y el hallazgo sigue en la lista. */
   const aplicar = useCallback(
     async (item: AuditItem): Promise<boolean> => {
+      /* EL GUARD DE LA CAPA QUE ESCRIBE. Es el único punto por donde sale una
+         escritura al documento, y es donde tiene que vivir la invariante de
+         D6: un hallazgo de solo lectura (la portada) se informa y no se
+         aplica. Arriba ya la respetan la agrupación y `FindingDetail`, pero
+         esas dos no escriben. Hoy esto no es alcanzable por dos coincidencias
+         —el subtipo de los kinds de portada cae en `otro`, cuya acción es
+         `mark`, y la agrupación exige `every(readOnly)` para no aceptar— y
+         cualquiera de las dos se rompe con una fila nueva en
+         `PROOFREAD_SPECS`. `AGENTS.md` §1 dice que la portada original no se
+         muta; esta línea lo garantiza sin depender de esas coincidencias. */
+      if (item.readOnly) return false;
       if (!aceptaDeIA(item) || !doc || !item.element_id) return false;
       try {
         if (item.suggestedText) {

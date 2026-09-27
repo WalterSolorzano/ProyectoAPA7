@@ -1,4 +1,4 @@
-"""Revisor proactivo de escritura (capa local, siempre disponible).
+﻿"""Revisor proactivo de escritura (capa local, siempre disponible).
 
 Detecta sin red y sin API key:
 - primera persona con posición exacta (nunca 'me'/'mi' sueltos)
@@ -504,14 +504,25 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
     # Revision. Los criterios son de solo lectura, nunca traen `suggestion`, y
     # por eso no hay nada que la aplicadora pueda escribir sobre la portada
     # original (AGENTS.md §1, use_original_cover).
+    #
+    # Solo se mide EL TITULO, que es la primera linea con texto: `pre_classifier`
+    # convierte cada parrafo anterior al limite de portada en `portada_block`,
+    # asi que el autor, el docente y la fecha tambien son "de portada". Sin este
+    # `titulo_visto`, cada linea puntuada de la portada salia reportada como un
+    # titulo mal escrito, con el mensaje apuntando a la linea del autor.
+    titulo_visto = False
     for e in elements:
         etype_ = str(getattr(getattr(e, "type", None), "value", getattr(e, "type", "")))
         if not (getattr(e, "is_cover_section", False) or etype_ == "portada_block"):
             continue
         eid = str(getattr(e, "id", ""))
+        texto = getattr(e, "text", "") or ""
+        es_titulo = not titulo_visto and bool(texto.strip())
+        if es_titulo:
+            titulo_visto = True
         findings.extend(phase_findings(
-            phase_by_id.get(eid, PORTADA_KEY), eid,
-            getattr(e, "text", "") or "", mk=_mk, is_cover=True))
+            phase_by_id.get(eid, PORTADA_KEY), eid, texto, mk=_mk,
+            is_cover_title=es_titulo))
 
     # Repetición de n-gramas a nivel de documento
     findings.extend(detect_repeated_ngrams(elements))

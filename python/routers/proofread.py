@@ -87,14 +87,14 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
       - ``{ texts, element_ids }``: audita textos sueltos (tests, add-in).
       - ``{ session_id }``: carga la sesión y audita sus párrafos (frontend).
 
-    Devuelve ``{ findings, used_llm, ai_indices, phases }`` — el shape que
+    Devuelve ``{ findings, used_llm, ai_indices }`` — el shape que
     espera el frontend (``ProofreadBatchResponse`` en ``backend.ts``).
 
-    ``phases`` son los ámbitos que el auditor construyó, con el tramo de
-    elementos que cada uno cubre, para que la interfaz pueda nombrar la fase de
-    un hallazgo. Cada hallazgo de ``findings`` trae además ``phase`` y
-    ``read_only``; en el modo ``texts`` no hay H1, luego todo cae en
-    ``portada`` y no hay fase de prosa que dispare.
+    Cada hallazgo de ``findings`` trae ``phase`` y ``read_only``: la fase es lo
+    único que la vista necesita para nombrar el hallazgo, y mandarla por
+    separado sería una segunda derivación del mismo dato que nadie leía. En el
+    modo ``texts`` no hay H1, luego todo cae en ``portada`` y no hay fase de
+    prosa que dispare.
     """
     # 1) Construir la lista de elementos a auditar
     if req.texts:
@@ -115,24 +115,15 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
             if (e.text or "").strip() and len((e.text or "").strip()) > 15
         ]
     else:
-        return {"findings": [], "used_llm": False, "ai_indices": None, "phases": []}
+        return {"findings": [], "used_llm": False, "ai_indices": None}
 
     if not elements:
-        return {"findings": [], "used_llm": False, "ai_indices": None, "phases": []}
+        return {"findings": [], "used_llm": False, "ai_indices": None}
 
     # 2) Auditoría local (siempre disponible, sin red ni API key)
     findings = audit_elements(elements)
 
-    # 2b) Ámbitos de fase que el auditor acabo de construir. Viajan con la
-    # respuesta para que la interfaz pueda NOMBRAR la fase de cada hallazgo sin
-    # volver a derivarla: derivarla en dos lugares es como un día el rail y la
-    # pantalla-promesaIon dejar de contar lo mismo.
-    from modules.phase_scope import build_phase_map
 
-    _phase_by_id, _spans = build_phase_map(elements)
-    phases = [{"key": s.key, "label": s.label,
-               "start_index": s.start_index, "end_index": s.end_index}
-              for s in _spans]
 
     # 3) Refinamiento LLM opcional (solo si hay API key configurada).
     #    refine_with_llm nunca lanza: ante cualquier error devuelve (findings, False).
@@ -147,5 +138,4 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
     # 4) Índices de IA (opcional, informativo para el panel del frontend)
     ai_indices = _compute_ai_indices(para_texts, findings)
 
-    return {"findings": findings, "used_llm": used_llm, "ai_indices": ai_indices,
-            "phases": phases}
+    return {"findings": findings, "used_llm": used_llm, "ai_indices": ai_indices}

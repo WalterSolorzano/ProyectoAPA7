@@ -1,4 +1,4 @@
-"""Tests del endpoint /api/proofread-batch y la integración del
+﻿"""Tests del endpoint /api/proofread-batch y la integración del
 proactive_auditor en /api/ai-review.
 
 E1 — /api/proofread-batch:
@@ -261,10 +261,12 @@ def test_la_respuesta_publica_los_ambitos_de_fase():
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert "phases" in data
+    # La fase viaja en CADA hallazgo, no en un campo aparte. Mandar `phases`
+    # además era una segunda derivación del mismo dato que nadie leía, y
+    # hacía correr `build_phase_map` dos veces por request.
+    assert all("phase" in f and "read_only" in f for f in data["findings"])
     # Sin H1, todo cae en portada: se reconoce, no se inventa nada.
-    assert [p["key"] for p in data["phases"]] == ["portada"]
-    assert data["phases"][0]["start_index"] == 0
+    assert {f["phase"] for f in data["findings"]} <= {"portada", "global"}
 
 
 def test_todo_hallazgo_trae_fase():
@@ -285,7 +287,9 @@ def test_el_modo_texts_no_produce_reglas_de_fase():
     assert [f for f in resp.json()["findings"] if f["kind"] == "bloom_vague"] == []
 
 
-def test_la_respuesta_vacia_tambien_declara_phases():
+def test_la_respuesta_vacia_no_inventa_fases():
     resp = client.post("/api/proofread-batch", json={"texts": []})
     assert resp.status_code == 200
-    assert resp.json()["phases"] == []
+    body = resp.json()
+    assert body["findings"] == []
+    assert "phases" not in body
