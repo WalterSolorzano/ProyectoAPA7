@@ -187,15 +187,22 @@ export function ReviewStrip(p: ReviewStripProps) {
             >
               <ChevronLeft size={14} strokeWidth={1.75} aria-hidden />
             </button>
-            {/* La cuenta y las marcas del minimapa salen de la MISMA fuente
-                (`usePageIndex`), que son las páginas del índice y no las del
-                lienzo medido: el `title` lo dice para que nadie compare este
-                número con el de la hoja y lo lea como un error. */}
-            <span
-              title="Numeración del índice de revisión: la misma del minimapa. Puede diferir de la hoja hasta que el motor mida el reflujo del lienzo."
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}
-            >
-              Página {p.currentPage} de {p.totalPages}
+            {/* El número y su alcance van en nodos separados. El alcance se
+                LEE ("de la revisión"), no se esconde en un `title` que quien
+                mira la barra no ve y un lector de pantalla puede no
+                anunciar: el conteo del índice no es el de la hoja medida, y
+                por eso tiene que estar a la vista. `FocusReadingCard` dice
+                lo mismo desde T14. */}
+            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 'var(--space-1)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                Página {p.currentPage} de {p.totalPages}
+              </span>
+              <span
+                title="Es el conteo del índice de revisión, el mismo que usa el minimapa. Puede diferir del de la hoja hasta que el motor mida el reflujo del lienzo."
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
+              >
+                de la revisión
+              </span>
             </span>
             <button
               type="button"

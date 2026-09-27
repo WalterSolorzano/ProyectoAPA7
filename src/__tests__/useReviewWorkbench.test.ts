@@ -506,7 +506,7 @@ describe('T12 — useReviewWorkbench', () => {
   });
 
   describe('runGroupAction — la vista pregunta, el hook ejecuta', () => {
-    it('un motor objetivo se rotula "Aceptar todas"; el de IA, "Marcar todos"', () => {
+    it('cada mecanismo tiene su propio rótulo, y "Aceptar" es solo del que acepta', () => {
       useDocStore.setState({
         ...DOC_CON_ESTRUCTURA,
         proofreadFindings: [
@@ -520,15 +520,57 @@ describe('T12 — useReviewWorkbench', () => {
         } as never,
       });
       const { result } = renderHook(() => useReviewWorkbench());
-      // AGENTS.md §1: los cuatro motores objetivos aceptan; el probabilístico
-      // solo marca. El rótulo no depende del mecanismo que haya detrás.
+      /* Estructura y Citas NO aceptan nada: redactan la leyenda de las figuras
+         y resuelven las citas ausentes, y los dos mecanismos trabajan sobre TODO
+         el documento. Decirles "Aceptar todas" promete corregir el texto del
+         hallazgo —que es otra cosa— y además choca con el control de la
+         aparición, que se llama "Rotular todo" / "Resolver citas" y hace
+         exactamente lo mismo. La palabra "aceptar" queda reservada a los
+         motores cuya corrección es objetiva y por hallazgo. */
       expect(result.current.groups.map((g) => [g.engine, g.massLabel])).toEqual([
         ['spelling', 'Aceptar todas'],
         ['style', 'Aceptar todas'],
-        ['structure', 'Aceptar todas'],
-        ['citations', 'Aceptar todas'],
+        ['structure', 'Rotular todo el documento'],
+        ['citations', 'Resolver citas del documento'],
         ['ai', 'Marcar todos'],
       ]);
+    });
+
+    it('la regla del rótulo se sostiene en cada motor y en cada subtipo', () => {
+      // La misma regla, aplicada a los dos niveles: la palabra "Aceptar"
+      // aparece si y solo si la acción ES aceptar. Cualquier otro mecanismo
+      // se nombra por lo que hace, y el que no hace nada no tiene botón.
+      useDocStore.setState({
+        ...DOC_CON_ESTRUCTURA,
+        proofreadFindings: [
+          hallazgo(),
+          hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante' }),
+        ],
+        citationAuditResult: {
+          ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e1' }],
+          orphan_references: [{ authors: ['Pérez'], year: 2019, raw_text: 'Pérez (2019).' }],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      for (const g of result.current.groups) {
+        expect(/Aceptar/.test(g.massLabel), `motor ${g.engine}`).toBe(g.massAction === 'accept');
+      }
+      const subtipos = result.current.groups.flatMap((g) => g.groups);
+      expect(subtipos.length).toBeGreaterThan(0);
+      for (const s of subtipos) {
+        if (s.action === 'none') {
+          expect(s.massLabel, `subtipo ${s.key}`).toBe('');
+        } else {
+          expect(s.massLabel, `subtipo ${s.key}`).not.toBe('');
+          expect(/Aceptar/.test(s.massLabel), `subtipo ${s.key}`).toBe(s.action === 'accept');
+        }
+      }
+      // Y el alcance de los dos mecanismos de documento queda dicho en el rótulo,
+      // que es lo que el detalle de la aparición no alcanza a dizer.
+      const estructura = result.current.groups.find((g) => g.engine === 'structure')!;
+      expect(estructura.massLabel).toMatch(/documento/);
+      const citas = result.current.groups.find((g) => g.engine === 'citations')!;
+      expect(citas.massLabel).toMatch(/documento/);
     });
 
     it('el grupo de citas ejecuta autoResolveGhosts', async () => {
@@ -718,8 +760,54 @@ describe('T12 — useReviewWorkbench', () => {
     });
   });
 
-  describe('un motor que falló no publica cumplimiento', () => {
-    it('falla el motor de IA: los otros dos dejaron resultados y aun así no hay número', async () => {
+  describe('`visibleCount`: el conjunto que ve el filtro, contado por el hook', () => {
+    it('cuenta lo que el filtro deja ver, y `nextFinding` recorre ese mismo conjunto', () => {
+      // La vista necesita este número para no dejar "Siguiente hallazgo"
+      // encendido cuando el filtro no tiene a dónde ir (corrección 7). Si lo
+      // derivara por su cuenta, el predicado estaría escrito dos veces y un
+      // cambio de semántica aquí dejaría el botón mintiendo en silencio.
+      useDocStore.setState({
+        proofreadFindings: [
+          hallazgo(),
+          hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla', suggestion: '' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      expect(result.current.visibleCount).toBe(2);
+
+      act(() => result.current.setFilter('spelling'));
+      expect(result.current.visibleCount).toBe(1);
+      // El documento sigue teniendo hallazgos de otro motor: el filtro NO los
+      // borra, y por eso `hasFindings` no sirve para esta pregunta.
+      expect(result.current.hasFindings).toBe(true);
+
+      act(() => result.current.nextFinding());
+      expect(result.current.selected?.category).toBe('spelling');
+    });
+
+    it('con el filtro sin hallazgos propios vale 0, y `nextFinding` no salta de motor', () => {
+      useDocStore.setState({
+        proofreadFindings: [
+          hallazgo(),
+          hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla', suggestion: '' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const [spelling, ai] = result.current.items;
+      act(() => result.current.setFilter('spelling'));
+      act(() => result.current.dismiss(spelling));
+
+      expect(result.current.visibleCount).toBe(0);
+      expect(result.current.hasFindings).toBe(true);
+      // El conjunto que cuenta y el que recorre son el mismo: `nextFinding`
+      // vuelve, no aterriza en el hallazgo de IA que el filtro esconde.
+      act(() => result.current.nextFinding());
+      expect(result.current.selected).toBeNull();
+      expect(result.current.items.map((i) => i.id)).toEqual([ai.id]);
+    });
+  });
+
+  describe('un motor que falló no publica cumplimiento', () => {    it('falla el motor de IA: los otros dos dejaron resultados y aun así no hay número', async () => {
       useDocStore.setState({
         reviewResult: { paragraphs: [parrafoIA('e1', 10, 'LOW')] } as never,
         // El motor de IA no deja resultados nuevos: el escaneo se registra

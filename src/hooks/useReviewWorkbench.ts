@@ -89,6 +89,11 @@ export interface ReviewWorkbenchApi {
   /** `items.length > 0`: hay hallazgos en el documento, filtrados o no. Derivarlo
    *  de `groups` haría que un filtro dejara la barra pensando que no hay nada. */
   hasFindings: boolean;
+  /** Cuántos hallazgos deja ver el FILTRO ACTIVO, que es el conjunto exacto
+   *  que recorre `nextFinding`. La vista lo necesita para no dejar "Siguiente
+   *  hallazgo" encendido cuando el filtro se queda sin destino, y no lo
+   *  re-deriva: el predicado del filtro es de acá, no de quien lo mira. */
+  visibleCount: number;
   /** Una marca por página con hallazgo: color = motor dominante de ESA página */
   marks: Map<number, MinimapMark>;
   filter: EngineFilter;
@@ -209,12 +214,25 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
  * eso; el MECANISMO lo elige `runGroupAction` (autoResolveGhosts,
  * autoCaptionAll, updateElementText). Un botón que dice "Aceptar todas" sobre
  * el grupo de citas y resuelve las fantasma está haciendo lo que promete.
+ *
+ * T16: "Aceptar" es la palabra de la correccion OBJETIVA y POR HALLAZGO, y solo
+ * la usan las acciones que la tienen. Estructura redacta leyendas y Citas
+ * resuelve referencias ausentes: los dos mecanismos trabajan sobre TODO el
+ * documento, asi que su rotulo nombra el mecanismo y su alcance. Antes ambos se
+ * llamaban "Aceptar todas", lo que prometia corregir el texto de un hallazgo —que
+ * no es lo que pasa— y ademas contradecía al control de la aparicion, en la
+ * misma tarjeta, que dice "Rotular todo" / "Resolver citas" y hace lo mismo.
  */
-const massLabelFor = (action: SubtypeAction): string => {
-  if (action === 'mark') return 'Marcar todos';
-  if (action === 'none') return '';
-  return 'Aceptar todas';
+const MASS_LABELS: Record<Exclude<SubtypeAction, 'none'>, string> = {
+  accept: 'Aceptar todas',
+  mark: 'Marcar todos',
+  resolveGhosts: 'Resolver citas del documento',
+  autoCaption: 'Rotular todo el documento',
 };
+
+/** `'none'` no tiene rotulo: sin correccion que ofrecer, no hay boton. */
+const massLabelFor = (action: SubtypeAction): string =>
+  action === 'none' ? '' : MASS_LABELS[action];
 
 const SEVERITY_RANK: Record<Severity, number> = {
   critical: 0,
@@ -584,9 +602,19 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
      estrecho sale de aquí, no al revés, para que los dos coincidan siempre. */
   const allGroups = useMemo(() => agruparHallazgos(items), [items]);
 
+  /* Lo que el FILTRO deja ver, en una sola expresión. La usan los grupos
+     estrechos, `nextFinding` y el `visibleCount` que la vista usa para no
+     dejar "Siguiente hallazgo" encendido sin destino: si el predicado estuviera
+     escrito en la vista también, cambiarlo aquí encendería el botón y lo
+     dejaría inerte, que es el defecto que esta cuenta existe para evitar. */
+  const visibles = useMemo(
+    () => (filter === 'all' ? items : items.filter((i) => i.category === filter)),
+    [items, filter],
+  );
+
   const groups = useMemo(
-    () => (filter === 'all' ? allGroups : agruparHallazgos(items.filter((i) => i.category === filter))),
-    [allGroups, items, filter],
+    () => (filter === 'all' ? allGroups : agruparHallazgos(visibles)),
+    [allGroups, visibles],
   );
 
   /* La siembra es POR DOCUMENTO, y el documento se identifica por su sesión,
@@ -672,8 +700,8 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const nextFinding = useCallback(() => {
     // "Siguiente hallazgo" recorre lo que el filtro deja ver: saltar a un
-    // hallazgo de un motor apagado sería aterrizar fuera de la lista.
-    const visibles = filter === 'all' ? items : items.filter((i) => i.category === filter);
+    // hallazgo de un motor apagado sería aterrizar fuera de la lista. Es el
+    // MISMO conjunto que cuenta `visibleCount`.
     if (!visibles.length) return;
     const ordenada = [...visibles].sort((a, b) => (a.pageNumber ?? 999) - (b.pageNumber ?? 999));
     const i = ordenada.findIndex((x) => x.id === selectedId);
@@ -686,7 +714,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     // el resultado HOY: es la misma defensa que aplica `goToPage`, puesta aquí
     // para que ningún camino que salta de página quede sin recortar.
     if (siguiente.pageNumber) setCurrentPage(clipPage(siguiente.pageNumber, totalPages));
-  }, [items, filter, selectedId, select, totalPages]);
+  }, [visibles, selectedId, select, totalPages]);
 
   /** El motor probabilístico no aplica nada: sus hallazgos no se aceptan. */
   const aceptaDeIA = (item: AuditItem) => item.category !== 'ai';
@@ -943,6 +971,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     groups,
     allGroups,
     hasFindings: items.length > 0,
+    visibleCount: visibles.length,
     marks,
     filter,
     setFilter,

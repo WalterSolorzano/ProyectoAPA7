@@ -293,6 +293,51 @@ describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
     expect(autoCaptionAll).toHaveBeenCalled();
   });
 
+  it('la cabecera y el detalle de un mecanismo de documento no se contradicen', () => {
+    /* Estructura y Citas redactan legends y resuelven citas ausentes sobre TODO
+       el documento. La cabecera del motor y el control de la aparición son el
+       MISMO mecanismo: si se llaman distinto, la tarjeta muestra dos nombres
+       para una acción, y "Aceptar todas" además promete corregir el texto del
+       hallazgo, que es otra cosa. Este test ata las dos etiquetas: el mismo
+       verbo, y el alcance ("documento") dicho en la que puede leerse de un
+       vistazo. */
+    const autoCaptionAll = vi.fn().mockResolvedValue(undefined);
+    const autoResolveGhosts = vi.fn().mockResolvedValue(undefined);
+    store({
+      doc: documento([elemento(), FIGURA]) as never,
+      citationAuditResult: {
+        ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e1' }],
+        orphan_references: [],
+      } as never,
+      autoCaptionAll: autoCaptionAll as never,
+      autoResolveGhosts: autoResolveGhosts as never,
+    });
+    render(<ReviewWorkbench />);
+
+    const rotulo = (b: HTMLElement) => (b.textContent || '').trim();
+    const verbo = (b: HTMLElement) => rotulo(b).split(/\s+/)[0].toLowerCase();
+    /* La tarjeta del motor, no el rack entero: el botón de la cabecera y el de
+       la fila de subtipo se llaman igual (mismo `massLabel`), y el que se busca
+       es el primero. */
+    const tarjetaDe = (motor: RegExp) =>
+      within(rack()).getByRole('button', { name: motor }).closest('section') as HTMLElement;
+
+    const cabeceraRotular = within(tarjetaDe(/Estructura \(/))
+      .getAllByRole('button', { name: /Rotular/ })[0];
+    expect(rotulo(cabeceraRotular)).toMatch(/documento/);
+    expect(rotulo(cabeceraRotular)).not.toMatch(/Aceptar/);
+    fireEvent.click(within(tarjetaDe(/Estructura \(/)).getByRole('button', { name: /Figura sin rotular/ }));
+    expect(verbo(cabeceraRotular)).toBe(verbo(screen.getByRole('button', { name: 'Rotular todo' })));
+
+    fireEvent.click(within(tarjetaDe(/Citas \(/)).getByRole('button', { name: /Citas \(/ }));
+    const cabeceraCitas = within(tarjetaDe(/Citas \(/))
+      .getAllByRole('button', { name: /Resolver citas/ })[0];
+    expect(rotulo(cabeceraCitas)).toMatch(/documento/);
+    expect(rotulo(cabeceraCitas)).not.toMatch(/Aceptar/);
+    fireEvent.click(within(tarjetaDe(/Citas \(/)).getByRole('button', { name: /Cita ausente en bibliografía/ }));
+    expect(verbo(cabeceraCitas)).toBe(verbo(screen.getByRole('button', { name: 'Resolver citas' })));
+  });
+
   it('las flechas de aparición mueven la lectura a la siguiente del subtipo', () => {
     store({
       doc: documento([elemento(), elemento({ id: 'e2', text: 'segundo parrafo' })]) as never,
@@ -331,14 +376,50 @@ describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
   });
 });
 
+/* ── El filtro y el número de páginas: reglas que son del hook ───────────── */
+
+describe('T16 — la vista no vuelve a escribir las reglas del hook', () => {
+  it('el workbench no re-aplica el predicado del filtro', () => {
+    // El filtro POR MOTOR es del hook. Si la vista lo escribiera sobre `items`
+    // para contar lo que hay, la regla estaría en dos archivos: un cambio de
+    // semántica aquí dejaría "Siguiente hallazgo" encendido e inerte, que es el
+    // defecto exacto de la corrección 7. El conteo por ELEMENTO (`enElBloque`)
+    // sí es de la vista y no se toca: no es el filtro.
+    expect(SRC).not.toMatch(/wb\.filter === 'all'/);
+    expect(SRC).not.toMatch(/i\.category === wb\.filter/);
+    expect(SRC).toMatch(/wb\.visibleCount/);
+  });
+
+  it('el número de páginas dice DE QUÉ revisión es, en la línea y no en un tooltip', () => {
+    // `FocusReadingCard` ya lo dice ("Página X de la revisión"): el conteo del
+    // índice de revisión no es el de la hoja medida, y un `title` —invisible
+    // para quien lee, y no siempre anunciado— no es la forma de decirlo.
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
+    render(<ReviewWorkbench />);
+    expect(screen.getByText(/^Página \d+ de \d+$/)).toBeTruthy();
+    expect(screen.getByText('de la revisión')).toBeTruthy();
+  });
+});
+
 /* ── Tokens ──────────────────────────────────────────────────────────────── */
 
 const NODE_FS = 'node:fs';
 const NODE_PATH = 'node:path';
 const NODE_URL = 'node:url';
 let SRC = '';
-let CSS = '';
 let PASO5 = '';
+/** Los tres archivos donde ESTE commit escribió copy y tokens: el workbench,
+ *  la tira y la tarjeta de motor. El barrido de todo `src` es tarea de otra. */
+const CON_COPY = [
+  'ReviewWorkbench.tsx',
+  'ReviewStrip.tsx',
+  'EngineGroupCard.tsx',
+] as const;
+const fuentes: Record<string, string> = {};
+/** Tokens DECLARADOS en la hoja de estilos: una línea que empieza por
+ *  `--token:`. Buscar el nombre "en algún lado" daba por definido lo que solo
+ *  aparecía dentro del valor de otro token, y eso no es una declaración. */
+let declarados = new Set<string>();
 beforeAll(async () => {
   const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
   const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
@@ -346,25 +427,45 @@ beforeAll(async () => {
   const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
   SRC = readFileSync(resolve(testDir, '../components/review/ReviewWorkbench.tsx'), 'utf8');
   PASO5 = readFileSync(resolve(testDir, '../components/wizard/Step5AuditIAWizard.tsx'), 'utf8');
-  CSS = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+  for (const nombre of CON_COPY) {
+    fuentes[nombre] = readFileSync(resolve(testDir, `../components/review/${nombre}`), 'utf8');
+  }
+  const css = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+  declarados = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
 });
 
-describe('T16 — tokens y copy del workbench', () => {
-  it('no contiene hex literales', () => {
-    expect(SRC).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+describe('T16 — tokens y copy de lo que esta task escribió', () => {
+  /* Lo que se busca es un color en un ESTILO, no en un comentario: el comentario
+     que explica por qué `--color-info` y `--color-accent` son el mismo azul
+     tiene que poder citar el valor. */
+  const codigo = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  it.each(CON_COPY)('%s: sin hex literales', (nombre) => {
+    expect(codigo(fuentes[nombre])).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
-  it('no le pone fallback a ningun token', () => {
-    expect(SRC).not.toMatch(/var\(\s*--[a-z0-9-]+\s*,/i);
+  it.each(CON_COPY)('%s: no le pone fallback a ningun token', (nombre) => {
+    // `var(--x, 8px)` esconde un token mal escrito detrás de un valor que
+    // funciona: el error no se ve, y el día que el token exista, el valor
+    // equivocado se queda callado.
+    expect(codigo(fuentes[nombre])).not.toMatch(/var\(\s*--[a-z0-9-]+\s*,/i);
   });
 
-  it('cada token que usa esta definido en design-system.css', () => {
+  it.each(CON_COPY)('%s: cada token que usa esta DECLARADO en design-system.css', (nombre) => {
     const usados = new Set<string>();
-    for (const m of SRC.matchAll(/var\(\s*(--[a-z0-9-]+)/g)) usados.add(m[1]);
+    for (const m of codigo(fuentes[nombre]).matchAll(/var\(\s*(--[a-z0-9-]+)/g)) usados.add(m[1]);
     expect(usados.size).toBeGreaterThan(0);
     for (const token of usados) {
-      expect(CSS, `${token} no esta definido`).toMatch(new RegExp(`${token}\\s*:`));
+      expect(declarados.has(token), `${token} (${nombre}) no esta declarado`).toBe(true);
     }
+  });
+
+  it('el conjunto de tokens declarados sale de declaraciones, no de valores', () => {
+    // `--color-text-tertiary` está declarado; `--text-tertiary` aparece en la
+    // hoja solo DENTRO de valores (`var(--text-tertiary)`) y no existe como
+    // token. Un patrón que lo diera por definido aprobaría un `var(--x-typo)`.
+    expect(declarados.has('--color-text-tertiary')).toBe(true);
+    expect(declarados.has('--text-tertiary')).toBe(false);
   });
 
   it('ninguna cadena del workbench lleva emojis', () => {

@@ -80,11 +80,10 @@ export function ReviewWorkbench() {
 
   /* `nextFinding` recorre lo que el FILTRO deja ver, y `hasFindings` cuenta el
      documento entero: con un filtro que ya no tiene hallazgos propios, el
-     botón quedaría encendido y sin destino. Los dos, o ninguno. */
-  const visiblesConFiltro = useMemo(
-    () => (wb.filter === 'all' ? wb.items : wb.items.filter((i) => i.category === wb.filter)),
-    [wb.items, wb.filter],
-  );
+     botón quedaría encendido y sin destino. La cuenta la publica el hook
+     (`visibleCount`) porque el predicado del filtro es suyo: repetirlo acá
+     sería la misma regla en dos archivos, y es exactamente el modo de fallo
+     que esta comprobación evita. */
 
   /* El motor y la acción los DECLARA el grupo. La vista pinta y ejecuta; no
      resuelve. El `catch` no informa: el hook ya publica el resultado de cada
@@ -136,7 +135,7 @@ export function ReviewWorkbench() {
         currentPage={wb.currentPage}
         onPage={wb.goToPage}
         onNextFinding={wb.nextFinding}
-        canNextFinding={visiblesConFiltro.length > 0}
+        canNextFinding={wb.visibleCount > 0}
         compliance={wb.metrics.compliance}
         viewMode={wb.viewMode}
         onViewMode={wb.setViewMode}
