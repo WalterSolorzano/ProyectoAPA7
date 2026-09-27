@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { ReviewStrip } from '../components/review/ReviewStrip';
 import { ENGINE_META, type EngineGroup } from '../hooks/useReviewWorkbench';
 
@@ -33,7 +33,7 @@ const setup = (over: Partial<React.ComponentProps<typeof ReviewStrip>> = {}) => 
   const onViewMode = vi.fn();
   const utils = render(
     <ReviewStrip
-      groups={[grupo('spelling', 48), grupo('ai', 14)]}
+      engineGroups={[grupo('spelling', 48), grupo('ai', 14)]}
       filter="all"
       onFilter={onFilter}
       totalPages={132}
@@ -46,6 +46,7 @@ const setup = (over: Partial<React.ComponentProps<typeof ReviewStrip>> = {}) => 
       hasFindings
       onScan={vi.fn()}
       isScanning={false}
+      total={62}
       {...over}
     />,
   );
@@ -72,9 +73,32 @@ describe('T13 — ReviewStrip', () => {
     expect(onFilter).toHaveBeenCalledWith('spelling');
     fireEvent.click(screen.getByRole('button', { name: 'Todo 62' }));
     expect(onFilter).toHaveBeenLastCalledWith('all');
-    // El chip de IA sigue en pantalla tras pedir un filtro: el filtrado es del
-    // hook, la tira solo representa lo que le pasaron.
+    // La tira no vuelve a filtrar lo que le pasaron: pide el filtro y sigue
+    // mostrando lo que llegó. (Que el hook estreche `groups` es cosa del hook;
+    // esta barra recibe `engineGroups`, el resumen SIN filtro, y un `total`.)
     expect(screen.getByRole('button', { name: 'Patrones IA 14' })).toBeTruthy();
+  });
+
+  it('el chip Todo publica el total que recibe, no la suma de los chips', () => {
+    // "Todo 130" con chips que suman 62 es incoherente; la suma era una
+    // re-derivación de un número que el hook ya tiene (`metrics.total`).
+    setup({ engineGroups: [grupo('spelling', 48)], total: 130 });
+    expect(screen.getByRole('button', { name: 'Todo 130' })).toBeTruthy();
+  });
+
+  it('el grupo "Filtros por motor" contiene solo filtros, no el escaneo', () => {
+    setup({ hasFindings: false });
+    const grupoFiltros = screen.getByRole('group', { name: 'Filtros por motor' });
+    // "Escanear" NO es un filtro: si viviera dentro, un lector de pantalla lo
+    // anunciaría como parte del conjunto de filtros.
+    expect(within(grupoFiltros).queryByRole('button', { name: 'Escanear' })).toBeNull();
+    expect(within(grupoFiltros).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Todo 62',
+      'Ortografía 48',
+      'Patrones IA 14',
+    ]);
+    // Y sigue disponible, fuera del grupo.
+    expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
   });
 
   it('publica la página actual sobre el total', () => {
@@ -137,19 +161,58 @@ describe('T13 — ReviewStrip', () => {
     expect(screen.queryByText(/%/)).toBeNull();
   });
 
-  it('sin resultados, ofrece Escanear', () => {
+  it('sin resultados, ofrece Escanear y "Todo 0"', () => {
     const onScan = vi.fn();
-    setup({ hasFindings: false, groups: [], onScan });
+    setup({ hasFindings: false, engineGroups: [], total: 0, onScan });
     fireEvent.click(screen.getByRole('button', { name: 'Escanear' }));
     expect(onScan).toHaveBeenCalled();
-    // Sin hallazgos, "Todo" sigue en 0: la tira no inventa un total.
     expect(screen.getByRole('button', { name: 'Todo 0' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Siguiente hallazgo' })).toBeTruthy();
+  });
+
+  it('sin hallazgos, "Siguiente hallazgo" existe pero no puede hacer nada', () => {
+    // Se DESHABILITA en vez de desaparecer: el control es parte de la barra y
+    // su ausencia haría que la barra saltara al escanear. Un botón primario
+    // que nunca puede hacer nada es una mentira sobre el documento.
+    const { onNextFinding } = setup({ hasFindings: false, engineGroups: [], total: 0 });
+    const btn = screen.getByRole('button', { name: 'Siguiente hallazgo' });
+    expect(btn.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(btn);
+    expect(onNextFinding).not.toHaveBeenCalled();
+  });
+
+  it('con hallazgos, "Siguiente hallazgo" está habilitado', () => {
+    setup();
+    expect(screen.getByRole('button', { name: 'Siguiente hallazgo' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('el clic al escaneo conecta un manejador de rechazo a lo que onScan devuelve', async () => {
+    // `scanAll` devuelve una promesa y el manejador del clic no la espera: sin
+    // guardia, su rechazo se reportaría como unhandled rejection en la consola
+    // de la persona, sin aviso y sin dueño. Una promesa real que rechaza no
+    // deja huella observable desde el test (el proceso se la come), así que la
+    // sonda es un thenable: si la vista le engancha un manejador, el `then` lo
+    // recibe; si lo ignora, `rechazoHandler` nunca se define.
+    let rechazoHandler: unknown;
+    const onScan = vi.fn(() => ({
+      then: (_resolucion: unknown, rechazo: unknown) => {
+        rechazoHandler = rechazo;
+        return Promise.resolve();
+      },
+    })) as unknown as () => Promise<void>;
+
+    setup({ hasFindings: false, engineGroups: [], total: 0, onScan });
+    fireEvent.click(screen.getByRole('button', { name: 'Escanear' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onScan).toHaveBeenCalledTimes(1);
+    expect(typeof rechazoHandler).toBe('function');
   });
 
   it('mientras escanea, el botón lo dice y no se repite', () => {
     const onScan = vi.fn();
-    setup({ hasFindings: false, groups: [], onScan, isScanning: true });
+    setup({ hasFindings: false, engineGroups: [], total: 0, onScan, isScanning: true });
     const btn = screen.getByRole('button', { name: 'Escaneando' });
     expect(btn.hasAttribute('disabled')).toBe(true);
     fireEvent.click(btn);

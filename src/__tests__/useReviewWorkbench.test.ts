@@ -136,6 +136,61 @@ describe('T12 — useReviewWorkbench', () => {
     expect(result.current.groups.map((g) => g.engine)).toEqual(['spelling']);
   });
 
+  it('`allGroups` NO se estrecha: los chips del view siguen siendo la lista completa', () => {
+    // La clase de defecto que Found 1 reportaba: `groups` se construye desde
+    // `visibles` (o sea, YA filtrado), así que un chip por motor alimentado con
+    // `groups` pierde a los demás motores en cuanto hay un filtro activo, y el
+    // "Todo" pasa a decir el total filtrado. Los chips necesitan el resumen sin
+    // filtro; el rack y la siembra de `openEngines` necesitan el estrecho.
+    useDocStore.setState({
+      proofreadFindings: [
+        hallazgo(),
+        hallazgo({ element_id: 'e2', excerpt: 'objetivo', kind: 'bloom_vague', message: 'Verbo impreciso' }),
+        hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla repetitiva' }),
+      ],
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.allGroups.map((g) => [g.engine, g.count])).toEqual([
+      ['spelling', 1],
+      ['style', 1],
+      ['ai', 1],
+    ]);
+    expect(result.current.metrics.total).toBe(3);
+
+    act(() => result.current.setFilter('spelling'));
+    // Estrecho: el rack y la semilla de grupos abiertos solo miran ortografía.
+    expect(result.current.groups.map((g) => g.engine)).toEqual(['spelling']);
+    // Completo: el chip de IA y el de redacción siguen disponibles para elegir,
+    // y el "Todo" sigue siendo el total del documento, no el del filtro.
+    expect(result.current.allGroups.map((g) => g.engine)).toEqual(['spelling', 'style', 'ai']);
+    expect(result.current.allGroups.reduce((n, g) => n + g.count, 0)).toBe(3);
+  });
+
+  it('`hasFindings` cuenta los hallazgos del documento, no los que deja el filtro', () => {
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.hasFindings).toBe(false);
+
+    act(() => {
+      useDocStore.setState({
+        proofreadFindings: [hallazgo(), hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla' })],
+      });
+    });
+    expect(result.current.hasFindings).toBe(true);
+
+    // El filtro no borra hallazgos: si `hasFindings` se derivara de `groups`,
+    // con un filtro activo sobre un documento que SÍ tiene hallazgos de otro
+    // motor, la barra ofrecería "Escanear" sobre un documento ya escaneado.
+    act(() => result.current.setFilter('spelling'));
+    expect(result.current.hasFindings).toBe(true);
+
+    // Descartarlos sí lo vacía: `items` es la única fuente de la verdad.
+    const [spelling, ai] = result.current.items;
+    act(() => result.current.dismiss(spelling));
+    expect(result.current.hasFindings).toBe(true);
+    act(() => result.current.dismiss(ai));
+    expect(result.current.hasFindings).toBe(false);
+  });
+
   it('el filtro también recorta las marcas del minimapa', () => {
     useDocStore.setState({
       proofreadFindings: [
@@ -341,6 +396,31 @@ describe('T12 — useReviewWorkbench', () => {
     act(() => result.current.goToPage(99));
     expect(result.current.currentPage).toBe(2);
     act(() => result.current.goToPage(0));
+    expect(result.current.currentPage).toBe(1);
+  });
+
+  it('si el documento encoge bajo la vista, la página actual se recorta', () => {
+    // `currentPage` es un useState crudo: si el documento pierde páginas (una
+    // edición que fusiona elementos, otro documento en la misma vista) la vista
+    // queda announcing "Página 2 de 1" y la flecha anterior camina hacia atrás
+    // por páginas que ya no existen. El recorte es del hook, no del paginador.
+    const muchos = Array.from({ length: 40 }, (_, i) => ({
+      id: `x${i}`,
+      type: 'paragraph',
+      text: 'a'.repeat(100),
+    }));
+    useDocStore.setState({ doc: { session_id: 'sesion-1', elements: muchos } as never });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.totalPages).toBe(2);
+    act(() => result.current.goToPage(2));
+    expect(result.current.currentPage).toBe(2);
+
+    act(() => {
+      useDocStore.setState({
+        doc: { session_id: 'sesion-1', elements: [{ id: 'y0', type: 'paragraph', text: 'corto' }] } as never,
+      });
+    });
+    expect(result.current.totalPages).toBe(1);
     expect(result.current.currentPage).toBe(1);
   });
 

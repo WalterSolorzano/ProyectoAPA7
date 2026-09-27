@@ -3,21 +3,32 @@
    (solo si fue medido), el paginador, "Siguiente hallazgo" y el salto entre la
    tarjeta de lectura y la hoja completa. Es la unica barra de la vista.
 
-   La tira NO filtra nada: recibe los `groups` que ya trae filtrados de
-   `useReviewWorkbench` y los REPRESENTA (el chip activo con `aria-pressed`).
-   Quien estrecha el rack de acciones y el minimapa es el hook, no este archivo.
+   La tira NO filtra nada: `engineGroups` es el resumen SIN filtro que publica el
+   hook y esta barra lo REPRESENTA (el chip activo, con `aria-pressed`). `total`
+   es `metrics.total` del hook; la tira no lo re-deriva sumando sus propios chips,
+   porque esa suma es lo que el filtro deja ver. Quien estrecha el rack de
+   acciones y el minimapa es el hook, no este archivo.
 
    `strokeWidth` va en 1.75 --el valor de `--icon-stroke`-- porque Lucide pide un
-   número, no una cadena de token. Los colores, radios y espacios sí son tokens. */
+   número, no una cadena de token. Colores, radios y casi todos los espacios son
+   tokens; quedan literales el alto de la barra (44), el padding horizontal de las
+   flechas (6) y el gutter del toggle (2), porque no existe token para 2, 6 ni 44. */
 
 import React from 'react';
 import { ChevronLeft, ChevronRight, ArrowRight, ScanLine, LayoutList, FileText } from 'lucide-react';
 import type { EngineGroup, EngineFilter } from '../../hooks/useReviewWorkbench';
 
 export interface ReviewStripProps {
-  groups: EngineGroup[];
+  /** Un grupo por motor SIN filtro (`allGroups` del hook). Alimentado con
+   *  `groups` —que sí está filtrado— los chips pierden a los demás motores en
+   *  cuanto hay un filtro activo, y no hay forma de volver a elegir otro. */
+  engineGroups: EngineGroup[];
   filter: EngineFilter;
   onFilter: (f: EngineFilter) => void;
+  /** Total de hallazgos del DOCUMENTO (`metrics.total`), no la suma de los
+   *  chips: esa suma es lo que el filtro deja ver, y "Todo" tiene que decir
+   *  todo. */
+  total: number;
   totalPages: number;
   currentPage: number;
   onPage: (p: number) => void;
@@ -27,7 +38,9 @@ export interface ReviewStripProps {
   viewMode: 'focus' | 'canvas';
   onViewMode: (m: 'focus' | 'canvas') => void;
   hasFindings: boolean;
-  onScan: () => void;
+  /** El escaneo del hook devuelve una promesa; el tipo lo dice en vez de
+   *  mentir con un `() => void` que devolvería un rechazo sin manejar. */
+  onScan: () => void | Promise<void>;
   isScanning: boolean;
 }
 
@@ -53,7 +66,13 @@ const countStyle: React.CSSProperties = {
 };
 
 export function ReviewStrip(p: ReviewStripProps) {
-  const total = p.groups.reduce((n, g) => n + g.count, 0);
+  /* `scanAll` publica el resultado de cada motor con un toast propio; lo único
+     que le falta a la vista es no dejar su rechazo como una promesa sin
+     manejar en la consola de la persona. Este guardián NO informa del fallo:
+     informar del escaneo es del hook, no de una tira de 44px. */
+  const escanear = () => {
+    Promise.resolve(p.onScan()).catch(() => undefined);
+  };
 
   return (
     <div
@@ -70,8 +89,6 @@ export function ReviewStrip(p: ReviewStripProps) {
       }}
     >
       <div
-        role="group"
-        aria-label="Filtros por motor"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -80,10 +97,12 @@ export function ReviewStrip(p: ReviewStripProps) {
           overflow: 'hidden',
         }}
       >
+        {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
+            de pantalla no lo anuncie como parte del conjunto de filtros. */}
         {!p.hasFindings && (
           <button
             type="button"
-            onClick={p.onScan}
+            onClick={escanear}
             disabled={p.isScanning}
             style={{ ...chipStyle(false), opacity: p.isScanning ? 0.6 : 1 }}
           >
@@ -91,29 +110,36 @@ export function ReviewStrip(p: ReviewStripProps) {
             {p.isScanning ? 'Escaneando' : 'Escanear'}
           </button>
         )}
-        <button
-          type="button"
-          aria-pressed={p.filter === 'all'}
-          onClick={() => p.onFilter('all')}
-          style={chipStyle(p.filter === 'all')}
+        <div
+          role="group"
+          aria-label="Filtros por motor"
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', minWidth: 0 }}
         >
-          <span>Todo</span>{/* El separador no es decoración: sin él el nombre
-            accesible del chip es "Ortografía48", que se lee como una palabra. */}
-          {' '}
-          <span style={countStyle}>{total}</span>
-        </button>
-        {p.groups.map((g) => (
           <button
-            key={g.engine}
             type="button"
-            aria-pressed={p.filter === g.engine}
-            onClick={() => p.onFilter(g.engine)}
-            style={chipStyle(p.filter === g.engine)}
+            aria-pressed={p.filter === 'all'}
+            onClick={() => p.onFilter('all')}
+            style={chipStyle(p.filter === 'all')}
           >
-            <span>{g.title}</span>{' '}
-            <span style={countStyle}>{g.count}</span>
+            <span>Todo</span>
+            {/* El separador no es decoración: sin él el nombre accesible del
+                chip es "Ortografía48", que se lee como una sola palabra. */}
+            {' '}
+            <span style={countStyle}>{p.total}</span>
           </button>
-        ))}
+          {p.engineGroups.map((g) => (
+            <button
+              key={g.engine}
+              type="button"
+              aria-pressed={p.filter === g.engine}
+              onClick={() => p.onFilter(g.engine)}
+              style={chipStyle(p.filter === g.engine)}
+            >
+              <span>{g.title}</span>{' '}
+              <span style={countStyle}>{g.count}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div
@@ -175,12 +201,17 @@ export function ReviewStrip(p: ReviewStripProps) {
 
         <button
           type="button"
+          disabled={!p.hasFindings}
           onClick={p.onNextFinding}
           style={{
             ...chipStyle(false),
             background: 'var(--color-accent)',
             color: 'var(--color-text-on-accent)',
             fontWeight: 600,
+            /* Sin hallazgos el botón se apaga, pero NO desaparece: es parte de
+               la barra y un control que aparece y desaparece hace saltar el
+               resto. Deshabilitado dice "aquí no hay nada" sin mentir. */
+            opacity: p.hasFindings ? 1 : 0.4,
           }}
         >
           <span>Siguiente hallazgo</span>

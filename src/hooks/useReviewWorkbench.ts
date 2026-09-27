@@ -78,7 +78,16 @@ export interface EngineGroup {
 export interface ReviewWorkbenchApi {
   /** Hallazgos no descartados, en el orden en que los produjo cada motor */
   items: AuditItem[];
+  /** Grupos de lo que el FILTRO deja ver: el rack de acciones y la semilla de
+   *  `openEngines` los quieren estrechos. NO los confundas con `allGroups`. */
   groups: EngineGroup[];
+  /** Un grupo por motor sobre TODOS los hallazgos, sin filtro. Es lo que
+   *  necesitan los chips de la barra: un chip por motor que se pierde cuando
+   *  hay un filtro activo no deja volver a "Todo" ni elegir otro motor. */
+  allGroups: EngineGroup[];
+  /** `items.length > 0`: hay hallazgos en el documento, filtrados o no. Derivarlo
+   *  de `groups` haría que un filtro dejara la barra pensando que no hay nada. */
+  hasFindings: boolean;
   /** Una marca por página con hallazgo: color = motor dominante de ESA página */
   marks: Map<number, MinimapMark>;
   filter: EngineFilter;
@@ -337,6 +346,63 @@ function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
   };
 }
 
+/* ── Agrupación por motor y por subtipo ────────────────────────────────────
+   Función pura y fuera del hook: la usan las DOS listas que publica la API
+   (`groups`, filtrada, y `allGroups`, completa). Que sea la misma función es
+   lo que garantiza que un chip por motor y una fila del rack digan el mismo
+   número: si se escribieran por separado, uno de los dos mentiría. */
+function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
+  const porMotor = new Map<EngineId, AuditItem[]>();
+  for (const it of visibles) {
+    const arr = porMotor.get(it.category);
+    if (arr) arr.push(it);
+    else porMotor.set(it.category, [it]);
+  }
+  return ENGINE_ORDER.filter((e) => porMotor.has(e)).map((engine) => {
+    const propios = porMotor.get(engine)!;
+    const porSubtipo = new Map<string, AuditItem[]>();
+    for (const it of propios) {
+      const arr = porSubtipo.get(it.subtype);
+      if (arr) arr.push(it);
+      else porSubtipo.set(it.subtype, [it]);
+    }
+    const subgrupos: SubtypeGroup[] = [...porSubtipo.entries()].map(([key, susItems]) => {
+      // Sin subtipo conocido, la acción es la del motor: un motor IA jamás
+      // cae en 'accept' aunque el subtipo no esté en la tabla.
+      const action = SUBTYPE_ACTION[key] || engineAction(engine);
+      return {
+        key: `${engine}:${key}`,
+        label: SUBTYPE_LABELS[key] || key,
+        items: susItems,
+        action,
+        massLabel: massLabelFor(action),
+      };
+    });
+    subgrupos.sort((a, b) => {
+      const ra = Math.min(...a.items.map((i) => SEVERITY_RANK[i.severity]));
+      const rb = Math.min(...b.items.map((i) => SEVERITY_RANK[i.severity]));
+      return ra - rb || b.items.length - a.items.length;
+    });
+    return {
+      engine,
+      title: ENGINE_META[engine].title,
+      chip: ENGINE_META[engine].chip,
+      count: propios.length,
+      criticalHigh: propios.filter((i) => i.severity === 'critical' || i.severity === 'high').length,
+      groups: subgrupos,
+      massAction: engineAction(engine),
+      massLabel: massLabelFor(engineAction(engine)),
+    };
+  });
+}
+
+/** Una página dentro del rango real del documento. `totalPages` 0 (documento sin
+ *  páginas) recorta a 1, no a 0: el 0 es "no hay páginas", no "la página 0". */
+const clipPage = (page: number, totalPages: number): number => {
+  if (!Number.isFinite(page)) return 1;
+  return Math.min(Math.max(1, Math.round(page)), Math.max(1, totalPages));
+};
+
 export function useReviewWorkbench(): ReviewWorkbenchApi {
   const doc = useDocStore((s) => s.doc);
   const reviewResult = useDocStore((s) => s.reviewResult);
@@ -364,6 +430,14 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const [currentPage, setCurrentPage] = useState(1);
   const [isScanning, setIsScanning] = useState(false);
   const seeded = useRef(false);
+
+  /* La página actual SIEMPRE vive en el rango real del documento. Es un
+     `useState` crudo, y el rango se mueve solo: una edición que fusiona
+     elementos, o un documento que encoge bajo la vista, dejaban "Página 2 de
+     1" y una flecha anterior que caminaba por páginas que ya no existen. */
+  useEffect(() => {
+    setCurrentPage((prev) => clipPage(prev, totalPages));
+  }, [totalPages]);
 
   /* Último escaneo observado por motor (dentro de esta vista): guarda los
      resultados de store en el momento de correr. Si los refs no cambiaron,
@@ -505,51 +579,14 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     return out.filter((it) => !dismissedIds.includes(it.id));
   }, [reviewResult, proofreadFindings, citationAuditResult, elements, dismissedIds, pageOf]);
 
-  const groups = useMemo<EngineGroup[]>(() => {
-    const visibles = filter === 'all' ? items : items.filter((i) => i.category === filter);
-    const porMotor = new Map<EngineId, AuditItem[]>();
-    for (const it of visibles) {
-      const arr = porMotor.get(it.category);
-      if (arr) arr.push(it);
-      else porMotor.set(it.category, [it]);
-    }
-    return ENGINE_ORDER.filter((e) => porMotor.has(e)).map((engine) => {
-      const propios = porMotor.get(engine)!;
-      const porSubtipo = new Map<string, AuditItem[]>();
-      for (const it of propios) {
-        const arr = porSubtipo.get(it.subtype);
-        if (arr) arr.push(it);
-        else porSubtipo.set(it.subtype, [it]);
-      }
-      const subgrupos: SubtypeGroup[] = [...porSubtipo.entries()].map(([key, susItems]) => {
-        // Sin subtipo conocido, la acción es la del motor: un motor IA jamás
-        // cae en 'accept' aunque el subtipo no esté en la tabla.
-        const action = SUBTYPE_ACTION[key] || engineAction(engine);
-        return {
-          key: `${engine}:${key}`,
-          label: SUBTYPE_LABELS[key] || key,
-          items: susItems,
-          action,
-          massLabel: massLabelFor(action),
-        };
-      });
-      subgrupos.sort((a, b) => {
-        const ra = Math.min(...a.items.map((i) => SEVERITY_RANK[i.severity]));
-        const rb = Math.min(...b.items.map((i) => SEVERITY_RANK[i.severity]));
-        return ra - rb || b.items.length - a.items.length;
-      });
-      return {
-        engine,
-        title: ENGINE_META[engine].title,
-        chip: ENGINE_META[engine].chip,
-        count: propios.length,
-        criticalHigh: propios.filter((i) => i.severity === 'critical' || i.severity === 'high').length,
-        groups: subgrupos,
-        massAction: engineAction(engine),
-        massLabel: massLabelFor(engineAction(engine)),
-      };
-    });
-  }, [items, filter]);
+  /* El resumen COMPLETO, sin filtro: es lo que pinta los chips. El conjunto
+     estrecho sale de aquí, no al revés, para que los dos coincidan siempre. */
+  const allGroups = useMemo(() => agruparHallazgos(items), [items]);
+
+  const groups = useMemo(
+    () => (filter === 'all' ? allGroups : agruparHallazgos(items.filter((i) => i.category === filter))),
+    [allGroups, items, filter],
+  );
 
   /* La siembra es POR DOCUMENTO, y el documento se identifica por su sesión,
      no por la identidad del objeto: `updateElementText` (aceptar una
@@ -621,7 +658,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     (page: number) => {
       // "Página X de N" se lee de `currentPage`: sin recorte, un clic fuera de
       // rango dejaría la lectura apuntando a una hoja que no existe.
-      const destino = Math.min(Math.max(1, Math.round(page)), Math.max(1, totalPages));
+      const destino = clipPage(page, totalPages);
       const el = pages[destino - 1]?.find((e) => e?.id && e.type !== 'page_break');
       if (el) {
         setSelectedElementId(el.id);
@@ -644,8 +681,11 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     const subkey = `${siguiente.category}:${siguiente.subtype}`;
     setOpenSubtypes((prev) => (prev.includes(subkey) ? prev : [...prev, subkey]));
     select(siguiente.id);
-    if (siguiente.pageNumber) setCurrentPage(siguiente.pageNumber);
-  }, [items, filter, selectedId, select]);
+    // `pageOf` solo devuelve páginas del índice, así que el recorte no cambia
+    // el resultado HOY: es la misma defensa que aplica `goToPage`, puesta aquí
+    // para que ningún camino que salta de página quede sin recortar.
+    if (siguiente.pageNumber) setCurrentPage(clipPage(siguiente.pageNumber, totalPages));
+  }, [items, filter, selectedId, select, totalPages]);
 
   /** El motor probabilístico no aplica nada: sus hallazgos no se aceptan. */
   const aceptaDeIA = (item: AuditItem) => item.category !== 'ai';
@@ -900,6 +940,8 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   return {
     items,
     groups,
+    allGroups,
+    hasFindings: items.length > 0,
     marks,
     filter,
     setFilter,
