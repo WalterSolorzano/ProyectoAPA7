@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ReferencesPanel } from '../components/referencias/ReferencesPanel';
@@ -52,7 +52,7 @@ describe('el panel acepta un bloque de DOIs', () => {
     render(<ReferencesPanel />);
     const campo = screen.getByRole('textbox', { name: /doi|referencia/i });
     fireEvent.change(campo, { target: { value: '10.1000/a\n10.1000/b\n10.1000/c' } });
-    fireEvent.click((screen.getAllByRole('button', { name: /resolver/i }).pop() as HTMLElement));
+    fireEvent.click(screen.getByRole('button', { name: /^resolver$/i }));
     expect(resolveDoisBlock).toHaveBeenCalledWith('10.1000/a\n10.1000/b\n10.1000/c');
     expect(resolveDoiReference).not.toHaveBeenCalled();
   });
@@ -69,7 +69,7 @@ describe('el panel acepta un bloque de DOIs', () => {
     render(<ReferencesPanel />);
     const campo = screen.getByRole('textbox', { name: /doi|referencia/i });
     fireEvent.change(campo, { target: { value: '10.1000/solo' } });
-    fireEvent.click((screen.getAllByRole('button', { name: /resolver/i }).pop() as HTMLElement));
+    fireEvent.click(screen.getByRole('button', { name: /^resolver$/i }));
     expect(resolveDoisBlock).toHaveBeenCalledWith('10.1000/solo');
   });
 });

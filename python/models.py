@@ -508,6 +508,21 @@ class ReferenciaModel(BaseModel):
     is_duplicate: bool = False
     duplicate_count: int = 1
 
+    # ¿Alguien contrastó esta referencia contra una fuente? El valor por
+    # defecto es `False` y ése es el punto: una tesis que ya venía con su
+    # bibliografía escrita no fue verificada contra nada, aunque el texto esté
+    # impecable. El panel muestra una etiqueta con esto, porque sin ella una
+    # lista de referencias bien formateadas y una lista de referencias que el
+    # sistema inventó se ven exactamente igual.
+    #
+    # Sólo lo pone en `True` un resolutor real: DOI contra CrossRef, o una
+    # búsqueda que devolvió la obra. Agregarla a mano NO la verifica.
+    verificada: bool = False
+    # De dónde salió la verificación, si la hubo: "doi", "cruzada", "isbn".
+    # Es lo que va en el detalle detrás del click, para que "verificada" no sea
+    # una palabra que nadie puede auditar.
+    fuente_verificacion: Optional[str] = None
+
     # FASE 3.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S3)
     def to_csl_json(self) -> dict:
         """Conversión CSL-JSON estándar (interoperabilidad Zotero/Mendeley).

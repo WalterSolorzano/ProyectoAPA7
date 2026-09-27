@@ -84,6 +84,13 @@
  *     digan lo mismo, y el canal inline es `ReadingText`, que sí está en el
  *     alcance. El hermano de la pareja, no. Eso es un agujero conocido, no una
  *     exención: por eso el aviso está en el archivo.
+ *
+ * `components/referencias` entró al alcance cuando se reescribió el panel: tenía
+ * TRES literales (`#ffffff` en el botón de acento, `#fff` en uno de resolver y
+ * un `rgba()` como fallback de `--shadow-sm`) en el elemento más llamativo del
+ * panel. No se agregaron porque "el panel está lleno" —una lista de exenciones
+ * es exactamente como muere un lint— sino porque se arreglaron y el alcance
+ * es lo que impide que vuelvan.
  * Ninguno de los dos está en una lista de exenciones del lint, y ninguno puede
  * crecer sin que una cuenta se mueva.
  */
@@ -98,7 +105,7 @@ const NODE_URL = 'node:url';
 
 /* ── El alcance ──────────────────────────────────────────────────────────── */
 
-const DIRECTORIOS = ['components/shell', 'components/review', 'hooks'];
+const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'hooks'];
 const ARCHIVOS = [
   'components/export/ExportView.tsx',
   'components/toolbar/UnifiedToolbar.tsx',

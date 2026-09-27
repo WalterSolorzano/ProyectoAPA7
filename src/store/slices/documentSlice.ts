@@ -961,6 +961,10 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           doi_or_url: data.doi_or_url ?? doi,
           raw_text: data.apa_formatted ?? '',
           formatted_apa: data.apa_formatted ?? '',
+          /* Vino de CrossRef con este DOI: eso SÍ es haberla contrastado
+             contra una fuente, y es lo que muestra la etiqueta del panel. */
+          verificada: true,
+          fuente_verificacion: 'doi',
         });
         get().showToast('Referencia agregada desde DOI', 'success');
       } else {
@@ -1002,6 +1006,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           doi_or_url: r.doi_or_url ?? '',
           raw_text: r.apa_formatted ?? '',
           formatted_apa: r.apa_formatted ?? '',
+          verificada: true,
+          fuente_verificacion: 'doi',
         });
       }
       if (resueltas.length && !fallidas.length) {
@@ -1040,6 +1046,9 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           doi_or_url: ref.doi || '',
           raw_text: ref.formatted_apa,
           formatted_apa: ref.formatted_apa,
+          /* Salió de la búsqueda: el backend encontró la obra. Verificada. */
+          verificada: true,
+          fuente_verificacion: 'cruzada',
         };
         get().addReference(newRef);
         const extra = result.candidates.length > 1 ? ` (${result.candidates.length} resultados, se agregó el mejor match)` : '';

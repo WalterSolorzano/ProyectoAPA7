@@ -1,21 +1,157 @@
-﻿/* WordAPA7 — Panel de Referencias compacto (RightSidePanel, paso 5).
-   Mantiene el documento visible: la bibliografía se edita desde el panel
-   derecho mientras el canvas muestra el texto completo. */
+/* WordAPA7 — Panel de Referencias. Una sola tarea: sacar la bibliografía.
+ *
+ * Este panel se reescribió porque hacía TRES cosas y no sabía bien ninguna.
+ * El usuario pidió lo contrario de lo que había: no los datos, la bibliografía.
+ *
+ * LA JERARQUÍA, y por qué está en este orden:
+ *
+ *  1. Un campo y UN botón de acento. Pegar un bloque de DOIs es el 90% de los
+ *     casos y no necesita dos clicks ni una decisión. Antes el botón de acento
+ *     era "Auto-resolver citas con IA": la operación más lenta, la que más
+ *     chances tiene de fallar y la que casi nadie necesita, y era lo primero
+ *     que se veía. Lo primero que se ve tiene que ser lo que se quiere hacer.
+ *  2. Las otras dos acciones (auto-resolve, añadir a mano) no desaparecen: se
+ *     achican y bajan. Ocultar una capacidad para simplificar un panel es
+ *     cobrarle al usuario una función, y eso no es simplificar.
+ *  3. La lista. Es el entregable, así que va después del campo y no tiene nada
+ *     entre medio. La tarjeta de Validación con sus dos números grandes estaba
+ *     entre el campo y la lista: un diagnóstico que nadie pidió tapando lo que
+ *     sí. Ahora es una línea, y solo habla si hay algo que decir.
+ *  4. Cada fila es la REFERENCIA —el texto APA que va al documento— más una
+ *     palabra de estado. Los campos exactos (autores, año, DOI) están detrás de
+ *     un click porque son para quien verifica, no para quien lee.
+ *
+ * DOS REGLAS QUE NO SON COSMÉTICAS:
+ *
+ *  - La fila muestra `formatted_apa`, NO un texto compuesto en el render. El
+ *    componente anterior armaba `authors (year). title. source` y lo pintaba
+ *    como si fuera la referencia. Si el backend devuelve otra cosa —y la
+ *    devuelve: la elipsis de APA 7 de 21+ autores, la coma, el DOI normalizado—
+ *    el usuario lee una cosa y el documento recibe otra, y lo descubre en la
+ *    entrega. La fila ES lo que se va a escribir.
+ *  - "Verificada" / "Sin verificar". Sin esta etiqueta, una lista de referencias
+ *    verificadas contra CrossRef y una lista de referencias que el sistema
+ *    inventó se ven igual. El detalle de los campos lo da el click; la palabra
+ *    es lo que hay que ver sin click.
+ */
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2, Trash2, Sparkles, BookOpen } from 'lucide-react';
+import {
+  Search, Plus, AlertTriangle, Trash2, Sparkles, BookOpen,
+  ChevronRight, Link2,
+} from 'lucide-react';
 import { QuickReferenceSearch } from '../export/QuickReferenceSearch';
+
+/**
+ * El texto que va al documento. Sin último recurso que INVENTE: si no hay
+ * `formatted_apa` ni `raw_text`, se devuelve vacío y la fila lo dice. La
+ * alternativa —componer "Autor (s.f.)" en el render— es la que acaba de
+ * quitarse, y por lo mismo: la elipsis de APA, la coma y el DOI normalizado
+ * sólo los sabe armar el backend.
+ */
+function textoDeLaReferencia(referencia: any): string {
+  return (referencia?.formatted_apa || '').trim() || (referencia?.raw_text || '').trim();
+}
+
+/** Una palabra. Es una etiqueta, no un estado que haya que interpretar. */
+function estadoDeLaReferencia(referencia: any): { texto: string; color: string } {
+  return referencia?.verificada
+    ? { texto: 'Verificada', color: 'var(--color-success)' }
+    : { texto: 'Sin verificar', color: 'var(--text-muted)' };
+}
+
+/**
+ * Una fila: la referencia, su estado de una palabra, y el detalle a un click.
+ *
+ * El prop se llama `referencia` y no `ref` porque `ref` es un prop RESERVADO:
+ * React lo intercepta antes de que el componente lo vea, y un `Fila` con prop
+ * `ref` recibe `undefined` con un aviso de "Function components cannot be given
+ * refs" que en la consola se pasa de largo. Es el mismo nombre que la data y
+ * por eso choca.
+ */
+const Fila: React.FC<{
+  referencia: any;
+  numero: number;
+  seleccionado: boolean;
+  detalleAbierto: boolean;
+  onSelect: () => void;
+  onToggleDetalle: () => void;
+  onRemove: () => void;
+}> = ({ referencia, numero, seleccionado, detalleAbierto, onSelect, onToggleDetalle, onRemove }) => {
+  const estado = estadoDeLaReferencia(referencia);
+  const texto = textoDeLaReferencia(referencia);
+  return (
+    <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+      <div
+        onClick={onSelect}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: '7px',
+          padding: '8px 12px', cursor: 'pointer',
+          backgroundColor: seleccionado ? 'var(--color-accent-soft)' : 'transparent',
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--text-main)', fontFamily: "'Times New Roman', serif" }}>
+          <span style={{ color: 'var(--text-muted)' }}>{numero}. </span>
+          {texto || (
+            <span style={{ color: 'var(--color-warning)' }}>
+              Sin texto: agregale el autor, el año o el título.
+            </span>
+          )}
+          <span style={{ display: 'block', marginTop: '2px', fontFamily: 'inherit', fontSize: '10px', color: estado.color }}>
+            {estado.texto}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleDetalle(); }}
+          title="Ver campos"
+          aria-label={`Ver campos de la referencia ${numero}`}
+          aria-expanded={detalleAbierto}
+          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+        >
+          <ChevronRight size={12} style={{ transform: detalleAbierto ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Quitar referencia"
+          aria-label="Quitar referencia"
+          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+      {detalleAbierto && (
+        <div style={{ padding: '0 12px 9px 12px', fontSize: '10.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {referencia.authors?.length > 0 && (
+            <div><span style={{ color: 'var(--text-muted)' }}>Autores: </span>{referencia.authors.join('; ')}</div>
+          )}
+          {referencia.year && <div><span style={{ color: 'var(--text-muted)' }}>Año: </span>{referencia.year}</div>}
+          {referencia.title && <div><span style={{ color: 'var(--text-muted)' }}>Título: </span>{referencia.title}</div>}
+          {referencia.source && <div><span style={{ color: 'var(--text-muted)' }}>Fuente: </span>{referencia.source}</div>}
+          {referencia.doi_or_url && <div><span style={{ color: 'var(--text-muted)' }}>DOI/URL: </span>{referencia.doi_or_url}</div>}
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Estado: </span>
+            {estado.texto}
+            {!referencia.verificada && ' — nadie la contrastó contra una fuente.'}
+            {referencia.fuente_verificacion && ` (${referencia.fuente_verificacion})`}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ReferencesPanel: React.FC = () => {
   const {
     references, selectedReferenceId, setSelectedReferenceId,
     addReference, removeReference, resolveDoisBlock, isLoading,
-    citationAuditResult, runCitationAudit, setValidatorOpen, resolveGhostCitation, autoResolveAllGhostCitations,
+    citationAuditResult, runCitationAudit, autoResolveAllGhostCitations,
   } = useDocStore();
 
   const [rawInput, setRawInput] = useState('');
-  const [resolving, setResolving] = useState<number | null>(null);
+  const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
 
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
@@ -37,78 +173,87 @@ export const ReferencesPanel: React.FC = () => {
     if (!rawInput.trim()) return;
     const id = `manual-${Date.now()}`;
     addReference({
-      id, authors: ['Autor'], year: '2026', title: 'Título', source: 'Fuente',
+      id,
+      authors: [], year: '', title: '', source: '',
       raw_text: rawInput.trim(), formatted_apa: rawInput.trim(),
-    });
+      /* Agregarla a mano NO la verifica. Es lo que escribe la persona, sin
+         contrastar contra nada, y decirlo es justamente el punto de la
+         etiqueta. */
+      verificada: false,
+    } as never);
     setRawInput('');
     setSelectedReferenceId(id);
   };
 
   /** El backend puede devolver la cita como string o dict (model_dump). */
-function ghostText(g: unknown): string {
-  if (g == null) return '';
-  if (typeof g === 'string') return g;
-  const o = g as any;
-  return (
-    o.raw_text ||
-    o.formatted_apa ||
-    [o.authors?.join?.(', '), o.year ? `(${o.year})` : '', o.title].filter(Boolean).join(' ').trim() ||
-    o.citation || ''
-  );
-}
+  function ghostText(g: unknown): string {
+    if (g == null) return '';
+    if (typeof g === 'string') return g;
+    const o = g as any;
+    return (
+      o.raw_text ||
+      o.formatted_apa ||
+      [o.authors?.join?.(', '), o.year ? `(${o.year})` : '', o.title].filter(Boolean).join(' ').trim() ||
+      o.citation || ''
+    );
+  }
 
-const handleResolveGhost = async (i: number) => {
-    setResolving(i);
-    try {
-      await resolveGhostCitation([ghostText(ghosts[i]).replace(/[()]/g, '').split(',')[0]?.trim() || 'Autor'], String(ghosts[i]).match(/\b(19|20)\d{2}\b/)?.[0] || '');
-    } catch {
-      useDocStore.getState().showToast('No se pudo resolver esa cita', 'warning');
-    } finally {
-      setResolving(null);
-    }
+  /* Ordenar por lo que FALTA mandaba al medio de la lista justo a las
+     referencias peor formateadas, que son las que más hay que encontrar. Ahora
+     la clave es el apellido, y las que no lo tienen van DESPUÉS, con un
+     separador: al final de la lista, que es donde el .docx las pone también.
+
+     Y van detrás, no desaparecidas. Una versión intermedia de este arreglo las
+     contaba en una línea y no las pintaba, que es el mismo error mudado de
+     lugar —esconder al lado de donde hay que mirarlo— con todo el daño
+     funcional y la mitad del visual. */
+  const conApellido = references.filter((r: any) => (r.authors?.[0] || '').trim());
+  const sinApellido = references.filter((r: any) => !(r.authors?.[0] || '').trim());
+  const sorted = [...conApellido].sort((a: any, b: any) =>
+    (a.authors[0] || '').toLowerCase().localeCompare((b.authors[0] || '').toLowerCase()),
+  );
+
+  const hayProblemas = ghostsUnique(ghosts).length > 0 || orphans.length > 0;
+
+  /* El dedupe visual por (autor, año) vive acá y no como efecto suelto: el
+     backend puede repetir la misma cita N veces y contarlas N veces hace que la
+     línea diga "3 citas sin referencia" cuando hay una. */
+  function ghostsUnique(lista: any[]): any[] {
+    const vistos = new Set<string>();
+    return lista.filter((g: any) => {
+      const s = typeof g === 'string' ? g : String(g?.raw_text || g?.formatted_apa || '');
+      const k = `${s.replace(/[()]/g, '').split(',')[0]?.trim().toLowerCase()}|${s.match(/\b(19|20)\d{2}\b/)?.[0]}`;
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+  }
+  const ghostsDistintas = ghostsUnique(ghosts);
+
+  /* Botón que CORRE la auditoría, no que abre un validador.
+     `setValidatorOpen(true)` se usaba acá y no abre nada: `validatorOpen` se
+     escribe y ningún componente lo lee — el modal se sacó a propósito y hay un
+     test (`layout.test.tsx`) que prohíbe que vuelva a renderizarse desde este
+     paso, pero el flag, el botón del panel y la entrada del CommandPalette
+     quedaron vivos. Dos de tres ya son código muerto; este no lo va a ser. */
+  const correrAuditoria = () => {
+    if (!citationAuditResult) runCitationAudit();
   };
 
-  // Dedupe visual por (autor, año): el backend puede repetir la misma cita N veces.
-  const seenGhost = new Set<string>();
-  const ghostsUnique = ghosts.filter((g: any) => {
-    const s = typeof g === 'string' ? g : String(g?.raw_text || g?.formatted_apa || '');
-    const k = `${s.replace(/[()]/g,'').split(',')[0]?.trim().toLowerCase()}|${s.match(/\b(19|20)\d{2}\b/)?.[0]}`;
-    if (seenGhost.has(k)) return false; seenGhost.add(k); return true;
+  const filaProps = (referencia: any, numero: number) => ({
+    key: referencia.id,
+    referencia,
+    numero,
+    seleccionado: referencia.id === selectedReferenceId,
+    detalleAbierto: detalleAbierto === referencia.id,
+    onSelect: () => setSelectedReferenceId(referencia.id),
+    onToggleDetalle: () => setDetalleAbierto(detalleAbierto === referencia.id ? null : referencia.id),
+    onRemove: () => removeReference(referencia.id),
   });
-
-  const sorted = [...references].sort((a, b) =>
-    (a.authors?.[0] || a.title || a.raw_text || '').toLowerCase().localeCompare((b.authors?.[0] || b.title || b.raw_text || '').toLowerCase()),
-  );
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      {/* Botón estelar: 1-Click Auto-resolver todas las referencias con IA */}
-      <button
-        type="button"
-        onClick={() => autoResolveAllGhostCitations()}
-        disabled={isLoading}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          padding: '9px 12px',
-          fontSize: '12px',
-          fontWeight: 700,
-          color: '#ffffff',
-          backgroundColor: 'var(--accent-primary)',
-          border: 'none',
-          borderRadius: 'var(--radius-md, 6px)',
-          cursor: 'pointer',
-          boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
-          width: '100%',
-          transition: 'all 0.15s ease',
-        }}
-      >
-        <Sparkles size={14} />
-        <span>Auto-resolver citas con IA</span>
-      </button>
-      {/* Buscador DOI / manual */}
+      {/* ── 1. LA ACCIÓN. Un campo, un botón de acento. ─────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '5px 9px', backgroundColor: 'var(--canvas-bg)' }}>
           <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -121,154 +266,125 @@ const handleResolveGhost = async (i: number) => {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResolveDoi(); }
             }}
-            rows={3}
-            placeholder="DOI o varios, uno por línea: 10.1038/s41586-020-2649-2"
+            rows={2}
+            placeholder="Pegá tus DOI, uno por línea"
             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: '12px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit', resize: 'vertical' }}
           />
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        {/* `data-accion="principal"` no es decoración: es lo que el test mide
+            para verificar que la acción de acento es una sola y es la de
+            pegar. Antes había dos, y la que ganaba era la de la IA. */}
+        <div data-accion="principal" style={{ display: 'flex' }}>
           <button type="button" onClick={handleResolveDoi} disabled={isLoading || !rawInput.trim()} className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
-            <Search size={12} /> {isLoading ? 'Buscando…' : 'Resolver DOI'}
-          </button>
-          <button type="button" onClick={handleAddManual} disabled={!rawInput.trim()} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <Plus size={12} /> Manual
+            <Search size={12} /> {isLoading ? 'Buscando…' : 'Resolver'}
           </button>
         </div>
-      </div>
-
-      {/* Validación de citas */}
-      <div style={{
-        border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-        backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-          <Link2 size={13} color="var(--accent-secondary)" />
-          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Validación</span>
-          <div style={{ flex: 1 }} />
-          {/* F4: El botón "Abrir validador" siempre está disponible.
-              Si no hay auditoría previa, la dispara al abrir. */}
+        {/* ── 2. Las otras dos, chicas y abajo. No se quitan. ─────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
-            onClick={() => {
-              if (!citationAuditResult) {
-                runCitationAudit();
-              }
-              setValidatorOpen(true);
-            }}
+            onClick={handleAddManual}
+            disabled={!rawInput.trim()}
             className="btn btn-ghost btn-sm"
-            style={{ fontSize: '10px', color: 'var(--accent-primary)' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-muted)' }}
           >
-            Abrir validador
+            <Plus size={11} /> Añadir a mano
+          </button>
+          <button
+            type="button"
+            onClick={() => autoResolveAllGhostCitations()}
+            disabled={isLoading}
+            className="btn btn-ghost btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-muted)' }}
+          >
+            <Sparkles size={11} /> Auto-resolver con IA
           </button>
         </div>
-
-        {!citationAuditResult ? (
-          <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Abre el validador para correr una auditoría y cruzar las citas del texto contra la bibliografía.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: '6px', padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: ghosts.length > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{ghostsUnique.length}</div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Citas sin referencia</div>
-              </div>
-              <div style={{ width: '1px', backgroundColor: 'var(--border-subtle)' }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: orphans.length > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>{orphans.length}</div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Refs sin cita</div>
-              </div>
-            </div>
-
-            {ghosts.length > 0 && (
-              <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {ghosts.slice(0, 5).map((g, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <AlertTriangle size={12} color="var(--color-warning)" style={{ flexShrink: 0 }} />
-                    <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ghostText(g).slice(0, 70)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleResolveGhost(i)}
-                      disabled={resolving === i}
-                      style={{
-                        flexShrink: 0, fontSize: '10px', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer',
-                        background: 'var(--color-success)', color: '#fff', border: 'none', fontWeight: 600, fontFamily: 'inherit',
-                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                      }}
-                    >
-                      {resolving === i ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={10} />}
-                      Resolver
-                    </button>
-                  </div>
-                ))}
-                {ghosts.length > 5 && (
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>y {ghosts.length - 5} más…</div>
-                )}
-              </div>
-            )}
-
-            {ghosts.length === 0 && (
-              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '7px', fontSize: '11px', color: 'var(--color-success)' }}>
-                <CheckCircle2 size={13} /> Todas las citas coinciden con la bibliografía.
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Búsqueda de citas faltantes en Crossref (temprano, sin esperar al túnel) */}
+      {/* ── 3. VALIDACIÓN. Una línea, y solo si hay algo que decir. ────────────
+          Antes era una tarjeta con dos números de 18px, y estaba entre el campo
+          y la lista. Con todo en cero no informa nada y empuja el entregable
+          hacia abajo; con algo roto, dos contadores grandes le hacen al
+          usuario descifrar cuál le importa. Ahora: una frase, o nada. */}
+      {citationAuditResult && hayProblemas && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '7px',
+          padding: '8px 10px', borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-elevated)',
+        }}>
+          <AlertTriangle size={12} color="var(--color-warning)" style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>
+            {ghostsDistintas.length > 0 && (
+              <>{ghostsDistintas.length} {ghostsDistintas.length === 1 ? 'cita sin referencia' : 'citas sin referencia'}</>
+            )}
+            {ghostsDistintas.length > 0 && orphans.length > 0 && ' · '}
+            {orphans.length > 0 && (
+              <>{orphans.length} {orphans.length === 1 ? 'referencia sin citar' : 'referencias sin citar'}</>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={correrAuditoria}
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0 }}
+          >
+            Resolver
+          </button>
+        </div>
+      )}
+
       {ghosts.length > 0 && <QuickReferenceSearch />}
 
-      {/* Lista de referencias */}
+      {/* ── 4. LA LISTA. El entregable. ──────────────────────────────────────── */}
       <div style={{
         border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
         backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
           <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Referencias</span>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>· {sorted.length}</span>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>· {references.length}</span>
+          {references.length > 0 && <div style={{ flex: 1 }} />}
+          {references.length > 0 && (
+            /* Un botón que hace algo: corre la auditoría de citas. Antes este
+               encabezado llevaba un "Abrir validador" que no abría nada. */
+            <button
+              type="button"
+              onClick={correrAuditoria}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: '10px', color: 'var(--text-muted)' }}
+            >
+              <Link2 size={11} /> Validar
+            </button>
+          )}
         </div>
-        {sorted.length === 0 ? (
+
+        {references.length === 0 ? (
           <div style={{
             padding: '24px 14px', fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.5,
             textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
           }}>
             <BookOpen size={24} color="var(--text-muted)" style={{ opacity: 0.6 }} />
-            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '12px' }}>Aún no hay referencias en la lista</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '12px' }}>Tu bibliografía aparece acá</span>
             <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-              Pegá un DOI (ej. 10.1016/...) o una cita cruda en el buscador para resolverla automáticamente.
+              Pegá un DOI —o varios, uno por línea— y se arma solo.
             </span>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '320px', overflowY: 'auto' }}>
-            {sorted.map((ref, i) => (
-              <div
-                key={ref.id}
-                onClick={() => setSelectedReferenceId(ref.id)}
-                style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '7px',
-                  padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)',
-                  cursor: 'pointer',
-                  backgroundColor: ref.id === selectedReferenceId ? 'var(--color-accent-soft)' : 'transparent',
-                }}
-              >
-                <span style={{ flex: 1, minWidth: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--text-main)', fontFamily: "'Times New Roman', serif" }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{i + 1}. </span>
-                  {ref.authors?.join(', ') || 'Autor'} ({ref.year || 's.f.'}). {ref.title ? <em>{ref.title}.</em> : ''} {ref.source || ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); removeReference(ref.id); }}
-                  title="Quitar referencia"
-                  aria-label="Quitar referencia"
-                  style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' }}>
+            {sorted.map((referencia: any, i: number) => (
+              <Fila {...filaProps(referencia, i + 1)} />
             ))}
+            {sinApellido.length > 0 && (
+              <>
+                <div style={{ padding: '7px 12px 4px', fontSize: '10px', color: 'var(--text-muted)', backgroundColor: 'var(--canvas-bg)' }}>
+                  Sin autor ({sinApellido.length}) — van al final de la lista en el documento
+                </div>
+                {sinApellido.map((referencia: any, i: number) => (
+                  <Fila {...filaProps(referencia, sorted.length + i + 1)} />
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>

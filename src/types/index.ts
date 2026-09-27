@@ -308,6 +308,15 @@ export interface ReferenciaModel {
   formatted_apa?: string;
   cited_count?: number;
   never_cited?: boolean;
+  /** ¿Alguien la contrastó contra una fuente? Por defecto NO: una bibliografía
+   *  que ya venía en el .docx no fue verificada contra nada. Sólo un resolutor
+   *  real (DOI contra CrossRef, o una búsqueda que devolvió la obra) lo pone en
+   *  `true`; agregarla a mano no la verifica. El panel muestra una etiqueta con
+   *  esto, porque sin ella una lista bien formateada y una lista inventada por
+   *  el sistema se ven igual. */
+  verificada?: boolean;
+  /** De dónde salió la verificación: "doi", "cruzada", "isbn". */
+  fuente_verificacion?: string;
 }
 
 // ── CITATIONS ─────────────────────────────────────────────────────────────────

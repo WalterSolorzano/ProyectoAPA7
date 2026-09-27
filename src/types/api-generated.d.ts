@@ -496,6 +496,8 @@ export interface ReferenciaModel {
   formatted_apa?: string | null
   cited_count?: number
   never_cited?: boolean
+  verificada?: boolean
+  fuente_verificacion?: string | null
 }
 
 export interface ReorderElementsRequest {
