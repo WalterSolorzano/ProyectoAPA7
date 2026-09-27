@@ -1,4 +1,4 @@
-"""
+﻿"""
 WordAPA7 — Router del Word Add-in (Office.js) — Asistente en Vivo
 
 Endpoints específicos para el Task Pane que vive dentro de Microsoft Word.
@@ -40,6 +40,7 @@ Endpoints:
 """
 
 import re
+import httpx
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -1545,3 +1546,89 @@ async def scoped_apply_live(req: ScopedApplyLiveRequest) -> dict:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en scoped_apply_live: {e}")
 
+# ── Resolucion de DOI ────────────────────────────────────────────────────────
+# El store crea referencias "fantasma" con `is_draft: True` cuando detecta una
+# cita, y su propio comentario decia que el usuario podria resolver el DOI
+# despues. Este endpoint es ese "despues": el usuario pega un DOI o un link y
+# recibe la referencia APA 7, con la opcion de guardarla.
+#
+# NO es un detector de plagio: de un DOI sale metadata, no el texto de la
+# fuente. Ver la nota de R-G74 en `modules/phase_scope`.
+
+class ResolveDoiRequest(BaseModel):
+    doi: str
+    guardar: bool = True
+
+
+@router.post("/resolve-doi")
+async def resolve_doi(req: ResolveDoiRequest) -> dict:
+    """Resuelve un DOI contra CrossRef y devuelve la referencia APA 7.
+
+    CrossRef es gratis y no pide key. El `mailto` del User-Agent es el "polite
+    pool": mas lento para ellos, mas estable para nosotros.
+    """
+    from modules.doi_resolver import (
+        crossref_to_reference,
+        crossref_url,
+        normalize_doi,
+    )
+
+    doi = normalize_doi(req.doi)
+    if not doi:
+        # Distinto de un 404 de CrossRef: aca el usuario pego otra cosa (un link
+        # de Google Scholar, de la editorial) y hay que decirle eso, no mostrarle
+        # un error de red.
+        raise HTTPException(status_code=400, detail={
+            "codigo": "no_es_doi",
+            "mensaje": "Eso no parece un DOI. Se aceptan 10.xxxx/yyy, "
+                       "doi:10.xxxx/yyy o https://doi.org/10.xxxx/yyy.",
+        })
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
+            r = await c.get(
+                crossref_url(doi),
+                headers={"User-Agent": "WordAPA7/1.0 (mailto:soporte@wordapa7.app)",
+                         "Accept": "application/json"},
+            )
+    except Exception as e:  # noqa: BLE001
+        # Red caida no es "no existe": son dos respuestas distintas para la
+        # persona, y confundirlas la hace creer que la obra no existe.
+        raise HTTPException(status_code=502, detail={
+            "codigo": "crossref_no_responde",
+            "mensaje": f"No se pudo consultar CrossRef: {e}",
+        })
+
+    if r.status_code == 404:
+        raise HTTPException(status_code=404, detail={
+            "codigo": "no_resuelto",
+            "mensaje": f"CrossRef no conoce el DOI {doi}. Revisa que no le falte "
+                       f"ni le sobre un caracter.",
+        })
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail={
+            "codigo": "crossref_error",
+            "mensaje": f"CrossRef respondio {r.status_code}.",
+        })
+
+    try:
+        work = r.json().get("message") or {}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail={
+            "codigo": "crossref_respuesta_ilegible",
+            "mensaje": f"CrossRef devolvio algo que no es JSON: {e}",
+        })
+
+    ref = crossref_to_reference(work)
+    guardada = False
+    if req.guardar and (ref["title"] or ref["authors"]):
+        from modules.addin_references_store import save_reference
+        try:
+            save_reference(ref)
+            guardada = True
+        except Exception:
+            # Se devuelve la referencia igual: perder el DOI resuelto porque el
+            # store fallo seria peor que no guardarlo.
+            guardada = False
+
+    return {"doi": doi, "reference": ref, "guardada": guardada}

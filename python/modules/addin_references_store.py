@@ -33,6 +33,10 @@ from config import STORAGE_DIR
 # ── RUTA DEL STORE ────────────────────────────────────────────────────────────
 
 _REFS_DIR = STORAGE_DIR / "references"
+# Sentinel de la elipsis de APA 7 (21+ autores: los primeros 19, "...", el
+# ultimo). No es la palabra "et al." justamente para que el formateador no la
+# trate como un apellido mas.
+APA_ELLIPSIS = "..."
 _REFS_FILE = _REFS_DIR / "addin_references.json"
 
 _LOCK = threading.Lock()
@@ -271,6 +275,13 @@ def _format_authors_apa(authors: List[str]) -> str:
         return cleaned[0]
     if len(cleaned) == 2:
         return f"{cleaned[0]}, & {cleaned[1]}"
+    # Elipsis de APA 7 (21+ autores): la marca el resolvedor con un sentinel,
+    # no con la palabra "et al.", que se comia el "&" que esta misma funcion
+    # pone antes del ultimo y producia "A., & et al.".
+    if APA_ELLIPSIS in cleaned:
+        # Se INCLUYE la elipsis: APA 7 la muestra, no la omite. Y sin "&" antes
+        # del ultimo, que es lo que produce el "& et al." que se vio.
+        return ", ".join(cleaned)
     # 3+
     return ", ".join(cleaned[:-1]) + ", & " + cleaned[-1]
 
