@@ -10,8 +10,10 @@
  * conteo, un porcentaje, un "corregiste N cosas") rompe esa igualdad. Se
  * afirma sobre `document.body`, no sobre la columna, para que un recap en un
  * hermano o en un portal tambien la rompa, y se agrega que ningun `title` ni
- * `aria-label` de la columna tenga un digito (el conteo que solo oye el
- * lector de pantalla). La version del brief (un grep de tres frases) solo
+ * `aria-label` del mismo cuerpo tenga un digito (el conteo que solo oye el
+ * lector de pantalla). T20: esa segunda comprobacion se quedaba en la columna
+ * mientras la primera ya miraba el body, y esa diferencia de alcance era un
+ * agujero. La version del brief (un grep de tres frases) solo
  * detectaba esas tres frases literales, y una vista que los repitiera con
  * otra redaccion pasaba.
  *
@@ -138,8 +140,12 @@ describe('T17 — ExportView: la columna final', () => {
 
     /* Y los canales que solo lee el lector de pantalla: un `title=` o un
        `aria-label=` con un numero esconde el conteo a la vista y se lo
-       anuncia a ciegas. Tampoco puede haberlos. */
-    const conCifras = Array.from(columna().querySelectorAll('[title], [aria-label]'))
+       anuncia a ciegas. T20: esto se afirmaba sobre la COLUMNA mientras el
+       texto de arriba ya se afirmaba sobre `document.body`, así que un recap
+       montado en un hermano —o en un portal— con el número escondido en un
+       `title` pasaba las dos. Ahora las dos afirmaciones miran lo mismo: TODO
+       el body. */
+    const conCifras = Array.from(document.body.querySelectorAll('[title], [aria-label]'))
       .map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`)
       .filter((texto) => /\d/.test(texto));
     expect(conCifras).toEqual([]);

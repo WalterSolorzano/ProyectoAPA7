@@ -80,17 +80,33 @@ describe('T10 — usePageIndex', () => {
     expect(idx.pageOf('b0')).toBe(2);
   });
 
-  it('la densidad es la hoja real, y contra el lienzo medido se ve la deriva', () => {
-    // 1) El presupuesto del índice es el de la hoja real, no el 14 por defecto.
-    //    20 párrafos de una unidad entran en una Letter (28 unidades).
+  /* T20: estas tres afirmaciones vivían dentro de un solo `it`, y eso las
+     dejaba sin nombre: la cuenta de páginas del índice se afirmaba en la
+     primera línea, veinte líneas más arriba del aviso que explica qué pasa si
+     la calibración de `computePages` cambia. Un test que empaqueta tres reglas
+     tiene una de ellas que se lee con el pie de otra. Ahora cada una es un
+     `it` con su propio marcador, y el que puede ENCENDERSE dice por qué. */
+
+  it('el presupuesto del índice es el de la hoja real, no el 14 por defecto', () => {
+    // CENTINELA. 20 párrafos de una unidad entran en una Letter (28 unidades).
+    // Es la primera afirmación y la que se rompe si el presupuesto de la hoja
+    // cambia de 28 a otra cosa: si esto falla, la deriva de abajo es consecuencia
+    // y no causa.
     const veinte = Array.from({ length: 20 }, (_, i) => parrafo(`d${i}`));
     const idx = buildPageIndex(veinte, { rules: rulesLetter });
     expect(idx.totalPages).toBe(1);
     expect(idx.pageOf('d19')).toBe(1);
+  });
 
-    // 2) MISMO documento, paginado como lo hace el lienzo (con alturas medidas):
-    //    el índice no ve esas alturas, así que cuenta MENOS páginas. Esto no es
-    //    un caso exótico de párrafos gigantes: pasa con prosa de 100 caracteres.
+  it('contra el lienzo medido, el índice cuenta la mitad de las páginas', () => {
+    /* ESTA es la deriva, medida y documentada (Task 10b la calibra). No es un
+       caso exótico de párrafos gigantes: pasa con prosa de 100 caracteres.
+
+       Y el CENTINELA de esta aserción: si alguien calibra las unidades de
+       `computePages` (hoy 1 unidad ≈ 2 líneas contra 34px de presupuesto), esta
+       desigualdad tiene que ENCENDERSE y el arreglo reescribir el test. No se
+       deja pasar en silencio. Si algún día deja de encenderse porque el índice
+       ya ve las alturas, el arreglo es borrar esta prueba, no relajarla. */
     const elementos = Array.from({ length: 28 }, (_, i) => parrafo(`p${i}`));
     const conMedicion = computeRenderedPages({
       elements: elementos,
@@ -100,15 +116,23 @@ describe('T10 — usePageIndex', () => {
     const idxMedido = buildPageIndex(elementos, { rules: rulesLetter });
 
     expect(idxMedido.totalPages).toBeLessThan(conMedicion.length);
-    // La deriva es de ~2x, no de un detalle: el índice se queda con la mitad de
-    // las páginas que el lienzo dibuja. Si alguien calibra las unidades de
-    // `computePages` (hoy 1 unidad ≈ 2 líneas contra 34px de presupuesto), esta
-    // aserción tiene que ENCENDERSE y el arreglo reescribir el test: no se
-    // deja pasar en silencio.
+    const deriva = conMedicion.length / idxMedido.totalPages;
     expect(conMedicion.length).toBeGreaterThanOrEqual(2 * idxMedido.totalPages);
+    // Que quede el número a la vista: "la mitad" es una frase, esto es una cuenta.
+    expect(deriva).toBeGreaterThan(1.5);
+  });
 
-    // 3) La deriva es SOLO la falta de alturas: con las mismas alturas, el índice
-    //    reproduce página por página lo que dibuja el lienzo.
+  it('la deriva es SOLO la falta de alturas medidas', () => {
+    /* Con las mismas alturas, el índice reproduce página por página lo que
+       dibuja el lienzo. Esto es lo que separa "el índice va por detrás" de "el
+       índice cuenta otra cosa": si esta tercera afirmación falla, el problema no
+       son las alturas que no ve, sino el reparto. */
+    const elementos = Array.from({ length: 28 }, (_, i) => parrafo(`p${i}`));
+    const conMedicion = computeRenderedPages({
+      elements: elementos,
+      rules: rulesLetter,
+      heights: alturasComoElDom(elementos, rulesLetter),
+    }).pages;
     const idxConAlturas = buildPageIndex(elementos, {
       rules: rulesLetter,
       heights: alturasComoElDom(elementos, rulesLetter),
