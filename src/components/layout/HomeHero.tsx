@@ -139,9 +139,8 @@ interface StarDot {
   speed: number;
 }
 
-/** Un objeto de luz cruzando el cielo. Antes también había personajes aquí. */
-interface LuzEnElCielo {
-  type: 'shooting' | 'satellite' | null;
+interface EasterEggState {
+  type: 'ufo' | 'shooting' | 'plane' | 'balloon' | 'lightning' | 'satellite' | null;
   x: number;
   y: number;
   progress: number; // 0..1
@@ -163,10 +162,9 @@ function isNightSlot(slot: TimeSlot) {
   return slot === 'noche' || slot === 'madrugada';
 }
 
-/* `isDaySlot` se fue con los personajes: solo servía para decidir si el cielo
-   llevaba un avión de papel o un globo. Borrar una función y dejar su hermana
-   huérfana es dejar código muerto con nombre de código vivo, y el próximo que
-   lea el archivo cuenta con un hijo que ya no tiene. */
+function isDaySlot(slot: TimeSlot) {
+  return slot === 'manana' || slot === 'mediodia' || slot === 'tarde';
+}
 
 // ─── Drawing helpers ──────────────────────────────────────────────────────────
 
@@ -333,22 +331,34 @@ function drawVignette(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillRect(0, 0, w, h);
 }
 
-// ─── Objetos de luz en el cielo ──────────────────────────────────────────────
-//
-// Lo que queda aquí son las dos cosas que se leen como LUZ: una estrella fugaz
-// y un satélite. Se quedan porque son geometría pura —una línea, un punto, un
-// cuerpo con dos alas rectas— y no tienen intención.
-//
-// Lo que se fue, en esta misma sección, era lo otro: un ovni con cabina y
-// luces de colores, un globo aerostático con cesta, un avión de papel con
-// pliegue y un rayo sobre una nube con gesto. Los cuatro son objetos con
-// intención, los cuatro son personajes, y un personaje animado no se vuelve
-// cinematográfico poniéndole otra forma. El usuario lo identificó al mirar la
-// pantalla: "se ve demasiado de niño".
-//
-// La luna y las nubes se quedan arriba, con `drawStars` y `drawSolCinematico`:
-// no son personajes, son estructura. Un cielo sin luna ni nubes es un rectángulo
-// con un sol.
+// ─── Easter egg drawing ───────────────────────────────────────────────────────
+
+function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  // Body ellipse
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 26, 10, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#b0bec5';
+  ctx.fill();
+  ctx.strokeStyle = '#78909c';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Dome
+  ctx.beginPath();
+  ctx.ellipse(0, -7, 14, 10, 0, Math.PI, Math.PI * 2);
+  ctx.fillStyle = '#80deea';
+  ctx.fill();
+  // Lights underneath
+  const lightColors = ['#ffee58', '#ef5350', '#66bb6a'];
+  lightColors.forEach((c, i) => {
+    ctx.beginPath();
+    ctx.arc(-12 + i * 12, 6, 3, 0, Math.PI * 2);
+    ctx.fillStyle = c;
+    ctx.fill();
+  });
+  ctx.restore();
+}
 
 function drawShootingStar(ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) {
   const len = 90 * (1 - progress * 0.4);
@@ -366,6 +376,92 @@ function drawShootingStar(ctx: CanvasRenderingContext2D, x: number, y: number, p
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#90caf9';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(20, 0);
+  ctx.lineTo(-14, -10);
+  ctx.lineTo(-8, 0);
+  ctx.lineTo(-14, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Wing crease
+  ctx.beginPath();
+  ctx.moveTo(-8, 0);
+  ctx.lineTo(20, 0);
+  ctx.strokeStyle = '#90caf9';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawHotAirBalloon(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  // Balloon
+  const bg = ctx.createRadialGradient(-8, -18, 4, 0, -15, 28);
+  bg.addColorStop(0, '#ef5350');
+  bg.addColorStop(0.5, '#ffa726');
+  bg.addColorStop(1, '#ffee58');
+  ctx.beginPath();
+  ctx.arc(0, -18, 26, 0, Math.PI * 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  // Stripes
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+  ctx.lineWidth = 2;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 9, -44);
+    ctx.lineTo(i * 6, 8);
+    ctx.stroke();
+  }
+  // Ropes
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-12, 6);
+  ctx.lineTo(-8, 18);
+  ctx.moveTo(12, 6);
+  ctx.lineTo(8, 18);
+  ctx.stroke();
+  // Basket
+  ctx.fillStyle = '#8d6e63';
+  ctx.fillRect(-10, 18, 20, 12);
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-10, 18, 20, 12);
+  ctx.restore();
+}
+
+function drawLightningCloud(ctx: CanvasRenderingContext2D, x: number, y: number, flash: boolean) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#546e7a';
+  ctx.beginPath();
+  ctx.arc(0, 0, 20, 0, Math.PI * 2);
+  ctx.arc(18, 4, 15, 0, Math.PI * 2);
+  ctx.arc(-18, 4, 15, 0, Math.PI * 2);
+  ctx.fill();
+  // Lightning bolt
+  ctx.fillStyle = flash ? '#ffee58' : '#ffd740';
+  ctx.beginPath();
+  ctx.moveTo(4, 12);
+  ctx.lineTo(-4, 26);
+  ctx.lineTo(2, 26);
+  ctx.lineTo(-6, 42);
+  ctx.lineTo(10, 22);
+  ctx.lineTo(4, 22);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 
@@ -462,8 +558,8 @@ export const HomeHero: React.FC = () => {
     };
     const stars = buildStars(80);
 
-    // El objeto de luz que está cruzando, si hay alguno.
-    const egg: LuzEnElCielo = {
+    // Easter egg state
+    const egg: EasterEggState = {
       type: null,
       x: 0,
       y: 0,
@@ -488,21 +584,48 @@ export const HomeHero: React.FC = () => {
     ];
 
     const spawnEgg = (ts: number) => {
-      /* Solo hay dos objetos de luz y los dos se ven a cualquier hora. Antes esta
-         función elegía según la banda: de noche un ovni o una estrella fugaz, de
-         día un avión de papel o un globo, y por la tarde además un rayo. Con los
-         personajes fuera, la elección por banda no tiene nada que repartir: dos
-         objetos que se ven siempre, y la sorpresa queda en cuál de los dos. */
-      egg.type = Math.random() < 0.4 ? 'shooting' : 'satellite';
+      if (isNightSlot(slot)) {
+        // Choose from night eggs
+        const types: EasterEggState['type'][] = ['ufo', 'shooting', 'satellite'];
+        egg.type = types[Math.floor(Math.random() * types.length)];
+      } else if (isDaySlot(slot)) {
+        const dayTypes: EasterEggState['type'][] = ['plane', 'balloon'];
+        if (slot === 'tarde') dayTypes.push('lightning');
+        egg.type = dayTypes[Math.floor(Math.random() * dayTypes.length)];
+      } else if (slot === 'amanecer') {
+        egg.type = Math.random() < 0.5 ? 'shooting' : 'satellite';
+      } else {
+        egg.type = 'satellite';
+      }
 
       const w = canvas.width;
       const h = canvas.height;
 
       switch (egg.type) {
+        case 'ufo':
+          egg.x = w + 40;
+          egg.y = h * (0.1 + Math.random() * 0.25);
+          egg.duration = 9000;
+          break;
         case 'shooting':
           egg.x = w * (0.3 + Math.random() * 0.5);
           egg.y = h * (0.05 + Math.random() * 0.2);
           egg.duration = 1200;
+          break;
+        case 'plane':
+          egg.x = -40;
+          egg.y = h * (0.2 + Math.random() * 0.35);
+          egg.duration = 8000;
+          break;
+        case 'balloon':
+          egg.x = w * (0.25 + Math.random() * 0.5);
+          egg.y = h + 70;
+          egg.duration = 10000;
+          break;
+        case 'lightning':
+          egg.x = w * (0.2 + Math.random() * 0.6);
+          egg.y = h * (0.12 + Math.random() * 0.2);
+          egg.duration = 3500;
           break;
         case 'satellite':
           egg.x = -40;
@@ -520,9 +643,23 @@ export const HomeHero: React.FC = () => {
     const drawEgg = (ts: number) => {
       if (!egg.type) return;
       const w = canvas.width;
+      const h = canvas.height;
       egg.progress = Math.min(1, (ts - egg.startTs) / egg.duration);
 
       switch (egg.type) {
+        case 'ufo': {
+          const x = egg.x - egg.progress * (w + 80);
+          const bob = Math.sin(ts * 0.0015) * 6;
+          const alpha = egg.progress < 0.08
+            ? egg.progress / 0.08
+            : egg.progress > 0.92
+              ? (1 - egg.progress) / 0.08
+              : 1;
+          ctx.globalAlpha = alpha;
+          drawUFO(ctx, x, egg.y + bob);
+          ctx.globalAlpha = 1;
+          break;
+        }
         case 'shooting': {
           const fadeA = egg.progress < 0.1
             ? egg.progress / 0.1
@@ -533,6 +670,44 @@ export const HomeHero: React.FC = () => {
           const sy = egg.y + egg.progress * 90;
           ctx.globalAlpha = fadeA;
           drawShootingStar(ctx, sx, sy, egg.progress);
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'plane': {
+          const x = egg.x + egg.progress * (w + 80);
+          const bob = Math.sin(ts * 0.001) * 4;
+          const alpha = egg.progress < 0.05
+            ? egg.progress / 0.05
+            : egg.progress > 0.95
+              ? (1 - egg.progress) / 0.05
+              : 1;
+          ctx.globalAlpha = alpha;
+          drawPaperAirplane(ctx, x, egg.y + bob);
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'balloon': {
+          const y = egg.y - egg.progress * (h + 140);
+          const sway = Math.sin(ts * 0.0008) * 8;
+          const alpha = egg.progress < 0.06
+            ? egg.progress / 0.06
+            : egg.progress > 0.9
+              ? (1 - egg.progress) / 0.1
+              : 1;
+          ctx.globalAlpha = alpha;
+          drawHotAirBalloon(ctx, egg.x + sway, y);
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'lightning': {
+          const flash = Math.floor(ts * 0.003) % 5 === 0;
+          const alpha = egg.progress < 0.08
+            ? egg.progress / 0.08
+            : egg.progress > 0.85
+              ? (1 - egg.progress) / 0.15
+              : 1;
+          ctx.globalAlpha = alpha;
+          drawLightningCloud(ctx, egg.x, egg.y, flash);
           ctx.globalAlpha = 1;
           break;
         }
