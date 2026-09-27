@@ -25,8 +25,8 @@
 Cuatro entradas que el spec implica y que son las que más muerden a quien escribe una tesis. Cada una tiene su test en la tarea dueña.
 
 1. **Un párrafo de una sola oración corta** no es un error: R-G11 mide variación, y con menos de 4 oraciones no hay distribución que medir. Un σ sobre 2 oraciones marca todo lo que hay. → Task 2.
-2. **Una sigla usada sin definirse nunca** (R-G34) solo es un error en la **primera** aparición del documento. Marcarla en cada párrafo produce una和销售 de hallazgos idénticos. → Task 3.
-3. **"No 实/Pero/Además" repetidos** (R-G24) ya existe y es global. R-G63 es **frecuencia por mil palabras**, no repetición textual: dos "sin embargo" en un documento corto son normales y tres en 300 palabras no. El umbral tiene que depender del largo real. → Task 4.
+2. **Una sigla usada sin definirse nunca** (R-G34) solo es un error en la **primera** aparición del documento. Marcarla en cada párrafo produce una tanda de hallazgos idénticos. → Task 3.
+3. **"Sin embargo / Pero / Además" repetidos** (R-G24) ya existe y es global. R-G63 es **frecuencia por mil palabras**, no repetición textual: dos "sin embargo" en un documento corto son normales y tres en 300 palabras no. El umbral tiene que depender del largo real. → Task 4.
 4. **Un texto limpio no produce ningún hallazgo nuevo.** Si las ocho reglas+Fase 1 corren sobre un párrafo bien escrito, sale vacío. Una regla global que encuentra algo siempre es un falso positivo. → Task 1.
 
 ---
