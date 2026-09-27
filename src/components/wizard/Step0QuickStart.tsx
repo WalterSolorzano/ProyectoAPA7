@@ -376,14 +376,20 @@ export const Step0QuickStart: React.FC = () => {
   // El ancla es un flag global y este rail es su segundo escritor. Inicio no tiene
   // un panel que sobreviva a la pantalla, así que un pin puesto acá sería un
   // fantasma que aparece en el editor al abrir el siguiente documento. No se
-  // silencia el pin: se suelta al salir, que es lo que el editor no puede hacer
-  // porque su panel sí es persistente.
-  useEffect(
-    () => () => {
-      useDocStore.getState().setRailPinned(false);
-    },
-    [],
-  );
+  // silencia el pin: se suelta en los dos bordes.
+  //
+  // Los dos importan, y el de entrar es el que duele: toda fase del editor se
+  // ancla al hacer clic, así que `goHome` monta esta pantalla con el flag en true.
+  // Si solo se limpiara al salir, el rail llegaría con "Anclado" sin panel y el
+  // hover no cerraría nunca, porque `scheduleClose` no programa nada anclado.
+  useEffect(() => {
+    const soltar = () => {
+      const st = useDocStore.getState();
+      if (st.railPinned) st.setRailPinned(false);
+    };
+    soltar();
+    return soltar;
+  }, []);
 
   // El hover solo muestra el detalle; el clic es la acción deliberada.
   const handleHoverItem = useCallback(

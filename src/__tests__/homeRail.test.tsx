@@ -206,6 +206,23 @@ describe('T19 — rail de Inicio', () => {
     expect(screen.queryByTestId('rail-flyout')).toBeTruthy();
   });
 
+  it('si el pin venía del editor, Inicio entra con el pin suelto', async () => {
+    // Toda fase del editor se ancla al hacer clic (`AppShell.handleSelect`), así
+    // que volver con `goHome` monta Inicio con `railPinned` en true. Sin soltar
+    // el flag al entrar, el rail dibujaba "Anclado" sin panel y el hover no
+    // cerraba nunca: `scheduleClose` no programa nada mientras está anclado.
+    act(() => useDocStore.setState({ railPinned: true } as never));
+    await montarInicio();
+    expect(useDocStore.getState().railPinned).toBe(false);
+    expect(enRail().queryByRole('button', { name: 'Anclarado' })).toBeNull();
+    expect(enRail().getByRole('button', { name: 'Anclar panel' })).toBeTruthy();
+
+    fireEvent.mouseEnter(destino('Recientes'));
+    fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
+    await esperar(200);
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+  });
+
   it('al salir de Inicio suelta el ancla: no se la lleva al editor', async () => {
     // `railPinned` es global y este rail es su segundo escritor. Un pin puesto
     // acá significaba un panel que no seguía ahí y aparecía en el editor al
