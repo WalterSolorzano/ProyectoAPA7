@@ -7,7 +7,7 @@
    El estado del autoUpdater NO vive en useDocStore: sale de useUpdateStore,
    asi que la suscripcion al IPC y la condicion de "descargada" se leen de ahi. */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Home, Undo2, Redo2, Copy, Puzzle, Download, Settings, Sun, Moon } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useUpdateStore } from '../../store/useUpdateStore';
@@ -35,11 +35,15 @@ const itemStyle: React.CSSProperties = {
 };
 
 const Item = ({
-  label, onClick, children, disabled,
-}: { label: string; onClick: () => void; children?: React.ReactNode; disabled?: boolean }) => (
+  label, onClick, children, disabled, itemRef,
+}: {
+  label: string; onClick: () => void; children?: React.ReactNode;
+  disabled?: boolean; itemRef?: React.Ref<HTMLButtonElement>;
+}) => (
   <button
     type="button"
     role="menuitem"
+    ref={itemRef}
     disabled={disabled}
     onClick={onClick}
     style={{ ...itemStyle, color: disabled ? 'var(--color-text-tertiary)' : undefined }}
@@ -49,17 +53,36 @@ const Item = ({
   </button>
 );
 
-// Fila con panel: no es un comando, es el hueco del menu donde vive un control.
-// Lleva role="menuitem" y nombre accesible para que la lista de entradas sea
-// leible con lector de pantalla y para que se pueda auditar que sigue existiendo.
+/* Fila con panel: no es un comando, es el hueco del menu donde vive un control.
+   `role="none"` y NO `menuitem`: este <div> no es accionable ni enfocable, y un
+   menuitem que no se puede enfocar rompe el patrón de widget (el teclado
+   recorre el menu y se topa con algo que no responde). Como no puede ser
+   menuitem, su etiqueta va en un grupo con nombre: se sigue leyendo
+   "Puntuación APA" antes de los controles que hay debajo. */
 const Panel = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div role="menuitem" aria-label={label} style={{ padding: '4px 6px' }}>
+  <div role="group" aria-label={label} style={{ padding: '4px 6px' }}>
     {children}
   </div>
 );
 
+/** `role="menu"` no promete más de lo que cumple: las entradas son botones
+ *  enfocables con `role="menuitem"`, y al abrirse el foco entra en la primera
+ *  para que un usuario de teclado pueda recorrerlo. */
 export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
-  const st = useDocStore();
+  /* Suscripción por campo, no `useDocStore()` a secas: el menu abierto se
+     re-pinta con CADA escritura del store —incluidas las de un barrido de
+     proofreading que llegan en lote— y no lee nada más que estos ocho campos. */
+  const doc = useDocStore((s) => s.doc);
+  const historyIndex = useDocStore((s) => s.historyIndex);
+  const historyLength = useDocStore((s) => s.history.length);
+  const atHome = useDocStore((s) => s.atHome);
+  const theme = useDocStore((s) => s.theme);
+  const goHome = useDocStore((s) => s.goHome);
+  const undo = useDocStore((s) => s.undo);
+  const redo = useDocStore((s) => s.redo);
+  const setTheme = useDocStore((s) => s.setTheme);
+  const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
+  const copyPdfToClipboard = useDocStore((s) => s.copyPdfToClipboard);
   const updateState = useUpdateStore((s) => s.state);
   const initUpdate = useUpdateStore((s) => s.init);
   const installUpdate = useUpdateStore((s) => s.install);
@@ -68,9 +91,15 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
   // inicializa la suscripcion al autoUpdater (una sola vez, el store se guarda).
   useEffect(() => { initUpdate(); }, [initUpdate]);
 
+  // Al abrirse, el foco entra a la primera entrada. Un menu que se abre con
+  // Enter y se abandona con Tab deja el foco en el botón de la barra y 260px
+  // flotando sobre el documento, con el teclado sin forma de alcanzarlo.
+  const firstItemRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { firstItemRef.current?.focus(); }, []);
+
   const run = (fn: () => void) => () => { fn(); onClose(); };
-  const canUndo = !!st.doc && st.historyIndex > 0;
-  const canRedo = !!st.doc && st.historyIndex < st.history.length - 1;
+  const canUndo = !!doc && historyIndex > 0;
+  const canRedo = !!doc && historyIndex < historyLength - 1;
 
   return (
     <div
@@ -95,25 +124,25 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
     >
       {/* Navegacion, no edicion: por eso abre el menu y no vive en la barra,
           que se queda con los tres elementos del mockup. */}
-      <Item label="Inicio" onClick={run(() => st.goHome())} disabled={st.atHome}>
+      <Item label="Inicio" onClick={run(() => goHome())} disabled={atHome} itemRef={firstItemRef}>
         <Home size={14} strokeWidth={1.75} aria-hidden />
       </Item>
-      <Item label="Deshacer" onClick={run(() => st.undo())} disabled={!canUndo}>
+      <Item label="Deshacer" onClick={run(() => undo())} disabled={!canUndo}>
         <Undo2 size={14} strokeWidth={1.75} aria-hidden />
       </Item>
-      <Item label="Rehacer" onClick={run(() => st.redo())} disabled={!canRedo}>
+      <Item label="Rehacer" onClick={run(() => redo())} disabled={!canRedo}>
         <Redo2 size={14} strokeWidth={1.75} aria-hidden />
       </Item>
 
       <Separador />
       <Panel label="Puntuación APA"><APAScoreCard /></Panel>
       <Panel label="Módulos APA"><APAModuleToggles /></Panel>
-      <Item label="Copiar PDF para WhatsApp" onClick={run(() => void st.copyPdfToClipboard())}>
+      <Item label="Copiar PDF para WhatsApp" onClick={run(() => void copyPdfToClipboard())}>
         <Copy size={14} strokeWidth={1.75} aria-hidden />
       </Item>
 
       <Separador />
-      <Item label="Complemento de Word" onClick={run(() => st.setSettingsStudioOpen(true, 'addin'))}>
+      <Item label="Complemento de Word" onClick={run(() => setSettingsStudioOpen(true, 'addin'))}>
         <Puzzle size={14} strokeWidth={1.75} aria-hidden />
       </Item>
       {updateState === 'downloaded' && (
@@ -123,12 +152,12 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
       )}
 
       <Separador />
-      <Item label="Tema" onClick={run(() => st.setTheme(st.theme === 'light' ? 'dark' : 'light'))}>
-        {st.theme === 'light'
+      <Item label="Tema" onClick={run(() => setTheme(theme === 'light' ? 'dark' : 'light'))}>
+        {theme === 'light'
           ? <Moon size={14} strokeWidth={1.75} aria-hidden />
           : <Sun size={14} strokeWidth={1.75} aria-hidden />}
       </Item>
-      <Item label="Ajustes" onClick={run(() => st.setSettingsStudioOpen(true))}>
+      <Item label="Ajustes" onClick={run(() => setSettingsStudioOpen(true))}>
         <Settings size={14} strokeWidth={1.75} aria-hidden />
       </Item>
     </div>

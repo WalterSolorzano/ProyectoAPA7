@@ -21,7 +21,7 @@ vi.mock('../components/toolbar/APAModuleToggles', () => ({ APAModuleToggles: () 
 
 const ENTRADAS = [
   'Inicio', 'Deshacer', 'Rehacer',
-  'Puntuación APA', 'Módulos APA', 'Copiar PDF para WhatsApp',
+  'Copiar PDF para WhatsApp',
   'Complemento de Word', 'Tema', 'Ajustes',
 ];
 
@@ -59,6 +59,18 @@ describe('T7 — menú de desbordamiento', () => {
       const el = screen.getByRole('menuitem', { name: nombre });
       expect(el.textContent || '').not.toMatch(/\p{Extended_Pictographic}/u);
     }
+  });
+
+  it('las filas con panel NO son menuitems: un menú solo puede contener entradas', () => {
+    // `role="menuitem"` en un <div> no enfocable rompe el patrón de widget: el
+    // teclado recorre el menú y se topa con algo que ni se enfoca ni se activa.
+    // La etiqueta no se pierde: pasa a un grupo con nombre.
+    render(<ToolbarOverflowMenu onClose={vi.fn()} />);
+    expect(screen.queryByRole('menuitem', { name: 'Puntuación APA' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Módulos APA' })).toBeNull();
+    const grupo = screen.getByRole('group', { name: 'Puntuación APA' });
+    expect(grupo.contains(screen.getByTestId('score'))).toBe(true);
+    expect(screen.getByRole('group', { name: 'Módulos APA' }).contains(screen.getByTestId('toggles'))).toBe(true);
   });
 
   it('cada comando ejecuta su acción y cierra el menú', () => {
@@ -184,18 +196,65 @@ describe('T7 — la barra mínima', () => {
   it('el botón de más acciones abre y cierra el menú de desborde', () => {
     render(<UnifiedToolbar />);
     const boton = screen.getByRole('button', { name: 'Más acciones' });
+    expect(boton.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(boton);
     expect(screen.getByRole('menu', { name: 'Más acciones' })).toBeTruthy();
+    expect(boton.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(boton);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(boton.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('al abrirse, el foco entra al menú: con teclado no se navega a ciegas', () => {
+    // Sin esto, un usuario de teclado abre el menú con Enter y se va con Tab
+    // dejando 260px flotando sobre el documento, inalcanzables desde el foco.
+    render(<UnifiedToolbar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Inicio' }));
+  });
+
+  it('un clic afuera cierra el menú', () => {
+    // El patrón de un menú de desborde: click afuera, Escape, o el toggle. El
+    // mismo cierre que ya tenía `ProjectTabs`.
+    render(<UnifiedToolbar />);
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
+    expect(screen.getByRole('menu')).toBeTruthy();
+    fireEvent.mouseDown(document.body);
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('el Copiloto alterna el chat y el avatar abre Ajustes', () => {
+  it('Escape cierra el menú y devuelve el foco a su botón', () => {
+    render(<UnifiedToolbar />);
+    const boton = screen.getByRole('button', { name: 'Más acciones' });
+    fireEvent.click(boton);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(boton);
+  });
+
+  it('los tres controles de la derecha anuncian si su panel está abierto', () => {
+    // Antes solo "Más acciones" lo hacía: el Copiloto y Archivo abrían y
+    // cerraban paneles sin decir en qué estado estaban.
+    render(<UnifiedToolbar />);
+    const archivo = screen.getByRole('button', { name: 'Menú Archivo' });
+    const copiloto = screen.getByRole('button', { name: 'Copiloto Editorial IA' });
+    expect(archivo.getAttribute('aria-expanded')).toBe('false');
+    expect(copiloto.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(copiloto);
+    expect(copiloto.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(archivo);
+    expect(archivo.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('el Copiloto alterna el chat y el avatar abre Ajustes por su NOMBRE real', () => {
+    // "Cuenta" anunciaba una sesión iniciada que no existe: no hay cuenta en el
+    // store. La "W" es la marca de la app, y lo que el botón abre son Ajustes.
     render(<UnifiedToolbar />);
     fireEvent.click(screen.getByRole('button', { name: 'Copiloto Editorial IA' }));
     expect(useDocStore.getState().liveChatOpen).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cuenta' }));
+    expect(screen.queryByRole('button', { name: 'Cuenta' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes y vista previa' }));
     expect(useDocStore.getState().settingsStudioOpen).toBe(true);
   });
 });
