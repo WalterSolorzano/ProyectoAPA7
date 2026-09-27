@@ -802,3 +802,97 @@ GLOBAL_CHECKS.update({
     "g61_triada": _check_g61_triada,
     "g63_conectores_densidad": _check_g63_conectores_densidad,
 })
+
+
+# ── R-G71: una cifra afirmada sin cita ──────────────────────────────────────
+#
+# "Toda afirmacion de dato, cifra o hallazgo de terceros debe llevar cita". Es
+# Critica en el catalogo y es de las que un revisor humano detecta de entrada.
+#
+# NO se reimplementa aqui que es una cita: se usa `citation_engine`, que ya sabe
+# distinguir parentetica de narrativa yMultiple y tiene los offsets. Dos
+# definiciones de "que es una cita" divergen solas, y esa clase de bug ya
+# produjo el falso positivo de "meta" dentro de "metodologia".
+
+# Un porcentaje, o un numero con un orden de magnitud explicito. Un ano suelto no
+# cuenta: "el estudio se realizo en 2024" es una fecha de trabajo, no una
+# afirmacion que necesite respaldo, y marcarlo llenaria la revision de ruido.
+_RG71_CIFRA = re.compile(
+    r"(?:\d+(?:[.,]\d+)?\s*%)|"                       # 68%
+    r"(?:\d[\d.,]*\s*(?:millones?|miles|%|puntos)\b)|"  # 3 millones
+    r"(?:\d[\d.,]*\s*(?:estudiantes|empresas|personas|casos|participantes|"
+    r"encuestados?|familias|hogares|estudios|articulos|mujeres|hombres|"
+    r"j[oó]venes|adolescentes|docentes|profesores|pacientes|usuarios|"
+    r"clientes|alumnos|alumnas|participantes|entrevistas|entrevistados)\b)",
+    re.IGNORECASE,
+)
+
+
+def _g71_frases(texto):
+    """(inicio, fin) de cada oracion, para acotar la cobertura de una cita."""
+    spans = []
+    ini = 0
+    for m in re.finditer(r"(?<=[.!?])\s+", texto):
+        if m.end() > ini:
+            spans.append((ini, m.end()))
+        ini = m.end()
+    if ini < len(texto):
+        spans.append((ini, len(texto)))
+    return [(a, b) for a, b in spans if texto[a:b].strip()]
+
+
+# R-G71 dice "afirmacion de dato, cifra o hallazgo de TERCEROS". El numero de la
+# muestra propia no es de terceros: "encuesta aplicada a 480 estudiantes" es el
+# metodo del autor y no necesita respaldo externo. Sin esta exclusion R-G71
+# inunda la revision de falsos positivos sobre el propio trabajo, que es
+# exactamente como una regla de este tipo deja de servir.
+_RG71_PROPIO = re.compile(
+    r"(?:\besta\s+(?:investigaci[oó]n|tesis|estudio)|"
+    r"\bnuestra\s+(?:muestra|investigaci[oó]n|universidad|instituci[oó]n)|"
+    r"\bel\s+estudio\b|\bla\s+muestra\b|\beste\s+trabajo\b|"
+    r"\bse\s+(?:aplic[oó]|entrevist[oó]|relev[oó]|mid[ioó]|obtuv|"
+    r"seleccion|analiz|recolect|registr|aplicaron|entrevistaron|"
+    r"seleccionaron|analizamos|recolectamos)|"
+    r"\bnuestr[oa]s?\s+datos?\b|\bmuestra\s+propia)",
+    re.IGNORECASE,
+)
+
+
+def _check_g71_cifra_sin_cita(eid, text, ctx, mk):
+    from modules.citation_engine import extract_citations_from_text
+
+    texto = text or ""
+    if not texto.strip():
+        return []
+
+    # Una cita cubre SU oracion y la siguiente: "Segun Perez (2020), el 68%..."
+    # cita en una y afirma en la otra. Acotado por oracion y no por una ventana
+    # de caracteres: con 140 chars de margen, una cita al principio daba por
+    # respaldada una cifra de la oracion siguiente, que es el falso negativo
+    #peor posible en una regla de citas.
+    frases = _g71_frases(texto)
+    covered: set = set()
+    for c in extract_citations_from_text(texto, eid):
+        for i, (a, b) in enumerate(frases):
+            if c.start_offset < b and c.end_offset > a:
+                covered.update(range(a, b))
+                if i + 1 < len(frases):
+                    covered.update(range(frases[i + 1][0], frases[i + 1][1]))
+
+    out = []
+    for m in _RG71_CIFRA.finditer(texto):
+        if any(i in covered for i in range(m.start(), m.end())):
+            continue
+        frase = next((texto[a:b] for a, b in frases if a <= m.start() < b), texto)
+        if _RG71_PROPIO.search(frase):
+            continue
+        out.append(mk(eid, texto, m.start(), m.end(), "g71_cifra_sin_cita", "error",
+                      f'Afirmas "{m.group(0).strip()}" sin una cita que lo respalde. '
+                      f"Una cifra de terceros necesita de donde sale: (Autor, anio) "
+                      f"en la misma oracion o en la anterior", phase="global"))
+    return out
+
+
+RULE_SCOPES.update({"g71_cifra_sin_cita": GLOBAL})
+
+GLOBAL_CHECKS.update({"g71_cifra_sin_cita": _check_g71_cifra_sin_cita})

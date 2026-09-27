@@ -251,6 +251,10 @@ const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
   g53_segunda_persona: { category: 'style', subtype: 'segunda_persona', severity: 'medium', summary: DEL_MOTOR },
   g61_triada: { category: 'style', subtype: 'triada', severity: 'low', summary: DEL_MOTOR },
   g63_conectores_densidad: { category: 'style', subtype: 'densidad_conectores', severity: 'low', summary: DEL_MOTOR },
+  /* R-G71 es Critica en el catalogo y por eso va con severidad 'high'. Sigue
+     siendo 'mark' y no 'accept': el motor dice que le falta la cita, no sabe
+     cual es. */
+  g71_cifra_sin_cita: { category: 'citations', subtype: 'cifra_sin_cita', severity: 'high', summary: DEL_MOTOR },
 };
 
 /** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo

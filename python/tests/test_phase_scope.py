@@ -474,3 +474,61 @@ def test_conectores_por_mil_palabras_y_no_por_repeticion():
     texto = "Sin embargo, A. Sin embargo, B. Sin embargo, C."
     assert _g(texto, ctx=_ctx(200)) != []
     assert _g(texto, ctx=_ctx(20000)) == []
+
+
+# ── R-G71: una cifra afirmada sin cita ──────────────────────────────────────
+
+def test_cifra_sin_cita_es_hallazgo():
+    out = _g("El 68% de las empresas del sector adopto esta tecnologia en 2024.")
+    assert "g71_cifra_sin_cita" in {f["kind"] for f in out}
+
+
+def test_cifra_con_cita_no_es_hallazgo():
+    out = _g("El 68% de las empresas adopto la tecnologia (Perez, 2020).")
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in out}
+
+
+def test_cita_en_la_oracion_anterior_alcanza():
+    # "Segun Perez (2020), el 68% de las empresas..." — la cita abre la oracion
+    # y el dato viene despues. Es la forma correcta de citar.
+    out = _g("Segun Perez (2020), el 68% de las empresas la adopto.")
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in out}
+
+
+def test_magnitud_con_unidad_de_terceros_es_hallazgo():
+    out = _g("El sector registraba 1200 empresas activas en 2024.")
+    assert "g71_cifra_sin_cita" in {f["kind"] for f in out}
+
+
+def test_la_muestra_propia_no_necesita_cita():
+    # R-G71 dice "cifra o hallazgo de TERCEROS". El numero de tu propia
+    # encuesta es tu metodo, no un dato ajeno que respaldar.
+    for texto in (
+        "Se entrevistaron a 480 estudiantes de la universidad.",
+        "Estos factores se midieron con una encuesta aplicada a 1200 casos.",
+    ):
+        assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g(texto)}, texto
+
+
+def test_dos_cifras_y_una_sola_cita_no_alcanza():
+    # La cita cubre su oracion y la siguiente; la tercera sigue sin respaldo.
+    texto = ("Segun Perez (2020), el 68% de las empresas la adopto. "
+             "El sector crecio 40% ese mismo año. "
+             "La_region reporto 15 puntos de crecimiento.")
+    assert "g71_cifra_sin_cita" in {f["kind"] for f in _g(texto)}
+
+
+def test_un_ano_suelto_no_es_una_cifra_afirmada():
+    # "2024" dentro de un rango de fechas de un metodo, o un numero de seccion,
+    # no es una afirmacion que necesite cita.
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g("El estudio se realizo en 2024.")}
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g("La seccion 3.2 presenta los datos.")}
+
+
+def test_una_afirmacion_cualitativa_no_es_hallazgo():
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g("La desercion es un problema serio.")}
+
+
+def test_la_cita_cerca_en_la_misma_oracion_alcanza():
+    texto = "El 68% la adopto (Perez, 2020; Lopez, 2021)."
+    assert "g71_cifra_sin_cita" not in {f["kind"] for f in _g(texto)}
