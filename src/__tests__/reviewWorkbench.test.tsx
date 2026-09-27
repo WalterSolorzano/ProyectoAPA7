@@ -581,9 +581,13 @@ describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
       ] as never,
     });
     render(<ReviewWorkbench />);
-    // "Siguiente hallazgo" es lo que selecciona el primero: el rack abierto no
-    // selecciona nada por su cuenta.
-    fireEvent.click(screen.getByRole('button', { name: 'Siguiente hallazgo' }));
+    /* La tarjeta arranca con un hallazgo —la siembra— así que ya no hay que
+       apretar "Siguiente hallazgo" solo para que deje de decir "Sin hallazgo
+       seleccionado". Ver `reviewArranque.test.ts`.
+     *
+     * Y el grupo se abre explícitamente, en vez de confiar en cuál abre por
+     * defecto: la prueba es de las flechas, no de qué grupo se despliega. */
+    fireEvent.click(within(rack()).getByRole('button', { name: /Falta ortográfica o tilde/ }));
     expect(tarjeta().textContent).toContain('primer parrafo');
     fireEvent.click(screen.getAllByRole('button', { name: 'Siguiente aparición' })[0]);
     expect(tarjeta().textContent).toContain('segundo parrafo');

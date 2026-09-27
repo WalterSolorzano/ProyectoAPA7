@@ -368,7 +368,7 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
       if (action !== 'none' && susItems.every((i) => i.readOnly)) action = 'none';
       return {
         key: `${engine}:${key}`,
-        label: SUBTYPE_LABELS[key] || key,
+        label: rotuloDeSubtipo(key),
         items: susItems,
         action,
         massLabel: massLabelFor(action),
@@ -437,6 +437,37 @@ function accionDeItems(items: AuditItem[]): SubtypeAction {
   // El motor IA es probabilístico y jamás se "acepta" (AGENTS.md §1).
   if (aplicables.every((i) => i.category === 'ai')) return 'mark';
   return 'accept';
+}
+
+/**
+ * El rótulo de un subtipo, y SIEMPRE uno de usuario.
+ *
+ * Antes era `SUBTYPE_LABELS[key] || key`, y ese `|| key` es un modo de fallo
+ * por omisión: la primera vez que el backend emite una regla que la tabla no
+ * conoce, el nombre interno de esa regla aparece en la lista de correcciones.
+ * El usuario vio exactamente eso —`g74_verbatim_sin_comillas`— donde debía
+ * leer "Texto copiado sin comillas".
+ *
+ * Un subtipo desconocido no se descarta ni se esconde: se muestra con un
+ * nombre legible y se avisa en la consola, que es donde se arregla. La
+ * prueba `noSubtipoInternoEnPantalla` verifica que hoy ninguno cae en el
+ * rótulo genérico: si uno aparece, falta una fila en `SUBTYPE_LABELS`.
+ */
+const ROTULO_GENERICO = 'Otro hallazgo del corrector';
+
+export function rotuloDeSubtipo(key: string): string {
+  const etiqueta = SUBTYPE_LABELS[key];
+  if (etiqueta) return etiqueta;
+  if (process.env.NODE_ENV !== 'production') {
+    /* Un `warn` y no un `throw`: la regla nueva tiene que verse aunque la tabla
+       no la haya alcanzado todavía, y caerse por eso sería peor que mostrarla
+       con un nombre feo. */
+    console.warn(
+      `[revisión] el subtipo "${key}" no tiene fila en SUBTYPE_LABELS. ` +
+      'Se muestra con el rótulo genérico; agregá la fila.',
+    );
+  }
+  return ROTULO_GENERICO;
 }
 
 export function agruparHallazgosPorFase(items: AuditItem[]): PhaseGroup[] {
@@ -678,6 +709,61 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     [pages, totalPages, setSelectedElementId, setScrollTargetId],
   );
 
+  /* Elegir un hallazgo: seleccionarlo Y abrir el grupo donde vive.
+   *
+   * Las dos cosas van juntas, y por eso viven juntas. Seleccionar sin abrir
+   * deja la tarjeta de lectura mostrando un párrafo mientras el rack sigue
+   * contraído: la pantalla dice dos cosas a la vez, que es exactamente lo que
+   * `AGENTS.md` §1 prohíbe ("el rail no puede contradecir la pantalla a la que
+   * lleva"). Además, sin el grupo abierto el detalle no pinta las flechas de
+   * aparición, así que la persona lee un hallazgo del que no puede navegar. */
+  const elegirHallazgo = useCallback((id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    setOpenEngines((prev) => (prev.includes(item.category) ? prev : [...prev, item.category]));
+    const subkey = `${item.category}:${item.subtype}`;
+    setOpenSubtypes((prev) => (prev.includes(subkey) ? prev : [...prev, subkey]));
+    select(id);
+  }, [items, select]);
+
+  /* La SIEMBRA de la lectura: si hay hallazgos a la vista y nada está
+   * seleccionado, se elige el primero.
+   *
+   * Antes la pantalla arrancaba vacía. El mensaje "Sin hallazgo seleccionado"
+   * es honesto sobre su causa —no hay nada seleccionado— pero con un archivo
+   * que tiene muchas correcciones, lo primero que veía la persona era un
+   * centro en blanco con una instrucción, y la conclusión razonable era
+   * "está roto" o "no encontró nada". Ninguna de las dos era cierta, y las
+   * dos hacen que la persona empiece a buscar el problema en el programa.
+   *
+   * La clave es que NO es un efecto de montaje. Las auditorías corren en
+   * segundo plano (`AGENTS.md` §2), así que al abrir el paso 5 la lista
+   * todavía no está: una siembra que solo mira el montaje deja la pantalla
+   * en blanco justo en el caso que la dispara. Por eso mira `visibles` y se
+   * vuelve a ejecutar cuando llega.
+   *
+   * Y sembra DENTRO de los grupos que ya están abiertos, sin abrirlos. La
+   * regla "abre solo el grupo más crítico" es una decisión deliberada de la
+   * pantalla, y esta siembra no la sustituye: la siembra no le abre un segundo
+   * grupo, se desarma. Lo que hace es que la tarjeta de lectura muestre un
+   * hallazgo del grupo que el rack tiene a la vista —que es lo que evita que
+   * la pantalla diga dos cosas a la vez— y si no hay ninguno abierto, no
+   * siembra: antes un centro con instrucción que un texto de un grupo
+   * escondido.
+   *
+   * Y NO pisa lo que la persona ya está leyendo: si hay selección, no hace
+   * nada. Resembrar siempre —por ejemplo cuando una auditoría termina y
+   * agrega hallazgos— le saltaría el contenido bajo los pies, que es peor
+   * que arrancar vacío. */
+  useEffect(() => {
+    if (selectedId || !visibles.length || !openEngines.length) return;
+    const porPagina = [...visibles].sort(
+      (a, b) => (a.pageNumber ?? 999) - (b.pageNumber ?? 999),
+    );
+    const primero = porPagina.find((i) => openEngines.includes(i.category));
+    if (primero) select(primero.id);
+  }, [visibles, selectedId, openEngines, select]);
+
   const nextFinding = useCallback(() => {
     // "Siguiente hallazgo" recorre lo que el filtro deja ver: saltar a un
     // hallazgo de un motor apagado sería aterrizar fuera de la lista. Es el
@@ -686,15 +772,15 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     const ordenada = [...visibles].sort((a, b) => (a.pageNumber ?? 999) - (b.pageNumber ?? 999));
     const i = ordenada.findIndex((x) => x.id === selectedId);
     const siguiente = ordenada[(i + 1) % ordenada.length];
-    setOpenEngines((prev) => (prev.includes(siguiente.category) ? prev : [...prev, siguiente.category]));
-    const subkey = `${siguiente.category}:${siguiente.subtype}`;
-    setOpenSubtypes((prev) => (prev.includes(subkey) ? prev : [...prev, subkey]));
-    select(siguiente.id);
+    /* Por `elegirHallazgo`, no a mano: seleccionar y abrir el grupo es una sola
+       decisión, y duplicarla acá es la forma de que las dos cosas se separen
+       en el próximo cambio (y fue justo lo que pasó con la siembra). */
+    elegirHallazgo(siguiente.id);
     // `pageOf` solo devuelve páginas del índice, así que el recorte no cambia
     // el resultado HOY: es la misma defensa que aplica `goToPage`, puesta aquí
     // para que ningún camino que salta de página quede sin recortar.
     if (siguiente.pageNumber) setCurrentPage(clipPage(siguiente.pageNumber, totalPages));
-  }, [visibles, selectedId, select, totalPages]);
+  }, [visibles, selectedId, elegirHallazgo, totalPages]);
 
   /* La capa EFECTIVA vive en `useReviewActions`: escribir en el documento,
      llamar a la red, descartar por los dos canales. Este archivo se queda con

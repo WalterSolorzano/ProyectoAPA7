@@ -312,15 +312,23 @@ describe('T12 — useReviewWorkbench', () => {
       proofreadFindings: [hallazgo(), hallazgo({ element_id: 'e2', excerpt: 'objetivo' })],
     });
     const { result } = renderHook(() => useReviewWorkbench());
-    const [primero] = result.current.items;
+    const [primero, segundo] = result.current.items;
+
+    /* La vista SIEMBRA el primer hallazgo al entrar, así que "Siguiente
+       hallazgo" avanza desde el primero al segundo. Antes no había siembra y el
+       botón tenía que recorrer desde cero: con un archivo lleno de correcciones
+       la pantalla arrancaba en blanco y el primer clic del usuario servía solo
+       para dejar de ver un mensaje. Ver `reviewArranque.test.ts`. */
+    expect(result.current.selected?.id).toBe(primero.id);
 
     act(() => result.current.nextFinding());
-    expect(result.current.selected?.id).toBe(primero.id);
+    expect(result.current.selected?.id).toBe(segundo.id);
     expect(result.current.openEngines).toContain('spelling');
     expect(result.current.openSubtypes).toContain('spelling:ortografia');
 
+    /* Y da la vuelta: del último al primero. */
     act(() => result.current.nextFinding());
-    expect(result.current.selected?.id).not.toBe(primero.id);
+    expect(result.current.selected?.id).toBe(primero.id);
   });
 
   it('marcar para revisar no borra el hallazgo; descartar sí', () => {

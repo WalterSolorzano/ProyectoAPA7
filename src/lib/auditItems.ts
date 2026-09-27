@@ -167,7 +167,7 @@ const clave = (...partes: Array<string | number | undefined | null>): string =>
 
 const DEL_MOTOR = (f: ProofreadSource) => clip(f.message, 70);
 
-const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
+export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
   // Ortografía y pegado: la corrección es mecánica (objetivos, 'accept').
   ortografia: {
     category: 'spelling',
