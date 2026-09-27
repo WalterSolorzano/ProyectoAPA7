@@ -86,7 +86,12 @@ beforeEach(() => {
 /* ── La bandera de citas: un solo interruptor para los dos canales ────────── */
 
 describe('T16 (3b) — la bandera de citas no puede divergir', () => {
-  it('con la tira encendida, los dos canales subrayan la cita', () => {
+  /* No hay ninguna "tira" que se encienda: hoy el resaltado de citas no tiene
+     control en la UI, y lo que estos tests hacen es escribir el interruptor del
+     store (`showCitationMarks`) y observar los dos canales. El nombre del test
+     tiene que decir eso, no un control que no existe. */
+
+  it('con `showCitationMarks` en true, los dos canales subrayan la cita', () => {
     store(true);
     const { container } = montarLosDosCanales();
     // Si esto dejara de ser cierto, el arreglo de un canal rompería el otro:
@@ -95,11 +100,11 @@ describe('T16 (3b) — la bandera de citas no puede divergir', () => {
     expect(citasDe(screen.getByLabelText('Párrafo en revisión')).length).toBeGreaterThan(0);
   });
 
-  it('con la tira apagada, NINGÚN canal subraya la cita', () => {
+  it('con `showCitationMarks` en false, NINGÚN canal subraya la cita', () => {
     store(false);
     const { container } = montarLosDosCanales();
-    // El caso que motivó el arreglo: la tarjeta fijaba `true` y seguía
-    // subrayando con la tira apagada.
+    // El caso que motivó el arreglo: la tarjeta fijaba `true` en su propio
+    // `MarkSource` y seguía subrayando con el interruptor del store apagado.
     expect(citasDe(container)).toHaveLength(0);
     expect(citasDe(screen.getByLabelText('Párrafo en revisión'))).toHaveLength(0);
   });
