@@ -942,15 +942,25 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       });
       if (res.ok) {
         const data = await res.json();
+        /* Se guarda lo que devuelve el servidor, no lo que escribio la persona
+           y no lo que este codigo inventa:
+           - `doi_or_url` es el DOI ya NORMALIZADO por el backend. Guardar el
+             input crudo daba `https://doi.org/doi:10.1038/...` —un link roto—
+             para "doi:10.1038/x" y "DOI: 10.1038/x", que son de las formas mas
+             comunes de pegar un DOI.
+           - `authors`, `title`, `source` y `year` NO llevan valor inventado. Este
+             codigo ponia ['Autor'], 'Titulo' y '2026' cuando faltaban, y en una
+             herramienta de citas inventar la autoria de una obra es peor que no
+             mostrarla. El backend ya devuelve "s.f." cuando no hay ano. */
         get().addReference({
           id: Date.now().toString(),
-          authors: data.authors || ['Autor'],
-          year: data.year || '2026',
-          title: data.title || 'Título',
-          source: data.source || 'Revista',
-          doi_or_url: doi,
-          raw_text: data.apa_formatted || doi,
-          formatted_apa: data.apa_formatted || doi,
+          authors: data.authors ?? [],
+          year: data.year ?? 's.f.',
+          title: data.title ?? '',
+          source: data.source ?? '',
+          doi_or_url: data.doi_or_url ?? doi,
+          raw_text: data.apa_formatted ?? '',
+          formatted_apa: data.apa_formatted ?? '',
         });
         get().showToast('Referencia agregada desde DOI', 'success');
       } else {
