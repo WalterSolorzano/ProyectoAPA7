@@ -30,6 +30,11 @@ export interface FindingDetailProps {
   action: SubtypeAction;
   index: number;
   total: number;
+  /** La persona ya marcó este hallazgo para revisión manual (`markedIds` del
+   *  hook). Sin esto, "Marcar para revisar" es un botón sin consecuencia
+   *  observable: se aprieta, sale un toast y no cambia nada en la vista, así
+   *  que se vuelve a apretar. El estado se PINTA, no se recuerda. */
+  marked?: boolean;
   onStep: (delta: number) => void;
   onAccept: (item: AuditItem) => void;
   onMark: (item: AuditItem) => void;
@@ -127,6 +132,7 @@ export function FindingDetail({
   action,
   index,
   total,
+  marked = false,
   onStep,
   onAccept,
   onMark,
@@ -205,20 +211,46 @@ export function FindingDetail({
         </p>
       )}
 
+      {marked && (
+        <p
+          role="status"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-secondary)' }}
+        >
+          Marcado para revisión manual. El texto original no se modifica.
+        </p>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
         {action === 'mark' && (
-          <Accion label="Marcar para revisar" Icon={Flag} onClick={() => onMark(item)} disabled={busy} primary />
+          /* Fantasma, no sólida: marcar ANOTA y no cambia el documento, y el
+             acento sólido está reservado para lo que sí lo cambia (el mismo
+             criterio que fijó la cabecera del motor en `EngineGroupCard`). En un
+             hallazgo de IA es el ÚNICO botón, y llevaba el peso visual que la
+             rama reservó para "aceptar" — justo en el motor que nunca acepta. */
+          <Accion
+            label={marked ? 'Marcado para revisar' : 'Marcar para revisar'}
+            Icon={Flag}
+            onClick={() => onMark(item)}
+            disabled={busy || marked}
+            primary={false}
+            title={marked ? 'Este hallazgo ya está marcado para revisión manual.' : undefined}
+          />
         )}
         {action === 'accept' && conSugerencia && (
           <Accion label="Aplicar corrección" Icon={Check} onClick={() => onAccept(item)} disabled={busy} primary />
         )}
         {motor && onEngineAction && (
+          /* Los dos mecanismos de DOCUMENTO tampoco llevan el acento sólido, por
+             la misma razón que en la cabecera del motor: redactan leyendas y
+             resuelven referencias sobre todo el archivo, no corrigen el texto de
+             este hallazgo, y vestirse del acento de la aceptación hacía que las
+             dos acciones de la fila se leyeran como la misma. */
           <Accion
             label={motor.label}
             Icon={motor.Icon}
             onClick={onEngineAction}
             disabled={busy}
-            primary
+            primary={false}
             title={motor.title}
           />
         )}

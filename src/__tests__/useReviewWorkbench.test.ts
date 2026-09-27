@@ -673,6 +673,39 @@ describe('T12 — useReviewWorkbench', () => {
       expect(result.current.items).toHaveLength(0);
     });
 
+    it('el hook publica las dos mitades del alcance, y coinciden con lo que ejecuta', async () => {
+      /* `covered` y `count` son la MISMA regla que decide a quién toca la
+         cabecera. Si la vista los re-derivara por su cuenta, el número que ve
+         la persona y el conjunto que se ejecuta podrían divergir sin que nada
+         lo dijera — y divergirían en la dirección máscarousel: el aviso
+         diciendo "todo cubierto" mientras la acción deja hallazgos intactos. */
+      const updateElementText = vi.fn(async () => {});
+      useDocStore.setState({
+        updateElementText,
+        proofreadFindings: [
+          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'verbo preciso' }),
+          hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante', suggestion: 'prosa' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const estilo = result.current.groups.find((g) => g.engine === 'style')!;
+      // 2 hallazgos en el motor, 1 en el subtipo que comparte su acción.
+      expect(estilo.count).toBe(2);
+      expect(estilo.covered).toBe(1);
+      await act(async () => {
+        await result.current.runGroupAction(estilo);
+      });
+      // Y lo declarado es lo que pasó: una escritura, no dos.
+      expect(updateElementText).toHaveBeenCalledTimes(1);
+    });
+
+    it('un motor cuya acción cubre todo declara covered === count', () => {
+      useDocStore.setState({ proofreadFindings: [hallazgo()] });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const orto = result.current.groups.find((g) => g.engine === 'spelling')!;
+      expect(orto.covered).toBe(orto.count);
+    });
+
     it('"Aceptar todas" de un motor NO se lleva los subtipos que solo se marcan', async () => {
       // El caso MIXTO que la ronda 1 no probó: un motor 'accept' que contiene
       // subtipos 'mark'. Los 'mark' son los que el motor detecta con certeza

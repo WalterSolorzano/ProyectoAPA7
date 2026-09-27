@@ -16,14 +16,27 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
 import { ReviewWorkbench } from '../components/review/ReviewWorkbench';
 import { Step5AuditIAWizard } from '../components/wizard/Step5AuditIAWizard';
 
+/* El lienzo va simulado, pero NO como una caja vacía: se registra la prop con
+   la que lo montaron, porque el lavado de acento de "qué bloques tienen
+   hallazgos" SOLO existe si el workbench le pasa el conjunto, y una caja que
+   ignora sus props no puede decir si lo hizo. El `importOriginal` conserva las
+   exportaciones reales porque el índice de páginas (`usePageIndex`) importa
+   `computeRenderedPages` de ese módulo. */
+const highlightedInCanvas: Array<Set<string> | undefined> = [];
 vi.mock('../components/layout/PaperCanvas', async (importOriginal) => {
   const real = await importOriginal<typeof import('../components/layout/PaperCanvas')>();
-  return { ...real, PaperCanvas: () => <div data-testid="canvas" /> };
+  return {
+    ...real,
+    PaperCanvas: (props: { reviewHighlightIds?: Set<string> }) => {
+      highlightedInCanvas.push(props.reviewHighlightIds);
+      return <div data-testid="canvas" />;
+    },
+  };
 });
 vi.mock('../components/wizard/ReviewMinimap', () => ({
   ReviewMinimap: () => <div data-testid="minimap" />,
@@ -66,6 +79,16 @@ const hallazgo = (over: Record<string, unknown> = {}) => ({
 const fraseIA = (over: Record<string, unknown> = {}) =>
   hallazgo({ kind: 'ai_phrase', severity: 'warn', message: 'Frase de plantilla', suggestion: '', ...over });
 
+/** Párrafo del REVISOR de IA: el que produce los hallazgos del motor 'ai'
+ *  (`collectAuditItems` los toma de `reviewResult.paragraphs`, no del
+ *  corrector). Un `ai_phrase` del corrector también es del motor 'ai', pero
+ *  por otra ruta; este es el que hace falta cuando el test habla del
+ *  revisor. */
+const fraseIAIA = (element_id: string) => ({
+  element_id, index: 0, type: 'paragraph', text: 'texto', ai_score: 82,
+  ai_category: 'HIGH', findings: [], spelling: [],
+});
+
 const store = (extra: Record<string, unknown> = {}) => {
   useDocStore.setState({
     doc: null, reviewResult: null, proofreadFindings: [], citationAuditResult: null,
@@ -90,6 +113,7 @@ beforeEach(() => {
     disconnect() {}
   };
   fijarAncho(1440);
+  highlightedInCanvas.length = 0;
 });
 
 afterEach(() => {
@@ -123,6 +147,41 @@ describe('T16 — ReviewWorkbench: las tres columnas', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hoja' }));
     expect(screen.getByTestId('canvas')).toBeTruthy();
     expect(screen.queryByLabelText('Párrafo en revisión')).toBeNull();
+  });
+
+  it('en modo Hoja, el lienzo recibe los bloques que tienen hallazgos', () => {
+    /* El lavado de acento es la única señal de "mira acá" que el modo Hoja
+       tiene, y sin él la hoja es un documento limpio: el que lo abrió
+       precisamente para ver dónde están los problemas. El conjunto lo publica
+       el hook y lo recorta el filtro, así que tampoco se re-deriva acá. */
+    store({
+      doc: documento([elemento(), elemento({ id: 'e2', text: 'segundo parrafo' })]) as never,
+      proofreadFindings: [
+        hallazgo(),
+        hallazgo({ element_id: 'e2', start: 0, end: 3, excerpt: 'seg' }),
+      ] as never,
+    });
+    render(<ReviewWorkbench />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hoja' }));
+    const pasado = highlightedInCanvas[highlightedInCanvas.length - 1];
+    expect(pasado).toBeInstanceOf(Set);
+    expect([...(pasado as Set<string>)].sort()).toEqual(['e1', 'e2']);
+  });
+
+  it('el lavado del lienzo sigue al filtro, como el resto de la vista', () => {
+    // El mismo conjunto que cuenta `visibleCount`: con el filtro en un motor, el
+    // lienzo no puede seguir teñiendo bloques de un motor que no se está
+    // mirando.
+    store({
+      doc: documento([elemento(), elemento({ id: 'e2', text: 'segundo parrafo' })]) as never,
+      proofreadFindings: [hallazgo()] as never,
+      reviewResult: { paragraphs: [fraseIAIA('e2')] } as never,
+    });
+    render(<ReviewWorkbench />);
+    fireEvent.click(screen.getByRole('button', { name: 'Patrones IA 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoja' }));
+    const pasado = highlightedInCanvas[highlightedInCanvas.length - 1] as Set<string>;
+    expect([...pasado]).toEqual(['e2']);
   });
 
   it('la tira de arriba es la unica barra de la vista', () => {
@@ -232,6 +291,50 @@ describe('T16 — ReviewWorkbench: honestidad de los estados vacíos', () => {
     expect(screen.getByRole('button', { name: /Marcar para revisar/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Aplicar corrección/ })).toBeNull();
   });
+
+  it('la UNICA acción del motor probabilístico deja marca de haber sido pulsada', () => {
+    /* AGENTS.md §1 le concede al detector de IA exactamente una cosa: marcar
+       para revisar. Si esa marca no se ve, la acción es un gesto sin
+       consecuencia: se aprieta, sale un toast y la pantalla queda igual, así que
+       se aprieta otra vez. Y el rótulo cambia de "Marcar" a "Marcado" porque es
+       el estado, no otra acción. */
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [fraseIA()] as never });
+    render(<ReviewWorkbench />);
+    fireEvent.click(within(rack()).getByRole('button', { name: /Frase típica de IA/ }));
+    const marcar = screen.getByRole('button', { name: 'Marcar para revisar' });
+    expect(marcar.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(marcar);
+    const marcado = screen.getByRole('button', { name: 'Marcado para revisar' });
+    expect(marcado.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText(/Marcado para revisión manual/)).toBeTruthy();
+  });
+
+  it('la acción que solo ANOTA no lleva el acento sólido', () => {
+    /* La regla del archivo: el acento sólido es de la acción que cambia el
+       documento. En un hallazgo de IA el botón de marcar es el ÚNICO, así que
+       con el sólido el motor que nunca acepta era el único con todo el peso
+       visual de la rama. Los mecanismos de documento (rotular, resolver citas)
+       tampoco lo llevan, por el mismo motivo que fijó la cabecera del motor. */
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [fraseIA()] as never });
+    render(<ReviewWorkbench />);
+    fireEvent.click(within(rack()).getByRole('button', { name: /Frase típica de IA/ }));
+    const marcar = screen.getByRole('button', { name: 'Marcar para revisar' });
+    expect(marcar.getAttribute('style') || '').not.toContain('background: var(--color-accent)');
+  });
+
+  it('los mecanismos de DOCUMENTO tampoco llevan el acento sólido en el detalle', () => {
+    // La cabecera ya lo decidió (`EngineGroupCard`); el detalle es el mismo
+    // criterio aplicado a la fila. Rotular y resolver redactan sobre todo el
+    // archivo: no son la corrección de este texto, y con el acento sólido las
+    // dos acciones de la fila se leían como la misma.
+    store({
+      doc: documento([elemento(), FIGURA_SIN_LEYENDA]) as never,
+    });
+    render(<ReviewWorkbench />);
+    fireEvent.click(within(rack()).getByRole('button', { name: /Figura sin rotular/ }));
+    const rotular = screen.getByRole('button', { name: 'Rotular todo' });
+    expect(rotular.getAttribute('style') || '').not.toContain('background: var(--color-accent)');
+  });
 });
 
 /* ── La accion en masa, cuando no cubre el motor entero ──────────────────── */
@@ -272,6 +375,94 @@ describe('T16 — la acción en masa dice hasta dónde llega', () => {
     expect(screen.queryByText(/de este motor no tienen corrección automática/)).toBeNull();
     expect(screen.queryByText(/no tiene nada que aplicar en bloque/)).toBeNull();
   });
+
+  it('la cobertura la CUENTA el hook, no la vuelve a derivar la vista', () => {
+    /* `coberturaDeMotor` es la REDACCIÓN del aviso; los dos números que la
+       sostienen (`covered` y `count`) los publica el hook, que es quien aplica
+       el alcance. Si la vista los re-derivara, cambiar el alcance en el hook
+       dejaría el aviso diciendo una cosa y la acción haciendo otra — y el aviso
+       es lo que la persona lee antes de apretar. */
+    expect(codigoDe(SRC)).not.toMatch(/group\.groups\.filter/);
+    expect(codigoDe(SRC)).toMatch(/group\.covered/);
+    expect(codigoDe(HOOK)).toMatch(/covered:/);
+  });
+});
+
+/* ── La acción en masa no se puede repetir mientras corre ─────────────────── */
+
+describe('T16 — "Aceptar todas" no es reentrante', () => {
+  it('mientras la tanda corre, los controles de escribir están apagados', async () => {
+    /* `acceptMany` recorre los hallazgos de uno en uno y hace una llamada de
+       red por hallazgo. Sin cerrojo, un segundo "Aceptar todas" dispara las
+       MISMAS llamadas sobre los MISMOS elementos y el documento queda con una
+       de las dos correcciones, elegida por quién escribió último. El `busy`
+       del detalle existía para esto y era `false` constante. */
+    const pendientes: Array<() => void> = [];
+    const updateElementText = vi.fn(
+      () => new Promise<void>((resolve) => { pendientes.push(resolve); }),
+    );
+    store({
+      doc: documento([elemento(), elemento({ id: 'e2', text: 'otro' })]) as never,
+      proofreadFindings: [
+        hallazgo(),
+        hallazgo({ element_id: 'e2', start: 0, end: 3, excerpt: 'otr' }),
+      ] as never,
+      updateElementText: updateElementText as never,
+    });
+    render(<ReviewWorkbench />);
+
+    const aceptarTodas = within(rack()).getAllByRole('button', { name: 'Aceptar todas' })[0];
+    fireEvent.click(aceptarTodas);
+    await act(async () => { await Promise.resolve(); });
+
+    // La tanda está en vuelo: la cabecera se apaga, y con ella la fila.
+    const cabeceras = within(rack()).getAllByRole('button', { name: 'Aceptar todas' });
+    expect(cabeceras.length).toBeGreaterThan(0);
+    expect(cabeceras.every((b) => b.hasAttribute('disabled'))).toBe(true);
+    // Y un segundo clic no dispara OTRA tanda.
+    fireEvent.click(cabeceras[0]);
+    await act(async () => { await Promise.resolve(); });
+    expect(updateElementText).toHaveBeenCalledTimes(1);
+
+    // Al terminar vuelve a estar disponible: el cerrojo no es una puerta que
+    // se queda cerrada.
+    await act(async () => {
+      for (let i = 0; i < 4; i += 1) {
+        while (pendientes.length) (pendientes.shift() as () => void)();
+        await Promise.resolve();
+      }
+    });
+    const libres = within(rack()).queryAllByRole('button', { name: 'Aceptar todas' });
+    if (libres.length) expect(libres[0].hasAttribute('disabled')).toBe(false);
+  });
+
+  it('dos pulsaciones en el mismo tick no escriben dos veces', async () => {
+    /* El caso que un `useState` no cubre: dos clics en el mismo tick leen el
+       mismo `isApplying` del render anterior. Por eso el cerrojo es un ref. */
+    const pendientes: Array<() => void> = [];
+    const updateElementText = vi.fn(
+      () => new Promise<void>((resolve) => { pendientes.push(resolve); }),
+    );
+    store({
+      doc: documento([elemento()]) as never,
+      proofreadFindings: [hallazgo()] as never,
+      updateElementText: updateElementText as never,
+    });
+    render(<ReviewWorkbench />);
+    const [cabecera, fila] = within(rack()).getAllByRole('button', { name: 'Aceptar todas' });
+    act(() => {
+      fireEvent.click(cabecera);
+      fireEvent.click(fila);
+    });
+    await act(async () => { await Promise.resolve(); });
+    expect(updateElementText).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      for (let i = 0; i < 4; i += 1) {
+        while (pendientes.length) (pendientes.shift() as () => void)();
+        await Promise.resolve();
+      }
+    });
+  });
 });
 
 /* ── "Siguiente hallazgo" a traves del filtro ─────────────────────────────── */
@@ -290,9 +481,10 @@ describe('T16 — el filtro no deja botones encendidos que no hacen nada', () =>
     fireEvent.click(within(rack()).getByRole('button', { name: /Falta ortográfica o tilde/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
 
-    // Queda el hallazgo de IA: el documento tiene hallazgos, asi que no hay
-    // nada que escanear.
-    expect(screen.queryByRole('button', { name: 'Escanear' })).toBeNull();
+    // Queda el hallazgo de IA. "Escanear" sigue disponible —con hallazgos,
+    // editar el documento y re-escanear es justo lo que hace falta—, y lo que
+    // se apaga es el botón sin destino.
+    expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Siguiente hallazgo' }).hasAttribute('disabled')).toBe(true);
     // Y el rack lo dice, en vez de quedarse mudo con el filtro puesto.
     expect(within(rack()).getByText(/Vuelve a "Todo"/)).toBeTruthy();
@@ -311,11 +503,15 @@ describe('T16 — el filtro no deja botones encendidos que no hacen nada', () =>
 
 /* ── El detalle: la accion la DECLARA el grupo ───────────────────────────── */
 
+/* Una figura sin leyenda: el motor Estructura la reporta y su mecanismo es
+   `autoCaption`, que redacta la leyenda de TODAS las figuras del documento. */
+const FIGURA_SIN_LEYENDA = elemento({
+  id: 'f1', type: 'image',
+  image_info: { relative_url: 'f.png', caption: '', figure_number: 0, alignment: 'center' },
+});
+
 describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
-  const FIGURA = elemento({
-    id: 'f1', type: 'image',
-    image_info: { relative_url: 'f.png', caption: '', figure_number: 0, alignment: 'center' },
-  });
+  const FIGURA = FIGURA_SIN_LEYENDA;
 
   it('rotular figuras llama al mecanismo del motor, no a "aplicar corrección"', () => {
     const autoCaptionAll = vi.fn().mockResolvedValue(undefined);

@@ -83,4 +83,30 @@ describe('T8 — buildCommentContext', () => {
     expect(buildCommentContext({ ...base, validationIssues: [issue] }).validationIssues).toEqual([issue]);
     expect(buildCommentContext({ ...base, sugerenciasProactivas: undefined, validationIssues: [issue] }).validationIssues).toEqual([issue]);
   });
+
+  it('el interruptor cubre las incidencias de validación, y eso está escrito', () => {
+    /* El interruptor se llama "Sugerencias proactivas" y su pista dice "Globos
+       con mejoras mientras editás": su alcance REAL, el de siempre, son las
+       incidencias de validación APA (leyendas, tablas, jerarquía) que el
+       corredor produce. `styleAuditRun` es otra cosa —los detectores de
+       redacción, que también encienden la burbuja del corrector— y apagarlo
+       dejaría al corrector con su subrayado inline y SIN burbuja: el
+      msubrayado-or-something announcement would live in one channel only, que
+       es la contradicción que AGENTS.md §2 prohíbe por nombre.
+
+       La unificación de los dos canales tuvo que elegir, y eligió la burbuja
+       (defensible: la burbuja y el subrayado del corrector son el MISMO
+       hallazgo). Lo que no puede ser es que esa elección sea invisible: por eso
+       el alcance del interruptor está escrito en `commentContext.ts` y esta
+       prueba lo ata. Para cambiarlo hay que cambiar las dos cosas. */
+    const conInterruptor = buildCommentContext({
+      ...base,
+      sugerenciasProactivas: false,
+      validationIssues: [issue],
+      proofreadFindings: [finding],
+    });
+    expect(conInterruptor.validationIssues).toEqual([]);
+    // Y el corrector sigue ENCENDIDO a propósito, no por descuido:
+    expect(conInterruptor.styleAuditRun).toBe(true);
+  });
 });

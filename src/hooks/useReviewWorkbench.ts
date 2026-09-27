@@ -62,6 +62,17 @@ export interface EngineGroup {
   groups: SubtypeGroup[];
   massAction: SubtypeAction;
   massLabel: string;
+  /**
+   * Las dos mitades de "hasta dónde llega la acción en masa", publicadas JUNTO
+   * con `massAction` porque las dos las produce la misma regla: la cabecera
+   * actúa solo sobre los subtipos que comparten su acción (ver
+   * `runGroupAction`). `covered` = hallazgos de esos subtipos, `count` = los
+   * del motor entero. Con las dos mitades a la vista, quien pinta el aviso no
+   * puede equivocarse: si la vista las re-derivara por su cuenta, un cambio de
+   * alcance en el hook dejaría el número del rack diciendo una cosa y el aviso
+   * de cobertura otra, y la que se ve es la que miente.
+   */
+  covered: number;
 }
 
 export interface ReviewWorkbenchApi {
@@ -84,6 +95,12 @@ export interface ReviewWorkbenchApi {
   visibleCount: number;
   /** Una marca por página con hallazgo: color = motor dominante de ESA página */
   marks: Map<number, MinimapMark>;
+  /** Ids de elemento con ALGÚN hallazgo, ya recortados por el filtro. Es lo que
+   *  el lienzo usa para teñir de acento los bloques con hallazgos en el modo
+   *  Hoja (`reviewHighlightIds`). Sale de `visibles` y no de `items`: el
+   *  conjunto que se cuenta es el mismo que `visibleCount` y el que
+   *  recorre `nextFinding`. */
+  highlightIds: Set<string>;
   filter: EngineFilter;
   setFilter: (f: EngineFilter) => void;
   totalPages: number;
@@ -109,6 +126,10 @@ export interface ReviewWorkbenchApi {
   markedIds: string[];
   scanAll: () => Promise<void>;
   isScanning: boolean;
+  /** Hay una escritura al documento en curso. La UI se apaga con esto: la
+   *  acción en masa es SECUENCIAL y hace una llamada de red por hallazgo, así
+   *  que sin cerrojo un segundo "Aceptar todas" duplica la tanda. */
+  isApplying: boolean;
   metrics: { total: number; critical: number; compliance: number | null };
   viewMode: 'focus' | 'canvas';
   setViewMode: (m: 'focus' | 'canvas') => void;
@@ -292,6 +313,7 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
       const rb = Math.min(...b.items.map((i) => SEVERITY_RANK[i.severity]));
       return ra - rb || b.items.length - a.items.length;
     });
+    const massAction = engineAction(engine);
     return {
       engine,
       title: ENGINE_META[engine].title,
@@ -299,8 +321,15 @@ function agruparHallazgos(visibles: AuditItem[]): EngineGroup[] {
       count: propios.length,
       criticalHigh: propios.filter((i) => i.severity === 'critical' || i.severity === 'high').length,
       groups: subgrupos,
-      massAction: engineAction(engine),
-      massLabel: massLabelFor(engineAction(engine)),
+      massAction,
+      massLabel: massLabelFor(massAction),
+      /* La MISMA regla que usa `runGroupAction` para decidir a quién toca,
+         contada aquí: los subtipos que comparten la acción del motor. Publicar
+         las dos mitades (estas y `count`) es lo que permite que la cabecera
+         diga hasta dónde llega sin re-derivar nada. */
+      covered: subgrupos
+        .filter((g) => g.action === massAction)
+        .reduce((n, g) => n + g.items.length, 0),
     };
   });
 }
@@ -320,6 +349,10 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const aiIndices = useDocStore((s) => s.aiIndices);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
+  /* El canal de descarte del LIENZO. `dismiss` de esta vista y esta función
+     tienen que ir juntos: uno saca la fila del rack, el otro la burbuja y su
+     subrayado, y son el mismo hallazgo. */
+  const dismissComment = useDocStore((s) => s.dismissComment);
   const runAIReview = useDocStore((s) => s.runAIReview);
   const runProofreadBatch = useDocStore((s) => s.runProofreadBatch);
   const runCitationAudit = useDocStore((s) => s.runCitationAudit);
@@ -338,6 +371,16 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isScanning, setIsScanning] = useState(false);
+  /* Hay UNA acción en curso a la vez. `acceptMany` recorre los hallazgos de uno
+     en uno y `aplicar` hace una llamada de red por hallazgo sin sugerencia: un
+     "Aceptar todas" grande son N llamadas secuenciales, y sin este cerrojo el
+     botón se puede volver a apretar mientras la primera tanda sigue corriendo.
+     La segunda tanda vuelve a disparar las MISMAS llamadas sobre los MISMOS
+     elementos, y el último que escribe gana de forma no determinista: el
+     documento queda con una corrección arbitraria de entre las dos. El cerrojo
+     no es una decoración de estado: es lo que hace la acción idempotente. */
+  const [isApplying, setIsApplying] = useState(false);
+  const aplicando = useRef(false);
   const seeded = useRef(false);
 
   /* La página actual SIEMPRE vive en el rango real del documento. Es un
@@ -386,6 +429,12 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const groups = useMemo(
     () => (filter === 'all' ? allGroups : agruparHallazgos(visibles)),
     [allGroups, visibles],
+  );
+
+  /* Los bloques con hallazgo, en el mismo conjunto que cuenta `visibleCount`. */
+  const highlightIds = useMemo(
+    () => new Set(visibles.map((i) => i.element_id).filter(Boolean)),
+    [visibles],
   );
 
   /* La siembra es POR DOCUMENTO, y el documento se identifica por su sesión,
@@ -539,7 +588,17 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
         showToast('El detector de IA propone, no aplica: márcalo para revisión manual.');
         return;
       }
-      await aplicar(item);
+      /* Mismo cerrojo que la tanda: aceptar uno y aceptar todos son la misma
+         escritura sobre el documento. */
+      if (aplicando.current) return;
+      aplicando.current = true;
+      setIsApplying(true);
+      try {
+        await aplicar(item);
+      } finally {
+        aplicando.current = false;
+        setIsApplying(false);
+      }
     },
     [aplicar, showToast],
   );
@@ -548,9 +607,20 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     async (lista: AuditItem[]) => {
       const targets = lista.filter((i) => i.element_id && aceptaDeIA(i));
       if (!targets.length) return;
+      /* El ref, no el estado: dos pulsaciones en el mismo tick de React leen
+         el mismo `isApplying` del render anterior, y con estado las dos
+         entrarían. El ref se escribe en el momento de la llamada. */
+      if (aplicando.current) return;
+      aplicando.current = true;
+      setIsApplying(true);
       let ok = 0;
-      for (const it of targets) {
-        if (await aplicar(it)) ok += 1;
+      try {
+        for (const it of targets) {
+          if (await aplicar(it)) ok += 1;
+        }
+      } finally {
+        aplicando.current = false;
+        setIsApplying(false);
       }
       if (ok > 0) showToast(`${ok} corrección(es) aplicada(s)`, 'success');
       else showToast('No se pudieron aplicar las correcciones', 'error');
@@ -630,7 +700,12 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
    */
   const runGroupAction = useCallback(
     async (group: EngineGroup | SubtypeGroup) => {
-      if (!('massAction' in group)) {
+      /* La presencia de una PROPIEDAD, no su ausencia: un discriminante de
+         unión escrito al revés (`!'massAction' in group`) no lo cubre `tsc` en
+         ninguna forma —agregar una propiedad opcional nueva al tipo lo rompe en
+         silencio—, y un `EngineGroup` sin `massAction` sería un tipo
+         imposible. `groups` es la propiedad que hace único al motor. */
+      if (!('groups' in group)) {
         // Fila de subtipo: su propia acción sobre sus propios ítems, sin más.
         await despachar(group.action, group.items);
         return;
@@ -650,13 +725,23 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     [despachar, showToast],
   );
 
+  /* DESCARTAR tiene que salir por los DOS canales, y no por el de esta vista.
+     AGENTS.md §2: un hallazgo se anuncia en el subrayado inline y en la burbuja
+     del gutter, y se descarta en los dos a la vez — el canal del lienzo es
+     `dismissComment(elementId)` del store, que es lo que leen `ReadingText` y
+     `WhatsAppComment`. Filtrar solo `dismissedIds` sacaba la fila del rack y
+     dejaba la burbuja y su subrayado pegados a la página: la misma
+     contradicción, al revés. Un hallazgo sin elemento (una referencia huérfana
+     vive en la bibliografía) no tiene a qué anclarse en el lienzo, y por eso
+     no hay nada que descartar ahí. */
   const dismiss = useCallback(
     (item: AuditItem) => {
       setDismissedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
       setSelectedId((prev) => (prev === item.id ? null : prev));
+      if (item.element_id) dismissComment(item.element_id);
       showToast('Alerta descartada. Texto original conservado.', 'info');
     },
-    [showToast],
+    [dismissComment, showToast],
   );
 
   const scanAll = useCallback(async () => {
@@ -754,6 +839,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     hasFindings: items.length > 0,
     visibleCount: visibles.length,
     marks,
+    highlightIds,
     filter,
     setFilter,
     totalPages,
@@ -774,6 +860,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     markedIds,
     scanAll,
     isScanning,
+    isApplying,
     metrics: {
       total,
       critical,

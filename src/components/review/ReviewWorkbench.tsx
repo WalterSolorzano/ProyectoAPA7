@@ -46,21 +46,18 @@ const alternar = <T,>(lista: T[], valor: T): T[] =>
   lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor];
 
 /**
- * Hasta dónde llega la acción en masa de un motor. `runGroupAction` actúa solo
- * sobre los subtipos que COMPARTEN su acción, así que el rótulo de la cabecera
- * ("Aceptar todas") puede prometer más de lo que el botón cubre. El hook no lo
- * avisa —no tiene por qué, es una decisión de la vista—, y un silencio ahí se
- * lee como "se aplicó y no pasó nada".
+ * La REDACCIÓN del aviso de alcance. Lo que llega ya está contado: `covered` y
+ * `count` los publica el hook, que es quien aplica la regla de "la cabecera
+ * actúa solo sobre los subtipos que comparten su acción". Acá solo se traduce a
+ * palabras — y el hook no lo dice porque la redacción es de la vista.
  */
 function coberturaDeMotor(group: EngineGroup): string | undefined {
   if (!group.massLabel) return undefined;
-  const deAcuerdo = group.groups.filter((g) => g.action === group.massAction);
-  const cubiertos = deAcuerdo.reduce((n, g) => n + g.items.length, 0);
-  if (cubiertos === 0) {
+  if (group.covered === 0) {
     return 'Este motor no tiene nada que aplicar en bloque: revisa sus hallazgos uno por uno.';
   }
-  if (cubiertos < group.count) {
-    return `${group.count - cubiertos} de ${group.count} hallazgos de este motor no tienen corrección automática.`;
+  if (group.covered < group.count) {
+    return `${group.count - group.covered} de ${group.count} hallazgos de este motor no tienen corrección automática.`;
   }
   return undefined;
 }
@@ -183,7 +180,13 @@ export function ReviewWorkbench() {
 
         {wb.viewMode === 'canvas' ? (
           <div style={{ minWidth: 0, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <PaperCanvas />
+            /* El lavado de acento es "qué bloques tienen hallazgos": sin él, el
+               modo Hoja pierde la única señal de dónde mirar, que es justo lo
+               que el modo Hoja existe para ver. El conjunto lo publica el hook
+               porque el filtro también lo recorta —el mismo conjunto que cuenta
+               `visibleCount`—, y derivarlo acá volvería a duplicar su
+               predicado. */
+            <PaperCanvas reviewHighlightIds={wb.highlightIds} />
           </div>
         ) : doc ? (
           <FocusReadingCard item={wb.selected} totalFindings={enElBloque} />
@@ -228,6 +231,7 @@ export function ReviewWorkbench() {
                 onToggle={() => wb.setOpenEngines((prev) => alternar(prev, group.engine))}
                 onMassAction={correrAccion}
                 massNote={coberturaDeMotor(group)}
+                busy={wb.isApplying}
               >
                 {group.groups.map((sub) => (
                   <SubtypeRow
@@ -236,11 +240,18 @@ export function ReviewWorkbench() {
                     open={wb.openSubtypes.includes(sub.key)}
                     onToggle={() => wb.setOpenSubtypes((prev) => alternar(prev, sub.key))}
                     onMassAction={correrAccion}
+                    busy={wb.isApplying}
                   >
                     {sub.items.map((it, i) => (
                       <FindingDetail
                         key={it.id}
                         item={it}
+                        /* El estado de "marcado para revisar" se PINTA. Sin
+                           esto, la única acción del motor probabilístico —la
+                           que AGENTS.md §1 le concede y no le concede ninguna
+                           más— no dejaba rastro: se aprieta, sale un toast y el
+                           botón queda igual, así que se vuelve a apretar. */
+                        marked={wb.markedIds.includes(it.id)}
                         /* La acción la DECLARA el subtipo, no el texto que
                            traiga el hallazgo: estructura trae `suggestedText`
                            (una leyenda genérica) y su mecanismo es rotular, no
@@ -253,7 +264,14 @@ export function ReviewWorkbench() {
                         onMark={wb.markForReview}
                         onDismiss={wb.dismiss}
                         onEngineAction={() => correrAccion(sub)}
-                        busy={false}
+                        /* El cerrojo de la acción en masa, no un `false`
+                           constante. `acceptMany` recorre los hallazgos de uno en
+                           uno con una llamada de red cada uno: sin esto, apretar
+                           "Aceptar todas" dos veces dispara las MISMAS llamadas
+                           sobre los MISMOS elementos y el documento queda con
+                           una de las dos correcciones, elegida por quién
+                           escribió último. */
+                        busy={wb.isApplying}
                       />
                     ))}
                   </SubtypeRow>

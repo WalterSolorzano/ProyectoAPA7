@@ -23,6 +23,29 @@ export interface CommentContextSource {
   proofreadFindings: ProofreadFinding[];
 }
 
+/**
+ * EL ALCANCE DEL INTERRUPTOR "Sugerencias proactivas", escrito porque la
+ * unificación de los dos canales tuvo que elegir y no puede ser una elección
+ * invisible:
+ *
+ * El interruptor cubre las INCIDENCIAS DE VALIDACIÓN —las que el corredor
+ * produce: leyendas, tablas, jerarquía— y nada más. Eso es lo que hizo siempre
+ * (el lienzo forzaba `styleAuditRun: false` en esa rama) y es lo que su
+ * nombre dice: sugerencias proactivas sobre el documento.
+ *
+ * `styleAuditRun` es OTRA cosa: los detectores de redacción (primera persona,
+ * muletillas, cierre) y el corrector. Apagarlo con el interruptor dejaría al
+ * corrector con su subrayado inline —`ReadingText` los dibuja desde
+ * `proofreadFindings`, no desde `styleAuditRun`— y SIN la burbuja que lo
+ * anuncia. Eso es exactamente la contradicción que AGENTS.md §2 prohíbe por
+ * nombre ("nada de decidir 'este tipo de elemento no lleva subrayado' solo en
+ * un canal"), y sería un hallazgo subrayado en un canal y ausente en el otro.
+ * Por eso el corrector NO se apaga con el interruptor: los dos van juntos o
+ * dejarían de ir juntos.
+ *
+ * Para cambiar el alcance hay que cambiar las dos líneas de abajo Y la aserción
+ * de `commentContext.test.ts` que nombra este párrafo.
+ */
 export function buildCommentContext(s: CommentContextSource): WhatsAppContext {
   return {
     ghostCitations: s.citationAuditResult?.ghost_citations || [],
@@ -32,7 +55,12 @@ export function buildCommentContext(s: CommentContextSource): WhatsAppContext {
     validationIssues: s.sugerenciasProactivas === false ? [] : s.validationIssues || [],
     // Corrector O revisor de IA habilitan los comentarios de estilo: sin esto,
     // un hallazgo del corrector se anunciaba en una burbuja sin subrayado.
+    // Deliberadamente NO depende de `sugerenciasProactivas` (ver arriba).
     // El `|| []` tolera un store que llegue sin el array (setState parcial).
-    styleAuditRun: !!s.reviewResult || (s.proofreadFindings || []).length > 0,
+  /* Corrector O revisor de IA habilitan los comentarios de estilo: sin esto, un
+     hallazgo del corrector se anunciaba en una burbuja sin subrayado.
+     Deliberadamente NO depende de `sugerenciasProactivas` (ver arriba).
+     El `|| []` tolera un store que llegue sin el array (setState parcial). */
+  styleAuditRun: !!s.reviewResult || (s.proofreadFindings || []).length > 0,
   };
 }

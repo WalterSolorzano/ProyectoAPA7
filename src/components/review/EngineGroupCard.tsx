@@ -33,13 +33,15 @@ export interface EngineGroupCardProps {
   /** Qué parte del motor cubre la acción en masa, en palabras. La cabecera
    *  promete "Aceptar todas" y `runGroupAction` solo toca los subtipos que
    *  comparten su acción: sin este aviso, el motor entero parece tocado y no
-   *  lo está. Quien lo calcula es la vista (que ve los grupos), no este
-   *  componente (que no sabe qué va a hacer la acción). */
+   *  lo está. La REDACCIÓN es de la vista; los dos números que la sostienen
+   *  (`covered` y `count`) los publica el hook. */
   massNote?: string;
+  /** Hay una escritura al documento en curso (`isApplying` del hook). */
+  busy?: boolean;
   children: React.ReactNode;
 }
 
-export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote, children }: EngineGroupCardProps) {
+export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote, busy, children }: EngineGroupCardProps) {
   const Chevron = open ? ChevronDown : ChevronRight;
   const regionId = `engine-${group.engine}`;
   /* El acento sólido es de UNA sola acción: `accept`, la que de verdad corrige el
@@ -52,6 +54,11 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote,
      es: un botón con borde que hay que querer pulsar. */
   const solido = group.massAction === 'accept';
   const atenuado = group.massAction === 'mark';
+  /* El cerrojo de la acción en masa, que la vista cablea desde el hook. Vale
+     solo para `accept`: los otros mecanismos son de documento y no llaman
+     `updateElementText` por hallazgo, así que re-ejecutarlos no duplica
+     escrituras (sí vuelve a rotular, que es idempotente). */
+  const grupoApretado = group.massAction === 'accept' && !!busy;
   return (
     <section
       style={{
@@ -96,8 +103,14 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote,
           <button
             type="button"
             onClick={() => onMassAction(group)}
+            /* Se apaga con la acción en curso: la cabecera comparte mecanismo
+               con el detalle, y un "Aceptar todas" que se puede pulsar dos
+               veces escribe dos veces el mismo texto. */
+            disabled={grupoApretado}
             style={{
               flexShrink: 0, padding: 'var(--space-1) 10px',
+              opacity: grupoApretado ? 0.6 : 1,
+              cursor: grupoApretado ? 'default' : 'pointer',
               border: solido ? 'none' : '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-sm)',
               background: solido ? 'var(--color-accent)' : 'transparent',
@@ -128,6 +141,8 @@ export interface SubtypeRowProps {
   open: boolean;
   onToggle: () => void;
   onMassAction: (group: SubtypeGroup) => void;
+  /** Cerrojo de la acción en masa, igual que en la cabecera. */
+  busy?: boolean;
   children: React.ReactNode;
 }
 
@@ -163,14 +178,18 @@ const peorSeveridad = (items: AuditItem[]): AuditItem['severity'] =>
     'low',
   );
 
-export function SubtypeRow({ group, open, onToggle, onMassAction, children }: SubtypeRowProps) {
+export function SubtypeRow({ group, open, onToggle, onMassAction, busy, children }: SubtypeRowProps) {
   const primero = group.items[0];
   const Chevron = open ? ChevronDown : ChevronRight;
   const regionId = `subtype-${group.key}`;
-  /* Páginas REALES y únicas. Un hallazgo sin página (`null`) no aporta una:
-     inventarla sería la estimación por caracteres que este proyecto ya
-     eliminó (`pageOf` es el índice real del lienzo). */
-  const paginas = [...new Set(group.items.map((i) => i.pageNumber).filter((p): p is number => p != null))];
+  /* Páginas REALES, únicas y EN ORDEN. Un `Set` conserva el orden en que las
+     aporta el primer hallazgo de cada una, así que una fila podía leerse
+     "pág. 7, 2, 5": el orden de aparición de los hallazgos no es el orden del
+     documento, y una lista de páginas desordenada se lee como un error de
+     paginación. */
+  const paginas = [...new Set(group.items.map((i) => i.pageNumber).filter((p): p is number => p != null))]
+    .sort((a, b) => a - b);
+  const apretado = group.action === 'accept' && !!busy;
   return (
     <div style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
       <div
@@ -250,11 +269,14 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, children }: Su
           <button
             type="button"
             onClick={() => onMassAction(group)}
+            disabled={apretado}
             style={{
               flexShrink: 0, padding: '3px var(--space-2)',
               border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)',
               background: 'transparent', color: 'var(--color-text-primary)',
-              font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
+              font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 500,
+              opacity: apretado ? 0.6 : 1,
+              cursor: apretado ? 'default' : 'pointer',
             }}
           >
             {group.massLabel}
