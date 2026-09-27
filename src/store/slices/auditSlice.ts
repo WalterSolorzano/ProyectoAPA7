@@ -162,6 +162,30 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
   // Auditorías silenciosas que activan los globos proactivos sin loading global.,
   clearProofreadFindings: () => set({ proofreadFindings: [] }),
 
+  /* Tira TODOS los hallazgos, no los de los parrafos que "no cambiaron".
+     `element_id` es un indice posicional (`docx_parser.py:1099` genera
+     `elem_{contador}`), asi que insertar un parrafo arriba del todo en Word corre
+     TODOS los ids de abajo con el mismo texto. Parchear por id dejaria un
+     hallazgo pegado al parrafo equivocado, con el subrayado en la frase
+     equivocada: un error que se lee como error de redaccion. Lo unico correcto
+     es recalcular todo, y recalcular casi todo es local y gratis. */
+  invalidarHallazgosRancios: () => {
+    set({
+      proofreadFindings: [],
+      reviewResult: null,
+      citationAuditResult: null,
+      aiIndices: null,
+      /* Los descartes son claves que incluyen element_id, asi que tambien quedan
+         rancios: un descarte de "elem_7" no puede seguir borrando el hallazgo
+         nuevo de un parrafo que ahora ocupa ese id. */
+      dismissedCommentIds: [],
+    });
+    /* wordapa7_marcas_map esta indexado por element_id y NO tiene poda en ningun
+       lado (mas arriba, en runProofreadBatch, solo agrega). Es la misma trampa que
+       los hallazgos: hay que vaciarlo, no podarlo. */
+    try { localStorage.removeItem('wordapa7_marcas_map'); } catch { /* noop */ }
+  },
+
   // Revisor por lotes (F): local siempre + LLM si hay clave. Silencioso.,
   autoResolveGhosts: async () => {
     const { doc, citationAuditResult, references } = get();

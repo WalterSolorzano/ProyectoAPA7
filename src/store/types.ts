@@ -334,6 +334,17 @@ export interface DocState {
   aiIndices: api.AIIndicesSummary | null;
   runProofreadBatch: () => Promise<void>;
   clearProofreadFindings: () => void;
+  /**
+   * Tira TODOS los hallazgos, porque `element_id` es un indice posicional: insertar
+   * un parrafo arriba en Word corre todos los ids de abajo y un hallazgo conservado
+   * queda pegado al parrafo equivocado. No es "limpiar lo que quedo huerfano": es
+   * dejar la lista vacia para que la reauditoria la vuelva a armar sobre el
+   * documento que ahora esta en pantalla.
+   *
+   * Tambien vacia `dismissedCommentIds` y el mapa de marcas del `localStorage`,
+   * porque sus claves llevan `element_id` adentro y son rancios por la misma razon.
+   */
+  invalidarHallazgosRancios: () => void;
   autoResolveGhosts: () => Promise<void>;
   uploadFile: (file: File, opts?: { profileId?: string; mode?: 'quick' | 'review' }) => Promise<void>;
   startBlankDocument: () => Promise<void>;

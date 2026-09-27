@@ -364,7 +364,18 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
      estado guardado para atras y el texto recien escrito se perderia de la
      pantalla. Por eso la recarga va despues de los dos filtros, no antes. */
     const recargado = migrateDocument(await api.recoverSession(doc.session_id));
-    set((state) => ({ doc: recargado, tabDocs: { ...state.tabDocs, [doc.session_id]: recargado } }));
+    /* `references` es estado rancio del mismo tipo que los hallazgos: viene del
+       documento y el documento acaba de cambiar. `openSession` lo actualiza con
+       las referencias recuperadas (linea 314) y esta accion no lo hacia, asi que
+       si Word agrego o saco una entrada de la bibliografia el panel de Referencias
+       seguia mostrando las viejas — el documento en pantalla y el panel
+       contradiendose dentro de la misma app. Sin cambio (`cambiado: false`) no se
+       llega aca, asi que un Ctrl+S que no toco nada no pisa nada. */
+    set((state) => ({
+      doc: recargado,
+      references: recargado.referencias || [],
+      tabDocs: { ...state.tabDocs, [doc.session_id]: recargado },
+    }));
     return {
       listo: true,
       cambiado: true,

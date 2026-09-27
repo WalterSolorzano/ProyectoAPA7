@@ -86,7 +86,7 @@ const montar = () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useDocStore.setState({ tabDocs: {}, proofreadFindings: [] });
+  useDocStore.setState({ tabDocs: {}, proofreadFindings: [], references: [] });
 });
 
 describe('refrescarDesdeWord del store', () => {
@@ -160,6 +160,45 @@ describe('refrescarDesdeWord del store', () => {
     await refrescar('C:/tesis.docx');
 
     expect(useDocStore.getState().doc!.schema_version).toBe(2);
+  });
+
+  it('LAS REFERENCIAS TAMBIEN SON ESTADO DEL DOCUMENTO, Y EL DOCUMENTO CAMBIO', async () => {
+    // `openSession` (documentSlice.ts:314) actualiza `references` con las que
+    // trae el documento. `refrescarDesdeWord` recargaba el documento y dejaba
+    // esa lista como estaba: si Word agrego o saco una referencia de la
+    // bibliografia, el panel de Referencias seguía mostrando las viejas, y el
+    // documento en pantalla y el panel se contradecian dentro de la misma app.
+    const refrescar = montar();
+    useDocStore.setState({
+      references: [{ id: 'r1', authors: ['Vieja'], year: 2019, title: 'la que ya no esta', source: 'articulo', doi_or_url: '', raw_text: '', formatted_apa: '' }] as any,
+    });
+    pedir.mockResolvedValue(diff({ cambiado: true }));
+    recuperar.mockResolvedValue({
+      ...docNuevo(),
+      referencias: [
+        { id: 'r1', authors: ['Nueva'], year: 2026, title: 'la que Word agrego', source: 'libro', doi_or_url: '', raw_text: '', formatted_apa: '' },
+        { id: 'r2', authors: ['Tercera'], year: 2020, title: 'la segunda', source: 'tesis', doi_or_url: '', raw_text: '', formatted_apa: '' },
+      ],
+    } as any);
+
+    await refrescar('C:/tesis.docx');
+
+    const s = useDocStore.getState();
+    expect(s.references.map((r) => r.id)).toEqual(['r1', 'r2']);
+    expect(s.references[0].authors).toEqual(['Nueva']);
+  });
+
+  it('UN GUARDADO QUE NO CAMBIO NADA TAMPOCO TOCA LAS REFERENCIAS', async () => {
+    // La otra mitad del contrato: si no hubo cambio, no hay nada rancio que tirar.
+    const refrescar = montar();
+    useDocStore.setState({
+      references: [{ id: 'r1', authors: ['Igual'], year: 2019, title: 'no se toca', source: 'articulo', doi_or_url: '', raw_text: '', formatted_apa: '' }] as any,
+    });
+    pedir.mockResolvedValue(diff());
+
+    await refrescar('C:/tesis.docx');
+
+    expect(useDocStore.getState().references.map((r) => r.id)).toEqual(['r1']);
   });
 
   it('EL CONTEO DE HALLAZGOS ES null, NO CERO: ESTA TAREA NO REAUDITA', async () => {
