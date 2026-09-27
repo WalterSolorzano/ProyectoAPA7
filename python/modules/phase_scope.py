@@ -607,3 +607,63 @@ GLOBAL_CHECKS.update({
     "g51_registro_coloquial": _check_g51_registro_coloquial,
     "g52_exclamacion": _check_g52_exclamacion,
 })
+
+
+# ── R-G53 y R-G11: persona y ritmo ───────────────────────────────────────────
+
+# R-G53: segunda persona al lector. "Mayor" en el catalogo.
+_READER_RE = re.compile(
+    r"(?<![a-záéíóúñ])(?:como veras|como puedes ver|como veas|imagina que|"
+    r"fijate|note que|te lo repito|te lo explico)(?![a-záéíóúñ])"
+)
+
+# R-G11: variacion en la longitud de oracion. "Menor" en el catalogo.
+#
+# El piso de 4 oraciones es lo que separa esta regla de un generador de
+# falsos positivos: la desviacion de dos numeros no describe un ritmo, y con el
+# umbral del catalogo (sigma < 3) un parrafo corto bien escrito —"Se hizo. Se
+# vio. Se dijo."— saldria marcado. Es la Review Focus 1 del plan.
+_MIN_SENTENCES = 4
+_SIGMA_FLOOR = 3.0
+
+
+def _check_g53_segunda_persona(eid, text, ctx, mk):
+    out = []
+    # Se busca en la version en minusculas, como con el coloquialismo: buscar
+    # con mayusculas initial en el patron hacia que "Como veras" al inicio de
+    # oracion — la forma mas comun — no matcheara nunca.
+    low = (text or "").lower()
+    for m in _READER_RE.finditer(low):
+        if _in_quoted(text, m.start()):
+            continue
+        out.append(mk(eid, text, m.start(), m.end(), "g53_segunda_persona", "medium",
+                      f'"{m.group(0)}": segunda persona al lector. La prosa '
+                      f"argumental se dirige al tercero", phase="global"))
+    return out
+
+
+def _check_g11_variacion_oracion(eid, text, ctx, mk):
+    sents = _sentences(text)
+    if len(sents) < _MIN_SENTENCES:
+        return []
+    largos = [len(_WORD_SPLIT.findall(s)) for s in sents]
+    media = sum(largos) / len(largos)
+    sigma = (sum((n - media) ** 2 for n in largos) / len(largos)) ** 0.5
+    if sigma >= _SIGMA_FLOOR:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "g11_variaacion_oracion", "info",
+              f"Las {len(sents)} oraciones del parrafo miden casi lo mismo "
+              f"(desviacion {sigma:.1f} palabras). Una redaccion mecanica tiene "
+              f"latidos iguales; alternar la longitud las hace mas leibles",
+              phase="global")]
+
+
+RULE_SCOPES.update({
+    "g53_segunda_persona": GLOBAL,
+    "g11_variaacion_oracion": GLOBAL,
+})
+
+GLOBAL_CHECKS.update({
+    "g53_segunda_persona": _check_g53_segunda_persona,
+    "g11_variaacion_oracion": _check_g11_variacion_oracion,
+})

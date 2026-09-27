@@ -395,3 +395,34 @@ def test_un_registro_formal_no_dispara_ninguna_de_las_dos():
 def test_una_palabra_que_empieza_igual_no_es_coloquialismo():
     # "bueno" no es "buenotrabajo": el detector no puede ser subcadena a pelo.
     assert "g51_registro_coloquial" not in {f["kind"] for f in _g("El buenotrabajo fue notable.")}
+
+
+def test_segunda_persona_al_lector():
+    assert "g53_segunda_persona" in {f["kind"] for f in _g("Como veras, el metodo es sencillo.")}
+
+
+def test_segunda_persona_dentro_de_comilla_no_cuenta():
+    out = _g('El autor dice "como veras, esto es facil" y lo critica.')
+    assert "g53_segunda_persona" not in {f["kind"] for f in out}
+
+
+def test_variacion_por_debajo_del_piso_no_es_hallazgo():
+    # Review Focus 1: con menos de 4 oraciones no hay distribucion que medir.
+    # sigma sobre dos numeros no describe un ritmo.
+    assert "g11_variacion_oracion" not in {f["kind"] for f in _g("Se hizo. Se vio. Se dijo.")}
+    assert "g11_variacion_oracion" not in {f["kind"] for f in _g("Solo una oracion aqui.")}
+
+
+def test_oraciones_todas_iguales_si_es_hallazgo():
+    texto = ("El proceso fue lento en la primera etapa del estudio. "
+             "El proceso fue lento en la segunda etapa del estudio. "
+             "El proceso fue lento en la tercera etapa del estudio. "
+             "El proceso fue lento en la cuarta etapa del estudio.")
+    assert "g11_variaacion_oracion" in {f["kind"] for f in _g(texto)}
+
+
+def test_ritmo_variado_no_es_hallazgo():
+    texto = ("La desercion crece. Es un problema serio y con multiples causas "
+             "documentadas en la literatura. Los datos del 2024 muestran un "
+             "aumento sostenido que nadie explica.")
+    assert "g11_variacion_oracion" not in {f["kind"] for f in _g(texto)}
