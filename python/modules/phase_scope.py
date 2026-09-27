@@ -534,3 +534,76 @@ def global_findings(eid: str, text: str, ctx: GlobalContext, *, mk) -> List[Dict
 # el mismo id: asi la fila de `PROOFREAD_SPECS` y el mapa de transparencia
 # hablan del mismo nombre.
 GLOBAL_CHECKS: Dict[str, Any] = {}
+
+
+def _in_quoted(text: str, pos: int) -> bool:
+    """True si la posicion cae dentro de un tramo entre comillas.
+
+    Citar un texto con exclamaciones o coloquialismos es legitimo. Es la misma
+    guarda que usa el corrector para la primera persona, y por el mismo motivo:
+    lo que se audita es la prosa de quien escribe, no lo que cita.
+    """
+    antes = text[:pos]
+    if antes.count('"') % 2 == 1:
+        return True
+    return antes.count("“") > antes.count("”")
+
+
+def _sentences(text: str) -> List[str]:
+    return [s for s in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if s]
+
+
+# ── R-G51 y R-G52: registro y tono ──────────────────────────────────────────
+
+# R-G52: sin exclamaciones de entusiasmo en prosa argumentativa. "Menor" en el
+# catalogo, asi que `info`: se informa y no se aplica.
+_EXCLAMATION_RE = re.compile(r"!")
+
+# R-G51: registro coloquial. "Critica" en el catalogo, asi que `error`.
+# La lista es CERRADA a proposito, y el match exige limites de palabra: un
+# detector de coloquialismo por subcadena a pelo es el mismo patron que nos
+# mordio con "meta" dentro de "metodologia", y "bueno" no puede ser "buenotrabajo".
+_COLOQUIAL = (
+    "o sea", "pues", "bueno", "vale", "a ver", "chido", "neta", "ta de",
+    "mas o menos", "en el fondo", "se me hace que", "nada que ver",
+    "dar en el clavo", "echar la culpa",
+)
+
+
+def _check_g51_registro_coloquial(eid, text, ctx, mk):
+    low = (text or "").lower()
+    out = []
+    for frase in _COLOQUIAL:
+        patron = r"(?<![a-záéíóúñ])" + re.escape(frase) + r"(?![a-záéíóúñ])"
+        for m in re.finditer(patron, low):
+            if _in_quoted(text, m.start()):
+                continue
+            out.append(mk(eid, text, m.start(), m.end(), "g51_registro_coloquial",
+                          "error", f'Registro coloquial: "{frase}". La prosa '
+                          f"argumental va en registro formal", phase="global"))
+            break
+    return out
+
+
+def _check_g52_exclamacion(eid, text, ctx, mk):
+    out = []
+    for m in _EXCLAMATION_RE.finditer(text or ""):
+        if _in_quoted(text, m.start()):
+            continue
+        out.append(mk(eid, text, m.start(), m.end(), "g52_exclamacion", "info",
+                      "Una exclamacion en prosa argumental: APA 7 no las usa",
+                      phase="global"))
+    return out
+
+
+# Declaradas y programadas en la MISMA linea: ver la nota en RULE_SCOPES sobre
+# por que las ocho del catalogo no se declaran todas juntas.
+RULE_SCOPES.update({
+    "g51_registro_coloquial": GLOBAL,
+    "g52_exclamacion": GLOBAL,
+})
+
+GLOBAL_CHECKS.update({
+    "g51_registro_coloquial": _check_g51_registro_coloquial,
+    "g52_exclamacion": _check_g52_exclamacion,
+})

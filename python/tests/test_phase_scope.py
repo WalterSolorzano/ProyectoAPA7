@@ -353,3 +353,45 @@ def test_global_findings_no_recibe_el_ambito():
     import inspect
     from modules.phase_scope import global_findings
     assert "phase" not in inspect.signature(global_findings).parameters
+
+
+# ── Reglas globales ──────────────────────────────────────────────────────────
+
+def _g(texto, eid="e1", ctx=None):
+    from modules.phase_scope import GlobalContext, global_findings
+    return global_findings(
+        eid, texto,
+        ctx or GlobalContext(doc_words=200, seen_acronyms=frozenset(), connector_counts={}),
+        mk=mk)
+
+
+def test_exclamacion_en_prosa_argumental():
+    out = _g("Este hallazgo es importante! Hay que revisarlo.")
+    assert [f["kind"] for f in out] == ["g52_exclamacion"]
+    assert out[0]["phase"] == "global"
+
+
+def test_registro_coloquial():
+    out = _g("O sea, el tema esta bueno y pues sirve.")
+    assert "g51_registro_coloquial" in {f["kind"] for f in out}
+
+
+def test_la_exclamacion_dentro_de_una_cita_no_es_hallazgo():
+    # Citar un texto exclamativo es legitimo: lo que se audita es la prosa
+    # argumental propia, no lo citado.
+    out = _g('El autor escribe: "este problema es urgente!" en la introduccion.')
+    assert [f for f in out if f["kind"] == "g52_exclamacion"] == []
+
+
+def test_el_coloquialismo_dentro_de_una_cita_no_es_hallazgo():
+    out = _g('El autor responde "o sea, esto no funciona" y lo explica.')
+    assert "g51_registro_coloquial" not in {f["kind"] for f in out}
+
+
+def test_un_registro_formal_no_dispara_ninguna_de_las_dos():
+    assert _g("El presente trabajo analiza la desercion estudiantil.") == []
+
+
+def test_una_palabra_que_empieza_igual_no_es_coloquialismo():
+    # "bueno" no es "buenotrabajo": el detector no puede ser subcadena a pelo.
+    assert "g51_registro_coloquial" not in {f["kind"] for f in _g("El buenotrabajo fue notable.")}
