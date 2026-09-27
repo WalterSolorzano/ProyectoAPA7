@@ -31,9 +31,20 @@ export const ProjectTabs: React.FC = () => {
     return () => window.removeEventListener('mousedown', onDown);
   }, [overflowOpen]);
 
-  // Con una sola pestaña el nombre del proyecto ya vive en la topbar: el strip
-  // solo sirve para navegar entre proyectos.
-  if (tabs.length < 2) return null;
+  /* Con una sola pestaña el STRIP solo sirve para navegar entre proyectos, y el
+     nombre del proyecto ya vive en la topbar: con un documento abierto no se
+     dibuja la lista.
+
+     El overflow NO se cuelga de ese guard. "Carpeta" (el Explorador de
+     Proyecto, `AGENTS.md` §5) y "Imágenes" son de un documento, no de dos, y
+     estos tres modales solo se montan acá: con el guard antes de todo el
+     return, quedaban inalcanzables en el estado más común de la app. El guard
+     va donde corresponde — sobre el strip —, no sobre la pantalla entera. */
+  const showStrip = tabs.length >= 2;
+  // Cero documentos: no hay proyecto al que abrirle la carpeta, así que la
+  // barra entera no se dibuja. El caso de UNO sí se dibuja, porque el Explorador
+  // y el cajón de imágenes son de un documento, no de dos.
+  if (tabs.length === 0) return null;
 
   const handleNewTab = () => {
     fileInputRef.current?.click();
@@ -53,7 +64,11 @@ export const ProjectTabs: React.FC = () => {
 
   return (
     <>
+      {/* Con un solo documento la barra es solo el botón de desborde: es el que
+          abre el Explorador y el cajón de imágenes, y ninguno tiene otro
+          camino. */}
       <div className="project-tabs-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '8px' }}>
+        {showStrip && (
         <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, overflow: 'hidden' }}>
           {/* Chip de Proyecto Dominante */}
           {activeParsed && (
@@ -144,6 +159,7 @@ export const ProjectTabs: React.FC = () => {
             </svg>
           </button>
         </div>
+        )}
 
         {/* Acciones de Colaboración de Proyecto — agrupadas en overflow para
             no ocupar la barra cuando no son relevantes */}
