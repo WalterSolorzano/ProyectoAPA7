@@ -1,5 +1,40 @@
 # Refresco por cambios de Word — Plan de implementación
 
+> ## EJECUTADO. Leé esto antes que el plan.
+>
+> Las 5 tasks estan hechas, en 5 commits: `a22fe82` (diff + endpoint), `8cdd7cc`
+> (el aviso), `dbf1b13` (audit_registry), `1a41622` (cache de LLM), `cf20338`
+> (reintento). El razonamiento completo, con los hallazgos, esta en
+> `.superpowers/sdd/2026-09-27-inicio-cinematografico/progress.md`.
+>
+> **Lo que el plan de abajo afirma y resulto FALSO — no lo copies:**
+>
+> 1. **La clave `(session_id, element_id, content_hash)` no puede funcionar.** Los
+>    ids de elemento son `elem_{contador}`, un indice POSICIONAL
+>    (`docx_parser.py:1099`): insertar un parrafo arriba en Word corre todos los
+>    ids de abajo con el MISMO texto. La clave real ended siendo
+>    `(session_id, hash_texto, fase)`, y el diff compara TEXTOS, no ids.
+> 2. **`hash_estructura` no va en la clave.** Sobre-invalida: mover un titulo en
+>    el capitulo 5 tumbaba el veredicto de los 200 parrafos del capitulo 1. La
+>    fase resuelta ya es mas precisa.
+> 3. **El reuso de una sola vez estaba especificado y es un bug.** Consumir la
+>    entrada al leerla no la borra (la tabla crecia igual) y hacia que el segundo
+>    guardado que no cambia nada volviera a pagar el documento entero.
+> 4. **El watcher NO es un poll de 5 segundos.** Es `fs.watch` con debounce de
+>    600 ms (`electron/main.ts:317`). Consecuencia: no hay reintento automatico, y
+>    por eso se agreego UN reintento de 900 ms.
+> 5. **El debounce de 1200 ms de la Task 5 no se agrego:** `main.ts:319` ya tiene
+>    uno de 600 ms rearmable. Sumaba latencia sin agrupar nada.
+> 6. **El gasto de LLM ya estaba cubierto** por el cache de
+>    `execute_with_specialty` (`ai_client.py:173`, `use_cache` default `True`) y por
+>    `_classification_cache_key` de `llm_classifier.py:320`. Por eso
+>    `audit_registry` quedo sin cablear, por decision de la persona.
+>
+> **Y el ciclo sigue ABIERTO:** nadie recarga el documento en memoria ni corre los
+> motores tras un refresco. El endpoint ya guarda el estado reparseado, asi que
+> hoy el backend tiene el texto nuevo y la pantalla el viejo. Requiere su propio
+> plan, porque toca el pipeline de hallazgos.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que cuando Word guarde un cambio, WordAPA re-lea el documento, corra **todos** los motores baratos sobre **todo** el documento, y gaste LLM **solo** en el contenido nuevo o modificado — y que diga cuántos párrafos tocó y cuántos se saltó.
