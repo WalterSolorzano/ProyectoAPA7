@@ -38,6 +38,12 @@ export interface ReviewStripProps {
   viewMode: 'focus' | 'canvas';
   onViewMode: (m: 'focus' | 'canvas') => void;
   hasFindings: boolean;
+  /** Hay hallazgos VISIBLES con el filtro activo. `hasFindings` cuenta el
+   *  documento entero, pero `nextFinding` recorre lo que el filtro deja ver:
+   *  con un filtro sin hallazgos propios, el botón quedaría encendido y no
+   *  haría nada. La vista lo deriva de `items` + `filter`; si no llega, esta
+   *  barra usa `hasFindings` (comportamiento de siempre). */
+  canNextFinding?: boolean;
   /** El escaneo del hook devuelve una promesa; el tipo lo dice en vez de
    *  mentir con un `() => void` que devolvería un rechazo sin manejar. */
   onScan: () => void | Promise<void>;
@@ -73,6 +79,7 @@ export function ReviewStrip(p: ReviewStripProps) {
   const escanear = () => {
     Promise.resolve(p.onScan()).catch(() => undefined);
   };
+  const puedeAvanzar = p.canNextFinding ?? p.hasFindings;
 
   return (
     <div
@@ -180,7 +187,14 @@ export function ReviewStrip(p: ReviewStripProps) {
             >
               <ChevronLeft size={14} strokeWidth={1.75} aria-hidden />
             </button>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+            {/* La cuenta y las marcas del minimapa salen de la MISMA fuente
+                (`usePageIndex`), que son las páginas del índice y no las del
+                lienzo medido: el `title` lo dice para que nadie compare este
+                número con el de la hoja y lo lea como un error. */}
+            <span
+              title="Numeración del índice de revisión: la misma del minimapa. Puede diferir de la hoja hasta que el motor mida el reflujo del lienzo."
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}
+            >
               Página {p.currentPage} de {p.totalPages}
             </span>
             <button
@@ -201,17 +215,18 @@ export function ReviewStrip(p: ReviewStripProps) {
 
         <button
           type="button"
-          disabled={!p.hasFindings}
+          disabled={!puedeAvanzar}
           onClick={p.onNextFinding}
           style={{
             ...chipStyle(false),
             background: 'var(--color-accent)',
             color: 'var(--color-text-on-accent)',
             fontWeight: 600,
-            /* Sin hallazgos el botón se apaga, pero NO desaparece: es parte de
-               la barra y un control que aparece y desaparece hace saltar el
-               resto. Deshabilitado dice "aquí no hay nada" sin mentir. */
-            opacity: p.hasFindings ? 1 : 0.4,
+            /* Sin hallazgos (o sin hallazgos visibles con el filtro puesto) el
+               botón se apaga, pero NO desaparece: es parte de la barra y un
+               control que aparece y desaparece hace saltar el resto.
+               Deshabilitado dice "aquí no hay nada" sin mentir. */
+            opacity: puedeAvanzar ? 1 : 0.4,
           }}
         >
           <span>Siguiente hallazgo</span>

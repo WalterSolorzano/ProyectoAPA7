@@ -104,6 +104,13 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   validatorOpen: false,
   setValidatorOpen: (open) => set({ validatorOpen: open }),
   openExportTunnel: () => set({ isDownloadModalOpen: false, viewMode: 'export', forceRightPanelOpen: false }),
+  /* Tira de citas APA: UN interruptor para los DOS canales que muestran el
+     hallazgo (el lienzo y la tarjeta de lectura). Antes cada canal decidía por
+     su cuenta --el lienzo con estado local, la tarjeta con `true` fijo-- y
+     apagar uno dejaba al otro subrayando citas: un defecto, dos verdades. El
+     dueño es el store porque los dos canales viven en vistas distintas. */
+  showCitationMarks: true,
+  setShowCitationMarks: (on) => set({ showCitationMarks: on }),
   dismissedCommentIds: [],
   dismissComment: (id) => set((state) => ({
     dismissedCommentIds: state.dismissedCommentIds.includes(id) ? state.dismissedCommentIds : [...state.dismissedCommentIds, id],

@@ -10,7 +10,7 @@ import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
 import { applyPageFlow } from '../../lib/pageSplitter';
-import { buildCommentContext } from '../../lib/commentContext';
+import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
@@ -449,11 +449,16 @@ export const computeRenderedPages = ({
 };
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
-  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, reviewResult, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
+  const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
+  /* Origen de marcas del lienzo. Vive ANTES del `if (!doc) return null` para no
+     sumar otro hook despues de una salida temprana, y es el MISMO que usa la
+     tarjeta de lectura (`useMarkSource`): un hallazgo no puede subrayarse en un
+     canal y quedarse sin subrayar en el otro. La bandera de citas sale de acá. */
+  const markBase = useMarkSourceBase();
   const [editingCoverElemId, setEditingCoverElemId] = useState<string | null>(null);
   const [editingCoverText, setEditingCoverText] = useState<string>('');
 
@@ -535,7 +540,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [showAIHeatmap, setShowAIHeatmap] = useState<boolean>(true);
-  const [showCitationMarks, setShowCitationMarks] = useState<boolean>(true);
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
   const [brokenFigureIds, setBrokenFigureIds] = useState<Record<string, string>>({});
@@ -799,32 +803,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const PAGE_H = Math.round(geom.pageH);   // Letter 1056px · A4 1123px
 
   // ── Comentarios: fallas estructurales siempre; estilo solo tras auditar ──
-  const citationAudit = useDocStore((s) => s.citationAuditResult);
-  const validationIssues = useDocStore((s) => s.validationIssues);
-  const proactivas = useDocStore((s) => s.sugerenciasProactivas);
-  const proofreadFindings = useDocStore((s) => s.proofreadFindings);
-  // Mismo constructor que los subrayados inline: si hay burbuja, hay subrayado.
-  const commentCtx = React.useMemo(
-    () => buildCommentContext({
-      citationAuditResult: citationAudit,
-      validationIssues,
-      sugerenciasProactivas: proactivas,
-      reviewResult,
-      proofreadFindings,
-    }),
-    [citationAudit, validationIssues, proactivas, reviewResult, proofreadFindings],
-  );
-  // Los resaltados inline tienen una sola implementación (ReadingText). Acá solo
-  // se le pasa de qué estado del store se sacan las marcas: el marcado lo hace
-  // el componente, no este archivo.
-  const readingSource = (target: ElementModel): MarkSource => ({
-    elem: target,
-    reviewResult,
-    proofreadFindings,
-    commentCtx,
-    showCitations: showCitationMarks,
-    dismissedCommentIds,
-  });
+  // Mismo constructor que los subrayados inline (`useMarkSourceBase`): si hay
+  // burbuja, hay subrayado, y esa regla no se re-declara por canal.
+  const { commentCtx } = markBase;
+  // Los resaltados inline tienen una sola implementación (ReadingText) y una
+  // sola fuente de marcas (`useMarkSource`): acá solo se le pasa el elemento.
+  const readingSource = (target: ElementModel): MarkSource => buildMarkSource(markBase, target);
   // Un solo festejo: SOLO si el documento entero está impecable (cero comentarios).
   const positiveMap = new Map<string, boolean>();
   // Geometría de gutter: SI el documento tiene al menos un comentario, TODAS las

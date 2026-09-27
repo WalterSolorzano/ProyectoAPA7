@@ -12,8 +12,9 @@
       esta sesión vuelve a `null` (ver `lastRunState`).
    3. Las páginas salen de `usePageIndex` (la paginación real del lienzo). Un
       elemento que no está en el índice devuelve `null`, nunca un número
-      estimado: la heurística de 1800 caracteres por página queda en
-      `Step5AuditIAWizard.tsx` hasta que ese componente sea reemplazado. */
+      estimado: la heurística de 1800 caracteres por página que convivía con
+      esta fuente murió con `Step5AuditIAWizard`, que ahora es un envoltorio de
+      `ReviewWorkbench`. */
 
 import {
   useCallback,

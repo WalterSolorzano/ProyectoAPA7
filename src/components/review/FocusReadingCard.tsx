@@ -1,13 +1,18 @@
 /* WordAPA7 — review: la tarjeta de lectura.
    El centro de la vista. Un párrafo, el encabezado de sección y página, y
    los resaltados inline. El cuerpo se auto-ajusta entre 13 y 19px; si
-   ningún tamaño cabe, la tarjeta scrollea (piso duro en useAutoFitText). */
+   ningún tamaño cabe, la tarjeta scrollea (piso duro en useAutoFitText).
+
+   El origen de marcas NO se arma acá: es `useMarkSource`, el mismo que usa el
+   lienzo. Esta tarjeta no decide qué se subraya ni si las citas están prendidas
+   —eso es de los dos canales juntos— porque decidirlo dos veces es como un
+   defecto llega a la pantalla por un solo lado. */
 
 import React, { useMemo } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { buildCommentContext } from '../../lib/commentContext';
 import { useAutoFitText } from '../../hooks/useAutoFitText';
-import { ReadingText, type MarkSource } from './ReadingText';
+import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
+import { ReadingText } from './ReadingText';
 import { ENGINE_META, type AuditItem } from '../../hooks/useReviewWorkbench';
 
 export interface FocusReadingCardProps {
@@ -17,12 +22,7 @@ export interface FocusReadingCardProps {
 
 export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps) {
   const doc = useDocStore((s) => s.doc);
-  const reviewResult = useDocStore((s) => s.reviewResult);
-  const proofreadFindings = useDocStore((s) => s.proofreadFindings);
-  const citationAuditResult = useDocStore((s) => s.citationAuditResult);
-  const validationIssues = useDocStore((s) => s.validationIssues);
-  const sugerenciasProactivas = useDocStore((s) => s.sugerenciasProactivas);
-  const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
+  const markBase = useMarkSourceBase();
 
   /* La clave del contenido es el id del hallazgo, NO el texto: el alto de la
      caja no cambia al pasar de un párrafo al siguiente, así que el
@@ -44,17 +44,7 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
     [doc, item?.element_id],
   );
 
-  const source = useMemo<MarkSource>(
-    () => ({
-      elem,
-      reviewResult,
-      proofreadFindings,
-      commentCtx: buildCommentContext({ citationAuditResult, validationIssues, sugerenciasProactivas, reviewResult, proofreadFindings }),
-      showCitations: true,
-      dismissedCommentIds,
-    }),
-    [elem, reviewResult, proofreadFindings, citationAuditResult, validationIssues, sugerenciasProactivas, dismissedCommentIds],
-  );
+  const source = useMemo(() => buildMarkSource(markBase, elem), [markBase, elem]);
 
   /* `null` es "no hay página", no "la página 0": un elemento fuera del índice
      no tiene página y la tarjeta no estima una. El 0 tampoco es una página,

@@ -29,10 +29,16 @@ export interface EngineGroupCardProps {
   open: boolean;
   onToggle: () => void;
   onMassAction: (group: EngineGroup) => void;
+  /** Qué parte del motor cubre la acción en masa, en palabras. La cabecera
+   *  promete "Aceptar todas" y `runGroupAction` solo toca los subtipos que
+   *  comparten su acción: sin este aviso, el motor entero parece tocado y no
+   *  lo está. Quien lo calcula es la vista (que ve los grupos), no este
+   *  componente (que no sabe qué va a hacer la acción). */
+  massNote?: string;
   children: React.ReactNode;
 }
 
-export function EngineGroupCard({ group, open, onToggle, onMassAction, children }: EngineGroupCardProps) {
+export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote, children }: EngineGroupCardProps) {
   const Chevron = open ? ChevronDown : ChevronRight;
   const regionId = `engine-${group.engine}`;
   return (
@@ -92,6 +98,11 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, children 
           </button>
         )}
       </div>
+      {massNote && (
+        <p style={{ margin: 0, padding: '6px 14px', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+          {massNote}
+        </p>
+      )}
       {open && <div id={regionId}>{children}</div>}
     </section>
   );

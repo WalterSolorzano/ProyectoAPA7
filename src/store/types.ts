@@ -144,6 +144,12 @@ export interface DocState {
   /** Abre el Túnel de Exportación (viewMode='export') reemplazando el modal. */
   openExportTunnel: () => void;
 
+  /** Tira de citas APA en los dos canales (lienzo y tarjeta de lectura).
+   *  Un solo interruptor: si cada canal lo decidiera por su cuenta, apagar uno
+   *  dejaría al otro subrayando el mismo hallazgo. */
+  showCitationMarks: boolean;
+  setShowCitationMarks: (on: boolean) => void;
+
   /** Comentarios inline descartados por el usuario (persisten en la sesión). */
   dismissedCommentIds: string[];
   dismissComment: (id: string) => void;
