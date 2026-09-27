@@ -13,7 +13,8 @@ import type { AuditItem, EngineGroup, SubtypeGroup } from '../hooks/useReviewWor
 const item = (over: Partial<AuditItem> = {}): AuditItem => ({
   id: 'h1', element_id: 'e1', category: 'spelling', subtype: 'ortografia',
   severity: 'medium', summary: 'Ortografía', detail: 'Falta tilde',
-  originalText: 'tambien', suggestedText: 'también', pageNumber: 3, ...over,
+  originalText: 'tambien', suggestedText: 'también', pageNumber: 3,
+  phase: null, readOnly: false, ...over,
 });
 
 const subgrupo = (over: Partial<SubtypeGroup> = {}): SubtypeGroup => ({

@@ -26,7 +26,7 @@ const item = (over: Partial<AuditItem> = {}): AuditItem => ({
   id: 'h1', element_id: 'e1', category: 'spelling', subtype: 'ortografia',
   severity: 'medium', summary: 'Ortografía', detail: 'Falta tilde',
   originalText: TEXTO,
-  pageNumber: 14, ...over,
+  pageNumber: 14, phase: null, readOnly: false, ...over,
 });
 
 const elemento = (over: Partial<ElementModel> = {}): ElementModel => ({

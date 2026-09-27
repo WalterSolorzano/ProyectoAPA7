@@ -48,7 +48,7 @@ const documento = {
 const item: AuditItem = {
   id: 'h1', element_id: 'e1', category: 'spelling', subtype: 'ortografia',
   severity: 'medium', summary: 'Ortografía', detail: 'Falta tilde',
-  originalText: TEXTO, pageNumber: 1,
+  originalText: TEXTO, pageNumber: 1, phase: null, readOnly: false,
 };
 
 const store = (showCitationMarks: boolean) => {
