@@ -33,16 +33,16 @@ export interface ReviewStripProps {
   currentPage: number;
   onPage: (p: number) => void;
   onNextFinding: () => void;
-  /** `null` = nadie midió el cumplimiento: la tira calla en vez de inventar 0 */
+  /** `null` = nadie midió el cumplimiento. La tira lo DICE ("sin medir") en
+   *  vez de callar: un hueco y un 0 se leen igual. */
   compliance: number | null;
   viewMode: 'focus' | 'canvas';
   onViewMode: (m: 'focus' | 'canvas') => void;
   hasFindings: boolean;
-  /** Hay hallazgos VISIBLES con el filtro activo. `hasFindings` cuenta el
-   *  documento entero, pero `nextFinding` recorre lo que el filtro deja ver:
-   *  con un filtro sin hallazgos propios, el botón quedaría encendido y no
-   *  haría nada. La vista lo deriva de `items` + `filter`; si no llega, esta
-   *  barra usa `hasFindings` (comportamiento de siempre). */
+  /** Hay hallazgos VISIBLES con el filtro activo. Lo publica el hook
+   *  (`visibleCount`), que es quien tiene el predicado del filtro: derivarlo
+   *  acá fue una re-derivación de una regla de otro archivo. Si no llega, esta
+   *  barra cae a `hasFindings` (comportamiento de siempre). */
   canNextFinding?: boolean;
   /** El escaneo del hook devuelve una promesa; el tipo lo dice en vez de
    *  mentir con un `() => void` que devolvería un rechazo sin manejar. */
@@ -105,18 +105,21 @@ export function ReviewStrip(p: ReviewStripProps) {
         }}
       >
         {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
-            de pantalla no lo anuncie como parte del conjunto de filtros. */}
-        {!p.hasFindings && (
-          <button
-            type="button"
-            onClick={escanear}
-            disabled={p.isScanning}
-            style={{ ...chipStyle(false), opacity: p.isScanning ? 0.6 : 1 }}
-          >
-            <ScanLine size={14} strokeWidth={1.75} aria-hidden />
-            {p.isScanning ? 'Escaneando' : 'Escanear'}
-          </button>
-        )}
+            de pantalla no lo anuncie como parte del conjunto de filtros. Y no
+            desaparece cuando hay hallazgos: un "Escanear" que solo existe en el
+            documento sin hallazgos quita la única forma de re-escanear después
+            de editar, que es justo cuando hace falta, y deja el estado
+            "Escaneando" inalcanzable en el único caso en que se quiere un
+            rescan. El botón se apaga, no se esconde. */}
+        <button
+          type="button"
+          onClick={escanear}
+          disabled={p.isScanning}
+          style={{ ...chipStyle(false), opacity: p.isScanning ? 0.6 : 1 }}
+        >
+          <ScanLine size={14} strokeWidth={1.75} aria-hidden />
+          {p.isScanning ? 'Escaneando' : 'Escanear'}
+        </button>
         <div
           role="group"
           aria-label="Filtros por motor"
@@ -152,23 +155,27 @@ export function ReviewStrip(p: ReviewStripProps) {
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}
       >
-        {p.compliance !== null && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 'var(--space-1)',
-              padding: `var(--space-1) var(--space-2)`,
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid var(--color-border-subtle)',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 600,
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            Cumplimiento {p.compliance}%
-          </span>
-        )}
+        {/* El cumplimiento tiene TRES estados, no dos: medido, sin medir, y (lo
+            que no puede ser) un 0 inventado. Callarse cuando nadie midió deja
+            el hueco indistinguible de "está todo bien": el HUD antiguo decía
+            "Sin analizar" y esa es la parte de la información que faltaba. */}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--space-1)',
+            padding: `var(--space-1) var(--space-2)`,
+            borderRadius: 'var(--radius-full)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 600,
+            color: p.compliance === null
+              ? 'var(--color-text-tertiary)'
+              : 'var(--color-text-secondary)',
+          }}
+        >
+          {p.compliance === null ? 'Cumplimiento sin medir' : `Cumplimiento ${p.compliance}%`}
+        </span>
 
         {/* Sin páginas reales no hay "Página 1 de 0": el paginador desaparece
             en vez de anunciar un documento que no existe. */}

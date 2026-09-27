@@ -161,6 +161,34 @@ describe('T13 — ReviewStrip', () => {
     expect(screen.queryByText(/%/)).toBeNull();
   });
 
+  it('sin medir, LO DICE: un hueco y un 0 se leen igual', () => {
+    // El HUD antiguo decía "Sin analizar". Un espacio vacío en el mismo sitio
+    // del número no dice si falta medir o si el documento está impecable, y en
+    // una pantalla cuya función es ser honesta con lo que no sabe, esa
+    // diferencia es el contenido.
+    setup({ compliance: null });
+    expect(screen.getByText(/sin medir/i)).toBeTruthy();
+  });
+
+  it('con hallazgos, "Escanear" sigue ahí: sin él no hay rescan', () => {
+    // Un "Escanear" que solo existe en el documento sin hallazgos deja sin
+    // forma de re-correr el escaneo completo después de editar, que es
+    // exactamente cuando se quiere, y hace inalcanzable el estado "Escaneando"
+    // en el único caso en que hace falta. El botón se apaga, no se esconde.
+    const onScan = vi.fn();
+    setup({ onScan });
+    const btn = screen.getByRole('button', { name: 'Escanear' });
+    expect(btn).toBeTruthy();
+    fireEvent.click(btn);
+    expect(onScan).toHaveBeenCalled();
+  });
+
+  it('mientras escanea, el botón lo dice y no se puede volver a pulsar', () => {
+    setup({ isScanning: true });
+    const btn = screen.getByRole('button', { name: 'Escaneando' });
+    expect(btn.hasAttribute('disabled')).toBe(true);
+  });
+
   it('sin resultados, ofrece Escanear y "Todo 0"', () => {
     const onScan = vi.fn();
     setup({ hasFindings: false, engineGroups: [], total: 0, onScan });
