@@ -16,12 +16,14 @@
  *
  * HAY UN SEGUNDO CASO QUE MAS SE VA A REPETIR, Y NO ES UN ERROR
  *
- * Un `.docx` es un ZIP y Word lo reescribe entero en cada guardado, mientras el
- * watcher mira cada 5 segundos. Leerlo en medio de eso es lo NORMAL, no la
- * excepcion: `parse_docx_bytes` revienta con `BadZipFile` y el backend lo
- * traduce a `{listo: false}` en vez de a un 500. Por eso `listo: false` no
- * produce ningun aviso: no hay nada que contar y un error aqui seria mentir de
- * otra manera, culpando al usuario de algo que no hizo.
+ * Un `.docx` es un ZIP y Word lo reescribe entero en cada guardado. El watcher de
+ * Electron es `fs.watch` con su propio debounce de 600 ms (`electron/main.ts:317`),
+ * NO un poll: dispara por evento del sistema de archivos. Leer el archivo en
+ * medio de eso es lo NORMAL, no la excepcion: `parse_docx_bytes` revienta con
+ * `BadZipFile` y el backend lo traduce a `{listo: false}` en vez de a un 500.
+ * Por eso `listo: false` no produce ningun aviso: no hay nada que contar y un
+ * error aqui seria mentir de otra manera, culpando al usuario de algo que no
+ * hizo.
  *
  * UN `.docx` A MEDIAS ESCRIBIR NO ES UN DOCUMENTO CON MENOS PARRAFOS
  *
@@ -107,8 +109,9 @@ function enPlural(n: number, singular: string, plural: string): string {
 
 /**
  * Que se dice de un diff. `null` es una respuesta valida y es la mayoria de las
- * veces: el watcher dispara cada 5 segundos y casi siempre no hay nada que
- * contar, asi que un aviso por guardado seria ruido con forma de informacion.
+ * veces: el watcher dispara por cada evento de escritura y casi siempre no hay
+ * nada que contar —un Ctrl+S que solo toca estilos, una imagen— asi que un aviso
+ * por guardado seria ruido con forma de informacion.
  */
 export function mensajeDeRefresco(diff: DiffWord, nombreArchivo: string): MensajeRefresco | null {
   // Un archivo a medio escribir: todavia no. Se reintenta solo.
@@ -161,6 +164,23 @@ export interface RefrescadorDeps {
   avisar: (texto: string, tipo: 'info' | 'success' | 'warning') => void;
   /** La ruta del archivo que Word tiene abierto, o `null` si no hay. */
   archivo: () => string | null;
+  /**
+   * Cuanto esperar antes del UN reintento cuando el archivo salio a medias.
+   *
+   * El watcher de Electron es `fs.watch` con su propio debounce de 600 ms
+   * (`electron/main.ts:317-330`), no un poll: dispara por evento del sistema de
+   * archivos. Por eso hace falta UN reintento y no un bucle. Un reintento corto
+   * cubre el unico caso que de verdad se pierde —el evento llego mientras la
+   * ultima escritura de Word seguia en curso— y si ese tambien falla, el
+   * documento se vera en el siguiente guardado.
+   *
+   * Inyectado para que las pruebas no dependan del reloj: un temporizador real
+   * en una prueba es una espera real, y una espera real es una prueba que a
+   * veces pasa.
+   */
+  esperar?: (ms: number, fn: () => void) => void;
+  /** Se puede poner en 0 para desactivar el reintento. */
+  msReintento?: number;
 }
 
 export interface Refrescador {
@@ -170,11 +190,11 @@ export interface Refrescador {
 }
 
 /**
- * El watcher, con las dos garantias que un `setTimeout` no da.
+ * El watcher, con las garantias que un debounce no da.
  *
- * UNA A LA VEZ. El watcher dispara cada 5 segundos y releer el archivo entero
- * dos veces en paralelo es leer el mismo `.docx` mientras el otro lo esta
- * leyendo: el que llega segundo se lleva un `BadZipFile` que no es real, y el
+ * UNA A LA VEZ. El watcher de Electron dispara por evento del sistema de
+ * archivos, y releer el `.docx` dos veces en paralelo es leerlo mientras el otro
+ * lo esta leyendo: el que llega segundo se lleva un `BadZipFile` que no es real, y el
  * que llega primero pudo haber leido un archivo a medio escribir.
  *
  * PERO SIN PERDER UN GUARDADO. Un Ctrl+S que cae en medio del refresco no se
@@ -188,6 +208,8 @@ export interface Refrescador {
  * que recien arranco no puede dejar la app sin vigilante.
  */
 export function crearRefrescador(deps: RefrescadorDeps): Refrescador {
+  const esperar = deps.esperar ?? ((ms, fn) => setTimeout(fn, ms));
+  const msReintento = deps.msReintento ?? 900;
   let enVuelo = false;
   let hayQueVolverAMirar = false;
 
@@ -196,11 +218,34 @@ export function crearRefrescador(deps: RefrescadorDeps): Refrescador {
     if (!ruta) return;
     try {
       const diff = await deps.pedir(ruta);
+
+      // El archivo salio a medias. NO es un error y NO se avisa: se reintenta
+      // una vez y corto. La razon de que haga falta el reintento es que el
+      // watcher de Electron dispara por evento del sistema de archivos con un
+      // debounce de 600 ms, y un `.docx` de tesis grande puede seguir
+      // escribiendose despues de eso. Sin el reintento, ese guardado se pierde
+      // entero y el documento no se actualiza hasta el siguiente Ctrl+S.
+      if (!diff.listo && diff.motivo !== 'no_existe' && msReintento > 0) {
+        await new Promise<void>((resolve) =>
+          esperar(msReintento, () => resolve())
+        );
+        try {
+          const segundo = await deps.pedir(ruta);
+          if (segundo.listo) {
+            const mensaje = mensajeDeRefresco(segundo, nombreDe(ruta));
+            if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
+          }
+        } catch {
+          // El reintento es una cortesia. Si falla, se cae al silencio.
+        }
+        return;
+      }
+
       const mensaje = mensajeDeRefresco(diff, nombreDe(ruta));
       if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
     } catch (e) {
       // No se avisa del error de transporte: si el backend esta reiniciandose,
-      // sale un toast por cada 5 segundos hasta que alguien lo reinicie a mano.
+      // sale un toast por cada guardado hasta que alguien lo reinicie a mano.
       // Lo unico que hace falta es no morir y volver a mirar al proximo guardado.
       void e;
     }

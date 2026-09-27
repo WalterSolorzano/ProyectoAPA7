@@ -11,8 +11,9 @@
  * del diff y solo del diff**. Si el diff no lo prueba, no se dice.
  *
  * Y fijan el otro caso, que es el que mas veces se va a dar: el watcher
- * dispara cada 5 segundos y Word reescribe el archivo entero en cada guardado,
- * asi que es NORMAL que el watcher lea el `.docx` a mitad de una escritura. Eso
+ * dispara por cada evento de escritura y Word reescribe el archivo entero en
+ * cada guardado, asi que es NORMAL que el watcher lea el `.docx` a mitad de una
+ * escritura. Eso
  * no es un error ni un problema, y por eso no produce un aviso. Un aviso de
  * error por un archivo que se estaba escribiendo es la peor forma de Gastar la
  * confianza de alguien en los mensajes de la app.
@@ -50,7 +51,7 @@ describe('mensajeDeRefresco', () => {
   it('NO DICE NADA cuando Word guardo pero no cambio texto ni estructura', () => {
     // Un Ctrl+S que solo toca estilos, una imagen o una propiedad. El diff
     // esta vacio y un "guardado" en pantalla seria ruido: el watcher dispara
-    // cada 5 segundos y eso se convierte en una columna de toasts falsos.
+    // por cada evento de escritura y eso se convierte en una columna de toasts falsos.
     expect(mensajeDeRefresco(diff(), ARCHIVO)).toBeNull();
   });
 
@@ -125,8 +126,8 @@ describe('mensajeDeRefresco', () => {
 
 describe('crearRefrescador', () => {
   it('no dispara dos refrescos a la vez', async () => {
-    // El watcher dispara cada 5 segundos y el refresco relee y reparsea el
-    // archivo entero. Dos a la vez es leer el mismo archivo mientras el otro lo
+    // El watcher dispara por cada evento de escritura y el refresco relee y
+    // reparsea el archivo entero. Dos a la vez es leer el mismo archivo mientras el otro lo
     // esta leyendo, y el que pierde se lleva un `BadZipFile` que no es real.
     //
     // La primera llamada queda colgada a proposito: mientras esta en vuelo, dos
@@ -176,11 +177,16 @@ describe('crearRefrescador', () => {
   it('VUELVE A MIRAR si el archivo cambio mientras miraba', async () => {
     // Si no, un Ctrl+S que cae en medio del refresco se pierde en silencio y la
     // pantalla nunca se entera: el peor fallo posible, porque no se ve.
-    const pedir = vi.fn().mockResolvedValueOnce(diff({ listo: false }));
+    const pedir = vi.fn().mockResolvedValue(diff());
     const { refrescar } = crearRefrescador({
       pedir,
       avisar: vi.fn(),
       archivo: () => ARCHIVO,
+      // Reintento apagado para medir SOLO el colapso. Con el reintento prendido
+      // este test contaria dos llamadas por pasada y no probaria lo que dice
+      // probar: hay dos mecanismos distintos de "mirar otra vez" y confundirlos
+      // deja los dos sin probar.
+      msReintento: 0,
     });
 
     const a = refrescar();
@@ -237,5 +243,77 @@ describe('crearRefrescador', () => {
     const { refrescar } = crearRefrescador({ pedir, avisar: vi.fn(), archivo: () => null });
     await refrescar();
     expect(pedir).not.toHaveBeenCalled();
+  });
+
+  it('UN ARCHIVO A MEDIAS SE VUELVE A MIRAR UNA VEZ', async () => {
+    // EL CASO QUE SE PIERDE, y el motivo de que exista el reintento.
+    //
+    // El watcher de Electron es `fs.watch` con debounce de 600 ms, NO un poll: el
+    // evento llega por el sistema de archivos. Si la ultima escritura de Word
+    // sigue en curso a los 600 ms —una tesis grande, un disco lento, un
+    // OneDrive sincronizando— el backend responde "todavia no" y, sin reintento,
+    // ese guardado se pierde entero. El documento no se actualiza hasta el
+    // siguiente Ctrl+S, y quien lo hizo no tiene por que saber que falto.
+    const avisar = vi.fn();
+    const pedir = vi
+      .fn()
+      .mockResolvedValueOnce(diff({ listo: false, motivo: 'archivo_a_medio_escribir' }))
+      .mockResolvedValueOnce(diff({ cambiado: true, ids_nuevos: ['a'] }));
+    const { refrescar } = crearRefrescador({
+      pedir,
+      avisar,
+      archivo: () => ARCHIVO,
+      // Reloj inyectado: un temporizador real en una prueba es una espera real,
+      // y una espera real es una prueba que a veces pasa.
+      esperar: (_ms, fn) => fn(),
+    });
+
+    await refrescar();
+    expect(pedir).toHaveBeenCalledTimes(2);
+    expect(avisar).toHaveBeenCalledTimes(1);
+  });
+
+  it('UN REINTENTO, NO UN BUCLE', async () => {
+    // Si el archivo sigue a medias, se deja para el siguiente guardado. Un bucle
+    // de reintentos sobre un archivo que Word tiene abierto es estar leyendo
+    // basura una y otra vez, y en el caso de un archivo de red o un OneDrive
+    // mal montado, insistir empeora el problema en vez de taparlo.
+    const pedir = vi.fn().mockResolvedValue(diff({ listo: false }));
+    const { refrescar } = crearRefrescador({
+      pedir,
+      avisar: vi.fn(),
+      archivo: () => ARCHIVO,
+      esperar: (_ms, fn) => fn(),
+    });
+    await refrescar();
+    expect(pedir).toHaveBeenCalledTimes(2);
+  });
+
+  it('EL REINTENTO SE PUEDE DESACTIVAR', async () => {
+    const pedir = vi.fn().mockResolvedValue(diff({ listo: false }));
+    const { refrescar } = crearRefrescador({
+      pedir,
+      avisar: vi.fn(),
+      archivo: () => ARCHIVO,
+      esperar: (_ms, fn) => fn(),
+      msReintento: 0,
+    });
+    await refrescar();
+    expect(pedir).toHaveBeenCalledTimes(1);
+  });
+
+  it('UN ARCHIVO QUE NO EXISTE NO SE REINTENTA', async () => {
+    // Un 404 no se arregla esperando 900 ms. Reintentar un archivo que no esta es
+    // insistir con algo que solo se arregla cuando la persona lo mueva, y cada
+    // intento es un 404 en el log del backend.
+    const pedir = vi.fn().mockResolvedValue(diff({ listo: false, motivo: 'no_existe' }));
+    const { refrescar } = crearRefrescador({
+      pedir,
+      avisar: vi.fn(),
+      archivo: () => ARCHIVO,
+      esperar: (_ms, fn) => fn(),
+    });
+    await refrescar();
+    expect(pedir).toHaveBeenCalledTimes(1);
   });
 });
