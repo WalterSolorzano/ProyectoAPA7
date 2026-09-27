@@ -1,4 +1,4 @@
-﻿"""Revisor proactivo de escritura (capa local, siempre disponible).
+"""Revisor proactivo de escritura (capa local, siempre disponible).
 
 Detecta sin red y sin API key:
 - primera persona con posición exacta (nunca 'me'/'mi' sueltos)
@@ -13,10 +13,12 @@ pueda citar el fragmento exacto en vez de marcar el párrafo entero.
 
 from __future__ import annotations
 
+import hashlib
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from collections import Counter
 
+from modules.audit_registry import registrar, reusar
 from modules.finding import mk
 from modules.phase_scope import (  # noqa: E402
     GLOBAL,
@@ -55,7 +57,7 @@ _AI_PHRASES = [
     "a modo de conclusión se puede afirmar", "en resumidas cuentas podemos decir",
     "un enfoque holístico", "un análisis profundo", "una mirada detallada",
     "un enfoque exhaustivo", "una comprensión más profunda", "perspectiva holística",
-    "marco conceptual", "cuerpo teórico", "panorama amplio", "en el contexto de",
+    "marco conceptual", "cuerpo teórico", "panorama amplio",
 ]
 
 _MULETILLA_START = re.compile(r"^(?:además|asimismo|por otro lado|en primer lugar)\b[,:]?",
@@ -383,6 +385,13 @@ def _mk(element_id: str, text: str, start: int, end: int, kind: str,
               **extra)
 
 
+def _match_phrase(text: str, phrase: str) -> re.Match[str] | None:
+    """Coincidencia de frase con límites de palabra, no por subcadena simple."""
+    normalized = re.escape(phrase)
+    normalized = normalized.replace(r"\ ", r"\s+")
+    return re.search(rf"(?<![a-záéíóúñü]){normalized}(?![a-záéíóúñü])", text, re.IGNORECASE)
+
+
 def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
     findings: List[Dict[str, Any]] = []
     muletilla_count = 0
@@ -448,16 +457,12 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
                                 "Primera persona en texto académico; usa redacción impersonal"))
 
         # -- frases IA
-        low = text.lower()
         for phrase in _AI_PHRASES:
-            idx = 0
-            while True:
-                i = low.find(phrase, idx)
-                if i < 0:
-                    break
-                findings.append(_mk(eid, text, i, i + len(phrase), "ai_phrase", "warn",
-                                    "Frase típica de IA o cliché; reformula con tus palabras"))
-                idx = i + len(phrase)
+            match = _match_phrase(text, phrase)
+            if not match:
+                continue
+            findings.append(_mk(eid, text, match.start(), match.end(), "ai_phrase", "warn",
+                                "Frase típica de IA o cliché; reformula con tus palabras"))
 
         # -- muletillas repetidas
         if repeat_muletilla:
@@ -559,14 +564,80 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
 
 # ---------------------------------------------------------------- capa LLM
 _LLM_REVIEW_KINDS = {"ortografia", "muletilla"}
+# Tope duro de coste: cuantos hallazgos viajan en UN prompt.
+_LOTE_MAX = 60
+# El contexto que se manda al LLM, y por lo tanto el que entra en la clave.
+_CONTEXT_MAX = 160
+
+
+def _match_de(f: Dict[str, Any], text_by_id: Dict[str, str]) -> str:
+    """El texto marcado por el hallazgo, tal cual lo va a ver el LLM.
+
+    Vive en su propia funcion para que la clave de cache y el prompt no puedan
+    separarse: si uno recortara distinto del otro, la cache devolveria el
+    veredicto de OTRA pregunta creyendo que es esta.
+    """
+    return text_by_id.get(f.get("element_id", ""), "")[f["start"]:f["end"]]
+
+
+def _clave_de_consulta(f: Dict[str, Any], text_by_id: Dict[str, str]) -> str:
+    """La identidad de UNA pregunta al corrector.
+
+    El Lote entero no sirve como clave —un hallazgo nuevo o un corrector distinto
+    cambian el prompt y se repaga la llamada completa—, pero la respuesta que se
+    pide es POR ITEM. La clave es entonces lo que el LLM vio de ese item: el
+    tipo, el texto marcado, el contexto recortado y la fase.
+
+    La FASE va porque la misma palabra repetida en Metodo y en Resultados son dos
+    preguntas distintas: los motores con ambito meten la fase en el prompt, y sin
+    ella una contamina a la otra.
+    """
+    crudo = "|".join((
+        f.get("kind", ""),
+        _match_de(f, text_by_id),
+        f.get("excerpt", "")[:_CONTEXT_MAX],
+        f.get("phase") or "global",
+    ))
+    return hashlib.sha256(crudo.encode("utf-8")).hexdigest()
+
+
+def _aplicar_veredicto(f: Dict[str, Any],
+                        veredicto: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """El hallazgo segun lo que dijo el corrector, o `None` si es falso positivo.
+
+    Un veredicto AUSENTE no es un veredicto negativo: sin veredicto (o con un
+    sobre vacio) el hallazgo queda exactamente como estaba, porque un corrector
+    que no hablo no puede borrar lo que el motor local si vio. El original nunca
+    se muta: una sugerencia se aplica sobre una copia.
+    """
+    if not veredicto:
+        return f
+    if veredicto.get("keep", True):
+        return f
+    sugerencia = veredicto.get("suggestion")
+    if not sugerencia:
+        return None
+    g = dict(f)
+    g["suggestion"] = str(sugerencia)
+    g["source"] = "llm"
+    return g
 
 
 def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
-                    api_key: str, timeout: float = 12.0) -> tuple[List[Dict[str, Any]], bool]:
+                    api_key: str, timeout: float = 12.0, session_id: str = "",
+                    _post: Optional[Any] = None) -> tuple[List[Dict[str, Any]], bool]:
     """Filtra falsos positivos de ortografía/muletillas con el LLM.
 
     Nunca lanza: ante cualquier error devuelve (findings intactos, False).
     Solo revisa hallazgos dudosos; first_person/ai_phrase/pegado pasan tal cual.
+
+    `session_id` activa el registro por item (`audit_registry`): lo que ya se le
+    pregunto a un item no se vuelve a preguntar. Sin sesion el comportamiento es
+    el de siempre, un lote, porque un registro global le devolveria a un
+    documento los hallazgos de otro.
+
+    `_post` existe para que las pruebas no toquen la red; por defecto es
+    `requests.post`.
     """
     if not api_key:
         return findings, False
@@ -575,19 +646,43 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
 
         import requests  # type: ignore
 
+        if _post is None:
+            _post = requests.post
+
         text_by_id = {str(getattr(e, "id", "")): (getattr(e, "text", "") or "")
                       for e in elements}
         dubious = [f for f in findings if f.get("kind") in _LLM_REVIEW_KINDS]
         if not dubious:
             return findings, False
 
+        session_id = session_id or ""
+        # indice de `dubious` -> hallazgo ya resuelto (o `None` si el corrector lo
+        # descarto). Lo que no esta aca todavia no se sabe.
+        resueltos: Dict[int, Optional[Dict[str, Any]]] = {}
+        # (indice de `dubious`, clave de cache) de lo que hay que preguntar.
+        por_preguntar: List[Tuple[int, str]] = []
+        for i, f in enumerate(dubious):
+            clave = _clave_de_consulta(f, text_by_id)
+            guardado = (reusar(session_id, clave, f.get("phase") or "global")
+                        if session_id else None)
+            if guardado is None:
+                por_preguntar.append((i, clave))
+            else:
+                # Un veredicto ausente no es un veredicto negativo: `_aplicar_veredicto`
+                # devuelve el hallazgo intacto ante `None` o ante un sobre vacio.
+                resueltos[i] = _aplicar_veredicto(
+                    f, guardado[0] if guardado else None)
+        if not por_preguntar:
+            return _armar(findings, dubious, resueltos), True
+
         payload_items = []
-        for i, f in enumerate(dubious[:60]):  # tope duro de coste
+        for j, (i, _clave) in enumerate(por_preguntar[:_LOTE_MAX]):
+            f = dubious[i]
             payload_items.append({
-                "i": i,
+                "i": j,
                 "kind": f["kind"],
-                "match": text_by_id.get(f["element_id"], "")[f["start"]:f["end"]],
-                "context": f["excerpt"][:160],
+                "match": _match_de(f, text_by_id),
+                "context": f["excerpt"][:_CONTEXT_MAX],
             })
         prompt = (
             "Eres corrector experto de español académico. Para cada item decide "
@@ -595,7 +690,7 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
             "formal. Responde SOLO JSON: [{\"i\":int,\"keep\":bool,"
             "\"suggestion\":str|null}]. Items: " + _json.dumps(payload_items, ensure_ascii=False)
         )
-        resp = requests.post(
+        resp = _post(
             "https://integrate.api.nvidia.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {api_key}",
                      "Content-Type": "application/json"},
@@ -612,21 +707,44 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
         m = re.search(r"\[.*\]", content, re.DOTALL)
         if not m:
             return findings, True
+        # Si el sobre no es JSON, `_json.loads` revienta y el `except` de abajo
+        # devuelve los findings intactos: un LLM que no sabe responder no puede
+        # dejar la lista a medias, ni borrar lo que ya estaba en el registro.
         verdicts = {v.get("i"): v for v in _json.loads(m.group(0)) if isinstance(v, dict)}
 
-        kept_local = [f for f in findings if f.get("kind") not in _LLM_REVIEW_KINDS]
-        for i, f in enumerate(dubious):
-            v = verdicts.get(i)
-            if not v or v.get("keep", True):
-                kept_local.append(f)
-            elif v.get("suggestion"):
-                g = dict(f)
-                g["suggestion"] = str(v["suggestion"])
-                g["source"] = "llm"
-                kept_local.append(g)
-        return kept_local, True
+        asked = por_preguntar[:_LOTE_MAX]
+        for j, v in verdicts.items():
+            if not isinstance(j, int) or not 0 <= j < len(asked):
+                continue
+            i, clave = asked[j]
+            f = dubious[i]
+            resueltos[i] = _aplicar_veredicto(f, v)
+            # Un veredicto que llego se guarda; uno que no llego NO se guarda, que
+            # es otra cosa: no hay que volver a pagarlo la proxima, pero tampoco
+            # se puede inventar la respuesta.
+            if session_id:
+                registrar(session_id, clave, f.get("phase") or "global", [v])
+        return _armar(findings, dubious, resueltos), True
     except Exception:
         return findings, False
+
+
+def _armar(findings: List[Dict[str, Any]], dubious: List[Dict[str, Any]],
+           resueltos: Dict[int, Optional[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """La lista final: lo que no era dudoso intacto, mas los dudosos resueltos.
+
+    Un indice de `dubious` que no esta en `resueltos` es un item que no viajo en
+    el prompt (seccion del tope) o del que no hubo veredicto: se queda tal cual.
+    """
+    kept_local = [f for f in findings if f.get("kind") not in _LLM_REVIEW_KINDS]
+    for i in range(len(dubious)):
+        if i in resueltos:
+            g = resueltos[i]
+            if g is not None:
+                kept_local.append(g)
+        else:
+            kept_local.append(dubious[i])
+    return kept_local
 
 
 # ---------------------------------------------------------------- Mega-Set: Bloom Taxonomy & Quantitative Indicators
@@ -643,22 +761,31 @@ def find_bloom_level(verb: str) -> int | None:
     return None
 
 
+def _phrasal_regex(term: str) -> str:
+    normalized = re.escape(term)
+    normalized = normalized.replace(r"\ ", r"\s+")
+    return rf"(?<![a-záéíóúñü]){normalized}(?![a-záéíóúñü])"
+
+
 def audit_objective(objective_text: str) -> Dict[str, Any]:
     """Evalúa un objetivo académico individual contra los criterios de Bloom (Mega-Set §2.2)."""
-    obj_lower = (objective_text or "").lower()
+    obj_text = objective_text or ""
     found_level = None
     found_verb = None
 
     for level, verbs in BLOOM_VERBS.items():
         for v in verbs:
-            if v in obj_lower:
+            if re.search(_phrasal_regex(v), obj_text, re.IGNORECASE):
                 found_level = level
                 found_verb = v
                 break
         if found_level:
             break
 
-    vague_found = [v for v in VAGUE_VERBS if v in obj_lower]
+    vague_found = []
+    for v in VAGUE_VERBS:
+        if re.search(_phrasal_regex(v), obj_text, re.IGNORECASE):
+            vague_found.append(v)
 
     return {
         "objective": objective_text,
