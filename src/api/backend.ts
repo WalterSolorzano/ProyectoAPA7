@@ -148,6 +148,19 @@ export interface ProofreadBatchResponse {
   findings: import('../types').ProofreadFinding[];
   used_llm: boolean;
   ai_indices?: AIIndicesSummary | null;
+  /**
+   * Ámbitos de fase que el motor construyó, con el tramo de elementos que
+   * cada uno cubre. Viaja para que la vista pueda nombrar la fase de un
+   * hallazgo sin derivarla otra vez; cada hallazgo trae además su `phase`.
+   */
+  phases?: PhaseSpan[];
+}
+
+export interface PhaseSpan {
+  key: string;
+  label: string;
+  start_index: number;
+  end_index: number;
 }
 
 /** Revisor por lotes: ortografía + frases IA + texto pegado (local+LLM). */

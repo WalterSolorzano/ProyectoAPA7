@@ -1,4 +1,4 @@
-/* WordAPA7 — review: la lista de hallazgos, como función pura.
+﻿/* WordAPA7 — review: la lista de hallazgos, como función pura.
    Vive FUERA del hook a propósito: `useReviewWorkbench` la usa para pintar el
    workbench y el rail la usa para CONTAR lo que le falta al usuario. Cuando las
    dos cosas eran la misma línea de un hook, el rail solo podía contar
@@ -34,6 +34,70 @@ export interface AuditItem {
   /** Página REAL del elemento, o `null` si no está en el índice */
   pageNumber: number | null;
   aiScore?: number;
+  /**
+   * Fase a la que pertenece el hallazgo, o `null` si es una regla general.
+   * Los H1 son las fases del documento (spec D1), así que esto no es una
+   * categoría del motor: es dónde está el elemento dentro del documento.
+   */
+  phase: string | null;
+  /**
+   * El hallazgo se informa pero no se puede aplicar (portada). `AGENTS.md` §1
+   * dice que la portada original no se muta, así que no hay nada que aceptar.
+   */
+  readOnly: boolean;
+}
+
+/* "Fase" — el vocabulario del backend (`python/modules/phase_scope.py`).
+   Vive ACÁ y no en un fetch aparte porque la fase es dato de la VISTA, como la
+   página: el workbench y la tira la nombran, y derivarla en dos lugares es
+   como un día el rail y la pantalla dejan de contar lo mismo.
+
+   El orden es el del DOCUMENTO, no alfabético: el usuario lee de arriba hacia
+   abajo, y ordenar alfabético le desordena la tesis. La portada va primera
+   porque es lo primero que se ve, y referencias y anexos al final porque así
+   terminan. */
+export const PHASE_ORDER = [
+  'portada',
+  'resumen',
+  'introduccion',
+  'marco_teorico',
+  'objetivos',
+  'metodo',
+  'resultados',
+  'discusion',
+  'conclusiones',
+  'referencias',
+  'anexos',
+] as const;
+
+export const PHASE_LABELS: Record<string, string> = {
+  portada: 'Portada',
+  resumen: 'Resumen',
+  introduccion: 'Introduccion',
+  marco_teorico: 'Marco teorico',
+  objetivos: 'Objetivos',
+  metodo: 'Metodo',
+  resultados: 'Resultados',
+  discusion: 'Discusion',
+  conclusiones: 'Conclusiones',
+  referencias: 'Referencias',
+  anexos: 'Anexos',
+  sin_fase: 'Seccion sin nombre',
+};
+
+/**
+ * `null` = el hallazgo es de una regla general, que no pertenece a ninguna
+ * fase. Una clave desconocida NO se inventa: sale como sección sin nombre.
+ */
+export function phaseLabel(key: string | null): string {
+  if (key === null) return 'Todo el documento';
+  return PHASE_LABELS[key] ?? 'Seccion sin nombre';
+}
+
+/** `'global'` y `undefined` significan lo mismo: regla general, sin fase. */
+function faseDeHallazgo(f: ProofreadFinding): string | null {
+  if (!f.phase || f.phase === 'global') return null;
+  return f.phase;
 }
 
 /* ── Hallazgos del proofreador local ──────────────────────────────────────
@@ -259,6 +323,10 @@ export function collectAuditItems(
       suggestedText: undefined,
       pageNumber: p.element_id ? page(p.element_id) : null,
       aiScore: medido ? score / 100 : undefined,
+      // Los motores que no conocen la fase la declaran nula: son reglas
+      // generales y no pertenecen a ninguna (spec D2). 
+      phase: null,
+      readOnly: false,
     });
   }
 
@@ -278,8 +346,13 @@ export function collectAuditItems(
       summary: row.summary,
       detail: f.message,
       originalText: (f.element_id ? byId.get(f.element_id)?.text : '') || f.excerpt || '',
-      suggestedText: f.suggestion || row.suggestedText,
+      // Un hallazgo de solo lectura nunca trae sugerencia (invariante del
+      // motor, `modules/finding.py`), y aquí tampoco se inventa una: no hay
+      // nada que la aplicadora pueda escribir sobre la portada.
+      suggestedText: f.read_only ? undefined : f.suggestion || row.suggestedText,
       pageNumber: f.element_id ? page(f.element_id) : null,
+      phase: faseDeHallazgo(f),
+      readOnly: f.read_only === true,
     });
   }
 
@@ -303,6 +376,10 @@ export function collectAuditItems(
       detail: 'Aparece citada en el cuerpo del documento pero no figura en la lista final de referencias.',
       originalText: g.citation_text || '',
       pageNumber: g.element_id ? page(g.element_id) : null,
+      // Los motores que no conocen la fase la declaran nula: son reglas
+      // generales y no pertenecen a ninguna (spec D2). 
+      phase: null,
+      readOnly: false,
     });
   }
 
@@ -325,6 +402,10 @@ export function collectAuditItems(
       // final, y la lista no tiene página. `null` antes que la página del
       // último elemento (que era la estimación que se reemplaza aquí).
       pageNumber: null,
+      // Los motores que no conocen la fase la declaran nula: son reglas
+      // generales y no pertenecen a ninguna (spec D2).
+      phase: null,
+      readOnly: false,
     });
   }
 
@@ -341,6 +422,8 @@ export function collectAuditItems(
         detail: 'Verificar que no existan saltos ilegales de nivel (ej. H1 a H3 sin H2 intermedio).',
         originalText: e.text || '',
         pageNumber: page(e.id),
+        phase: null,
+        readOnly: false,
       });
     } else if (e.type === 'image' && !e.is_cover_section && !e.image_info?.caption) {
       out.push({
@@ -354,6 +437,8 @@ export function collectAuditItems(
         originalText: '[Figura sin rotular]',
         suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
         pageNumber: page(e.id),
+        phase: null,
+        readOnly: false,
       });
     } else if (e.type === 'table' && !e.table_info?.caption) {
       out.push({
@@ -367,6 +452,8 @@ export function collectAuditItems(
         originalText: '[Tabla sin rotular]',
         suggestedText: 'Tabla 1. Datos recopilados durante la fase experimental.',
         pageNumber: page(e.id),
+        phase: null,
+        readOnly: false,
       });
     }
   }

@@ -488,6 +488,16 @@ export interface ProofreadFinding {
   message: string;
   suggestion?: string;
   source: 'local' | 'llm';
+  /**
+   * Ámbito de fase (clave de `PHASES` en `python/modules/phase_scope.py`).
+   * `'global'` o ausente = regla general, que no pertenece a ninguna fase.
+   */
+  phase?: string;
+  /**
+   * true = solo lectura: el hallazgo se informa pero no se puede aplicar.
+   * Es el caso de la portada, que `AGENTS.md` §1 protege de escritura.
+   */
+  read_only?: boolean;
 }
 
 export interface LLMProgressState {
