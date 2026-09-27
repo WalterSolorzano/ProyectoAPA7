@@ -12,11 +12,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from models import ElementModel, ElementType  # noqa: E402
 from modules.phase_scope import (  # noqa: E402
     NO_PHASE_KEY,
     PORTADA_KEY,
+    build_phase_map,
     match_phase,
     normalize_title,
+    phase_label,
 )
 
 
@@ -91,3 +94,78 @@ def test_toda_fase_del_vocabulario_es_alcanzable():
 def test_portada_reconocida():
     assert match_phase("Titulo") == PORTADA_KEY
     assert match_phase("Portada") == PORTADA_KEY
+
+
+# ── Mapa de ambitos ─────────────────────────────────────────────────────────
+
+def _h(eid, text, level=1, cover=False):
+    return ElementModel(id=eid, type=ElementType.HEADING, heading_level=level,
+                        text=text, is_cover_section=cover)
+
+
+def _p(eid, text):
+    return ElementModel(id=eid, type=ElementType.PARAGRAPH, text=text)
+
+
+# Review Focus: documento sin H1, y documento vacio.
+
+def test_documento_vacio_no_crashea():
+    phase_by_id, spans = build_phase_map([])
+    assert phase_by_id == {}
+    assert spans == []
+
+
+def test_documento_sin_h1_todo_es_portada():
+    # El contenido anterior al primer H1 pertenece a la portada: zona protegida.
+    els = [_p("a", "Primer parrafo"), _p("b", "Segundo parrafo")]
+    phase_by_id, spans = build_phase_map(els)
+    assert phase_by_id["a"] == "portada"
+    assert phase_by_id["b"] == "portada"
+    assert [s.key for s in spans] == ["portada"]
+
+
+def test_portada_por_is_cover_section_manda_sobre_el_titulo():
+    els = [_h("h0", "Resumen", level=1, cover=True), _p("a", "texto")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "portada"
+
+
+def test_h1_abre_ambito_y_el_cuerpo_lo_hereda():
+    els = [_h("h1", "Objetivos"), _p("a", "Analizar el contexto"),
+           _h("h2", "Metodo"), _p("b", "Se aplico una encuesta")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "objetivos"
+    assert phase_by_id["b"] == "metodo"
+
+
+def test_h2_hereda_y_no_abre_ambito_propio():
+    # El H2 "Resultados de la encuesta" NO abre 'resultados': es un H2, y un
+    # H2 hereda. Este es el caso que el editor de la Tarea 5 promotional a H1.
+    els = [_h("h1", "Metodo"), _h("h2", "Resultados de la encuesta", level=2),
+           _p("a", "Se obtuvo un 80%")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "metodo"
+
+
+def test_h1_desconocido_abre_sin_fase():
+    # Review Focus: un H1 fuera del vocabulario es una seccion cualquiera.
+    els = [_h("h1", "Agradecimientos"), _p("a", "Gracias a mi familia")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "sin_fase"
+
+
+def test_spans_cubren_el_documento_sin_solaparse():
+    els = [_h("h1", "Resumen"), _p("a", "x"), _h("h2", "Introduccion"),
+           _p("b", "y"), _h("h3", "Agradecimientos"), _p("c", "z")]
+    _, spans = build_phase_map(els)
+    assert [s.key for s in spans] == ["resumen", "introduccion", "sin_fase"]
+    for i, s in enumerate(spans):
+        fin = spans[i + 1].start_index if i + 1 < len(spans) else len(els)
+        assert s.end_index == fin
+    assert spans[0].start_index == 0
+
+
+def test_phase_label_de_ambito_desconocido_no_crashea():
+    assert phase_label("objetivos") == "Objetivos"
+    assert phase_label("sin_fase") == "Seccion sin nombre"
+    assert phase_label("clave_inventada") == "Seccion sin nombre"

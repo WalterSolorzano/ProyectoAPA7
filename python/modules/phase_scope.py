@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 # ── Claves de ambito ────────────────────────────────────────────────────────
 
@@ -169,3 +169,85 @@ RULE_SCOPES: Dict[str, str] = {
     "portada_title_larga": PORTADA_KEY,
     "portada_punto_final": PORTADA_KEY,
 }
+
+
+# ── Mapa de ambitos ─────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class PhaseSpan:
+    """Un ambito y el rango de elementos que cubre, para poder reportarlo."""
+
+    key: str
+    label: str
+    heading_id: str
+    start_index: int
+    end_index: int
+
+
+def phase_label(key: str) -> str:
+    cfg = PHASE_BY_KEY.get(key)
+    return cfg.label if cfg else "Seccion sin nombre"
+
+
+def etype(e: Any) -> str:
+    """Tipo del elemento como string, tolerante a enum y a string plano."""
+    t = getattr(e, "type", "")
+    return str(getattr(t, "value", t) or "")
+
+
+def _level(e: Any) -> int:
+    """Nivel del encabezado. `None` se trata como 1, que es el default real
+    de `ElementModel.heading_level`."""
+    raw = getattr(e, "heading_level", None)
+    return 1 if raw is None else int(raw)
+
+
+def _close(span: PhaseSpan, end_index: int) -> PhaseSpan:
+    return PhaseSpan(key=span.key, label=span.label, heading_id=span.heading_id,
+                     start_index=span.start_index, end_index=end_index)
+
+
+def build_phase_map(elements: Sequence[Any]) -> Tuple[Dict[str, str], List[PhaseSpan]]:
+    """Ambito de cada elemento, y los tramos que esos ambitos cubren.
+
+    Precedencia, en este orden:
+      1. Todo elemento con `is_cover_section` o tipo `portada_block` es portada.
+      2. Un H1 reconocido cambia el ambito al que su titulo abra, o a
+         `sin_fase` si el titulo no esta en el vocabulario.
+      3. Un H2 o un H3 **hereda**: no cambian el ambito. Por eso el mapa se
+         construye solo con H1 y no hay ambiguedad de anidamiento posible.
+      4. Antes del primer H1, el ambito es `portada`.
+    """
+    phase_by_id: Dict[str, str] = {}
+    spans: List[PhaseSpan] = []
+    current = PORTADA_KEY
+    # Un tramo solo se abre si el ambito tiene ALGO dentro. Un documento que
+    # arranca con un H1 no tiene un tramo de portada vacio que reportar, y
+    # uno con start_index == end_index la interfaz lo pintaria como una fase
+    # mas. De ahi el `region_open`: `key != current` no basta para saber que
+    # hay un tramo anterior que cerrar.
+    region_open = False
+
+    for i, e in enumerate(elements):
+        kind = etype(e)
+        if getattr(e, "is_cover_section", False) or kind == "portada_block":
+            key = PORTADA_KEY
+        elif kind == "heading" and _level(e) == 1:
+            key = match_phase(getattr(e, "text", "") or "") or NO_PHASE_KEY
+        else:
+            key = current
+
+        if region_open and key != current:
+            spans[-1] = _close(spans[-1], i)
+        if not region_open or key != current:
+            spans.append(PhaseSpan(key=key, label=phase_label(key),
+                                   heading_id=str(getattr(e, "id", "") or ""),
+                                   start_index=i, end_index=len(elements)))
+            region_open = True
+
+        current = key
+        phase_by_id[str(getattr(e, "id", "") or "")] = current
+
+    if spans:
+        spans[-1] = _close(spans[-1], len(elements))
+    return phase_by_id, spans
