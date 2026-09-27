@@ -1,6 +1,7 @@
 /* WordAPA7 — shell: rail de iconos de 56px.
-   Ocho botones de 40x40 y nada más. El detalle de cada fase vive en el
-   flyout, para que la columna nunca le robe ancho al documento. */
+   Cada botón hace spring-zoom en hover (48×56) y muestra el nombre en un chip
+   compacto bajo el icono. El flyout de detalle se abre con clic, no con hover:
+   el hover solo debe costar atención visual mínima, no espacio del documento. */
 
 import React, { useState } from 'react';
 import { Pin } from 'lucide-react';
@@ -10,8 +11,8 @@ import type { RailDestination } from './railItems';
 export interface IconRailProps {
   items: RailDestination[];
   onHoverItem: (item: RailDestination | null) => void;
-  /** Clic en un destino: navega a su fase. El hover solo muestra el detalle, así
-   *  que esta es la única vía de navegación con teclado. */
+  /** Clic en un destino: navega a su fase. El hover solo muestra el zoom +
+   *  chip; el detalle completo (flyout) se abre con clic. */
   onSelect: (item: RailDestination) => void;
   onTogglePin: () => void;
   pinned: boolean;
@@ -22,23 +23,127 @@ export interface IconRailProps {
 const RAIL_WIDTH = 56;
 const PinIcon = Pin;
 
-// Superficie y tinta de un botón del rail, en el orden de precedencia que fija
-// la spec 4.2: la fase activa manda, el hover solo sustituye al reposo.
-const surface = (active: boolean, hovered: boolean) =>
-  active ? 'var(--color-accent-soft)' : hovered ? 'var(--color-bg-surface-alt)' : 'transparent';
-const ink = (active: boolean, hovered: boolean) =>
-  active ? 'var(--color-accent)' : hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)';
-const BUTTON_TRANSITION = 'background var(--transition-fast), color var(--transition-fast)';
+// ── Curva spring para el zoom: rebote suave, sin sobrepasar demasiado. ──────
+// cubic-bezier(0.34, 1.56, 0.64, 1) — mismo perfil que wk-step-enter.
+const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+const SPRING_DUR = '180ms';
+const FAST = 'var(--transition-fast)';   // 120ms ease-out
+
+// ── Tokens de color ──────────────────────────────────────────────────────────
+// hover y active comparten la misma superficie: la señal principal del hover
+// es el zoom, no un color diferente al activo. Así la fase activa se lee como
+// "hover permanente", sin ambigüedad.
+const surfaceOf = (active: boolean, hovered: boolean) =>
+  active || hovered ? 'var(--color-accent-soft)' : 'transparent';
+const inkOf = (active: boolean, hovered: boolean) =>
+  active || hovered ? 'var(--color-accent)' : 'var(--color-text-secondary)';
+
+// El pin no es una fase: mantiene surface-alt para no confundirse con ellas.
+const PIN_TRANSITION = `background ${FAST}, color ${FAST}`;
+
+// ── Estilos del botón de fase ────────────────────────────────────────────────
+// El zoom cambia width + height. overflow:hidden en el botón recorta el chip
+// cuando está colapsado, y flexDirection:column apila icono + chip.
+const btnStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
+  position: 'relative',
+  width: active || hovered ? 48 : 40,
+  height: active || hovered ? 56 : 40,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 0,
+  border: 'none',
+  borderRadius: active || hovered ? 'var(--radius-lg)' : 'var(--radius-md)',
+  backgroundColor: surfaceOf(active, hovered),
+  color: inkOf(active, hovered),
+  cursor: 'pointer',
+  overflow: 'hidden',
+  // La sombra aparece en hover/active para dar elevación percibida.
+  boxShadow: active || hovered
+    ? 'var(--shadow-accent)'
+    : 'none',
+  // width + height van por spring; el resto por la curva rápida del sistema.
+  transition: [
+    `width ${SPRING_DUR} ${SPRING}`,
+    `height ${SPRING_DUR} ${SPRING}`,
+    `border-radius ${FAST}`,
+    `background ${FAST}`,
+    `box-shadow ${SPRING_DUR} ${SPRING}`,
+  ].join(', '),
+});
+
+// El icono escala con el mismo spring para amplificar el salto visual.
+const iconWrapStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transform: active || hovered ? 'scale(1.22)' : 'scale(1)',
+  transition: `transform ${SPRING_DUR} ${SPRING}`,
+  flexShrink: 0,
+  // Reserva altura fija para que el chip no empuje el icono al hacer max-height.
+  lineHeight: 0,
+});
+
+// El chip de nombre: aria-hidden, mayúsculas, 10px.
+// max-height colapsa a 0 → el contenedor no reserva espacio en reposo.
+const chipStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  color: 'var(--color-accent)',
+  whiteSpace: 'nowrap',
+  lineHeight: 1,
+  maxHeight: active || hovered ? 14 : 0,
+  opacity: active || hovered ? 1 : 0,
+  overflow: 'hidden',
+  // Entra un poco después del zoom para que el icono llegue primero.
+  transition: [
+    `max-height 140ms ease-out ${active || hovered ? '40ms' : '0ms'}`,
+    `opacity 130ms ease-out ${active || hovered ? '40ms' : '0ms'}`,
+  ].join(', '),
+  marginTop: active || hovered ? 3 : 0,
+});
+
+// ── Badge de pendientes: punto → pill numerada en hover ──────────────────────
+const dotStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  width: 6,
+  height: 6,
+  borderRadius: 'var(--radius-full)',
+};
+
+// En hover el punto se convierte en pill con el número.
+const pillStyle = (hovered: boolean, count: number): React.CSSProperties => ({
+  position: 'absolute',
+  top: 5,
+  right: 5,
+  minWidth: hovered && count > 0 ? 14 : 6,
+  height: hovered && count > 0 ? 14 : 6,
+  borderRadius: 'var(--radius-full)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 9,
+  fontWeight: 700,
+  color: hovered && count > 0 ? 'var(--color-text-on-accent)' : 'transparent',
+  padding: hovered && count > 0 ? '0 3px' : 0,
+  transition: [
+    `min-width ${FAST}`,
+    `height ${FAST}`,
+    `color ${FAST}`,
+    `padding ${FAST}`,
+  ].join(', '),
+});
 
 export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
-  // La fase activa la lee el propio rail, no el shell: una sola fuente, para
-  // que el icono y la barra de trabajo no puedan desincronizarse. `current` es la
-  // otra mitad de la misma pregunta —"¿dónde estoy?"— para los destinos que no
-  // son fases: el editor no lo fija, así que acá sigue mandando el store.
   const wizardStep = useDocStore((s) => s.wizardStep);
   const isActive = (item: RailDestination) =>
     item.current === true || (item.step !== null && wizardStep === item.step);
-  // El hover vive en estado local: los estilos son inline y no hay :hover.
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinHovered, setPinHovered] = useState(false);
   const release = (id: string) => () => setHoveredId((cur) => (cur === id ? null : cur));
@@ -48,8 +153,6 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
       aria-label={ariaLabel ?? 'Fases de la transformación'}
       data-testid="icon-rail"
       onMouseLeave={() => {
-        // El puntero puede salirse por el borde del rail sin cruzar ningún
-        // botón: aquí también se sueltan las superficies de hover.
         setHoveredId(null);
         setPinHovered(false);
         onHoverItem(null);
@@ -71,26 +174,24 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
         const { id, label, Icon, status, pending = 0, step } = item;
         const active = isActive(item);
         const hovered = hoveredId === id;
-        /* El punto de estado NO alcanza como información: un `aria-label` en un
-           <span> dentro de un botón no le suma nada al nombre accesible, que lo
-           da el `aria-label` del botón. El nombre que anuncia el lector es
-           "Figuras" haya 3 pendientes o ninguno, así que el conteo y el "Listo"
-           van dentro del nombre del botón. */
+
+        // El nombre accesible del botón incluye estado y conteo: el chip
+        // es aria-hidden y no aporta nada al árbol de accesibilidad.
         const nombre = status === 'pending' && pending > 0
           ? `${label}, ${pending} pendientes`
           : status === 'done'
             ? `${label}, listo`
             : label;
+
+        // Etiqueta abreviada para el chip (≤7 chars caben cómodos en 48px).
+        const chipLabel = label.length > 7 ? label.slice(0, 6) + '.' : label;
+
         return (
           <button
             key={id}
             type="button"
             title={label}
             aria-label={nombre}
-            /* El color de la superficie activa no le dice nada a un lector de
-               pantalla: el estado va también en `aria-current`. Una fase del
-               asistente es un paso del recorrido; un destino de Inicio, una
-               página — que es como lo nombraba el sidebar que este rail reemplaza. */
             aria-current={active ? (step === null ? 'page' : 'step') : undefined}
             data-active={active ? 'true' : 'false'}
             onMouseEnter={() => {
@@ -99,46 +200,39 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             }}
             onMouseLeave={release(id)}
             onClick={() => onSelect(item)}
-            style={{
-              position: 'relative',
-              width: 40,
-              height: 40,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: surface(active, hovered),
-              color: ink(active, hovered),
-              cursor: 'pointer',
-              transition: BUTTON_TRANSITION,
-            }}
+            style={btnStyle(active, hovered)}
           >
-            <Icon size={17} strokeWidth={1.75} aria-hidden />
+            {/* Icono con spring-scale */}
+            <span style={iconWrapStyle(active, hovered)}>
+              <Icon size={17} strokeWidth={1.75} aria-hidden />
+            </span>
+
+            {/* Chip de nombre — aria-hidden: el aria-label del botón ya lo cubre */}
+            <span
+              aria-hidden
+              data-rail-chip
+              style={chipStyle(active, hovered)}
+            >
+              {chipLabel}
+            </span>
+
+            {/* Badge de estado: pending → pill numerada en hover; done → punto verde */}
             {pending > 0 && (
               <span
                 aria-hidden
                 style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  width: 6,
-                  height: 6,
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--color-accent)',
+                  ...pillStyle(hovered, pending),
+                  backgroundColor: 'var(--color-warning)',
                 }}
-              />
+              >
+                {hovered ? pending : ''}
+              </span>
             )}
-            {status === 'done' && (
+            {status === 'done' && pending === 0 && (
               <span
                 aria-hidden
                 style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  width: 6,
-                  height: 6,
-                  borderRadius: 'var(--radius-full)',
+                  ...dotStyle,
                   backgroundColor: 'var(--color-success)',
                 }}
               />
@@ -158,14 +252,7 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
         }}
       />
 
-      {/* El nombre NO cambia con el estado: `aria-pressed` ya lo lleva, y un
-          control cuyo nombre muta con el estado es dos controles distintos
-          para el lector de pantalla. Además, este pin y el del flyout son el
-          MISMO flag global, y se nombran igual.
-
-          La superficie anclada es un contorno, no un relleno de acento: dentro
-          de esta misma columna de 56px, `--color-accent-soft` significa "fase
-          actual" a ocho píxeles de distancia, y el pin no es una fase. */}
+      {/* Pin — no es una fase: superficie alternativa, contorno de acento si anclado. */}
       <button
         type="button"
         title="Anclar panel"
@@ -182,10 +269,18 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
           justifyContent: 'center',
           borderRadius: 'var(--radius-md)',
           border: pinned ? '1px solid var(--color-accent)' : '1px solid transparent',
-          backgroundColor: pinned ? 'transparent' : pinHovered ? 'var(--color-bg-surface-alt)' : 'transparent',
-          color: pinned ? 'var(--color-accent)' : pinHovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+          backgroundColor: pinned
+            ? 'transparent'
+            : pinHovered
+              ? 'var(--color-bg-surface-alt)'
+              : 'transparent',
+          color: pinned
+            ? 'var(--color-accent)'
+            : pinHovered
+              ? 'var(--color-text-primary)'
+              : 'var(--color-text-secondary)',
           cursor: 'pointer',
-          transition: BUTTON_TRANSITION,
+          transition: PIN_TRANSITION,
         }}
       >
         <PinIcon size={17} strokeWidth={1.75} aria-hidden />

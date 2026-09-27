@@ -323,6 +323,140 @@ const StageRail: React.FC<{ llmStatus?: string }> = ({ llmStatus }) => {
   );
 };
 
+// ── AMBIENT CANVAS ────────────────────────────────────────────────────────────
+// Subtle time-of-day atmosphere behind the fullscreen loading views.
+// Canvas 2D only; hex colors intentional (not UI tokens — pure draw layer).
+// Opacity stays at 0.32 so content (mascot, text) stays dominant.
+const AmbientCanvas: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // ── Time-of-day palette ──────────────────────────────────────────────────
+    const hour = new Date().getHours();
+    type Palette = {
+      bg: [string, string];            // gradient top → bottom
+      blobs: [string, string];         // two radial blob colors
+      particle: string;                // dot fill
+    };
+    const palette: Palette =
+      hour < 6
+        ? { bg: ['#020b18', '#071228'], blobs: ['#0d2a55', '#0a1e40'], particle: '#5b8dd9' }   // night
+        : hour < 12
+        ? { bg: ['#0f1e38', '#162840'], blobs: ['#1a3a6b', '#16325e'], particle: '#7fb3e8' }   // morning
+        : hour < 18
+        ? { bg: ['#1a1408', '#251c0d'], blobs: ['#4a3200', '#3d2a00'], particle: '#d4a952' }   // afternoon
+        : { bg: ['#1a0828', '#220b32'], blobs: ['#4a1060', '#3a0a50'], particle: '#c87deb' };  // evening
+
+    // ── Resize helper ────────────────────────────────────────────────────────
+    const resize = () => {
+      canvas.width = canvas.offsetWidth || window.innerWidth;
+      canvas.height = canvas.offsetHeight || window.innerHeight;
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    // ── Particles ────────────────────────────────────────────────────────────
+    const N = 35;
+    type Dot = { x: number; y: number; r: number; speed: number; drift: number };
+    const dots: Dot[] = Array.from({ length: N }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: 1 + Math.random(),
+      speed: 0.00008 + Math.random() * 0.00012,   // fraction of height per ms
+      drift: (Math.random() - 0.5) * 0.00004,
+    }));
+
+    // ── Blob pulse state ─────────────────────────────────────────────────────
+    const blobs = [
+      { cx: 0.28, cy: 0.38, rFrac: 0.38, phase: 0,    color: palette.blobs[0] },
+      { cx: 0.72, cy: 0.65, rFrac: 0.30, phase: Math.PI, color: palette.blobs[1] },
+    ];
+
+    // ── Reduced-motion: single static frame ──────────────────────────────────
+    const reducedMotion =
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    const drawFrame = (elapsed: number) => {
+      const W = canvas.width;
+      const H = canvas.height;
+
+      // Background gradient
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, palette.bg[0]);
+      bg.addColorStop(1, palette.bg[1]);
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Radial blobs (pulsing)
+      blobs.forEach(b => {
+        const pulse = reducedMotion ? 1 : 0.9 + 0.1 * Math.sin((elapsed / 4000) * Math.PI * 2 + b.phase);
+        const r = Math.min(W, H) * b.rFrac * pulse;
+        const grad = ctx.createRadialGradient(b.cx * W, b.cy * H, 0, b.cx * W, b.cy * H, r);
+        grad.addColorStop(0, b.color + '55');
+        grad.addColorStop(1, b.color + '00');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(b.cx * W, b.cy * H, r, r * 0.75, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Drifting particles (upward + slight horizontal drift)
+      ctx.fillStyle = palette.particle;
+      dots.forEach(d => {
+        const px = ((d.x + d.drift * elapsed) % 1 + 1) % 1;
+        const py = ((1 - ((d.y + d.speed * elapsed) % 1)) % 1 + 1) % 1;
+        ctx.globalAlpha = 0.55 + 0.45 * py;   // fade near top
+        ctx.beginPath();
+        ctx.arc(px * W, py * H, d.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    };
+
+    if (reducedMotion) {
+      drawFrame(0);
+      return () => ro.disconnect();
+    }
+
+    let start: number | null = null;
+    const loop = (ts: number) => {
+      if (start === null) start = ts;
+      drawFrame(ts - start);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0.32,
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    />
+  );
+};
+
 export const LoadingTips: React.FC = () => {
   const isLoading = useDocStore((s) => s.isLoading);
   const llmStatus = useDocStore((s) => s.llmProgress?.status);
@@ -518,7 +652,8 @@ export const LoadingTips: React.FC = () => {
   // todos modos": entrar al inicio con el backend caído no tiene salida).
   if (!isBackendReady) {
     return (
-      <div className="loading-tips-fullscreen" role="status" aria-live="polite">
+      <div className="loading-tips-fullscreen" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
+        <AmbientCanvas />
         <div className="loading-tips-fullscreen-inner" style={{ gap: '16px' }}>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="mascot-ambient-halo" />
@@ -556,7 +691,8 @@ export const LoadingTips: React.FC = () => {
 
 
   return (
-    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite">
+    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
+      <AmbientCanvas />
       <div className="loading-minimal-inner" style={{ maxWidth: '620px', gap: '20px' }}>
         {/* Mascota viva con halo de ambientación suave */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

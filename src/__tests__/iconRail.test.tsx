@@ -32,13 +32,17 @@ const setup = (items = mkItems()) => {
 };
 
 describe('T4 — IconRail', () => {
-  it('muestra un botón por fase, con nombre accesible y sin texto visible', () => {
+  it('muestra un botón por fase con nombre accesible; el chip label está en el DOM (aria-hidden)', () => {
     setup();
     for (const label of ['Portada', 'Estructura', 'Figuras', 'Referencias', 'Revisión & IA', 'Exportar']) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy();
     }
-    // Solo iconos: el detalle se gana en el flyout, no imprimiendo etiquetas.
-    expect(screen.getByTestId('icon-rail').textContent).toBe('');
+    // El chip de nombre es aria-hidden y vive dentro del botón para la animación
+    // CSS; el nombre accesible sigue viniendo del aria-label del botón, no del chip.
+    // No afirmamos textContent==='' porque el chip sí aporta texto al DOM.
+    const rail = screen.getByTestId('icon-rail');
+    const chips = rail.querySelectorAll('[data-rail-chip]');
+    chips.forEach((chip) => expect(chip.getAttribute('aria-hidden')).toBe('true'));
   });
 
   it('el botón de anclar expone su estado por `aria-pressed`, con nombre fijo', () => {
@@ -210,14 +214,16 @@ describe('T4 — IconRail', () => {
     expect(raiz.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim()).toBe('8px');
   });
 
-  it('el hover de una fase usa la superficie alternativa y se revierte al salir', () => {
+  it('el hover de una fase aplica la superficie y tinta de acento (zoom spring)', () => {
+    // La señal visual principal del hover es el zoom spring (scale + width/height).
+    // El color en hover usa accent-soft + accent, igual que la fase activa,
+    // para reforzar la selección sin depender solo del tamaño.
     setup();
     const btn = screen.getByRole('button', { name: 'Figuras' });
     expect(btn.style.backgroundColor).toBe('transparent');
-    expect(btn.style.color).toBe('var(--color-text-secondary)');
     fireEvent.mouseEnter(btn);
-    expect(btn.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
-    expect(btn.style.color).toBe('var(--color-text-primary)');
+    expect(btn.style.backgroundColor).toBe('var(--color-accent-soft)');
+    expect(btn.style.color).toBe('var(--color-accent)');
     fireEvent.mouseLeave(btn);
     expect(btn.style.backgroundColor).toBe('transparent');
     expect(btn.style.color).toBe('var(--color-text-secondary)');
@@ -235,7 +241,7 @@ describe('T4 — IconRail', () => {
     setup();
     const btn = screen.getByRole('button', { name: 'Figuras' });
     fireEvent.mouseEnter(btn);
-    expect(btn.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
+    expect(btn.style.backgroundColor).toBe('var(--color-accent-soft)');
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     expect(btn.style.backgroundColor).toBe('transparent');
   });
