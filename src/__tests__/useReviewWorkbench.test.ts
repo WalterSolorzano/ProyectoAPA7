@@ -3,10 +3,10 @@
    Aquí se prueban el filtrado, el agrupado, la página real y la honestidad
    de las métricas, todo sin montar un solo nodo del DOM.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
-import { ENGINE_META, useReviewWorkbench } from '../hooks/useReviewWorkbench';
+import { ENGINE_META, ENGINE_ORDER, useReviewWorkbench } from '../hooks/useReviewWorkbench';
 import type { AIReviewParagraph } from '../api/backend';
 import type { ProofreadFinding } from '../types';
 
@@ -52,6 +52,16 @@ const parrafoIA = (
   spelling: [],
 });
 
+/** Documento con figuras y tablas sin rotular (motor Estructura). */
+const DOC_CON_ESTRUCTURA = {
+  doc: {
+    elements: [
+      { id: 'e1', type: 'paragraph', text: 'tambien' },
+      { id: 'fig1', type: 'image', text: '', image_info: { url: 'data:' } },
+    ],
+  } as never,
+};
+
 const tresMotores = {
   reviewResult: { paragraphs: [parrafoIA('e1', 10, 'LOW')] },
   proofreadFindings: [hallazgo()],
@@ -68,6 +78,11 @@ describe('T12 — useReviewWorkbench', () => {
     citationAuditResult: useDocStore.getState().citationAuditResult,
     aiIndices: useDocStore.getState().aiIndices,
     updateElementText: useDocStore.getState().updateElementText,
+    autoResolveGhosts: useDocStore.getState().autoResolveGhosts,
+    autoCaptionAll: useDocStore.getState().autoCaptionAll,
+    runAIReview: useDocStore.getState().runAIReview,
+    runProofreadBatch: useDocStore.getState().runProofreadBatch,
+    runCitationAudit: useDocStore.getState().runCitationAudit,
   };
 
   beforeEach(() => {
@@ -172,7 +187,7 @@ describe('T12 — useReviewWorkbench', () => {
 
   it('un hallazgo de IA no dispara la corrección; uno de ortografía sí', async () => {
     // La costura se prueba en las DOS direcciones: si el doble no llegara a
-    // llamarse nunca, la primera mitad pasaría sinreason (y sin red).
+    // llamarse nunca, la primera mitad pasaría sin razón (y sin red).
     const updateElementText = vi.fn(async () => {});
     useDocStore.setState({
       updateElementText,
@@ -267,5 +282,345 @@ describe('T12 — useReviewWorkbench', () => {
   it('la vista arranca en Foco, no en la hoja completa', () => {
     const { result } = renderHook(() => useReviewWorkbench());
     expect(result.current.viewMode).toBe('focus');
+  });
+
+  it('cargar otro documento vuelve a elegir su grupo más crítico', () => {
+    useDocStore.setState({ proofreadFindings: [hallazgo()] });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.openEngines).toEqual(['spelling']);
+
+    // Mismo hook, otro documento: si la siembra no se reinicia, el grupo del
+    // documento anterior seguiría abierto y el nuevo no abriría ninguno.
+    act(() => {
+      useDocStore.setState({
+        doc: { elements: [{ id: 'z1', type: 'paragraph', text: 'otro' }] } as never,
+        proofreadFindings: [hallazgo({ element_id: 'z1', kind: 'muletilla', message: 'Muletilla' })],
+      });
+    });
+    expect(result.current.openEngines).toEqual(['ai']);
+  });
+
+  it('“Página X de N” nunca muestra una página que no existe', () => {
+    // 40 párrafos de 100 caracteres = 2 páginas en el índice real.
+    const elementos = Array.from({ length: 40 }, (_, i) => ({
+      id: `x${i}`,
+      type: 'paragraph',
+      text: 'a'.repeat(100),
+    }));
+    useDocStore.setState({ doc: { elements: elementos } as never });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.totalPages).toBe(2);
+
+    act(() => result.current.goToPage(99));
+    expect(result.current.currentPage).toBe(2);
+    act(() => result.current.goToPage(0));
+    expect(result.current.currentPage).toBe(1);
+  });
+
+  it('la marca de la página la tiñe el motor más grave, no el primero que aparece', () => {
+    useDocStore.setState({
+      proofreadFindings: [
+        // El primero en insertarse es de IA (medium); el segundo es de
+        // ortografía (high). La marca tiene que ser del segundo.
+        hallazgo({ kind: 'muletilla', message: 'Muletilla repetitiva', suggestion: '' }),
+        hallazgo({ element_id: 'e2', excerpt: 'tambien' }),
+      ],
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    const marca = result.current.marks.get(1);
+    expect(marca?.label).toBe('Ortografía');
+    expect(marca?.color).toBe('var(--color-accent)');
+    expect(marca?.count).toBe(2);
+  });
+
+  it('un párrafo IA sin puntuación no muestra un porcentaje inventado', () => {
+    // Entra por `ai_category` con `ai_score` sin calcular: el panel no puede
+    // inventionar un 60% para una medición que no existe.
+    useDocStore.setState({ reviewResult: { paragraphs: [parrafoIA('e1', 0, 'HIGH')] } as never });
+    const { result } = renderHook(() => useReviewWorkbench());
+    const [item] = result.current.items;
+    expect(item.category).toBe('ai');
+    expect(item.summary).not.toMatch('%');
+    expect(item.aiScore).toBeUndefined();
+  });
+
+  it('ningún kind del auditor se pierde en el panel', () => {
+    const kinds = ['repeticion', 'ambigua', 'passive_voice', 'long_sentence', 'incompleta', 'persona'];
+    useDocStore.setState({
+      proofreadFindings: kinds.map((kind, i) =>
+        hallazgo({ element_id: `k${i}`, kind, message: `Aviso de ${kind}` }),
+      ),
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    // Los seis llegan. Los cinco que no tienen corrección automática se
+    // MARCAN; la mezcla de personas es una corrección de estilo.
+    expect(result.current.items).toHaveLength(6);
+    const filas = new Map(
+      result.current.groups.flatMap((g) => g.groups).map((s) => [s.label, s.action]),
+    );
+    expect(filas.get('Palabra repetida')).toBe('mark');
+    expect(filas.get('Pronombre ambiguo')).toBe('mark');
+    expect(filas.get('Voz pasiva')).toBe('mark');
+    expect(filas.get('Oración extensa')).toBe('mark');
+    expect(filas.get('Idea incompleta')).toBe('mark');
+    expect(filas.get('Mezcla de personas gramaticales')).toBe('accept');
+  });
+
+  it('un kind que este archivo no conoce se marca, no se descarta', () => {
+    useDocStore.setState({
+      proofreadFindings: [hallazgo({ kind: 'detector_del_2026', message: 'Algo nuevo' })],
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    expect(result.current.items).toHaveLength(1);
+    const fila = result.current.groups.flatMap((g) => g.groups)[0];
+    expect(fila.label).toBe('Otro hallazgo del corrector');
+    expect(fila.action).toBe('mark');
+    expect(fila.items[0].summary).toBe('Algo nuevo');
+  });
+
+  it('el lote tampoco toca los hallazgos de IA', async () => {
+    const updateElementText = vi.fn(async () => {});
+    useDocStore.setState({
+      updateElementText,
+      proofreadFindings: [
+        hallazgo({ kind: 'muletilla', message: 'Muletilla repetitiva', suggestion: 'texto inventado' }),
+        hallazgo({ element_id: 'e2', excerpt: 'tambien', suggestion: 'también' }),
+        hallazgo({ element_id: 'e2', kind: 'ai_phrase', message: 'Frase típica', suggestion: 'otra' }),
+      ],
+    });
+    const { result } = renderHook(() => useReviewWorkbench());
+    await act(async () => {
+      await result.current.acceptMany(result.current.items);
+    });
+    // De los tres, solo la ortografía tiene corrección aplicable.
+    expect(updateElementText).toHaveBeenCalledTimes(1);
+    expect(updateElementText).toHaveBeenCalledWith('e2', 'también');
+    expect(result.current.items).toHaveLength(2);
+  });
+
+  describe('runGroupAction — la vista pregunta, el hook ejecuta', () => {
+    it('un motor objetivo se rotula "Aceptar todas"; el de IA, "Marcar todos"', () => {
+      useDocStore.setState({
+        ...DOC_CON_ESTRUCTURA,
+        proofreadFindings: [
+          hallazgo(),
+          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso' }),
+          hallazgo({ element_id: 'e1', kind: 'muletilla', message: 'Muletilla' }),
+        ],
+        citationAuditResult: {
+          ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e1' }],
+          orphan_references: [],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      // AGENTS.md §1: los cuatro motores objetivos aceptan; el probabilístico
+      // solo marca. El rótulo no depende del mecanismo que haya detrás.
+      expect(result.current.groups.map((g) => [g.engine, g.massLabel])).toEqual([
+        ['spelling', 'Aceptar todas'],
+        ['style', 'Aceptar todas'],
+        ['structure', 'Aceptar todas'],
+        ['citations', 'Aceptar todas'],
+        ['ai', 'Marcar todos'],
+      ]);
+    });
+
+    it('el grupo de citas ejecuta autoResolveGhosts', async () => {
+      const autoResolveGhosts = vi.fn(async () => {});
+      useDocStore.setState({
+        autoResolveGhosts,
+        citationAuditResult: {
+          ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e1' }],
+          orphan_references: [],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const citas = result.current.groups.find((g) => g.engine === 'citations')!;
+      expect(citas.massAction).toBe('resolveGhosts');
+      await act(async () => {
+        await result.current.runGroupAction(citas);
+      });
+      expect(autoResolveGhosts).toHaveBeenCalledTimes(1);
+    });
+
+    it('el grupo de estructura ejecuta autoCaptionAll', async () => {
+      const autoCaptionAll = vi.fn(async () => {});
+      useDocStore.setState({ ...DOC_CON_ESTRUCTURA, autoCaptionAll });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const estructura = result.current.groups.find((g) => g.engine === 'structure')!;
+      expect(estructura.massAction).toBe('autoCaption');
+      await act(async () => {
+        await result.current.runGroupAction(estructura);
+      });
+      expect(autoCaptionAll).toHaveBeenCalledTimes(1);
+    });
+
+    it('el grupo de estilo aplica todas sus correcciones', async () => {
+      const updateElementText = vi.fn(async () => {});
+      useDocStore.setState({
+        updateElementText,
+        proofreadFindings: [
+          hallazgo({ kind: 'bloom_vague', message: 'Verbo impreciso' }),
+          hallazgo({ element_id: 'e2', kind: 'bloom_low', message: 'Nivel bajo' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const estilo = result.current.groups.find((g) => g.engine === 'style')!;
+      expect(estilo.massAction).toBe('accept');
+      await act(async () => {
+        await result.current.runGroupAction(estilo);
+      });
+      // El motor da la sugerencia por defecto para Bloom, y se aplica a los dos.
+      expect(updateElementText).toHaveBeenCalledTimes(2);
+      expect(result.current.items).toHaveLength(0);
+    });
+
+    it('el grupo de IA marca todo y no borra nada', async () => {
+      const updateElementText = vi.fn(async () => {});
+      useDocStore.setState({
+        updateElementText,
+        proofreadFindings: [
+          hallazgo({ kind: 'muletilla', message: 'Muletilla A', suggestion: 'a' }),
+          hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla B', suggestion: 'b' }),
+        ],
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const ia = result.current.groups.find((g) => g.engine === 'ai')!;
+      expect(ia.massAction).toBe('mark');
+      await act(async () => {
+        await result.current.runGroupAction(ia);
+      });
+      expect(result.current.markedIds).toHaveLength(2);
+      expect(result.current.items).toHaveLength(2);
+      expect(updateElementText).not.toHaveBeenCalled();
+    });
+
+    it('un subtipo sin corrección automática no ejecuta nada, y lo dice', async () => {
+      const autoResolveGhosts = vi.fn(async () => {});
+      useDocStore.setState({
+        autoResolveGhosts,
+        citationAuditResult: {
+          ghost_citations: [],
+          orphan_references: [{ authors: ['Pérez'], year: 2019, raw_text: 'Pérez (2019).' }],
+        } as never,
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      const subtipo = result.current.groups.flatMap((g) => g.groups)[0];
+      expect(subtipo.action).toBe('none');
+      await act(async () => {
+        await result.current.runGroupAction(subtipo);
+      });
+      expect(autoResolveGhosts).not.toHaveBeenCalled();
+      expect(result.current.items).toHaveLength(1);
+      expect(useDocStore.getState().toastMessage).toMatch(/no tiene corrección automática/);
+    });
+  });
+
+  describe('un motor que falló no publica cumplimiento', () => {
+    it('falla el motor de IA: los otros dos dejaron resultados y aun así no hay número', async () => {
+      useDocStore.setState({
+        reviewResult: { paragraphs: [parrafoIA('e1', 10, 'LOW')] } as never,
+        // El motor de IA no deja resultados nuevos: el escaneo se registra
+        // como fallido aunque el store ya tuviera un review viejo.
+        runAIReview: vi.fn(async () => {}),
+        runProofreadBatch: vi.fn(async () => {
+          useDocStore.setState({ proofreadFindings: [hallazgo()] });
+        }),
+        runCitationAudit: vi.fn(async () => {
+          useDocStore.setState({ citationAuditResult: { ghost_citations: [], orphan_references: [] } as never });
+        }),
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      await act(async () => {
+        await result.current.scanAll();
+      });
+      // Los tres motores tienen resultados en el store: sin el registro de
+      // fallo esto publicaría 97% sobre un escaneo que no ocurrió.
+      expect(result.current.items.length).toBeGreaterThan(0);
+      expect(result.current.metrics.compliance).toBeNull();
+    });
+
+    it('falla el proofread: tampoco publica cumplimiento', async () => {
+      useDocStore.setState({
+        reviewResult: { paragraphs: [parrafoIA('e1', 10, 'LOW')] } as never,
+        proofreadFindings: [hallazgo()],
+        citationAuditResult: { ghost_citations: [], orphan_references: [] } as never,
+        runAIReview: vi.fn(async () => {
+          useDocStore.setState({ reviewResult: { paragraphs: [parrafoIA('e1', 80, 'HIGH')] } as never });
+        }),
+        runProofreadBatch: vi.fn(async () => {}),
+        runCitationAudit: vi.fn(async () => {
+          useDocStore.setState({ citationAuditResult: { ghost_citations: [], orphan_references: [] } as never });
+        }),
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      await act(async () => {
+        await result.current.scanAll();
+      });
+      expect(result.current.metrics.compliance).toBeNull();
+    });
+
+    it('falla el motor de citas: tampoco publica cumplimiento', async () => {
+      useDocStore.setState({
+        reviewResult: { paragraphs: [parrafoIA('e1', 10, 'LOW')] } as never,
+        proofreadFindings: [hallazgo()],
+        citationAuditResult: { ghost_citations: [], orphan_references: [] } as never,
+        runAIReview: vi.fn(async () => {
+          useDocStore.setState({ reviewResult: { paragraphs: [parrafoIA('e1', 80, 'HIGH')] } as never });
+        }),
+        runProofreadBatch: vi.fn(async () => {
+          useDocStore.setState({ proofreadFindings: [hallazgo()] });
+        }),
+        runCitationAudit: vi.fn(async () => {}),
+      });
+      const { result } = renderHook(() => useReviewWorkbench());
+      await act(async () => {
+        await result.current.scanAll();
+      });
+      expect(result.current.metrics.compliance).toBeNull();
+    });
+  });
+});
+
+/* El minimapa se lee "en reposo": sin tooltip, el color ES la información.
+   Dos motores con el mismo token son dos motores indistinguibles, y
+   AGENTS.md §1 pide una marca por página "coloreada por motor". */
+describe('T12 — el color de cada motor', () => {
+  // Specifier en variable, como en designTokens.test.ts: Vite no debe analizarlo.
+  const NODE_FS = 'node:fs';
+  const NODE_PATH = 'node:path';
+  const NODE_URL = 'node:url';
+
+  let claro = '';
+  let oscuro = '';
+
+  beforeAll(async () => {
+    const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+    const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
+    const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
+    const dir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
+    const css = readFileSync(resolve(dir, '../styles/design-system.css'), 'utf8');
+    claro = css.slice(css.indexOf(':root,'), css.indexOf(':root[data-theme="dark"]'));
+    oscuro = css.slice(css.indexOf(':root[data-theme="dark"]'));
+  });
+
+  const valorEn = (bloque: string, token: string): string =>
+    bloque.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim() ?? '';
+
+  it('ningún motor se queda sin token CSS', () => {
+    for (const engine of ENGINE_ORDER) {
+      expect(ENGINE_META[engine].color).toMatch(/^var\(--[a-z-]+\)$/);
+    }
+  });
+
+  it('los cinco motores se distinguen en el tema claro', () => {
+    const vistos = ENGINE_ORDER.map((e) => valorEn(claro, ENGINE_META[e].color.slice(4, -1)));
+    for (const v of vistos) expect(v).toBeTruthy();
+    expect(new Set(vistos).size).toBe(ENGINE_ORDER.length);
+  });
+
+  it('los cinco motores se distinguen en el tema oscuro', () => {
+    const vistos = ENGINE_ORDER.map((e) => valorEn(oscuro, ENGINE_META[e].color.slice(4, -1)));
+    for (const v of vistos) expect(v).toBeTruthy();
+    expect(new Set(vistos).size).toBe(ENGINE_ORDER.length);
   });
 });

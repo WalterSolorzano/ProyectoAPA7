@@ -5,7 +5,8 @@
 
    Tres reglas que este módulo no negocia:
    1. El detector de IA es PROBABILÍSTICO: propone, la persona decide. Ninguna
-      ruta de este archivo aplica una sugerencia suya (ver `aceptaDeIA`).
+      ruta de este archivo aplica una sugerencia suya (ver `aceptaDeIA`), ni
+      aunque la vista llame a `runGroupAction` con el grupo entero.
    2. Un motor que no ha corrido no produce números: `compliance` es `null`
       hasta que los tres motores dejaron resultados, y un motor que falló en
       esta sesión vuelve a `null` (ver `lastRunState`).
@@ -95,6 +96,12 @@ export interface ReviewWorkbenchApi {
   acceptOne: (item: AuditItem) => Promise<void>;
   acceptMany: (items: AuditItem[]) => Promise<void>;
   markForReview: (item: AuditItem) => void;
+  /**
+   * Ejecuta la acción de un grupo (cabecera de motor o fila de subtipo). La
+   * vista pinta el rótulo y llama acá: no decide qué acción hay, ni cómo se
+   * hace. `'none'` no ejecuta nada y lo dice.
+   */
+  runGroupAction: (group: EngineGroup | SubtypeGroup) => Promise<void>;
   dismiss: (item: AuditItem) => void;
   markedIds: string[];
   scanAll: () => Promise<void>;
@@ -109,11 +116,11 @@ export interface ReviewWorkbenchApi {
 export const ENGINE_ORDER: EngineId[] = ['spelling', 'style', 'structure', 'citations', 'ai'];
 
 export const ENGINE_META: Record<EngineId, { title: string; chip: string; color: string }> = {
-  spelling: { title: 'Ortografía', chip: 'Ortografía', color: 'var(--color-danger)' },
-  style: { title: 'Redacción & Bloom', chip: 'Redacción & Bloom', color: 'var(--color-accent)' },
-  structure: { title: 'Estructura', chip: 'Estructura', color: 'var(--color-info)' },
-  citations: { title: 'Citas', chip: 'Citas', color: 'var(--color-warning)' },
-  ai: { title: 'Patrones IA', chip: 'Patrones IA', color: 'var(--text-secondary)' },
+  spelling: { title: 'Ortografía', chip: 'Ortografía', color: 'var(--color-accent)' },
+  style: { title: 'Redacción & Bloom', chip: 'Redacción & Bloom', color: 'var(--color-warning)' },
+  structure: { title: 'Estructura', chip: 'Estructura', color: 'var(--color-text-secondary)' },
+  citations: { title: 'Citas', chip: 'Citas', color: 'var(--color-success)' },
+  ai: { title: 'Patrones IA', chip: 'Patrones IA', color: 'var(--color-danger)' },
 };
 
 /* Motores que corre el "Escanear" global, en el orden de Promise.allSettled.
@@ -128,6 +135,10 @@ const SCAN_ENGINES: { id: ScanEngineId; label: string }[] = [
  * Subtipo = el `kind` del proofreador NORMALIZADO. El backend emite un
  * `kind` por hallazgo ('ai_phrase', 'bloom_vague', 'bloom_low'...); sin esta
  * capa, cada uno sería su propia fila y ninguno tendría etiqueta de usuario.
+ * Toda etiqueta que `PROOFREAD_SPECS` produce tiene fila aquí Y en
+ * `SUBTYPE_ACTION`: un subtipo sin acción caería en la del motor, que para IA
+ * es 'mark' pero para un motor objetivo sería 'accept' sobre un hallazgo que
+ * nadie ha revisado.
  */
 const SUBTYPE_LABELS: Record<string, string> = {
   parrafo_ia: 'Párrafo con índice IA alto',
@@ -135,9 +146,16 @@ const SUBTYPE_LABELS: Record<string, string> = {
   muletilla: 'Muletilla o repetición',
   repeticion: 'Repetición de n-gramas',
   primera_persona: 'Primera persona gramatical',
+  mezcla_personas: 'Mezcla de personas gramaticales',
   verbo_bloom: 'Verbo impreciso en objetivo (Bloom)',
   ortografia: 'Falta ortográfica o tilde',
   texto_pegado: 'Texto pegado sin espaciado',
+  palabra_repetida: 'Palabra repetida',
+  pronombre_ambiguo: 'Pronombre ambiguo',
+  voz_pasiva: 'Voz pasiva',
+  oracion_larga: 'Oración extensa',
+  idea_incompleta: 'Idea incompleta',
+  otro: 'Otro hallazgo del corrector',
   cita_fantasma: 'Cita ausente en bibliografía',
   referencia_huerfana: 'Referencia nunca citada',
   encabezado: 'Jerarquía de encabezado',
@@ -151,7 +169,17 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   frase_ia: 'mark',
   muletilla: 'mark',
   repeticion: 'mark',
+  /* Hallazgos que el motor DETECTA pero no puede corregir solo: cuáles de las
+     tres repeticiones cortar, a qué antecedente se refiere "esto", cómo
+     partir una oración de 60 palabras. Se marcan; no se aplican. */
+  palabra_repetida: 'mark',
+  pronombre_ambiguo: 'mark',
+  voz_pasiva: 'mark',
+  oracion_larga: 'mark',
+  idea_incompleta: 'mark',
+  otro: 'mark',
   primera_persona: 'accept',
+  mezcla_personas: 'accept',
   verbo_bloom: 'accept',
   ortografia: 'accept',
   texto_pegado: 'accept',
@@ -162,13 +190,20 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   tabla: 'autoCaption',
 };
 
-/** Copy del botón masivo de un subtipo, por lo que su motor puede hacer. */
-const MASS_LABEL: Record<SubtypeAction, string> = {
-  accept: 'Aceptar todas',
-  resolveGhosts: 'Resolver',
-  autoCaption: 'Auto-Rotular',
-  mark: 'Marcar todos',
-  none: '',
+/**
+ * Copy del botón masivo, y el UNICO lugar donde se decide.
+ *
+ * AGENTS.md §1 es la regla que gobierna: los motores OBJETIVOS (ortografía,
+ * Bloom, estructura, citas) ofrecen "Aceptar / Aceptar todas"; el motor
+ * probabilístico (detector de IA) SOLO "Marcar para revisar". El rótulo dice
+ * eso; el MECANISMO lo elige `runGroupAction` (autoResolveGhosts,
+ * autoCaptionAll, updateElementText). Un botón que dice "Aceptar todas" sobre
+ * el grupo de citas y resuelve las fantasma está haciendo lo que promete.
+ */
+const massLabelFor = (action: SubtypeAction): string => {
+  if (action === 'mark') return 'Marcar todos';
+  if (action === 'none') return '';
+  return 'Aceptar todas';
 };
 
 const SEVERITY_RANK: Record<Severity, number> = {
@@ -188,26 +223,23 @@ const engineAction = (engine: EngineId): SubtypeAction => {
   return 'accept';
 };
 
-const engineMassLabel = (engine: EngineId): string => {
-  switch (engine) {
-    case 'ai':
-      return 'Marcar todos';
-    case 'citations':
-      return 'Resolver citas';
-    case 'structure':
-      return 'Auto-Rotular todo';
-    default:
-      return 'Aceptar todas';
-  }
-};
-
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
 /* ── Hallazgos del proofreador local ──────────────────────────────────────
-   El `kind` del backend decide el motor y el subtipo. Un `kind` que este
-   archivo no conoce NO se inventa en otro motor: se descarta, igual que lo
-   descartaba el componente, porque un hallazgo sin subtipo ni acción no
-   tiene dónde vivir en el panel. */
+   Una fila por `kind`, y la fila es TOTAL: `ProofreadFinding['kind']` es
+   `'ortografia' | ... | string`, así que el tipo admite kinds que todavía no
+   existen. Un hallazgo que este archivo no conoce NO se descarta: se muestra
+   bajo "Otro hallazgo del corrector" con acción 'mark'. Antes se descartaba
+   en silencio, y el store ya lo publicaba en el mapa de transparencia
+   (`auditSlice` KIND_LABELS → localStorage + StorageEvent): el usuario leía
+   en el lienzo un aviso que el panel de Revisión no tenía. Un panel que
+   calla un hallazgo que el lienzo enseña rompe la sincronización que
+   AGENTS.md §2 exige entre los dos canales. */
+interface ProofreadSource {
+  excerpt?: string;
+  message: string;
+}
+
 interface ProofreadRow {
   category: EngineId;
   subtype: string;
@@ -216,37 +248,93 @@ interface ProofreadRow {
   suggestedText?: string;
 }
 
-function proofreadRow(kind: string, f: { excerpt?: string; message: string }): ProofreadRow | null {
-  if (kind === 'ai_phrase' || kind === 'muletilla' || kind === 'ngram_repetition') {
-    return {
-      category: 'ai',
-      subtype: kind === 'ai_phrase' ? 'frase_ia' : kind === 'muletilla' ? 'muletilla' : 'repeticion',
-      severity: 'medium',
-      summary: clip(f.message, 70),
-      suggestedText: undefined,
-    };
-  }
-  if (kind === 'first_person' || kind === 'persona' || kind.startsWith('bloom')) {
-    const isBloom = kind.startsWith('bloom');
-    return {
-      category: 'style',
-      subtype: isBloom ? 'verbo_bloom' : 'primera_persona',
-      severity: isBloom ? 'high' : 'medium',
-      summary: isBloom ? 'Verbo impreciso en objetivo académico' : 'Uso de primera persona gramatical',
-      suggestedText: isBloom ? 'Determinar y analizar de forma rigurosa' : undefined,
-    };
-  }
-  if (kind === 'ortografia' || kind === 'pegado') {
-    const isOrtografia = kind === 'ortografia';
-    return {
-      category: 'spelling',
-      subtype: isOrtografia ? 'ortografia' : 'texto_pegado',
-      severity: isOrtografia ? 'high' : 'medium',
-      summary: isOrtografia ? `Falta ortográfica o tilde: ${f.excerpt ?? ''}` : 'Texto pegado sin espaciado correcto',
-      suggestedText: undefined,
-    };
-  }
-  return null;
+interface ProofreadSpec {
+  category: EngineId;
+  subtype: string;
+  severity: Severity;
+  /** Texto fijo de la fila, o el mensaje del motor si este ya lo explica. */
+  summary: string | ((f: ProofreadSource) => string);
+  suggestedText?: string;
+}
+
+const DEL_MOTOR = (f: ProofreadSource) => clip(f.message, 70);
+
+const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
+  // Ortografía y pegado: la corrección es mecánica (objetivos, 'accept').
+  ortografia: {
+    category: 'spelling',
+    subtype: 'ortografia',
+    severity: 'high',
+    summary: (f) => `Falta ortográfica o tilde: ${f.excerpt ?? ''}`,
+  },
+  pegado: {
+    category: 'spelling',
+    subtype: 'texto_pegado',
+    severity: 'medium',
+    summary: 'Texto pegado sin espaciado correcto',
+  },
+
+  // Redacción y Bloom.
+  first_person: {
+    category: 'style',
+    subtype: 'primera_persona',
+    severity: 'medium',
+    summary: 'Uso de primera persona gramatical',
+  },
+  persona: {
+    category: 'style',
+    subtype: 'mezcla_personas',
+    severity: 'medium',
+    summary: DEL_MOTOR,
+  },
+  bloom_vague: {
+    category: 'style',
+    subtype: 'verbo_bloom',
+    severity: 'high',
+    summary: 'Verbo impreciso en objetivo académico',
+    suggestedText: 'Determinar y analizar de forma rigurosa',
+  },
+  bloom_low: {
+    category: 'style',
+    subtype: 'verbo_bloom',
+    severity: 'high',
+    summary: 'Nivel de Bloom por debajo del objetivo del trabajo',
+    suggestedText: 'Determinar y analizar de forma rigurosa',
+  },
+
+  // Lo que el detector probabilístico señala: se marca, nunca se aplica.
+  ai_phrase: { category: 'ai', subtype: 'frase_ia', severity: 'medium', summary: DEL_MOTOR },
+  muletilla: { category: 'ai', subtype: 'muletilla', severity: 'medium', summary: DEL_MOTOR },
+  ngram_repetition: { category: 'ai', subtype: 'repeticion', severity: 'medium', summary: DEL_MOTOR },
+
+  /* Detectados con certeza, pero sin corrección automática posible: cuál de
+     las tres repeticiones se corta, a qué antecedente apunta "esto", dónde
+     partir una oración de 60 palabras, qué idea falta al final. Todos 'mark'
+     (la severidad espeja la que emite el auditor: incomplete → 'error',
+     long_sentence → 'warn', el resto → 'info'). */
+  repeticion: { category: 'style', subtype: 'palabra_repetida', severity: 'low', summary: DEL_MOTOR },
+  ambigua: { category: 'style', subtype: 'pronombre_ambiguo', severity: 'low', summary: DEL_MOTOR },
+  passive_voice: { category: 'style', subtype: 'voz_pasiva', severity: 'low', summary: DEL_MOTOR },
+  long_sentence: { category: 'style', subtype: 'oracion_larga', severity: 'medium', summary: DEL_MOTOR },
+  incompleta: { category: 'style', subtype: 'idea_incompleta', severity: 'high', summary: DEL_MOTOR },
+};
+
+/** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo
+ *  que llegue nuevo. Nunca devuelve `null`: no hay kinds que se pierdan. */
+function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
+  const spec = PROOFREAD_SPECS[kind] ?? {
+    category: 'style' as EngineId,
+    subtype: 'otro',
+    severity: 'low' as Severity,
+    summary: DEL_MOTOR,
+  };
+  return {
+    category: spec.category,
+    subtype: spec.subtype,
+    severity: spec.severity,
+    summary: typeof spec.summary === 'function' ? spec.summary(f) : spec.summary,
+    suggestedText: spec.suggestedText,
+  };
 }
 
 export function useReviewWorkbench(): ReviewWorkbenchApi {
@@ -260,6 +348,8 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const runAIReview = useDocStore((s) => s.runAIReview);
   const runProofreadBatch = useDocStore((s) => s.runProofreadBatch);
   const runCitationAudit = useDocStore((s) => s.runCitationAudit);
+  const autoResolveGhosts = useDocStore((s) => s.autoResolveGhosts);
+  const autoCaptionAll = useDocStore((s) => s.autoCaptionAll);
   const updateElementText = useDocStore((s) => s.updateElementText);
   const showToast = useDocStore((s) => s.showToast);
 
@@ -291,25 +381,30 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     for (const [idx, p] of (reviewResult?.paragraphs || []).entries()) {
       const score = p.ai_score || 0;
       if (!(score >= 45 || p.ai_category === 'HIGH' || p.ai_category === 'MEDIUM')) continue;
+      // `ai_score` ausente o cero no es un 60% ni un 50%: es "no medido". Un
+      // párrafo puede entrar por `ai_category` con la puntuación sin calcular,
+      // y mostrarle un número al usuario sería inventarlo.
+      const medido = score > 0;
       out.push({
         id: `ai_rev_${p.element_id}_${idx}`,
         element_id: p.element_id,
         category: 'ai',
         subtype: 'parrafo_ia',
         severity: score >= 70 ? 'high' : 'medium',
-        summary: `Índice de IA ${score || 60}% — rigidez sintética detectada`,
+        summary: medido
+          ? `Índice de IA ${score}% — rigidez sintética detectada`
+          : 'Índice de IA alto — rigidez sintética detectada',
         detail: 'Estructura reiterativa y conectores sintéticos característicos de modelos generativos.',
         originalText: (p.element_id ? byId.get(p.element_id)?.text : '') || p.text || '',
         suggestedText: undefined,
         pageNumber: p.element_id ? pageOf(p.element_id) : null,
-        aiScore: (score || 50) / 100,
+        aiScore: medido ? score / 100 : undefined,
       });
     }
 
-    // 2. Hallazgos proactivos locales (IA, estilo/Bloom, ortografía y pegado).
+    // 2. Hallazgos proactivos locales: TODOS los `kind` que emite el auditor.
     for (const [idx, f] of proofreadFindings.entries()) {
       const row = proofreadRow(String(f.kind), f);
-      if (!row) continue;
       out.push({
         id: `proact_${f.element_id}_${idx}`,
         element_id: f.element_id,
@@ -435,7 +530,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
           label: SUBTYPE_LABELS[key] || key,
           items: susItems,
           action,
-          massLabel: MASS_LABEL[action],
+          massLabel: massLabelFor(action),
         };
       });
       subgrupos.sort((a, b) => {
@@ -451,10 +546,17 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
         criticalHigh: propios.filter((i) => i.severity === 'critical' || i.severity === 'high').length,
         groups: subgrupos,
         massAction: engineAction(engine),
-        massLabel: engineMassLabel(engine),
+        massLabel: massLabelFor(engineAction(engine)),
       };
     });
   }, [items, filter]);
+
+  /* La siembra es POR DOCUMENTO: cargar otro documento en la misma sesión
+     tiene su propio grupo más crítico, y dejarlo sin abrir obligaría a la
+     persona a desplegar todo a mano para ver qué encontró. */
+  useEffect(() => {
+    seeded.current = false;
+  }, [doc]);
 
   /* Solo el grupo más crítico abre por defecto, una vez por sesión de datos. */
   useEffect(() => {
@@ -510,14 +612,17 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const goToPage = useCallback(
     (page: number) => {
-      const el = pages[page - 1]?.find((e) => e?.id && e.type !== 'page_break');
+      // "Página X de N" se lee de `currentPage`: sin recorte, un clic fuera de
+      // rango dejaría la lectura apuntando a una hoja que no existe.
+      const destino = Math.min(Math.max(1, Math.round(page)), Math.max(1, totalPages));
+      const el = pages[destino - 1]?.find((e) => e?.id && e.type !== 'page_break');
       if (el) {
         setSelectedElementId(el.id);
         setScrollTargetId(el.id);
       }
-      setCurrentPage(page);
+      setCurrentPage(destino);
     },
-    [pages, setSelectedElementId, setScrollTargetId],
+    [pages, totalPages, setSelectedElementId, setScrollTargetId],
   );
 
   const nextFinding = useCallback(() => {
@@ -596,12 +701,55 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     [aplicar, showToast],
   );
 
-  const markForReview = useCallback(
-    (item: AuditItem) => {
-      setMarkedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-      showToast('Marcado para revisar. El texto original no se modifica.', 'info');
+  const markMany = useCallback(
+    (lista: AuditItem[]) => {
+      if (!lista.length) return;
+      setMarkedIds((prev) => [...new Set([...prev, ...lista.map((i) => i.id)])]);
+      showToast(
+        lista.length === 1
+          ? 'Marcado para revisar. El texto original no se modifica.'
+          : `${lista.length} hallazgos marcados para revisar. El texto original no se modifica.`,
+        'info',
+      );
     },
     [showToast],
+  );
+
+  const markForReview = useCallback((item: AuditItem) => markMany([item]), [markMany]);
+
+  /**
+   * La vista NO ejecuta acciones: pregunta. Este hook es la única autoridad
+   * sobre qué acción tiene un grupo (su `action`/`massAction`) y sobre cómo se
+   * ejecuta, así que la vista no tiene que volver al store para resolver
+   * citas fantasma ni rotular figuras, ni adivinar qué hacer con 'none'.
+   * Acepta un `EngineGroup` (usa todos sus subtipos) o un `SubtypeGroup`.
+   */
+  const runGroupAction = useCallback(
+    async (group: EngineGroup | SubtypeGroup) => {
+      const esMotor = 'massAction' in group;
+      const action = esMotor ? group.massAction : group.action;
+      const objetivos = esMotor ? group.groups.flatMap((g) => g.items) : group.items;
+      switch (action) {
+        case 'accept':
+          await acceptMany(objetivos);
+          return;
+        case 'mark':
+          markMany(objetivos);
+          return;
+        case 'resolveGhosts':
+          await autoResolveGhosts();
+          return;
+        case 'autoCaption':
+          await autoCaptionAll();
+          return;
+        case 'none':
+          // Sin corrección objetiva no hay nada que ejecutar: se dice, para que
+          // el silencio no se lea como "se aplicó y no pasó nada".
+          showToast('Este hallazgo no tiene corrección automática: revísalo o descártalo.', 'info');
+          return;
+      }
+    },
+    [acceptMany, markMany, autoResolveGhosts, autoCaptionAll, showToast],
   );
 
   const dismiss = useCallback(
@@ -720,6 +868,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     acceptOne,
     acceptMany,
     markForReview,
+    runGroupAction,
     dismiss,
     markedIds,
     scanAll,
