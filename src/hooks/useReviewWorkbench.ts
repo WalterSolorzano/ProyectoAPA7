@@ -208,20 +208,23 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
 /**
  * Copy del botón masivo, y el UNICO lugar donde se decide.
  *
- * AGENTS.md §1 es la regla que gobierna: los motores OBJETIVOS (ortografía,
- * Bloom, estructura, citas) ofrecen "Aceptar / Aceptar todas"; el motor
- * probabilístico (detector de IA) SOLO "Marcar para revisar". El rótulo dice
- * eso; el MECANISMO lo elige `runGroupAction` (autoResolveGhosts,
- * autoCaptionAll, updateElementText). Un botón que dice "Aceptar todas" sobre
- * el grupo de citas y resuelve las fantasma está haciendo lo que promete.
+ * AGENTS.md §1 es el MARCO: los motores OBJETIVOS (ortografía, Bloom,
+ * estructura, citas) ofrecen una corrección en bloque, y el motor
+ * PROBABILÍSTICO (detector de IA) SOLO marca para revisar. Qué palabra usa cada
+ * objetivo lo afinó T16, y lo que manda es esto:
  *
- * T16: "Aceptar" es la palabra de la correccion OBJETIVA y POR HALLAZGO, y solo
- * la usan las acciones que la tienen. Estructura redacta leyendas y Citas
- * resuelve referencias ausentes: los dos mecanismos trabajan sobre TODO el
- * documento, asi que su rotulo nombra el mecanismo y su alcance. Antes ambos se
- * llamaban "Aceptar todas", lo que prometia corregir el texto de un hallazgo —que
- * no es lo que pasa— y ademas contradecía al control de la aparicion, en la
- * misma tarjeta, que dice "Rotular todo" / "Resolver citas" y hace lo mismo.
+ * - "Aceptar" es la corrección OBJETIVA y POR HALLAZGO. Solo la usa la acción
+ *   `accept`, la única que escribe el texto de alguien.
+ * - Estructura redacta leyendas y Citas resuelve referencias ausentes: los dos
+ *   mecanismos trabajan sobre TODO el documento, así que su rótulo nombra el
+ *   mecanismo y su alcance ("Rotular todo el documento", "Resolver citas del
+ *   documento"). Antes ambos se llamaban "Aceptar todas", lo que prometía
+ *   corregir el texto de un hallazgo —que no es lo que pasa— y además
+ *   contradecía al control de la aparición, en la misma tarjeta, que dice
+ *   "Rotular todo" / "Resolver citas" y hace lo mismo.
+ *
+ * El MECANISMO lo elige `runGroupAction` (autoResolveGhosts, autoCaptionAll,
+ * updateElementText); aquí vive solo la palabra.
  */
 const MASS_LABELS: Record<Exclude<SubtypeAction, 'none'>, string> = {
   accept: 'Aceptar todas',
@@ -234,7 +237,18 @@ const MASS_LABELS: Record<Exclude<SubtypeAction, 'none'>, string> = {
 const massLabelFor = (action: SubtypeAction): string =>
   action === 'none' ? '' : MASS_LABELS[action];
 
-const SEVERITY_RANK: Record<Severity, number> = {
+/**
+ * El ORDEN de gravedad, y la tabla más grave de un grupo. Es la única definición
+ * en el código, y está aquí porque el hook es quien ordena subtipos y decide qué
+ * motor tiñe cada página del minimapa. `EngineGroupCard` la importa para el
+ * badge: dos copias de esta tablaían dos verdades, y con un nivel nuevo en el
+ * vocabulario de severidad la del badge se quedaría callada mientras el orden
+ * cambiaba.
+ *
+ * El tipo `Record<Severity, number>` es lo que hace que agregar un nivel NO sea
+ * un cambio silencioso: la compilación falla en las dos tablas que lo usen.
+ */
+export const SEVERITY_RANK: Record<Severity, number> = {
   critical: 0,
   high: 1,
   medium: 2,

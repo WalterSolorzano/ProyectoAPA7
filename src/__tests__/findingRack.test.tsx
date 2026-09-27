@@ -176,6 +176,46 @@ describe('T15 — rack de hallazgos', () => {
     expect(screen.queryByRole('button', { name: /Aceptar/ })).toBeNull();
   });
 
+  /* ── El acento sólido es de la acción que corrige, no de cualquier botón ── */
+
+  it('solo "Aceptar" lleva el acento sólido; marcar y las de documento no', () => {
+    /* El acento de `--color-accent` está reservado a la acción que escribe el
+       texto de alguien. "Marcar todos" no borra nada, y "Rotular todo el
+       documento" / "Resolver citas del documento" son de todo el archivo, llaman
+       a la red y mutan el documento: los tres con el mismo relleno de acento
+       hacían que la cabecera pareciera un solo botón con tres nombres. */
+    const botonDe = (massAction: AuditItem['severity'] | SubtypeGroup['action'], massLabel: string) => {
+      const { unmount } = render(
+        <EngineGroupCard
+          group={motor({ massAction: massAction as EngineGroup['massAction'], massLabel })}
+          open onToggle={vi.fn()} onMassAction={vi.fn()}
+        >
+          <span>contenido</span>
+        </EngineGroupCard>,
+      );
+      const boton = screen.getByRole('button', { name: massLabel });
+      const estilo = { fondo: boton.style.background, color: boton.style.color, borde: boton.style.border };
+      unmount();
+      return estilo;
+    };
+
+    const aceptar = botonDe('accept', 'Aceptar todas');
+    expect(aceptar.fondo).toBe('var(--color-accent)');
+    expect(aceptar.color).toBe('var(--color-text-on-accent)');
+
+    for (const [accion, rotulo] of [
+      ['mark', 'Marcar todos'],
+      ['autoCaption', 'Rotular todo el documento'],
+      ['resolveGhosts', 'Resolver citas del documento'],
+    ] as const) {
+      const b = botonDe(accion, rotulo);
+      // Con borde y sin relleno: se ve como un control, no como la aceptación.
+      expect(b.fondo, `${rotulo} no debería llevar el acento`).toBe('transparent');
+      expect(b.borde, `${rotulo} debería llevar borde`).toContain('1px solid');
+      expect(b.color).not.toBe('var(--color-text-on-accent)');
+    }
+  });
+
   it('un grupo sin acción (massLabel vacío) no pinta botón vacío', () => {
     render(
       <EngineGroupCard

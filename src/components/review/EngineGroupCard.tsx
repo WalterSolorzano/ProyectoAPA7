@@ -22,6 +22,7 @@
 
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { SEVERITY_RANK } from '../../hooks/useReviewWorkbench';
 import type { AuditItem, EngineGroup, SubtypeGroup } from '../../hooks/useReviewWorkbench';
 
 export interface EngineGroupCardProps {
@@ -41,6 +42,16 @@ export interface EngineGroupCardProps {
 export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote, children }: EngineGroupCardProps) {
   const Chevron = open ? ChevronDown : ChevronRight;
   const regionId = `engine-${group.engine}`;
+  /* El acento sólido es de UNA sola acción: `accept`, la que de verdad corrige el
+     texto de alguien. `mark` va fantasma porque no borra nada. Y los dos
+     mecanismos de DOCUMENTO —`resolveGhosts` y `autoCaption`, que rotulan el
+     archivo entero y llaman a la red— tampoco lo llevan: son igual de
+     irreversibles que aceptar, pero no son la corrección del texto, y
+     vestirse del acento de la aceptación hacía que las tres acciones de la
+     cabecera se leyeran como la misma. Ahora la de documento se ve como lo que
+     es: un botón con borde que hay que querer pulsar. */
+  const solido = group.massAction === 'accept';
+  const atenuado = group.massAction === 'mark';
   return (
     <section
       style={{
@@ -87,10 +98,14 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, massNote,
             onClick={() => onMassAction(group)}
             style={{
               flexShrink: 0, padding: 'var(--space-1) 10px',
-              border: group.massAction === 'mark' ? '1px solid var(--color-border-subtle)' : 'none',
+              border: solido ? 'none' : '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-sm)',
-              background: group.massAction === 'mark' ? 'transparent' : 'var(--color-accent)',
-              color: group.massAction === 'mark' ? 'var(--color-text-secondary)' : 'var(--color-text-on-accent)',
+              background: solido ? 'var(--color-accent)' : 'transparent',
+              color: solido
+                ? 'var(--color-text-on-accent)'
+                : atenuado
+                  ? 'var(--color-text-secondary)'
+                  : 'var(--color-text-primary)',
               font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
             }}
           >
@@ -131,12 +146,13 @@ const SEVERITY_COLOR: Record<AuditItem['severity'], string> = {
   low: 'var(--color-text-tertiary)',
 };
 
-const SEVERITY_RANK: Record<AuditItem['severity'], number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-};
+/* El ORDEN de gravedad NO se re-declara aquí: `SEVERITY_RANK` se importa del
+   hook, que es quien ordena los subtipos. Tener las dos tablas era un modo de
+   fallo silencioso —un nivel nuevo en el vocabulario iba al hook, el badge se
+   quedaba con el viejo, y el ×N decoreaba una gravedad que el sort no
+   compartía—. Ahora `peorSeveridad` lee la MISMA tabla que el sort, así que no
+   pueden discrepar, y el `Record<Severity, number>` del hook hace que agregar un
+   nivel sea un error de compilación y no un badge que clasifique distinto. */
 
 /** El badge se tiñe por la PEOR severidad del grupo, no por su primer ítem:
  *  el orden de los ítems lo produce el motor, no la gravedad, y un grupo con

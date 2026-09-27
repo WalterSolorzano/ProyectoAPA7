@@ -31,6 +31,11 @@ vi.mock('../components/wizard/ReviewMinimap', () => ({
 
 /* ── Utilidades de datos ──────────────────────────────────────────────────── */
 
+/** El código sin comentarios: una regla que habla de "no comparar" no puede
+ *  encontrar su comparación en un comentario que la explica. */
+const codigoDe = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
 const elemento = (over: Record<string, unknown> = {}) => ({
   id: 'e1', type: 'paragraph', text: 'primer parrafo', style_name: 'Normal',
   alignment: 'left', font_name: 'Times New Roman', font_size: 12, is_bold: false,
@@ -380,14 +385,46 @@ describe('T16 — el detalle ejecuta la acción que declara su grupo', () => {
 
 describe('T16 — la vista no vuelve a escribir las reglas del hook', () => {
   it('el workbench no re-aplica el predicado del filtro', () => {
-    // El filtro POR MOTOR es del hook. Si la vista lo escribiera sobre `items`
-    // para contar lo que hay, la regla estaría en dos archivos: un cambio de
-    // semántica aquí dejaría "Siguiente hallazgo" encendido e inerte, que es el
-    // defecto exacto de la corrección 7. El conteo por ELEMENTO (`enElBloque`)
-    // sí es de la vista y no se toca: no es el filtro.
-    expect(SRC).not.toMatch(/wb\.filter === 'all'/);
-    expect(SRC).not.toMatch(/i\.category === wb\.filter/);
+    /* El filtro POR MOTOR es del hook. Si la vista lo escribiera sobre `items`
+       para contar lo que hay, la regla estaría en dos archivos: un cambio de
+       semántica aquí dejaría "Siguiente hallazgo" encendido e inerte, que es el
+       defecto exacto de la corrección 7. El conteo por ELEMENTO (`enElBloque`)
+       sí es de la vista y no se toca: no es el filtro.
+
+       T20: la guarda era Literal y solo conocía dos escrituras
+       (`wb.filter === 'all'` e `i.category === wb.filter`). Re-derivar el
+       predicado con otro nombre de variable —`f.category === filtro`,
+       `hallazgo.category === wb.filter`, un `.includes`— pasaba. Ahora lo que se
+       prohíbe es la COMPARACIÓN, que es lo que un predicado del filtro tiene que
+       hacer: la vista no compara la categoría de un hallazgo con nada. Y el
+       predicado se cuenta: sin comparaciones, la prueba sigue teniendo algo que
+       mirar. */
+    expect(codigoDe(SRC)).not.toMatch(/\.category\s*(===|!==|==|!=)/);
+    expect(codigoDe(SRC)).not.toMatch(/wb\.filter\s*(===|!==|==|!=)/);
     expect(SRC).toMatch(/wb\.visibleCount/);
+    /* Y la cuenta de comparaciones: si alguien vaciara la vista de todo
+       predicado, esta guarda no podría distinguirlo de "nunca hubo filtro". */
+    const comparaciones = [...codigoDe(SRC).matchAll(/\.category\s*(===|!==)/g)].length;
+    expect(comparaciones).toBe(0);
+  });
+
+  it('el filtro del hook es UNO, y la vista lo pasa sin reescribirlo', () => {
+    /* La otra mitad de la misma regla: el predicado existe, pero en el hook. La
+       vista recibe `filter` y lo entrega a la tira; no lo vuelve a aplicar. */
+    expect(codigoDe(HOOK)).toMatch(/i\.category === filter/);
+    expect(SRC).toMatch(/filter=\{wb\.filter\}/);
+    expect(SRC).toMatch(/onFilter=\{wb\.setFilter\}/);
+  });
+
+  it('la severidad se ordena en UN solo archivo', () => {
+    /* `SEVERITY_RANK` estaba copiada en `EngineGroupCard`: dos tablas de
+       gravedad, y un nivel nuevo en el vocabulario entraba por la del hook
+       mientras el badge se quedaba con la vieja, sin que nada lo dijera. Ahora
+       la tarjeta la IMPORTA, y la tabla es `Record<Severity, number>`: agregar
+       un nivel rompe la compilación en vez de romper el acuerdo. */
+    expect(codigoDe(HOOK)).toMatch(/export const SEVERITY_RANK/);
+    expect(codigoDe(fuentes['EngineGroupCard.tsx'])).not.toMatch(/SEVERITY_RANK\s*[:=]\s*\{/);
+    expect(codigoDe(fuentes['EngineGroupCard.tsx'])).toMatch(/import \{[^}]*SEVERITY_RANK/);
   });
 
   it('el número de páginas dice DE QUÉ revisión es, en la línea y no en un tooltip', () => {
@@ -416,8 +453,12 @@ const CON_COPY = [
   'EngineGroupCard.tsx',
 ] as const;
 const fuentes: Record<string, string> = {};
+/** T20: el hook, para las reglas que son SUyas (el predicado del filtro y la
+ *  tabla de severidad). Antes estas guardas solo miraban la vista, y una regla
+ *  que solo mira un lado no sabe cuál de los dos está mintiendo. */
+let HOOK = '';
 /** Tokens DECLARADOS en la hoja de estilos: una línea que empieza por
- *  `--token:`. Buscar el nombre "en algún lado" daba por definido lo que solo
+ *  `--token:`. Buscar el nombre "en algún lugar" daba por definido lo que solo
  *  aparecía dentro del valor de otro token, y eso no es una declaración. */
 let declarados = new Set<string>();
 beforeAll(async () => {
@@ -427,6 +468,7 @@ beforeAll(async () => {
   const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
   SRC = readFileSync(resolve(testDir, '../components/review/ReviewWorkbench.tsx'), 'utf8');
   PASO5 = readFileSync(resolve(testDir, '../components/wizard/Step5AuditIAWizard.tsx'), 'utf8');
+  HOOK = readFileSync(resolve(testDir, '../hooks/useReviewWorkbench.ts'), 'utf8');
   for (const nombre of CON_COPY) {
     fuentes[nombre] = readFileSync(resolve(testDir, `../components/review/${nombre}`), 'utf8');
   }
@@ -438,7 +480,7 @@ describe('T16 — tokens y copy de lo que esta task escribió', () => {
   /* Lo que se busca es un color en un ESTILO, no en un comentario: el comentario
      que explica por qué `--color-info` y `--color-accent` son el mismo azul
      tiene que poder citar el valor. */
-  const codigo = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const codigo = codigoDe;
 
   it.each(CON_COPY)('%s: sin hex literales', (nombre) => {
     expect(codigo(fuentes[nombre])).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
