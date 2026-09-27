@@ -2,7 +2,9 @@
 import hashlib
 import json
 import logging
+import os
 import time
+from contextlib import contextmanager
 from asyncio import Lock
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -71,29 +73,194 @@ class RateLimiterRegistry:
         return self.buckets[provider_id]
 
 _limiter_registry = RateLimiterRegistry()
+_provider_cooldowns: Dict[str, float] = {}
+_provider_health: Dict[str, Dict[str, Any]] = {}
 
 # --- Cache ---
+# El archivo es UNO, pero lo usan dos capas con claves distintas: las respuestas
+# del prompt (`sha256(prompt + system_prompt)`) y la clasificacion por elemento
+# de `llm_classifier` (`_classification_cache_key`). Por eso `_save_cache` mezcla
+# en vez de reemplazar: si reemplazara, cada clasificacion borraria las
+# respuestas de los motores y las dos capas se pisarian en silencio.
+
+_CACHE_MAX_ENTRADAS = 5000
+
+# El diccionario en memoria es la VERDAD: el archivo es su forma durable. Antes
+# se leia y escribia por llamada, y un lote de cuarenta parrafos leia y
+# reescribia el JSON cuarenta veces.
+_cache: Dict[str, str] = {}
+_cache_cargada = False
+_cache_sucia = False
+_profundidad_de_lote = 0
+
+
 def _compute_text_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
 
-def _load_cache() -> Dict[str, str]:
-    if CACHE_FILE_PATH.exists():
-        try:
-            with open(CACHE_FILE_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
 
-def _save_cache(cache: Dict[str, str]) -> None:
+def _cache_en_memoria() -> Dict[str, str]:
+    """El diccionario compartido, leyendolo del archivo la primera vez.
+
+    Se lee UNA vez. Leerlo por llamada no cuesta tiempo: cuesta la opcion de que
+    alguien lo cambie entre medio, que es justo lo que no se quiere de una cache.
+    """
+    global _cache_cargada
+    if not _cache_cargada:
+        _cache_cargada = True
+        if CACHE_FILE_PATH.exists():
+            try:
+                with open(CACHE_FILE_PATH, "r", encoding="utf-8") as f:
+                    cargado = json.load(f)
+                if isinstance(cargado, dict):
+                    _cache.update(cargado)
+            except Exception as e:
+                # Un JSON a medias o un archivo de otra version. La cache es una
+                # cache: si no se puede leer, se sigue trabajando sin ella. Y NO
+                # se pisa con `{}` al primer guardado, porque eso borra lo que
+                # hubiera sin que hiciera falta perderlo.
+                logger.warning(f"Cache de LLM ilegible, se sigue sin el: {e}")
+    return _cache
+
+
+def _load_cache() -> Dict[str, str]:
+    """El diccionario en memoria.
+
+    Quien lo recibe lo puede mutar y pasar a `_save_cache` despues: es el patron
+    que usa `llm_classifier`. Se devuelve el objeto compartido, no una copia,
+    porque una copia obligaria a releer el archivo en cada llamada, que es
+    justamente lo que se cambio.
+    """
+    return _cache_en_memoria()
+
+
+def _poda(cache: Dict[str, str]) -> None:
+    """Recorta EN SITIO. Antes hacia `cache = dict(list(cache.items())[-5000:])`,
+    que reasignaba el nombre local: el archivo bajaba de 5000 entradas y la
+    memoria de arriba seguia creciendo, para volver a crecer en el proximo
+    guardado. Con la memoria compartida, la poda tiene que recortar la misma
+    estructura que se escribe.
+    """
+    if len(cache) <= _CACHE_MAX_ENTRADAS:
+        return
+    for clave in list(cache.keys())[:-_CACHE_MAX_ENTRADAS]:
+        del cache[clave]
+
+
+def _volcar_cache() -> None:
+    """Escribe el archivo de forma ATOMICA.
+
+    Se escribe a un lado y se mueve con `os.replace`, que en Windows y en POSIX
+    es atomico. Escribir directo abre el archivo en modo `"w"` y lo TRUNCA: si el
+    proceso se corta en medio del `json.dump` —un Ctrl+C, un cierre de la app, un
+    portatil que se duerme— el archivo queda en un JSON a medias, y la proxima
+    `_load_cache` se come la excepcion y devuelve `{}`. O sea: **toda la cache se
+    pierde en silencio**. Sin error, sin aviso, y la reauditoria siguiente vuelve
+    a pagar el documento entero. Un error de cache se diagnostica; una cache que
+    se vacia sola se descubre en la factura.
+    """
+    global _cache_sucia
+    cache = _cache_en_memoria()
+    _poda(cache)
+    temporal = CACHE_FILE_PATH.with_name(CACHE_FILE_PATH.name + ".tmp")
     try:
-        if len(cache) > 5000:
-            cache = dict(list(cache.items())[-5000:])
         CACHE_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(CACHE_FILE_PATH, "w", encoding="utf-8") as f:
+        with open(temporal, "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
+        os.replace(temporal, CACHE_FILE_PATH)
+        _cache_sucia = False
     except Exception as e:
         logger.warning(f"No se pudo guardar el cache de LLM: {e}")
+    finally:
+        # El temporal no puede quedar, ni en el exito ni en la excepcion: seria
+        # la unica copia de una respuesta que ya se pago, en un archivo que nadie
+        # va a leer. En el exito ya no existe — `os.replace` lo movio — asi que
+        # esto no hace nada.
+        try:
+            if temporal.exists():
+                temporal.unlink()
+        except Exception:
+            pass
+
+
+def _save_cache(cache: Dict[str, str]) -> None:
+    """Mezcla `cache` en la memoria y la deja durable.
+
+    Dentro de un `lote_cache()` no toca el disco: se anota para el volteo del
+    cierre del lote. Un lote de cuarenta parrafos volca una vez, no cuarenta.
+    """
+    global _cache_sucia
+    if not cache:
+        return
+    memoria = _cache_en_memoria()
+    # Copia previa para poder deshacer si la escritura se corta. Cuesta una copia
+    # de un diccionario de cadenas y compra que la memoria nunca prometa
+    # respuestas que no estan en el archivo.
+    antes = dict(memoria)
+    memoria.update(cache)
+    _cache_sucia = True
+
+    if _profundidad_de_lote > 0:
+        return
+
+    try:
+        _volcar_cache()
+    except BaseException:
+        # Si la escritura se corto, la memoria queda como estaba: un estado en
+        # memoria que promete respuestas que no estan en el archivo es peor que
+        # no tenerlas, porque el proximo guardado las escribiria y nadie sabria
+        # de donde salieron.
+        memoria.clear()
+        memoria.update(antes)
+        raise
+
+
+@contextmanager
+def lote_cache():
+    """Agrupa las escrituras de la cache y las hace UNA al salir.
+
+    El LOTE es explicito y no un temporizador magico. Un debounce que depende del
+    reloj decide por su cuenta cuando volcar, y la forma de que se pierda la
+    ultima escritura es que nadie se acuerde de la ultima. Ademas asi el
+    volteo se puede poner en el punto que el codigo conoce: el fin del lote.
+
+    Anidable: el volteo ocurre cuando cierra el de AFUERA, que es el unico
+    momento en que nadie puede volver a necesitar la cache en memoria.
+
+    Y el volteo va en el `finally`, no despues: si el LLM tira a la mitad del
+    lote, las respuestas que SI salieron valen plata pagada y no se pueden
+    perder. De las cuarenta, treinta y siete son reales.
+    """
+    global _profundidad_de_lote
+    _profundidad_de_lote += 1
+    try:
+        yield
+    finally:
+        _profundidad_de_lote -= 1
+        if _profundidad_de_lote == 0 and _cache_sucia:
+            _volcar_cache()
+
+
+def en_lote(fn):
+    """El decorador de `lote_cache()`, para funciones `async` de un lote entero.
+
+    Existe para lo que de verdad son los lotes: una funcion que recorre el
+    documento y llama al LLM una vez por elemento. Envolverla con un `with`
+    exigiria reindentar el bucle entero, y reindentar a mano un bloque largo es
+    la forma mas directa de corromper un archivo sin que nada falle. Con el
+    decorador, el lote es una linea y el cuerpo no se toca.
+
+    Un `with` explicito sigue siendo mejor cuando el lote es una parte del
+    codigo y no la funcion entera; el decorador es para cuando la funcion ES el
+    lote, que es el caso de las tres funciones que mas llaman al LLM.
+    """
+    import functools
+
+    @functools.wraps(fn)
+    async def envuelta(*args, **kwargs):
+        with lote_cache():
+            return await fn(*args, **kwargs)
+
+    return envuelta
 
 async def _try_provider(
     provider: Dict[str, Any],
@@ -113,19 +280,30 @@ async def _try_provider(
                 )
 
             if resp.status_code == 200:
+                _provider_health[provider["id"]] = {"status": "healthy", "checked_at": time.time()}
                 return resp.json()
 
             elif resp.status_code == 429:
+                _provider_cooldowns[provider["id"]] = time.time() + 30
+                _provider_health[provider["id"]] = {"status": "rate_limited", "checked_at": time.time()}
                 wait_time = 1.5 ** attempt
                 logger.warning(f"[AI] {provider['name']} devolvió 429. Reintentando en {wait_time}s...")
                 await asyncio.sleep(wait_time)
                 continue
 
             else:
+                cooldown = 600 if resp.status_code in (401, 403, 404, 410) else 15
+                _provider_cooldowns[provider["id"]] = time.time() + cooldown
+                _provider_health[provider["id"]] = {
+                    "status": "unavailable",
+                    "http_status": resp.status_code,
+                    "checked_at": time.time(),
+                }
                 logger.warning(f"[AI] {provider['name']} falló con status {resp.status_code}: {resp.text}")
                 return None
 
         except (httpx.RequestError, asyncio.TimeoutError) as e:
+            _provider_health[provider["id"]] = {"status": "offline", "checked_at": time.time()}
             logger.warning(f"[AI] {provider['name']} error de red/timeout: {e}")
             if attempt == retries - 1:
                 return None
@@ -145,11 +323,12 @@ async def execute_with_specialty(
     use_cache: bool = True,
     return_provider_info: bool = False,
     json_mode: bool = False,
+    provider_id: Optional[str] = None,
 ) -> Any:
     """
     Ejecuta un prompt enrutando predictivamente según la especialidad solicitada.
     """
-    providers = _get_active_providers(api_key, nim_url, use_local)
+    providers = _get_active_providers(api_key, nim_url, use_local, provider_id)
     if not providers:
         raise ValueError("No hay proveedores de IA configurados o activos.")
 
@@ -183,6 +362,9 @@ async def execute_with_specialty(
     # 3. Enrutamiento Predictivo
     for p in routing_queue:
         p_id = p["id"]
+        if _provider_cooldowns.get(p_id, 0) > time.time():
+            logger.info(f"[Router] {p['name']} en enfriamiento tras un fallo reciente.")
+            continue
         capacity = PROVIDER_CAPACITY.get(p_id, {"timeout": 25, "requests_per_minute": 10})
         timeout = capacity.get("timeout", 25)
         rpm = capacity.get("requests_per_minute", 10)
@@ -210,6 +392,12 @@ async def execute_with_specialty(
 
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
+        elif result and p_id == "cloudflare" and result.get("result", {}).get("response"):
+            content = result["result"]["response"]
+        else:
+            content = None
+
+        if content:
 
             if use_cache:
                 cache[prompt_hash] = content
@@ -236,6 +424,11 @@ async def execute_with_specialty(
         result = await _try_provider(p, payload, capacity.get("timeout", 25), retries=2)
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
+        elif result and p["id"] == "cloudflare" and result.get("result", {}).get("response"):
+            content = result["result"]["response"]
+        else:
+            content = None
+        if content:
             if use_cache:
                 cache[prompt_hash] = content
                 _save_cache(cache)
@@ -281,10 +474,11 @@ def get_ai_system_health() -> Dict[str, Any]:
                 "status": status
             }
         else:
+            observed = _provider_health.get(primary_id, {}).get("status")
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": 100, # Si nunca se usó, está lleno
-                "status": "good"
+                "status": observed or "unknown"
             }
 
     return health_data

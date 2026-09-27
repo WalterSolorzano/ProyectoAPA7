@@ -12,6 +12,8 @@ import asyncio
 import json
 import re
 import unicodedata
+
+from modules.ai_client import en_lote
 from typing import List, Optional
 
 from models import (
@@ -56,6 +58,13 @@ def _surnames_match(a: str, b: str) -> bool:
     if _re.search(r'\([A-ZÁÉÍÓÚÑ]{2,8}\)', a):
         return False
     return False
+
+
+def _citation_reference_match(cited_surname: str, cited_year: str, ref_surname: str, ref_year: str) -> bool:
+    """Require both author and year, including APA year suffixes."""
+    if not _surnames_match(cited_surname, ref_surname):
+        return False
+    return _strip_accents(cited_year or "").strip().lower() == _strip_accents(ref_year or "").strip().lower()
 
 
 # Tipos de elementos cuyo texto es candidato a revisión científica
@@ -123,7 +132,7 @@ def validate_apa_integrity(doc: DocumentModel, references: List[ReferenciaModel]
 
     # 4. Chequeo 1: Cita en texto sin Referencia correspondiente
     for (surname, year) in cited_keys:
-        if surname and not any(_surnames_match(surname, r_sur) for (r_sur, r_yr) in ref_keys):
+        if surname and not any(_citation_reference_match(surname, year, r_sur, r_yr) for (r_sur, r_yr) in ref_keys):
             issues.append(ValidationIssueModel(
                 rule_id="missing_reference",
                 severity=ValidationStatus.WARNING,
@@ -133,7 +142,7 @@ def validate_apa_integrity(doc: DocumentModel, references: List[ReferenciaModel]
 
     # 5. Chequeo 2: Referencia sin Cita en el cuerpo del texto
     for (surname, year) in ref_keys:
-        if surname and not any(_surnames_match(c_sur, surname) for (c_sur, c_yr) in cited_keys):
+        if surname and not any(_citation_reference_match(c_sur, c_yr, surname, year) for (c_sur, c_yr) in cited_keys):
             issues.append(ValidationIssueModel(
                 rule_id="uncited_reference",
                 severity=ValidationStatus.WARNING,
@@ -379,6 +388,7 @@ def _check_reference_format(references: List[ReferenciaModel], issues: List[Vali
 
 # ── Optional LLM-Powered Citation Validation ────────────────────────────────
 
+@en_lote
 async def validate_citations_with_llm(
     doc: DocumentModel,
     references: List[ReferenciaModel],

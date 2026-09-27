@@ -7,7 +7,7 @@ extrayendo el contexto semántico de los párrafos adyacentes para sugerir títu
 import logging
 from typing import Any, Dict, List, Optional
 from models import DocumentModel, ElementModel
-from modules.ai_client import execute_with_specialty
+from modules.ai_client import execute_with_specialty, en_lote
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,12 @@ Responde ÚNICAMENTE en formato JSON válido:
 }
 """
 
+@en_lote
 async def analyze_document_proactive_captions(
     document: DocumentModel,
     api_key: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    """Recorre las tablas e imágenes del documento y sugiere leyendas y notas para aquellas que las necesiten."""
+    """Recorre las tablas e imágenes del documento y sugiere leyendas y notas para aquellas que las necesite."""
     suggestions = []
     elements = document.elements
 
