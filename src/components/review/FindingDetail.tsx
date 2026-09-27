@@ -1,49 +1,65 @@
 /* WordAPA7 — review: detalle de una aparicion.
-   Aqui se ve el texto original, la propuesta y la accion. El detector de
-   IA no tiene "Aplicar correccion": es probabilistico, y la unica accion
-   honesta es marcarlo para que lo mire una persona.
+   Aqui se ve el texto original, la propuesta y la accion.
 
-   Tres reglas que este componente no re-deriva: qué motor es (el
-   `category` del hallazgo), si hay corrección que aplicar (el
-   `suggestedText`) y qué hace la acción (el `onAccept` / `onMark` que le
-   pase la vista). Un hallazgo objetivo SIN sugerencia tampoco ofrece
-   "Aplicar corrección": no hay nada que aplicar, y un botón que llama al
-   reescritor del backend sobre un texto que el motor no propuso sería
-   inventar la corrección.
+   LA AFORDANCE SIGUE A LA ACCIÓN DECLARADA, no a la presencia de una
+   sugerencia. El hook tiene cuatro mecanismos (`SubtypeAction`) y solo uno
+   de ellos es "aplicar este texto": `accept`. Estructura (`autoCaption`)
+   trae `suggestedText` —una leyenda genérica— y_ofrecer "Aplicar
+   corrección" mandaría esa cadena al documento en vez de rotular, que es
+   justo lo que el comentario del hook en `engineAction` dice que no pase
+   ("Estructura rotula, no corrige"). Por eso la acción viaja como prop: la
+   vista la pasa tal cual viene de `SubtypeGroup.action` y este componente
+   no mantiene una lista de motores.
+
+   El detector de IA tampoco tiene "Aplicar corrección": es probabilistico,
+   y su unica accion honesta es marcarlo para que lo mire una persona.
 
    `strokeWidth` va en 1.75 --el valor de `--icon-stroke`-- porque Lucide pide
-   un número, no una cadena de token. */
+   un número, no una cadena de token. Colores y radios son tokens, y el
+   espaciado usa `--space-*` donde el token existe (4, 8, 12); quedan
+   literales los valores sin token (0, 5, 10, 14). */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Check, Flag, X } from 'lucide-react';
-import type { AuditItem } from '../../hooks/useReviewWorkbench';
+import { ChevronLeft, ChevronRight, Check, Flag, Quote, Tags, X, type LucideIcon } from 'lucide-react';
+import type { AuditItem, SubtypeAction } from '../../hooks/useReviewWorkbench';
 
 export interface FindingDetailProps {
   item: AuditItem;
+  /** Acción declarada por el grupo de la vista (`SubtypeGroup.action`). Es la
+   *  que decide qué botón existe; la lista de motores no está aquí. */
+  action: SubtypeAction;
   index: number;
   total: number;
   onStep: (delta: number) => void;
   onAccept: (item: AuditItem) => void;
   onMark: (item: AuditItem) => void;
   onDismiss: (item: AuditItem) => void;
+  /** Mecanismo del motor para las acciones que NO son "aplicar esta
+   *  sugerencia" (rotular figuras y tablas, resolver citas fantasma): la
+   *  vista lo cablea a `runGroupAction` del hook. El detalle no inventa un
+   *  mecanismo propio, y por eso es opcional: sin él, esas acciones no se
+   *  ofrecen. */
+  onEngineAction?: () => void;
   busy: boolean;
 }
 
 interface AccionProps {
   label: string;
-  Icon: typeof Check;
+  Icon: LucideIcon;
   onClick: () => void;
   disabled: boolean;
   /** La acción que cambia el documento va sólida; la que solo lo anota, fantasma. */
   primary: boolean;
+  title?: string;
 }
 
-function Accion({ label, Icon, onClick, disabled, primary }: AccionProps) {
+function Accion({ label, Icon, onClick, disabled, primary, title }: AccionProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: '5px 10px',
@@ -61,9 +77,43 @@ function Accion({ label, Icon, onClick, disabled, primary }: AccionProps) {
   );
 }
 
+/** Los mecanismos que el motor ejecuta sobre el DOCUMENTO, no sobre este
+ *  texto. Sus rótulos dicen "todo" porque es lo que hacen. */
+const ACCION_MOTOR: Partial<Record<SubtypeAction, { label: string; Icon: LucideIcon; title: string }>> = {
+  autoCaption: {
+    label: 'Rotular todo',
+    Icon: Tags,
+    title: 'Redacta la leyenda de todas las figuras y tablas del documento, no solo de esta.',
+  },
+  resolveGhosts: {
+    label: 'Resolver citas',
+    Icon: Quote,
+    title: 'Resuelve las citas ausentes en la bibliografía de todo el documento.',
+  },
+};
+
+/** Encabezado del bloque de propuesta: dice de dónde salió ese texto. */
+const ETIQUETA_PROPUESTA = (action: SubtypeAction, esIA: boolean): string => {
+  if (action === 'accept') return 'Sugerencia académica APA 7';
+  if (action === 'mark') {
+    return esIA ? 'Revisión manual (motor probabilístico)' : 'Revisión manual (sin corrección automática)';
+  }
+  if (action === 'autoCaption') return 'Rotulación propuesta por el motor';
+  if (action === 'resolveGhosts') return 'Referencia que el motor no encontró';
+  return 'Detalle del hallazgo';
+};
+
+/** Lo que la acción NO puede hacer por sí sola, dicho en la vista en vez de
+ *  descubrirlo en un silencio. Es el mismo mensaje que el toast del hook. */
+const NOTA_ACCION: Partial<Record<SubtypeAction, string>> = {
+  autoCaption: 'El motor no corrige este texto: redacta la leyenda de todas las figuras y tablas del documento.',
+  resolveGhosts: 'La cita no se resuelve aquí: el motor la resuelve en el documento completo.',
+  none: 'Este hallazgo no tiene corrección automática: revísalo o descártalo.',
+};
+
 const monoStyle: React.CSSProperties = {
   margin: 0,
-  padding: '8px 10px',
+  padding: 'var(--space-2) 10px',
   borderRadius: 'var(--radius-sm)',
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--text-xs)',
@@ -72,15 +122,27 @@ const monoStyle: React.CSSProperties = {
   wordBreak: 'break-word',
 };
 
-export function FindingDetail({ item, index, total, onStep, onAccept, onMark, onDismiss, busy }: FindingDetailProps) {
+export function FindingDetail({
+  item,
+  action,
+  index,
+  total,
+  onStep,
+  onAccept,
+  onMark,
+  onDismiss,
+  onEngineAction,
+  busy,
+}: FindingDetailProps) {
   /* El detector de IA es el motor probabilístico: propone, la persona
      decide. Ninguna otra ruta de la app aplica una sugerencia suya. */
   const esIA = item.category === 'ai';
   const conSugerencia = Boolean(item.suggestedText);
+  const motor = action !== 'none' && action !== 'accept' && action !== 'mark' ? ACCION_MOTOR[action] : undefined;
   return (
     <div
       style={{
-        padding: '12px 14px',
+        padding: 'var(--space-3) 14px',
         borderTop: '1px solid var(--color-border-subtle)',
         display: 'flex',
         flexDirection: 'column',
@@ -96,6 +158,8 @@ export function FindingDetail({ item, index, total, onStep, onAccept, onMark, on
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>Sin página asignada</span>
         )}
         {total > 1 && (
+          /* Navegar es LEER, no escribir: estas flechas no se apagan con
+             `busy` porque no pueden dejar una operación a medias. */
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
             <button
               type="button"
@@ -125,10 +189,14 @@ export function FindingDetail({ item, index, total, onStep, onAccept, onMark, on
       {conSugerencia && (
         <>
           <p style={{ margin: 0, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)' }}>
-            {esIA ? 'Revisión manual (motor probabilístico)' : 'Sugerencia académica APA 7'}
+            {ETIQUETA_PROPUESTA(action, esIA)}
           </p>
           <pre style={{ ...monoStyle, backgroundColor: 'var(--severity-success-tint)' }}>{item.suggestedText}</pre>
         </>
+      )}
+
+      {NOTA_ACCION[action] && (
+        <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{NOTA_ACCION[action]}</p>
       )}
 
       {esIA && (
@@ -138,11 +206,21 @@ export function FindingDetail({ item, index, total, onStep, onAccept, onMark, on
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        {esIA && (
+        {action === 'mark' && (
           <Accion label="Marcar para revisar" Icon={Flag} onClick={() => onMark(item)} disabled={busy} primary />
         )}
-        {!esIA && conSugerencia && (
+        {action === 'accept' && conSugerencia && (
           <Accion label="Aplicar corrección" Icon={Check} onClick={() => onAccept(item)} disabled={busy} primary />
+        )}
+        {motor && onEngineAction && (
+          <Accion
+            label={motor.label}
+            Icon={motor.Icon}
+            onClick={onEngineAction}
+            disabled={busy}
+            primary
+            title={motor.title}
+          />
         )}
         <Accion label="Descartar" Icon={X} onClick={() => onDismiss(item)} disabled={busy} primary={false} />
       </div>

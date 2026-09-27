@@ -9,13 +9,16 @@
    grupo con `massLabel` vacío (lo que `massLabelFor('none')` produce) NO
    pinta botón: un control sin nombre no es accionable, es ruido.
 
-   `openSubtypes` / `onToggleSubtype` viajan en la interfaz porque las filas
-   las compone la vista (una `SubtypeRow` por subtipo) y quien decide cuáles
-   están abiertas es el `openSubtypes` del hook, no esta tarjeta.
+   Las FILAS las compone la vista: una `SubtypeRow` por subtipo, cada una con
+   su propio `open` y `onToggle`, y el estado de cuáles están abiertas es el
+   `openSubtypes` del hook. Por eso esta tarjeta no recibe `openSubtypes`
+   ni `onToggleSubtype`: dos fuentes de verdad para lo mismo sería una que
+   miente.
 
    `strokeWidth` va en 1.75 --el valor de `--icon-stroke`-- porque Lucide pide
-   un número, no una cadena de token. Colores y radios son tokens; quedan
-   literales los valores para los que no existe token (3, 5, 10, 14, 18, 20). */
+   un número, no una cadena de token. Colores y radios son tokens, y el
+   espaciado usa `--space-*` donde el token existe (4, 8, 12); quedan
+   literales los valores para los que no hay token (3, 5, 6, 10, 14, 18, 20). */
 
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -25,8 +28,6 @@ export interface EngineGroupCardProps {
   group: EngineGroup;
   open: boolean;
   onToggle: () => void;
-  openSubtypes: string[];
-  onToggleSubtype: (key: string) => void;
   onMassAction: (group: EngineGroup) => void;
   children: React.ReactNode;
 }
@@ -79,7 +80,7 @@ export function EngineGroupCard({ group, open, onToggle, onMassAction, children 
             type="button"
             onClick={() => onMassAction(group)}
             style={{
-              flexShrink: 0, padding: '4px 10px',
+              flexShrink: 0, padding: 'var(--space-1) 10px',
               border: group.massAction === 'mark' ? '1px solid var(--color-border-subtle)' : 'none',
               borderRadius: 'var(--radius-sm)',
               background: group.massAction === 'mark' ? 'transparent' : 'var(--color-accent)',
@@ -107,13 +108,34 @@ export interface SubtypeRowProps {
 /** `AuditItem['severity']` es el vocabulario de la CAPA DE REVISIÓN
  *  ('critical' | 'high' | 'medium' | 'low'), no el del backend
  *  ('info' | 'warn' | 'error'): el hook ya lo tradujo. Los cuatro tienen
- *  color, para que el ×N diga de un vistazo cuán grave es lo que agrupa. */
+ *  color, para que el ×N diga de un vistazo cuán grave es lo que agrupa.
+ *
+ *  `medium` NO es `--color-info`: ese token y `--color-accent` son el mismo
+ *  azul (#4f7cff), y la sugerencia de la fila va en el acento. Con el mismo
+ *  color, el badge y la sugerencia se leerían como la misma señal. */
 const SEVERITY_COLOR: Record<AuditItem['severity'], string> = {
   critical: 'var(--color-danger)',
   high: 'var(--color-warning)',
-  medium: 'var(--color-info)',
+  medium: 'var(--color-text-secondary)',
   low: 'var(--color-text-tertiary)',
 };
+
+const SEVERITY_RANK: Record<AuditItem['severity'], number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+/** El badge se tiñe por la PEOR severidad del grupo, no por su primer ítem:
+ *  el orden de los ítems lo produce el motor, no la gravedad, y un grupo con
+ *  un `critical` al final se pintaría igual que uno de puros `low`. Grupo
+ *  vacío → `low`, que es lo menos grave que existe. */
+const peorSeveridad = (items: AuditItem[]): AuditItem['severity'] =>
+  items.reduce<AuditItem['severity']>(
+    (peor, it) => (SEVERITY_RANK[it.severity] < SEVERITY_RANK[peor] ? it.severity : peor),
+    'low',
+  );
 
 export function SubtypeRow({ group, open, onToggle, onMassAction, children }: SubtypeRowProps) {
   const primero = group.items[0];
@@ -149,7 +171,7 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, children }: Su
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: 'var(--radius-full)',
               backgroundColor: 'var(--color-bg-surface-alt)',
-              color: SEVERITY_COLOR[primero?.severity ?? 'low'],
+              color: SEVERITY_COLOR[peorSeveridad(group.items)],
               fontSize: 'var(--text-xs)', fontWeight: 700,
             }}
           >
@@ -158,16 +180,36 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, children }: Su
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', flexShrink: 0 }}>{group.label}</span>
           {primero?.originalText && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 'var(--text-xs)' }}>
-              <span style={{ textDecoration: 'line-through', color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {/* Original y sugerencia se RECORTAN los dos: una leyenda de 56
+                  caracteres tiene que compartir la fila con el badge, la
+                  etiqueta y las páginas, y lo que no se encoge se pinta encima
+                  del botón de acción. `title` deja el texto íntegro a un hover. */}
+              <span
+                title={primero.originalText}
+                style={{
+                  minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  textDecoration: 'line-through', color: 'var(--color-text-tertiary)',
+                }}
+              >
                 {primero.originalText}
               </span>
-              {/* La flecha va en su propio elemento: mezclada con la sugerencia
-                  haría que el textoPropuesto no se pudiera seleccionar ni
-                  leer como unidad. */}
               {primero.suggestedText && (
-                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, color: 'var(--color-accent)', fontWeight: 600, flexShrink: 0 }}>
-                  <span aria-hidden>→</span>
-                  <span>{primero.suggestedText}</span>
+                <span
+                  style={{
+                    display: 'inline-flex', alignItems: 'baseline', gap: 6, minWidth: 0,
+                    color: 'var(--color-accent)', fontWeight: 600,
+                  }}
+                >
+                  {/* La flecha va en su propio elemento: mezclada con la
+                      sugerencia haría que el texto propuesto no se pudiera
+                      seleccionar ni leer como unidad. */}
+                  <span aria-hidden style={{ flexShrink: 0 }}>→</span>
+                  <span
+                    title={primero.suggestedText}
+                    style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {primero.suggestedText}
+                  </span>
                 </span>
               )}
             </span>

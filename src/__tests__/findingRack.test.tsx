@@ -4,7 +4,7 @@
    por aparicion.
  */
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EngineGroupCard, SubtypeRow } from '../components/review/EngineGroupCard';
 import { FindingDetail } from '../components/review/FindingDetail';
@@ -30,23 +30,45 @@ const motor = (over: Partial<EngineGroup> = {}): EngineGroup => ({
 const detalle = (over: Partial<React.ComponentProps<typeof FindingDetail>> = {}) => {
   const props = {
     item: item(),
+    /* Por defecto un motor OBJETIVO: es el único caso donde la vista ofrece
+       "Aplicar corrección". Los que no lo hacen pasan su `action` real. */
+    action: 'accept' as const,
     index: 0,
     total: 3,
     onStep: vi.fn(),
     onAccept: vi.fn(),
     onMark: vi.fn(),
     onDismiss: vi.fn(),
+    onEngineAction: vi.fn(),
     busy: false,
     ...over,
   };
   return { props, ...render(<FindingDetail {...props} />) };
 };
 
+/* La hoja de estilos en crudo, para comparar el COLOR que sale por pantalla y
+   no el NOMBRE del token: `--color-info` y `--color-accent` son dos nombres
+   para el mismo azul.
+   Specifier en variable + import dinámico a propósito: si Vite puede analizar
+   el specifier lo pasa por `vite-plugin-node-polyfills`, cuyos shims de
+   browser no traen `readFileSync` (mismo truco que `designTokens.test.ts`). */
+const NODE_FS = 'node:fs';
+const NODE_PATH = 'node:path';
+const NODE_URL = 'node:url';
+let hojaDeEstilos = '';
+beforeAll(async () => {
+  const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+  const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
+  const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
+  const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
+  hojaDeEstilos = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+});
+
 describe('T15 — rack de hallazgos', () => {
   it('la cabecera del motor muestra el conteo y la acción en masa', () => {
     const onMassAction = vi.fn();
     render(
-      <EngineGroupCard group={motor()} open onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={onMassAction}>
+      <EngineGroupCard group={motor()} open onToggle={vi.fn()} onMassAction={onMassAction}>
         <span>contenido</span>
       </EngineGroupCard>,
     );
@@ -57,7 +79,7 @@ describe('T15 — rack de hallazgos', () => {
 
   it('la cabecera es un botón con aria-expanded, no un div con onClick', () => {
     render(
-      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}>
+      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} onMassAction={vi.fn()}>
         <span>c</span>
       </EngineGroupCard>,
     );
@@ -83,6 +105,7 @@ describe('T15 — rack de hallazgos', () => {
     render(
       <FindingDetail
         item={item({ category: 'ai', subtype: 'muletilla', suggestedText: 'sin lugar a dudas' })}
+        action="mark"
         index={0} total={3} onStep={vi.fn()}
         onAccept={onAccept} onMark={onMark} onDismiss={vi.fn()} busy={false}
       />,
@@ -95,7 +118,7 @@ describe('T15 — rack de hallazgos', () => {
     const onStep = vi.fn();
     render(
       <FindingDetail
-        item={item()} index={0} total={3} onStep={onStep}
+        item={item()} action="accept" index={0} total={3} onStep={onStep}
         onAccept={vi.fn()} onMark={vi.fn()} onDismiss={vi.fn()} busy={false}
       />,
     );
@@ -107,11 +130,11 @@ describe('T15 — rack de hallazgos', () => {
   it('el detalle explica que el motor es probabilístico en el caso de IA', () => {
     render(
       <FindingDetail
-        item={item({ category: 'ai', subtype: 'muletilla' })} index={0} total={1}
+        item={item({ category: 'ai', subtype: 'muletilla' })} action="mark" index={0} total={1}
         onStep={vi.fn()} onAccept={vi.fn()} onMark={vi.fn()} onDismiss={vi.fn()} busy={false}
       />,
     );
-    // Las dos avisos: el encabezado de la propuesta y la explicación. Una
+    // Los dos avisos: el encabezado de la propuesta y la explicación. Una
     // sugerencia de IA no entra como "Sugerencia académica APA 7".
     expect(screen.getByText(/Este motor es probabilístico/)).toBeTruthy();
     expect(screen.getByText('Revisión manual (motor probabilístico)')).toBeTruthy();
@@ -121,7 +144,7 @@ describe('T15 — rack de hallazgos', () => {
   it('el motor objetivo sí anuncia una propuesta académica, no una conjetura', () => {
     render(
       <FindingDetail
-        item={item()} index={0} total={1}
+        item={item()} action="accept" index={0} total={1}
         onStep={vi.fn()} onAccept={vi.fn()} onMark={vi.fn()} onDismiss={vi.fn()} busy={false}
       />,
     );
@@ -144,7 +167,7 @@ describe('T15 — rack de hallazgos', () => {
     render(
       <EngineGroupCard
         group={motor({ engine: 'ai', title: 'Patrones IA', massAction: 'mark', massLabel: 'Marcar todos' })}
-        open onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}
+        open onToggle={vi.fn()} onMassAction={vi.fn()}
       >
         <span>c</span>
       </EngineGroupCard>,
@@ -157,7 +180,7 @@ describe('T15 — rack de hallazgos', () => {
     render(
       <EngineGroupCard
         group={motor({ massAction: 'none', massLabel: '' })}
-        open onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}
+        open onToggle={vi.fn()} onMassAction={vi.fn()}
       >
         <span>contenido</span>
       </EngineGroupCard>,
@@ -191,11 +214,80 @@ describe('T15 — rack de hallazgos', () => {
     };
     expect(colorDe('critical')).toBe('var(--color-danger)');
     expect(colorDe('high')).toBe('var(--color-warning)');
-    expect(colorDe('medium')).toBe('var(--color-info)');
+    expect(colorDe('medium')).toBe('var(--color-text-secondary)');
     expect(colorDe('low')).toBe('var(--color-text-tertiary)');
   });
 
-  it('sin página real la fila no inventa una: sin "pág." y sin página 0', () => {
+  it('el ×N se tiñe por la severidad MÁS ALTA del grupo, no por su primer ítem', () => {
+    render(
+      <SubtypeRow
+        group={subgrupo({
+          items: [item({ id: 'a', severity: 'low' }), item({ id: 'b', severity: 'critical' })],
+        })}
+        open={false} onToggle={vi.fn()} onMassAction={vi.fn()}
+      >
+        <span>c</span>
+      </SubtypeRow>,
+    );
+    // El orden de los ítems lo produce el motor, no la severidad: si el badge
+    // leyera el primero, un grupo con un `critical` se pintaría gris.
+    expect(screen.getByText('×2').style.color).toBe('var(--color-danger)');
+  });
+
+  it('el ×N de severidad media no se confunde con el color de la sugerencia', () => {
+    render(
+      <SubtypeRow group={subgrupo({ items: [item({ severity: 'medium' })] })} open={false} onToggle={vi.fn()} onMassAction={vi.fn()}>
+        <span>c</span>
+      </SubtypeRow>,
+    );
+    // Comparar los TOKENS no prueba nada: `--color-info` y `--color-accent`
+    // son nombres distintos para el mismo azul (#4f7cff). Lo que se tiene que
+    // distinguir es el color que sale por pantalla, así que se resuelven los
+    // dos tokens contra la hoja de estilos real.
+    const badge = screen.getByText('×1').style.color;
+    const sugerencia = screen.getByText('también').style.color;
+    expect(badge).not.toBe(sugerencia);
+    const claro = hojaDeEstilos.slice(
+      hojaDeEstilos.indexOf(':root,'),
+      hojaDeEstilos.indexOf(':root[data-theme="dark"]'),
+    );
+    const valorDe = (declarado: string): string => {
+      const token = declarado.replace(/^var\(/, '').replace(/\)$/, '');
+      return claro.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim() ?? '';
+    };
+    expect(valorDe(badge)).toBeTruthy();
+    expect(valorDe(badge)).not.toBe(valorDe(sugerencia));
+  });
+
+  it('una sugerencia larga se recorta en la fila, y el texto íntegro queda en el title', () => {
+    const originalLargo = 'La muestra experimental se tomó durante el segundo semestre del año academic';
+    const sugerenciaLarga = 'Figura 1. Representación esquemática del procedimiento experimental completo';
+    render(
+      <SubtypeRow
+        group={subgrupo({ items: [item({ originalText: originalLargo, suggestedText: sugerenciaLarga, pageNumber: 3 })] })}
+        open={false} onToggle={vi.fn()} onMassAction={vi.fn()}
+      >
+        <span>c</span>
+      </SubtypeRow>,
+    );
+    const sugerencia = screen.getByText(sugerenciaLarga);
+    expect(sugerencia.getAttribute('title')).toBe(sugerenciaLarga);
+    expect(sugerencia.style.overflow).toBe('hidden');
+    expect(sugerencia.style.textOverflow).toBe('ellipsis');
+    expect(sugerencia.style.minWidth).toBe('0px');
+    // Ni el original ni el envoltorio de la sugerencia pueden negarse a
+    // encogerse: con `flex-shrink: 0` empujan al resto fuera del botón.
+    const envoltorio = sugerencia.parentElement as HTMLElement;
+    expect(envoltorio.style.flexShrink).not.toBe('0');
+    expect(sugerencia.style.flexShrink).not.toBe('0');
+    const tachado = screen.getByText(originalLargo);
+    expect(tachado.getAttribute('title')).toBe(originalLargo);
+    expect(tachado.style.minWidth).toBe('0px');
+    expect(tachado.style.overflow).toBe('hidden');
+    expect(tachado.style.flexShrink).not.toBe('0');
+  });
+
+  it('sin página real la fila no muestra un "pág." vacío', () => {
     render(
       <SubtypeRow
         group={subgrupo({ items: [item({ id: 'h1', pageNumber: null }), item({ id: 'h2', pageNumber: null })] })}
@@ -224,7 +316,7 @@ describe('T15 — rack de hallazgos', () => {
 
   it('cerrado, el motor no monta sus filas', () => {
     const { unmount } = render(
-      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}>
+      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} onMassAction={vi.fn()}>
         <span>filas del motor</span>
       </EngineGroupCard>,
     );
@@ -253,7 +345,7 @@ describe('T15 — rack de hallazgos', () => {
 
   it('cerrado, aria-controls no apunta a una región que no existe', () => {
     const { unmount } = render(
-      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}>
+      <EngineGroupCard group={motor()} open={false} onToggle={vi.fn()} onMassAction={vi.fn()}>
         <span>c</span>
       </EngineGroupCard>,
     );
@@ -265,7 +357,7 @@ describe('T15 — rack de hallazgos', () => {
 
   it('abierto, aria-controls sí nombra la región que se desplegó', () => {
     const { unmount } = render(
-      <EngineGroupCard group={motor()} open onToggle={vi.fn()} openSubtypes={[]} onToggleSubtype={vi.fn()} onMassAction={vi.fn()}>
+      <EngineGroupCard group={motor()} open onToggle={vi.fn()} onMassAction={vi.fn()}>
         <span>c</span>
       </EngineGroupCard>,
     );
@@ -279,15 +371,71 @@ describe('T15 — rack de hallazgos', () => {
     expect(screen.getByRole('button', { name: /Ortografía/ }).getAttribute('aria-controls')).toBe('subtype-spelling:ortografia');
   });
 
-  /* ── El detalle: qué acción existe y cuál no ───────────────────────────── */
+  /* ── El detalle: la acción la DECLARA el grupo, no el texto que traiga ── */
 
   it('un hallazgo sin sugerencia no ofrece "Aplicar corrección"', () => {
-    const { props } = detalle({ item: item({ suggestedText: undefined, subtype: 'voz_pasiva' }) });
+    detalle({ item: item({ suggestedText: undefined, subtype: 'voz_pasiva' }), action: 'accept' });
     expect(screen.queryByRole('button', { name: /Aplicar corrección/i })).toBeNull();
     // Descartar sí: es lo único honesto que se puede hacer con un hallazgo sin
     // corrección automática.
     expect(screen.getByRole('button', { name: /Descartar/i })).toBeTruthy();
+  });
+
+  it('un hallazgo de estructura NO se acepta: el motor rotula, no corrige', () => {
+    const { props } = detalle({
+      item: item({
+        id: 'fig1', category: 'structure', subtype: 'figura',
+        originalText: '[Figura sin rotular]',
+        suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
+      }),
+      action: 'autoCaption',
+    });
+    // El subtipo trae `suggestedText` (una leyenda genérica) y aun así su
+    // acción es 'autoCaption': "Aplicar corrección" mandaría esa cadena al
+    // documento y pisaría la rotulación real de la figura.
+    expect(screen.queryByRole('button', { name: /Aplicar corrección/i })).toBeNull();
+    const rotular = screen.getByRole('button', { name: /Rotular/i });
+    fireEvent.click(rotular);
+    expect(props.onEngineAction).toHaveBeenCalled();
     expect(props.onAccept).not.toHaveBeenCalled();
+  });
+
+  it('un hallazgo de estructura no se anuncia como "Sugerencia académica"', () => {
+    detalle({
+      item: item({ id: 'fig1', category: 'structure', subtype: 'figura', suggestedText: 'Figura 1. Representación esquemática del procedimiento.' }),
+      action: 'autoCaption',
+    });
+    expect(screen.getByText('Rotulación propuesta por el motor')).toBeTruthy();
+    expect(screen.queryByText(/Sugerencia académica/)).toBeNull();
+  });
+
+  it('un subtipo que el motor detecta pero no corrige se marca, aunque no sea IA', () => {
+    // voz_pasiva es de Redacción & Bloom, no del detector de IA, y aun así su
+    // acción es 'mark': el motor sabe que está mal y no sabe arreglarlo.
+    detalle({ item: item({ category: 'style', subtype: 'voz_pasiva', suggestedText: undefined }), action: 'mark' });
+    expect(screen.queryByRole('button', { name: /Aplicar corrección/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Marcar para revisar/i })).toBeTruthy();
+  });
+
+  it('un subtipo sin acción automática lo dice y solo ofrece descartarlo', () => {
+    const { props } = detalle({
+      item: item({ id: 'h1', category: 'citations', subtype: 'referencia_huerfana', suggestedText: undefined }),
+      action: 'none',
+    });
+    expect(screen.queryByRole('button', { name: /Aplicar corrección/i })).toBeNull();
+    expect(screen.getByText(/no tiene corrección automática/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Descartar/i }));
+    expect(props.onDismiss).toHaveBeenCalledWith(props.item);
+  });
+
+  it('un subtipo de citas ofrece resolverlas, no aceptarlas', () => {
+    const { props } = detalle({
+      item: item({ id: 'c1', category: 'citations', subtype: 'cita_fantasma', suggestedText: undefined }),
+      action: 'resolveGhosts',
+    });
+    expect(screen.queryByRole('button', { name: /Aplicar corrección/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Resolver citas/i }));
+    expect(props.onEngineAction).toHaveBeenCalled();
   });
 
   it('con una sola aparición no hay flechas que no tienen a dónde ir', () => {
@@ -302,28 +450,27 @@ describe('T15 — rack de hallazgos', () => {
   });
 
   it('cada acción entrega el hallazgo que se está viendo, no otro', () => {
-    const { props } = detalle({ item: item({ id: 'h9', pageNumber: 77 }) });
+    const { props } = detalle({ item: item({ id: 'h9', pageNumber: 77 }), action: 'accept' });
     fireEvent.click(screen.getByRole('button', { name: /Aplicar corrección/i }));
     expect(props.onAccept).toHaveBeenCalledWith(props.item);
     fireEvent.click(screen.getByRole('button', { name: /Descartar/i }));
     expect(props.onDismiss).toHaveBeenCalledWith(props.item);
   });
 
-  it('marcar un hallazgo de IA lo entrega a onMark, no a onAccept', () => {
-    const { props } = detalle({ item: item({ category: 'ai', subtype: 'muletilla' }) });
+  it('marcar un hallazgo lo entrega a onMark, no a onAccept', () => {
+    const { props } = detalle({ item: item({ category: 'ai', subtype: 'muletilla' }), action: 'mark' });
     fireEvent.click(screen.getByRole('button', { name: /Marcar para revisar/i }));
     expect(props.onMark).toHaveBeenCalledWith(props.item);
     expect(props.onAccept).not.toHaveBeenCalled();
   });
 
   it('mientras está ocupado, ninguna acción se puede disparar dos veces', () => {
-    const { props } = detalle({ busy: true });
+    detalle({ busy: true, action: 'accept' });
     expect(screen.getByRole('button', { name: /Aplicar corrección/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Descartar/i })).toBeDisabled();
-    expect(props.onAccept).not.toHaveBeenCalled();
   });
 
-  it('sin página real el detalle lo dice en vez de inventar la página 0', () => {
+  it('sin página real el detalle lo dice en vez de inventar un número', () => {
     detalle({ item: item({ pageNumber: null }) });
     expect(screen.getByText('Sin página asignada')).toBeTruthy();
   });
