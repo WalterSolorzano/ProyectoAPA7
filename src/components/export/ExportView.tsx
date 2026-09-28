@@ -19,8 +19,9 @@ import { resolveAssetUrl } from '../../api/backend';import {
   AlertTriangle,
   Eye, ZoomIn, ZoomOut,
   Columns2,
-  Copy
+  Copy, FolderOpen, ExternalLink
 } from 'lucide-react';
+import { DocumentMascot } from '../layout/DocumentMascot';
 
 type Format = 'docx' | 'pdf' | 'latex';
 type PreviewMode = 'canvas' | 'diff' | 'pdf';
@@ -76,10 +77,19 @@ export const ExportView: React.FC = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve'>('idle');
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
+  const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
 
   useEffect(() => {
     sayMascot('Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.', 'success');
   }, [sayMascot]);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.onDownloadCompleted) return undefined;
+    return api.onDownloadCompleted((data: { path: string; filename: string }) => {
+      setDownloadedFile(data);
+    });
+  }, []);
 
   // Manejo de fases dinámicas durante exportación
   useEffect(() => {
@@ -102,6 +112,7 @@ export const ExportView: React.FC = () => {
   // render, lo que devuelve el efecto a suscribirse en cada render.
   const doExport = useCallback(() => {
     clearQuickExport();
+    setDownloadedFile(null);
     if (format === 'pdf') exportPdf();
     else if (format === 'latex') exportLatex();
     else exportDocx(tracked);
@@ -149,6 +160,7 @@ export const ExportView: React.FC = () => {
       {/* ── COLUMNA ÚNICA ALINEADA A LA IZQUIERDA: pantalla final de descarga ── */}
       <aside
         aria-label="Exportación lista para descargar"
+        className="export-view-panel"
         style={{
           width: 'clamp(340px, 32vw, 440px)',
           flexShrink: 0,
@@ -174,10 +186,20 @@ export const ExportView: React.FC = () => {
           Documento listo
         </h1>
 
-        {/* 3. Una línea de 50ch de ancho máximo. Sin cifras: el usuario acaba de
-            revisar el documento y un recap aquí deshace esa pantalla. */}
+        <div
+          className="export-file-identity"
+          aria-label={`Archivo de salida: ${doc.file_name || 'documento'}`}
+        >
+          <FileText size={18} strokeWidth={1.75} aria-hidden />
+          <div style={{ minWidth: 0 }}>
+            <strong>{doc.file_name || 'Documento sin nombre'}</strong>
+            <span>{FORMATS.find((item) => item.id === format)?.label} {FORMATS.find((item) => item.id === format)?.ext}</span>
+          </div>
+        </div>
+
+        {/* Una sola línea de descripción. No repite hallazgos ni estadísticas. */}
         <p style={{ margin: 0, maxWidth: '50ch', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-          Tu trabajo cumple con el formato APA 7. Puedes descargarlo o convertir otro archivo.
+          Descarga el archivo final o vuelve al documento para hacer ajustes.
         </p>
 
         {/* 4. Las dos decisiones que quedan: este archivo u otro archivo */}
@@ -212,20 +234,55 @@ export const ExportView: React.FC = () => {
           </button>
         </div>
 
+        {downloadedFile && (
+          <div className="export-downloaded-actions" aria-live="polite">
+            <span>Descarga completada: {downloadedFile.filename}</span>
+            <div>
+              <button
+                type="button"
+                onClick={() => (window as any).electronAPI?.openPath?.(downloadedFile.path)}
+              >
+                <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+                Abrir archivo
+              </button>
+              <button
+                type="button"
+                onClick={() => (window as any).electronAPI?.showItemInFolder?.(downloadedFile.path)}
+              >
+                <FolderOpen size={14} strokeWidth={1.75} aria-hidden />
+                Mostrar en carpeta
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Lo secundario (formato, avisos, vista previa) se abre y se cierra desde
             acá: la columna final no lo muestra, solo lo guarda. */}
-        <button
-          type="button"
-          onClick={() => setOptionsOpen((v) => !v)}
-          aria-expanded={optionsOpen}
-          style={{
-            padding: 0, border: 'none', background: 'transparent',
-            color: 'var(--color-text-tertiary)', fontFamily: 'inherit',
-            fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
-          }}
-        >
-          Opciones
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setOptionsOpen((v) => !v)}
+            aria-expanded={optionsOpen}
+            style={{
+              padding: 0, border: 'none', background: 'transparent',
+              color: 'var(--color-text-tertiary)', fontFamily: 'inherit',
+              fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            Opciones
+          </button>
+          <button
+            type="button"
+            onClick={() => { clearQuickExport(); setViewMode('edit'); }}
+            style={{
+              padding: 0, border: 'none', background: 'transparent',
+              color: 'var(--color-accent)', fontFamily: 'inherit',
+              fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Volver a editar
+          </button>
+        </div>
 
         {/* Zona OCULTA por defecto: formato, opciones, fricción y vista previa */}
         {optionsOpen && (
@@ -465,7 +522,7 @@ export const ExportView: React.FC = () => {
               </button>
             )}
 
-            {/* Segunda fila de acciones fantasma: vista previa + volver */}
+            {/* Segunda fila de acciones fantasma: vista previa */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -485,28 +542,46 @@ export const ExportView: React.FC = () => {
               >
                 {previewOpen ? 'Ocultar vista previa' : 'Previsualizar'}
               </button>
-              <button
-                type="button"
-                onClick={() => { clearQuickExport(); setViewMode('edit'); }}
-                style={{
-                  padding: '8px 14px',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 'var(--font-semibold)',
-                  color: 'var(--color-accent)',
-                  background: 'transparent',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  transition: 'background var(--transition-fast), border-color var(--transition-fast)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Volver a editar
-              </button>
             </div>
           </div>
         )}
       </aside>
+
+      {!previewOpen && (
+        <main
+          className="export-companion-stage"
+          aria-label="Mesa de entrega"
+        >
+          <div className="export-companion-art" aria-hidden="true">
+            <div className="export-companion-paper">
+              {/* 1.75 es el valor de `--icon-stroke`: el grosor de línea es uno en
+                  toda la app, y un icono grande no es la excepción que lo admits. */}
+              <FileText size={28} strokeWidth={1.75} aria-hidden />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="export-companion-mascot">
+              <DocumentMascot size={92} kind="highlighter" expression="excited" />
+            </div>
+          </div>
+          <div className="export-companion-copy">
+            <span className="export-companion-kicker">MESA DE ENTREGA</span>
+            <h2>Tu documento tiene salida.</h2>
+            <p>Elige el formato, revisa una página si lo necesitas y llévatelo contigo.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setOptionsOpen(true);
+                setPreviewOpen(true);
+              }}
+            >
+              <Eye size={15} strokeWidth={1.75} aria-hidden />
+              Ver una página
+            </button>
+          </div>
+        </main>
+      )}
 
       {/* ── PANEL DERECHO: PREVISUALIZACIÓN (solo bajo toggle) ── */}
       {previewOpen && (

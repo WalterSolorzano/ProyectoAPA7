@@ -61,8 +61,8 @@ beforeAll(async () => {
 
 /* ── Lo que la columna final DEBE mostrar, y nada mas ── */
 const TITULO = 'Documento listo';
-const LINEA = 'Tu trabajo cumple con el formato APA 7. Puedes descargarlo o convertir otro archivo.';
-const TEXTO_ESPERADO = `${TITULO}${LINEA}Descargar Word APA 7 (.docx)Convertir otroOpciones`;
+const LINEA = 'Descarga el archivo final o vuelve al documento para hacer ajustes.';
+const TEXTO_ESPERADO = `${TITULO}Tesis.docxWord APA 7 .docx${LINEA}Descargar Word APA 7 (.docx)Convertir otroOpcionesVolver a editarMESA DE ENTREGATu documento tiene salida.Elige el formato, revisa una página si lo necesitas y llévatelo contigo.Ver una página`;
 
 /* Un documento con hallazgos de sobra: si la vista final los repitiera,
    estos datos serian justo lo que feedearia el recap que no debe existir. */
@@ -103,14 +103,10 @@ describe('T17 — ExportView: la columna final', () => {
   it('respeta el orden fijo: check, título, una línea y los dos botones pegados', () => {
     render(<ExportView />);
 
-    /* Esta lista ES la lista de la spec, no la forma que salio: los cuatro
-       primeros hijos son el orden fijo (check, titulo, linea, dos botones) y
-       el quinto es el toggle terciario "Opciones", que la spec deja
-       especificado para que formato, avisos y vista previa sigan alcanzables.
-       La lista es exacta a proposito: un sexto hijo —un recap, una tarjeta, un
-       separador— rompe el test, que es justo lo que esta columna no puede hacer. */
+     /* El archivo se identifica antes de la descripción; después quedan las
+       dos acciones principales y el acceso terciario a Opciones/edición. */
     const hijos = Array.from(columna().children).map((el) => el.tagName.toLowerCase());
-    expect(hijos).toEqual(['svg', 'h1', 'p', 'div', 'button']);
+     expect(hijos).toEqual(['svg', 'h1', 'div', 'p', 'div', 'div']);
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(TITULO);
 
@@ -118,13 +114,15 @@ describe('T17 — ExportView: la columna final', () => {
     expect(linea.tagName).toBe('P');
     expect(linea.style.maxWidth).toBe('50ch');
 
-    const fila = columna().children[3] as HTMLElement;
+    const fila = columna().children[4] as HTMLElement;
     const botones = Array.from(fila.querySelectorAll('button')).map((b) => b.textContent);
     expect(botones).toEqual(['Descargar Word APA 7 (.docx)', 'Convertir otro']);
 
     /* El contenido de la columna puede bajar de 340px: los dos botones no
        entran, y sin wrap el texto se parte a media frase. */
     expect(fila.style.flexWrap).toBe('wrap');
+    expect(screen.getByRole('button', { name: 'Opciones' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Volver a editar' })).toBeTruthy();
   });
 
   it('no repite hallazgos ni estadísticas, ni aunque el documento los tenga', () => {

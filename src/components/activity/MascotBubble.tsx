@@ -28,7 +28,11 @@ export const MascotBubble: React.FC = () => {
         maxWidth: '320px',
       }}
     >
-      <DocumentMascot size={48} expression={mascotMessage.tone === 'warning' ? 'worried' : mascotMessage.tone === 'success' ? 'excited' : 'curious'} />
+      <DocumentMascot
+        size={48}
+        kind={mascotMessage.tone === 'warning' ? 'reference' : mascotMessage.tone === 'success' ? 'highlighter' : 'ruler'}
+        expression={mascotMessage.tone === 'warning' ? 'worried' : mascotMessage.tone === 'success' ? 'excited' : 'curious'}
+      />
       <div style={{ position: 'relative' }}>
         <div style={{
           backgroundColor: 'var(--surface-elevated)',

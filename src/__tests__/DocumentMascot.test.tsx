@@ -55,4 +55,11 @@ describe('DocumentMascot', () => {
       expect(container.querySelector('svg')).toBeTruthy();
     }
   });
+
+  it('renders each member of the editorial family', () => {
+    for (const kind of ['highlighter', 'ruler', 'reference', 'strike'] as const) {
+      const { container } = render(<DocumentMascot kind={kind} />);
+      expect(container.querySelector(`.editorial-mascot-kind-${kind}`)).toBeTruthy();
+    }
+  });
 });

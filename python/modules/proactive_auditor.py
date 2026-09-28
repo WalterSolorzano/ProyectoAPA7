@@ -1,4 +1,4 @@
-"""Revisor proactivo de escritura (capa local, siempre disponible).
+﻿"""Revisor proactivo de escritura (capa local, siempre disponible).
 
 Detecta sin red y sin API key:
 - primera persona con posición exacta (nunca 'me'/'mi' sueltos)
@@ -695,7 +695,7 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
             headers={"Authorization": f"Bearer {api_key}",
                      "Content-Type": "application/json"},
             json={
-                "model": "meta/llama-3.1-70b-instruct",
+                "model": "nvidia/nemotron-3-super-120b-a12b",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,
                 "max_tokens": 1500,

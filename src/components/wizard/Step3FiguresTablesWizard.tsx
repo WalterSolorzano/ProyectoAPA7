@@ -6,6 +6,44 @@ import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { resolveAssetUrl } from '../../api/backend';
 import { Image, Table, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, PanelRight, Search, Filter, Sparkles, Loader2, ChevronRight } from 'lucide-react';
 
+type SectionGroup = {
+  key: string;
+  title: string;
+  level: 1 | 2;
+  items: any[];
+};
+
+const DESIGN_PRESETS = [
+  { value: 'standard', label: 'Estándar', desc: 'APA clásico' },
+  { value: 'scientific', label: 'Científico', desc: 'Tecnico / serio' },
+  { value: 'full_width', label: 'Ancho completo', desc: 'Página completa' },
+  { value: 'sidebar', label: 'Sidebar', desc: 'Texto lateral' },
+] as const;
+
+const controlSelectStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: '28px',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border-subtle)',
+  backgroundColor: 'var(--canvas-bg)',
+  color: 'var(--text-main)',
+  fontSize: '11px',
+  fontFamily: 'inherit',
+  padding: '4px 7px',
+};
+
+const controlGroupStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  flex: 1,
+  minWidth: 0,
+  padding: '6px 8px',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border-subtle)',
+  backgroundColor: 'var(--sidebar-bg)',
+};
+
 export const Step3FiguresTablesWizard: React.FC = () => {
   const [subTab, setSubTab] = useState<'figures' | 'tables'>('figures');
   const [query, setQuery] = useState('');
@@ -54,6 +92,54 @@ export const Step3FiguresTablesWizard: React.FC = () => {
     });
   }, [currentItems, query, onlyReview]);
 
+  const sectionMap = useMemo(() => {
+    const map = new Map<string, { title: string; level: 1 | 2 }>();
+    let currentH1 = { title: 'Portada', level: 1 as const };
+    let currentH2: { title: string; level: 2 } | null = null;
+
+    for (const element of doc?.elements ?? []) {
+      if (element.type === 'heading' && !element.is_cover_section && (element.heading_level === 1 || element.heading_level === 2)) {
+        const title = (element.text || '').trim() || (element.heading_level === 1 ? 'Sección principal' : 'Subsección');
+        if (element.heading_level === 1) {
+          currentH1 = { title, level: 1 };
+          currentH2 = null;
+        } else {
+          currentH2 = { title, level: 2 };
+        }
+      }
+
+      if ((element.type === 'image' || element.type === 'table') && !element.is_cover_section) {
+        const section = currentH2 ?? currentH1;
+        map.set(element.id, { title: section.title, level: section.level });
+      }
+    }
+
+    return map;
+  }, [doc?.elements]);
+
+  const groupedItems = useMemo<SectionGroup[]>(() => {
+    const groups = new Map<string, SectionGroup>();
+
+    filteredItems.forEach((item) => {
+      const ctx = sectionMap.get(item.id) ?? { title: 'Portada', level: 1 as const };
+      const key = `${ctx.level}:${ctx.title}`;
+      const group = groups.get(key) ?? { key, title: ctx.title, level: ctx.level, items: [] };
+      group.items.push(item);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+  }, [filteredItems, sectionMap]);
+
+  const selectedFigurePreset = selectedImage?.image_info?.design_style ?? 'standard';
+  const updateSelectedFigure = (patch: Record<string, any>) => {
+    if (!selectedImage) {
+      useDocStore.getState().showToast('Selecciona una figura primero', 'warning');
+      return;
+    }
+    updateElementImage(selectedImage.id, patch);
+  };
+
   const handleElementClick = useCallback((elementId: string, rect: DOMRect, element: any) => {
     if (subTab === 'figures' && element.type === 'image') {
       setToolbarElementId(elementId);
@@ -80,6 +166,8 @@ export const Step3FiguresTablesWizard: React.FC = () => {
       }},
     ];
   }, [toolbarElementId, figures, updateElementImage]);
+
+  const selectedFigureCaption = selectedImage?.image_info?.caption || '';
 
   return (
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden' }}>
@@ -230,26 +318,36 @@ export const Step3FiguresTablesWizard: React.FC = () => {
           </div>
 
           {subTab === 'tables' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: 6 }}>
-              <span>Estilo:</span>
-              {(['standard', 'compact', 'expanded'] as const).map((style) => {
-                const active = selectedTableStyle === style;
-                const label = style === 'standard' ? 'APA estándar' : style === 'compact' ? 'APA compacto' : 'APA expandido';
-                return (
-                  <button key={style} type="button" onClick={() => {
-                    if (!selectedTable) {
-                      useDocStore.getState().showToast('Selecciona una tabla primero', 'warning');
-                      return;
-                    }
-                    setTableStyle(selectedTable.id, style);
-                  }} style={{
-                    padding: '2px 8px', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px',
-                    fontWeight: active ? 600 : 400,
-                    backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent',
-                    color: active ? 'var(--accent-primary)' : 'var(--color-text-secondary)',
-                  }}>{label}</button>
-                );
-              })}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Controles de tabla
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={controlGroupStyle}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Estilo académico</span>
+                  <select
+                    value={selectedTableStyle}
+                    onChange={(e) => {
+                      if (!selectedTable) {
+                        useDocStore.getState().showToast('Selecciona una tabla primero', 'warning');
+                        return;
+                      }
+                      setTableStyle(selectedTable.id, e.target.value as 'standard' | 'compact' | 'expanded');
+                    }}
+                    style={controlSelectStyle}
+                  >
+                    <option value="standard">APA estándar</option>
+                    <option value="compact">APA compacto</option>
+                    <option value="expanded">APA expandido</option>
+                  </select>
+                </div>
+                <div style={controlGroupStyle}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Contexto</span>
+                  <div style={{ fontSize: '10px', lineHeight: 1.35, color: 'var(--text-main)' }}>
+                    {selectedTable ? sectionMap.get(selectedTable.id)?.title || 'Sin sección' : 'Selecciona una tabla'}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -258,15 +356,116 @@ export const Step3FiguresTablesWizard: React.FC = () => {
               {currentReview} pendiente{currentReview > 1 ? 's' : ''} de revisión
             </div>
           )}
+
+          {subTab === 'figures' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Controles de figura
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                <div style={controlGroupStyle}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Formato</span>
+                  <select
+                    value={(selectedImage?.image_info?.alignment ?? 'center')}
+                    onChange={(e) => updateSelectedFigure({ alignment: e.target.value })}
+                    style={controlSelectStyle}
+                  >
+                    <option value="left">Izquierda</option>
+                    <option value="center">Centrada</option>
+                    <option value="right">Derecha</option>
+                  </select>
+
+                  <select
+                    value={(selectedImage?.image_info?.caption_position ?? 'below')}
+                    onChange={(e) => updateSelectedFigure({ caption_position: e.target.value })}
+                    style={controlSelectStyle}
+                  >
+                    <option value="above">Leyenda arriba</option>
+                    <option value="below">Leyenda abajo</option>
+                  </select>
+
+                  <select
+                    value={selectedFigurePreset}
+                    onChange={(e) => updateSelectedFigure({ design_style: e.target.value })}
+                    style={controlSelectStyle}
+                  >
+                    {DESIGN_PRESETS.map((preset) => (
+                      <option key={preset.value} value={preset.value}>{preset.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={controlGroupStyle}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Texto</span>
+                  <input
+                    type="text"
+                    value={selectedFigureCaption}
+                    onChange={(e) => updateSelectedFigure({ caption: e.target.value })}
+                    placeholder="Editar leyenda…"
+                    style={{
+                      width: '100%',
+                      minHeight: '28px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--canvas-bg)',
+                      color: 'var(--text-main)',
+                      fontSize: '11px',
+                      fontFamily: 'inherit',
+                      padding: '4px 7px',
+                    }}
+                  />
+                  <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    {selectedImage ? `Sección: ${sectionMap.get(selectedImage.id)?.title || 'Sin contexto'}` : 'Selecciona una figura'}
+                  </div>
+                </div>
+
+                <div style={{ ...controlGroupStyle, gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Revisión</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>
+                      {selectedImage ? (needsReview(selectedImage as any) ? 'Requiere revisión' : 'Listo para exportar') : 'Sin selección'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedImage) return;
+                        updateSelectedFigure({ caption_position: selectedImage.image_info?.caption_position || 'below' });
+                      }}
+                      style={{
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '4px 8px',
+                        backgroundColor: 'var(--color-accent-soft)',
+                        color: 'var(--accent-primary)',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      IA sugerida
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
-          {filteredItems.length === 0 && (
+          {groupedItems.length === 0 && (
             <div style={{
               padding: '36px 16px', textAlign: 'center', color: 'var(--text-secondary)',
               fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
             }}>
-              <span style={{ fontSize: '28px' }}>{subTab === 'figures' ? '️' : ''}</span>
+              {/* El icono del vacío es un ícono de lucide, como todos los
+                 demás: acá había un emoji que además llegó corrupto, con un
+                 selector de variación pegado y sin glifo detrás. */}
+              {subTab === 'figures' ? (
+                <Image size={28} strokeWidth={1.75} aria-hidden style={{ color: 'var(--text-muted)' }} />
+              ) : (
+                <Table size={28} strokeWidth={1.75} aria-hidden style={{ color: 'var(--text-muted)' }} />
+              )}
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
                 {currentItems.length === 0
                   ? `No se detectaron ${subTab === 'figures' ? 'figuras' : 'tablas'}`
@@ -279,79 +478,94 @@ export const Step3FiguresTablesWizard: React.FC = () => {
               </span>
             </div>
           )}
-          {filteredItems.map((item) => {
-            const isImage = item.type === 'image';
-            const info = isImage ? item.image_info : (item as any).table_info;
-            const number = info?.figure_number || info?.table_number || 0;
-            const label = isImage ? `Figura ${number}` : `Tabla ${number}`;
-            const needsAttn = needsReview(item as any);
-            const thumbUrl = isImage ? resolveAssetUrl(info?.relative_url) : null;
-
-            return (
-              <div
-                key={item.id}
-                onClick={() => {
-                  setSelectedElementId(item.id);
-                  useDocStore.getState().setScrollTargetId(item.id);
-                  if (isImage) {
-                    useDocStore.getState().setImagePanelOpen(true);
-                  }
-                  // Si el copiloto IA está abierto, no forzar RightSidePanel para no saturar la pantalla
-                  if (!useDocStore.getState().liveChatOpen) {
-                    useDocStore.getState().setForceRightPanelOpen(true);
-                  }
-                }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '6px 8px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
-                  borderLeft: needsAttn ? '3px solid var(--color-warning)' : '3px solid transparent',
-                  backgroundColor: selectedElementId === item.id ? 'var(--color-accent-soft)' : needsAttn ? 'rgba(250,173,20,0.06)' : 'transparent',
-                  fontSize: '12px', color: 'var(--color-text-primary)',
-                }}
-              >
-                {/* Miniatura (figuras) o ícono (tablas) */}
-                {isImage ? (
-                  thumbUrl ? (
-                    <img
-                      src={thumbUrl}
-                      alt={label}
-                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-muted)',
-                    }}>
-                      <Image size={18} />
-                    </div>
-                  )
-                ) : (
-                  <div style={{
-                    width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-muted)',
-                  }}>
-                    <Table size={18} />
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontWeight: 600 }}>{label}</span>
-                    {needsAttn && <span style={{ fontSize: '9px', color: 'var(--color-warning)', fontWeight: 700 }}>revisar</span>}
-                  </div>
-                  {(info as any)?.caption && (
-                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {(info as any).caption}
-                    </div>
-                  )}
-                </div>
+          {groupedItems.map((group) => (
+            <div key={group.key} style={{ marginBottom: '10px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '7px 8px', marginBottom: '4px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--color-accent-soft)',
+                border: '1px solid var(--border-subtle)',
+              }}>
+                <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--accent-primary)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {group.level === 1 ? 'H1' : 'H2'}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>{group.title}</span>
               </div>
-            );
-          })}
+
+              {group.items.map((item) => {
+                const isImage = item.type === 'image';
+                const info = isImage ? item.image_info : (item as any).table_info;
+                const number = info?.figure_number || info?.table_number || 0;
+                const label = isImage ? `Figura ${number}` : `Tabla ${number}`;
+                const needsAttn = needsReview(item as any);
+                const thumbUrl = isImage ? resolveAssetUrl(info?.relative_url) : null;
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedElementId(item.id);
+                      useDocStore.getState().setScrollTargetId(item.id);
+                      if (isImage) {
+                        useDocStore.getState().setImagePanelOpen(true);
+                      }
+                      if (!useDocStore.getState().liveChatOpen) {
+                        useDocStore.getState().setForceRightPanelOpen(true);
+                      }
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 8px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                      borderLeft: needsAttn ? '3px solid var(--color-warning)' : '3px solid transparent',
+                      backgroundColor: selectedElementId === item.id ? 'var(--color-accent-soft)' : needsAttn ? 'rgba(250,173,20,0.06)' : 'transparent',
+                      fontSize: '12px', color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    {isImage ? (
+                      thumbUrl ? (
+                        <img
+                          src={thumbUrl}
+                          alt={label}
+                          style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-muted)',
+                        }}>
+                          <Image size={18} />
+                        </div>
+                      )
+                    ) : (
+                      <div style={{
+                        width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-muted)',
+                      }}>
+                        <Table size={18} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 600 }}>{label}</span>
+                        {needsAttn && <span style={{ fontSize: '9px', color: 'var(--color-warning)', fontWeight: 700 }}>revisar</span>}
+                      </div>
+                      {(info as any)?.caption && (
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontStyle: 'italic', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(info as any).caption}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
       )}

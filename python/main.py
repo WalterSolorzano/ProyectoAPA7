@@ -177,6 +177,39 @@ def _session_rules(doc: DocumentModel, req_rules: Optional[APARuleSet] = None) -
     if req_rules is not None:
         return req_rules
     return doc.apa_rules if doc.apa_rules else APARuleSet()
+
+
+def _session_portada(doc: DocumentModel, requested: Optional[PortadaData]) -> PortadaData:
+    if requested is not None:
+        return requested
+    value = doc.portada
+    if isinstance(value, PortadaData):
+        return value
+    if isinstance(value, dict):
+        try:
+            return PortadaData.model_validate(value)
+        except Exception:
+            pass
+    return PortadaData(apa_format=doc.apa_format, use_original_cover=True)
+
+
+def _session_references(doc: DocumentModel, requested: Optional[List[ReferenciaModel]]) -> List[ReferenciaModel]:
+    return requested if requested is not None else list(doc.referencias or [])
+
+
+def _write_export_manifest(session_dir: Path, artifact_id: str, **data: object) -> None:
+    manifest_dir = session_dir / "exports"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / f"{artifact_id}.json").write_text(
+        json.dumps({"artifact_id": artifact_id, **data}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _artifact_url(session_id: str, artifact_id: str) -> str:
+    return f"/api/download-artifact/{session_id}/{artifact_id}"
+
+
 _env_origins = os.environ.get("WORDAPA7_ALLOWED_ORIGINS", "").strip()
 _allowed_origins = (
     [o.strip() for o in _env_origins.split(",") if o.strip()]
@@ -302,6 +335,7 @@ async def provider_status_endpoint() -> dict:
         {"id": "aion", "name": "Aion Labs", "env_var": "AION_API_KEY"},
         {"id": "kilocode", "name": "Kilo Code", "env_var": "KILOCODE_API_KEY"},
         {"id": "ollama_cloud", "name": "Ollama Cloud", "env_var": "OLLAMA_API_KEY"},
+        {"id": "huggingface", "name": "Hugging Face", "env_var": "HUGGINGFACE_API_KEY"},
     ]
 
     active_providers = _get_active_providers()
@@ -326,6 +360,7 @@ async def provider_status_endpoint() -> dict:
         "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY", "ZENMUX_API_KEY", "GEMINI_API_KEY",
         "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
         "AION_API_KEY", "KILOCODE_API_KEY", "OLLAMA_API_KEY",
+        "HUGGINGFACE_API_KEY",
     ]
     total_configured = sum(1 for v in configured_env_vars if os.getenv(v, "").strip())
 
@@ -977,6 +1012,20 @@ async def get_uni_logo() -> FileResponse:
     return FileResponse(logo_path)
 
 
+@app.get("/api/assets/logo_unan.png")
+async def get_unan_logo() -> FileResponse:
+    """
+    Sirve el logo de la UNAN-Managua para la preset de esa universidad.
+
+    El preset de la UNAN en `CoverEditorPanel` pedia este logo y no habia ruta
+    que lo sirviera, asi que la miniatura salia rota.
+    """
+    logo_path: Path = Path(__file__).parent / "assets" / "logo_unan.png"
+    if not logo_path.exists():
+        raise HTTPException(status_code=404, detail="Logo UNAN no encontrado.")
+    return FileResponse(logo_path)
+
+
 @app.post("/api/resolve-doi")
 async def resolve_doi_endpoint(req: ResolveDoiRequest) -> dict:
     """
@@ -1315,14 +1364,15 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     clean_file_name = doc.file_name or "document.docx"
     clean_file_name = clean_file_name.replace(" ", "_")
-    docx_name = f"APA7_{clean_file_name}"
+    artifact_id = uuid.uuid4().hex
+    docx_name = f"APA7_{artifact_id}_{clean_file_name}"
     docx_path = out_dir / docx_name
     pdf_name = docx_name.rsplit(".", 1)[0] + ".pdf"
     pdf_path = out_dir / pdf_name
 
     rules = _session_rules(doc, req.rules)
-    portada = req.portada or PortadaData()
-    references = req.references or []
+    portada = _session_portada(doc, req.portada)
+    references = _session_references(doc, req.references)
 
     from services.doc_converter import get_doc_converter
     doc_converter = get_doc_converter()
@@ -1396,19 +1446,36 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
             print(f"[WARN] Fallback PDF converter exception: {e}")
 
     if pdf_generated and pdf_path.exists():
+        _write_export_manifest(
+            out_dir,
+            artifact_id,
+            kind="pdf",
+            filename=pdf_path.name,
+            engine=engine_used or "unknown",
+            source_docx=docx_path.name,
+        )
         return {
             "status": "ok",
             "session_id": req.session_id,
-            "download_url": f"/api/download-pdf/{req.session_id}",
+            "download_url": _artifact_url(req.session_id, artifact_id),
+            "artifact_id": artifact_id,
             "pdf_name": pdf_name,
             "file_path": str(pdf_path.resolve()),
             "engine": engine_used or "COM",
         }
     else:
+        _write_export_manifest(
+            out_dir,
+            artifact_id,
+            kind="docx",
+            filename=docx_path.name,
+            source_docx=docx_path.name,
+            postprocessed=False,
+        )
         return {
             "status": "fallback_docx",
             "session_id": req.session_id,
-            "download_url": f"/api/download/{req.session_id}",
+            "download_url": f"/api/download/{req.session_id}?artifact_id={artifact_id}",
             "docx_name": docx_name,
             "engine": engine_used,
             "message": "No se pudo generar el PDF en este entorno; se descarga la versión DOCX oficial.",
@@ -1416,16 +1483,28 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
 
 @app.get("/api/download-pdf/{session_id}")
-async def download_pdf(session_id: str):
-    out_dir = STORAGE_DIR / "sessions" / session_id
-    files = list(out_dir.glob("*.pdf"))
-    if not files:
-        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado.")
-    return FileResponse(
-        files[0],
-        media_type="application/pdf",
-        filename=files[0].name,
-    )
+async def download_pdf(session_id: str, artifact_id: Optional[str] = None):
+    if artifact_id:
+        return await download_artifact(session_id, artifact_id)
+    raise HTTPException(status_code=400, detail="Falta artifact_id de exportación.")
+
+
+@app.get("/api/download-artifact/{session_id}/{artifact_id}")
+async def download_artifact(session_id: str, artifact_id: str):
+    manifest = STORAGE_DIR / "sessions" / session_id / "exports" / f"{artifact_id}.json"
+    if not manifest.exists():
+        raise HTTPException(status_code=404, detail="Artefacto de exportación no encontrado.")
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        target = manifest.parent.parent / Path(data["filename"]).name
+        if not target.exists() or target.parent != manifest.parent.parent:
+            raise HTTPException(status_code=404, detail="Archivo exportado no encontrado.")
+        media_type = "application/pdf" if data.get("kind") == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        return FileResponse(target, media_type=media_type, filename=target.name)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Manifiesto de exportación inválido: {exc}")
 
 
 @app.get("/api/download-preview/{session_id}")
@@ -1435,7 +1514,7 @@ async def download_preview_docx(session_id: str) -> FileResponse:
     El frontend usa mammoth.js para convertir este DOCX a HTML en el navegador.
     """
     out_dir: Path = STORAGE_DIR / "sessions" / session_id
-    files: list = list(out_dir.glob("Preview_*.docx"))
+    files: list = sorted(out_dir.glob("Preview_*.docx"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
         raise HTTPException(
             status_code=404,
@@ -1469,6 +1548,8 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
         raise HTTPException(status_code=404, detail="Sesion no encontrada.")
 
     rules = _session_rules(doc, req.rules)
+    portada = _session_portada(doc, req.portada)
+    references = _session_references(doc, req.references)
     out_dir: Path = STORAGE_DIR / "sessions" / session_id / "preview_pages"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1480,7 +1561,7 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
     preview_docx = out_dir / "preview.docx"
     try:
         generate_apa7_docx(doc, preview_docx, rules=rules,
-                           portada=req.portada, references=req.references)
+                   portada=portada, references=references)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando preview: {e}")
 
@@ -1612,10 +1693,13 @@ async def generate_docx(req: GenerateRequest) -> dict:
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id
     raw_out_file: Path = out_dir / f"APA7_{doc.file_name}"
     out_file: Path = _safe_output_path(raw_out_file)
+    artifact_id = uuid.uuid4().hex
+    portada = _session_portada(doc, req.portada)
+    references = _session_references(doc, req.references)
 
     # RUTA IN-PLACE (default): edita el original; portada/secciones intocables
     export_mode = getattr(rules, "export_mode", "inplace")
-    use_orig_cover = req.portada is None or getattr(req.portada, "use_original_cover", True)
+    use_orig_cover = getattr(portada, "use_original_cover", True)
     if export_mode == "inplace" and use_orig_cover:
         original_path_ip: Path = out_dir / "original.docx"
         if original_path_ip.exists():
@@ -1629,9 +1713,18 @@ async def generate_docx(req: GenerateRequest) -> dict:
                         Path(marked).replace(out_file)
                 except Exception:
                     pass
+                _write_export_manifest(
+                    out_dir,
+                    artifact_id,
+                    kind="docx",
+                    filename=out_file.name,
+                    source_docx=out_file.name,
+                    postprocessed=False,
+                )
                 return {
                     "success": True,
-                    "download_url": f"/api/download/{req.session_id}",
+                    "download_url": _artifact_url(req.session_id, artifact_id),
+                    "artifact_id": artifact_id,
                     "file_name": out_file.name,
                     "mode": "inplace",
                     "message": "Documento formateado in-place: portada y estructura originales intactas.",
@@ -1654,19 +1747,19 @@ async def generate_docx(req: GenerateRequest) -> dict:
         from persistence.idempotency import add_marker_to_docx
         from services.doc_converter import get_doc_converter
         doc_converter = get_doc_converter()
-        preserve_cover = (req.portada is not None) and req.portada.use_original_cover and doc.portada.get("detected", False)
+        preserve_cover = portada.use_original_cover and doc.portada.get("detected", False)
 
         is_com = doc_converter.get_active_engine() == "COM"
 
         generated_path: Path = generate_apa7_docx(
-            doc, out_file, rules, req.portada, req.references,
+            doc, out_file, rules, portada, references,
             remove_cover_paragraphs=preserve_cover and is_com
         )
 
         original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
 
         # Inyectar Post-Processor Dual Engine
-        final_path = out_dir / f"Final_{doc.file_name}"
+        final_path = out_dir / f"Final_{artifact_id}_{doc.file_name}"
         success, pdf_path = doc_converter.process_and_convert(
             original_path=original_path,
             generated_path=generated_path,
@@ -1687,9 +1780,18 @@ async def generate_docx(req: GenerateRequest) -> dict:
         except Exception:
             pass
 
+        _write_export_manifest(
+            out_dir,
+            artifact_id,
+            kind="docx",
+            filename=generated_path.name,
+            source_docx=out_file.name,
+            postprocessed=bool(success and final_path.exists()),
+        )
         return {
-            "download_url": f"/api/download/{req.session_id}",
-            "filename": out_file.name,
+            "download_url": _artifact_url(req.session_id, artifact_id),
+            "artifact_id": artifact_id,
+            "filename": generated_path.name,
         }
     except Exception as e:
         print(f"[ERROR] Error generando DOCX: {e}")
@@ -1700,10 +1802,12 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
 
 @app.get("/api/download/{session_id}")
-async def download_generated_docx(session_id: str) -> FileResponse:
+async def download_generated_docx(session_id: str, artifact_id: Optional[str] = None) -> FileResponse:
     """
     Descarga el archivo generado.
     """
+    if artifact_id:
+        return await download_artifact(session_id, artifact_id)
     out_dir: Path = STORAGE_DIR / "sessions" / session_id
     files: list = sorted(list(out_dir.glob("APA7_*.docx")), key=lambda p: p.stat().st_mtime, reverse=True)
     if not files:
@@ -2112,14 +2216,21 @@ async def upload_cover_image_endpoint(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Archivo no valido.")
 
+    allowed_image_exts = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff"}
+    original_ext = Path(file.filename).suffix.lower()
+    if original_ext not in allowed_image_exts:
+        raise HTTPException(status_code=400, detail="Formato de imagen no admitido.")
+
     # Guardar imagen temporalmente
     temp_dir = STORAGE_DIR / "temp_covers"
     temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_path = temp_dir / file.filename
+    temp_path = temp_dir / f"{uuid.uuid4().hex}{original_ext}"
     content = await file.read()
 
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="El archivo esta vacio.")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen excede el limite de 20 MB.")
 
     temp_path.write_bytes(content)
 
@@ -2157,8 +2268,10 @@ async def upload_cover_docx_endpoint(
 ) -> dict:
     """
     Sube un documento Word como portada y lo guarda como plantilla reutilizable.
+    Si logra detectar campos de portada, los devuelve para dejar la plantilla
+    editable sin tocar la versión original del documento del usuario.
     """
-    from modules.cover_designer import create_cover_from_docx
+    from modules.cover_designer import create_cover_from_docx, detect_cover_fields_from_docx
 
     if not file.filename or not file.filename.lower().endswith(".docx"):
         raise HTTPException(
@@ -2168,11 +2281,15 @@ async def upload_cover_docx_endpoint(
 
     temp_dir = STORAGE_DIR / "temp_covers"
     temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_path = temp_dir / file.filename
+    temp_path = temp_dir / f"{uuid.uuid4().hex}.docx"
     content = await file.read()
 
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="El archivo esta vacio.")
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La portada DOCX excede el limite de 50 MB.")
+    if content[:4] != b"PK\x03\x04":
+        raise HTTPException(status_code=400, detail="El archivo no es un DOCX valido.")
 
     temp_path.write_bytes(content)
 
@@ -2180,8 +2297,11 @@ async def upload_cover_docx_endpoint(
         template = create_cover_from_docx(
             temp_path, name, description, STORAGE_DIR
         )
+        detection = detect_cover_fields_from_docx(temp_path)
         return {
             "status": "ok",
+            "detected": detection.get("detected", False),
+            "fields": detection.get("fields", {}),
             "template": {
                 "name": template.name,
                 "description": template.description,

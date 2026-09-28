@@ -119,6 +119,25 @@ AI_PATTERNS: List[Tuple[str, str, str]] = [
     (_swb(r"en la misma l[ií]nea"), "Transición cohesiva de IA", "LOW"),
 ]
 
+# Marcadores que cierran o resumen una idea. Uno solo puede ser una decisión
+# retórica normal; la combinación o repetición es la señal relevante.
+_CLOSURE_MARKERS = re.compile(
+    r"\b(?:en conclusión|en resumen|en síntesis|en definitiva|finalmente|"
+    r"para concluir|en última instancia)\b",
+    re.IGNORECASE,
+)
+_GENERIC_LANGUAGE = re.compile(
+    r"\b(?:es importante|es fundamental|es esencial|resulta crucial|"
+    r"resulta evidente|se puede afirmar|se puede decir|se puede concluir|"
+    r"los aspectos|el fenómeno|la problemática|el tema|lo anterior)\b",
+    re.IGNORECASE,
+)
+_EVIDENCE_MARKERS = re.compile(
+    r"(?:\d|%|\b(?:tabla|figura|muestra|participantes|entrevista|"
+    r"coeficiente|p\s*[<=>]|IC\s*=|p\s*=)\b|\([^()]{2,50},\s*(?:19|20)\d{2}[a-z]?\))",
+    re.IGNORECASE,
+)
+
 
 def _analyze_sentence_structure(text: str) -> Tuple[float, int, List[str]]:
     """
@@ -247,19 +266,33 @@ def _detect_generic_conclusion(text: str) -> Tuple[float, List[str]]:
     ]
 
     score = 0.0
+    trigger_match = None
     for trigger in conclusion_triggers:
         m = re.search(trigger, text_lower)
-        if m:
-            score += 0.3
-            findings.append(f"Inicia con marcador de cierre: '{m.group(0)}'")
-            # Buscar follow-up genérico después del marcador
-            for followup in generic_followups:
-                fm = re.search(followup, text_lower)
-                if fm:
-                    score += 0.2
-                    findings.append(f"Seguido de afirmación genérica: '{fm.group(0)}'")
-                    break
-            break
+        if m and (trigger_match is None or m.start() < trigger_match.start()):
+            trigger_match = m
+
+    if trigger_match:
+        # El marcador solo no basta: se exige lenguaje genérico cercano y se
+        # reduce la señal cuando el cierre contiene evidencia comprobable.
+        score += 0.1
+        findings.append(f"Incluye marcador de cierre: '{trigger_match.group(0)}'")
+        window = text_lower[trigger_match.end():trigger_match.end() + 180]
+        followup_match = next((re.search(pattern, window) for pattern in generic_followups
+                               if re.search(pattern, window)), None)
+        generic_match = _GENERIC_LANGUAGE.search(window)
+        has_evidence = bool(_EVIDENCE_MARKERS.search(window))
+        if followup_match or generic_match:
+            score += 0.25
+            phrase = (followup_match or generic_match).group(0)
+            findings.append(f"Seguido de lenguaje genérico: '{phrase}'")
+        if has_evidence:
+            score *= 0.35
+
+    closure_matches = list(_CLOSURE_MARKERS.finditer(text_lower))
+    if len(closure_matches) >= 2:
+        score += 0.25
+        findings.append(f"Repite marcadores de cierre ({len(closure_matches)}) en el mismo párrafo")
 
     return min(score, 1.0), findings
 
@@ -698,7 +731,7 @@ def analyze_ai_risk(text: str, is_technical_domain: bool | None = None) -> Dict[
     # 4. Conclusión genérica
     conc_score, conc_findings = _detect_generic_conclusion(text)
     if conc_score > 0.2:
-        detail_str = "; ".join(conc_findings[:2])
+        detail_str = "; ".join(conc_findings[:3])
         result["findings"].append({
             "pattern": "generic_conclusion",
             "severity": "HIGH" if conc_score > 0.6 else "MEDIUM",

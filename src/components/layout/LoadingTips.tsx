@@ -16,7 +16,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { generateLoadingTip } from '../../api/backend';
 import { getSizeComment, getTimeOfWeekComment, getFilenameComment } from '../../lib/studentJokes';
-import { DocumentMascot, MascotExpression } from './DocumentMascot';
+import { DocumentMascot, MascotExpression, MascotKind } from './DocumentMascot';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 
 // ── BIBLIOTECA LOCAL (frases curadas por categoría; sin emojis) ───────────────
@@ -194,6 +194,17 @@ const EXPRESSION_BY_CATEGORY: Record<Tip['category'], MascotExpression> = {
   student: 'happy',
 };
 
+const MASCOT_BY_CATEGORY: Record<Tip['category'], MascotKind> = {
+  process: 'highlighter',
+  jokes: 'strike',
+  apa: 'ruler',
+  honest: 'ruler',
+  llm: 'reference',
+  ai: 'reference',
+  wordhell: 'strike',
+  student: 'highlighter',
+};
+
 // Animación de la mascota según la categoría (ver CSS: mascot-anim-*).
 const ANIMATION_BY_CATEGORY: Record<Tip['category'], string> = {
   process: 'mascot-anim-process',
@@ -225,6 +236,20 @@ const CATEGORY_DURATION_MS: Record<Tip['category'], number> = {
   wordhell: 4200,
   student: 5000,
 };
+
+const LoadingMascotWalkers: React.FC = () => (
+  <div className="loading-mascot-walkers" aria-hidden="true">
+    <span className="loading-mascot-walker loading-mascot-walker-highlighter">
+      <DocumentMascot size={34} kind="highlighter" expression="excited" />
+    </span>
+    <span className="loading-mascot-walker loading-mascot-walker-ruler">
+      <DocumentMascot size={30} kind="ruler" expression="curious" />
+    </span>
+    <span className="loading-mascot-walker loading-mascot-walker-strike">
+      <DocumentMascot size={32} kind="strike" expression="happy" />
+    </span>
+  </div>
+);
 
 function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -629,6 +654,7 @@ export const LoadingTips: React.FC = () => {
 
   // La mascota reacciona a la frase actual: cara + animación por categoría
   const mascotExpr = EXPRESSION_BY_CATEGORY[tip.category];
+  const mascotKind = MASCOT_BY_CATEGORY[tip.category];
   const mascotAnim = ANIMATION_BY_CATEGORY[tip.category];
 
   // Comentario en burbuja (sin comillas): badge de modo + frase en cursiva.
@@ -655,10 +681,11 @@ export const LoadingTips: React.FC = () => {
       <div className="loading-tips-fullscreen" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
         <AmbientCanvas />
         <div className="loading-tips-fullscreen-inner" style={{ gap: '16px' }}>
+            <LoadingMascotWalkers />
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="mascot-ambient-halo" />
             <div className={mascotAnim} style={{ lineHeight: 0, position: 'relative', zIndex: 2 }}>
-              <DocumentMascot size={128} expression={mascotExpr} />
+              <DocumentMascot size={128} kind={mascotKind} expression={mascotExpr} />
             </div>
           </div>
           <div className="loading-tips-fullscreen-title">{message}</div>
@@ -693,12 +720,13 @@ export const LoadingTips: React.FC = () => {
   return (
     <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
       <AmbientCanvas />
+      <LoadingMascotWalkers />
       <div className="loading-minimal-inner" style={{ maxWidth: '620px', gap: '20px' }}>
         {/* Mascota viva con halo de ambientación suave */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="mascot-ambient-halo" />
           <div className={mascotAnim} style={{ lineHeight: 0, position: 'relative', zIndex: 2 }}>
-            <DocumentMascot size={108} expression={mascotExpr} />
+            <DocumentMascot size={108} kind={mascotKind} expression={mascotExpr} />
           </div>
         </div>
 

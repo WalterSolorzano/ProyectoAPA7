@@ -448,7 +448,7 @@ export const computeRenderedPages = ({
   };
 };
 
-export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly }) => {
+export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean; onlyCover?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly, onlyCover }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
@@ -1212,7 +1212,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         flexDirection: 'column',
         gap: '24px'
       }}>
-        {pages.map((pageElements, pageIdx) => {
+        {(onlyCover ? pages.slice(0, 1) : pages).map((pageElements, pageIdx) => {
           const isCoverPage = pageIdx === 0;
           const hasTocElement = pageElements.some(e => e.type === 'toc');
           const showPageNumber = !isCoverPage && !hasTocElement;

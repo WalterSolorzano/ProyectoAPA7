@@ -7,7 +7,9 @@ La portada se guarda como plantilla reutilizable en storage/cover_templates/.
 """
 
 import json
+import re
 import shutil
+from io import BytesIO
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -47,6 +49,16 @@ def _template_dir(storage_dir: Path, name: str) -> Path:
     tdir = storage_dir / _sanitize_name(name)
     tdir.mkdir(parents=True, exist_ok=True)
     return tdir
+
+
+def _unique_template_name(storage_dir: Path, name: str) -> str:
+    base = _sanitize_name(name)
+    candidate = base
+    index = 1
+    while (storage_dir / candidate).exists():
+        candidate = f"{base} ({index})"
+        index += 1
+    return candidate
 
 
 def _sanitize_name(name: str) -> str:
@@ -130,11 +142,15 @@ def list_cover_templates(base_dir: Path) -> List[CoverTemplate]:
                     with open(meta_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     # Convertir a CoverTemplate, asegurando campos por defecto
+                    source_ext = data.get("source_ext", "docx")
+                    source_file = _source_path(item, source_ext)
+                    if not source_file.exists():
+                        source_file = _source_path(item, "docx")
                     templates.append(CoverTemplate(
                         name=data.get("name", item.name),
                         description=data.get("description", ""),
                         source_type=data.get("source_type", "docx"),
-                        source_path=str(_source_path(item, "docx")),
+                        source_path=str(source_file),
                         preview_path=str(_preview_path(item)) if _preview_path(item).exists() else "",
                         is_builtin=False,
                         created_at=data.get("created_at", ""),
@@ -157,6 +173,7 @@ def create_cover_from_image(
     La imagen se copia al almacenamiento de plantillas y se genera un preview.
     """
     storage_dir = _get_storage_dir(base_dir)
+    name = _unique_template_name(storage_dir, name)
     tdir = _template_dir(storage_dir, name)
 
     # Copiar imagen al almacenamiento
@@ -201,6 +218,7 @@ def create_cover_from_docx(
     Extrae solo la primera pagina del DOCX y la guarda como plantilla.
     """
     storage_dir = _get_storage_dir(base_dir)
+    name = _unique_template_name(storage_dir, name)
     tdir = _template_dir(storage_dir, name)
 
     # Copiar el DOCX completo al almacenamiento
@@ -245,6 +263,111 @@ def delete_cover_template(name: str, base_dir: Path) -> bool:
 
     shutil.rmtree(tdir)
     return True
+
+
+def detect_cover_fields_from_docx(docx_path: str | Path) -> dict:
+    """
+    Detecta campos editables a partir de una portada en DOCX, sin tocar el
+    documento original ni imponer una plantilla visual.
+
+    Devuelve {"detected": bool, "fields": {...}} con los campos reconocidos.
+    """
+    try:
+        document = docx.Document(str(docx_path))
+    except Exception:
+        return {"detected": False, "fields": {}}
+
+    paragraphs = [p.text.strip() for p in document.paragraphs if p.text and p.text.strip()]
+    if not paragraphs:
+        return {"detected": False, "fields": {}}
+
+    fields: dict[str, str] = {}
+
+    def normalize(value: str) -> str:
+        return " ".join(value.split()).strip()
+
+    for raw in paragraphs:
+        text = normalize(raw)
+        if not text:
+            continue
+
+        match = re.match(r'^(?:tema|titulo|t[íi]tulo)\s*:\s*(.+)$', text, re.IGNORECASE)
+        if match and match.group(1).strip():
+            fields['title'] = match.group(1).strip()
+            continue
+
+        match = re.match(r'^(?:docente|tutor|profesor(?:a)?)\s*:\s*(.+)$', text, re.IGNORECASE)
+        if match and match.group(1).strip():
+            fields['instructor'] = match.group(1).strip()
+            continue
+
+        match = re.match(r'^(?:fecha)\s*:\s*(.+)$', text, re.IGNORECASE)
+        if match and match.group(1).strip():
+            fields['date'] = match.group(1).strip()
+            continue
+
+        if re.search(r'\b(?:universidad|facultad|escuela|instituto|colegio|campus)\b', text, re.IGNORECASE):
+            if not fields.get('institution'):
+                fields['institution'] = text
+            continue
+
+        if re.search(r'\b(?:br\.|ing\.|lic\.|dr\.|mgtr\.|msc\.)\b', text, re.IGNORECASE):
+            if 'carnet' in text.lower() or re.search(r'carnet\s*:', text, re.IGNORECASE):
+                author_candidate = re.sub(r'\s*\|\s*carnet\s*:\s*.*$', '', text, flags=re.IGNORECASE)
+                author_candidate = re.sub(r'\s*\(.*?\)\s*$', '', author_candidate).strip()
+                if author_candidate and not fields.get('author'):
+                    fields['author'] = author_candidate
+
+        if re.search(r'\bcarnet\s*:\s*', text, re.IGNORECASE):
+            if not fields.get('author'):
+                author_candidate = re.sub(r'\s*\|\s*carnet\s*:\s*.*$', '', text, flags=re.IGNORECASE).strip()
+                if author_candidate:
+                    fields['author'] = author_candidate
+
+        if 'curso' in text.lower() or 'asignatura' in text.lower() or 'materia' in text.lower():
+            if not fields.get('course'):
+                fields['course'] = text
+
+    if not fields.get('title'):
+        non_label_candidates = []
+        for text in paragraphs[:24]:
+            clean = normalize(text)
+            if not clean:
+                continue
+            if re.match(r'^(?:universidad|facultad|escuela|instituto|docente|profesor|tutor|carnet|fecha|tema|titulo|t[íi]tulo|grupo)\b', clean, re.IGNORECASE):
+                continue
+            if len(clean.split()) < 3:
+                continue
+            if len(clean.split()) <= 20:
+                non_label_candidates.append(clean)
+        if non_label_candidates:
+            longest = max(non_label_candidates, key=len)
+            fields['title'] = longest
+
+    if not fields.get('institution'):
+        for text in paragraphs:
+            if re.search(r'\b(?:universidad|facultad|escuela|instituto|colegio|campus)\b', text, re.IGNORECASE):
+                fields['institution'] = normalize(text)
+                break
+
+    if not fields.get('author'):
+        for text in paragraphs:
+            if 'carnet' in text.lower() or re.search(r'\b(?:br\.|estudiante|alumno)\b', text, re.IGNORECASE):
+                candidate = re.sub(r'\s*\|\s*carnet\s*:\s*.*$', '', text, flags=re.IGNORECASE).strip()
+                if candidate:
+                    fields['author'] = candidate
+                    break
+
+    if not fields.get('date'):
+        for text in paragraphs:
+            if re.search(r'\b\d{4}\b', text) or re.search(r'\b\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+de\s+\d{4}\b', text, re.IGNORECASE):
+                fields['date'] = normalize(text)
+                break
+
+    return {
+        'detected': bool(fields),
+        'fields': {k: v for k, v in fields.items() if v},
+    }
 
 
 def apply_cover_to_document(
@@ -378,8 +501,22 @@ def _apply_docx_cover(doc: docx.Document, template: CoverTemplate, base_dir: Pat
                 new_run.italic = run.italic
                 new_run.underline = run.underline
 
-        # NOTA: Las imágenes incrustadas en el DOCX plantilla no se copian en esta
-        # versión. Para portadas con imágenes, usa el tipo "image" en lugar de "docx".
+        # Mantener las imágenes incrustadas como elementos editables del DOCX
+        # destino. La posición exacta puede variar, pero no se pierde el recurso.
+        for shape in cover_doc.inline_shapes:
+            try:
+                blip = shape._inline.graphic.graphicData.pic.blipFill.blip
+                image_part = cover_doc.part.related_parts[blip.embed]
+                image_para = doc.add_paragraph()
+                image_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                image_run = image_para.add_run()
+                image_run.add_picture(
+                    BytesIO(image_part.blob),
+                    width=Inches(shape.width / 914400),
+                    height=Inches(shape.height / 914400),
+                )
+            except Exception as image_error:
+                print(f"[WARN] No se pudo copiar imagen de portada: {image_error}")
 
     except Exception as e:
         print(f"[WARN] Error copiando portada DOCX: {e}")

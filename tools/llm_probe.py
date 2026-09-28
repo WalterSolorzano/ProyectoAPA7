@@ -47,7 +47,7 @@ NAV = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
 # del 401 real, y eso manda a buscar un problema de autenticacion que no existe.
 TARGETS = {
     "nvidia_nim": ("https://integrate.api.nvidia.com/v1/chat/completions",
-                   "NVIDIA_API_KEY", "meta/llama-3.1-70b-instruct"),
+                   "NVIDIA_API_KEY", "nvidia/nemotron-3-super-120b-a12b"),
     "groq": ("https://api.groq.com/openai/v1/chat/completions",
              "GROQ_API_KEY", "openai/gpt-oss-120b"),
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions",
@@ -64,9 +64,9 @@ TARGETS = {
                "GEMINI_API_KEY", "gemini-2.5-flash"),
     "cloudflare": ("https://api.cloudflare.com/client/v4/accounts/%s/ai/run/%s",
                    "CLOUDFLARE_API_TOKEN", "@cf/meta/llama-3.1-8b-instruct"),
-    "aion": ("https://api.aion.ai/v1/chat/completions",
+    "aion": ("https://api.aionlabs.ai/v1/chat/completions",
              "AION_API_KEY", "aion-labs/aion-2.0"),
-    "kilocode": ("https://api.kilocode.ai/openai/v1/chat/completions",
+    "kilocode": ("https://api.kilo.ai/api/gateway/chat/completions",
                  "KILOCODE_API_KEY", "kilo-auto/free"),
 }
 

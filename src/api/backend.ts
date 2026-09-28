@@ -917,6 +917,30 @@ export async function applyCover(req: ApplyCoverRequest): Promise<{ status: stri
   return res.json();
 }
 
+export async function uploadCoverDocx(file: File, name?: string, description?: string): Promise<{
+  status: string;
+  detected: boolean;
+  fields: Record<string, string>;
+  template: CoverTemplateInfo;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (name) formData.append('name', name);
+  if (description) formData.append('description', description);
+
+  const res = await fetchWithTrace(`${getApiBase()}/cover-templates/upload-docx`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'Error al importar la portada');
+  }
+
+  return res.json();
+}
+
 export function getCoverPreviewUrl(name: string): string {
   return `${getApiBase()}/cover-templates/preview/${encodeURIComponent(name)}`;
 }

@@ -102,7 +102,7 @@ def _get_smart_batch_size(element_count: int) -> int:
     return 10
 
 
-def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Optional[str] = None, use_local: bool = False) -> List[Dict[str, Any]]:
+def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Optional[str] = None, use_local: bool = False, provider_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Return ordered list of available AI providers with their keys and endpoints.
     Priority: NVIDIA NIM > Groq > OpenRouter > Cerebras > Mistral > OpenCodeZen > ZenMux > Gemini > Cloudflare AI
@@ -118,7 +118,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "nvidia_nim",
             "url": custom_nim_url,
             "key": nv_key or "local-no-key",
-            "model": os.getenv("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct"),
+            "model": os.getenv("NVIDIA_NIM_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"} if k != "local-no-key" else {"Content-Type": "application/json"},
         })
     elif nv_key:
@@ -127,7 +127,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "nvidia_nim",
             "url": NVIDIA_NIM_URL,
             "key": nv_key,
-            "model": os.getenv("NVIDIA_NIM_MODEL", "meta/llama-3.1-70b-instruct"),
+            "model": os.getenv("NVIDIA_NIM_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -237,7 +237,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
         providers.append({
             "name": "Cloudflare AI",
             "id": "cloudflare",
-            "url": f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
+            "url": f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/{cf_model}",
             "key": cf_token,
             "model": cf_model,
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
@@ -251,7 +251,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "aion",
             "url": "https://api.aionlabs.ai/v1/chat/completions",
             "key": aion_key,
-            "model": os.getenv("AION_MODEL", "aion-labs/aion-2.0"),
+            "model": os.getenv("AION_MODEL", "aion-labs/aion-3.0-mini"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -294,6 +294,11 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
+    if provider_id:
+        selected = [p for p in providers if p["id"] == provider_id]
+        if not selected:
+            raise ValueError(f"Proveedor no configurado: {provider_id}")
+        return selected
     return providers
 
 
@@ -312,6 +317,19 @@ CLASSIFICATION_SYSTEM_PROMPT: str = (
 )
 
 
+def _classification_cache_key(elem: ElementModel) -> str:
+    payload = {
+        "prompt_version": 2,
+        "text": elem.text or "",
+        "current_type": elem.type.value if isinstance(elem.type, ElementType) else str(elem.type),
+        "heading_level": elem.heading_level,
+        "style_name": elem.style_name,
+        "font_size": elem.font_size,
+        "is_bold": elem.is_bold,
+    }
+    return _compute_text_hash(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
 # ── Main classification function ────────────────────────────────────────────
 
 async def classify_document_with_llm(
@@ -319,6 +337,7 @@ async def classify_document_with_llm(
     api_key: Optional[str] = None,
     nim_url: Optional[str] = None,
     use_local: bool = False,
+    provider_id: Optional[str] = None,
 ) -> DocumentModel:
     """
     Refina todos los elementos con confianza < 0.85 usando una cadena de
@@ -342,7 +361,7 @@ async def classify_document_with_llm(
         "last_error": None,
     }
 
-    providers = _get_active_providers(api_key, nim_url, use_local)
+    providers = _get_active_providers(api_key, nim_url, use_local, provider_id)
     if not providers:
         print("[WARN] No AI providers available (Local or Cloud). Usando fallback heuristico...")
         total = len(doc.elements)
@@ -419,7 +438,7 @@ async def classify_document_with_llm(
         # Check cache first
         need_api: List[ElementModel] = []
         for e in batch:
-            h = _compute_text_hash(e.text or "")
+            h = _classification_cache_key(e)
             cached_type = cache.get(h)
             if cached_type:
                 try:
@@ -532,7 +551,7 @@ async def classify_document_with_llm(
                         if elem.confidence >= 0.85:
                             elem.needs_review = False
 
-                        cache[_compute_text_hash(elem.text or "")] = elem.type.value
+                        cache[_classification_cache_key(elem)] = elem.type.value
                         updated_count += 1
 
                 print(f"[OK] Lote {i + 1}/{total_batches} clasificado con {best_result['provider_name']} "

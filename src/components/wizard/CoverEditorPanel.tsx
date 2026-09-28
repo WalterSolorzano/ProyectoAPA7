@@ -18,8 +18,9 @@ import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   School, FileText, Check, ChevronRight, Users, Calendar,
-  GraduationCap, X, Hash, Layers,
+  GraduationCap, X, Hash, Layers, Cpu, Laptop, Building2, Factory, FlaskConical,
 } from 'lucide-react';
+import { resolveAssetUrl } from '../../api/backend';
 import { requestCoverFieldHighlight, parseAuthorEntries, serializeAuthorEntries } from '../../lib/portadaAuthors';
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
@@ -55,6 +56,91 @@ function parseAuthors(raw: string): string[] {
 function joinAuthors(list: string[]): string {
   return list.join(', ');
 }
+
+/** Obtiene las iniciales de 2 letras de un nombre (ej: "Walter Solórzano" -> "WS"). */
+function getInitials(name: string): string {
+  const clean = name.replace(/^(Br\.|Ing\.|Lic\.|Dr\.|Msc\.)\s*/i, '').trim().split(/\s+/);
+  if (clean.length >= 2) return `${clean[0][0]}${clean[1][0]}`.toUpperCase();
+  return (clean[0]?.[0] || 'A').toUpperCase();
+}
+
+/** Obtiene primer nombre y primer apellido para chips limpios. */
+function getShortName(name: string): string {
+  const clean = name.replace(/^(Br\.|Ing\.|Lic\.|Dr\.|Msc\.)\s*/i, '').trim().split(/\s+/);
+  if (clean.length >= 2) return `${clean[0]} ${clean[1]}`;
+  return clean[0] || name;
+}
+
+interface CarreraPreset {
+  id: string;
+  label: string;
+  nombre: string;
+  area: string;
+  icon: React.ReactNode;
+}
+
+const CARRERAS_PRESETS: CarreraPreset[] = [
+  {
+    id: 'electronica',
+    label: 'Electrónica',
+    nombre: 'Ingeniería Electrónica',
+    area: 'Área de Conocimiento de Ingeniería y Afines',
+    icon: <Cpu size={12} strokeWidth={1.75} />,
+  },
+  {
+    id: 'sistemas',
+    label: 'Sistemas',
+    nombre: 'Ingeniería en Sistemas',
+    area: 'Área de Conocimiento de Ingeniería y Afines',
+    icon: <Laptop size={12} strokeWidth={1.75} />,
+  },
+  {
+    id: 'civil',
+    label: 'Civil',
+    nombre: 'Ingeniería Civil',
+    area: 'Facultad de Tecnología de la Construcción',
+    icon: <Building2 size={12} strokeWidth={1.75} />,
+  },
+  {
+    id: 'industrial',
+    label: 'Industrial',
+    nombre: 'Ingeniería Industrial',
+    area: 'Facultad de Tecnología de la Industria',
+    icon: <Factory size={12} strokeWidth={1.75} />,
+  },
+  {
+    id: 'quimica',
+    label: 'Química',
+    nombre: 'Ingeniería Química',
+    area: 'Facultad de Ingeniería Química',
+    icon: <FlaskConical size={12} strokeWidth={1.75} />,
+  },
+];
+
+interface UniversidadPreset {
+  id: string;
+  codigo: string;
+  nombre: string;
+  areaDefault: string;
+  logoUrl?: string;
+}
+
+const UNIVERSIDADES_PRESETS: UniversidadPreset[] = [
+  {
+    id: 'uni',
+    codigo: 'UNI',
+    nombre: 'Universidad Nacional de Ingeniería',
+    areaDefault: 'Área de Conocimiento de Ingeniería y Afines',
+    logoUrl: '/api/assets/logo_uni.png',
+  },
+  {
+    id: 'unan',
+    codigo: 'UNAN',
+    nombre: 'Universidad Nacional Autónoma de Nicaragua (UNAN-Managua)',
+    areaDefault: 'Facultad de Ciencias e Ingeniería',
+    logoUrl: '/api/assets/logo_unan.png',
+  },
+];
 
 /* ── Estilos compartidos (design tokens, sin hex duro) ─────────────────── */
 
@@ -447,10 +533,20 @@ export const CoverEditorPanel: React.FC = () => {
                     return (
                       <Chip
                         key={intg.id}
-                        label={intg.carnet ? `${intg.nombre} · ${intg.carnet}` : intg.nombre}
+                        icon={
+                          <span style={{
+                            width: '18px', height: '18px', borderRadius: '50%',
+                            backgroundColor: selected ? 'var(--color-text-on-accent)' : 'var(--accent-primary)',
+                            color: selected ? 'var(--accent-primary)' : 'var(--color-text-on-accent)',
+                            fontSize: '9px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {getInitials(intg.nombre)}
+                          </span>
+                        }
+                        label={getShortName(intg.nombre)}
                         selected={selected}
                         onClick={() => toggleIntegrante(intg.nombre)}
-                        title={selected ? 'Quitar de la portada' : 'Añadir a la portada'}
+                        title={intg.carnet ? `${intg.nombre} (${intg.carnet})` : intg.nombre}
                       />
                     );
                   })}
@@ -459,28 +555,107 @@ export const CoverEditorPanel: React.FC = () => {
             )}
           </div>
 
-          {/* ── Institución ─────────────────────────────────────────────── */}
+          {/* ── Institución / Universidad con Logos e Insignias Rápidas ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Institución / Universidad</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={fieldLabel}>Institución / Universidad</label>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {UNIVERSIDADES_PRESETS.map((u) => {
+                  const isSelected = (portada.institution || '').toLowerCase().includes(u.codigo.toLowerCase()) ||
+                    (portada.institution || '').toLowerCase().includes(u.nombre.toLowerCase());
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        updateCoverField('institution', u.nombre);
+                        updateCoverField('departamento', u.areaDefault);
+                        requestCoverFieldHighlight('institution');
+                      }}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                        border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        transition: 'all var(--transition-fast)',
+                      }}
+                      title={u.nombre}
+                    >
+                      {u.logoUrl ? (
+                        <img
+                          src={resolveAssetUrl(u.logoUrl)}
+                          alt={u.codigo}
+                          style={{ width: '14px', height: '14px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : null}
+                      <span>{u.codigo}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <input
               type="text"
               value={portada.institution || ''}
               onChange={(e) => updateCoverField('institution', e.target.value)}
               onFocus={focusHighlight('institution')}
-              placeholder="Universidad o facultad"
+              placeholder="Universidad o institución"
               style={baseInput}
             />
           </div>
 
-          {/* ── Curso ───────────────────────────────────────────────────── */}
+          {/* ── Carrera / Facultad / Área con Avatares de Carrera ───────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <label style={fieldLabel}>Curso / Asignatura</label>
+            <label style={fieldLabel}>Carrera / Facultad / Área</label>
+            <input
+              type="text"
+              value={portada.departamento || ''}
+              onChange={(e) => updateCoverField('departamento', e.target.value)}
+              onFocus={focusHighlight('departamento')}
+              placeholder="Ej: Ingeniería Electrónica o Área de Conocimiento"
+              style={baseInput}
+            />
+            {/* Presets de carreras con avatares / iconos vectoriales */}
+            <div style={chipWrap}>
+              {CARRERAS_PRESETS.map((carr) => {
+                const selected = (portada.departamento || '').toLowerCase().includes(carr.label.toLowerCase()) ||
+                  (portada.departamento || '').toLowerCase().includes(carr.nombre.toLowerCase());
+                return (
+                  <Chip
+                    key={carr.id}
+                    icon={carr.icon}
+                    label={carr.label}
+                    selected={selected}
+                    onClick={() => {
+                      updateCoverField('departamento', carr.nombre);
+                      requestCoverFieldHighlight('departamento');
+                    }}
+                    title={carr.nombre}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Asignatura / Curso ──────────────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={fieldLabel}>Asignatura / Curso</label>
             <input
               type="text"
               value={portada.course || ''}
               onChange={(e) => updateCoverField('course', e.target.value)}
               onFocus={focusHighlight('course')}
-              placeholder="Nombre del curso"
+              placeholder="Nombre de la asignatura"
               style={baseInput}
             />
           </div>

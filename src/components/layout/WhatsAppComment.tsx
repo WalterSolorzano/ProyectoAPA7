@@ -25,7 +25,7 @@ import { generateChatComment, suggestCaption } from '../../api/backend';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 import { accentMatchSlice } from '../../lib/accentMatch';
 import { buildCommentContext } from '../../lib/commentContext';
-import { DocumentMascot, MascotExpression } from './DocumentMascot';
+import { DocumentMascot, MascotExpression, MascotKind } from './DocumentMascot';
 import { PenLine, X, BookOpen, CheckCheck, Sparkles } from 'lucide-react';
 import { hashStr } from '../../lib/utils';
 
@@ -553,6 +553,14 @@ function mascotFor(kind: string, isPositive: boolean): MascotExpression {
   return 'neutral';
 }
 
+function mascotKindFor(kind: string, isPositive: boolean): MascotKind {
+  if (isPositive || kind === 'positive' || kind === 'citation_ok') return 'highlighter';
+  if (kind === 'ghost_citation' || kind === 'orphan_references' || kind === 'ai') return 'reference';
+  if (kind === 'citation_error' || kind === 'shouting' || kind.startsWith('validation_')) return 'strike';
+  if (kind === 'image_no_caption' || kind === 'table_no_caption' || kind === 'proactive_caption') return 'ruler';
+  return 'highlighter';
+}
+
 interface WhatsAppCommentProps {
   elem: ElementModel;
   /** True si este elemento es el "comentario positivo" de una sección limpia. */
@@ -666,6 +674,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
     : comment;
 
   const expression = mascotFor(display.kind, isPositive);
+  const mascotKind = mascotKindFor(display.kind, isPositive);
   const action = resolveMeta(display.kind);
   const cat = getCategoryDetails(display.kind, isPositive);
 
@@ -722,7 +731,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
         /* Cara festiva: el usuario resolvió la alerta desde el botón */
         <div className="wa-bubble wa-bubble-resolved">
           <div className="wa-line">
-            <span className="wa-avatar"><DocumentMascot size={24} expression="excited" /></span>
+            <span className="wa-avatar"><DocumentMascot size={24} kind="highlighter" expression="excited" /></span>
             <span className="wa-text">Listo. Te llevé al punto exacto.</span>
           </div>
           <span className="wa-time"><CheckCheck size={10} /> resuelto</span>
@@ -735,7 +744,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
               <span>{cat.label}</span>
             </div>
             <div className="wa-line">
-              <span className="wa-avatar"><DocumentMascot size={24} expression={expression} /></span>
+              <span className="wa-avatar"><DocumentMascot size={24} kind={mascotKind} expression={expression} /></span>
               <span className="wa-text">{renderFormattedCommentText(display.text)}</span>
             </div>
             <div className="wa-actions">

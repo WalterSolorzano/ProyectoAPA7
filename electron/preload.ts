@@ -52,6 +52,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandToFullEditor: () => ipcRenderer.send('expand-to-full-editor'),
   showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
   openPath: (path: string) => ipcRenderer.send('open-path', path),
+  onDownloadCompleted: (callback: (data: { path: string; filename: string }) => void) => {
+    const listener = (_event: any, data: { path: string; filename: string }) => callback(data)
+    ipcRenderer.on('download-completed', listener)
+    return () => ipcRenderer.removeListener('download-completed', listener)
+  },
   // ── Context Menu integration ──────────────────────────────────────────
   // Recibe un archivo .docx desde el menu contextual de Windows
   // (click derecho -> "Convertir a APA 7 con WordAPA7").

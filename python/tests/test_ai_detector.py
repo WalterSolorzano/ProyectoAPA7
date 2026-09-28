@@ -54,6 +54,29 @@ def test_analyze_ai_risk_generic_conclusion():
     assert len(conc_findings) > 0
 
 
+def test_conclusion_with_evidence_is_not_flagged_as_generic():
+    """Un cierre con resultados concretos no debe parecer una plantilla vacía."""
+    text = (
+        "En conclusión, la intervención redujo el error medio de 18% a 7% en "
+        "los 42 participantes, según la Tabla 3."
+    )
+    result = analyze_ai_risk(text)
+    conc_findings = [f for f in result["findings"] if f["pattern"] == "generic_conclusion"]
+    assert conc_findings == []
+
+
+def test_redundant_closure_markers_are_detected():
+    """Repetir varios cierres en una misma idea es una señal contextual."""
+    text = (
+        "En conclusión, los resultados son relevantes para el fenómeno estudiado. "
+        "En resumen, es importante destacar que el tema requiere nuevas investigaciones."
+    )
+    result = analyze_ai_risk(text)
+    conc_findings = [f for f in result["findings"] if f["pattern"] == "generic_conclusion"]
+    assert conc_findings
+    assert any("Repite marcadores" in f["detail"] for f in conc_findings)
+
+
 def test_analyze_ai_risk_new_patterns():
     """Nuevos patrones como 'cabe mencionar' y 'no obstante' deben detectarse."""
     text = "Cabe mencionar que los resultados no obstante presentan limitaciones metodológicas."

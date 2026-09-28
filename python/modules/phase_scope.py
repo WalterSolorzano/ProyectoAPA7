@@ -62,7 +62,7 @@ PHASES: Tuple[PhaseConfig, ...] = (
                  "objetivo general", "objetivos generales", "objetivo especifico",
                  "objetivos especificos", "objetivos especificos de la investigacion",
                  "objetivos especificos de la investigacion"),
-                criteria=("bloom_verb",)),
+                criteria=("bloom_verb", "objetivo_sin_variable")),
     PhaseConfig("introduccion", "Introduccion",
                 ("introduccion", "introduccion al problema", "planteamiento del problema"),
                 criteria=("paragraph_words",), paragraph_words=(80, 200)),
@@ -76,7 +76,7 @@ PHASES: Tuple[PhaseConfig, ...] = (
                 ("metodo", "metodologia", "materiales y metodos",
                  "diseno metodologico", "metodologia de la investigacion",
                  "enfoque metodologico"),
-                criteria=("bloom_verb", "paragraph_words"),
+                criteria=("bloom_verb", "paragraph_words", "metodo_sin_detalle"),
                 paragraph_words=(80, 200)),
     PhaseConfig("resultados", "Resultados", ("resultados", "resultado"),
                 criteria=("verbo_pasado",)),
@@ -233,6 +233,8 @@ RULE_SCOPES: Dict[str, str] = {
     # Reglas de fase: solo dentro del ambito que las declara. "fase" significa
     # "el umbral depende de la fase", no una fase en concreto.
     "bloom_vague": "objetivos",
+    "objetivo_sin_variable": "objetivos",
+    "metodo_sin_detalle": "metodo",
     "paragraph_words": "fase",
     "verbo_pasado": "fase",
     "parafraisis_vs_cita": "marco_teorico",
@@ -271,13 +273,31 @@ _PAST_ONLY_VERBS: Tuple[str, ...] = (
 _WORD_SPLIT = re.compile(r"\S+")
 
 
+def _term_pattern(term: str) -> str:
+    """Construye un patrón de palabra exacta o frase con límites seguros.
+
+    Evita que "saber" haga match en "saberes" o que "conocer" haga match
+    dentro de textos no objetivos. Si el término contiene espacios, acepta
+    uno o más espacios entre palabras.
+    """
+    normalized = re.escape(term)
+    normalized = normalized.replace(r"\ ", r"\s+")
+    return rf"(?<![a-záéíóúñü]){normalized}(?![a-záéíóúñü])"
+
+
+def _find_term(text: str, term: str) -> Optional[re.Match[str]]:
+    return re.search(_term_pattern(term), text, re.IGNORECASE)
+
+
 def _check_bloom_verb(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
-    low = text.lower()
+    low = (text or "").lower()
     for verb in VAGUE_VERBS:
-        pos = low.find(verb)
-        if pos >= 0:
-            return [mk(eid, text, pos, pos + len(verb), "bloom_vague", "warn",
-                       f'Verbo impreciso "{text[pos:pos + len(verb)]}" en la fase '
+        match = _find_term(low, verb)
+        if match:
+            pos = match.start()
+            end = match.end()
+            return [mk(eid, text, pos, end, "bloom_vague", "warn",
+                       f'Verbo impreciso "{text[pos:end]}" en la fase '
                        f"{cfg.label}; usa un verbo en infinitivo medible "
                        f"(determinar, medir, evaluar)",
                        suggestion="determinar", phase=cfg.key,
@@ -299,13 +319,69 @@ def _check_paragraph_words(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Di
                phase=cfg.key, read_only=cfg.read_only)]
 
 
+def _check_objetivo_sin_variable(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    low = (text or "").lower()
+    if not low.strip():
+        return []
+
+    variable_terms = (
+        "variable", "variables", "muestra", "poblacion", "participantes",
+        "resultado", "resultados", "efecto", "relacion", "comparacion",
+        "indicador", "dimensiones", "frecuencia", "porcentaje", "nivel",
+        "instrumento", "procedimiento", "diseño"
+    )
+    if any(term in low for term in variable_terms):
+        return []
+
+    generic_markers = ("proceso", "estudio", "caso", "tema", "situacion")
+    if not any(marker in low for marker in generic_markers):
+        return []
+
+    if len(_WORD_SPLIT.findall(text or "")) < 6:
+        return [mk(eid, text, 0, len(text or ""), "objetivo_sin_variable", "warn",
+                   "El objetivo es muy genérico; define la variable, la población o la relación que se medirá.",
+                   suggestion="Determinar la relación entre X y Y o el efecto de X sobre Y.",
+                   phase=cfg.key, read_only=cfg.read_only)]
+
+    return [mk(eid, text, 0, len(text or ""), "objetivo_sin_variable", "warn",
+               "El objetivo no especifica claramente qué variable o constructo se medirá.",
+               suggestion="Determinar el efecto de X sobre Y o la relación entre X y Y.",
+               phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_metodo_sin_detalle(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    low = (text or "").lower()
+    if not low.strip():
+        return []
+
+    method_terms = (
+        "muestra", "poblacion", "participantes", "instrumento", "encuesta",
+        "entrevista", "cuestionario", "diseño", "procedimiento", "muestreo",
+        "variables", "analisis", "estadistico", "cualitativo", "cuantitativo",
+        "metodologia", "técnica", "aplicacion"
+    )
+    if any(term in low for term in method_terms):
+        return []
+
+    generic_markers = ("se realizo", "se llevó a cabo", "se aplico", "se hizo", "estudio")
+    if not any(marker in low for marker in generic_markers):
+        return []
+
+    return [mk(eid, text, 0, len(text or ""), "metodo_sin_detalle", "info",
+               "El método es demasiado genérico; especifica muestra, diseño, instrumentos, procedimiento y análisis.",
+               suggestion="Diseño: ..., muestra: ..., instrumentos: ..., procedimiento: ..., análisis: ...",
+               phase=cfg.key, read_only=cfg.read_only)]
+
+
 def _check_verbo_pasado(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
     low = text.lower()
     for verb in _PAST_ONLY_VERBS:
-        pos = low.find(verb)
-        if pos >= 0:
-            return [mk(eid, text, pos, pos + len(verb), "verbo_pasado", "info",
-                       f'"{text[pos:pos + len(verb)]}" esta en infinitivo; la fase '
+        match = re.search(rf"(?<![a-záéíóúñü]){re.escape(verb)}(?![a-záéíóúñü])", low)
+        if match:
+            pos = match.start()
+            end = match.end()
+            return [mk(eid, text, pos, end, "verbo_pasado", "info",
+                       f'"{text[pos:end]}" esta en infinitivo; la fase '
                        f"{cfg.label} ya reporto lo que se hizo, asi que va en pasado",
                        phase=cfg.key, read_only=cfg.read_only)]
     return []
@@ -382,6 +458,8 @@ _PORTADA_ONLY = {"portada_title_larga", "portada_punto_final"}
 _CHECKS = {
     "parafraisis_vs_cita": _check_parafraisis_vs_cita,
     "bloom_verb": _check_bloom_verb,
+    "objetivo_sin_variable": _check_objetivo_sin_variable,
+    "metodo_sin_detalle": _check_metodo_sin_detalle,
     "paragraph_words": _check_paragraph_words,
     "verbo_pasado": _check_verbo_pasado,
     "portada_title_larga": _check_portada_title_larga,

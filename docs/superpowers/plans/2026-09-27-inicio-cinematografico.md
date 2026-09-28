@@ -593,62 +593,83 @@ git add -A && git commit -m "refactor(inicio): el menú Archivo deja de estar du
 
 ---
 
-### Task 7: El lint de tokens entra a `components/layout`
+### Task 7: La deuda de tokens del cielo de Inicio queda NOMBRADA
+
+> **Ruling de pre-flight (ledger).** Esta task NO agrega `components/layout` al
+> alcance del lint. Un `addColorStop` de un degradado no puede recibir un
+> `var(--token)` —es geometria pintada, no estilo— y `HomeHero.tsx` tiene mas de
+> cuarenta literales de ese tipo. Tokenizarlos pediria un `getComputedStyle` por
+> degradado, que es absurdo para un fondo. Se hace lo que ya se hace con
+> `fluent.css`: la deuda se escribe en el archivo, con su nombre y su motivo.
+> Una lista de exenciones por valor es como muere un lint.
 
 **Files:**
-- Modify: `src/__tests__/noHardcodedColors.test.ts:101` (`DIRECTORIOS`).
+- Modify: `src/__tests__/noHardcodedColors.test.ts` (docblock: la lista de archivos fuera de alcance con su señal).
 - Test: el mismo archivo.
 
-`HomeHero.tsx` tiene literales por todos lados: `#ffffff` (177, 1045), `rgba(0,0,0,0.18)` (1027), `rgba(0,0,0,0.55)` (1046), los `rgba(255,238,0,…)` del sol. Los de la Task 1 están en un gradiente dentro del canvas, que es el único lugar donde un color tiene que ser literal — un `var()` no se puede usar como `addColorStop`. **Ese límite es real y hay que escribirlo en el archivo**, no esconderlo.
+- [ ] **Step 1: Escribí la deuda en el archivo del lint**
 
-- [ ] **Step 1: Agregá el directorio y dejá escrita la excepción**
-
-```ts
-const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/layout', 'hooks'];
-```
-
-Y en el docblock del archivo, junto a las otras excepciones:
+En el docblock de `src/__tests__/noHardcodedColors.test.ts`, dentro de la lista
+*"LO QUE QUEDA SIN GOBIERNO, CON SEÑAL EN EL ARCHIVO"*, agregá:
 
 ```
  *   - `src/components/layout/HomeHero.tsx`: el `canvas` del cielo de Inicio.
- *     Un `addColorStop` de un degradado NO puede recibir un `var(--token)`: es
- *     geometría pintada, no estilo, y el valor se resuelve en el momento del
- *     dibujado. La excepción es solo para los degradados del canvas; el resto
- *     del archivo —el texto, los bordes, el velo— va con tokens, y eso lo
- *     comprueba la regla.
+ *     No esta en el alcance y NO se puede agregar. Un `addColorStop` de un
+ *     degradado no acepta un `var(--token)`: es geometria pintada, no estilo, y
+ *     el color se resuelve en el momento del dibujado. Tokenizarlo pediria un
+ *     `getComputedStyle` por cada degradado, en un archivo con mas de cuarenta,
+ *     para pintar un fondo. Es el mismo caso que `fluent.css` y se maneja
+ *     igual: nombrado, con su motivo, en vez de con una lista de excepciones.
+ *     Lo que SI usa tokens en ese archivo es el texto, los bordes y el velo.
 ```
 
-- [ ] **Step 2: Corré el lint y arreglá lo que aparezca**
+- [ ] **Step 2: Corré el lint y confirmá que la cuenta no se movió**
 
 Run: `npx vitest run src/__tests__/noHardcodedColors.test.ts`
-Expected: FAIL con la lista exacta de ofensas de `HomeHero.tsx`.
+Expected: PASS. La prueba R9 sigue contando `styles/fluent.css` como la unica hoja
+con literales: **agregar una nota al docblock no cambia ninguna cuenta**, y si el
+test falla es porque agregaste algo que el detector lee.
 
-- [ ] **Step 3: Pasá a tokens todo lo que NO sea un degradado del canvas**
-
-Concretamente: el `fillStyle = '#ffffff'` de `drawStars` (177), el `fillStyle = '#e8eaf6'` del cuerpo de la luna (208), el `fillStyle = '#c5cae9'` de las nubes (221), el `background: 'rgba(0,0,0,0.18)'` del velo (1027), el `color: '#ffffff'` de la frase (1045) y el `textShadow` con `rgba(0,0,0,0.55)` (1046).
-
-Para los del canvas, el camino es declarar un token en `design-system.css` y leerlo con `getComputedStyle` una vez al inicializar el contexto — no hardcodear. Si eso resulta invasivo, la alternativa aceptable es dejar los del canvas como literales **y** que la regla los acepte por un patrón, lo cual NO se hace: una lista de exenciones por valor es como muere un lint. Si el costo es alto, sacá `components/layout` del alcance y **anotá por qué en el archivo**, como ya se hace con `fluent.css`.
-
-- [ ] **Step 4: Corré el lint, la suite completa y `tsc`**
-
-Run: `npx vitest run src/ && npx tsc --noEmit`
-Expected: la suite entera en verde.
-
-- [ ] **Step 5: Commiteá**
+- [ ] **Step 3: Commiteá**
 
 ```bash
-git add src/__tests__/noHardcodedColors.test.ts src/styles/design-system.css src/components/layout/HomeHero.tsx
-git commit -m "chore(tokens): components/layout entra al alcance del lint"
+git add src/__tests__/noHardcodedColors.test.ts
+git commit -m "docs(tokens): la deuda del cielo de Inicio queda nombrada"
 ```
 
 ---
 
 ## Self-Review
 
-**1. Cobertura de la spec.** Cada punto del pedido literal tiene tarea: el sol sin cara → Task 1. "Más cinematográfico, todo" → Tasks 1, 2, 3. "Expandir un poco el contenedor" → Task 4. Los seis rótulos a quitar → Task 5. "Archivo" en los dos lados → Task 6 (con la decisión abierta). Los `strokeWidth={2}` fuera de norma: la restricción está en Global Constraints y aparece en la Task 1 como paso de `tsc`; si `tsc` no los marca porque `noUnusedLocals` no aplica a props, agregalos explícitamente a la Task 5.
+**1. Cobertura de la spec.** Cada punto del pedido literal tiene tarea: el sol
+sin cara y las púas → Task 1. "Más cinematográfico, todo" → Tasks 1, 2 y 3.
+"Expandir un poco ese contenedor" → Task 4. Los seis rótulos a quitar → Task 5.
+"Archivo" en los dos lados → Task 6, con la decisión ya tomada: **opción A, se
+borra el duplicado de Inicio y el global queda** (respuesta de la persona).
 
-**2. Placeholders.** No hay. Cada step trae el código o la acción exacta. El Task 6 es el único sin código, y es una decisión de producto con dos opciones escritas, no un "TBD".
+Los `strokeWidth={2}` fuera de norma: la restricción está en Global Constraints,
+pero ninguna task los nombra uno por uno y `noUnusedLocals` NO los marca —una
+prop con un valor mal no es un identificador sin usar—. **Van agregados a la
+Task 5**, que es donde se borran los pilares que los usaban.
 
-**3. Consistencia de tipos.** `drawSolCinematico` mantiene la aridad de `drawCartoonSun` a propósito, para que el llamador no cambie de forma. `EasterEggState['type']` se estrecha en la Task 2, después de que los `case` desaparezcan. `rotuloDeSubtipo` (commit `983f41e`) no aparece acá y no debe tocarse.
+**2. Placeholders.** No hay. Cada step trae el código o la acción exacta. La
+Task 6 tiene dos opciones escritas y una respuesta; no es un "TBD".
 
-**4. Review Focus.** Los cinco puntos: (1) canvas de ancho 0 → Task 3, el `Math.random() * canvas.width` sigue siendo un riesgo y **no** está arreglado; queda anotado como deuda, no resuelto. (2) `prefers-reduced-motion` → Task 4. (3) `line-clamp` vs `minHeight` → Task 4. (4) documento sin H1 → no lo arregla este plan, anotado. (5) tema oscuro → la Task 4 agranda el contraste del hero y la Task 7 mete el lint, pero **no hay una prueba de contraste por tema**; esa es la deuda más grande que deja el plan y hay que decirlo en el commit de la Task 4.
+**3. Consistencia de tipos.** `drawSolCinematico` mantiene la aridad de
+`drawCartoonSun` a propósito, para que el llamador no cambie de forma. El tipo
+`EasterEggState['type']` se estrecha en la Task 2, después de que los `case`
+desaparezcan; si `tsc` se queja de un `case` que ya no existe, es que quedó una
+rama. La Task 7 fue reescrita después del pre-flight: ya no agrega el directorio
+al lint.
+
+**4. Review Focus.** Los cinco puntos, y qué queda resuelto:
+
+1. Canvas redimensionado a ancho cero apila las estrellas en (0,0) — **NO se
+   resuelve en este plan**. Se anota como deuda con nombre.
+2. `prefers-reduced-motion` — **resuelto** en la Task 4.
+3. `line-clamp` contra `minHeight` — **resuelto** en la Task 4.
+4. Documento sin H1 no tiene fases — **NO se resuelve aquí**; ya estaba anotado
+   antes de este plan.
+5. Contraste por tema — **NO resuelto y es la deuda más grande del plan**. La
+   Task 4 agranda el contraste del hero sin que exista una prueba que demuestre
+   que sigue legible en oscuro. Tiene que decirse en el commit de la Task 4.

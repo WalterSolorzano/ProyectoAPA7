@@ -219,6 +219,8 @@ const CoverStrategyStrip: React.FC<{
 export const CoverCarouselStudio: React.FC = () => {
   const { portada, setPortada, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
+  const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -282,14 +284,42 @@ export const CoverCarouselStudio: React.FC = () => {
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setUploading(true);
+    setIsImportingCover(true);
     try {
-      showToast(`Plantilla "${file.name}" cargada correctamente`, 'success');
-      selectMode('custom', `custom-${Date.now()}`);
-    } catch {
-      showToast('Error al cargar la plantilla', 'error');
+      const { uploadCoverDocx } = await import('../../api/backend');
+      const templateInfo = await uploadCoverDocx(
+        file,
+        file.name.replace(/\.[^.]+$/, ''),
+        'Portada importada desde documento Word'
+      );
+
+      const importedFields = templateInfo.fields || {};
+      setPortada({
+        use_original_cover: false,
+        force_skip_cover: false,
+        cover_mode: '',
+        cover_template_id: templateInfo.template.name,
+        title: importedFields.title || portada.title || '',
+        author: importedFields.author || portada.author || '',
+        institution: importedFields.institution || portada.institution || '',
+        course: importedFields.course || portada.course || '',
+        instructor: importedFields.instructor || portada.instructor || '',
+        date: importedFields.date || portada.date || '',
+      });
+
+      if (templateInfo.detected) {
+        showToast('Estamos haciendo editable tu portada…', 'success');
+      } else {
+        showToast('La portada se agregó a la biblioteca y quedó lista para editar', 'info');
+      }
+      selectMode('custom', templateInfo.template.name);
+    } catch (error: any) {
+      showToast(error?.message || 'Error al cargar la plantilla', 'error');
     } finally {
       setUploading(false);
+      setIsImportingCover(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -319,6 +349,26 @@ export const CoverCarouselStudio: React.FC = () => {
           setWizardStep(2);
         }}
       />
+
+      {isImportingCover && (
+        <div aria-live="polite" style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--scrim-overlay)', backdropFilter: 'blur(2px)', zIndex: 30,
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)',
+            padding: '14px 18px', boxShadow: 'var(--shadow-card)', color: 'var(--color-text-primary)',
+          }}>
+            <span aria-hidden="true" style={{
+              width: '16px', height: '16px', borderRadius: 'var(--radius-full)',
+              border: '2px solid var(--color-border-subtle)',
+              borderTopColor: 'var(--accent-primary)', display: 'inline-block', animation: 'spin 0.9s linear infinite',
+            }} />
+            <span style={{ fontSize: '13px', fontWeight: 700 }}>Estamos haciendo editable tu portada…</span>
+          </div>
+        </div>
+      )}
 
       {/* ── CUERPO: carrusel + vista previa al centro, editor a la derecha ── */}
       <div style={{
@@ -376,11 +426,12 @@ export const CoverCarouselStudio: React.FC = () => {
             className="cover-carousel-track"
             style={{
               display: 'flex',
-              gap: '12px',
+              gap: '16px',
               overflowX: 'auto',
               scrollSnapType: 'x mandatory',
-              padding: `var(--space-2) 0 var(--space-1)`,
+              padding: `var(--space-3) var(--space-4) var(--space-3)`,
               scrollbarWidth: 'thin',
+              alignItems: 'center',
               flexShrink: 0,
             }}
           >
@@ -406,6 +457,8 @@ export const CoverCarouselStudio: React.FC = () => {
                      Es el mismo criterio que aplica al chip de la tira. */
                   aria-pressed={c.isUpload ? undefined : isSelected}
                   onClick={elegir}
+                  onMouseEnter={() => setHoveredCardId(c.id)}
+                  onMouseLeave={() => setHoveredCardId(null)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
                       e.preventDefault();
@@ -413,21 +466,35 @@ export const CoverCarouselStudio: React.FC = () => {
                     }
                   }}
                   style={{
-                    minWidth: '190px',
-                    maxWidth: '220px',
+                    minWidth: '196px',
+                    maxWidth: '224px',
                     flex: '0 0 auto',
-                    scrollSnapAlign: 'start',
+                    scrollSnapAlign: 'center',
                     padding: '8px 10px',
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
                     backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
                     border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    boxShadow: isSelected ? 'var(--shadow-accent)' : 'var(--shadow-sm)',
-                    transition: 'all 0.15s ease',
+                    boxShadow: isSelected ? 'var(--shadow-card)' : 'var(--shadow-sm)',
+                    transform: isSelected
+                      ? 'scale(1.07)'
+                      : hoveredCardId === c.id
+                      ? 'scale(0.99)'
+                      : 'scale(0.95)',
+                    opacity: isSelected ? 1 : hoveredCardId === c.id ? 0.95 : 0.85,
+                    transformOrigin: 'center center',
+                    transition: [
+                      'transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      'box-shadow var(--transition-fast)',
+                      'border-color var(--transition-fast)',
+                      'background-color var(--transition-fast)',
+                      'opacity var(--transition-fast)',
+                    ].join(', '),
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '6px',
                     position: 'relative',
+                    zIndex: isSelected ? 3 : 1,
                   }}
                 >
                   {isSelected && (
@@ -537,7 +604,7 @@ export const CoverCarouselStudio: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <PaperCanvas />
+              <PaperCanvas onlyCover />
             )}
           </div>
         </div>

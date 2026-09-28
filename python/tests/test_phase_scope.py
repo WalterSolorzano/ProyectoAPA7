@@ -250,6 +250,16 @@ def test_objetivos_sigue_pudiendo_sugerir():
     assert out[0]["read_only"] is False
 
 
+def test_objetivo_sin_variable_se_reporta():
+    out = _f("objetivos", "Determinar el proceso.")
+    assert "objetivo_sin_variable" in {f["kind"] for f in out}
+
+
+def test_metodo_genérico_se_reporta():
+    out = _f("metodo", "Se realizó el estudio.")
+    assert "metodo_sin_detalle" in {f["kind"] for f in out}
+
+
 def test_portada_no_recibe_los_criterios_de_una_fase_de_prosa():
     # La portada no lleva reglas de prosa: es material, no argumento.
     kinds = {f["kind"] for f in _portada("Conocer las causas " * 8)}

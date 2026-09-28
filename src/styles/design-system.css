@@ -1010,6 +1010,103 @@ html, body {
 }
 
 /* ════════════ MASCOTA FIJA (esquina inferior derecha, sobre el statusbar) ════════════ */
+.editorial-mascot {
+  overflow: visible;
+  transform-origin: 50% 70%;
+}
+.editorial-mascot-body,
+.editorial-mascot-highlighter-cap {
+  stroke: var(--text-main);
+  stroke-width: 1.7;
+}
+.editorial-mascot-highlighter-body { fill: var(--color-warning); }
+.editorial-mascot-highlighter-cap { fill: var(--color-danger); }
+.editorial-mascot-highlighter-mark { fill: var(--color-danger); }
+.editorial-mascot-ruler-body { fill: var(--color-success); }
+.editorial-mascot-reference-body { fill: var(--accent-primary); }
+.editorial-mascot-strike-body { fill: var(--color-danger); }
+.editorial-mascot-strike-tip { fill: var(--text-main); }
+.editorial-mascot-reference-tail { fill: var(--accent-primary); stroke: var(--text-main); stroke-width: 1.7; stroke-linejoin: round; }
+.editorial-mascot-ruler-ticks,
+.editorial-mascot-strike-line,
+.editorial-mascot-reference-lines,
+.editorial-mascot-quote,
+.editorial-mascot-arm,
+.editorial-mascot-brow,
+.editorial-mascot-mouth {
+  fill: none;
+  stroke: var(--text-main);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.editorial-mascot-quote { stroke: var(--paper-white); stroke-width: 2; }
+.editorial-mascot-reference-lines { stroke: var(--color-accent-soft); stroke-width: 1.4; }
+.editorial-mascot-eye { fill: var(--text-main); }
+.editorial-mascot-glint { fill: var(--paper-white); }
+.editorial-mascot-mouth-open { fill: var(--text-main); stroke: var(--text-main); stroke-width: 1; }
+.editorial-mascot-kind-highlighter { animation: editorial-highlighter-idle 2.8s ease-in-out infinite; }
+.editorial-mascot-kind-ruler { animation: editorial-ruler-idle 3.6s ease-in-out infinite; }
+.editorial-mascot-kind-reference { animation: editorial-reference-idle 3.2s ease-in-out infinite; }
+.editorial-mascot-kind-strike { animation: editorial-strike-idle 2.4s ease-in-out infinite; }
+.editorial-mascot-kind-highlighter .editorial-mascot-arm-right { transform-origin: 52px 40px; animation: editorial-arm-wave 1.5s ease-in-out infinite; }
+.editorial-mascot-kind-reference .editorial-mascot-arm-left { animation: editorial-arm-point 2.2s ease-in-out infinite; transform-origin: 12px 39px; }
+.editorial-mascot-expression-worried .editorial-mascot-brow { transform: translateY(2px) rotate(8deg); }
+.editorial-mascot-expression-curious .editorial-mascot-brow:last-of-type { transform: translateY(-2px) rotate(-8deg); }
+@keyframes editorial-highlighter-idle { 0%, 100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-4px); } }
+@keyframes editorial-ruler-idle { 0%, 100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-3px); } }
+@keyframes editorial-reference-idle { 0%, 100% { transform: rotate(-2deg) translateY(2px); } 50% { transform: rotate(2deg) translateY(-5px); } }
+@keyframes editorial-strike-idle { 0%, 100% { transform: rotate(3deg) translateX(0); } 50% { transform: rotate(-2deg) translateX(4px); } }
+@keyframes editorial-arm-wave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
+@keyframes editorial-arm-point { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
+.loading-mascot-walkers {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.loading-mascot-walker {
+  position: absolute;
+  display: block;
+  line-height: 0;
+  will-change: transform;
+}
+.loading-mascot-walker-highlighter {
+  left: -44px;
+  bottom: 14%;
+  animation: loading-walk-across 13s linear infinite;
+}
+.loading-mascot-walker-ruler {
+  right: 8%;
+  top: 17%;
+  animation: loading-walk-bob 4.6s ease-in-out 0.5s infinite;
+}
+.loading-mascot-walker-strike {
+  left: 13%;
+  top: 23%;
+  animation: loading-walk-peek 6.5s ease-in-out 1s infinite;
+}
+@keyframes loading-walk-across {
+  0% { transform: translateX(0) rotate(-8deg); }
+  45% { transform: translateX(42vw) translateY(-8px) rotate(7deg); }
+  100% { transform: translateX(108vw) rotate(-5deg); }
+}
+@keyframes loading-walk-bob {
+  0%, 100% { transform: translate(0, 0) rotate(2deg); }
+  50% { transform: translate(-20px, 22px) rotate(-6deg); }
+}
+@keyframes loading-walk-peek {
+  0%, 100% { transform: translate(-22px, 8px) rotate(-4deg); opacity: .25; }
+  35%, 65% { transform: translate(0, 0) rotate(5deg); opacity: .85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editorial-mascot,
+  .editorial-mascot-kind-highlighter .editorial-mascot-arm-right,
+  .editorial-mascot-kind-reference .editorial-mascot-arm-left,
+  .loading-mascot-walker { animation: none; }
+}
+
 .doc-mascot-corner {
   position: fixed;
   right: 16px;
@@ -1436,6 +1533,206 @@ html, body {
 }
 
 /* ════════════ MICRO-ANIMACIÓN DE CIERRE (descarga exitosa) ════════════ */
+.export-view-panel {
+  animation: export-view-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.export-file-identity {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  color: var(--accent-primary);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.export-file-identity > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.export-file-identity strong,
+.export-file-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-file-identity strong {
+  color: var(--text-main);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.export-file-identity span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.export-downloaded-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.export-downloaded-actions > div {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.export-downloaded-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  color: var(--text-main);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+.export-downloaded-actions button:hover {
+  /* Era `var(--surface-hover)`, un token que ningún `:root` declara: en claro y
+     en oscuro esa caja no tenía fondo. El hover de una superficie ya tiene
+     nombre y tema --`--color-bg-surface-hover`--, que es lo que usan los
+     botones del resto de la app, así que no hace falta un alias nuevo. */
+  background: var(--color-bg-surface-hover);
+}
+
+@keyframes export-view-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.export-companion-stage {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  padding: 48px;
+  box-sizing: border-box;
+  color: var(--text-main);
+  overflow: hidden;
+  animation: export-companion-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+}
+.export-companion-art {
+  position: relative;
+  width: min(340px, 58vw);
+  height: 220px;
+}
+.export-companion-paper {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 156px;
+  height: 194px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px 20px;
+  box-sizing: border-box;
+  color: var(--accent-primary);
+  background: var(--paper-white);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  transform: rotate(5deg) translateX(-20px);
+  animation: export-paper-float 5s ease-in-out infinite;
+}
+.export-companion-paper span {
+  display: block;
+  height: 5px;
+  width: 100%;
+  border-radius: var(--radius-full);
+  background: var(--border-subtle);
+}
+.export-companion-paper span:nth-of-type(2) { width: 78%; }
+.export-companion-paper span:nth-of-type(3) { width: 88%; }
+.export-companion-mascot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(28px) rotate(-4deg);
+  filter: drop-shadow(0 10px 14px var(--color-border-subtle));
+  animation: export-mascot-wave 3.6s ease-in-out infinite;
+}
+.export-companion-copy {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  text-align: center;
+}
+.export-companion-kicker {
+  color: var(--accent-primary);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.export-companion-copy h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 750;
+  line-height: 1.15;
+}
+.export-companion-copy p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+.export-companion-copy button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  color: var(--accent-primary);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+.export-companion-copy button:hover {
+  background: var(--color-accent-soft);
+  transform: translateY(-1px);
+}
+@keyframes export-companion-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes export-paper-float {
+  0%, 100% { transform: rotate(5deg) translateX(-20px) translateY(0); }
+  50% { transform: rotate(3deg) translateX(-20px) translateY(-6px); }
+}
+@keyframes export-mascot-wave {
+  0%, 100% { transform: translateX(28px) rotate(-4deg); }
+  50% { transform: translateX(28px) rotate(3deg) translateY(-5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .export-view-panel,
+  .export-companion-stage,
+  .export-companion-paper,
+  .export-companion-mascot {
+    animation: none;
+  }
+}
+
 .download-success {
   position: fixed;
   left: 24px;

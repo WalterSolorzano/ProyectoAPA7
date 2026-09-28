@@ -54,6 +54,23 @@ def test_ai_phrase():
     assert ai[0]["excerpt"].lower().startswith("cabe destacar")
 
 
+def test_ai_phrase_ignores_common_academic_context():
+    f = audit_elements([_para("En el contexto de esta investigación, la muestra fue relevante.")])
+    assert _kinds(f, "ai_phrase") == []
+
+
+def test_verbo_pasado_ignores_conjugated_forms():
+    els = [_h("h1", "Resultados"),
+           _para("Se compararon los datos y se evaluaron los resultados.")]
+    assert _kinds(audit_elements(els), "verbo_pasado") == []
+
+
+def test_bloom_vague_requires_exact_word_or_phrase():
+    els = [_h("h1", "Objetivos"),
+           _para("Se conoce el fenómeno y se estudia el caso de forma preliminar.")]
+    assert _kinds(audit_elements(els), "bloom_vague") == []
+
+
 def test_missing_space_after_punct():
     f = audit_elements([_para("Termino la frase.Así empieza otra.")])
     p = _kinds(f, "pegado")
