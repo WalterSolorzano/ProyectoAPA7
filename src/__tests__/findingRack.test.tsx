@@ -488,6 +488,79 @@ describe('T15 — rack de hallazgos', () => {
     expect(props.onEngineAction).toHaveBeenCalled();
   });
 
+  /* ── Un hallazgo sobre un elemento que NO tiene texto ──────────────────────
+     El síntoma que se vio: en la fila de subtipo salía una cadena tachada que
+     decía "Figura sin rotular", y en el detalle esa misma cadena en un `pre`
+     monoespaciado. Los dos juntos decían "el documento tenía esto y se borró"
+     sobre un elemento que nunca tuvo texto. El modelo ya lo dice con
+     `sinTexto`; estas pruebas fijan que la vista lo respete. */
+
+  it('un hallazgo sobre una figura sin leyenda no muestra un bloque de texto', () => {
+    const { container } = detalle({
+      item: item({
+        id: 'fig1', category: 'structure', subtype: 'figura',
+        originalText: '', sinTexto: { clase: 'figura' },
+        suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
+      }),
+      action: 'autoCaption',
+    });
+    // El defecto: se pintaba un <pre> monoespaciado con '[Figura sin rotular]'.
+    expect(container.querySelector('pre')?.textContent ?? '').not.toContain('rotular');
+    expect(screen.getByText(/todavía no tiene leyenda/)).toBeTruthy();
+    /* Y el aviso no se lleva por delante la leyenda que el motor propone: eso
+       sí es una sugerencia, y una sugerencia no es una cita. */
+    expect(screen.getByText('Figura 1. Representación esquemática del procedimiento.')).toBeTruthy();
+  });
+
+  it('un hallazgo sobre un parrafo normal si muestra el texto', () => {
+    detalle({ item: item({ originalText: 'La muestra fueza' }) });
+    expect(screen.getByText('La muestra fueza')).toBeTruthy();
+    expect(screen.queryByText(/no tiene leyenda/)).toBeNull();
+  });
+
+  it('un hallazgo sin texto no se muestra tachado en la fila de subtipo', () => {
+    const { container } = render(
+      <SubtypeRow
+        group={subgrupo({
+          key: 'structure:figura', label: 'Figura sin rotular',
+          items: [item({ id: 'fig1', category: 'structure', subtype: 'figura', originalText: '', sinTexto: { clase: 'tabla' } })],
+          action: 'autoCaption', massLabel: 'Rotular todas',
+        })}
+        open={false}
+        onToggle={vi.fn()}
+        onMassAction={vi.fn()}
+      >
+        <span>c</span>
+      </SubtypeRow>,
+    );
+    const tachado = Array.from(container.querySelectorAll('*')).find((el) =>
+      (el.getAttribute('style') ?? '').includes('line-through'),
+    );
+    expect(tachado).toBeUndefined();
+    /* La fila no queda en blanco: la etiqueta del subtipo sigue estando. Un
+       tachado que se escondió bien es un renglón menos de información. */
+    expect(screen.getByText('Figura sin rotular')).toBeTruthy();
+  });
+
+  it('un hallazgo con texto si se muestra tachado en la fila de subtipo', () => {
+    /* La mitad de la prueba anterior: si el tachado desapareciera siempre, el
+       test anterior pasaría sin que nadie lo arregle. */
+    const { container } = render(
+      <SubtypeRow
+        group={subgrupo({ items: [item({ originalText: 'tambien' })] })}
+        open={false}
+        onToggle={vi.fn()}
+        onMassAction={vi.fn()}
+      >
+        <span>c</span>
+      </SubtypeRow>,
+    );
+    const tachado = Array.from(container.querySelectorAll('*')).find((el) =>
+      (el.getAttribute('style') ?? '').includes('line-through'),
+    );
+    expect(tachado).toBeDefined();
+  });
+
   it('con una sola aparición no hay flechas que no tienen a dónde ir', () => {
     detalle({ index: 0, total: 1 });
     expect(screen.queryByRole('button', { name: 'Siguiente aparición' })).toBeNull();

@@ -128,6 +128,29 @@ const monoStyle: React.CSSProperties = {
   wordBreak: 'break-word',
 };
 
+/** El aviso de que no hay texto. Mismo papel que el `pre`, pero DICE lo que pasa
+ *  en vez de mostrar una cadena que parece una cita y no lo es. El texto es el
+ *  mismo para todos los motores, porque es una verdad sobre el elemento y no
+ *  sobre el hallazgo. */
+const avisoStyle: React.CSSProperties = {
+  fontSize: 'var(--text-xs)',
+  lineHeight: 1.5,
+  margin: 0,
+  padding: 'var(--space-2) 10px',
+  borderRadius: 'var(--radius-sm)',
+  fontStyle: 'italic',
+};
+
+/** Lo que se dice cuando el hallazgo apunta a un elemento sin texto. Una figura
+ *  o una tabla sin leyenda: no hay texto al que aplicar una corrección, y decirlo
+ *  es distinto de inventar un texto con forma de documento. */
+const AVISO_SIN_TEXTO: Record<'figura' | 'tabla', string> = {
+  figura:
+    'Esta figura todavía no tiene leyenda, así que no hay texto al que aplicar una corrección.',
+  tabla:
+    'Esta tabla todavía no tiene título, así que no hay texto al que aplicar una corrección.',
+};
+
 export function FindingDetail({
   item,
   action,
@@ -200,7 +223,13 @@ export function FindingDetail({
 
       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>{item.detail}</p>
 
-      <pre style={{ ...monoStyle, backgroundColor: 'var(--severity-critical-tint)' }}>{item.originalText}</pre>
+      {item.sinTexto ? (
+        <p style={{ ...avisoStyle, backgroundColor: 'var(--severity-critical-tint)' }}>
+          {AVISO_SIN_TEXTO[item.sinTexto.clase]}
+        </p>
+      ) : (
+        <pre style={{ ...monoStyle, backgroundColor: 'var(--severity-critical-tint)' }}>{item.originalText}</pre>
+      )}
 
       {conSugerencia && (
         <>
