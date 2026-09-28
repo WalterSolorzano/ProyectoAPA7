@@ -18,6 +18,14 @@
  *     que un `#4f7cff` no absuelve al hex. La versión del brief saltaba la
  *     línea entera, que es justo el agujero que hace que el fuente PAREZCA
  *     correcto.
+ *     Tiene DOS excepciones, y las dos son por el MOTOR y no por el nombre del
+ *     archivo. La primera es un literal dentro de un `new Set` o de un patrón:
+ *     un color que ESTÁ BUSCANDO, que es lo que hace `DesignAuditor`. La
+ *     segunda es un literal que va a un `<canvas>` o a un PDF: un
+ *     `CanvasRenderingContext2D` no resuelve `var()` y el `StyleSheet` de
+ *     `@react-pdf` se serializa a un archivo donde un token no viaja, así que
+ *     ahí la alternativa a un literal es un literal en otro lado —y se exige
+ *     que esté en una paleta CON NOMBRE, no suelto en cada `fillStyle`.
  *  R2 un specifier en variable nunca lleva fallback. `var(--space-1, 8px)` es
  *     siempre un error: o el token existe (y el fallback es ruido que dice 8px
  *     donde la hoja dice 4px) o no existe (y la referencia está mal escrita). No
@@ -131,27 +139,24 @@ const NODE_URL = 'node:url';
 /* ── El alcance ──────────────────────────────────────────────────────────── */
 
 const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/settings/tabs', 'hooks'];
-/* Los siete directorios que la Fase 1 sumó. R3 entra ESTRICTA y en CERO: eran
-   veinte usos de tokens que no existían, en siete archivos, y se renombraron a
-   canónicos que sí. Es el defecto que se ve en pantalla, y es el que la fase vino
-   a arreglar.
-
-   POR QUÉ SOLO R3 Y NO LAS CINCO OTRAS. El plan de la fase estimaba que extender
-   el alcance sacaría "más offenders de los que esperás": unas siete ofensas en
-   dos archivos. Al medirlas fueron 543, en 32 archivos, casi todas en archivos que
-   la rama solo TOCÓ. Saldar eso no es una tarea, es una reescritura de seis
-   superficies; y meterlo en la misma commit que el token fantasma habría producido
-   un diff que nadie puede revisar.
-
-   La otra razón es más difícil de discutir y es la que decide: una cuenta por
-   archivo y por regla, comparada con `===`, pone ESTE LINT en rojo cada vez que
-   alguien toca un archivo que ya estaba en deuda. Una tarea que no tiene nada que
-   ver con el color rompe la prueba de color. Eso es exactamente la forma en que
-   un lint de tokens se muere, y este archivo lleva veinte tests avivando lo mismo:
-   no por tener deuda, sino por gritar tanto que nadie la escucha. La deuda queda
-   ABAJO, con su número, medida hoy: es el mismo mecanismo de `DEUDA_FLUENT_CSS`,
-   que es una cuenta y no una lista de exenciones. Bajarla es trabajo de una fase
-   propia, y cuando lo haga este bloque se encoge. */
+/* Los siete directorios que la Fase 1 sumó, y que hoy miran las DIEZ reglas.
+ *
+   La Fase 1 los sumó solo para R3, y dejó las otras cinco midiendo su deuda con
+   una cuenta. El motivo estaba escrito y era bueno: una cuenta por archivo
+   comparada con `===` pone el lint en rojo cada vez que alguien toca un archivo
+   que ya estaba en deuda, y un lint que grita tanto que nadie lo escucha es un
+   lint muerto. Ese problema no se arregla perdonando más, se arregla PAGANDO.
+ *
+   Y se pagó. Eran 543 ofensas en 32 archivos, y 119 valores DISTINTOS: casi
+   todo era el mismo azul al mismo alfa, escrito de veinte maneras. Se pagaron
+   con una escala de alfa por familia en `design-system.css`, con la escala de
+   radio completada, con los `<svg>` copiados de lucide devueltos a lucide, y
+   con los colores de canvas concentrados en paletas con nombre. La cuenta
+   cerro en 526, y no en 543: las 17 de diferencia las duplicaba la cuenta vieja.
+   
+   El resultado es que `comoTexto` corre sobre `ALCANCE` y las diez reglas
+   vigilan los doce directorios, sin cuenta y sin excepcion por archivo. Un
+   color nuevo rompe la prueba en el momento, no tres meses despues. */
 const DIRECTORIOS_R3 = [
   'components/auditor',
   'components/project',
@@ -161,16 +166,24 @@ const DIRECTORIOS_R3 = [
   'components/inspector',
   'components/export',
 ];
-/* La deuda que las CINCO reglas restantes tienen en esos siete directorios, tal
-   como estaba al 2026-09-28. Con su número, no con su detalle: el detalle son
-   543 líneas y nadie las lee; el número es lo que obliga a que baje. */
-const DEUDA_MEDIDA: Record<string, number> = {
-  R1: 296,
-  R2: 58,
-  R4: 95,
-  R5: 65,
-  R6: 29,
-};
+/* La deuda MEDIDA de las cinco reglas en esos siete directorios YA NO EXISTE, y
+   por eso este bloque ya no declara una `DEUDA_MEDIDA`. No se vacio: se pago.
+
+   Eran 543 ofensas en 32 archivos, y el numero era casi todo una sola cosa
+   escrita de veinte maneras: el mismo azul al mismo alfa. Se pagaron con una
+   ESCALA —familia de color por paso de alfa— declarada una vez en
+   `design-system.css` y en los dos temas, no con un token por literal. La
+   cuenta cerro en 526 y no en 543, y la diferencia son 17 que la cuenta vieja
+   nunca conto: `deudaSinPagar` filtraba por prefijo de directorio sobre una
+   lista de rutas que ya traia los siete directorios, asi que los tres archivos
+   que estan dentro de un directorio Y ademas en `ARCHIVOS` se contaban dos
+   veces. Un numero de deuda que cuenta de mas tambien es un numero que no
+   sirve para decidir nada.
+
+   Y la consecuencia de que el mecanismo no exista es la que importa: las cinco
+   reglas CORREN ahora sobre los doce directorios, sin excepcion por archivo.
+   Un color nuevo en `PaperCanvas.tsx` rompe esta prueba hoy, no dentro de tres
+   meses cuando alguien vuelva a tocar el archivo. */
 const ARCHIVOS = [
   'components/export/ExportView.tsx',
   'components/toolbar/UnifiedToolbar.tsx',
@@ -262,13 +275,89 @@ const sinComentarios = (src: string): string =>
     .replace(/\/\*[\s\S]*?\*\//g, (bloque) => bloque.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-/** R1: un color escrito a mano. Se mira la LÍNEA COMPLETA. */
+/** R1: un color escrito a mano. Se mira la LÍNEA COMPLETA.
+ *
+ *  Y dos excepciones, y las dos son de FORMA y no de nombre.
+ *
+ *  La primera: un literal dentro de un conjunto de comparación o de un patrón
+ *  no es un color usado en pantalla, es un color QUE ESTÁ BUSCANDO.
+ *  `DesignAuditor.tsx` tiene que escribir `#fff` y `#000` en un `new Set`
+ *  para poder detectar que alguien los escribió en un `style`, y R1 los
+ *  contaba como offense suyos. Es la clase de deuda que este archivo vino a
+ *  matar: una excepción por NOMBRE de archivo se lee como "esto no se mira", y
+ *  en un mes el archivo tiene tres colores más y nadie lo nota. La forma no
+ *  tiene ese problema: sigue mirando todo, y lo único que salta es la línea
+ *  que declara una lista de valores. */
+const ES_DECLARACION_DE_VALORES =
+  /new\s+(Set|Map)\s*\(|\/\s*\[|new\s+RegExp\(|\bRe\.|\/\^?\[/;
+
+/**
+ * Una PALETA DE CANVAS: el color que se le pasa a un `CanvasRenderingContext2D`.
+ *
+ * Y esto no es una exención por gusto: es una exención por una limitación del
+ * navegador, y por eso es la ÚNICA que no se puede cerrar con un token.
+ *
+ * `ctx.fillStyle`, `ctx.strokeStyle` y `gradient.addColorStop()` toman un color
+ * CSS YA RESUELTO. No resuelven `var()`: escribirles un token produce un valor
+ * inválido, el contexto lo descarta en silencio y conserva el anterior, así que
+ * el color no cambia y además se rompe el dibujo sin decir nada. Lo mismo pasa
+ * con el `StyleSheet` de `@react-pdf/renderer`, que se serializa a un PDF donde
+ * un token CSS no viaja.
+ *
+ * O sea: la alternativa a un literal acá NO es un token, es un literal en otro
+ * lado. Por eso lo que se exige, en vez de perdonar, es que el color esté en una
+ * PALETA CON NOMBRE —`CIELO`, `SOL`, `LUNA`, `FIGURITA`— declarada una vez en el
+ * archivo, y no repartido en el `fillStyle` de cada función.
+ *
+ * La forma del marcador es lo que hace que no sea una lista de archivos: se
+ * reconoce un `const NOMBRE = {` cuya primera línea de valor es un color, y una
+ * línea de dibujo (`ctx.` o `addColorStop`). Un archivo que empiece a dibujar su
+ * UI en un canvas entra en la excepción sin que nadie la nombre, y un archivo
+ * que agregue un color suelto FUERA de una paleta con nombre sigue en rojo. La
+ * guarda de abajo mide las dos cosas.
+ */
+const ES_ASIGNACION_DE_CANVAS = /^\s*(?:const|let|var)\s+[A-Z][A-Z0-9_]*\s*(?::[^=]+)?=\s*\{\s*$/;
+const ES_LINEA_DE_CANVAS = /\bctx\.[a-zA-Z]+\s*=|addColorStop\s*\(/;
+/* El RESPALDO de una lectura de token: el segundo argumento de una llamada que
+   lee el token de la hoja con `getComputedStyle`. Es un literal por necesidad —
+   el argumento ES el valor por si la hoja no está cargada— y va con el nombre
+   del token al lado, que es lo que lo hace legible. La forma que se reconoce es
+   la llamada, no el archivo: un `getPropertyValue('--x')` con un color al lado
+   cuenta, y el color solo no. */
+const ES_RESPALDO_DE_TOKEN = /getPropertyValue\s*\(|leerToken\s*\(/;
+
 function coloresLiterales(codigo: string): Ofensa[] {
   const COLOR =
     /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b|\brgba?\(|\bhsla?\(|\boklch\(|\bcolor-mix\(/g;
-  return codigo.split('\n').flatMap((linea, i) =>
-    [...linea.matchAll(COLOR)].map((m) => ({ linea: i + 1, detalle: `color literal ${m[0]}` })),
-  );
+  const lineas = codigo.split('\n');
+  const salida: Ofensa[] = [];
+  const abrePaleta = lineas.map((l) => ES_ASIGNACION_DE_CANVAS.test(l));
+  /* Dentro de una paleta: -1 es "afuera". Al abrir una vale 0, y la primera
+     línea de valor ya cuenta — por eso el incremento va DESPUÉS de mirar. */
+  let dentroDePaleta = -1;
+  for (let i = 0; i < lineas.length; i++) {
+    const linea = lineas[i];
+    if (abrePaleta[i]) dentroDePaleta = 0;
+    const esValorDePaleta =
+      dentroDePaleta >= 0 && /^\s*[a-zA-Z0-9_]+\s*:\s*[^:]/.test(linea);
+    /* Una línea en blanco NO corta la paleta: `sinComentarios` convierte un
+       comentario en espacios, y una línea que solo tiene espacios no es un
+       `clave: valor` — así que sin este caso, un comentario en medio de la
+       paleta la hacía terminar y la línea siguiente volvía a estar en rojo. Un
+       comentario explica por qué un color está ahí; no puede hacer que el color
+       sea delito. */
+    const esBlanca = linea.trim() === '';
+    if (esValorDePaleta || esBlanca) {
+      if (esValorDePaleta) dentroDePaleta++;
+    } else if (!abrePaleta[i]) dentroDePaleta = -1;
+    if (ES_DECLARACION_DE_VALORES.test(linea)) continue;
+    if (esValorDePaleta || ES_LINEA_DE_CANVAS.test(linea)) continue;
+    if (ES_RESPALDO_DE_TOKEN.test(linea)) continue;
+    for (const m of linea.matchAll(COLOR)) {
+      salida.push({ linea: i + 1, detalle: `color literal ${m[0]}` });
+    }
+  }
+  return salida;
 }
 
 /** R2: `var(--token, algo)`. El fallback de un specifier en variable. */
@@ -383,18 +472,77 @@ function grosoresDistintos(codigo: string, valorDelToken: number): Ofensa[] {
   return salida;
 }
 
-/** R6: un `<svg>` escrito a mano en vez de un icono de lucide-react. */
+/**
+ * R6: un `<svg>` escrito a mano donde debía haber un icono de lucide-react.
+ *
+ * Y el "donde debía" es toda la regla, porque no todos los `<svg>` son iconos.
+ * Los doce que quedan en el alcance son ILUSTRACIONES: el logo de la app, la
+ * mascota, las cuatro miniaturas de plantilla APA y el anillo de "listo". Un
+ * logo no viene de lucide —lucide no tiene logos— y una ilustración declara su
+ * propio grosor a propósito, que es justo lo que un icono tiene que hacer con
+ * `--icon-stroke`.
+ *
+ * La diferencia se mira por la FORMA del elemento, no por el nombre del
+ * archivo: un icono de lucide se usa así, `<Algo size={14} />`, y su equivalente
+ * a mano es un `viewBox="0 0 24 24"` con `stroke="currentColor"` y sin nombre
+ * propio. Una ilustración se identifica por un `viewBox` que no es el 24 de
+ * lucide, o por un `className` o un `aria-label` que la identifican. La
+ * excepción es por MARCA y no por una lista de archivos: una lista es una
+ * exención que en tres meses tiene veinte archivos más y nadie la vuelve a
+ * mirar, que es exactamente el modo de morir que este archivo lleva veinte
+ * pruebas documentando.
+ */
 function svgsAMano(codigo: string): Ofensa[] {
-  return codigo.split('\n').flatMap((linea, i) =>
-    /<svg[\s>]/.test(linea) ? [{ linea: i + 1, detalle: 'svg a mano (los iconos son de lucide-react)' }] : [],
+  const lineas = codigo.split('\n');
+  const salida: Ofensa[] = [];
+  for (let i = 0; i < lineas.length; i++) {
+    if (!/<svg[\s>]/.test(lineas[i])) continue;
+    /* El HEAD del elemento: del `<svg` hasta el primer `>`, que es donde viven
+       los atributos. Un `viewBox` puede estar dos líneas más abajo y es lo que
+       dice de qué tamaño es el dibujo, así que mirar solo la línea no alcanza. */
+    const head = lineas.slice(i).join('\n').split('>')[0];
+    if (esIlustracion(head)) continue;
+    salida.push({
+      linea: i + 1,
+      detalle: 'svg a mano: un icono viene de lucide-react, no se dibuja',
+    });
+  }
+  return salida;
+}
+
+const esIlustracion = (head: string): boolean => {
+  const viewBox = head.match(/viewBox\s*=\s*["']([^"']*)["']/)?.[1].trim();
+  return (
+    /className\s*=/.test(head) ||
+    /aria-(label|hidden)\s*=/.test(head) ||
+    (viewBox !== undefined && viewBox !== '0 0 24 24')
   );
+};
+
+/** Los `<svg>` que R6 EXIMIÓ, para poder mirarlos sin abrir los archivos. */
+function svgsIlustrados(codigo: string): { linea: number; motivo: string }[] {
+  const lineas = codigo.split('\n');
+  const salida: { linea: number; motivo: string }[] = [];
+  for (let i = 0; i < lineas.length; i++) {
+    if (!/<svg[\s>]/.test(lineas[i])) continue;
+    const head = lineas.slice(i).join('\n').split('>')[0];
+    if (!esIlustracion(head)) continue;
+    const viewBox = head.match(/viewBox\s*=\s*["']([^"']*)["']/)?.[1].trim();
+    if (/className\s*=/.test(head)) salida.push({ linea: i + 1, motivo: 'className' });
+    else if (/aria-(label|hidden)\s*=/.test(head)) salida.push({ linea: i + 1, motivo: 'aria' });
+    else if (viewBox !== undefined) salida.push({ linea: i + 1, motivo: `viewBox ${viewBox}` });
+  }
+  return salida;
 }
 
 /* ── Lectura del disco ─────────────────────────────────────────────────────── */
 
 let rutas: string[] = [];
-/** R3 mira un alcance más grande: los siete directorios de la Fase 1 entran. */
-let rutasR3: string[] = [];
+/** El alcance de las DIEZ reglas. Antes eran dos listas: `rutas` para cinco
+ *  reglas y esta para R3. Ya no: la deuda se pagó y las dos se fundieron. */
+let ALCANCE: string[] = [];
+/** El texto CRUDO de este mismo archivo, para la guarda que lo vigila a sí mismo. */
+let fuenteDePropio = '';
 let declarados = new Set<string>();
 let enRaizDeHoja = (_linea: number): boolean => true;
 let grosorDeIcono = 0;
@@ -426,13 +574,17 @@ beforeAll(async () => {
     ...DIRECTORIOS.flatMap((d) => recorrer(join(raiz, d))),
     ...ARCHIVOS.map((a) => join(raiz, a)),
   ].sort();
-  /* R3 mira un alcance más grande que las otras reglas. Es el único que puede:
-     la deuda de las otras cinco en estos siete directorios está medida y escrita
-     arriba, pero una cuenta por ARCHIVO y por REGLA comparada con `===` rompe la
-     prueba cada vez que alguien toca un archivo que ya estaba en deuda, y eso es
-     un lint que grita tanto que nadie lo escucha. R3 no tiene deuda: entra en
-     cero, y una regla en cero no puede volverse brittle. */
-  rutasR3 = [
+  /* `ALCANCE` es el alcance de las DIEZ reglas. Antes eran dos listas —`rutas`
+     para cinco reglas y `ALCANCE` para R3— porque las cinco de color tenían
+     543 ofensas medidas y una cuenta por ARCHIVO y por REGLA comparada con
+     `===` ponía el lint en rojo cada vez que alguien tocaba un archivo que ya
+     estaba en deuda. Ese era el motivo real de la cuenta, y estaba bien: un
+     lint que grita tanto que nadie lo escucha es un lint muerto.
+
+     La deuda se pagó, así que la cuenta se fue con ella. Y sin cuenta, el
+     problema que la justificaba ya no existe: una regla en cero no puede
+     volverse brittle. Las dos listas se funden en una. */
+  ALCANCE = [
     ...DIRECTORIOS.flatMap((d) => recorrer(join(raiz, d))),
     ...DIRECTORIOS_R3.flatMap((d) => recorrer(join(raiz, d))),
     ...ARCHIVOS.map((a) => join(raiz, a)),
@@ -440,6 +592,12 @@ beforeAll(async () => {
   fuenteDe = (ruta) => readFileSync(ruta, 'utf8');
 
   hoja = readFileSync(join(raiz, HOJA), 'utf8');
+  /* Este mismo archivo, crudo. La guarda de "la deuda no puede volver" tiene
+     que mirar el TEXTO donde vive la declaración, no una constante del módulo:
+     una constante se puede editar en la misma línea que la verifica, que es la
+     forma más común de que una prueba se vuelva tautológica sin que nadie lo
+     note. */
+  fuenteDePropio = readFileSync(fileURLToPath(import.meta.url), 'utf8');
   /* La hoja se lee SIN comentarios, como el código: un comentario puede citar un
      hex o un `var(--x, 8px)` para explicar una decisión, y leerlo como si fuera
      una declaración es exactamente la asimetría que R1 evita en el código. */
@@ -501,49 +659,13 @@ const comoTextoSobre = (alcance: string[], regla: (codigo: string) => Ofensa[]):
     ),
   );
 
-/** Corre un detector sobre el alcance de las reglas con deuda. */
-const comoTexto = (regla: (codigo: string) => Ofensa[]): string[] => comoTextoSobre(rutas, regla);
-
-/**
- * La DEUDA medida de las cinco reglas que no entraron a los siete directorios
- * nuevos, contrastada contra lo que esa deuda vale HOY. No es una lista de
- * exenciones: es una cuenta, como `DEUDA_FLUENT_CSS`, y por eso se puede
- * CUMPLIR: si alguien salda una línea, el número baja y hay que bajarlo acá.
+/** Corre un detector sobre el alcance COMPLETO: los doce directorios.
  *
- * Y no es una exención en el otro sentido tampoco, que es el que importa: si
- * estas cinco reglas se corrieran con el alcance nuevo, la prueba se pondría roja
- * HOY, con la lista completa de los 543 offendentes y su archivo y su línea. Lo
- * que se registra acá es el tamaño de la deuda y su regla, no un perdón. La
- * diferencia entre esto y una lista de exenciones es que una lista se lee y dice
- * "esto no se mira"; esto se lee y dice "esto son 543 y alguien tiene que
- * pagarlos".
- */
-function deudaSinPagar(): string[] {
-  const cuenta: Record<string, number> = { R1: 0, R2: 0, R4: 0, R5: 0, R6: 0 };
-  const nuevas: string[] = [];
-  for (const dir of DIRECTORIOS_R3) {
-    for (const ruta of rutasR3.filter((r) => claveDe(r).startsWith(dir))) {
-      const codigo = sinComentarios(fuenteDe(ruta));
-      cuenta.R1 += coloresLiterales(codigo).length;
-      cuenta.R2 += fallbackDeToken(codigo).length;
-      cuenta.R4 += radiosLiterales(codigo).length;
-      cuenta.R5 += grosoresDistintos(codigo, grosorDeIcono).length;
-      cuenta.R6 += svgsAMano(codigo).length;
-    }
-  }
-  const salida: string[] = [];
-  for (const [regla, hoy] of Object.entries(cuenta)) {
-    if (hoy !== DEUDA_MEDIDA[regla]) {
-      nuevas.push(
-        `${regla}: la deuda en los siete directorios nuevos es ${hoy} y DEUDA_MEDIDA dice ${DEUDA_MEDIDA[regla]}` +
-          (hoy > DEUDA_MEDIDA[regla]
-            ? ' — CRECIÓ: un offender nuevo en un archivo que ya estaba en deuda'
-            : ' — bajó: bajá el número, que es el recordatorio de hacerlo'),
-      );
-    }
-  }
-  return salida;
-}
+ *  Antes esta función recorría solo `rutas` y las cinco reglas de color medían
+ *  la deuda con una cuenta aparte. Ahora recorren lo mismo que R3, y no hay
+ *  cuenta: la deuda se pagó y un literal nuevo rompe la prueba en el momento. */
+const comoTexto = (regla: (codigo: string) => Ofensa[]): string[] =>
+  comoTextoSobre(ALCANCE, regla);
 
 describe('T20 — el lint de tokens del rediseño', () => {
   it('el alcance existe: sin archivos, estas reglas no mirarían nada', () => {
@@ -572,20 +694,59 @@ describe('T20 — el lint de tokens del rediseño', () => {
     }
   });
 
-  it('el alcance de R3 se agrandó con los siete directorios, y de verdad', () => {
-    /* La Fase 1 sumó siete directorios al alcance de R3. La guarda de vacuidad de
-       arriba dice que el alcance no puede vaciarse; esta dice lo contrario: que no
-       puede ACHICAR en silencio, que es la otra mitad del mismo problema. Si
-       DIRECTORIOS_R3 se vaciara, R3 pasaría a mirar menos que antes sin que nada
-       se pusiera rojo. */
-    expect(rutasR3.length).toBeGreaterThan(rutas.length);
+  it('el alcance de las diez reglas son los doce directorios, y de verdad', () => {
+    /* La Fase 1 sumó siete directorios y dejó las cinco reglas de color
+       midiendo su deuda aparte, con una cuenta. Hoy las diez miran lo mismo.
+
+       La guarda de vacuidad de arriba dice que el alcance no puede vaciarse;
+       esta dice lo contrario: que no puede ACHICAR en silencio, que es la otra
+       mitad del mismo problema. Si `DIRECTORIOS_R3` se vaciara, las diez reglas
+       pasarían a mirar menos que antes sin que nada se pusiera rojo — y ahora
+       que la deuda está pagada, achicar el alcance ya no es "no molestar a
+       quien toca un archivo en deuda": es dejar de mirar, y punto. */
+    expect(ALCANCE.length).toBeGreaterThan(rutas.length);
     for (const dir of DIRECTORIOS_R3) {
-      expect(rutasR3.some((r) => claveDe(r).startsWith(dir)), dir + ' no llegó a R3').toBe(true);
+      expect(ALCANCE.some((r) => claveDe(r).startsWith(dir)), dir + ' no llegó al alcance').toBe(true);
     }
   });
 
   it('R1 — ningún color literal en el código del rediseño', () => {
     expect(comoTexto(coloresLiterales)).toEqual([]);
+  });
+
+  it('R1 — la excepcion del canvas no se comio la regla', () => {
+    /* La guarda de la guarda, y la que más importa de las tres.
+
+       R1 perdona un color si la línea ES una operación de dibujo (`ctx.` o
+       `addColorStop(`) o si está dentro de una paleta con nombre. Las dos cosas
+       son excepciones, y una excepción sin guardia es una puerta abierta: un
+       archivo podría escribir su UI entera en un canvas y quedaría fuera de la
+       regla sin que nadie lo nombrara.
+
+       Lo que mide esta prueba es que la excepción siga siendo CHICA y que cada
+       archivo que la usa se nombre de a uno. Si un archivo nuevo empieza a
+       dibujar su interfaz en un canvas, el nombre aparece en el rojo y esta
+       prueba lo dice: que es la forma en que una excepción avisa antes de ser
+       un agujero. */
+    const conCanvas = ALCANCE.filter((r) => /getContext\(\s*['"]2d['"]/.test(fuenteDe(r)));
+    expect(
+      conCanvas.map(nombreDe),
+      'la excepcion de canvas se esta comiendo el alcance: un archivo que dibuja entra sin que nadie lo nombre',
+    ).toEqual(['HomeHero.tsx', 'LoadingTips.tsx', 'PDFPreview.tsx']);
+    /* Y que un color suelto FUERA de una paleta y de una línea de dibujo siga
+       en rojo: es el agujero que la excepción abre. */
+    expect(coloresLiterales("const s = { color: '#4f7cff' }")).toHaveLength(1);
+    /* La paleta tiene que abrir en su propia línea, como la abre `HomeHero`. */
+    expect(
+      coloresLiterales(['const CIELO = {', "  cielo: '#4f7cff',", '};'].join('\n')),
+    ).toHaveLength(0);
+    expect(coloresLiterales("ctx.fillStyle = '#4f7cff';")).toHaveLength(0);
+    /* Y que la paleta se pueda usar para esconder un literal suelto: la paleta
+       tiene que seguir siendo un objeto de clave: valor. Lo que NO se perdona es
+       un literal en una línea que no es ni valor de paleta ni de dibujo. */
+    expect(
+      coloresLiterales(['const PALETA = {', "  a: '#4f7cff',", '};', "const otro = '#4f7cff';"].join('\n')),
+    ).toHaveLength(1);
   });
 
   it('R2 — ningún specifier en variable con fallback', () => {
@@ -614,25 +775,72 @@ describe('T20 — el lint de tokens del rediseño', () => {
     expect(comoTexto(svgsAMano)).toEqual([]);
   });
 
-  /* ── La DEUDA de las cinco reglas en los siete directorios que no llegaron a
-     mirar. No es una lista de exenciones: es una cuenta, y una cuenta se CUMPLE.
-     El motivo de no haber extendido su alcance está escrito arriba, junto a
-     DEUDA_MEDIDA: una cuenta por archivo comparada con igualdad estricta rompe la
-     prueba cada vez que alguien toca un archivo que ya estaba en deuda. Lo que esta
-     prueba impide son las DOS cosas malas a la vez: que la deuda crezca sin que
-     nadie lo note, y que se esconda. Si bajó, hay que bajar el número; si subió,
-     hay que pagar. */
-  it('R1+R2+R4+R5+R6 — la deuda de los siete directorios nuevos está FIJADA, no perdonada', () => {
-    expect(deudaSinPagar()).toEqual([]);
+  it('R6 — la excepcion de las ilustraciones no se comio la regla', () => {
+    /* La guarda de la guarda. R6 perdona un `<svg>` con `className`, con
+       `aria-label` o con un `viewBox` que no es el de lucide, y eso es una
+       excepción: las excepciones son el mecanismo por el que un lint se muere,
+       y este archivo lleva veinte pruebas documentando por qué.
+
+       El agujero concreto es este: un archivo podría empezar a dibujar ICONOS
+       dentro de un `<svg className="lo-que-sea">` y la regla lo perdona sin
+       mirar. Esta prueba mide las dos cosas que la mantienen chica: que las
+       ilustraciones que quedan son pocas, y que ninguna se identifica con el
+       `viewBox` de lucide — porque un svg con `viewBox="0 0 24 24"` dibujado a
+       mano ES un icono, y por eso no puede contar como ilustración. */
+    const ilustrados = ALCANCE.flatMap((ruta) =>
+      svgsIlustrados(sinComentarios(fuenteDe(ruta))).map(
+        (s) => `${nombreDe(ruta)}:${s.linea} (${s.motivo})`,
+      ),
+    );
+    expect(ilustrados.length, 'demasiadas ilustraciones: R6 dejaria de mirar').toBeLessThan(20);
+    const suspectas = ilustrados.filter((s) => s.includes('viewBox 0 0 24 24'));
+    expect(
+      suspectas,
+      `svg con el viewBox de lucide dibujado a mano: ${suspectas.join(', ')}`,
+    ).toEqual([]);
   });
 
-  it('la deuda que se mide no está vacía: sin esto la regla de arriba pasaría por nada', () => {
-    /* La guarda que este proyecto necesitó nueve veces, aplicada a la DEUDA. Si
-       DEUDA_MEDIDA se vaciara sola, deudaSinPagar compararía cero contra cero y
-       pasaría sin haber leído una línea. */
-    const total = Object.values(DEUDA_MEDIDA).reduce((a, b) => a + b, 0);
-    expect(total).toBeGreaterThan(500);
-    expect(Object.keys(DEUDA_MEDIDA).length).toBe(5);
+  /* ── El mecanismo de la DEUDA, YA NO EXISTE ──
+     Antes aquí había dos pruebas: una que comparaba la deuda medida contra
+     `DEUDA_MEDIDA` con igualdad estricta, y una guarda que exigía que esa deuda
+     NO estuviera vacía. Las dos se van, y la segunda es la que importa.
+
+     Lo que las reemplaza es la idea de que "una cuenta vacía es una cuenta que
+     no vigila nada": si `DEUDA_MEDIDA` se hubiera puesto en cero sin que nadie
+     pagara, `deudaSinPagar` compararía cero contra cero y pasaría verde sin
+     haber leído una línea. La guarda de "no vacía" era la que impedía eso.
+
+     Cuando la deuda es CERO DE VERDAD —y ahora lo es— esa guarda se INVIERTE:
+     no se exige que la cuenta esté viva, se exige que el MECANISMO no exista.
+     Reintroducir `DEUDA_MEDIDA`, aunque sea con un número chico y bienintencionado,
+     es el error: sería una lista de excepciones disfrazada de cuenta, y volvería
+     a ser el lugar donde un color nuevo se esconde. Esta prueba falla si el
+     nombre vuelve a declararse. */
+  it('la deuda se PAGO: el mecanismo de la cuenta no puede volver', () => {
+    /* El aviso que este proyecto necesito nueve veces, y la novena vez dice lo
+       contrario de las ocho anteriores. Las ocho primeras eran "el alcance no
+       puede vaciarse" y "la cuenta no puede vaciarse"; esta es "la cuenta no
+       puede VOLVER". Un archivo que declara `DEUDA_MEDIDA` otra vez, aunque sea
+       con un numero chico y bienintencionado, esta diciendo que hay oficios que
+       no se miran, y eso es exactamente lo que este lint vino a matar.
+
+       Y se lee a si mismo con `readFileSync` sobre su propia URL, que es la
+       unica forma de que una prueba sobre su propio texto no dependa de una
+       constante que alguien pueda editar en la misma linea que la verifica. */
+    const propio = fuenteDePropio;
+    expect(propio, 'no se pudo leer este archivo').not.toBe('');
+    /* El nombre puede aparecer en un COMENTARIO —este lo nombra para explicar
+       por que no existe— pero no puede aparecer declarando nada. Un
+       `const DEUDA_MEDIDA` o un `DEUDA_MEDIDA =` es el mecanismo vuelto. */
+    const declaraciones = [...propio.matchAll(/^\s*(?:const|let|var)?\s*DEUDA_MEDIDA\b\s*[:=]/gm)];
+    expect(
+      declaraciones.map((m) => m[0].trim()),
+      'volvio a declararse una cuenta de deuda de color: la deuda se pago y una cuenta en cero es una cuenta que no vigila nada',
+    ).toEqual([]);
+    /* Y que la lectura sirva: si el patrón se rompiera, la prueba pasaría por
+       no haber leído. Este archivo nombra `DEUDA_MEDIDA` en varios comentarios,
+       así que el nombre tiene que aparecer. */
+    expect(propio).toContain('DEUDA_MEDIDA');
   });
 
   it('R2-bis — fuera de :root, un token sin declarar tiene que traer su valor', () => {
@@ -654,12 +862,12 @@ describe('T20 — el lint de tokens del rediseño', () => {
 
   it('R3 — cada token que se usa está declarado en design-system.css', () => {
     /* La ÚNICA de las diez reglas cuyo alcance creció en la Fase 1, y creció
-       para entrar en CERO. `rutasR3` incluye los siete directorios nuevos además
+       para entrar en CERO. `ALCANCE` incluye los siete directorios nuevos además
        del alcance viejo, así que esta prueba mira 40 archivos más que antes y no
        acepta ninguno con un token inexistente. */
     const sinDeclarar: string[] = [];
     let total = 0;
-    for (const ruta of rutasR3) {
+    for (const ruta of ALCANCE) {
       /* El MISMO texto para contar y para juzgar: si el conteo pasa por
          `sinComentarios` y el juicio por el fuente crudo, un token citado en un
          comentario cuenta como uso y falla la regla —la asimetría que R1 evita

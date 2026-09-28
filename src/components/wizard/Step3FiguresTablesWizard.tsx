@@ -166,7 +166,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             onClick={() => setListCollapsed(false)}
             title="Mostrar lista de figuras y tablas"
             aria-label="Mostrar lista de figuras y tablas"
-            style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Image size={16} />
           </button>
@@ -269,8 +269,8 @@ export const Step3FiguresTablesWizard: React.FC = () => {
               style={{
                 display: 'flex', alignItems: 'center', gap: 4, padding: '4px 7px', fontSize: '10px', fontWeight: 600,
                 cursor: 'pointer', borderRadius: 'var(--radius-sm)', fontFamily: 'inherit',
-                backgroundColor: onlyReview ? 'rgba(250,173,20,0.14)' : 'transparent',
-                border: `1px solid ${onlyReview ? 'rgba(250,173,20,0.4)' : 'var(--border-subtle)'}`,
+                backgroundColor: onlyReview ? 'var(--color-warning-a12)' : 'transparent',
+                border: `1px solid ${onlyReview ? 'var(--color-warning-a40)' : 'var(--border-subtle)'}`,
                 color: onlyReview ? 'var(--color-warning)' : 'var(--text-secondary)',
               }}
             >
@@ -386,7 +386,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 8px', marginBottom: 3, cursor: 'pointer', borderRadius: 'var(--radius-sm)',
                       borderLeft: needsAttn ? '3px solid var(--color-warning)' : '3px solid transparent',
-                      backgroundColor: selectedElementId === item.id ? 'var(--color-accent-soft)' : needsAttn ? 'rgba(250,173,20,0.06)' : 'transparent',
+                      backgroundColor: selectedElementId === item.id ? 'var(--color-accent-soft)' : needsAttn ? 'var(--color-warning-a05)' : 'transparent',
                       fontSize: '12px', color: 'var(--color-text-primary)',
                     }}
                   >
@@ -395,12 +395,12 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                         <img
                           src={thumbUrl}
                           alt={label}
-                          style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
+                          style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-xs)', objectFit: 'contain', flexShrink: 0, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)' }}
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
                         />
                       ) : (
                         <div style={{
-                          width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
+                          width: '48px', height: '48px', borderRadius: 'var(--radius-xs)', flexShrink: 0,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
                           color: 'var(--text-muted)',
@@ -410,7 +410,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
                       )
                     ) : (
                       <div style={{
-                        width: '48px', height: '48px', borderRadius: '6px', flexShrink: 0,
+                        width: '48px', height: '48px', borderRadius: 'var(--radius-xs)', flexShrink: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
                         color: 'var(--text-muted)',
@@ -456,13 +456,13 @@ export const Step3FiguresTablesWizard: React.FC = () => {
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '10px 18px',
               backgroundColor: 'var(--accent-primary)',
-              color: '#ffffff',
-              borderRadius: '999px',
+              color: 'var(--color-text-on-accent)',
+              borderRadius: 'var(--radius-full)',
               border: 'none',
               fontSize: '13px',
               fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(79, 124, 255, 0.35)',
+              boxShadow: '0 4px 14px var(--color-accent-a40)',
               fontFamily: 'inherit',
               transition: 'transform 0.15s ease, box-shadow 0.15s ease',
             }}
@@ -470,7 +470,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
             <span>Siguiente: Referencias</span>
-            <ChevronRight size={16} strokeWidth={2.5} />
+            <ChevronRight size={16} strokeWidth="var(--icon-stroke)" />
           </button>
         </div>
       </div>

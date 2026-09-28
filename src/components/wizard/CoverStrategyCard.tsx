@@ -13,8 +13,8 @@ import { Badge } from '../ui/wordapa7';
 
 const thumbStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left',
-  padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit',
-  background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)',
+  padding: '8px 10px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit',
+  background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
   color: 'var(--text-main)', fontSize: '12px', transition: 'border-color 0.15s ease',
 };
 
@@ -87,8 +87,8 @@ export const CoverStrategyCard: React.FC = () => {
   };
 
   const strategy = (label: string, hint: string, icon: React.ReactNode, onClick: () => void, badge?: string) => (
-    <button type="button" onClick={onClick} style={thumbStyle} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(79,124,255,0.45)'; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; }}>
-      <span style={{ width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(79,124,255,0.14)', color: 'var(--accent-primary)' }}>
+    <button type="button" onClick={onClick} style={thumbStyle} onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent-a65)'; }} onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; }}>
+      <span style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-md)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-accent-a20)', color: 'var(--accent-primary)' }}>
         {icon}
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
@@ -101,8 +101,8 @@ export const CoverStrategyCard: React.FC = () => {
 
   return (
     <div style={{
-      border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-lg)',
-      backgroundColor: 'rgba(79,124,255,0.06)', padding: '14px',
+      border: '1px solid var(--color-accent-a40)', borderRadius: 'var(--radius-lg)',
+      backgroundColor: 'var(--color-accent-a05)', padding: '14px',
       display: 'flex', flexDirection: 'column', gap: '10px',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
@@ -136,7 +136,7 @@ export const CoverStrategyCard: React.FC = () => {
           onClick={() => setShowTemplates((s) => !s)}
           style={{ ...thumbStyle, borderColor: 'var(--border-subtle)' }}
         >
-          <span style={{ width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+          <span style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-md)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-on-media-a05)', color: 'var(--text-secondary)' }}>
             {showTemplates ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: '12px' }}>Usar una plantilla</span>
@@ -164,11 +164,11 @@ export const CoverStrategyCard: React.FC = () => {
                 disabled={applying !== null}
                 style={{ ...thumbStyle, opacity: applying !== null && applying !== t.name ? 0.5 : 1, cursor: applying !== null ? 'default' : 'pointer' }}
               >
-                <span style={{ width: '36px', height: '36px', borderRadius: '7px', flexShrink: 0, overflow: 'hidden', border: '1px solid var(--border-subtle)', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-xs)', flexShrink: 0, overflow: 'hidden', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--color-text-on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {t.preview_path ? (
                     <img src={api.getCoverPreviewUrl(t.name) + '?t=' + Date.now()} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
-                    <span style={{ fontSize: '8px', color: '#a1a1aa', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: '8px', color: 'var(--color-ink-soft)', textTransform: 'uppercase' }}>
                       {t.source_type === 'image' ? 'IMG' : t.source_type === 'docx' ? 'DOC' : 'APA'}
                     </span>
                   )}

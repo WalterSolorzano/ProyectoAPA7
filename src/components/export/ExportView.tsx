@@ -515,7 +515,7 @@ export const ExportView: React.FC = () => {
                 }}
                 title="Copiar archivo PDF al portapapeles de Windows para pegar con Ctrl+V en WhatsApp"
               >
-                {/* T20: era un <svg> a mano con `strokeWidth="2"`. Los iconos
+                {/* T20: era un <svg> a mano con `strokeWidth="var(--icon-stroke)"`. Los iconos
                     vienen de lucide-react y su grosor es `--icon-stroke`. */}
                 <Copy size={14} strokeWidth={1.75} aria-hidden />
                 <span>Copiar PDF para WhatsApp (Ctrl+V)</span>

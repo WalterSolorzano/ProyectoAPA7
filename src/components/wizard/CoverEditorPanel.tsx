@@ -160,7 +160,7 @@ const sectionHeader: React.CSSProperties = {
 const baseInput: React.CSSProperties = {
   width: '100%', fontFamily: 'inherit', fontSize: '13px', color: 'var(--text-main)',
   background: 'var(--color-bg-surface-alt)', border: '1px solid var(--border-subtle)',
-  borderRadius: '10px', padding: '9px 12px', outline: 'none', boxSizing: 'border-box',
+  borderRadius: 'var(--radius-md)', padding: '9px 12px', outline: 'none', boxSizing: 'border-box',
   transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
 };
 
@@ -180,7 +180,7 @@ const chipBase: React.CSSProperties = {
   fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
   background: 'var(--surface-subtle)',
   border: '1px solid var(--border-subtle)',
-  borderRadius: '999px', padding: '5px 10px',
+  borderRadius: 'var(--radius-full)', padding: '5px 10px',
   cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
   transition: 'border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.1s ease',
   userSelect: 'none',
@@ -199,15 +199,15 @@ const removableTag: React.CSSProperties = {
   fontSize: '11px', fontWeight: 600, color: 'var(--text-main)',
   background: 'var(--color-accent-soft)',
   border: '1px solid var(--accent-primary)',
-  borderRadius: '999px', padding: '5px 4px 5px 10px',
+  borderRadius: 'var(--radius-full)', padding: '5px 4px 5px 10px',
   fontFamily: 'inherit', lineHeight: 1, maxWidth: '100%',
 };
 
 /* Botón X dentro de un tag removible. */
 const removeBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: '16px', height: '16px', borderRadius: '50%',
-  border: 'none', background: 'rgba(0,0,0,0.08)', cursor: 'pointer',
+  width: '16px', height: '16px', borderRadius: 'var(--radius-full)',
+  border: 'none', background: 'var(--color-ink-a08)', cursor: 'pointer',
   color: 'var(--text-secondary)', padding: 0, flexShrink: 0,
 };
 
@@ -245,7 +245,7 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
       }
     }}
   >
-    {selected && <Check size={11} strokeWidth={3} />}
+    {selected && <Check size={11} strokeWidth="var(--icon-stroke)" />}
     {!selected && icon}
     <span>{label}</span>
   </button>
@@ -423,12 +423,12 @@ export const CoverEditorPanel: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
-                padding: '3px 8px', borderRadius: '999px',
-                backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)',
+                padding: '3px 8px', borderRadius: 'var(--radius-full)',
+                backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-warning-a12)' : 'var(--color-success-a12)',
                 color: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-warning)' : 'var(--color-success)',
                 fontSize: '10.5px', fontWeight: 700,
               }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor' }} />
+                <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', backgroundColor: 'currentColor' }} />
                 <span>
                   {(portada.title || '').length} caracteres · {(portada.title || '').trim().split(/\s+/).filter(Boolean).length} palabras (APA recomienda máx 12)
                 </span>
@@ -471,7 +471,7 @@ export const CoverEditorPanel: React.FC = () => {
                   padding: '8px',
                   backgroundColor: 'var(--surface-subtle)',
                   border: '1px solid var(--border-subtle)',
-                  borderRadius: '8px',
+                  borderRadius: 'var(--radius-md)',
                 }}
               >
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -499,9 +499,9 @@ export const CoverEditorPanel: React.FC = () => {
                   style={{
                     width: '24px',
                     height: '24px',
-                    borderRadius: '50%',
+                    borderRadius: 'var(--radius-full)',
                     border: 'none',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    backgroundColor: 'var(--color-danger-a12)',
                     color: 'var(--color-danger)',
                     cursor: 'pointer',
                     display: 'flex',
@@ -510,7 +510,7 @@ export const CoverEditorPanel: React.FC = () => {
                     flexShrink: 0,
                   }}
                 >
-                  <X size={12} strokeWidth={2.5} />
+                  <X size={12} strokeWidth="var(--icon-stroke)" />
                 </button>
               </div>
             ))}
@@ -535,7 +535,7 @@ export const CoverEditorPanel: React.FC = () => {
                         key={intg.id}
                         icon={
                           <span style={{
-                            width: '18px', height: '18px', borderRadius: '50%',
+                            width: '18px', height: '18px', borderRadius: 'var(--radius-full)',
                             backgroundColor: selected ? 'var(--color-text-on-accent)' : 'var(--accent-primary)',
                             color: selected ? 'var(--accent-primary)' : 'var(--color-text-on-accent)',
                             fontSize: '9px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -722,7 +722,7 @@ export const CoverEditorPanel: React.FC = () => {
                     title="Quitar docente"
                     style={removeBtn}
                   >
-                    <X size={10} strokeWidth={3} />
+                    <X size={10} strokeWidth="var(--icon-stroke)" />
                   </button>
                 </span>
               </div>
@@ -804,11 +804,11 @@ export const CoverEditorPanel: React.FC = () => {
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '7px', padding: '11px 14px', fontSize: '13px', fontWeight: 700,
-            background: 'var(--accent-primary)', color: '#fff',
-            border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+            background: 'var(--accent-primary)', color: 'var(--color-text-on-accent)',
+            border: 'none', borderRadius: 'var(--radius-lg)', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          <Check size={15} strokeWidth={3} /> Actualizar portada
+          <Check size={15} strokeWidth="var(--icon-stroke)" /> Actualizar portada
         </button>
         <button
           type="button"
@@ -820,7 +820,7 @@ export const CoverEditorPanel: React.FC = () => {
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '7px', marginTop: '8px', padding: '10px 14px', fontSize: '12px', fontWeight: 700,
             background: 'transparent', color: 'var(--accent-primary)',
-            border: '1px solid rgba(79,124,255,0.45)', borderRadius: '12px', cursor: 'pointer',
+            border: '1px solid var(--color-accent-a65)', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
             fontFamily: 'inherit',
           }}
         >

@@ -39,7 +39,7 @@ import { PaperCanvas } from '../layout/PaperCanvas';
 import { CoverEditorPanel } from './CoverEditorPanel';
 
 /* ── Iconos ──────────────────────────────────────────────────────────────────
-   T20: aquí había SEIS `<svg>` escritos a mano, con `strokeWidth="2"` y uno con
+   T20: aquí había SEIS `<svg>` escritos a mano, con `strokeWidth="var(--icon-stroke)"` y uno con
    `"3"`, al lado de los iconos de lucide a 1.75. Un svg a mano no hereda el
    token `--icon-stroke` y nadie lo nota cuando el grosor de la app cambia: por
    eso el lint prohíbe el elemento, no solo el número. Los seis son de

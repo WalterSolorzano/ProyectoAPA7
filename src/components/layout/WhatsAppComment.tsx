@@ -575,21 +575,21 @@ interface WhatsAppCommentProps {
 
 function getCategoryDetails(kind: string, isPositive: boolean): { label: string; className: string; icon: React.ReactNode } {
   if (isPositive || kind === 'positive' || kind === 'citation_ok') {
-    return { label: 'Cita Verificada APA 7', className: 'wa-bubble-positive', icon: <CheckCheck size={11} color="#10b981" /> };
+    return { label: 'Cita Verificada APA 7', className: 'wa-bubble-positive', icon: <CheckCheck size={11} color="var(--color-success)" /> };
   }
   if (kind === 'ghost_citation' || kind === 'orphan_references') {
-    return { label: 'Alerta Bibliográfica', className: 'wa-bubble-ghost', icon: <BookOpen size={11} color="#ef4444" /> };
+    return { label: 'Alerta Bibliográfica', className: 'wa-bubble-ghost', icon: <BookOpen size={11} color="var(--color-danger)" /> };
   }
   if (kind && (kind.startsWith('validation_') || kind === 'citation_error' || kind === 'shouting')) {
-    return { label: 'Formato APA 7', className: 'wa-bubble-warning', icon: <PenLine size={11} color="#f59e0b" /> };
+    return { label: 'Formato APA 7', className: 'wa-bubble-warning', icon: <PenLine size={11} color="var(--color-warning)" /> };
   }
   if (kind === 'ai' || kind === 'conclusion') {
-    return { label: 'Sugerencia de Redacción IA', className: 'wa-bubble-ai', icon: <Sparkles size={11} color="#6366f1" /> };
+    return { label: 'Sugerencia de Redacción IA', className: 'wa-bubble-ai', icon: <Sparkles size={11} color="var(--color-engine-ia)" /> };
   }
   if (kind === 'image_no_caption' || kind === 'table_no_caption' || kind === 'table_emoji') {
-    return { label: 'Figuras & Tablas APA 7', className: 'wa-bubble-tables', icon: <BookOpen size={11} color="#06b6d4" /> };
+    return { label: 'Figuras & Tablas APA 7', className: 'wa-bubble-tables', icon: <BookOpen size={11} color="var(--color-engine-tables)" /> };
   }
-  return { label: 'Revisión Editorial', className: '', icon: <PenLine size={11} color="#64748b" /> };
+  return { label: 'Revisión Editorial', className: '', icon: <PenLine size={11} color="var(--paper-slate2)" /> };
 }
 
 export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive = false, onHover, onLeave, onResolve, onDismiss }) => {
@@ -752,7 +752,7 @@ export const WhatsAppComment: React.FC<WhatsAppCommentProps> = ({ elem, positive
                 <button
                   type="button"
                   className="wa-action"
-                  style={{ backgroundColor: 'var(--accent-primary, #4f7cff)', color: '#ffffff', border: 'none', padding: '3px 8px', borderRadius: '4px', fontWeight: 600 }}
+                  style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--color-text-on-accent)', border: 'none', padding: '3px 8px', borderRadius: 'var(--radius-xs)', fontWeight: 600 }}
                   onClick={async (e) => {
                     e.stopPropagation();
                     const state = useDocStore.getState();

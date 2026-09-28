@@ -90,7 +90,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: 'var(--color-ink-a55)',
         backdropFilter: 'blur(3px)',
         zIndex: 1000,
         display: 'flex',
@@ -129,7 +129,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
               style={{
                 width: '34px',
                 height: '34px',
-                borderRadius: '8px',
+                borderRadius: 'var(--radius-md)',
                 backgroundColor: 'var(--color-accent-soft)',
                 color: 'var(--accent-primary)',
                 display: 'flex',
@@ -263,9 +263,9 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                           fontSize: '10px',
                           fontWeight: 700,
                           padding: '1px 6px',
-                          borderRadius: '999px',
+                          borderRadius: 'var(--radius-full)',
                           backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--border-subtle)',
-                          color: isActive ? '#fff' : 'var(--text-secondary)',
+                          color: isActive ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
                         }}
                       >
                         {parsed.versionLabel}

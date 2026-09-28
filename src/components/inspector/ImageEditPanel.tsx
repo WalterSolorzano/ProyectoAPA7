@@ -29,10 +29,10 @@ const DESIGN_STYLES: DesignStyleOption[] = [
     badge: 'Oficial',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
         <rect x="8" y="5" width="16" height="2" rx="1" fill="var(--accent-primary)" />
         <rect x="8" y="9" width="28" height="2" rx="1" fill="var(--text-secondary)" />
-        <rect x="12" y="14" width="24" height="14" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="12" y="14" width="24" height="14" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
       </svg>
     ),
   },
@@ -43,9 +43,9 @@ const DESIGN_STYLES: DesignStyleOption[] = [
     badge: 'Técnico',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="6" y="5" width="36" height="24" rx="2" fill="transparent" stroke="var(--border-subtle)" strokeWidth="1" strokeDasharray="2 2" />
-        <rect x="10" y="8" width="28" height="14" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="6" y="5" width="36" height="24" rx="2" fill="transparent" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeDasharray="2 2" />
+        <rect x="10" y="8" width="28" height="14" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
         <rect x="10" y="24" width="20" height="2" rx="1" fill="var(--text-muted)" />
       </svg>
     ),
@@ -56,8 +56,8 @@ const DESIGN_STYLES: DesignStyleOption[] = [
     desc: 'Ocupa el 100% del margen útil de la página. Ideal para mapas o planos.',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="4" y="6" width="40" height="20" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="4" y="6" width="40" height="20" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
         <rect x="4" y="28" width="26" height="2" rx="1" fill="var(--text-muted)" />
       </svg>
     ),
@@ -68,8 +68,8 @@ const DESIGN_STYLES: DesignStyleOption[] = [
     desc: 'Cuadro lateral estrecho con ajuste de texto continuo.',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="26" y="6" width="16" height="22" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="26" y="6" width="16" height="22" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
         <rect x="6" y="8" width="16" height="2" rx="1" fill="var(--text-muted)" />
         <rect x="6" y="13" width="16" height="2" rx="1" fill="var(--text-muted)" />
         <rect x="6" y="18" width="16" height="2" rx="1" fill="var(--text-muted)" />
@@ -84,9 +84,9 @@ const DESIGN_STYLES: DesignStyleOption[] = [
     badge: 'Múltiple',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="6" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="26" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="6" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+        <rect x="26" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
         <rect x="12" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
         <rect x="32" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
       </svg>
@@ -233,7 +233,7 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
             </span>
             <span style={{
               fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-full)',
-              backgroundColor: needsAttention ? 'rgba(250,173,20,0.14)' : 'rgba(82,196,26,0.14)',
+              backgroundColor: needsAttention ? 'var(--color-warning-a12)' : 'var(--color-success-a14)',
               color: needsAttention ? 'var(--color-warning)' : 'var(--color-success)',
             }}>
               {needsAttention ? 'Sin leyenda' : 'APA 7'}

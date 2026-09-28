@@ -31,7 +31,7 @@ function parseGhost(raw: string): { authors: string[]; year: string } {
 }
 
 const inputStyle: React.CSSProperties = {
-  flex: 1, minWidth: 0, border: '1px solid var(--border-subtle)', borderRadius: '6px',
+  flex: 1, minWidth: 0, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xs)',
   padding: '5px 8px', fontSize: '12px', backgroundColor: 'var(--canvas-bg)',
   color: 'var(--text-main)', fontFamily: 'inherit', outline: 'none',
 };
@@ -122,8 +122,8 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
 
   return (
     <div style={{
-      border: '1px solid rgba(250,173,20,0.35)',
-      backgroundColor: 'rgba(250,173,20,0.05)',
+      border: '1px solid var(--color-warning-a30)',
+      backgroundColor: 'var(--color-warning-a05)',
       borderRadius: 'var(--radius-lg)',
       padding: '12px',
       display: 'flex', flexDirection: 'column', gap: '10px',
@@ -209,7 +209,7 @@ export const QuickReferenceSearch: React.FC<{ onDone?: () => void }> = ({ onDone
                 flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '4px',
                 border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)',
                 color: 'var(--text-main)', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
-                borderRadius: '6px', padding: '5px 8px', fontFamily: 'inherit',
+                borderRadius: 'var(--radius-xs)', padding: '5px 8px', fontFamily: 'inherit',
               }}
             >
               <Plus size={12} /> Agregar

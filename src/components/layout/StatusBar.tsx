@@ -71,7 +71,7 @@ export const StatusBar: React.FC = () => {
         {/* Avisos */}
         {warnings.length > 0 ? (
           <span
-            style={{ ...GHOST_BTN, borderColor: 'var(--border-strong, var(--border-subtle))' }}
+            style={{ ...GHOST_BTN, borderColor: 'var(--border-strong)' }}
             title={'Avisos del documento:\n' + warnings.join('\n')}
           >
             <AlertTriangle size={12} color="var(--color-warning)" />

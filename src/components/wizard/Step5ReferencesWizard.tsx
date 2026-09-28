@@ -239,7 +239,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                 Estudio de Referencias & Citas APA 7
               </h2>
               <span style={{
-                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px',
+                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
               }}>
                 {references.length} Fuentes Registradas
@@ -372,7 +372,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                           {isOrphan && (
                             <span
                               title="Esta referencia no está citada en el texto. Haz clic para opciones."
-                              style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)' }}
+                              style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)' }}
                             >
                               Sin citar en texto
                             </span>
@@ -537,7 +537,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               <div style={{
                 backgroundColor: 'var(--paper-white)', borderRadius: 'var(--radius-lg)',
                 padding: '20px 24px', border: '1px solid var(--border-subtle)',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                boxShadow: 'var(--shadow-md)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -559,7 +559,7 @@ export const Step5ReferencesWizard: React.FC = () => {
 
                 <div style={{
                   fontFamily: "'Times New Roman', serif", fontSize: '13pt', lineHeight: 2.0,
-                  color: 'var(--paper-ink, #000)', paddingLeft: '36px', textIndent: '-36px',
+                  color: 'var(--paper-ink)', paddingLeft: '36px', textIndent: '-36px',
                   backgroundColor: 'var(--surface-subtle)', padding: '16px 20px 16px 48px',
                   borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
                   wordBreak: 'break-word', whiteSpace: 'normal',
@@ -674,7 +674,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                           borderRadius: 'var(--radius-md)',
                           backgroundColor: 'var(--paper-white)',
                           border: '1px solid var(--border-subtle)',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                          boxShadow: '0 2px 8px var(--color-ink-a05)',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px',
@@ -727,12 +727,12 @@ export const Step5ReferencesWizard: React.FC = () => {
       {showAddModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'var(--color-ink-a55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000, padding: '20px',
         }}>
           <div style={{
             width: '460px', backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+            border: '1px solid var(--border-subtle)', boxShadow: '0 12px 32px var(--color-ink-a20)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* Header Modal */}

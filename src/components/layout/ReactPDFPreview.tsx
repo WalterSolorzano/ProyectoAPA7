@@ -4,6 +4,24 @@ import { useDocStore } from '../../store/useDocStore';
 import { useDebounce } from 'use-debounce';
 import { DocumentModel, PortadaData } from '../../types';
 
+/**
+ * La tinta del PDF, leída de la hoja en vez de escrita a mano.
+ *
+ * `@react-pdf/renderer` NO resuelve `var()`: su `StyleSheet` se serializa a un
+ * PDF y un token CSS no viaja en ese formato. Y no es que no haga falta: la
+ * hoja declara `--paper-ink` como `#111827` en LOS DOS temas a propósito (R7,
+ * el papel no se oscurece), así que leerlo da el mismo valor en claro y en
+ * oscuro y el PDF sale igual en los dos.
+ *
+ * El respaldo es un literal a propósito, y es el mismo valor: si la hoja no
+ * estuviera cargada —una prueba, un import temprano— el PDF tiene que
+ * imprimirse igual de negro. Por eso este es el ÚNICO literal de color que
+ * queda en el archivo, y está en la misma línea que la explicación de por qué
+ * no puede ser otra cosa.
+ */
+const TINTA_PAPEL =
+  (typeof document !== 'undefined' && getComputedStyle(document.documentElement).getPropertyValue('--paper-ink').trim()) || '#111827';
+
 // Estilos base de APA 7
 const styles = StyleSheet.create({
   page: {
@@ -12,7 +30,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 54,
     fontSize: 12,
     lineHeight: 2.0, // Doble espacio (APA)
-    color: '#000000',
+    color: TINTA_PAPEL,
   },
   title: {
     fontSize: 12,
@@ -74,7 +92,7 @@ const styles = StyleSheet.create({
     top: 46,
     right: 54,
     fontSize: 12,
-    color: '#000000',
+    color: TINTA_PAPEL,
   },
 });
 

@@ -1,6 +1,7 @@
 /* WordAPA7 — Multi-Project Tabs Avanzado (Fluent Design) */
 
 import React, { useRef, useState, useEffect } from 'react';
+import { Folder, X, Plus, MoreHorizontal, Image as ImageIcon, GitMerge } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { MergeDocumentsModal } from '../project/MergeDocumentsModal';
@@ -90,9 +91,7 @@ export const ProjectTabs: React.FC = () => {
               }}
               title="Proyecto activo agrupado"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
+              <Folder size={12} strokeWidth="var(--icon-stroke)" />
               <span>{activeParsed.projectName}</span>
             </div>
           )}
@@ -119,7 +118,7 @@ export const ProjectTabs: React.FC = () => {
                       padding: '1px 5px',
                       borderRadius: 'var(--radius-full)',
                       backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--color-bg-surface-alt)',
-                      color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                      color: isActive ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
                       lineHeight: 1.2,
                     }}
                   >
@@ -135,10 +134,7 @@ export const ProjectTabs: React.FC = () => {
                       }}
                       title="Cerrar pestaña"
                     >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
+                      <X size={10} strokeWidth="var(--icon-stroke)" />
                     </span>
                   )}
                 </button>
@@ -153,10 +149,7 @@ export const ProjectTabs: React.FC = () => {
             title="Abrir otra versión (.docx)"
             style={{ marginLeft: '4px' }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+            <Plus size={13} strokeWidth="var(--icon-stroke)" />
           </button>
         </div>
         )}
@@ -180,11 +173,7 @@ export const ProjectTabs: React.FC = () => {
               cursor: 'pointer',
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-              <circle cx="5" cy="12" r="1"></circle>
-              <circle cx="12" cy="12" r="1"></circle>
-              <circle cx="19" cy="12" r="1"></circle>
-            </svg>
+            <MoreHorizontal size={13} strokeWidth="var(--icon-stroke)" />
           </button>
 
           {overflowOpen && (
@@ -193,7 +182,7 @@ export const ProjectTabs: React.FC = () => {
                 position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60,
                 minWidth: '210px', backgroundColor: 'var(--sidebar-bg)',
                 border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '6px',
+                boxShadow: '0 8px 24px var(--color-ink-a20)', padding: '6px',
                 display: 'flex', flexDirection: 'column', gap: '2px',
               }}
             >
@@ -202,9 +191,7 @@ export const ProjectTabs: React.FC = () => {
                 title="Explorador de archivos y carpeta del proyecto"
                 onClick={() => { setOverflowOpen(false); setFolderModalOpen(true); }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
+                <Folder size={12} strokeWidth="var(--icon-stroke)" />
               </OverflowItem>
 
               <OverflowItem
@@ -212,11 +199,7 @@ export const ProjectTabs: React.FC = () => {
                 title="Abrir carpeta de imágenes del proyecto"
                 onClick={() => { setOverflowOpen(false); setImagesDrawerOpen(!imagesDrawerOpen); }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
+                <ImageIcon size={12} strokeWidth="var(--icon-stroke)" />
               </OverflowItem>
 
               {tabs.length > 1 && (
@@ -225,12 +208,7 @@ export const ProjectTabs: React.FC = () => {
                   title="Combinar partes de otros .docx de tus compañeros"
                   onClick={() => { setOverflowOpen(false); setMergeModalOpen(true); }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="18" cy="18" r="3"></circle>
-                    <circle cx="6" cy="6" r="3"></circle>
-                    <path d="M13 6h3a2 2 0 0 1 2 2v7"></path>
-                    <line x1="6" y1="9" x2="6" y2="21"></line>
-                  </svg>
+                  <GitMerge size={12} strokeWidth="var(--icon-stroke)" />
                 </OverflowItem>
               )}
             </div>

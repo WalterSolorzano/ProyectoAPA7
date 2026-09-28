@@ -1,6 +1,7 @@
 /* WordAPA7 — Cajón/Panel de Recursos e Imágenes del Proyecto */
 
 import React, { useRef } from 'react';
+import { X } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 
 export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
@@ -48,10 +49,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
           onClick={onClose}
           style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+          <X size={13} strokeWidth="var(--icon-stroke)" />
         </button>
       </div>
 
@@ -129,10 +127,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
                     title="Eliminar del proyecto"
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: '2px' }}
                   >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
+                    <X size={10} strokeWidth="var(--icon-stroke)" />
                   </button>
                 </div>
               </div>

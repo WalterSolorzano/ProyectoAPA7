@@ -101,7 +101,7 @@ function pickFreshPhrase(pool: Phrase[], currentText?: string): Phrase {
  * el lugar a la escena. Un texto que anuncia la app es ruido en una pantalla
  * cuya función es que la persona empiece a trabajar.
  *
- * También se fueron con ellas los tres `strokeWidth={2}` que traían: la norma
+ * También se fueron con ellas los tres `strokeWidth="var(--icon-stroke)"` que traían: la norma
  * del proyecto es el token `--icon-stroke`, que vale 1.75.
  */
 
@@ -159,6 +159,13 @@ function drawStars(ctx: CanvasRenderingContext2D, stars: StarDot[], t: number, a
     ctx.globalAlpha = alpha * twinkle;
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    /* Un canvas 2D NO resuelve `var()`: `fillStyle` es un color CSS, no una
+       cadena que el navegador interpole. Escribirle un token produce un
+       `fillStyle` invalido y el canvas conserva el anterior, asi que el
+       relleno salia del color de la figura de abajo. Las paradas de un
+       degradado tienen la misma limitacion. Por eso la paleta del cielo es
+       una constante de JavaScript y no una escala de tokens: no hay token
+       que un `CanvasRenderingContext2D` pueda leer. */
     ctx.fillStyle = '#ffffff';
     ctx.fill();
   });
@@ -180,8 +187,8 @@ function drawCrescentMoon(
 
   // Moon halo
   const halo = ctx.createRadialGradient(0, 0, r * 0.8, 0, 0, r * 2.5);
-  halo.addColorStop(0, 'rgba(200,220,255,0.22)');
-  halo.addColorStop(1, 'rgba(200,220,255,0)');
+  halo.addColorStop(0, LUNA.halo[0]);
+  halo.addColorStop(1, LUNA.halo[1]);
   ctx.beginPath();
   ctx.arc(0, 0, r * 2.5, 0, Math.PI * 2);
   ctx.fillStyle = halo;
@@ -190,7 +197,7 @@ function drawCrescentMoon(
   // Crescent body
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#e8eaf6';
+  ctx.fillStyle = LUNA.cuerpo;
   ctx.fill();
 
   // Bite out (shadow circle offset)
@@ -202,7 +209,7 @@ function drawCrescentMoon(
 
   // Wispy clouds near moon
   ctx.globalAlpha = alpha * 0.15;
-  ctx.fillStyle = '#c5cae9';
+  ctx.fillStyle = LUNA.nubes;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
     ctx.ellipse(
@@ -253,9 +260,9 @@ function drawSolCinematico(
 
   // La CORONA, que es lo único que hace que un disco se lea como sol.
   const corona = ctx.createRadialGradient(0, 0, r * 0.9, 0, 0, r * 3.2);
-  corona.addColorStop(0, 'rgba(255, 226, 150, 0.30)');
-  corona.addColorStop(0.35, 'rgba(255, 208, 110, 0.12)');
-  corona.addColorStop(1, 'rgba(255, 200, 90, 0)');
+  corona.addColorStop(0, SOL.corona[0]);
+  corona.addColorStop(0.35, SOL.corona[1]);
+  corona.addColorStop(1, SOL.corona[2]);
   ctx.beginPath();
   ctx.arc(0, 0, r * 3.2, 0, Math.PI * 2);
   ctx.fillStyle = corona;
@@ -264,7 +271,7 @@ function drawSolCinematico(
   // El disco. El degradado interior va de un blanco cálido al color que le pasa
   // el llamador, y es lo que le da volumen a un círculo plano.
   const disco = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-  disco.addColorStop(0, 'rgba(255, 253, 240, 0.95)');
+  disco.addColorStop(0, SOL.discoAlto[0]);
   disco.addColorStop(0.65, color);
   disco.addColorStop(1, color);
   ctx.beginPath();
@@ -300,7 +307,7 @@ function drawSkyGradient(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  stops: [number, string][],
+  stops: Cielo,
 ) {
   const grad = ctx.createLinearGradient(0, 0, 0, h);
   stops.forEach(([pos, color]) => grad.addColorStop(pos, color));
@@ -310,7 +317,7 @@ function drawSkyGradient(
 
 function drawVignette(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, h * 0.85);
-  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(0, 'transparent');
   vig.addColorStop(1, 'rgba(0,0,0,0.25)');
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
@@ -346,6 +353,74 @@ const FIGURITA = {
   borde: 'rgba(206, 216, 238, 0.5)',
   sombra: 'rgba(10, 14, 26, 0.22)',
   trazo: 1.1,
+} as const;
+
+/**
+ * LA PALETA DEL CIELO, en un solo lugar, por la MISMA razón que `FIGURITA`.
+ *
+ * Y por qué esta paleta NO son tokens de `design-system.css`, cuando todo lo
+ * demás del archivo ya lo es: un `CanvasRenderingContext2D` no resuelve
+ * `var()`. `ctx.fillStyle` y `grad.addColorStop()` toman un color CSS ya
+ * resuelto; ponerles un token produce un valor INVÁLIDO, el contexto lo
+ * descarta en silencio y conserva el anterior. O sea: el token no cambiaría
+ * el color, y además rompería la escena sin decir nada.
+ *
+ * La diferencia con el resto de la app es real y no es una exención: el cielo
+ * es una ILUSTRACIÓN de la hora del día, no una superficie. No tiene tema
+ * claro y oscuro —el amanecer es el mismo con el sol arriba o abajo— así que
+ * un token por tema no describiría nada. Lo que sí comparte con el resto es la
+ * forma: una constante con nombre, usada por todos los que dibujan cielo, en
+ * vez de un hex suelto por función.
+ *
+ * Los stops van de más oscuro a más claro en las franjas de noche, y al revés
+ * en las de día: eso es lo que hace que un degradado de tres o cuatro paradas
+ * se lea como un cielo y no como una franja. Amanecer y atardecer comparten
+ * el naranja del horizonte a propósito: son el mismo sol a distinta altura, y
+ * dos naranjas distintos decían que eran dos momentos distintos.
+ */
+type Cielo = readonly (readonly [number, string])[];
+
+const CIELO: Record<string, Cielo> = {
+  madrugada: [[0, '#050816'], [0.45, '#0a1128'], [1, '#12204a']],
+  amanecer: [[0, '#1a0533'], [0.35, '#5c2a6e'], [0.7, '#b04a6e'], [1, '#e5834b']],
+  manana: [[0, '#2979ff'], [0.5, '#448aff'], [1, '#82b1ff']],
+  mediodia: [[0, '#1565c0'], [0.4, '#1976d2'], [1, '#42a5f5']],
+  tarde: [[0, '#0d47a1'], [0.5, '#1565c0'], [1, '#f57c00']],
+  atardecer: [[0, '#311b92'], [0.35, '#ad1457'], [0.7, '#e64a19'], [1, '#f57c00']],
+  /* Las dos franjas de noche comparten el cielo ENTERO, no por poco: la luna
+     se mueve y las estrellas titilan, pero el degradado de fondo es el mismo.
+     Estaba escrito dos veces, y por eso podia divergir. */
+  noche: [[0, '#050816'], [0.45, '#0a1128'], [1, '#12204a']],
+};
+
+/* Los tonos del sol, que son los otros tres colores que el archivo repite: el
+   disco, su corona y su halo. Mismo motivo que CIELO. */
+const SOL = {
+  disco: '#ffd740',
+  nucleo: '#ffee58',
+  corona: ['rgba(255, 226, 150, 0.30)', 'rgba(255, 208, 110, 0.12)', 'rgba(255, 200, 90, 0)'],
+  discoAlto: ['rgba(255, 253, 240, 0.95)'],
+} as const;
+
+/* La luna y su halo, que son los dos ultimos colores sueltos del archivo. */
+const LUNA = {
+  cuerpo: '#e8eaf6',
+  nubes: '#c5cae9',
+  halo: ['rgba(200, 220, 255, 0.22)', 'rgba(200, 220, 255, 0)'],
+  nubeStrip: '#7986cb',
+  rayo: 'rgba(229, 131, 75, 0.5)',
+} as const;
+
+/* Los colores que solo aparecen una vez y no son familia de nada: el fan de
+   rayos del atardecer y las nubes de la tarde. Viven aqui para que el archivo
+   no tenga ningun color suelto fuera de una paleta con nombre. */
+const TONOS = {
+  nubeTarde: '#ffcc80',
+  solTarde: '#ffa726',
+  /* El alfa del fan de rayos del atardecer, como NUMERO y no como color: el
+     codigo lo multiplica por (1 - i / fanCount) para que el rayo se apague
+     hacia abajo, y con un `rgba` entero eso no se puede escribir. */
+  fanAtardecer: 0.22,
 } as const;
 
 function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number) {
@@ -789,60 +864,12 @@ export const HomeHero: React.FC = () => {
 
       ctx.clearRect(0, 0, w, h);
 
-      // ── Sky gradient per slot ──
-      switch (slot) {
-        case 'madrugada':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#050816'],
-            [0.45, '#0a1128'],
-            [1, '#12204a'],
-          ]);
-          break;
-        case 'amanecer':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#1a0533'],
-            [0.35, '#5c2a6e'],
-            [0.7, '#b04a6e'],
-            [1, '#e5834b'],
-          ]);
-          break;
-        case 'manana':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#2979ff'],
-            [0.5, '#448aff'],
-            [1, '#82b1ff'],
-          ]);
-          break;
-        case 'mediodia':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#1565c0'],
-            [0.4, '#1976d2'],
-            [1, '#42a5f5'],
-          ]);
-          break;
-        case 'tarde':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#0d47a1'],
-            [0.5, '#1565c0'],
-            [1, '#f57c00'],
-          ]);
-          break;
-        case 'atardecer':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#311b92'],
-            [0.35, '#ad1457'],
-            [0.7, '#e64a19'],
-            [1, '#f57c00'],
-          ]);
-          break;
-        case 'noche':
-          drawSkyGradient(ctx, w, h, [
-            [0, '#050816'],
-            [0.45, '#0a1128'],
-            [1, '#12204a'],
-          ]);
-          break;
-      }
+      /* El degradado del cielo, y nada mas. Antes eran siete `case` con sus
+         tres o cuatro paradas escritas dentro, y las dos franjas de noche
+         tenían el mismo degradado copiado dos veces. Con la paleta en un
+         lugar, agregar una franja es una linea en `CIELO` y no un caso nuevo
+         que se puede olvidar. */
+      drawSkyGradient(ctx, w, h, CIELO[slot] ?? CIELO.manana);
 
       // ── Slot-specific elements ──
       sunRotation += 0.003;
@@ -856,7 +883,7 @@ export const HomeHero: React.FC = () => {
           drawCrescentMoon(ctx, mxPos, h * 0.2, 28, -0.2);
           // Wispy cloud strips
           ctx.globalAlpha = 0.07;
-          ctx.fillStyle = '#7986cb';
+          ctx.fillStyle = LUNA.nubeStrip;
           for (let i = 0; i < 3; i++) {
             ctx.beginPath();
             ctx.ellipse(w * (0.2 + i * 0.3), h * (0.35 + i * 0.08), w * 0.18, h * 0.02, -0.08, 0, Math.PI * 2);
@@ -882,7 +909,7 @@ export const HomeHero: React.FC = () => {
             ctx.beginPath();
             ctx.moveTo(Math.cos(a) * (sunR * 1.1), Math.sin(a) * (sunR * 1.1));
             ctx.lineTo(Math.cos(a) * sunR * 2.5 * pulse, Math.sin(a) * sunR * 2 * pulse);
-            ctx.strokeStyle = 'rgba(229,131,75,0.5)';
+            ctx.strokeStyle = LUNA.rayo;
             ctx.lineWidth = 2;
             ctx.lineCap = 'round';
             ctx.stroke();
@@ -895,25 +922,25 @@ export const HomeHero: React.FC = () => {
           ctx.clip();
           ctx.beginPath();
           ctx.arc(w * 0.5, sunY, sunR, 0, Math.PI * 2);
-          ctx.fillStyle = '#ffd740';
+          ctx.fillStyle = SOL.disco;
           ctx.fill();
           ctx.restore();
           break;
         }
         case 'manana': {
           // Cartoon sun top-center
-          drawSolCinematico(ctx, w * 0.78, h * 0.22, 36, sunRotation, '#ffee58');
+          drawSolCinematico(ctx, w * 0.78, h * 0.22, 36, sunRotation, SOL.nucleo);
           // Drifting clouds
           clouds.forEach((c) => {
             c.x = (c.x + c.speed) % 1.2;
-            drawFluffyCloud(ctx, c.x * w, c.y * h, c.scale, '#ffffff', 0.88);
+            drawFluffyCloud(ctx, c.x * w, c.y * h, c.scale, 'var(--color-text-on-accent)', 0.88);
           });
           break;
         }
         case 'mediodia': {
           // Sun near zenith
           const pulse = 1 + 0.04 * Math.sin(tRef.current * 3);
-          drawSolCinematico(ctx, w * 0.5, h * 0.18, 38 * pulse, sunRotation, '#ffd740');
+          drawSolCinematico(ctx, w * 0.5, h * 0.18, 38 * pulse, sunRotation, SOL.disco);
           // Heat shimmer near horizon
           ctx.save();
           ctx.globalAlpha = 0.08;
@@ -932,16 +959,16 @@ export const HomeHero: React.FC = () => {
           }
           ctx.restore();
           // Small cloud
-          drawFluffyCloud(ctx, w * 0.2, h * 0.3, 0.7, '#ffffff', 0.75);
+          drawFluffyCloud(ctx, w * 0.2, h * 0.3, 0.7, 'var(--color-text-on-accent)', 0.75);
           break;
         }
         case 'tarde': {
           // Sun lower-right with warm long rays
-          drawSolCinematico(ctx, w * 0.82, h * 0.55, 32, sunRotation, '#ffa726');
+          drawSolCinematico(ctx, w * 0.82, h * 0.55, 32, sunRotation, TONOS.solTarde);
           // Warm drifting clouds
           clouds.forEach((c) => {
             c.x = (c.x + c.speed * 0.8) % 1.2;
-            drawFluffyCloud(ctx, c.x * w, c.y * h, c.scale, '#ffcc80', 0.72);
+            drawFluffyCloud(ctx, c.x * w, c.y * h, c.scale, TONOS.nubeTarde, 0.72);
           });
           break;
         }
@@ -959,7 +986,7 @@ export const HomeHero: React.FC = () => {
             ctx.beginPath();
             ctx.moveTo(Math.cos(a) * (sR * 1.05), Math.sin(a) * (sR * 1.05));
             ctx.lineTo(Math.cos(a) * sR * 3.2 * pulse, Math.sin(a) * sR * 2.2 * pulse);
-            ctx.strokeStyle = `rgba(245,124,0,${0.22 * (1 - i / fanCount)})`;
+            ctx.strokeStyle = `rgba(245,124,0,${TONOS.fanAtardecer * (1 - i / fanCount)})`;
             ctx.lineWidth = 2.5;
             ctx.lineCap = 'round';
             ctx.stroke();
@@ -972,7 +999,7 @@ export const HomeHero: React.FC = () => {
           ctx.clip();
           ctx.beginPath();
           ctx.arc(w * 0.5, horizY, sR, 0, Math.PI * 2);
-          ctx.fillStyle = '#ffd740';
+          ctx.fillStyle = SOL.disco;
           ctx.fill();
           ctx.restore();
           // First stars appearing
@@ -1072,7 +1099,7 @@ export const HomeHero: React.FC = () => {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0,0,0,0.18)',
+          background: 'var(--scrim-overlay)',
           borderRadius: 'var(--radius-xl)',
           pointerEvents: 'none',
         }}
@@ -1093,8 +1120,8 @@ export const HomeHero: React.FC = () => {
             fontWeight: 900,
             lineHeight: 1.18,
             letterSpacing: '-0.02em',
-            color: '#ffffff',
-            textShadow: '0 2px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)',
+            color: 'var(--color-text-on-accent)',
+            textShadow: '0 2px 16px var(--color-ink-a55), 0 1px 3px var(--color-ink-a40)',
             margin: '0 auto',
             maxWidth: '960px',
             /* El alto reservado sigue al `line-clamp`: 2 renglones × 40px ×

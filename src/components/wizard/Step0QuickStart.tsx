@@ -31,22 +31,22 @@ const BrandLogo: React.FC<{ size?: number }> = ({ size = 22 }) => (
     style={{ flexShrink: 0 }}
     aria-label="Logo WordAPA7"
   >
-    <rect width="24" height="24" rx="5" fill="var(--color-accent, #2563eb)" />
+    <rect width="24" height="24" rx="5" fill="var(--color-accent)" />
     <path
       d="M6 6.5C6 5.67 6.67 5 7.5 5H14.5L18 8.5V17.5C18 18.33 17.33 19 16.5 19H7.5C6.67 19 6 18.33 6 17.5V6.5Z"
-      fill="var(--paper-white, #ffffff)"
+      fill="var(--paper-white)"
       fillOpacity="0.95"
     />
     <path
       d="M14 5V9H18"
-      stroke="var(--color-accent, #2563eb)"
-      strokeWidth="1.25"
+      stroke="var(--color-accent)"
+      strokeWidth="var(--icon-stroke)"
       strokeLinejoin="round"
     />
     <path
       d="M8.5 11.5H12M8.5 14H14.5M8.5 16.5H13"
-      stroke="var(--color-accent, #2563eb)"
-      strokeWidth="1.25"
+      stroke="var(--color-accent)"
+      strokeWidth="var(--icon-stroke)"
       strokeLinecap="round"
     />
   </svg>
@@ -55,55 +55,55 @@ const BrandLogo: React.FC<{ size?: number }> = ({ size = 22 }) => (
 // ── MICRO-ILUSTRACIONES VECTORIALES EXCLUSIVAS PARA PLANTILLAS APA 7 ──────
 const ImrydArticleIllustration = () => (
   <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
-    <path d="M12 11H36" stroke="var(--accent-primary)" strokeWidth="2.5" strokeLinecap="round" />
-    <path d="M12 17H26" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+    <path d="M12 11H36" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M12 17H26" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
     {/* Dual column */}
-    <path d="M12 23H22" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M12 27H22" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M12 31H20" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M26 23H36" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M26 27H36" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M26 31H32" stroke="var(--border-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M12 23H22" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M12 27H22" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M12 31H20" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M26 23H36" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M26 27H36" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M26 31H32" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
     {/* Micro badge DOI */}
     <rect x="12" y="36" width="14" height="4" rx="2" fill="var(--color-accent-soft)" />
-    <path d="M14 38H24" stroke="var(--accent-primary)" strokeWidth="1" strokeLinecap="round" />
+    <path d="M14 38H24" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
 const ThesisBadgeIllustration = () => (
   <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="7" y="5" width="34" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
-    <circle cx="24" cy="18" r="7" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.5" />
+    <rect x="7" y="5" width="34" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+    <circle cx="24" cy="18" r="7" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
     {/* Insignia ribbon */}
-    <path d="M21 24L18 33L24 30L30 33L27 24" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1.2" strokeLinejoin="round" />
-    <path d="M14 37H34" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M21 24L18 33L24 30L30 33L27 24" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
+    <path d="M14 37H34" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
 const EssayBadgeIllustration = () => (
   <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="5" width="36" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
-    <line x1="14" y1="5" x2="14" y2="43" stroke="var(--border-subtle)" strokeWidth="1" strokeDasharray="2 2" />
-    <path d="M18 12H34" stroke="var(--text-main)" strokeWidth="2" strokeLinecap="round" />
-    <path d="M18 18H32" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M18 24H36" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M18 30H28" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <rect x="6" y="5" width="36" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+    <line x1="14" y1="5" x2="14" y2="43" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeDasharray="2 2" />
+    <path d="M18 12H34" stroke="var(--text-main)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M18 18H32" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M18 24H36" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M18 30H28" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
     {/* Pen nib */}
-    <path d="M36 30L30 36L28 41L33 39L39 33L36 30Z" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M36 30L30 36L28 41L33 39L39 33L36 30Z" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
   </svg>
 );
 
 const TechnicalReportIllustration = () => (
   <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="1.5" />
-    <path d="M12 10H24" stroke="var(--text-main)" strokeWidth="2" strokeLinecap="round" />
+    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+    <path d="M12 10H24" stroke="var(--text-main)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
     {/* Bars */}
-    <rect x="12" y="16" width="24" height="14" rx="2" fill="var(--surface-elevated)" stroke="var(--border-subtle)" strokeWidth="1" />
+    <rect x="12" y="16" width="24" height="14" rx="2" fill="var(--surface-elevated)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
     <rect x="15" y="24" width="4" height="4" rx="1" fill="var(--accent-primary)" />
     <rect x="22" y="20" width="4" height="8" rx="1" fill="var(--accent-primary)" />
     <rect x="29" y="18" width="4" height="10" rx="1" fill="var(--accent-primary)" />
-    <path d="M12 35H36" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M12 35H36" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
@@ -514,7 +514,7 @@ export const Step0QuickStart: React.FC = () => {
           <div role="alert" style={{
             padding: '12px 20px',
             marginBottom: '20px',
-            backgroundColor: 'rgba(212, 56, 46, 0.1)', border: '1px solid var(--color-danger)',
+            backgroundColor: 'var(--color-danger-a12)', border: '1px solid var(--color-danger)',
             color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: '10px',
           }}>
@@ -590,7 +590,7 @@ export const Step0QuickStart: React.FC = () => {
                       fontSize: 'var(--text-xs)',
                       fontWeight: 600,
                       cursor: isLoading ? 'wait' : 'pointer',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      boxShadow: '0 1px 3px var(--surface-subtle)',
                     }}
                   >
                     {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
@@ -627,7 +627,7 @@ export const Step0QuickStart: React.FC = () => {
                 <div style={{
                   width: '60px',
                   height: '60px',
-                  borderRadius: '50%',
+                  borderRadius: 'var(--radius-full)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -636,7 +636,7 @@ export const Step0QuickStart: React.FC = () => {
                   transition: 'all 0.25s ease',
                   boxShadow: dragging ? '0 0 0 6px var(--color-accent-soft)' : 'none',
                 }}>
-                  <FileUp size={28} color={dragging ? '#fff' : 'var(--accent-primary)'} />
+                  <FileUp size={28} color={dragging ? 'var(--color-text-on-accent)' : 'var(--accent-primary)'} />
                 </div>
 
                 <div style={{ fontSize: 'var(--text-xl)', fontWeight: 800, color: 'var(--text-main)', marginBottom: '6px', textAlign: 'center' }}>
@@ -662,15 +662,15 @@ export const Step0QuickStart: React.FC = () => {
                       border: 'none',
                       cursor: busy ? 'wait' : 'pointer',
                       backgroundColor: 'var(--accent-primary)',
-                      color: '#ffffff',
+                      color: 'var(--color-text-on-accent)',
                       fontFamily: 'inherit',
                       fontSize: 'var(--text-sm)',
                       fontWeight: 700,
-                      boxShadow: '0 4px 14px rgba(79, 124, 255, 0.28)',
+                      boxShadow: '0 4px 14px var(--color-accent-a30)',
                       transition: 'all 0.15s ease',
                     }}
-                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 124, 255, 0.36)'; } }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(79, 124, 255, 0.28)'; }}
+                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px var(--color-accent-a40)'; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px var(--color-accent-a30)'; }}
                   >
                     {isLoading ? (
                       <>
@@ -710,7 +710,7 @@ export const Step0QuickStart: React.FC = () => {
                       fontFamily: 'inherit',
                       fontSize: 'var(--text-sm)',
                       fontWeight: 600,
-                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                      boxShadow: '0 2px 6px var(--surface-subtle)',
                       transition: 'all 0.15s ease',
                     }}
                     onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
@@ -765,7 +765,7 @@ export const Step0QuickStart: React.FC = () => {
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-lg)',
                   overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                  boxShadow: '0 2px 8px var(--color-ink-a05)',
                 }}>
                   <RecentsList
                     sessions={recentSessions.slice(0, 4)}
@@ -810,7 +810,7 @@ export const Step0QuickStart: React.FC = () => {
                         borderRadius: 'var(--radius-lg)',
                         background: 'var(--surface-elevated)',
                         border: '1px solid var(--border-subtle)',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)',
+                        boxShadow: '0 2px 8px var(--color-ink-a05)',
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
@@ -882,7 +882,7 @@ export const Step0QuickStart: React.FC = () => {
                             padding: '7px 12px',
                             borderRadius: 'var(--radius-md)',
                             background: 'var(--accent-primary)',
-                            color: '#ffffff',
+                            color: 'var(--color-text-on-accent)',
                             border: 'none',
                             fontSize: 'var(--text-xs)',
                             fontWeight: 700,
@@ -891,7 +891,7 @@ export const Step0QuickStart: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '5px',
-                            boxShadow: '0 2px 6px rgba(79, 124, 255, 0.25)',
+                            boxShadow: '0 2px 6px var(--color-accent-a30)',
                           }}
                         >
                           <FileCheck size={13} /> {canApply ? 'Aplicar' : 'Escribir'}

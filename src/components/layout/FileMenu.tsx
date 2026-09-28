@@ -273,8 +273,8 @@ export const FileMenu: React.FC = () => {
             <div
               style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '16px 20px', borderRadius: '12px',
-                border: '2px dashed rgba(79,124,255,0.5)', backgroundColor: 'rgba(79,124,255,0.08)',
+                padding: '16px 20px', borderRadius: 'var(--radius-lg)',
+                border: '2px dashed var(--color-accent-a65)', backgroundColor: 'var(--color-accent-a08)',
                 cursor: 'pointer', marginBottom: '24px',
                 transition: 'background 0.2s',
               }}

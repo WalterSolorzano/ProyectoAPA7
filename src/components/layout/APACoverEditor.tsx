@@ -70,10 +70,10 @@ const InlineField: React.FC<InlineFieldProps> = ({
           textAlign: 'inherit',
           background: 'transparent',
           border: '2px solid var(--accent-primary)',
-          borderRadius: '2px',
+          borderRadius: 'var(--radius-2xs)',
           outline: 'none',
           padding: '2px 4px',
-          color: '#0f172a',
+          color: 'var(--color-ink-strong)',
           boxSizing: 'border-box',
           ...inputStyle,
         }}
@@ -98,10 +98,10 @@ const InlineField: React.FC<InlineFieldProps> = ({
         lineHeight: 'inherit',
         padding: 0,
         margin: 0,
-        color: value ? '#0f172a' : '#9ca3af',
+        color: value ? 'var(--color-ink-strong)' : 'var(--color-ink-soft)',
         minHeight: '1em',
         width: '100%',
-        borderBottom: value ? '1px dashed rgba(79,124,255,0.35)' : '1px dashed #d1d5db',
+        borderBottom: value ? '1px dashed var(--color-accent-a40)' : '1px dashed var(--paper-line-strong)',
         ...style,
       }}
     >
@@ -155,9 +155,9 @@ export const APACoverEditor: React.FC = () => {
   }, []);
 
   const fieldWrap = (field: string): React.CSSProperties => ({
-    background: highlightField === field ? 'rgba(79,124,255,0.14)' : 'transparent',
+    background: highlightField === field ? 'var(--color-accent-a20)' : 'transparent',
     boxShadow: highlightField === field ? '0 0 0 2px var(--accent-primary)' : 'none',
-    borderRadius: '4px',
+    borderRadius: 'var(--radius-xs)',
     transition: 'background 0.25s ease, box-shadow 0.25s ease',
   });
 
@@ -165,7 +165,7 @@ export const APACoverEditor: React.FC = () => {
     margin: '6px 0',
     fontSize: '12pt',
     lineHeight: 1.6,
-    color: '#0f172a',
+    color: 'var(--color-ink-strong)',
     textAlign: 'center',
   };
 
@@ -183,7 +183,7 @@ export const APACoverEditor: React.FC = () => {
       }}
     >
       {isProfessional && (
-        <div style={{ alignSelf: 'flex-start', fontSize: '10pt', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>
+        <div style={{ alignSelf: 'flex-start', fontSize: '10pt', fontWeight: 600, color: 'var(--color-ink-strong)', marginBottom: '8px' }}>
           {portada.running_head || 'RUNNING HEAD'}
         </div>
       )}
@@ -204,7 +204,7 @@ export const APACoverEditor: React.FC = () => {
         {/* Autores */}
         <div style={{ width: '100%', margin: '4px 0 20px' }}>
           {authors.length === 0 ? (
-            <p style={{ ...authorLineStyle, color: '#9ca3af' }}>
+            <p style={{ ...authorLineStyle, color: 'var(--color-ink-soft)' }}>
               Agrega autores en el panel de Integrantes
             </p>
           ) : (
@@ -215,7 +215,7 @@ export const APACoverEditor: React.FC = () => {
                 style={{
                   ...authorLineStyle,
                   background:
-                    highlightIdx === idx ? 'rgba(79,124,255,0.14)' : 'transparent',
+                    highlightIdx === idx ? 'var(--color-accent-a20)' : 'transparent',
                   boxShadow: highlightIdx === idx ? '0 0 0 2px var(--accent-primary)' : 'none',
                   transition: 'background 0.2s ease, box-shadow 0.2s ease',
                 }}

@@ -12,7 +12,7 @@ import * as api from '../../api/backend';
 const kbdStyle: React.CSSProperties = {
   display: 'inline-block',
   padding: '1px 5px',
-  borderRadius: '4px',
+  borderRadius: 'var(--radius-xs)',
   border: '1px solid var(--border-subtle)',
   borderBottomWidth: 2,
   backgroundColor: 'var(--surface-subtle)',
@@ -231,7 +231,7 @@ export const Step2HeadingsWizard: React.FC = () => {
             </span>
             <Badge tone="accent">Jerarquía 1, 2 y 3</Badge>
             {multiCount > 1 && (
-              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-surface-alt)', padding: '1px 6px', borderRadius: 4 }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-surface-alt)', padding: '1px 6px', borderRadius: 'var(--radius-sm)' }}>
                 {multiCount} seleccionados — Shift+click para rango, Ctrl+click para individual
               </span>
             )}
@@ -248,9 +248,9 @@ export const Step2HeadingsWizard: React.FC = () => {
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
               fontSize: '12px', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
-              background: 'linear-gradient(135deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
-              color: '#ffffff', border: 'none', borderRadius: 'var(--radius-sm)',
-              boxShadow: '0 2px 8px rgba(79, 124, 255, 0.35)',
+              background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--color-engine-ia) 100%)',
+              color: 'var(--color-text-on-accent)', border: 'none', borderRadius: 'var(--radius-sm)',
+              boxShadow: '0 2px 8px var(--color-accent-a40)',
             }}
           >
             <Sparkles size={14} /> Auto-organizar todos los títulos con IA
@@ -269,9 +269,9 @@ export const Step2HeadingsWizard: React.FC = () => {
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
               fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? 'rgba(34, 197, 94, 0.15)' : 'var(--surface-subtle)',
-              color: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? '#15803d' : 'var(--text-main)',
-              border: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? '1px solid #22c55e' : '1px solid var(--border-subtle)',
+              background: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? 'var(--color-success-a14)' : 'var(--surface-subtle)',
+              color: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? 'var(--color-success)' : 'var(--text-main)',
+              border: doc?.elements.some(e => e.type === 'toc' || (e.type === 'heading' && /^(índice|tabla de contenidos?|contenido|table of contents)/i.test((e.text || '').trim()))) ? '1px solid var(--color-success)' : '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-sm)',
             }}
           >
@@ -297,7 +297,7 @@ export const Step2HeadingsWizard: React.FC = () => {
           <div style={{
             margin: '8px 16px 0 16px',
             padding: '10px 16px',
-            borderRadius: '8px',
+            borderRadius: 'var(--radius-md)',
             backgroundColor: 'var(--surface-elevated)',
             border: '1px solid var(--color-warning)',
             display: 'flex',
@@ -305,10 +305,10 @@ export const Step2HeadingsWizard: React.FC = () => {
             justifyContent: 'space-between',
             gap: '12px',
             flexWrap: 'wrap',
-            boxShadow: '0 2px 6px rgba(245, 158, 11, 0.08)',
+            boxShadow: '0 2px 6px var(--color-warning-a08)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-warning)' }} />
+              <span style={{ width: '8px', height: '8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-warning)' }} />
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                   {reviewCount} título{reviewCount > 1 ? 's' : ''} pendiente{reviewCount > 1 ? 's' : ''} de validación en la estructura
@@ -326,8 +326,8 @@ export const Step2HeadingsWizard: React.FC = () => {
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
                   padding: '5px 12px', fontSize: '12px', fontWeight: 600,
-                  backgroundColor: 'rgba(79, 124, 255, 0.10)', color: 'var(--accent-primary)',
-                  border: '1px solid rgba(79, 124, 255, 0.3)', borderRadius: '6px', cursor: 'pointer',
+                  backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+                  border: '1px solid var(--color-accent-a30)', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
               >
@@ -340,9 +340,9 @@ export const Step2HeadingsWizard: React.FC = () => {
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
                   padding: '5px 12px', fontSize: '12px', fontWeight: 700,
-                  backgroundColor: 'var(--accent-primary)', color: '#ffffff',
-                  border: 'none', borderRadius: '6px', cursor: 'pointer',
-                  fontFamily: 'inherit', boxShadow: '0 2px 6px rgba(79, 124, 255, 0.25)',
+                  backgroundColor: 'var(--accent-primary)', color: 'var(--color-text-on-accent)',
+                  border: 'none', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
+                  fontFamily: 'inherit', boxShadow: '0 2px 6px var(--color-accent-a30)',
                 }}
               >
                 <CheckCircle2 size={13} /> Validar y aprobar todos ({reviewCount})
@@ -374,13 +374,13 @@ export const Step2HeadingsWizard: React.FC = () => {
                 display: 'flex', alignItems: 'center', gap: '8px',
                 padding: '10px 18px',
                 backgroundColor: 'var(--accent-primary)',
-                color: '#ffffff',
-                borderRadius: '999px',
+                color: 'var(--color-text-on-accent)',
+                borderRadius: 'var(--radius-full)',
                 border: 'none',
                 fontSize: '13px',
                 fontWeight: 800,
                 cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(79, 124, 255, 0.35)',
+                boxShadow: '0 4px 14px var(--color-accent-a40)',
                 fontFamily: 'inherit',
                 transition: 'transform 0.15s ease, box-shadow 0.15s ease',
               }}
@@ -388,7 +388,7 @@ export const Step2HeadingsWizard: React.FC = () => {
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
             >
               <span>Siguiente: Figuras y tablas</span>
-              <ChevronRight size={16} strokeWidth={2.5} />
+              <ChevronRight size={16} strokeWidth="var(--icon-stroke)" />
             </button>
           </div>
         </div>
@@ -461,7 +461,7 @@ export const Step2HeadingsWizard: React.FC = () => {
               <button type="button" onClick={() => setReviewerCollapsed((v) => !v)} title={reviewerCollapsed ? 'Expandir revisor' : 'Colapsar revisor'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }}>
                 {reviewerCollapsed ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
               </button>
-              {!reviewerCollapsed && <span style={{ fontSize: '11px', color: 'var(--accent-primary)', background: 'var(--color-accent-soft)', padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>{idx + 1} / {reviewHeadings.length}</span>}
+              {!reviewerCollapsed && <span style={{ fontSize: '11px', color: 'var(--accent-primary)', background: 'var(--color-accent-soft)', padding: '2px 8px', borderRadius: 'var(--radius-full)', fontWeight: 600 }}>{idx + 1} / {reviewHeadings.length}</span>}
             </div>
             {!reviewerCollapsed && (
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -487,7 +487,7 @@ export const Step2HeadingsWizard: React.FC = () => {
                   background: 'var(--color-accent-soft)',
                   border: '2px solid var(--accent-primary)',
                   textAlign: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  boxShadow: '0 2px 8px var(--color-ink-a08)',
                 }}
               >
                 <div style={{

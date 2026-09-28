@@ -106,19 +106,19 @@ const ChangeMark: React.FC<{
   let IconComponent = Wand2;
 
   if (isAI) {
-    toneColor = '#7c3aed';
-    bgColor = 'rgba(124, 58, 237, 0.08)';
-    borderColor = 'rgba(124, 58, 237, 0.3)';
+    toneColor = 'var(--color-engine-ia)';
+    bgColor = 'var(--color-engine-ia-a08)';
+    borderColor = 'var(--color-engine-ia-a30)';
     IconComponent = Sparkles;
   } else if (isRepetition) {
-    toneColor = '#d97706';
-    bgColor = 'rgba(245, 158, 11, 0.08)';
-    borderColor = 'rgba(245, 158, 11, 0.3)';
+    toneColor = 'var(--color-warning)';
+    bgColor = 'var(--color-warning-a08)';
+    borderColor = 'var(--color-warning-a30)';
     IconComponent = RotateCw;
   } else if (isSpelling || isAmbig) {
-    toneColor = '#dc2626';
-    bgColor = 'rgba(220, 38, 38, 0.08)';
-    borderColor = 'rgba(220, 38, 38, 0.3)';
+    toneColor = 'var(--color-danger)';
+    bgColor = 'var(--color-danger-a08)';
+    borderColor = 'var(--color-danger-a30)';
     IconComponent = AlertTriangle;
   }
 
@@ -182,7 +182,7 @@ const ChangeMark: React.FC<{
           alignItems: 'center',
           gap: '5px',
           padding: '2px 9px',
-          borderRadius: '999px',
+          borderRadius: 'var(--radius-full)',
           border: `1px solid ${borderColor}`,
           backgroundColor: bgColor,
           color: toneColor,
@@ -207,10 +207,10 @@ const ChangeMark: React.FC<{
             top: 'calc(100% + 4px)',
             right: 0,
             width: '310px',
-            backgroundColor: 'var(--surface-elevated, #ffffff)',
+            backgroundColor: 'var(--surface-elevated)',
             border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md, 8px)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 8px 24px var(--color-ink-a20)',
             padding: '12px 14px',
             display: 'flex',
             flexDirection: 'column',
@@ -984,7 +984,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
         gap: '2px',
         backgroundColor: 'var(--surface-elevated)',
         border: '1px solid var(--border-subtle)',
-        borderRadius: '999px',
+        borderRadius: 'var(--radius-full)',
         padding: '3px 4px',
         marginBottom: '8px',
         boxShadow: 'var(--shadow-sm)',
@@ -1048,7 +1048,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             background: focusMode ? 'var(--color-accent-soft)' : 'transparent',
             cursor: 'pointer',
             padding: '4px',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-xs)',
             display: 'flex',
             alignItems: 'center',
             color: focusMode ? 'var(--accent-primary)' : 'var(--text-secondary)',
@@ -1074,7 +1074,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             backgroundColor: 'var(--color-bg-surface)',
             color: 'var(--color-text-primary)',
             border: '1px solid var(--border-subtle)',
-            borderRadius: '999px',
+            borderRadius: 'var(--radius-full)',
             padding: '6px 16px',
             boxShadow: 'var(--shadow-card)',
             fontSize: '12px',
@@ -1095,7 +1095,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               fontWeight: 700,
               cursor: 'pointer',
               padding: '2px 4px',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-xs)',
               fontSize: '12px',
             }}
           >
@@ -1150,9 +1150,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   onClick={() => useDocStore.getState().updateElementImage(selElem.id, { rotation: deg })}
                   title={`Rotar ${deg}°`}
                   style={{
-                    padding: '2px 6px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px',
+                    padding: '2px 6px', borderRadius: 'var(--radius-xs)', cursor: 'pointer', fontSize: '10px',
                     background: rot === deg ? 'var(--accent-primary)' : 'var(--surface-subtle)',
-                    color: rot === deg ? '#fff' : 'var(--text-secondary)',
+                    color: rot === deg ? 'var(--color-text-on-accent)' : 'var(--text-secondary)',
                     border: '1px solid var(--border-subtle)', fontWeight: 600,
                   }}>
                   {deg === 0 ? '0°' : `${deg}°`}
@@ -1166,7 +1166,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               <input type="number" min={2} max={20} step={0.5}
                 value={img.width_cm || 12}
                 onChange={(e) => useDocStore.getState().updateElementImage(selElem.id, { width_cm: parseFloat(e.target.value) || 12 })}
-                style={{ width: '56px', padding: '2px 4px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
+                style={{ width: '56px', padding: '2px 4px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xs)', color: 'var(--text-main)' }}
               /> cm
             </label>
             </>
@@ -1185,7 +1185,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   }
                 }}
                 placeholder={isImage ? "Escribí la leyenda de la figura..." : "Escribí el título de la tabla..."}
-                style={{ flex: 1, padding: '3px 6px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-main)' }}
+                style={{ flex: 1, padding: '3px 6px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xs)', color: 'var(--text-main)' }}
               />
             </label>
             {/* C5: Sugerir con IA — visible para imágenes Y tablas */}
@@ -1193,7 +1193,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               onClick={() => handleSuggestCaption(selElem)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
-                background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer',
+                background: 'var(--accent-primary)', color: 'var(--color-text-on-accent)', border: 'none', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
               }}>
               <Wand2 size={11} /> Sugerir leyenda IA
             </button>
@@ -1208,7 +1208,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', fontSize: '10px', fontWeight: 600,
                 background: imagePanelOpen ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
                 color: imagePanelOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)', borderRadius: '4px', cursor: 'pointer',
+                border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
               }}>
               <PanelRight size={11} /> Editar panel
             </button>
@@ -1299,15 +1299,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   style={{
                     width: `${PAGE_W}px`,
                     height: `${PAGE_H}px`,
-                    backgroundColor: 'var(--paper-white, #ffffff)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                    backgroundColor: 'var(--paper-white)',
+                    boxShadow: 'var(--shadow-lg)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'var(--paper-ink, #111827)',
+                    color: 'var(--paper-ink)',
                     cursor: 'pointer',
-                    borderRadius: '4px',
+                    borderRadius: 'var(--radius-xs)',
                   }}
                 >
                   <span style={{ fontSize: '13px', fontWeight: 600 }}>Página {pageIdx + 1} de {pages.length}</span>
@@ -1329,15 +1329,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   maxWidth: '100%',
                   height: `${PAGE_H}px`,
                   overflow: 'hidden',
-                  backgroundColor: 'var(--paper-white, #ffffff)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
+                  backgroundColor: 'var(--paper-white)',
+                  boxShadow: '0 8px 32px var(--scrim-overlay), 0 2px 8px var(--color-ink-a12)',
                   // Margen real del documento (Word: mismo valor en 4 lados)
                   padding: `${Math.round(geom.marginPx)}px`,
                   boxSizing: 'border-box',
                   position: 'relative',
                   fontFamily: fontFamily,
                   fontSize: `${rules.font_size_pt}pt`,
-                  color: 'var(--paper-ink, #111827)',
+                  color: 'var(--paper-ink)',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
@@ -1349,7 +1349,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                   fontSize: '10pt',
                   fontFamily: fontFamily,
                   marginBottom: '16px',
-                  color: 'var(--paper-ink, #111827)',
+                  color: 'var(--paper-ink)',
                   minHeight: '20px'
                 }}>
                   {doc.apa_format === 'professional' && showPageNumber ? (
@@ -1384,10 +1384,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         gap: '4px',
                         alignSelf: 'center',
                         fontSize: '8pt',
-                        color: 'var(--text-muted, #6b7280)',
-                        backgroundColor: 'var(--surface-subtle, #f3f4f6)',
-                        border: '1px solid var(--border-subtle, #e5e7eb)',
-                        borderRadius: '4px',
+                        color: 'var(--text-muted)',
+                        backgroundColor: 'var(--surface-subtle)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-xs)',
                         padding: '1px 8px',
                         marginBottom: '4px',
                         fontStyle: 'italic',
@@ -1483,14 +1483,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     fontFamily: fontFamily,
                                     fontSize: '10pt',
                                     border: '2px solid var(--accent-primary)',
-                                    borderRadius: '6px',
+                                    borderRadius: 'var(--radius-xs)',
                                     padding: '6px 8px',
-                                    background: 'var(--paper-white, #ffffff)',
-                                    color: 'var(--paper-ink, #111827)',
+                                    background: 'var(--paper-white)',
+                                    color: 'var(--paper-ink)',
                                     resize: 'vertical',
                                     outline: 'none',
                                     boxSizing: 'border-box',
-                                    boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.2)',
+                                    boxShadow: '0 0 0 3px var(--color-accent-a20)',
                                     minHeight: '60px',
                                   }}
                                 />
@@ -1532,19 +1532,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     padding: '6px 8px',
                                     borderRight:
                                       (cIdx + 1) % colCount !== 0 && cIdx !== group.cards.length - 1
-                                        ? '1px solid var(--border-subtle, rgba(0,0,0,0.15))'
+                                        ? '1px solid var(--border-subtle)'
                                         : 'none',
-                                    borderRadius: '4px',
+                                    borderRadius: 'var(--radius-xs)',
                                     cursor: 'pointer',
-                                    backgroundColor: selectedElementId === card.originalElemId ? 'rgba(79,124,255,0.08)' : 'transparent',
+                                    backgroundColor: selectedElementId === card.originalElemId ? 'var(--color-accent-a08)' : 'transparent',
                                     transition: 'background-color 0.12s ease',
                                   }}
                                 >
-                                  <div style={{ fontWeight: 'bold', fontSize: '10pt', color: 'var(--paper-ink, #111827)', lineHeight: 1.3 }}>
+                                  <div style={{ fontWeight: 'bold', fontSize: '10pt', color: 'var(--paper-ink)', lineHeight: 1.3 }}>
                                     {card.name}
                                   </div>
                                   {card.meta && (
-                                    <div style={{ fontSize: '9pt', color: 'var(--paper-slate, #64748b)', marginTop: '3px', lineHeight: 1.25 }}>
+                                    <div style={{ fontSize: '9pt', color: 'var(--paper-slate)', marginTop: '3px', lineHeight: 1.25 }}>
                                       {card.meta}
                                     </div>
                                   )}
@@ -1593,14 +1593,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   fontWeight: bold ? 'bold' : 'normal',
                                   textAlign: align,
                                   border: '2px solid var(--accent-primary)',
-                                  borderRadius: '6px',
+                                  borderRadius: 'var(--radius-xs)',
                                   padding: '3px 8px',
-                                  background: 'var(--paper-white, #ffffff)',
-                                  color: 'var(--paper-ink, #111827)',
+                                  background: 'var(--paper-white)',
+                                  color: 'var(--paper-ink)',
                                   resize: 'vertical',
                                   outline: 'none',
                                   boxSizing: 'border-box',
-                                  boxShadow: '0 0 0 3px rgba(79, 124, 255, 0.2)',
+                                  boxShadow: '0 0 0 3px var(--color-accent-a20)',
                                   minHeight: '28px',
                                 }}
                               />
@@ -1631,12 +1631,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               color: 'var(--paper-ink)',
                               cursor: 'pointer',
                               padding: '2px 6px',
-                              borderRadius: '4px',
+                              borderRadius: 'var(--radius-xs)',
                               whiteSpace: 'pre-line',
                               lineHeight: 1.4,
                               transition: 'background-color 0.12s ease, border-color 0.12s ease',
                               backgroundColor: isSelected
-                                ? 'rgba(79,124,255,0.10)'
+                                ? 'var(--color-accent-soft)'
                                 : (reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent'),
                               border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
                             }}
@@ -1678,9 +1678,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     if (showAIHeatmap) {
                       const score = elem.ai_score !== undefined ? elem.ai_score : (elem.confidence < 0.5 ? 0.9 : 0.1);
                       if (score >= 0.75) {
-                        aiBgColor = 'rgba(239, 68, 68, 0.15)'; // High Risk - Red
+                        aiBgColor = 'var(--color-danger-a12)'; // High Risk - Red
                       } else if (score >= 0.4) {
-                        aiBgColor = 'rgba(234, 179, 8, 0.15)'; // Medium Risk - Yellow
+                        aiBgColor = 'var(--color-warning-a12)'; // Medium Risk - Yellow
                       }
                       
                       if (elem.ai_findings && elem.ai_findings.length > 0) {
@@ -1694,7 +1694,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     // Detector IA Margen (Siempre activo si el score > 0.5)
                     const aiScore = elem.ai_score !== undefined ? elem.ai_score : 0;
                     const isAIGenerated = aiScore > 0.5;
-                    const aiMarginBorder = isAIGenerated ? '2px solid var(--color-accent-soft, #e0e7ff)' : '2px solid transparent';
+                    const aiMarginBorder = isAIGenerated ? '2px solid var(--color-accent-soft)' : '2px solid transparent';
                     const aiTooltip = isAIGenerated ? `Posible contenido IA (${Math.round(aiScore * 100)}%). Patrones detectados.` : undefined;
 
                     return (
@@ -1736,17 +1736,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           position: 'relative',
                           border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed var(--color-danger)' : '2px solid transparent',
                           borderLeft: isSelected ? '2px solid var(--word-blue)' : aiMarginBorder,
-                          borderRadius: '2px',
+                          borderRadius: 'var(--radius-2xs)',
                           padding: '2px 2px 2px 6px',
-                          backgroundColor: isSelected ? 'rgba(43, 87, 154, 0.05)' : (hasGhostCitation ? 'rgba(254, 242, 242, 0.5)' : aiBgColor),
+                          backgroundColor: isSelected ? 'var(--color-accent-a05)' : (hasGhostCitation ? 'var(--color-danger-a12)' : aiBgColor),
                           transition: 'all 0.2s',
                           cursor: 'text',
                           // Hover contextual: la burbuja resalta el elemento referenciado
                           ...(hoveredCommentId === elem.id ? {
                             outline: '2px solid var(--accent-primary)',
                             outlineOffset: '2px',
-                            backgroundColor: 'rgba(79,124,255,0.08)',
-                            boxShadow: '0 0 0 4px rgba(79,124,255,0.10)',
+                            backgroundColor: 'var(--color-accent-a08)',
+                            boxShadow: '0 0 0 4px var(--color-accent-soft)',
                           } : {}),
                         }}
                       >
@@ -1759,12 +1759,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             left: '0',
                             backgroundColor: 'var(--paper-white)',
                             border: '1px solid var(--border-color)',
-                            borderRadius: '4px',
+                            borderRadius: 'var(--radius-xs)',
                             padding: '4px 8px',
                             display: 'flex',
                             gap: '4px',
                             zIndex: 300,
-                            boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                            boxShadow: '0 8px 24px var(--color-ink-a20)',
                             flexWrap: 'wrap',
                             maxWidth: '100%'
                           }}>
@@ -1811,7 +1811,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             {elem.type === 'table' && (
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--color-accent-soft, rgba(79,124,255,0.10))', color: 'var(--accent-primary)', border: '1px solid rgba(79,124,255,0.3)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)', border: '1px solid var(--color-accent-a30)', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => {
                                   setSelectedElementId(elem.id);
                                   useDocStore.getState().setForceRightPanelOpen(true);
@@ -1835,7 +1835,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                         {aiLoadingId === elem.id && (
                           <div style={{
-                            position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.7)',
+                            position: 'absolute', inset: 0, backgroundColor: 'var(--color-on-media-a70)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
                           }}>
                             <Loader2 size={20} className="animate-spin" color="var(--word-blue)" />
@@ -1871,7 +1871,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 fontSize: `${rules.font_size_pt}pt`,
                                 padding: '8px',
                                 border: '2px solid var(--word-blue)',
-                                borderRadius: '4px',
+                                borderRadius: 'var(--radius-xs)',
                                 outline: 'none',
                                 resize: 'vertical'
                               }}
@@ -2028,13 +2028,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 padding: '20px 24px',
                                 backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'var(--paper-bg)',
                                 border: '1.5px dashed var(--paper-faint)',
-                                borderRadius: '8px',
+                                borderRadius: 'var(--radius-md)',
                                 fontFamily: fontFamily,
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--paper-line)', paddingBottom: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span style={{ fontWeight: 700, fontSize: '13pt', color: 'var(--paper-ink)' }}>Índice / Tabla de Contenidos</span>
-                                    <span style={{ fontSize: '10px', backgroundColor: 'var(--severity-info-soft)', color: 'var(--color-info)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                    <span style={{ fontSize: '10px', backgroundColor: 'var(--severity-info-soft)', color: 'var(--color-info)', padding: '2px 8px', borderRadius: 'var(--radius-lg)', fontWeight: 600 }}>
                                       Nativo Word (TOC) con hipervínculos
                                     </span>
                                   </div>
@@ -2052,7 +2052,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                       fontWeight: 600,
                                       cursor: 'pointer',
                                       padding: '2px 6px',
-                                      borderRadius: '4px',
+                                      borderRadius: 'var(--radius-xs)',
                                     }}
                                     title="Quitar este índice del documento"
                                   >
@@ -2080,10 +2080,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                             marginLeft: `${(lvl - 1) * 20}px`,
                                             fontSize: `${rules.font_size_pt - 0.5}pt`,
                                             cursor: 'pointer',
-                                            color: 'var(--paper-ink, #1e293b)',
+                                            color: 'var(--paper-ink)',
                                             fontWeight: lvl === 1 ? 600 : 400,
                                             padding: '2px 4px',
-                                            borderRadius: '4px',
+                                            borderRadius: 'var(--radius-xs)',
                                             transition: 'background-color 0.15s ease',
                                           }}
                                           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--paper-line)'; }}
@@ -2114,7 +2114,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         {(elem.type === 'image' || elem.image_info) && !elem.is_cover_section && (
                           <div style={{
                             margin: '16px auto', maxWidth: '95%',
-                            border: '1px solid var(--paper-line-strong)', borderRadius: '8px',
+                            border: '1px solid var(--paper-line-strong)', borderRadius: 'var(--radius-md)',
                             backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'var(--paper-near)', padding: '10px',
                             position: 'relative',
                             display: 'flex', flexDirection: 'column',
@@ -2132,12 +2132,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     fontSize: '12px',
                                     fontWeight: 700,
                                     padding: '6px 14px',
-                                    borderRadius: 'var(--radius-sm, 6px)',
+                                    borderRadius: 'var(--radius-sm)',
                                     backgroundColor: 'var(--accent-primary)',
-                                    color: '#ffffff',
+                                    color: 'var(--color-text-on-accent)',
                                     border: 'none',
                                     cursor: 'pointer',
-                                    boxShadow: '0 2px 8px rgba(79,124,255,0.30)',
+                                    boxShadow: '0 2px 8px var(--color-accent-a30)',
                                     fontFamily: 'inherit',
                                   }}
                                   onClick={(e) => {
@@ -2176,7 +2176,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     }}
                                     style={{
                                       width: '100%', minHeight: '40px', fontSize: '11pt', fontStyle: 'italic',
-                                      border: '1px solid var(--accent-primary)', borderRadius: '4px', padding: '4px 8px',
+                                      border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-xs)', padding: '4px 8px',
                                       outline: 'none',
                                     }}
                                   />
@@ -2229,7 +2229,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                         height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 30}px` : '170px',
                                         backgroundColor: 'var(--paper-bg)',
                                         border: '1px solid var(--paper-line)',
-                                        borderRadius: '6px',
+                                        borderRadius: 'var(--radius-xs)',
                                         overflow: 'hidden',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -2273,7 +2273,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   border: selectedElementId === elem.id
                                     ? '2px solid var(--accent-primary)'
                                     : '1px solid var(--paper-line)',
-                                  borderRadius: '6px',
+                                  borderRadius: 'var(--radius-xs)',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -2370,9 +2370,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     fontSize: '11px',
                                     fontWeight: 700,
                                     padding: '4px 12px',
-                                    borderRadius: 'var(--radius-sm, 6px)',
+                                    borderRadius: 'var(--radius-sm)',
                                     backgroundColor: 'var(--accent-primary)',
-                                    color: '#ffffff',
+                                    color: 'var(--color-text-on-accent)',
                                     border: 'none',
                                     cursor: 'pointer',
                                     fontFamily: 'inherit',
@@ -2393,15 +2393,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               maxWidth: '100%',
                               borderCollapse: 'collapse',
                               tableLayout: 'auto',
-                              borderTop: `${borderW} solid var(--paper-ink, #000000)`,
-                              borderBottom: `${borderW} solid var(--paper-ink, #000000)`,
+                              borderTop: `${borderW} solid var(--paper-ink)`,
+                              borderBottom: `${borderW} solid var(--paper-ink)`,
                               margin: '8px 0',
                               wordBreak: 'break-word',
                               overflowWrap: 'break-word',
                             }}>
                               {elem.table_info.headers && (
                                 <thead>
-                                  <tr style={{ borderBottom: `${borderW} solid var(--paper-ink, #000000)` }}>
+                                  <tr style={{ borderBottom: `${borderW} solid var(--paper-ink)` }}>
                                     {elem.table_info.headers.map((h, i) => (
                                       <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{h}</th>
                                     ))}
@@ -2489,7 +2489,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           display: 'flex', alignItems: 'center', gap: '5px',
                         }}>
                           <span style={{
-                            width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
+                            width: '22px', height: '22px', borderRadius: 'var(--radius-full)', flexShrink: 0,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             background: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
                           }}>{extra - MAX_GUTTER}</span>
@@ -2510,7 +2510,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 style={{
                   position: 'absolute', left: `${PAGE_W}px`, top: `${gutterOffsets[hoveredCommentId]}px`,
                   width: '20px', height: 0,
-                  borderTop: '1.5px dashed rgba(79,124,255,0.65)',
+                  borderTop: '1.5px dashed var(--color-accent-a65)',
                   pointerEvents: 'none', zIndex: 20,
                 }}
               />

@@ -1,6 +1,7 @@
 /* WordAPA7 — Modal para combinar retazos de documentos colaborativos */
 
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 
 export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
@@ -40,7 +41,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: 'var(--color-ink-a55)',
         backdropFilter: 'blur(3px)',
         zIndex: 1000,
         display: 'flex',
@@ -83,10 +84,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
               padding: '4px',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+            <X size={14} strokeWidth="var(--icon-stroke)" />
           </button>
         </div>
 
@@ -175,7 +173,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
               background: 'var(--accent-primary)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
-              color: '#ffffff',
+              color: 'var(--color-text-on-accent)',
               cursor: 'pointer',
             }}
           >

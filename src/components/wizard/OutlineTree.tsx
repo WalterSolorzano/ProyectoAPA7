@@ -107,7 +107,7 @@ export const OutlineTree: React.FC = () => {
             style={{
               display: 'block', flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
               border: 'none', background: 'transparent', fontFamily: 'inherit',
-              padding: '4px 6px', borderRadius: '6px',
+              padding: '4px 6px', borderRadius: 'var(--radius-xs)',
               fontSize: lvl === 1 ? '12.5px' : lvl === 2 ? '11.5px' : '11px',
               lineHeight: 1.35,
               color: isActive ? 'var(--accent-primary)' : lvl === 1 ? 'var(--text-main)' : 'var(--text-secondary)',

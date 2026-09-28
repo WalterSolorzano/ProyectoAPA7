@@ -94,7 +94,7 @@ export const DownloadSuccessOverlay: React.FC = () => {
       <div className="download-success-icon">
         <svg width="30" height="30" viewBox="0 0 34 34" fill="none">
           <circle cx="17" cy="17" r="15" className="download-success-ring" />
-          <path d="M10 17.5 L15 22.5 L24 12" className="download-success-check" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M10 17.5 L15 22.5 L24 12" className="download-success-check" strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
       </div>
 
@@ -126,10 +126,10 @@ export const DownloadSuccessOverlay: React.FC = () => {
             padding: '6px 12px',
             cursor: 'pointer',
             fontFamily: 'inherit',
-            backgroundColor: copied ? 'rgba(82,196,26,0.14)' : 'var(--accent-primary)',
+            backgroundColor: copied ? 'var(--color-success-a14)' : 'var(--accent-primary)',
             border: 'none',
-            borderRadius: '8px',
-            color: copied ? 'var(--color-success)' : '#ffffff',
+            borderRadius: 'var(--radius-md)',
+            color: copied ? 'var(--color-success)' : 'var(--color-text-on-accent)',
             transition: 'background-color 0.15s ease',
           }}
         >
@@ -146,7 +146,7 @@ export const DownloadSuccessOverlay: React.FC = () => {
             fontFamily: 'inherit',
             backgroundColor: 'transparent',
             border: '1px solid var(--border-subtle)',
-            borderRadius: '8px',
+            borderRadius: 'var(--radius-md)',
             color: 'var(--text-secondary)',
           }}
         >

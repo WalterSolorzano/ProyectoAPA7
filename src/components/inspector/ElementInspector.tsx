@@ -53,7 +53,7 @@ const SuggestCaptionButton: React.FC<{ elem: any }> = ({ elem }) => {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
         width: '100%', padding: '7px 10px', marginBottom: '8px', fontSize: '11px', fontWeight: 600,
         background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-        border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+        border: '1px solid var(--color-accent-a40)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
       }}
       title="La IA propone una leyenda APA 7 a partir del texto alrededor de la figura"
     >
@@ -105,8 +105,8 @@ export const ElementInspector: React.FC = () => {
     <div className="inspector-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-main)', borderLeft: '1px solid var(--border-subtle)' }}>
       <style>{`
         .inspector-pane .form-control, .inspector-pane .form-select, .inspector-pane .form-textarea {
-          background-color: rgba(255,255,255,0.05) !important;
-          border: 1px solid rgba(255,255,255,0.08) !important;
+          background-color: var(--color-on-media-a05) !important;
+          border: 1px solid var(--color-on-media-a08) !important;
           color: var(--text-main) !important;
         }
         .inspector-pane .inspector-label, .inspector-pane .form-label {
@@ -126,7 +126,7 @@ export const ElementInspector: React.FC = () => {
         display: 'flex',
         borderBottom: '1px solid var(--border-subtle)',
         backgroundColor: 'transparent',
-        borderRadius: 0,
+        borderRadius: 'var(--radius-none)',
         padding: 0,
         height: 'auto',
         justifyContent: 'space-between'
@@ -147,7 +147,7 @@ export const ElementInspector: React.FC = () => {
                   padding: '8px 4px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  borderRadius: 0,
+                  borderRadius: 'var(--radius-none)',
                   boxShadow: 'none',
                   backgroundColor: 'transparent'
                 }}
@@ -192,7 +192,7 @@ export const ElementInspector: React.FC = () => {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px',
               fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-              background: 'var(--accent-primary)', color: '#fff', border: 'none',
+              background: 'var(--accent-primary)', color: 'var(--color-text-on-accent)', border: 'none',
               borderRadius: 'var(--radius-sm)',
             }}
           >
@@ -387,7 +387,7 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
         <label className="inspector-label">Ecuación detectada</label>
         <div style={{
           fontSize: '11px', color: 'var(--text-main)', backgroundColor: 'var(--app-bg)',
-          padding: '6px 8px', borderRadius: '4px', fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'nowrap',
+          padding: '6px 8px', borderRadius: 'var(--radius-xs)', fontFamily: 'monospace', overflowX: 'auto', whiteSpace: 'nowrap',
         }}>
           {selectedElem.text || '[Ecuación OMML]'}
         </div>
@@ -451,11 +451,11 @@ const EquationTab: React.FC<{ selectedElem: any; triggerUpdate: () => void }> = 
               style={{
                 flex: 1,
                 padding: '6px 4px',
-                borderRadius: '6px',
+                borderRadius: 'var(--radius-xs)',
                 fontSize: '10px',
                 cursor: 'pointer',
-                border: eq.alignment === opt.value ? '1px solid var(--word-blue)' : '1px solid rgba(255,255,255,0.1)',
-                backgroundColor: eq.alignment === opt.value ? 'rgba(79,124,255,0.14)' : 'rgba(255,255,255,0.04)',
+                border: eq.alignment === opt.value ? '1px solid var(--word-blue)' : '1px solid var(--color-on-media-a30)',
+                backgroundColor: eq.alignment === opt.value ? 'var(--color-accent-a20)' : 'var(--surface-subtle)',
                 color: 'var(--text-main)',
               }}
             >

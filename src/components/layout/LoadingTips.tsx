@@ -274,16 +274,25 @@ const CATEGORY_SEQUENCE: Tip['category'][] = [
   'process', 'jokes', 'apa', 'ai', 'jokes', 'wordhell', 'student', 'apa', 'ai',
 ];
 
-// Metadatos visuales de categoría (color de marca y etiqueta profesional, sin emojis)
+/* Metadatos visuales de categoría (color de marca y etiqueta profesional, sin
+   emojis). La tinta de cada una sale del design system, y `bg` SIEMPRE es el
+   mismo token de alfa que usa el resto de la app para esa familia.
+
+   Antes cada categoría traía su propio par: `ai` era #8b5cf6 con su rgba y
+   `student` era #6366f1 con el suyo, dos violetas a medio tono de diferencia
+   que en pantalla se leían como el mismo color y no como dos. Ahora las dos
+   categorías que el sistema de diseño no distingue entre sí comparten
+   `--color-engine-ia`, que es lo que además emite el lienzo para un hallazgo
+   de IA: el mismo motor no puede verse de dos colores según la pantalla. */
 const CATEGORY_META: Record<Tip['category'], { label: string; color: string; bg: string }> = {
-  process:  { label: 'Procesamiento Activo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },
-  apa:      { label: 'Normas APA 7ma Edición', color: 'var(--color-success)', bg: 'rgba(16, 185, 129, 0.12)' },
-  ai:       { label: 'Detección Editorial IA', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
-  llm:      { label: 'Modelos Inteligentes', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.12)' },
-  wordhell: { label: 'Optimizador de Word', color: 'var(--color-warning)', bg: 'rgba(245, 158, 11, 0.12)' },
-  student:  { label: 'Comunidad Estudiantil', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)' },
-  jokes:    { label: 'Pausa Académica', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.12)' },
-  honest:   { label: 'Análisis Profundo', color: 'var(--accent-primary, #4f7cff)', bg: 'rgba(79, 124, 255, 0.12)' },
+  process:  { label: 'Procesamiento Activo', color: 'var(--accent-primary)', bg: 'var(--color-accent-a12)' },
+  apa:      { label: 'Normas APA 7ma Edición', color: 'var(--color-success)', bg: 'var(--color-success-a12)' },
+  ai:       { label: 'Detección Editorial IA', color: 'var(--color-engine-ia)', bg: 'var(--color-engine-ia-a12)' },
+  llm:      { label: 'Modelos Inteligentes', color: 'var(--color-engine-ia)', bg: 'var(--color-engine-ia-a12)' },
+  wordhell: { label: 'Optimizador de Word', color: 'var(--color-warning)', bg: 'var(--color-warning-a12)' },
+  student:  { label: 'Comunidad Estudiantil', color: 'var(--color-engine-ia)', bg: 'var(--color-engine-ia-a12)' },
+  jokes:    { label: 'Pausa Académica', color: 'var(--color-engine-tables)', bg: 'var(--color-engine-tables-a12)' },
+  honest:   { label: 'Análisis Profundo', color: 'var(--accent-primary)', bg: 'var(--color-accent-a12)' },
 };
 
 // Cápsula de progreso interactiva con pulso y gradiente de diseño propio
@@ -292,23 +301,23 @@ const CustomProgressCapsule: React.FC = () => (
     width: '100%',
     maxWidth: '340px',
     height: '8px',
-    backgroundColor: 'var(--surface-subtle, rgba(0,0,0,0.06))',
-    borderRadius: '999px',
+    backgroundColor: 'var(--surface-subtle)',
+    borderRadius: 'var(--radius-full)',
     padding: '2px',
     boxSizing: 'border-box',
-    border: '1px solid var(--border-subtle, rgba(0,0,0,0.08))',
+    border: '1px solid var(--border-subtle)',
     position: 'relative',
     overflow: 'hidden',
-    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: 'var(--shadow-inset)',
   }}>
     <div
       className="custom-loader-track"
       style={{
         height: '100%',
         minWidth: '35%',
-        background: 'linear-gradient(90deg, var(--accent-primary, #4f7cff) 0%, #7c3aed 100%)',
-        borderRadius: '999px',
-        boxShadow: '0 0 10px rgba(79, 124, 255, 0.4)',
+        background: 'linear-gradient(90deg, var(--accent-primary) 0%, var(--color-engine-ia) 100%)',
+        borderRadius: 'var(--radius-full)',
+        boxShadow: '0 0 10px var(--color-accent-a40)',
       }}
     />
   </div>
@@ -330,11 +339,11 @@ const StageRail: React.FC<{ llmStatus?: string }> = ({ llmStatus }) => {
           <div className={`custom-stage-card ${s.state}`}>
             <div className="custom-stage-icon">
               {s.state === 'done' ? (
-                <Check size={11} strokeWidth={3} />
+                <Check size={11} strokeWidth="var(--icon-stroke)" />
               ) : s.state === 'active' ? (
                 <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
               ) : (
-                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--text-muted)' }} />
+                <span style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--text-muted)' }} />
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
@@ -373,9 +382,14 @@ const AmbientCanvas: React.FC = () => {
 
     // ── El color, de la hoja ────────────────────────────────────────────────
     /* Se lee con `getComputedStyle` porque un token no es un color: es una
-       cadena que el navegador resuelve. Leída una vez por montaje alcanza: el
-       tema no cambia mientras la capa está puesta, y si cambia, la siguiente
-       carga lo vuelve a leer. */
+       cadena que el navegador resuelve, y un `CanvasRenderingContext2D` no
+       resuelve nada (ver la nota de `CIELO` en `HomeHero.tsx`).
+
+       El RESPALDO no puede ser un `var()`: si el token no estuviera
+       declarado, esto devolvería la cadena literal "var(--color-accent-soft)"
+       como si fuera un color, el canvas la descartaría en silencio y el
+       borrón saldría del color anterior. Por eso son literales, y por eso
+       son los mismos valores que la hoja declara para el tema claro. */
     const leerToken = (nombre: string, respaldo: string): string => {
       const v = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
       return v || respaldo;
@@ -432,7 +446,10 @@ const AmbientCanvas: React.FC = () => {
         const r = Math.min(W, H) * b.rFrac * pulse;
         const grad = ctx.createRadialGradient(b.cx * W, b.cy * H, 0, b.cx * W, b.cy * H, r);
         grad.addColorStop(0, blob);
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        /* La ultima parada del degradado es TRANSPARENTE, y se escribe con la
+         palabra clave y no con `rgba(0,0,0,0)`: las dos son el mismo color y
+         la palabra es la que no puede confundirse con un alfa mal escrito. */
+      grad.addColorStop(1, 'transparent');
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.ellipse(b.cx * W, b.cy * H, r, r * 0.75, 0, 0, Math.PI * 2);
@@ -776,12 +793,12 @@ export const LoadingTips: React.FC<LoadingTipsProps> = ({ activo, que }) => {
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            color: 'var(--accent-primary, #4f7cff)',
-            backgroundColor: 'rgba(79, 124, 255, 0.08)',
+            color: 'var(--accent-primary)',
+            backgroundColor: 'var(--color-accent-a08)',
             padding: '4px 12px',
-            borderRadius: '999px',
+            borderRadius: 'var(--radius-full)',
             marginBottom: '10px',
-            border: '1px solid rgba(79, 124, 255, 0.18)',
+            border: '1px solid var(--color-accent-a20)',
           }}>
             <Sparkles size={12} />
             Criterio Editorial APA 7

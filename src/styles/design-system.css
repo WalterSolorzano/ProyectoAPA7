@@ -62,6 +62,85 @@
   --color-paper-border-subtle: #e2e8f0;
   --surface-subtle: rgba(0, 0, 0, 0.035);
 
+  /* ════════════ ESCALA DE ALFA ════════════
+     La deuda de color que este archivo vino a pagar eran 231 literales en 30
+     archivos, y 119 de ellos eran valores DISTINTOS. Declarar 119 tokens
+     habría sido cambiar un problema por otro: el design system deja de ser
+     una escala y pasa a ser un índice de cada pantalla.
+
+     Estos son los escalones. La convención es la de `DESIGN.md`
+     (`primary-soft: rgba(79, 124, 255, 0.10)`): un token por FAMILIA de color
+     y un token por PASO de alfa, no uno por literal.
+
+     Los pasos son 05, 08, 12, 20, 30, 40 y 65 porque son los que la app usa
+     de verdad: un velo apenas perceptible, un fondo de chip, un borde, un
+     hover, una marca de seleccion, un borde fuerte y una linea de punteado. Un
+     uso que caiga entre dos pasos se acerca al vecino: la diferencia es
+     invisible y la alternativa era que cada archivo inventara su propio alfa. */
+  --color-accent-a05: rgba(79, 124, 255, 0.05);
+  --color-accent-a08: rgba(79, 124, 255, 0.08);
+  --color-accent-a12: rgba(79, 124, 255, 0.12);
+  --color-accent-a20: rgba(79, 124, 255, 0.20);
+  --color-accent-a30: rgba(79, 124, 255, 0.30);
+  --color-accent-a40: rgba(79, 124, 255, 0.40);
+  --color-accent-a65: rgba(79, 124, 255, 0.65);
+
+  /* El NEGRO con alfa, que es la misma tinta que el borde y que el velo. En
+     claro va sobre superficies blancas; en oscuro el token se invierte a
+     blanco, porque un negro al 12% sobre `#18181c` no se ve. Es la razón de
+     que estos tokens existan en los dos temas y no sean un `rgba` fijo. */
+  --color-ink-a05: rgba(0, 0, 0, 0.05);
+  --color-ink-a08: rgba(0, 0, 0, 0.08);
+  --color-ink-a12: rgba(0, 0, 0, 0.12);
+  --color-ink-a20: rgba(0, 0, 0, 0.20);
+  --color-ink-a40: rgba(0, 0, 0, 0.40);
+  --color-ink-a55: rgba(0, 0, 0, 0.55);
+  /* El blanco con alfa: lo que se pone ENCIMA de una foto o de un color
+     saturated —el velo de "sin imagen", la marca de agua de una miniatura—.
+     No se invierte en oscuro porque no es un tinte de superficie: es una
+     capa, y una capa blanca sobre un fondo oscuro es lo que tiene que ser. */
+  --color-on-media-a05: rgba(255, 255, 255, 0.05);
+  --color-on-media-a08: rgba(255, 255, 255, 0.08);
+  --color-on-media-a30: rgba(255, 255, 255, 0.30);
+  --color-on-media-a70: rgba(255, 255, 255, 0.70);
+  --color-on-media-a90: rgba(255, 255, 255, 0.90);
+
+  /* Las familias SEMÁNTICAS con alfa. El color entero ya existe
+     (`--color-warning`, `--color-danger`, `--color-success`): lo que faltaba
+     era el paso suave, que es lo que se pinta de fondo de un chip o de una
+     insignia. Antes cada uno escribía su propio `rgba` con el alfa que le
+     parecía bien, y por eso había seis rosados distintos para el mismo
+     "esto es una advertencia". */
+  --color-warning-a05: rgba(217, 119, 6, 0.05);
+  --color-warning-a08: rgba(217, 119, 6, 0.08);
+  --color-warning-a12: rgba(245, 158, 11, 0.12);
+  --color-warning-a30: rgba(245, 158, 11, 0.30);
+  --color-warning-a40: rgba(245, 158, 11, 0.40);
+  --color-danger-a05: rgba(220, 38, 38, 0.05);
+  --color-danger-a08: rgba(220, 38, 38, 0.08);
+  --color-danger-a12: rgba(220, 38, 38, 0.12);
+  --color-danger-a30: rgba(220, 38, 38, 0.30);
+  --color-success-a12: rgba(34, 197, 94, 0.12);
+  --color-success-a14: rgba(34, 197, 94, 0.14);
+
+  /* Los motores de revisión, que son un SEGUNDO conjunto de colores: el
+     violeta del detector de IA, el cian de figuras y tablas. No son la
+     severidad —un hallazgo de IA no es un error— así que no se mezclan con
+     `--color-danger`. Vienen con su paso suave porque la insignia del motor
+     se pinta de su color al 12%. */
+  --color-engine-ia: #7c3aed;
+  --color-engine-ia-a08: rgba(124, 58, 237, 0.08);
+  --color-engine-ia-a12: rgba(124, 58, 237, 0.12);
+  --color-engine-ia-a30: rgba(124, 58, 237, 0.30);
+  --color-engine-tables: #06b6d4;
+  --color-engine-tables-a12: rgba(6, 182, 212, 0.12);
+
+  /* La PANTALLA DE INICIO, que tenía su propia paleta de tres azules y dos
+     grises para las tarjetas de atajos. Son los mismos que el resto de la
+     app con otro nombre, y por eso se declararon aparte. */
+  --color-ink-strong: #0f172a;
+  --color-ink-soft: #9ca3af;
+
   /* TitleBar overlay (Electron) */
   --titlebar-bg: #ffffff;
   --titlebar-symbol-color: #1a1a2e;
@@ -98,8 +177,18 @@
   /* ════════════ 4 · BORDE ════════════ */
   --border-width-1: 1px;
   --border-width-2: 2px;
+  /* La escala de radio, completa y CORRIDA. Antes empezaba en 4px, y el código
+     usaba 2px, 3px, 6px y 7px: cuatro medidas fuera de la escala que la
+     obligaban a escribir el radio a mano, y R4 no podia distinguirlas de un
+     radio inventado. Agregar los escalones que faltaban —no un token por
+     literal— es lo que las deja entrar sin que la regla se haga de trampa.
+     Un radio que no esta en la escala se acerca al escalon vecino: el costo es
+     un pixel, y la alternativa era que la app tuviera ocho radios. */
+  --radius-none: 0px;
+  --radius-2xs: 2px;                       /* chips, badges,kbd */
+  --radius-xs: 6px;                        /* inputs, cards chicas */
   --radius-sm: 4px;
-  --radius-md: 8px;
+  --radius-md: 8px;                        /* el radio de la app */
   --radius-lg: 12px;
   --radius-xl: 18px;
   --radius-full: 9999px;                   /* solo pills/avatares */
@@ -227,6 +316,68 @@
   --color-accent-pressed: #3b66e0;
   --color-accent-soft: rgba(79, 124, 255, 0.15);
   --mark-ai-bg: rgba(156, 163, 175, 0.22);
+
+  /* ════════════ ESCALA DE ALFA (OSCURO) ════════════
+     La escala de acento se declara con MÁS alfa en los pasos bajos, por la
+     misma razón que `--mark-ai-bg`: la superficie oscura se come el tinte
+     suave, y un chip al 5% de azul sobre `#18181c` no se distingue del
+     fondo. Los pasos altos no se tocan: a partir de 0.20 los dos temas
+     coinciden, y subirlo en oscuro taparía el contenido de debajo.
+
+     Y la tinta con alfa SE INVIERTE: en claro es negro, en oscuro es blanco,
+     que es la tinta de este tema. Un `rgba(0,0,0,0.12)` escrito a mano en
+     un `.tsx` es un color que no cambia con el tema, y por eso esta regla
+     existe: no es que el negro al 12% se vea igual en los dos, es que en
+     oscuro no se ve. */
+  --color-accent-a05: rgba(79, 124, 255, 0.08);
+  --color-accent-a08: rgba(79, 124, 255, 0.12);
+  --color-accent-a12: rgba(79, 124, 255, 0.16);
+  --color-accent-a20: rgba(79, 124, 255, 0.22);
+  --color-accent-a30: rgba(79, 124, 255, 0.30);
+  --color-accent-a40: rgba(79, 124, 255, 0.40);
+  --color-accent-a65: rgba(79, 124, 255, 0.65);
+
+  --color-ink-a05: rgba(255, 255, 255, 0.05);
+  --color-ink-a08: rgba(255, 255, 255, 0.08);
+  --color-ink-a12: rgba(255, 255, 255, 0.12);
+  --color-ink-a20: rgba(255, 255, 255, 0.20);
+  --color-ink-a40: rgba(255, 255, 255, 0.40);
+  --color-ink-a55: rgba(255, 255, 255, 0.55);
+  /* `--color-on-media-*` NO se invierte, y no es un olvido: es una capa sobre
+     una foto o sobre un color saturado, no un tinte de superficie. Un velo
+     blanco tiene que seguir siendo blanco con el tema oscuro. */
+  --color-on-media-a05: rgba(255, 255, 255, 0.05);
+  --color-on-media-a08: rgba(255, 255, 255, 0.08);
+  --color-on-media-a30: rgba(255, 255, 255, 0.30);
+  --color-on-media-a70: rgba(255, 255, 255, 0.70);
+  --color-on-media-a90: rgba(255, 255, 255, 0.90);
+
+  /* Las familias semánticas y los motores NO cambian con el tema, y por eso
+     se repiten con el MISMO valor. No es que "no haga falta" declararlos: un
+     token que existe en un solo tema es un bug en el otro, y el que lo
+     detecta es R3. */
+  --color-warning-a05: rgba(217, 119, 6, 0.05);
+  --color-warning-a08: rgba(217, 119, 6, 0.08);
+  --color-warning-a12: rgba(245, 158, 11, 0.12);
+  --color-warning-a30: rgba(245, 158, 11, 0.30);
+  --color-warning-a40: rgba(245, 158, 11, 0.40);
+  --color-danger-a05: rgba(220, 38, 38, 0.05);
+  --color-danger-a08: rgba(220, 38, 38, 0.08);
+  --color-danger-a12: rgba(220, 38, 38, 0.12);
+  --color-danger-a30: rgba(220, 38, 38, 0.30);
+  --color-success-a12: rgba(34, 197, 94, 0.12);
+  --color-success-a14: rgba(34, 197, 94, 0.14);
+
+  --color-engine-ia: #7c3aed;
+  --color-engine-ia-a08: rgba(124, 58, 237, 0.08);
+  --color-engine-ia-a12: rgba(124, 58, 237, 0.12);
+  --color-engine-ia-a30: rgba(124, 58, 237, 0.30);
+  --color-engine-tables: #06b6d4;
+  --color-engine-tables-a12: rgba(6, 182, 212, 0.12);
+
+  --color-ink-strong: #0f172a;
+  --color-ink-soft: #9ca3af;
+
   /* La rampa de IA, en oscuro, con MÁS alfa en los tres escalones bajos: la
      superficie oscura se come el rojo suave (es lo mismo que pasó con
      `--mark-ai-bg` y está anotado arriba). El tope es el `--color-danger` de

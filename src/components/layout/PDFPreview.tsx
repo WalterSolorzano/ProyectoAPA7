@@ -1,64 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  ArrowLeft, ChevronLeft, ChevronRight, FileText,
+  RotateCcw, Loader2, AlertCircle,
+} from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { generatePreviewPdf } from '../../api/backend';
 import * as pdfjsLib from 'pdfjs-dist';
 
-/* ── Iconos SVG nativos a mano (sin librerías ni emojis) ── */
-const SvgArrowLeft = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="19" y1="12" x2="5" y2="12" />
-    <polyline points="12 19 5 12 12 5" />
-  </svg>
-);
-
-const SvgChevronLeft = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 18 9 12 15 6" />
-  </svg>
-);
-
-const SvgChevronRight = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-);
-
-const SvgDocTextIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-  </svg>
-);
-
-const SvgRotateCcw = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="1 4 1 10 7 10" />
-    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-  </svg>
-);
-
-const SvgSpinner = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
-    <line x1="12" y1="2" x2="12" y2="6" />
-    <line x1="12" y1="18" x2="12" y2="22" />
-    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-    <line x1="2" y1="12" x2="6" y2="12" />
-    <line x1="18" y1="12" x2="22" y2="12" />
-    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-  </svg>
-);
-
-const SvgAlertCircle = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="8" x2="12" y2="12" />
-    <line x1="12" y1="16" x2="12.01" y2="16" />
-  </svg>
-);
+/* ── Iconos ──
+   Los siete que estaban aquí eran <svg> copiados a mano desde lucide: los
+   mismos trazos, con el grosor reescrito a mano y sin capa de tamaño. R6 los
+   prohibe por una razón que se ve en este archivo, no por purismo: un svg a
+   mano no hereda los cambios de `--icon-stroke` ni de `--icon-size-*`, así que
+   dos iconos de la misma barra se veían de grosores distintos. Ahora son los
+   de `lucide-react`, que es de donde siempre salieron. */
 
 // Configurar el worker de PDF.js usando la version local instalada
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -188,7 +143,7 @@ export const PDFPreview: React.FC = () => {
             padding: '4px 10px', fontSize: '12px', fontWeight: 600,
           }}
         >
-          <SvgArrowLeft /> Volver a editar
+          <ArrowLeft size={14} strokeWidth="var(--icon-stroke)" /> Volver a editar
         </button>
         <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>|</span>
         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap' }}>Vista previa PDF</span>
@@ -199,12 +154,12 @@ export const PDFPreview: React.FC = () => {
           title="Abrir vista previa simplificada (no requiere LibreOffice)"
           style={{
             display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-            background: 'rgba(79,124,255,0.12)', border: '1px solid rgba(79,124,255,0.35)',
+            background: 'var(--color-accent-a12)', border: '1px solid var(--color-accent-a40)',
             borderRadius: 'var(--radius-sm)', color: 'var(--accent-primary)',
             padding: '4px 10px', fontSize: '12px', fontWeight: 600,
           }}
         >
-          <SvgDocTextIcon /> Vista simplificada
+          <FileText size={14} strokeWidth="var(--icon-stroke)" /> Vista simplificada
         </button>
         <button
           type="button"
@@ -212,7 +167,7 @@ export const PDFPreview: React.FC = () => {
           disabled={currentPage <= 1 || loading}
           style={{ background: 'transparent', border: 'none', color: currentPage <= 1 ? 'var(--text-muted)' : 'var(--text-main)', cursor: currentPage <= 1 ? 'not-allowed' : 'pointer' }}
         >
-          <SvgChevronLeft />
+          <ChevronLeft size={18} strokeWidth="var(--icon-stroke)" />
         </button>
         <span style={{ fontSize: '13px' }}>
           Página {currentPage} de {totalPages || '?'}
@@ -223,7 +178,7 @@ export const PDFPreview: React.FC = () => {
           disabled={currentPage >= totalPages || loading}
           style={{ background: 'transparent', border: 'none', color: currentPage >= totalPages ? 'var(--text-muted)' : 'var(--text-main)', cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer' }}
         >
-          <SvgChevronRight />
+          <ChevronRight size={18} strokeWidth="var(--icon-stroke)" />
         </button>
       </div>
 
@@ -231,10 +186,10 @@ export const PDFPreview: React.FC = () => {
         {loading && (
           <div style={{
             position: 'absolute', top: 44, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',
+            backgroundColor: 'var(--color-ink-a55)', display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', color: 'white', zIndex: 10
           }}>
-            <SvgSpinner />
+            <Loader2 size={24} strokeWidth="var(--icon-stroke)" style={{ animation: 'spin 1s linear infinite' }} />
             <span style={{ fontSize: '14px', fontWeight: 500, marginTop: '12px' }}>Generando renderizado de alta fidelidad...</span>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>(Usando Microsoft Word / LibreOffice)</span>
           </div>
@@ -247,7 +202,7 @@ export const PDFPreview: React.FC = () => {
             alignItems: 'center', justifyContent: 'center', color: 'var(--color-danger)', zIndex: 10,
             textAlign: 'center', padding: '24px',
           }}>
-            <SvgAlertCircle />
+            <AlertCircle size={28} strokeWidth="var(--icon-stroke)" />
             <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', marginTop: '8px' }}>No se pudo generar la vista previa de alta fidelidad</span>
             <span style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px', maxWidth: '460px', lineHeight: 1.5 }}>
               {error}. Este renderizado necesita Word COM o LibreOffice instalado en tu computadora.
@@ -259,10 +214,10 @@ export const PDFPreview: React.FC = () => {
                 className="btn btn-primary"
                 title="Vista previa simplificada sin necesidad de LibreOffice"
               >
-                <SvgDocTextIcon /> Usar vista simplificada
+                <FileText size={14} strokeWidth="var(--icon-stroke)" /> Usar vista simplificada
               </button>
               <button type="button" className="btn btn-secondary" onClick={fetchPdfPreview}>
-                <SvgRotateCcw /> Reintentar
+                <RotateCcw size={14} strokeWidth="var(--icon-stroke)" /> Reintentar
               </button>
               <button type="button" className="btn btn-ghost" onClick={goBack}>
                 Volver a editar
@@ -272,7 +227,7 @@ export const PDFPreview: React.FC = () => {
         )}
 
         {!error && pdfUrl && (
-          <canvas ref={canvasRef} style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.2)', backgroundColor: 'white', maxWidth: '100%' }} />
+          <canvas ref={canvasRef} style={{ boxShadow: '0 4px 8px var(--color-ink-a20)', backgroundColor: 'white', maxWidth: '100%' }} />
         )}
       </div>
     </div>

@@ -120,7 +120,7 @@ export const Step5BodyWizard: React.FC = () => {
             <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Párrafos, listas y sangrías</span>
           </div>
           <button type="button" onClick={() => setShowPanel(false)} title="Colapsar panel"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}>
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-xs)', display: 'flex' }}>
             <PanelLeftClose size={16} />
           </button>
         </div>
@@ -158,9 +158,9 @@ export const Step5BodyWizard: React.FC = () => {
                   key={opt.value}
                   type="button"
                   style={{
-                    padding: '7px 6px', fontSize: '11px', borderRadius: '8px',
+                    padding: '7px 6px', fontSize: '11px', borderRadius: 'var(--radius-md)',
                     border: rules.line_spacing === opt.value ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    background: rules.line_spacing === opt.value ? 'rgba(79,124,255,0.12)' : 'rgba(255,255,255,0.03)',
+                    background: rules.line_spacing === opt.value ? 'var(--color-accent-a12)' : 'var(--surface-subtle)',
                     color: rules.line_spacing === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
                     fontWeight: rules.line_spacing === opt.value ? 700 : 500,
                     cursor: 'pointer', fontFamily: 'inherit',
@@ -181,8 +181,8 @@ export const Step5BodyWizard: React.FC = () => {
 
           {/* Revisión ortográfica + IA */}
           <div style={{
-            padding: '12px', border: '1px solid rgba(79,124,255,0.35)', borderRadius: 'var(--radius-lg)',
-            backgroundColor: 'rgba(79,124,255,0.06)',
+            padding: '12px', border: '1px solid var(--color-accent-a40)', borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--color-accent-a05)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
               <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}>Revisión ortográfica e IA</strong>
@@ -200,9 +200,9 @@ export const Step5BodyWizard: React.FC = () => {
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%',
-                justifyContent: 'center', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer',
+                justifyContent: 'center', padding: '7px 12px', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
                 fontFamily: 'inherit', fontWeight: 600,
-                background: 'var(--word-blue)', color: '#fff',
+                background: 'var(--word-blue)', color: 'var(--color-text-on-accent)',
                 border: 'none',
               }}
             >
@@ -229,7 +229,7 @@ export const Step5BodyWizard: React.FC = () => {
               onClick={() => { void runProofreadBatch(); }}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%',
-                justifyContent: 'center', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer',
+                justifyContent: 'center', padding: '7px 12px', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
                 fontFamily: 'inherit', fontWeight: 600,
                 background: 'transparent', color: 'var(--accent-primary)',
                 border: '1px solid var(--accent-primary)',
@@ -273,9 +273,9 @@ export const Step5BodyWizard: React.FC = () => {
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', width: '100%',
-                    justifyContent: 'center', padding: '7px 12px', borderRadius: '6px', cursor: 'pointer',
+                    justifyContent: 'center', padding: '7px 12px', borderRadius: 'var(--radius-xs)', cursor: 'pointer',
                     fontFamily: 'inherit', fontWeight: 700, marginTop: '6px',
-                    background: 'var(--accent-primary)', color: '#fff', border: 'none',
+                    background: 'var(--accent-primary)', color: 'var(--color-text-on-accent)', border: 'none',
                   }}
                 >
                   <Wand2 size={14} /> Corregir todo lo seguro ({safe.length})
@@ -287,7 +287,7 @@ export const Step5BodyWizard: React.FC = () => {
                 {Object.entries(findingsByKind).map(([kind, count]) => (
                   <div key={kind} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
                     <span style={{
-                      width: '8px', height: '8px', borderRadius: '50%',
+                      width: '8px', height: '8px', borderRadius: 'var(--radius-full)',
                       backgroundColor: KIND_TONES[kind] || 'var(--text-secondary)', flexShrink: 0,
                     }} />
                     <span style={{ color: 'var(--text-secondary)' }}>{KIND_LABELS[kind] || kind}</span>
@@ -309,7 +309,7 @@ export const Step5BodyWizard: React.FC = () => {
                   {Object.entries(aiIndices.indices).map(([k, v]) => (
                     <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ width: 30, color: 'var(--text-secondary)' }}>{k}</span>
-                      <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--border-subtle)', overflow: 'hidden' }}>
+                      <div style={{ flex: 1, height: 5, borderRadius: 'var(--radius-2xs)', background: 'var(--border-subtle)', overflow: 'hidden' }}>
                         <div style={{ width: `${Math.round(v * 100)}%`, height: '100%', background: v >= 0.6 ? 'var(--color-warning)' : 'var(--accent-primary)' }} />
                       </div>
                       <span style={{ width: 28, textAlign: 'right', color: 'var(--text-secondary)' }}>{Math.round((v as number) * 100)}</span>
@@ -350,7 +350,7 @@ export const Step5BodyWizard: React.FC = () => {
         }}>
           <button type="button" onClick={() => setShowPanel(true)}
             title="Mostrar panel de reglas del cuerpo"
-            style={{ width: 32, height: 32, borderRadius: 8, cursor: 'pointer', background: 'rgba(79,124,255,0.10)', border: '1px solid rgba(79,124,255,0.2)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', cursor: 'pointer', background: 'var(--color-accent-soft)', border: '1px solid var(--color-accent-a30)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <PanelLeftOpen size={14} />
           </button>
         </div>

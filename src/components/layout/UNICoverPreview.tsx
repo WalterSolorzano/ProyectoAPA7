@@ -8,7 +8,13 @@ import { useDocStore } from '../../store/useDocStore';
 import { parseAuthorEntries, COVER_FIELD_HIGHLIGHT_EVENT } from '../../lib/portadaAuthors';
 import { resolveAssetUrl } from '../../api/backend';
 
-const BLACK = '#000000';
+/* La tinta de la portada. Es una PREVISUALIZACION de una hoja impresa, asi que
+   el color no es el de la interfaz sino el del papel: `--paper-ink`, que R7
+   declara igual en los dos temas precisamente porque el papel no se oscurece.
+   Este `BLACK` era un `#000000` suelto que ademas no era el negro de la hoja,
+   con lo que la vista previa y el PDF salian de un gris distinto al que
+   python/modules/portada_uni.py escribe. */
+const BLACK = 'var(--paper-ink)';
 
 export const UNICoverPreview: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
@@ -27,7 +33,7 @@ export const UNICoverPreview: React.FC = () => {
 
   const hl = (field: string): React.CSSProperties =>
     highlightField === field
-      ? { background: 'rgba(79,124,255,0.14)', boxShadow: '0 0 0 2px var(--accent-primary)', borderRadius: '4px' }
+      ? { background: 'var(--color-accent-a20)', boxShadow: '0 0 0 2px var(--accent-primary)', borderRadius: 'var(--radius-xs)' }
       : {};
 
   const autores = parseAuthorEntries(portada.author);
@@ -112,7 +118,7 @@ export const UNICoverPreview: React.FC = () => {
       <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: '4px' }}>
         {cols.map((col, ci) => (
           <React.Fragment key={ci}>
-            <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? '1px solid #000' : 'none' }}>
+            <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
               {col.map((a, ai) => (
                 <div key={ai} style={{ marginBottom: '10px', fontFamily: 'Montserrat, sans-serif' }}>
                   <div style={{ fontSize: '10.5pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK, wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2 }}>{a.nombre}</div>
