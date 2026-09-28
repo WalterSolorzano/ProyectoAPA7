@@ -36,6 +36,7 @@ import { FocusReadingCard } from './FocusReadingCard';
 import { EngineGroupCard, SubtypeRow } from './EngineGroupCard';
 import { FindingDetail } from './FindingDetail';
 import { AiMosaic } from './AiMosaic';
+import { EstadoVacio } from '../shared/EstadoVacio';
 import { useDocStore } from '../../store/useDocStore';
 
 /** Por debajo de este ancho, el rack de 400px deja el centro inservible. */
@@ -216,26 +217,27 @@ export function ReviewWorkbench() {
             <PaperCanvas reviewHighlightIds={wb.highlightIds} />
           </div>
         ) : doc ? (
-          <FocusReadingCard item={wb.selected} totalFindings={enElBloque} />
+          /* El estado vacío vive AQUÍ, en la grilla principal, y no adentro del
+             `<aside>` del rack. Esa es la diferencia entre un estado vacío y un
+             texto que aparece solo si un panel está abierto: el rack se retira
+             bajo 1180 px, y con él se retiraba el mensaje — pantalla vacía sin
+             explicación. La grilla principal se renderiza siempre. */
+          wb.groups.length === 0 ? (
+            <EstadoVacio
+              motivo={wb.hasFindings ? 'sin-resultados' : 'sin-motor'}
+              /* El filtro se NOMBRA: "el filtro" a secas deja al usuario
+                 adivinando cuál de los cinco hay que sacar, y lo único que la
+                 pantalla vacía le ofrece al usuario es eso. */
+              filtroActivo={wb.hasFindings ? wb.filterLabel : null}
+            />
+          ) : (
+            <FocusReadingCard item={wb.selected} totalFindings={enElBloque} />
+          )
         ) : (
           /* Sin documento no hay elemento que resolver, y una tarjeta con el
              párrafo limpio y sin una sola marca es indistinguible de "el motor
              no encontró nada". El hueco se dice. */
-          <p
-            role="status"
-            style={{
-              margin: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 'var(--space-6)',
-              textAlign: 'center',
-              fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-tertiary)',
-            }}
-          >
-            No hay ningún documento abierto. Carga o crea un documento para empezar a revisar.
-          </p>
+          <EstadoVacio motivo="sin-documento" />
         )}
 
         {rackVisible && (
@@ -305,19 +307,6 @@ export function ReviewWorkbench() {
                 ))}
               </EngineGroupCard>
             ))}
-
-            {wb.groups.length === 0 && (
-              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-                {!doc
-                  ? 'Carga un documento para empezar.'
-                  : wb.hasFindings
-                    ? /* El filtro dejó al rack sin filas, no el documento sin
-                         hallazgos: decirlo al revés haría creer que el motor
-                         no corrió. */
-                      'Ningún hallazgo de este motor pasa el filtro. Vuelve a "Todo" para ver todos.'
-                    : 'Ningún motor reportó hallazgos todavía. Pulsa "Escanear" para correr la revisión completa.'}
-              </p>
-            )}
           </aside>
         )}
       </div>

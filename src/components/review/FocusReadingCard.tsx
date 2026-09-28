@@ -48,12 +48,14 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
 
   /* `null` es "no hay página", no "la página 0": un elemento fuera del índice
      no tiene página y la tarjeta no estima una. El 0 tampoco es una página,
-     así que cae en el mismo rótulo. */
-  const pagina = !item
-    ? 'Sin selección'
-    : item.pageNumber
+     así que cae en el mismo rótulo. Y sin `item` NO hay línea de contexto: no
+     hay contexto que leer, y "Sin selección" escrito donde antes iba la página
+     es un rótulo inventado que ocupa el lugar de un dato. */
+  const pagina = item
+    ? item.pageNumber
       ? `Página ${item.pageNumber} de la revisión`
-      : 'Sin página asignada';
+      : 'Sin página asignada'
+    : null;
   const seccion = item ? `${ENGINE_META[item.category]?.title ?? item.category} · ` : '';
 
   /* Un hallazgo puede quedarse sin texto: el elemento se editó o se borró
@@ -88,7 +90,11 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
           color: 'var(--color-text-tertiary)',
         }}
       >
-        <span>{`${seccion}${pagina}`}</span>
+        {/* La línea de contexto solo se renderiza si HAY contexto. Con `item`
+            en null, esta cabecera diría "Sin selección" en el lugar donde en
+            cualquier otro momento va la página, y eso es un dato falso en el
+            lugar exacto donde se leen los datos. */}
+        {pagina !== null && <span>{`${seccion}${pagina}`}</span>}
         <span>{totalFindings} {totalFindings === 1 ? 'hallazgo en este bloque' : 'hallazgos en este bloque'}</span>
       </header>
 
@@ -115,7 +121,12 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
           <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
             {item
               ? 'El texto de este hallazgo ya no está en el documento.'
-              : 'Sin hallazgo seleccionado. Elige uno en el panel de la derecha o pulsa “Siguiente hallazgo”.'}
+              /* Decía "elige uno en el panel de la derecha". El rack está a la
+                 derecha en ventana ancha, pero en angosta no hay rack: un texto
+                 que nombra una posición que puede no existir es un texto que
+                 miente, y aquí miente sobre lo que el usuario tiene delante. Se
+                 dice la ACCIÓN, que existe en los dos anchos. */
+              : 'Sin hallazgo seleccionado. Pulsa “Siguiente hallazgo” para recorrer los hallazgos de a uno.'}
           </p>
         )}
       </div>

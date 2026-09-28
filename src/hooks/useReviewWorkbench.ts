@@ -108,6 +108,13 @@ export interface ReviewWorkbenchApi {
    *  hallazgo" encendido cuando el filtro se queda sin destino, y no lo
    *  re-deriva: el predicado del filtro es de acá, no de quien lo mira. */
   visibleCount: number;
+  /** El NOMBRE del filtro de motor activo, o `null` si no hay ninguno. Vive acá
+   *  y no en la vista por la misma razón que `visibleCount`: la vista no puede
+   *  comparar `filter` con nada, porque el predicado del filtro es de este
+   *  archivo. Y el nombre importa de verdad —el estado vacío de "el filtro dejó
+   *  la pantalla vacía" tiene que NOMBRAR el filtro, o deja al usuario adivinando
+   *  cuál de los cinco sacar—. */
+  filterLabel: string | null;
   /** Una marca por página con hallazgo: color = motor dominante de ESA página */
   marks: Map<number, MinimapMark>;
   /** Ids de elemento con ALGÚN hallazgo, ya recortados por el filtro. Es lo que
@@ -825,6 +832,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     allGroups,
     hasFindings: items.length > 0,
     visibleCount: visibles.length,
+    filterLabel: filter === 'all' ? null : ENGINE_META[filter].title,
     marks,
     highlightIds,
     filter,

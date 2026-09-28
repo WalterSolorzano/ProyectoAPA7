@@ -188,8 +188,15 @@ describe('T14 - FocusReadingCard', () => {
     montar({ item: null });
     expect(screen.queryByText(new RegExp(TEXTO.slice(0, 10)))).toBeNull();
     expect(screen.getByText(/Sin hallazgo seleccionado/)).toBeTruthy();
-    // Y el encabezado no inventa una pagina para un hallazgo que no existe.
-    expect(screen.getByText(/Sin selección/)).toBeTruthy();
+    /* Y el encabezado no inventa una página para un hallazgo que no existe. La
+       línea de contexto era `pagina = 'Sin selección'` cuando `item` es null: un
+       rótulo inventado ocupando el lugar exacto donde, con algo seleccionado, va
+       un dato. Ahora la línea NO se renderiza, y esto mira las dos mitades: que
+       no esté el rótulo viejo, y que tampoco haya quedado un hueco vacío con la
+       misma forma. */
+    expect(screen.queryByText(/Sin selección/)).toBeNull();
+    expect(screen.queryByText(/Sin página asignada/)).toBeNull();
+    expect(screen.queryByText(/de la revisión/)).toBeNull();
   });
 
   it('un hallazgo sin texto no deja una caja en blanco', () => {

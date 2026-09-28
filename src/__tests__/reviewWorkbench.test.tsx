@@ -266,7 +266,36 @@ describe('T16 — ReviewWorkbench: honestidad de los estados vacíos', () => {
     store({ doc: documento([elemento()]) as never });
     render(<ReviewWorkbench />);
     expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
-    expect(within(rack()).getByText(/Ningún motor reportó hallazgos/)).toBeTruthy();
+    /* El mensaje ya NO vive en el rack. Vivir en el rack era el defecto: el rack
+       se retira bajo 1180 px, y con el se retiraba el mensaje, así que en
+       ventana angosta la pantalla no tenía explicación. Ahora está en la grilla
+       principal, que siempre se renderiza — y por eso `within(rack())` lo
+       BUSCA y no lo encuentra, que es la mitad de lo que esta prueba fija. */
+    expect(within(rack()).queryByText(/Ningún motor reportó hallazgos/)).toBeNull();
+    expect(screen.getByTestId('estado-vacio').textContent).toMatch(/Ningún motor reportó hallazgos/);
+  });
+
+  it('con la ventana angosta y sin hallazgos, el mensaje sigue en pantalla', () => {
+    /* El cierre del Review Focus #1. Bajo 1180 px el rack no se renderiza, así
+       que el mensaje que vivía adentro tampoco: pantalla vacía sin
+       explicación. Ahora el estado vacío está en la grilla principal, y el rack
+       no es su dueño. */
+    store({ doc: documento([elemento()]) as never });
+    fijarAncho(900);
+    const { container } = render(<ReviewWorkbench />);
+    expect(screen.queryByRole('complementary', { name: 'Hallazgos por motor' })).toBeNull();
+    expect(container.textContent).toMatch(/Ningún motor reportó hallazgos/);
+    expect(container.textContent).not.toBe('');
+  });
+
+  it('con la ventana angosta y sin documento, el mensaje sigue en pantalla', () => {
+    /* El otro estado vacío, por el mismo motivo. Un texto que solo existe en una
+       ventana ancha es un texto que miente en la angosta. */
+    store({ doc: null });
+    fijarAncho(900);
+    const { container } = render(<ReviewWorkbench />);
+    expect(container.textContent).toMatch(/documento/i);
+    expect(container.textContent).not.toBe('');
   });
 
   it('sin documento, el centro lo dice en vez de mostrar un parrafo limpio', () => {
@@ -276,8 +305,26 @@ describe('T16 — ReviewWorkbench: honestidad de los estados vacíos', () => {
     store({ doc: null });
     render(<ReviewWorkbench />);
     expect(screen.queryByLabelText('Párrafo en revisión')).toBeNull();
-    expect(screen.getByText(/no hay ningun documento abierto|documento abierto/i)).toBeTruthy();
-    expect(within(rack()).getByText(/Carga un documento/)).toBeTruthy();
+    expect(screen.getByTestId('estado-vacio').textContent).toMatch(/documento/i);
+  });
+
+  it('el filtro que deja la pantalla vacia se NOMBRA, porque es lo que se puede tocar', () => {
+    /* Hay hallazgos pero ninguno pasa el filtro: decirlo al revés ("el documento
+       no tiene hallazgos") haría creer que el motor no corrió, que es otra
+       cosa y otra acción. Y el filtro se nombra por nombre, porque "el filtro" a
+       secas deja al usuario adivinando cuál de los cinco apretar. */
+    store({
+      doc: documento([elemento()]) as never,
+      proofreadFindings: [hallazgo(), fraseIA()] as never,
+    });
+    render(<ReviewWorkbench />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ortografía 1' }));
+    fireEvent.click(within(rack()).getByRole('button', { name: /Falta ortográfica o tilde/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+
+    const texto = screen.getByTestId('estado-vacio').textContent ?? '';
+    expect(texto).toMatch(/filtro/i);
+    expect(texto).toMatch(/ortograf/i);
   });
 
   it('el motor probabilistico no ofrece Aceptar, ni en bloque ni en el detalle', () => {
@@ -486,8 +533,9 @@ describe('T16 — el filtro no deja botones encendidos que no hacen nada', () =>
     // se apaga es el botón sin destino.
     expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Siguiente hallazgo' }).hasAttribute('disabled')).toBe(true);
-    // Y el rack lo dice, en vez de quedarse mudo con el filtro puesto.
-    expect(within(rack()).getByText(/Vuelve a "Todo"/)).toBeTruthy();
+    // Y el estado vacío lo dice, en vez de quedarse mudo con el filtro puesto.
+    expect(within(rack()).queryByText(/vuelve a "Todo"/i)).toBeNull();
+    expect(screen.getByTestId('estado-vacio').textContent).toMatch(/vuelve a "Todo"/i);
   });
 
   it('con hallazgos visibles del filtro, "Siguiente hallazgo" avanza', () => {
