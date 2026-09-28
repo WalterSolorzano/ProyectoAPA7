@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDocStore } from '../store/useDocStore';
 import { needsReview } from '../lib/portadaAuthors';
-import { Search, ArrowRight, FileDown, FileText, FileType, FileCheck } from 'lucide-react';
+import { atajoDeFase, etiquetaDeFase } from '../lib/atajosDeFase';
+import { Search, ArrowRight, FileDown, FileText, FileCheck, Settings, Puzzle } from 'lucide-react';
 
 interface Command {
   id: string;
@@ -38,18 +39,43 @@ export const CommandPalette: React.FC = () => {
       useDocStore.setState({ commandPaletteOpen: false });
     }, keywords: ['siguiente', 'next', 'pendiente', 'pending'] },
 
-    { id: 'goto-portada', label: 'Ir a Portada', shortcut: 'Ctrl+1', icon: null, action: () => { setWizardStep(1); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['portada', 'cover', 'metadatos'] },
-    { id: 'goto-estructura', label: 'Ir a Estructura (Títulos)', shortcut: 'Ctrl+2', icon: null, action: () => { setWizardStep(2); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['estructura', 'titulos', 'headings', 'h1', 'h2'] },
-    { id: 'goto-figuras', label: 'Ir a Figuras y Tablas', shortcut: 'Ctrl+3', icon: null, action: () => { setWizardStep(3); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['figuras', 'tablas', 'imagenes', 'figures', 'tables'] },
-    { id: 'goto-cuerpo', label: 'Ir a Cuerpo y Formato', shortcut: 'Ctrl+2', icon: null, action: () => { setWizardStep(2); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['cuerpo', 'formato', 'sangria', 'parrafo'] },
-    { id: 'goto-referencias', label: 'Ir a Referencias y Validación', shortcut: 'Ctrl+4', icon: null, action: () => { setWizardStep(4); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['referencias', 'bibliografia', 'apa', 'validacion', 'citas'] },
-    { id: 'goto-exportar', label: 'Ir a Exportar (paso final)', shortcut: 'Ctrl+5', icon: FileDown, action: () => { setWizardStep(5); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['exportar', 'export', 'descargar', 'final', 'entrega'] },
+    /* Un comando por fase, y el atajo es el NÚMERO de la fase. No hay tabla que
+       mantener: `atajoDeFase` es la regla, y `atajosDeFase.test.ts` la mira
+       contra el handler real de `App.tsx`.
+
+       Se fue 'Ir a Cuerpo y Formato': compartía `Ctrl+2` con 'Ir a Estructura' y
+       hacía EXACTAMENTE lo mismo, `setWizardStep(2)`. Dos comandos que llevan al
+       mismo lado entrenan a la gente a apretar cosas que no hacen nada. Lo que
+       era del cuerpo —formato, sangría— se cambia en Ajustes → Formato, y esas
+       palabras ahora viven en el comando de Ajustes.
+
+       Y se fue 'Abrir túnel de exportación': compartía `Ctrl+6` con Exportar y
+       llevaba al mismo `viewMode: 'export'`. Queda una sola forma de decirlo, y
+       su acción es `openExportTunnel()` y no `setWizardStep(6)` porque el túnel
+       además cierra el modal de descarga: si estaba abierto, `Ctrl+6` lo dejaba
+       abierto encima de la pantalla de exportación. */
+    { id: 'goto-portada', label: `Ir a ${etiquetaDeFase(1)}`, shortcut: atajoDeFase(1), icon: null, action: () => { setWizardStep(1); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['portada', 'cover', 'metadatos'] },
+    { id: 'goto-estructura', label: `Ir a ${etiquetaDeFase(2)}`, shortcut: atajoDeFase(2), icon: null, action: () => { setWizardStep(2); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['estructura', 'titulos', 'headings', 'h1', 'h2'] },
+    { id: 'goto-figuras', label: `Ir a ${etiquetaDeFase(3)}`, shortcut: atajoDeFase(3), icon: null, action: () => { setWizardStep(3); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['figuras', 'tablas', 'imagenes', 'figures', 'tables'] },
+    { id: 'goto-referencias', label: `Ir a ${etiquetaDeFase(4)}`, shortcut: atajoDeFase(4), icon: null, action: () => { setWizardStep(4); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['referencias', 'bibliografia', 'apa', 'validacion', 'citas'] },
+    { id: 'goto-revision', label: `Ir a ${etiquetaDeFase(5)}`, shortcut: atajoDeFase(5), icon: null, action: () => { setWizardStep(5); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['revision', 'ia', 'ortografia', 'auditoria', 'hallazgos'] },
+    { id: 'goto-exportar', label: `Ir a ${etiquetaDeFase(6)} (paso final)`, shortcut: atajoDeFase(6), icon: FileDown, action: () => { useDocStore.getState().openExportTunnel(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['exportar', 'export', 'descargar', 'final', 'entrega', 'tunel', 'formato'] },
+
+    /* Ajustes. `Ctrl+K` no tenía NINGÚN comando de configuración, y la paleta es
+       el atajo que la gente aprende de memoria: si Ajustes no está acá, el
+       camino corto no existe. Keywords amplias a propósito: la gente busca
+       "sangria" o "tema" y no sabe en qué pestaña viven. */
+    { id: 'abrir-ajustes', label: 'Abrir Ajustes', shortcut: '', icon: Settings, action: () => { useDocStore.getState().setSettingsHubOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['ajustes', 'configuracion', 'formato', 'sangria', 'margenes', 'tema', 'complemento', 'word'] },
+    { id: 'abrir-ajustes-conexion', label: 'Abrir Ajustes: Conexión y proveedores', shortcut: '', icon: Puzzle, action: () => { useDocStore.getState().setSettingsHubOpen(true, 'conexion'); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['conexion', 'proveedor', 'api key', 'clave', 'nim', 'groq', 'cerebras', 'ollama', 'modelo', 'complemento'] },
 
     { id: 'download-docx', label: 'Descargar DOCX', shortcut: 'Ctrl+S', icon: FileDown, action: () => { exportDocx(false); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'docx', 'word'] },
     { id: 'download-pdf', label: 'Descargar PDF', shortcut: 'Ctrl+Shift+S', icon: FileText, action: () => { exportPdf(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'export', 'pdf'] },
-    { id: 'download-open-tunnel', label: 'Abrir túnel de exportación', shortcut: 'Ctrl+6', icon: FileCheck, action: () => { useDocStore.getState().openExportTunnel(); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['descargar', 'download', 'exportar', 'tunel', 'formato'] },
+    /* El validador SE queda: `validatorOpen` lo lee `ValidatorDrawer`, montado
+       en `App.tsx`, así que el comando abre algo real. Lo que se fue fue
+       'Auditor de diseño', que escribía `auditorMode`: nadie leía ese flag, y
+       ningún componente lo dibujaba. Era un comando que no llevaba a ningún
+       lado, que es peor que no tenerlo. */
     { id: 'open-validator', label: 'Abrir validador de citas', shortcut: '', icon: FileCheck, action: () => { useDocStore.getState().setValidatorOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['validador', 'citas', 'referencias', 'validar'] },
-    { id: 'open-auditor', label: 'Auditor de diseño', shortcut: '', icon: null, action: () => { useDocStore.getState().setAuditorMode(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['auditor', 'diseño', 'revision'] },
     { id: 'open-nim-diagnostics', label: 'Diagnóstico de proveedores IA', shortcut: '', icon: null, action: () => { useDocStore.getState().setIsNIMDiagnosticsOpen(true); useDocStore.setState({ commandPaletteOpen: false }); }, keywords: ['diagnostico', 'ia', 'proveedor', 'nim', 'key'] },
   ], [doc, wizardStep, setWizardStep, exportDocx, exportPdf]);
 

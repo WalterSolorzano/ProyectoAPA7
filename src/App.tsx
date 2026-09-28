@@ -523,7 +523,12 @@ export const App: React.FC = () => {
           case '6':
             e.preventDefault();
             if (doc) {
-              useDocStore.getState().setWizardStep(6);
+              /* La 6 es el túnel de exportación, y por eso usa `openExportTunnel`
+                 y no `setWizardStep(6)`: el túnel además cierra el modal de
+                 descarga. Es la misma acción que el comando `goto-exportar` de
+                 la paleta, y por eso `atajosDeFase.test.ts` puede exigir que
+                 las dos mitades digan lo mismo. */
+              useDocStore.getState().openExportTunnel();
             }
             break;
           default:

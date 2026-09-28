@@ -291,6 +291,4 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   setLiveChatOpen: (open) => set({ liveChatOpen: open }),
   stressTestModalOpen: false,
   setStressTestModalOpen: (open) => set({ stressTestModalOpen: open }),
-  auditorMode: false,
-  setAuditorMode: (open) => set({ auditorMode: open }),
 });

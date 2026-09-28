@@ -251,8 +251,6 @@ export interface DocState {
   stressTestModalOpen: boolean;
   setStressTestModalOpen: (open: boolean) => void;
   runProactiveAutoCaptioning: () => Promise<void>;
-  auditorMode: boolean;
-  setAuditorMode: (open: boolean) => void;
   theme: 'dark' | 'light';
   setTheme: (t: 'dark' | 'light') => void;
   providerStatus: ProviderStatusResult | null;
