@@ -13,12 +13,6 @@ type SectionGroup = {
   items: any[];
 };
 
-const DESIGN_PRESETS = [
-  { value: 'standard', label: 'Estándar', desc: 'APA clásico' },
-  { value: 'scientific', label: 'Científico', desc: 'Tecnico / serio' },
-  { value: 'full_width', label: 'Ancho completo', desc: 'Página completa' },
-  { value: 'sidebar', label: 'Sidebar', desc: 'Texto lateral' },
-] as const;
 
 const controlSelectStyle: React.CSSProperties = {
   width: '100%',
@@ -131,14 +125,6 @@ export const Step3FiguresTablesWizard: React.FC = () => {
     return Array.from(groups.values());
   }, [filteredItems, sectionMap]);
 
-  const selectedFigurePreset = selectedImage?.image_info?.design_style ?? 'standard';
-  const updateSelectedFigure = (patch: Record<string, any>) => {
-    if (!selectedImage) {
-      useDocStore.getState().showToast('Selecciona una figura primero', 'warning');
-      return;
-    }
-    updateElementImage(selectedImage.id, patch);
-  };
 
   const handleElementClick = useCallback((elementId: string, rect: DOMRect, element: any) => {
     if (subTab === 'figures' && element.type === 'image') {
@@ -167,7 +153,6 @@ export const Step3FiguresTablesWizard: React.FC = () => {
     ];
   }, [toolbarElementId, figures, updateElementImage]);
 
-  const selectedFigureCaption = selectedImage?.image_info?.caption || '';
 
   return (
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden' }}>
@@ -260,30 +245,6 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             <button type="button" onClick={() => setSubTab('tables')} style={{ flex: 1, border: 'none', borderLeft: '1px solid var(--border-subtle)', cursor: 'pointer', padding: '5px 0', fontSize: '11px', fontWeight: 500, backgroundColor: subTab === 'tables' ? 'var(--color-accent-soft)' : 'transparent', color: subTab === 'tables' ? 'var(--accent-primary)' : 'var(--color-text-secondary)' }}>Tablas ({tables.length})</button>
           </div>
 
-          {subTab === 'figures' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              <span>Leyenda:</span>
-              {(['above', 'below'] as const).map((pos) => {
-                const active = (selectedImage?.image_info?.caption_position ?? 'below') === pos;
-                return (
-                  <button
-                    key={pos}
-                    type="button"
-                    onClick={() => {
-                      if (!selectedImage) {
-                        useDocStore.getState().showToast('Selecciona una figura primero', 'warning');
-                        return;
-                      }
-                      updateElementImage(selectedImage.id, { caption_position: pos });
-                    }}
-                    style={{ padding: '2px 8px', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: active ? 600 : 400, backgroundColor: active ? 'var(--color-accent-soft)' : 'transparent', color: active ? 'var(--accent-primary)' : 'var(--color-text-secondary)' }}
-                  >
-                    {pos === 'above' ? 'Arriba' : 'Abajo'}
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           {/* Buscador + filtro de pendientes */}
           <div style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}>
@@ -357,99 +318,6 @@ export const Step3FiguresTablesWizard: React.FC = () => {
             </div>
           )}
 
-          {subTab === 'figures' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', padding: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--canvas-bg)' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Controles de figura
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                <div style={controlGroupStyle}>
-                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Formato</span>
-                  <select
-                    value={(selectedImage?.image_info?.alignment ?? 'center')}
-                    onChange={(e) => updateSelectedFigure({ alignment: e.target.value })}
-                    style={controlSelectStyle}
-                  >
-                    <option value="left">Izquierda</option>
-                    <option value="center">Centrada</option>
-                    <option value="right">Derecha</option>
-                  </select>
-
-                  <select
-                    value={(selectedImage?.image_info?.caption_position ?? 'below')}
-                    onChange={(e) => updateSelectedFigure({ caption_position: e.target.value })}
-                    style={controlSelectStyle}
-                  >
-                    <option value="above">Leyenda arriba</option>
-                    <option value="below">Leyenda abajo</option>
-                  </select>
-
-                  <select
-                    value={selectedFigurePreset}
-                    onChange={(e) => updateSelectedFigure({ design_style: e.target.value })}
-                    style={controlSelectStyle}
-                  >
-                    {DESIGN_PRESETS.map((preset) => (
-                      <option key={preset.value} value={preset.value}>{preset.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={controlGroupStyle}>
-                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Texto</span>
-                  <input
-                    type="text"
-                    value={selectedFigureCaption}
-                    onChange={(e) => updateSelectedFigure({ caption: e.target.value })}
-                    placeholder="Editar leyenda…"
-                    style={{
-                      width: '100%',
-                      minHeight: '28px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-subtle)',
-                      backgroundColor: 'var(--canvas-bg)',
-                      color: 'var(--text-main)',
-                      fontSize: '11px',
-                      fontFamily: 'inherit',
-                      padding: '4px 7px',
-                    }}
-                  />
-                  <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                    {selectedImage ? `Sección: ${sectionMap.get(selectedImage.id)?.title || 'Sin contexto'}` : 'Selecciona una figura'}
-                  </div>
-                </div>
-
-                <div style={{ ...controlGroupStyle, gridColumn: '1 / -1' }}>
-                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Revisión</span>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>
-                      {selectedImage ? (needsReview(selectedImage as any) ? 'Requiere revisión' : 'Listo para exportar') : 'Sin selección'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!selectedImage) return;
-                        updateSelectedFigure({ caption_position: selectedImage.image_info?.caption_position || 'below' });
-                      }}
-                      style={{
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: '4px 8px',
-                        backgroundColor: 'var(--color-accent-soft)',
-                        color: 'var(--accent-primary)',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      IA sugerida
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>

@@ -554,11 +554,11 @@ export const LoadingTips: React.FC = () => {
   };
 
   useEffect(() => {
-    // Mostrar también durante arranque del backend (cuando !isBackendReady).
+    // Mostrar durante arranque del backend (!isBackendReady) o procesamiento de documento (isLoading).
     const shouldShow = isLoading || !isBackendReady;
     if (!shouldShow) {
       if (connectingInterval.current) { clearInterval(connectingInterval.current); connectingInterval.current = null; }
-      // Delay hide: mantener visible el tiempo mínimo
+      // Delay hide: garantizar que el usuario aprecie el diseno durante MIN_DISPLAY_MS
       if (visible && startRef.current > 0) {
         const elapsed = Date.now() - startRef.current;
         const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
@@ -573,24 +573,21 @@ export const LoadingTips: React.FC = () => {
       return;
     }
 
-    const t = setTimeout(() => {
-      if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); minDisplayTimer.current = null; }
-      startRef.current = Date.now();
-      seqIdxRef.current = 0;
-      const ctx = contextualInitialTip();
-      const initTip = ctx || tipFor('process');
-      if (!isBackendReady) {
-        setTip({ category: 'process', text: ctx?.text || 'Conectando con el motor de procesamiento...' });
-      } else {
-        setTip(initTip);
-      }
-      setVisible(true);
-      setConnectingSecs(0);
-      if (!connectingInterval.current) {
-        connectingInterval.current = setInterval(() => setConnectingSecs((s) => s + 1), 1000);
-      }
-    }, 250);
-    return () => { clearTimeout(t); if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); } };
+    if (minDisplayTimer.current) { clearTimeout(minDisplayTimer.current); minDisplayTimer.current = null; }
+    startRef.current = Date.now();
+    seqIdxRef.current = 0;
+    const ctx = contextualInitialTip();
+    const initTip = ctx || tipFor('process');
+    if (!isBackendReady) {
+      setTip({ category: 'process', text: ctx?.text || 'Conectando con el motor de procesamiento...' });
+    } else {
+      setTip(initTip);
+    }
+    setVisible(true);
+    setConnectingSecs(0);
+    if (!connectingInterval.current) {
+      connectingInterval.current = setInterval(() => setConnectingSecs((s) => s + 1), 1000);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isBackendReady]);
 
@@ -678,7 +675,7 @@ export const LoadingTips: React.FC = () => {
   // todos modos": entrar al inicio con el backend caído no tiene salida).
   if (!isBackendReady) {
     return (
-      <div className="loading-tips-fullscreen" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
+      <div className="loading-tips-fullscreen" role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
         <AmbientCanvas />
         <div className="loading-tips-fullscreen-inner" style={{ gap: '16px' }}>
             <LoadingMascotWalkers />
@@ -718,7 +715,7 @@ export const LoadingTips: React.FC = () => {
 
 
   return (
-    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite" style={{ position: 'relative', overflow: 'hidden' }}>
+    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
       <AmbientCanvas />
       <LoadingMascotWalkers />
       <div className="loading-minimal-inner" style={{ maxWidth: '620px', gap: '20px' }}>
