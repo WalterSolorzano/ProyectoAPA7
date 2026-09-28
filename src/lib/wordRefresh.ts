@@ -32,16 +32,24 @@
  * es una afirmacion, y es falsa: no se pudo mirar. Lo que se sabe cuando el
  * archivo esta a medias es que no se sabe nada.
  *
- * LO QUE ESTE ARCHIVO NO HACE, Y ES DELIBERADO
+ * LO QUE ESTE ARCHIVO NO DICE, Y POR QUE LO DICE OTRO
  *
- * No recarga el documento en memoria ni dispara los motores. El diff solo dice
- * que texto entro; todavia no hay veredicto sobre el, asi que decir "se
- * reaudito" seria falso. Ese bucle —recargar, reauditar lo nuevo, reusar lo que
- * no se toco— vive en el registro de auditoria; este modulo se limita a no
- * mentir antes de tiempo.
+ * El diff solo dice que texto entro: hasta que los motores corren no hay
+ * veredicto sobre el, asi que "se reaudito" seria falso y por eso no aparece en
+ * `mensajeDeRefresco`. Lo que si se dice, cuando la reauditoria ya corrio, lo
+ * arma `mensajeDeReauditoria`, que recibe el conteo que ELLA devolvio. La
+ * distincion no es de estilo: lo que el diff cuenta (parrafos que entraron) y
+ * lo que la reauditoria cuenta (hallazgos sobre el documento entero) son dos
+ * preguntas con dos respuestas, y contestarle a una con la otra es la misma
+ * mentira un paso mas adentro.
+ *
+ * La recarga del documento y los motores NO viven aca: viven en el store y en
+ * `App.tsx`, y llegan por `alRefrescar`. Este modulo no conoce el store y por eso
+ * se puede probar entero sin app.
  */
 
 import { getApiBase } from '../api/http';
+import type { RefrescoResultado } from '../store/types';
 
 export interface ElementoDiff {
   id: string;
@@ -158,6 +166,46 @@ export function mensajeDeRefresco(diff: DiffWord, nombreArchivo: string): Mensaj
   };
 }
 
+/**
+ * Que se dice DESPUES de que los motores corrieron, y que se dice con lo que
+ * ellos devolvieron.
+ *
+ * EL NUMERO QUE SE DICE ES `res.hallazgos`, NUNCA `res.nuevos`
+ *
+ * El diff conto parrafos: "3 parrafos nuevos". La reauditoria conto hallazgos
+ * sobre el documento entero: 11. Si el aviso dice 3, esta contestando una
+ * pregunta que nadie hizo y callando la que se le hizo — y es exactamente la
+ * misma mentira que `mensajeDeRefresco` evita por construccion. El 3 es cierto
+ * y no es lo que la persona necesita saber: si guardo y ahora tiene 11
+ * pendientes, tiene que leer 11.
+ *
+ * `hallazgos: null` NO ES CERO. `0` es "se re-audito y no quedo nada"; `null`
+ * es "no se re-audito", y sobre eso no se afirma nada. Es la misma distincion
+ * que `reusar` devuelve `None` en vez de `[]`.
+ */
+export function mensajeDeReauditoria(
+  res: RefrescoResultado,
+  nombreArchivo: string
+): MensajeRefresco | null {
+  // No se recargo nada: no hay recargado que anunciar. La recarga puede fallar
+  // (backend reiniciandose) y en ese caso se avisaria de un trabajo que no
+  // ocurrio.
+  if (!res.cambiado) return null;
+  // No se re-audito: no se dice nada de hallazgos. Ni "0", ni "ninguno".
+  if (res.hallazgos === null) return null;
+
+  if (res.hallazgos === 0) {
+    return {
+      texto: `Word guardó cambios en "${nombreArchivo}": se recargó y la reauditoría no encontró hallazgos.`,
+      tipo: 'success',
+    };
+  }
+  return {
+    texto: `Word guardó cambios en "${nombreArchivo}": se recargó y la reauditoría encontró ${enPlural(res.hallazgos, 'hallazgo', 'hallazgos')}.`,
+    tipo: 'info',
+  };
+}
+
 export interface RefrescadorDeps {
   /** Llamada al backend. Se inyecta para que la prueba no dependa de la red. */
   pedir: (ruta: string) => Promise<DiffWord>;
@@ -181,6 +229,20 @@ export interface RefrescadorDeps {
   esperar?: (ms: number, fn: () => void) => void;
   /** Se puede poner en 0 para desactivar el reintento. */
   msReintento?: number;
+  /**
+   * Cerrar el ciclo: recargar el documento, tirar los hallazgos rancios y
+   * re-correr los motores. Solo se llama si `diff.cambiado`.
+   *
+   * `null` es una respuesta valida y es la que se da cuando no hubo nada que
+   * recargar: una recarga que fallo deja los hallazgos viejos en su sitio, y
+   * preferimos un hallazgo viejo a una pantalla vacia sin aviso — el primero
+   * se nota y se corrige, la segunda parece que la app perdio el documento.
+   *
+   * Lo que devuelve se convierte en el aviso con `mensajeDeReauditoria`, y ese
+   * texto lo arma el que audito, no este modulo: aca no se sabe cuantos
+   * hallazgos hay, solo que los hay.
+   */
+  alRefrescar?: (diff: DiffWord) => Promise<RefrescoResultado | null>;
 }
 
 export interface Refrescador {
@@ -213,6 +275,31 @@ export function crearRefrescador(deps: RefrescadorDeps): Refrescador {
   let enVuelo = false;
   let hayQueVolverAMirar = false;
 
+  /**
+   * Cerrar el ciclo y decir lo que corresponde.
+   *
+   * Si hubo re-auditoria, el aviso es SUYO: el que cuenta hallazgos ya corrio
+   * y su numero es el unico que describe el estado real de la pantalla. El del
+   * diff queda de segunda opcion para cuando no se pudo re-auditar, que es
+   * distinto de que no hubiera nada que contar.
+   */
+  async function cerrarYDecir(diff: DiffWord, ruta: string): Promise<void> {
+    // El ciclo se cierra SOLO si el diff vio algo. Un Ctrl+S que solo toca
+    // estilos no puede costar una re-auditoria entera, y sobre todo no puede
+    // vaciar hallazgos: se perderian por un gesto que no cambio una palabra.
+    if (diff.cambiado && deps.alRefrescar) {
+      const resumen = await deps.alRefrescar(diff);
+      const propio = resumen ? mensajeDeReauditoria(resumen, nombreDe(ruta)) : null;
+      if (propio) {
+        deps.avisar(propio.texto, propio.tipo);
+        return;
+      }
+    }
+
+    const mensaje = mensajeDeRefresco(diff, nombreDe(ruta));
+    if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
+  }
+
   async function unaPasada(): Promise<void> {
     const ruta = deps.archivo();
     if (!ruta) return;
@@ -231,18 +318,17 @@ export function crearRefrescador(deps: RefrescadorDeps): Refrescador {
         );
         try {
           const segundo = await deps.pedir(ruta);
-          if (segundo.listo) {
-            const mensaje = mensajeDeRefresco(segundo, nombreDe(ruta));
-            if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
-          }
+          // El reintento cierra el ciclo tambien: el guardado que se recupera
+          // a la segunda es un guardado real, y dejarlo sin recargar dejaria
+          // el texto nuevo en el servidor y el viejo en pantalla.
+          if (segundo.listo) await cerrarYDecir(segundo, ruta);
         } catch {
           // El reintento es una cortesia. Si falla, se cae al silencio.
         }
         return;
       }
 
-      const mensaje = mensajeDeRefresco(diff, nombreDe(ruta));
-      if (mensaje) deps.avisar(mensaje.texto, mensaje.tipo);
+      await cerrarYDecir(diff, ruta);
     } catch (e) {
       // No se avisa del error de transporte: si el backend esta reiniciandose,
       // sale un toast por cada guardado hasta que alguien lo reinicie a mano.

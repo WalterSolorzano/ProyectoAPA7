@@ -4,7 +4,8 @@ import React, { useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
 import { railPendingInputFrom } from './hooks/useRailDestinations';
 import { pendingCountForPhase as pendingCountForPhaseIn } from './lib/railPending';
-import { crearRefrescador, refrescarDesdeWord } from './lib/wordRefresh';
+import { crearRefrescador, refrescarDesdeWord, type DiffWord } from './lib/wordRefresh';
+import type { RefrescoResultado } from './store/types';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
 import { TemplateDialog } from './components/shared/TemplateDialog';
@@ -57,6 +58,76 @@ import { X } from 'lucide-react';
    "Lista". */
 const pendingCountForPhase = (phaseId: number) =>
   pendingCountForPhaseIn(railPendingInputFrom(useDocStore.getState()), phaseId);
+
+/**
+ * El cierre del ciclo del watcher, en una funcion aparte y exportada para que
+ * se pueda probar sin montar la app entera.
+ *
+ * POR QUE RECARGA ACA Y NO CON LA ACCION `refrescarDesdeWord` DEL STORE
+ *
+ * El endpoint `/api/refresh-from-word` es de UN solo disparo: cuando ve un
+ * cambio, guarda el documento reparseado (`python/routers/sessions.py:1103`) y
+ * recien ahi devuelve el diff. La lectura siguiente, si Word no guardo otra vez,
+ * compara el archivo contra el estado que ella misma acaba de escribir y
+ * responde `cambiado: false`. O sea que el diff que el watcher ya consumio no se
+ * puede volver a pedir. Si la recarga se pidiera con `refrescarDesdeWord`, esa
+ * segunda lectura diria "no cambio nada", la accion no recargaria, y el ciclo
+ * seguiria abierto: el backend con el texto nuevo y la pantalla con el viejo.
+ *
+ * Por eso la recarga se hace contra lo que YA esta guardado —`recoverSession` es
+ * una lectura, no una escritura— y los conteos que se devuelven son los del
+ * diff que detecto el cambio, que es el unico que los tiene.
+ *
+ * QUE HACE, EN ORDEN, Y POR QUE EN ESE ORDEN
+ *
+ * 1. Recarga el documento. Si eso TIRA, se devuelve `null` y no se toca nada: es
+ *    preferible un hallazgo viejo a una pantalla vacia sin aviso — el primero se
+ *    nota y se corrige, la segunda parece que la app perdio el documento.
+ * 2. Recien con el documento ya recargado se invalidan los hallazgos rancios.
+ *    `element_id` es un indice posicional, asi que los hallazgos viejos apuntan
+ *    a parrafos que quizas ya son otros: no se pueden conservar.
+ * 3. Los motores corren sobre el texto nuevo, y el conteo que se devuelve es el
+ *    que ellos dejaron en el store — no el que el diff supuso.
+ *
+ * Lo devuelve `null` tambien cuando no hay documento abierto. El watcher lo cae
+ * al silencio: una recarga que no ocurrio no se anuncia.
+ */
+export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoResultado | null> {
+  const st = useDocStore.getState();
+  const sessionId = st.doc?.session_id;
+  if (!sessionId) return null;
+
+  let recargado;
+  try {
+    recargado = migrateDocument(await api.recoverSession(sessionId));
+  } catch {
+    // Los hallazgos viejos se quedan: ver el porque mas arriba.
+    return null;
+  }
+  useDocStore.setState((s) => ({
+    doc: recargado,
+    // Las referencias vienen del documento y el documento acaba de cambiar: sin
+    // esto, el panel de Referencias seguiria mostrando la lista vieja.
+    references: recargado.referencias || [],
+    tabDocs: { ...s.tabDocs, [sessionId]: recargado },
+  }));
+
+  st.invalidarHallazgosRancios();
+  await Promise.all([
+    st.runProofreadBatch(),
+    // Las citas son un motor mas y su fallo no puede tragarse la re-auditoria
+    // entera: un aviso de citas que falla deja el estado como estaba, que ya es
+    // un estado honesto.
+    st.runCitationAudit().catch(() => {}),
+  ]);
+  return {
+    listo: true,
+    cambiado: true,
+    nuevos: diff.ids_nuevos.length,
+    eliminados: diff.ids_eliminados.length,
+    hallazgos: useDocStore.getState().proofreadFindings.length,
+  };
+}
 
 /** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
 const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'headings' | 'body') => void }> = ({ tab, setTab }) => (
@@ -266,10 +337,11 @@ export const App: React.FC = () => {
     const ew = window as any;
     if (!ew.electronAPI?.watchDocumentFile || !activeFilePath || !sessionId) return;
 
-    // Lo que dice el aviso lo decide el DIFF, no el watcher. Antes este bloque
-    // decia "el documento esta sincronizado" sin reparsear nada: la frase
-    // describia un trabajo que no se hacia. `mensajeDeRefresco` es lo unico que
-    // arma texto aca, y hay pruebas que le prohiben esas palabras.
+    // Lo que dice el aviso lo decide el DIFF, o la REAUDITORIA si corrio. Antes
+    // este bloque decia "el documento esta sincronizado" sin reparsear nada: la
+    // frase describia un trabajo que no se hacia. `mensajeDeRefresco` y
+    // `mensajeDeReauditoria` son los unicos que arman texto aca, y hay pruebas
+    // que les prohiben esas palabras.
     //
     // El "una vez a la vez" vive adentro del refrescador y no en el disparador:
     // si estuviera aca, dos disparos seguidos abririan dos lecturas del mismo
@@ -278,6 +350,10 @@ export const App: React.FC = () => {
       pedir: (ruta) => refrescarDesdeWord(sessionId, ruta),
       avisar: (texto, tipo) => useDocStore.getState().showToast(texto, tipo),
       archivo: () => activeFilePath,
+      // Recargar, tirar lo rancio y re-correr los motores vive en la funcion de
+      // arriba, no aca: el watcher no sabe de documentos ni de hallazgos, y por
+      // eso se puede probar entero sin montar la app.
+      alRefrescar: (d) => reauditarTrasRefresco(d),
     });
     const cleanup = ew.electronAPI.watchDocumentFile(
       activeFilePath,
