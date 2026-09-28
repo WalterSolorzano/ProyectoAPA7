@@ -37,6 +37,7 @@ import {
   columnasDeBloque,
   tokenDeNivel,
   type BloqueMosaico,
+  type CortesIa,
   type NivelIa,
 } from '../../lib/aiMosaic';
 import type { ElementModel } from '../../types';
@@ -68,13 +69,18 @@ export interface AiMosaicProps {
   items: readonly AuditItem[];
   /** Fase abierta, para pintar cuál es. */
   activa: string | 'all';
+  /** La calibración que escribió la pestaña Revisión de Ajustes. `null` o
+   *  ausente = la automática, los percentiles del propio documento. No se lee
+   *  del store acá: el mosaico no depende de nada más que de sus props, y el
+   *  que decide de dónde sale el ajuste es el workbench. */
+  cortes?: CortesIa | null;
   onSelect: (key: string) => void;
 }
 
-export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, onSelect }) => {
+export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, cortes = null, onSelect }) => {
   const bloques = useMemo(
-    () => construirMosaico(elements ?? [], items),
-    [elements, items],
+    () => construirMosaico(elements ?? [], items, cortes),
+    [elements, items, cortes],
   );
 
   if (bloques.length === 0) {
@@ -112,6 +118,17 @@ export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, onS
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
           Porcentaje de párrafos que el detector marcó como IA
         </span>
+        {/* Con cortes escritos a mano la leyenda sola miente: la escala ya no es
+            la del documento, es un porcentaje fijo. Una línea lo dice, porque un
+            mapa calibrado a mano que no lo declara se lee como automático. */}
+        {cortes && (
+          <span
+            data-testid="mosaico-rampa-manual"
+            style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}
+          >
+            Rampa con cortes escritos a mano (Ajustes · Revisión)
+          </span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginLeft: 'auto' }}>
           {LEYENDA.map(({ nivel, texto }) => (
             <span

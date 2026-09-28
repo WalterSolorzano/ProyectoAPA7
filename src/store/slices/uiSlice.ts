@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand';
 import { DocState } from '../types';
 import { DocumentModel } from '../../types';
 import type { PestanaId } from '../../components/settings/tabs';
+import { leerCortesGuardados, normalizarCortes, guardarCortes } from '../../lib/aiMosaic';
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -120,12 +121,24 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
      apagar uno dejaba al otro subrayando citas: un defecto, dos verdades. El
      dueño es el store porque los dos canales viven en vistas distintas.
 
-     SIN SETTER a propósito: hoy no hay ningún control que lo apague (el
-     `setShowCitationMarks` local que tenía el lienzo tampoco lo tenía), y una
-     API de escritura en el store es más superficie que un `useState` muerto.
-     Cuando exista el control, escribe acá con `set({ showCitationMarks })` y
-     los dos canales la siguen solos. */
+     El setter llegó con la Fase 5: la pestaña Revisión de Ajustes es el control
+     que el comentario de abajo pedía, y escribe por acá para que los dos
+     canales la sigan solos. */
   showCitationMarks: true,
+  setShowCitationMarks: (on) => set({ showCitationMarks: on }),
+  /* La calibración de la rampa del mosaico de IA. `null` es AUTOMÁTICO, que es
+     el valor de partida y el que hay que poder recuperar: escribirla es una
+     decisión, y una decisión que no se puede deshacer no es un ajuste.
+
+     No se guarda en el store persistido sino en localStorage con la rampa misma
+     (`aiMosaic.ts`), que es donde vive el resto de la calibración: un solo lugar
+     por ajuste, como el resto de las pestañas. */
+  iaCortes: leerCortesGuardados(),
+  setIaCortes: (cortes) => {
+    const v = normalizarCortes(cortes);
+    set({ iaCortes: v });
+    guardarCortes(v);
+  },
   dismissedCommentIds: [],
   dismissComment: (id) => set((state) => ({
     dismissedCommentIds: state.dismissedCommentIds.includes(id) ? state.dismissedCommentIds : [...state.dismissedCommentIds, id],

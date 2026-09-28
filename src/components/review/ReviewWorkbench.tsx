@@ -66,6 +66,9 @@ function coberturaDeMotor(group: EngineGroup): string | undefined {
 export function ReviewWorkbench() {
   const wb = useReviewWorkbench();
   const doc = useDocStore((s) => s.doc);
+  /* La calibración de la rampa la escribe la pestaña Revisión de Ajustes. El
+     mosaico no lee el store: se la pasa quien lo monta, como los hallazgos. */
+  const iaCortes = useDocStore((s) => s.iaCortes);
   const [ancho, setAncho] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth));
 
   useEffect(() => {
@@ -189,6 +192,7 @@ export function ReviewWorkbench() {
             elements={doc?.elements ?? null}
             items={wb.items}
             activa={wb.phaseFilter}
+            cortes={iaCortes}
             onSelect={(key) => {
               /* Un clic en un bloque NO abre nada: aplica el filtro de fase y
                  el de motor que ya existen, y vuelve a la lectura secuencial.

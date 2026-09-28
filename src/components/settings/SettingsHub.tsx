@@ -15,6 +15,7 @@ import { Modal } from '../ui/wordapa7';
 import { useDocStore } from '../../store/useDocStore';
 import { PESTANAS, pestanaPorId } from './tabs';
 import { ConexionTab } from './tabs/ConexionTab';
+import { RevisionTab } from './tabs/RevisionTab';
 
 export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const tab = useDocStore((s) => s.settingsHubTab);
@@ -178,7 +179,7 @@ const CUERPOS: Record<string, React.ReactNode> = {
   documento: null,
   formato: null,
   conexion: <ConexionTab />,
-  revision: null,
+  revision: <RevisionTab />,
   app: null,
 };
 

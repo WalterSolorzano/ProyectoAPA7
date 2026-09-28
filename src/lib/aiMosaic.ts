@@ -36,6 +36,23 @@ import { PHASE_LABELS, phaseLabel } from './auditItems';
 /** Un escalón de la rampa. 1 es lo más bajo; 4 lo más alto. */
 export type NivelIa = 1 | 2 | 3 | 4;
 
+/**
+ * Los tres cortes de la rampa, en fracción de 0 a 1 y de menor a mayor.
+ *
+ * Antes eran una constante de este archivo (P30/P60/P90) y nadie podía tocarlos:
+ * la calibración era una decisión del código, no del documento. Ahora son un
+ * dato —los escribe la pestaña Revisión de Ajustes y viven en localStorage— con
+ * una forma de volver atrás, que es la parte que hace falta para que editar una
+ * calibración sea una decisión reversible y no una trampa.
+ */
+export type CortesIa = [number, number, number];
+
+/** La calibración automática: P30, P60 y P90 del PROPIO documento. */
+export const CORTES_AUTOMATICOS: CortesIa = [0.3, 0.6, 0.9];
+
+/** Dónde vive una calibración editada. Ausente = automático. */
+export const LLAVE_DE_CORTES = 'wordapa7_cortes_ia';
+
 export interface BloqueMosaico {
   /** Clave estable: la fase del backend, o `sin_fase` para lo que no está en
    *  ninguna. Es la que aplica el filtro de fase que ya existe. */
@@ -66,12 +83,90 @@ export interface BloqueMosaico {
  * caería por debajo de donde está ese apartado, ningún valor lo alcanzaría y el
  * mapa nunca podría decir "aquí", que es lo único que el escalón 4 tiene que
  * decir.
+ *
+ * Y son el VALOR POR DEFECTO, no el único valor: la pestaña Revisión los deja
+ * escribir, y por eso `repartirNiveles` y `construirMosaico` los reciben como
+ * parámetro. Editarlos cambia el mapa a una rampa ABSOLUTA —ya no "el peor de tu
+ * documento" sino un porcentaje fijo—, y ese cambio es real, así que la pantalla
+ * que lo ofrece lo dice y deja una forma de deshacerlo.
  */
-export function cortesPorCuartiles(valores: readonly number[]): [number, number, number] {
+export function cortesPorCuartiles(valores: readonly number[]): CortesIa {
   const v = valores.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  if (v.length === 0) return [0.3, 0.6, 0.9];
+  if (v.length === 0) return [...CORTES_AUTOMATICOS] as CortesIa;
   const q = (p: number) => v[Math.min(v.length - 1, Math.floor(p * v.length))];
   return [q(0.3), q(0.6), q(0.9)];
+}
+
+/**
+ * Deja unos cortes en la FORMA que la rampa necesita: tres números de 0 a 1, de
+ * menor a mayor. `null` es "automático", que no es un caso de error: es la
+ * ausencia de calibración.
+ *
+ * Ordena porque los tres cortes son un RANGO, no tres campos sueltos: el corte
+ * del nivel 2 es el más bajo de los tres, se escriba donde se escriba. Si un
+ * campo de Ajustes queda descolgado, guardarlo ordenado deja la rampa
+ * coherente en vez de con dos bandas vacías.
+ */
+export function normalizarCortes(cortes: readonly number[] | null | undefined): CortesIa | null {
+  if (!cortes) return null;
+  if (cortes.length !== 3) return null;
+  if (!cortes.every((x) => Number.isFinite(x))) return null;
+  const v = cortes
+    .map((x) => Math.min(1, Math.max(0, Math.round(x * 1000) / 1000)))
+    .sort((a, b) => a - b);
+  return [v[0], v[1], v[2]];
+}
+
+/** La calibración guardada, o `null` si nunca se tocó. */
+export function cortesDesdeTexto(bruto: string | null | undefined): CortesIa | null {
+  if (!bruto) return null;
+  try {
+    const parsed = JSON.parse(bruto);
+    return normalizarCortes(Array.isArray(parsed) ? parsed : null);
+  } catch {
+    return null;
+  }
+}
+
+/** Un `localStorage` que no se puede escribir no es una calibración: se pierde y
+ *  el store sigue teniendo la que está en memoria. */
+export function leerCortesGuardados(): CortesIa | null {
+  try {
+    return cortesDesdeTexto(localStorage.getItem(LLAVE_DE_CORTES));
+  } catch {
+    return null;
+  }
+}
+
+export function guardarCortes(cortes: CortesIa | null): void {
+  try {
+    if (cortes) localStorage.setItem(LLAVE_DE_CORTES, JSON.stringify(cortes));
+    else localStorage.removeItem(LLAVE_DE_CORTES);
+  } catch {
+    /* sin almacenamiento la calibración vive solo en el store */
+  }
+}
+
+/** Los cortes que mandan: los escritos, o los cuartiles del documento. */
+export function cortesDeLaRampa(
+  valores: readonly number[],
+  editados: CortesIa | null | undefined,
+): CortesIa {
+  return editados ? ([...editados] as CortesIa) : cortesPorCuartiles(valores);
+}
+
+/**
+ * Qué escalones puede alcanzar una rampa, sobre todo el recorrido de 0 a 1.
+ *
+ * Es la cuenta que impide que la UI diga una cosa y el mapa haga otra. Con los
+ * tres cortes en 0.95, las bandas del 2 y del 3 no tienen un solo valor que las
+ * alcance: el mapa sale en dos escalones, no en cuatro, y eso hay que poder
+ * LEER antes de mirarlo, no descubrirlo en el documento.
+ */
+export function nivelesAlcanzables(cortes: CortesIa): NivelIa[] {
+  const vistos = new Set<NivelIa>();
+  for (let i = 0; i <= 1000; i++) vistos.add(nivelDe(i / 1000, cortes));
+  return ([...vistos].sort((a, b) => a - b) as NivelIa[]);
 }
 
 /**
@@ -103,8 +198,11 @@ const AMPLITUD_MINIMA = 0.05;
  * no tiene amplitud —la tiene en cero por no haber nada que comparar, no porque
  * las secciones sean iguales— y caparlo escondería el único dato que hay.
  */
-export function repartirNiveles(proporciones: readonly number[]): NivelIa[] {
-  const cortes = cortesPorCuartiles(proporciones);
+export function repartirNiveles(
+  proporciones: readonly number[],
+  editados: CortesIa | null = null,
+): NivelIa[] {
+  const cortes = cortesDeLaRampa(proporciones, editados);
   const niveles = proporciones.map((p) => nivelDe(p, cortes));
   if (proporciones.length < 2) return niveles;
   const amplitud = Math.max(...proporciones) - Math.min(...proporciones);
@@ -112,7 +210,7 @@ export function repartirNiveles(proporciones: readonly number[]): NivelIa[] {
   return niveles;
 }
 
-export function nivelDe(proporcion: number, cortes: [number, number, number]): NivelIa {
+export function nivelDe(proporcion: number, cortes: CortesIa): NivelIa {
   if (proporcion <= 0) return 1;
   if (proporcion >= cortes[2]) return 4;
   if (proporcion >= cortes[1]) return 3;
@@ -185,6 +283,8 @@ export function filasDeBloques(bloques: readonly BloqueMosaico[], colsPorFila = 
 export function construirMosaico(
   elements: readonly ElementModel[],
   items: readonly AuditItem[],
+  /** La calibración editada en Ajustes. `null` = los cuartiles del documento. */
+  cortes: CortesIa | null = null,
 ): BloqueMosaico[] {
   /* 1. Los párrafos marcados, por sección. Sólo el motor IA: este mosaico es
    *    de la IA, y dejar que la ortografía opinara sobre la intensidad de la IA
@@ -240,7 +340,7 @@ export function construirMosaico(
     });
   }
 
-  const niveles = repartirNiveles(bloques.map((b) => b.proporcion));
+  const niveles = repartirNiveles(bloques.map((b) => b.proporcion), cortes);
   bloques.forEach((b, i) => { b.nivel = niveles[i]; });
   return bloques;
 }

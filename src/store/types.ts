@@ -176,9 +176,15 @@ export interface DocState {
 
   /** Resaltado de citas APA en los dos canales (lienzo y tarjeta de lectura).
    *  Un solo interruptor: si cada canal lo decidiera por su cuenta, apagar uno
-   *  dejaría al otro subrayando el mismo hallazgo. Sin setter hasta que exista
-   *  el control que lo apague (ver `uiSlice`). */
+   *  dejaría al otro subrayando el mismo hallazgo. El control es el de la
+   *  pestaña Revisión de Ajustes. */
   showCitationMarks: boolean;
+  setShowCitationMarks: (on: boolean) => void;
+  /** La calibración de la rampa del mosaico de IA. `null` es la automática: los
+   *  percentiles del propio documento. Editarla la vuelve absoluta, y por eso
+   *  existe `setIaCortes` con `null` como vuelta atrás y no solo un setter. */
+  iaCortes: import('../lib/aiMosaic').CortesIa | null;
+  setIaCortes: (cortes: import('../lib/aiMosaic').CortesIa | null) => void;
 
   /** Comentarios inline descartados por el usuario (persisten en la sesión). */
   dismissedCommentIds: string[];
