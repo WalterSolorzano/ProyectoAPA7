@@ -16,6 +16,10 @@ const getApiBase = () => api.getApiBase();
 
 const defaultRules: APARuleSet = {
   profile_name: 'APA 7 Estándar',
+  /* Carta, no A4: es lo que dice DESIGN.md:75 y lo que ya paginaba el lienzo.
+     Con A4 acá, el caso por defecto seguía siendo una contradicción entre la
+     hoja que se ve y la del .docx. */
+  page_size: 'carta',
   margins_cm: 2.54,
   font_family: 'Times New Roman',
   font_size_pt: 12,

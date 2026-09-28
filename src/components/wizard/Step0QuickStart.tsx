@@ -21,9 +21,36 @@ type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' 
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
 
-/** Marca compacta: la resaltadora representa a la familia junto al nombre. */
-const BrandIcon: React.FC<{ size?: number }> = ({ size = 22 }) => (
-  <EditorialMascot size={size} kind="highlighter" expression="happy" />
+/** Logo profesional WordAPA7: monograma editorial limpio con hoja y acento APA 7. */
+const BrandLogo: React.FC<{ size?: number }> = ({ size = 22 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    style={{ flexShrink: 0 }}
+    aria-label="Logo WordAPA7"
+  >
+    <rect width="24" height="24" rx="5" fill="var(--color-accent, #2563eb)" />
+    <path
+      d="M6 6.5C6 5.67 6.67 5 7.5 5H14.5L18 8.5V17.5C18 18.33 17.33 19 16.5 19H7.5C6.67 19 6 18.33 6 17.5V6.5Z"
+      fill="var(--paper-white, #ffffff)"
+      fillOpacity="0.95"
+    />
+    <path
+      d="M14 5V9H18"
+      stroke="var(--color-accent, #2563eb)"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M8.5 11.5H12M8.5 14H14.5M8.5 16.5H13"
+      stroke="var(--color-accent, #2563eb)"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+    />
+  </svg>
 );
 
 // ── MICRO-ILUSTRACIONES VECTORIALES EXCLUSIVAS PARA PLANTILLAS APA 7 ──────
@@ -411,37 +438,10 @@ export const Step0QuickStart: React.FC = () => {
         position: 'relative', zIndex: 20,
         ...dragRegion,
       }}>
-        {/* Branding: solo el icono. El nombre "WordAPA7" no se repite aquí
-            porque el hero de inicio ya es el ancla visual de la pantalla. */}
+        {/* Branding: logo formal WordAPA7 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <BrandIcon size={20} />
+          <BrandLogo size={22} />
         </div>
-
-        {/* Divider */}
-        <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-subtle)', margin: '0 4px', flexShrink: 0 }} />
-
-        {/* Botón: Archivo (menú de carga / backstage) */}
-        <button
-          type="button"
-          onClick={() => useDocStore.getState().setShowFileMenu(true)}
-          title="Archivo: nuevo, abrir, guardar, exportar y sesiones"
-          style={{
-            background: 'var(--surface-subtle)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-main)',
-            fontSize: 'var(--text-sm)',
-            padding: '4px 10px',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '6px',
-            fontFamily: 'inherit',
-            ...noDragRegion,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-surface-hover)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-subtle)')}
-        >
-          <Menu size={12} /> Archivo
-        </button>
 
         <div style={{ flex: 1 }} />
 
@@ -562,8 +562,14 @@ export const Step0QuickStart: React.FC = () => {
 
                   Y con el rótulo "Perfil:" pasó lo mismo: el `<select>` ya
                   muestra el nombre del perfil elegido, así que la etiqueta sólo
-                  decía lo obvio. El CONTROL se queda, que es otra cosa: es la
-                  única forma de cambiar de perfil sin entrar a Ajustes. */}
+                  decía lo obvio. El CONTROL se queda, que es otra cosa: es el
+                  atajo para cambiar de perfil sin abrir Ajustes.
+
+                  Antes este comentario decía que el `<select>` era "la única
+                  forma de cambiar de perfil sin entrar a Ajustes", y era
+                  verdad cuando se escribió. Hoy la pestaña Documento de Ajustes
+                  tiene el mismo control CON SU DESCRIPCIÓN, así que la frase
+                  era falsa y este `<select>` es lo que se llama: un atajo. */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',

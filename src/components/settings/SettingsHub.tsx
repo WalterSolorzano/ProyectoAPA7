@@ -17,6 +17,7 @@ import { PESTANAS, pestanaPorId } from './tabs';
 import { ConexionTab } from './tabs/ConexionTab';
 import { RevisionTab } from './tabs/RevisionTab';
 import { FormatoTab } from './tabs/FormatoTab';
+import { DocumentoTab } from './tabs/DocumentoTab';
 
 export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const tab = useDocStore((s) => s.settingsHubTab);
@@ -172,12 +173,12 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
   );
 };
 
-/* Los cuerpos de las cinco pestañas. Cada una llega con su fase: Formato y
-   Conexión y Revisión ya tienen la suya, y las que faltan están en `null` y se
-   ven con su barra, su ámbito y su nombre, que es lo que la persona tiene que
-   poder leer para saber dónde está. */
+/* Los cuerpos de las cinco pestañas. Cada una llega con su fase: Documento,
+   Formato, Conexión y Revisión ya tienen la suya, y App está en `null` y se ve
+   con su barra, su ámbito y su nombre, que es lo que la persona tiene que poder
+   leer para saber dónde está. */
 const CUERPOS: Record<string, React.ReactNode> = {
-  documento: null,
+  documento: <DocumentoTab />,
   formato: <FormatoTab />,
   conexion: <ConexionTab />,
   revision: <RevisionTab />,

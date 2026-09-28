@@ -1705,7 +1705,10 @@ async def generate_docx(req: GenerateRequest) -> dict:
         if original_path_ip.exists():
             try:
                 from generation.inplace_editor import apply_inplace
-                apply_inplace(original_path_ip, out_file, doc, rules, scopes=None)
+                apply_inplace(
+                    original_path_ip, out_file, doc, rules, scopes=None,
+                    language=getattr(portada, "language", None),
+                )
                 try:
                     from persistence.idempotency import add_marker_to_docx
                     marked = add_marker_to_docx(out_file)

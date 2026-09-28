@@ -40,10 +40,29 @@ describe('Ajustes — el ámbito es la pestaña', () => {
     const ids = PESTANAS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     const subtitulos = new Set(PESTANAS.map((p) => p.subtitulo));
-    /* El subtítulo se escribe UNA vez por pestaña, y hay dos contextos distintos
-     * (documento y app): si aparece un tercero, alguien empezó a distinguir
-     * pestañas por su cuenta y la línea dejó de ser la regla. */
-    expect(subtitulos.size).toBe(2);
+    /* El subtítulo se escribe UNA vez por pestaña, y hay TRES contextos
+     * distintos: la app, el documento, y el documento SIN aislamiento entre
+     * documentos abiertos. Ese tercero apareció en la Fase 3, cuando se
+     * descubrió que la promesa de aislamiento no la cumplía nadie: `rules` es
+     * un objeto en el store y no uno por documento. Un subtítulo tiene que poder
+     * decir la verdad aunque la verdad sea incómoda; lo que no puede es mentir. */
+    expect(subtitulos.size).toBe(3);
+  });
+
+  /* La promesa de aislamiento es el Review Focus #1, y la que menos se sostiene.
+   * Se mira al revés: en vez de probar que sí, se prohíbe el texto que la
+   * promete mientras el store no la cumpla. El día que `rules` se separe por
+   * sesión, esta prueba hay que BORRARLA y volver a exigir la promesa. */
+  it('NINGUN SUBTITULO PROMETE AISLAMIENTO QUE EL STORE NO CUMPLE', () => {
+    for (const p of PESTANAS) {
+      const prometeAislamiento = /No cambian los demás|No afecta a los demás|aislados entre sí/i.test(p.subtitulo);
+      /* Hoy la única pestaña que lo promete es Formato, que es la deuda que
+       * queda. La de Documento ya no lo dice. */
+      expect(
+        prometeAislamiento,
+        `${p.id} promete que no toca los demás documentos, y hoy rules es uno en el store`,
+      ).toBe(p.id === 'formato');
+    }
   });
 
   it('el catálogo se puede resolver por id, y un id desconocido no rompe', () => {

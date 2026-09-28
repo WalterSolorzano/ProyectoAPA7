@@ -1771,6 +1771,11 @@ def generate_apa7_docx(
         else:
             doc_model.meta.content_warning = '; '.join(width_warnings)
 
+    # 9.5 Idioma del documento. Va DESPUÉS de normalizar las fuentes, porque esa
+    # pasada reescribe `rPr` de cada run y escribir `w:lang` antes se perdería.
+    from generation.style_engine import aplicar_idioma_documento
+    aplicar_idioma_documento(doc, getattr(portada, "language", None) or "es-ES")
+
     # 10. Guardar resultado final
     doc.save(out_path)
 

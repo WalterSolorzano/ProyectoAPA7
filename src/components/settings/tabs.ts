@@ -33,8 +33,16 @@ export interface Pestana {
 }
 
 export const PESTANAS: Pestana[] = [
+  /* El subtítulo de Documento NO es igual al de Formato, y esa diferencia es
+     deliberada: la promesa original —"no cambian los demás que tengas
+     abiertos"— es FALSA. `rules` es un solo objeto en el store, no uno por
+     documento: con dos documentos abiertos, cambiar el papel de uno cambia el
+     del otro. Lo que sí es cierto es la PERSISTENCIA, y eso es lo que dice.
+     Escribir la verdad hace que `ambitoDeAjustes.test.ts` espere tres
+     subtítulos distintos en vez de dos, y esa prueba tiene que mirar que cada
+     uno NO prometa un aislamiento que el store todavía no garantiza. */
   { id: 'documento', etiqueta: 'Documento', ambito: 'documento', mascotKind: 'reference',
-    subtitulo: 'Estos ajustes se guardan con el documento. No cambian los demás que tengas abiertos.' },
+    subtitulo: 'Estos ajustes se guardan con el documento y salen con él al descargarlo.' },
   { id: 'formato', etiqueta: 'Formato', ambito: 'documento', mascotKind: 'ruler',
     subtitulo: 'Estos ajustes se guardan con el documento. No cambian los demás que tengas abiertos.' },
   { id: 'conexion', etiqueta: 'Conexión', ambito: 'app', mascotKind: 'highlighter',

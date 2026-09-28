@@ -12,6 +12,7 @@ export type APAFormat = "student" | "professional"
 export interface APARuleSet {
   profile_name?: string
   is_default?: boolean
+  page_size?: "carta" | "a4"
   margins_cm?: number
   export_mode?: string
   font_family?: string
@@ -95,6 +96,10 @@ export interface Body_audit_pagination_api_audit_pagination_post {
   expected_pages?: null | number
 }
 
+export interface Body_audit_pdf_visual_endpoint_api_export_audit_pdf_visual_post {
+  file: string
+}
+
 export interface Body_check_idempotency_endpoint_api_check_idempotency_post {
   file: string
 }
@@ -104,6 +109,12 @@ export interface Body_classify_with_llm_api_classify__session_id__post {
   nim_url?: string | null
   use_local?: string | null
   provider_id?: string | null
+}
+
+export interface Body_import_references_file_endpoint_api_references_import_file_post {
+  file?: string | null
+  content?: string | null
+  file_type?: string | null
 }
 
 export interface Body_replace_image_endpoint_api_replace_image__session_id___element_id__post {
@@ -194,6 +205,16 @@ export interface ClientLogRequest {
   event: string
   data?: Record<string, unknown> | null
   level?: string
+}
+
+export interface CoverSpec {
+  template?: string
+  title?: string
+  author?: string
+  institution?: string
+  course?: string
+  instructor?: string
+  date?: string
 }
 
 export interface CreateFromTemplateRequest {
@@ -293,6 +314,7 @@ export interface ElementModel {
   is_bold?: boolean
   is_italic?: boolean
   is_bullet?: boolean
+  is_table_cell?: boolean
   left_indent_cm?: number
   first_line_indent_cm?: number
   space_before_pt?: number
@@ -339,6 +361,14 @@ export interface EquationConfig {
   font_size_pt?: number
 }
 
+export interface EquipmentCardElement {
+  type?: string
+  number: string
+  title: string
+  image: string
+  specs?: Record<string, string>
+}
+
 export interface ExplainElementRequest {
   element_type?: string
   text?: string
@@ -353,6 +383,13 @@ export interface ExplainElementRequest {
 export interface ExtractCitationsRequest {
   text: string
   element_id?: string | null
+}
+
+export interface FigureElement {
+  type?: string
+  image: string
+  caption?: string
+  title?: string
 }
 
 export interface FormatBibliographyRequest {
@@ -373,6 +410,12 @@ export interface GenerateRequest {
 
 export interface HTTPValidationError {
   detail?: Array<ValidationError>
+}
+
+export interface HeadingElement {
+  type?: string
+  level: number
+  text: string
 }
 
 export interface HeadingLevelConfig {
@@ -400,6 +443,7 @@ export interface ImageModel {
   caption?: string
   note?: string | null
   figure_number?: number
+  subfigures?: Array<SubfigureModel>
   width_inches?: null | number
   height_inches?: null | number
   alignment?: string
@@ -412,6 +456,10 @@ export interface ImageModel {
   is_anchor?: boolean
   anchor_pos_h?: string | null
   anchor_pos_v?: string | null
+}
+
+export interface LayoutPaginateRequest {
+  session_id: string
 }
 
 export interface LiveChatRequest {
@@ -435,6 +483,10 @@ export interface NextNumberRequest {
   document_text: string
 }
 
+export interface NormalizeHeadingsRequest {
+  session_id: string
+}
+
 export type NumberStyle = "decimal" | "lowerLetter" | "upperLetter" | "lowerRoman" | "upperRoman" | "none"
 
 export interface OpenInWordReq {
@@ -443,6 +495,15 @@ export interface OpenInWordReq {
 
 export interface OpenLocalReq {
   path: string
+}
+
+export interface OutputSpec {
+  filename?: string
+}
+
+export interface ParagraphElement {
+  type?: string
+  text: string
 }
 
 export interface PortadaData {
@@ -459,6 +520,21 @@ export interface PortadaData {
   running_head?: string | null
   author_note?: string | null
   departamento?: string | null
+  language?: "es-ES" | "es-MX" | "es-AR" | "es-CO" | "es-PE" | "es-CL" | "en-US" | "en-GB" | "pt-BR" | "fr-FR" | "de-DE" | "it-IT"
+}
+
+export interface PresetPayload {
+  name: string
+  type: "table" | "heading" | "layout"
+  description?: string
+  definition?: Record<string, unknown>
+  overwrite?: boolean
+}
+
+export interface PresetRefs {
+  table?: string | null
+  heading?: string | null
+  layout?: string | null
 }
 
 export interface PreviewRequest {
@@ -485,6 +561,16 @@ export interface ProofreadRequest {
   element_ids?: Array<string>
 }
 
+export interface ReferenceItem {
+  apa?: string | null
+  doi?: string | null
+}
+
+export interface ReferencesElement {
+  type?: string
+  items: Array<ReferenceItem>
+}
+
 export interface ReferenciaModel {
   id: string
   authors?: Array<string>
@@ -496,6 +582,8 @@ export interface ReferenciaModel {
   formatted_apa?: string | null
   cited_count?: number
   never_cited?: boolean
+  is_duplicate?: boolean
+  duplicate_count?: number
   verificada?: boolean
   fuente_verificacion?: string | null
 }
@@ -509,8 +597,9 @@ export interface ResolveBatchRequest {
   references: Array<string>
 }
 
-export interface ResolveDoiRequest {
-  doi: string
+export interface ResolveDoisRequest {
+  text: string
+  guardar?: boolean
 }
 
 export interface ResolveGhostCitationRequest {
@@ -564,11 +653,44 @@ export interface SetProfileRequest {
   profile_id: string
 }
 
+export interface SpecDocument {
+  spec_version: string
+  output?: OutputSpec
+  cover?: CoverSpec | null
+  presets?: PresetRefs
+  elements: Array<unknown>
+  options?: SpecOptions
+}
+
+export interface SpecOptions {
+  resolve_doi?: boolean
+}
+
+export interface SubfigureModel {
+  id: string
+  label?: string
+  title?: string
+  relative_url?: string
+  file_path?: string | null
+  filename?: string | null
+}
+
 export interface SuggestCoverRequest {
   document_text: string
 }
 
 export type TableBorderStyle = "apa" | "grid"
+
+export interface TableElement {
+  type?: string
+  caption?: string
+  title?: string
+  columns: Array<string>
+  rows?: Array<Array<string>>
+  note?: string | null
+  repeat_header?: boolean
+  preset?: string | null
+}
 
 export interface TableModel {
   element_id: string
@@ -613,6 +735,10 @@ export type ValidationStatus = "ok" | "warning" | "error"
 
 export type WorkMode = "quick" | "review"
 
+export interface main__ResolveDoiRequest {
+  doi: string
+}
+
 export interface main__SuggestCaptionRequest {
   session_id: string
   element_id: string
@@ -623,4 +749,9 @@ export interface main__SuggestCaptionRequest {
 export interface routers__addin__SuggestCaptionRequest {
   type: string
   context_text: string
+}
+
+export interface routers__references__ResolveDoiRequest {
+  doi: string
+  guardar?: boolean
 }

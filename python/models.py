@@ -8,9 +8,9 @@ No usar dicts crudos para pasar datos entre módulos — siempre usar estos mode
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ── ENUMERACIONES ────────────────────────────────────────────────────────────
 
@@ -93,7 +93,37 @@ class APARuleSet(BaseModel):
     is_default: bool = True
 
     # Página
+    # Tamaño de hoja. Antes esto no existía como dato: el lienzo usaba un token
+    # fijo de A4 y el `.docx` salía con el tamaño del original, así que la
+    # pantalla y el archivo se contradecian. Ahora es un campo, y lo aplica
+    # `apply_page_setup`.
+    #
+    # El default es "carta" y no "a4" porque es lo que dice `DESIGN.md:75`
+    # (8.5" x 11"). Un valor cerrado con `Literal` y no un `str` con comentario:
+    # un `page_size` que llega con otro nombre desde el cliente tiene que
+    # rechazar, no colarse en silencio y dejar un papel del tamaño que sea.
+    page_size: Literal["carta", "a4"] = "carta"
     margins_cm: float = 2.54
+
+    @field_validator("page_size", mode="before")
+    @classmethod
+    def _normalizar_page_size(cls, v: Any) -> Any:
+        """Acepta los nombres que el cliente ya usaba y los deja en el canónico.
+
+        `pageGeometry.ts` ya recibía 'letter' y 'a4' como texto libre, y hay
+        documentos guardados con esa forma. Sin esta normalización, reabrir uno
+        de ellos fallaría la validación en vez de abrir con Carta, que es lo que
+        dice su propia hoja.
+        """
+        if v is None or v == "":
+            return "carta"
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v in ("carta", "letter", "carta (letter)", "8.5x11"):
+                return "carta"
+            if v == "a4":
+                return "a4"
+        return v
 
     # Fuente
     export_mode: str = "inplace"  # inplace | rebuild
@@ -477,6 +507,43 @@ class PortadaData(BaseModel):
     running_head: Optional[str] = None
     author_note: Optional[str] = None
     departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
+
+    # IDIOMA DEL DOCUMENTO. Antes no existía como dato: `date` era texto libre y
+    # el idioma se lo adivinaba Word. Eso es lo que hace que la revisión de
+    # ortografía subraye palabras que están bien escritas.
+    #
+    # POR QUÉ VIVE EN `PortadaData` Y NO EN `DocumentMeta`, que es donde
+    # conceptualmente pertenece. Porque es el único de los dos que el cliente
+    # manda en cada `/generate` y `/generate-pdf`: `DocumentMeta` vive en la
+    # copia de la sesión que tiene el servidor y no hay ningún endpoint que la
+    # escriba desde el cliente, así que un campo ahí sería un control que se ve
+    # lleno y no llega al `.docx`. El día que exista un `PATCH /api/session/meta`
+    # este campo se muda, y el nombre no tiene que cambiar: lo lee
+    # `aplicar_idioma_documento`, no el lugar donde está guardado.
+    language: Literal[
+        "es-ES", "es-MX", "es-AR", "es-CO", "es-PE", "es-CL",
+        "en-US", "en-GB", "pt-BR", "fr-FR", "de-DE", "it-IT",
+    ] = "es-ES"
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _normalizar_language(cls, v: Any) -> Any:
+        """Deja el idioma en una etiqueta que Word entiende.
+
+        Un documento viejo no trae el campo, y un cliente puede mandar 'es' o
+        'EN' en mayúsculas. Sin esto, la primera habria fallado al exportarse.
+        """
+        if v is None or v == "":
+            return "es-ES"
+        if isinstance(v, str):
+            n = v.strip().replace("_", "-")
+            # Un idioma a secas se resuelve al regionally-tagged más cercano que
+            # tenemos: 'es' es español de España en la configuración regional de
+            # este producto, y 'en' es inglés de Estados Unidos.
+            corto = {"es": "es-ES", "en": "en-US", "pt": "pt-BR", "fr": "fr-FR",
+                     "de": "de-DE", "it": "it-IT"}
+            return corto.get(n.lower(), n)
+        return v
 
 
 class CitationModel(BaseModel):

@@ -9,6 +9,7 @@ import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
+import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
@@ -499,6 +500,22 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     });
     if (changed) setMeasureTick((t) => t + 1);
   });
+
+  /* El tamaño de hoja, reflejado en `<html data-page-size>`.
+   *
+   * La PAGINACIÓN de más arriba no lee este atributo: sale de `rules.page_size`
+   * por `getPageGeometry`, que es la medida buena porque está en píxeles y la
+   * paginación necesita números. El atributo es para el CSS —la hoja de
+   * `design-system.css`, que antes tenía `210mm` escritos a mano y por eso
+   * mostraba A4 mientras la paginación contaba Carta—.
+   *
+   * Vive acá y no en la pestaña que escribe el valor porque el lienzo se monta
+   * siempre que hay un documento, y la pestaña solo si alguien abre Ajustes. Si
+   * lo escribiera la pestaña, un documento guardado en A4 abriría con la hoja
+   * de Carta hasta que alguien pasara por el hub. */
+  useEffect(() => {
+    aplicarPageSizeEnHtml(rules.page_size);
+  }, [rules.page_size]);
 
   useEffect(() => {
     if (!actionToast) return;

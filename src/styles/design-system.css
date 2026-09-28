@@ -330,11 +330,39 @@ html, body {
   height: 100%;
 }
 
+/* ════════════ TAMAÑO DE HOJA (medidas, no colores) ════════════
+ *
+ * Viven fuera de los bloques de tema a propósito: el papel no cambia con el
+ * tema —`AGENTS.md` lo dice, la hoja es blanca en claro y en oscuro—, y un
+ * token que se declara dos veces es un token que puede divergir.
+ *
+ * EL DEFAULT ES CARTA, y antes era A4. `DESIGN.md:75` pide 8.5" x 11", el
+ * lienzo ya paginaba con Carta (`pageGeometry.ts`), y estas dos líneas eran la
+ * contradicción: el papel de acá y el papel del `.docx` no eran el mismo, y
+ * ninguno de los dos miraba al otro. Ahora uno elige, con el atributo
+ * `data-page-size` en `<html>` —el mismo patrón que `data-theme`—, y el
+ * selector de la pestaña Documento escribe en `rules.page_size`.
+ *
+ * Los dos tamaños están siempre declarados: el que no se elige no se borra, se
+ * deja de usar. Un token de A4 que solo existe mientras nadie elige A4 es un
+ * token que un día deja de compilar y nadie sabe por qué. */
+:root {
+  --paper-width: 215.9mm;   /* Carta: 8.5" */
+  --paper-height: 279.4mm;  /* Carta: 11" */
+  --paper-width-a4: 210mm;
+  --paper-height-a4: 297mm;
+}
+
+:root[data-page-size="a4"] {
+  --paper-width: var(--paper-width-a4);
+  --paper-height: var(--paper-height-a4);
+}
+
 /* Paper */
 .paper {
   background-color: var(--paper-bg);
-  width: 210mm; /* A4 width */
-  min-height: 297mm; /* A4 height */
+  width: var(--paper-width);
+  min-height: var(--paper-height);
   box-shadow: var(--shadow-lg);
   border-radius: var(--radius-sm);
 }

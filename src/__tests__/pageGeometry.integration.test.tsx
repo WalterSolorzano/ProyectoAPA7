@@ -4,7 +4,7 @@
  * - con doc, la hoja usa PAGE_W/H derivados de pageGeometry (no 680 fijo)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
 import { PaperCanvas } from '../components/layout/PaperCanvas';
 import { getPageGeometry } from '../lib/pageGeometry';
@@ -64,5 +64,49 @@ describe('PaperCanvas con geometría real', () => {
     expect(sheet.style.width).toBe(`${Math.round(g.pageW)}px`);
     expect(sheet.style.height).toBe(`${Math.round(g.pageH)}px`);
     expect(sheet.style.padding).toBe(`${Math.round(g.marginPx)}px`);
+  });
+
+  /* La hoja del CSS y la del lienzo tienen que ser la MISMA. Se eligen por un
+     atributo en `<html>`, igual que el tema, y el que lo escribe es el lienzo:
+     si lo escribiera la pestaña de Ajustes, un documento guardado en A4 abriría
+     con la hoja de Carta hasta que alguien pasara por el hub. */
+  it('el lienzo publica el tamaño de hoja en <html data-page-size>', () => {
+    const doc = {
+      session_id: 's1', file_name: 't.docx', apa_format: 'student',
+      elements: [{
+        id: 'p1', type: 'paragraph', text: 'hola', confidence: 1,
+        is_user_modified: false, needs_review: false, auto_applied: false, cita_ids: [],
+      }],
+      referencias: [], meta: { page_count: 1 },
+    } as any;
+    const base = useDocStore.getState().rules;
+
+    act(() => { useDocStore.setState({ doc, rules: { ...base, page_size: 'a4' } as any }); });
+    const { unmount } = render(<PaperCanvas />);
+    expect(document.documentElement.getAttribute('data-page-size')).toBe('a4');
+    unmount();
+
+    act(() => { useDocStore.setState({ rules: { ...base, page_size: 'carta' } as any }); });
+    render(<PaperCanvas />);
+    expect(document.documentElement.getAttribute('data-page-size')).toBe('carta');
+  });
+
+  it('sin page_size en las reglas, el atributo sale con el default y no vacío', () => {
+    /* Un documento guardado antes de que el campo existiera viene sin el. Si
+       `aplicarPageSizeEnHtml` devolviera `undefined`, el atributo sería
+       `data-page-size="undefined"` y el CSS no casaría con ningún par. */
+    const doc = {
+      session_id: 's1', file_name: 't.docx', apa_format: 'student',
+      elements: [{
+        id: 'p1', type: 'paragraph', text: 'hola', confidence: 1,
+        is_user_modified: false, needs_review: false, auto_applied: false, cita_ids: [],
+      }],
+      referencias: [], meta: { page_count: 1 },
+    } as any;
+    const sinCampo = { ...useDocStore.getState().rules } as Record<string, unknown>;
+    delete sinCampo.page_size;
+    act(() => { useDocStore.setState({ doc, rules: sinCampo as any }); });
+    render(<PaperCanvas />);
+    expect(document.documentElement.getAttribute('data-page-size')).toBe('carta');
   });
 });

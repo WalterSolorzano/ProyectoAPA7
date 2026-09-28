@@ -54,16 +54,143 @@ def set_run_font(run, font_family: str, font_size_pt: float) -> None:
     szCs.set(qn('w:val'), str(int(font_size_pt * 2)))
 
 
+# ── TAMAÑO DE HOJA ────────────────────────────────────────────────────────────
+# En milímetros, que es como las dos medidas se escriben sin ambigüedad: 8.5" son
+# 215.9 mm y 11" son 279.4 mm. Pulgadas y milímetros no dividen igual, y un
+# redondeo a 8.49" es una hoja que Word no reconoce como Carta.
+#
+# `python-docx` no tiene un nombre de hoja: el tamaño ES `section.page_width` y
+# `section.page_height`, en EMU. Por eso esta tabla no puede vivir en el modelo
+# y por eso el generador tiene que llamar a esta función.
+TAMANOS_DE_PAGINA_MM: dict[str, tuple[float, float]] = {
+    "carta": (215.9, 279.4),
+    "a4": (210.0, 297.0),
+}
+
+EMU_POR_MM = 36000
+
+
+def aplicar_tamano_pagina(section, page_size: str, landscape: bool = False) -> None:
+    """Fija `page_width`/`page_height` de UNA sección al tamaño pedido.
+
+    En landscape se escriben el alto y el ancho cruzados, y la orientación se
+    declara en el `w:pgSz`: si se escribieran cruzados sin cambiarla, Word muestra
+    una hoja apaisada con el flag de portrait, que es un caso distinto.
+    """
+    ancho_mm, alto_mm = TAMANOS_DE_PAGINA_MM.get(str(page_size or "").lower(), TAMANOS_DE_PAGINA_MM["carta"])
+    if landscape:
+        ancho_mm, alto_mm = alto_mm, ancho_mm
+    section.page_width = int(round(ancho_mm * EMU_POR_MM))
+    section.page_height = int(round(alto_mm * EMU_POR_MM))
+    try:
+        from docx.enum.section import WD_ORIENT
+        section.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+    except Exception:
+        pass
+
+
+# ── IDIOMA DEL DOCUMENTO ──────────────────────────────────────────────────────
+# `w:lang` es lo que Word usa para decidir qué corrector de ortografía aplicar.
+# Sin él —o con el `en-US` que trae la plantilla de Word— un texto en español
+# sale con cada palabra subrayada, y quien lo ve concludes que el documento está
+# mal escrito en vez de que el archivo no lo declara.
+#
+# Se escribe en TRES lugares a propósito, y los tres hacen falta:
+#   1. `docDefaults/rPr` — el valor por omisión de todo el documento.
+#   2. el estilo `Normal` — que es donde Word mira primero.
+#   3. cada run — porque un documento que viene de Word trae `w:lang` puesto en
+#      el run, y ese gana sobre los defaults. Sin el punto 3, elegir el idioma
+#      no cambiaría nada en la mitad de los documentos reales.
+#
+# `w:lang` es un atributo de corrección, no de apariencia: reescribirlo no
+# cambia ni una coma de lo que se ve.
+
+
+def _escribir_lang(rPr, language: str) -> None:
+    lang = rPr.find(qn("w:lang"))
+    if lang is None:
+        lang = OxmlElement("w:lang")
+        rPr.append(lang)
+    lang.set(qn("w:val"), language)
+
+
+def aplicar_idioma_documento(
+    doc: docx.Document,
+    language: str,
+    skip_body_paragraphs: int = 0,
+) -> None:
+    """Declara en el `.docx` en qué idioma está escrito. Ver la nota de arriba.
+
+    `skip_body_paragraphs` es el piso del cuerpo: los párrafos anteriores son la
+    portada, y la portada es zona protegida (`AGENTS.md`), así que ahí no se
+    escribe ni un byte. El nombre es el de `normalize_all_fonts` a propósito: las
+    dos funciones caminan el documento por la misma frontera.
+    """
+    if not language:
+        return
+
+    # 1 y 2: defaults y estilo Normal. Son parte de la hoja, no de un párrafo, así
+    # que no tocan la portada.
+    try:
+        styles_element = doc.styles._element
+        doc_defaults = styles_element.find(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}docDefaults"
+        )
+        if doc_defaults is not None:
+            rpr = doc_defaults.find(
+                ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rPr"
+            )
+            if rpr is not None:
+                _escribir_lang(rpr, language)
+        for style in styles_element.iter(qn("w:style")):
+            name_el = style.find(qn("w:name"))
+            name_val = name_el.attrib.get(qn("w:val")) if name_el is not None else ""
+            if name_val != "Normal":
+                continue
+            # Solo si el estilo YA tiene `rPr`. Crear uno donde no lo hay deja un
+            # `<w:rPr/>` vacío en la hoja, que es un cambio que no es el idioma y
+            # que la prueba de contrato no debería tener que aprender a ignorar.
+            rpr_estilo = style.find(qn("w:rPr"))
+            if rpr_estilo is not None:
+                _escribir_lang(rpr_estilo, language)
+    except Exception:
+        pass
+
+    # 3: los runs, que es donde gana el `w:lang` heredado del original.
+    for para in doc.paragraphs[max(skip_body_paragraphs, 0):]:
+        _escribir_lang_en_runs(para._element, language)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    _escribir_lang_en_runs(para._element, language)
+
+
+def _escribir_lang_en_runs(elemento, language: str) -> None:
+    for run in elemento.iter(qn("w:r")):
+        rpr = run.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = OxmlElement("w:rPr")
+            run.insert(0, rpr)
+        _escribir_lang(rpr, language)
+
+
 def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: bool = True) -> None:
     """
-    Aplica margenes APA 7 (2.54 cm / 1 in) respetando secciones en landscape si existen.
+    Aplica el TAMAÑO DE HOJA y los márgenes APA 7 (2.54 cm / 1 in).
 
-    IMPORTANTE: conserva el tamaño de página ORIGINAL del documento (Carta, A4, Legal...)
-    en las secciones portrait. Antes se forzaba Carta (8.5 x 11 in) en todas las
-    secciones portrait, lo que producía PDFs con formato de hoja ajeno al Word original.
-    Las secciones landscape conservan su orientación y márgenes originales.
+    EL TAMAÑO DE HOJA ES DE `rules.page_size`, y antes no lo era: cada ruta
+    hacía lo que podía (una copiaba el original, otra escribía Letter a mano) y el
+    lienzo usaba un token fijo de A4. El resultado era que la pantalla y el
+    archivo no tenían el mismo papel, y nadie lo notaba porque los dos tamaños
+    parecían razonables. Ahora hay un solo lugar que decide, y es este.
+
+    Las secciones en landscape conservan su orientación: se les intercambian
+    ancho y alto para que el mismo contenido quepa girado, y sus márgenes
+    originales quedan como estaban.
     """
     margin_inches = rules.margins_cm / 2.54
+    page_size = getattr(rules, "page_size", "carta") or "carta"
 
     for section in doc.sections:
         is_landscape: bool = False
@@ -75,6 +202,8 @@ def apply_page_setup(doc: docx.Document, rules: APARuleSet, preserve_landscape: 
                     is_landscape = True
         except Exception:
             pass
+
+        aplicar_tamano_pagina(section, page_size, landscape=is_landscape)
 
         # En portrait: margenes APA 7. En landscape: conservar todo (orientacion y margenes).
         if not (preserve_landscape and is_landscape):

@@ -6,14 +6,24 @@
  *
  * Nota: valores en PÍXELES sin zoom — el zoom del lienzo se aplica encima.
  */
+import { normalizarPageSize } from './pageSizeEnHtml';
+import type { PageSize } from '../types';
+
 export const PX_PER_PT = 96 / 72;
 export const PX_PER_CM = 96 / 2.54;
 export const PT_TO_PX = (pt: number): number => pt * PX_PER_PT;
 export const CM_TO_PX = (cm: number): number => cm * PX_PER_CM;
 
-/** Tamaños de hoja en puntos (Word: Letter 8.5x11in, A4 210x297mm). */
-const PAGE_PT: Record<string, { w: number; h: number }> = {
-  letter: { w: 612, h: 792 },
+/** Tamaños de hoja en PUNTOS, que es como los tiene Word.
+ *
+ *  En milímetros, A4 no es un número redondo en puntos (210 mm son 595,276 pt),
+ *  y Word lo redondea a 595. Estos son los valores del propio Word, que es lo
+ *  que hay que igualar: el ancho y el alto tienen que coincidir con los que
+ *  Word escribe en `w:pgSz`, o el archivo y la pantalla se separan. La tabla en
+ *  milímetros vive en `pageSizeEnHtml.ts` y en `style_engine.py`; esta es la
+ *  misma información en la unidad que necesita la paginación. */
+const PAGE_PT: Record<PageSize, { w: number; h: number }> = {
+  carta: { w: 612, h: 792 },
   a4: { w: 595, h: 842 },
 };
 
@@ -41,10 +51,12 @@ export function getPageGeometry(rules: {
   page_size?: string;
   professional_running_head?: boolean;
 }): PageGeometry {
-  const sizeKey = String(rules.page_size || 'letter').toLowerCase().includes('a4')
-    ? 'a4'
-    : 'letter';
-  const { w, h } = PAGE_PT[sizeKey];
+  /* El normalizador es el de `pageSizeEnHtml.ts`, el mismo que escribe el
+     atributo del CSS y el que usa la pestaña Documento. Antes esta función
+     decidía sola con un `.includes('a4')`, y un valor como "a4-landscape" o
+     "A4 " resolvía a A4 mientras el selector mostraba Carta: dos reglas para la
+     misma hoja, y la que se contradecía dependía de quién preguntara. */
+  const { w, h } = PAGE_PT[normalizarPageSize(rules.page_size)];
   const pageW = PT_TO_PX(w);
   const pageH = PT_TO_PX(h);
   const marginPx = CM_TO_PX(rules.margins_cm ?? 2.54);

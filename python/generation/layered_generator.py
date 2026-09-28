@@ -34,6 +34,7 @@ from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
     apply_page_setup,
+    aplicar_idioma_documento,
     format_block_quote,
     format_heading_paragraph,
     format_normal_paragraph,
@@ -115,36 +116,11 @@ def generate_apa7_from_scratch(
     # ═══════════════════════════════════════════════════════════════════
 
     doc = docx.Document()
+    # El tamaño de hoja lo DECIDE `rules.page_size` y solo él. Este bloque antes
+    # copiaba el `pgSz` del original o escribía Letter a mano, por encima de lo
+    # que hiciera `apply_page_setup`: tres reglas para la misma hoja, y la que
+    # ganaba dependía de qué generador corriera. Ahora hay una.
     apply_page_setup(doc, rules)
-
-    # pgSz determinista: copiar el tamaño del documento original si está
-    # disponible; si no, escribir Letter explícito (evita ambigüedad downstream).
-    try:
-        _src_doc = None
-        for _cand in ("original.docx", doc_model.file_name):
-            if not _cand:
-                continue
-            _cand_path = out_path.parent / _cand
-            if _cand_path.exists():
-                _src_doc = docx.Document(_cand_path)
-                break
-        _new_sec = doc.sections[0] if doc.sections else None
-        if _new_sec is not None:
-            if _src_doc is not None and _src_doc.sections:
-                _src_sec = _src_doc.sections[0]
-                if _src_sec.page_width is not None:
-                    _new_sec.page_width = _src_sec.page_width
-                if _src_sec.page_height is not None:
-                    _new_sec.page_height = _src_sec.page_height
-                try:
-                    _new_sec.orientation = _src_sec.orientation
-                except Exception:
-                    pass
-            else:
-                _new_sec.page_width = Inches(8.5)
-                _new_sec.page_height = Inches(11)
-    except Exception as e:
-        print(f"[LAYERED-GEN] pgSz setup skip: {e}")
 
     update_docx_styles_xml(doc, rules)
 
@@ -357,6 +333,10 @@ def generate_apa7_from_scratch(
         format_apa_referencias_section(doc, references, rules)
 
     normalize_global_body_spacing(doc, rules, 0)
+
+    # El idioma es lo último: hasta acá se escribieron todos los runs, y el
+    # `w:lang` de cada uno se escribe una sola vez.
+    aplicar_idioma_documento(doc, getattr(portada, "language", None) or "es-ES")
 
     doc.save(out_path)
     return out_path

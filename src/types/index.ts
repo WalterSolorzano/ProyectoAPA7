@@ -204,11 +204,19 @@ export interface HeadingLevelConfig {
   inline_text: boolean;
 }
 
+/** Tamaño de hoja. "carta" es 8.5" x 11" y "a4" es 210 x 297 mm.
+ *  Es un valor cerrado y no texto libre: `pageGeometry.ts` (el lienzo) y
+ *  `APARuleSet.page_size` (el `.docx`) tienen que decidir lo mismo, y un
+ *  `string` cualquiera haría que uno de los dos caiga a su valor por omisión en
+ *  silencio. El default es Carta porque es lo que dice `DESIGN.md:75`. */
+export type PageSize = 'carta' | 'a4';
+
 export interface APARuleSet {
   profile_name: string;
   is_default?: boolean;
 
   // Page
+  page_size?: PageSize;
   margins_cm: number;
 
   // Font
@@ -286,7 +294,39 @@ export interface PortadaData {
   /** Área de Conocimiento / Departamento (portada UNI) — editable por el usuario. */
   departamento?: string;
   logo_url?: string;
+  /** Idioma en que está escrito el documento. Decide el `w:lang` del `.docx`,
+   *  que es lo que hace que la revisión de ortografía no subraye un texto en
+   *  español con el corrector en inglés. Etiquetas CLDR, cerradas: el backend
+   *  las valida. `PortadaData` es donde viven y no `DocumentMeta` por una razón
+   *  escrita en `python/models.py`: es el único de los dos que viaja al
+   *  generador en cada exportación. */
+  language?: PortadaLanguage;
 }
+
+/** Etiquetas de idioma que el backend acepta. La lista está escrita acá y en
+ *  `PortadaData.language` de `python/models.py`, y son las dos que tienen que
+ *  coincidir: si el cliente manda uno que el modelo no declara, la exportación
+ *  falla con un error de validación en vez de aplicar el idioma.
+ *  `documentoTab.test.tsx` contrasta las dos listas, archivo contra archivo. */
+export type PortadaLanguage =
+  | 'es-ES' | 'es-MX' | 'es-AR' | 'es-CO' | 'es-PE' | 'es-CL'
+  | 'en-US' | 'en-GB'
+  | 'pt-BR' | 'fr-FR' | 'de-DE' | 'it-IT';
+
+export const PORTADA_IDIOMAS: { valor: PortadaLanguage; etiqueta: string }[] = [
+  { valor: 'es-ES', etiqueta: 'Español (España)' },
+  { valor: 'es-MX', etiqueta: 'Español (México)' },
+  { valor: 'es-AR', etiqueta: 'Español (Argentina)' },
+  { valor: 'es-CO', etiqueta: 'Español (Colombia)' },
+  { valor: 'es-PE', etiqueta: 'Español (Perú)' },
+  { valor: 'es-CL', etiqueta: 'Español (Chile)' },
+  { valor: 'en-US', etiqueta: 'English (United States)' },
+  { valor: 'en-GB', etiqueta: 'English (United Kingdom)' },
+  { valor: 'pt-BR', etiqueta: 'Português (Brasil)' },
+  { valor: 'fr-FR', etiqueta: 'Français (France)' },
+  { valor: 'de-DE', etiqueta: 'Deutsch (Deutschland)' },
+  { valor: 'it-IT', etiqueta: 'Italiano (Italia)' },
+];
 
 export interface PortadaProfile {
   profile_name: string;

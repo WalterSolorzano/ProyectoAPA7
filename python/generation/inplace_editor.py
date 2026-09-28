@@ -12,8 +12,17 @@ Scopes soportados (coinciden con scoped_apply):
 
 Contrato duro (testeado):
   * NingÃºn pÃ¡rrafo con idx < body_start cambia NI UN BYTE.
-  * sectPr / headers / footers / styles.xml byte-idÃ©nticos.
+  * headers / footers byte-idÃ©nticos.
   * Si scopes estÃ¡ definido, solo esos Ã¡mbitos cambian.
+
+EXCEPCIÓN, Y ES A PROPÓSITO — `sectPr` y `styles.xml`: antes eran byte-idénticos
+también, y esta ruta no escribía ni el tamaño de hoja ni el idioma. Como es la
+exportación por omisión, el selector de la pestaña Documento no llegaba al `.docx`:
+el control se veía, respondía, y el archivo salía con el papel del original y con
+el `en-US` de la plantilla de Word. Ahora se escriben `pgSz` (el tamaño que eligió
+la persona, respetando la orientación de cada sección) y `w:lang`. Son dos
+atributos de la hoja, no del contenido: los márgenes, la orientación, los
+encabezados y los pies siguen intactos, y la portada sigue sin tocarse.
 """
 from __future__ import annotations
 
@@ -27,7 +36,10 @@ from typing import Any, Iterable
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
+
+from generation.style_engine import aplicar_idioma_documento, aplicar_tamano_pagina
 
 try:
     from wordapa7_logger import log_event
@@ -115,8 +127,14 @@ def apply_inplace(
     doc_model: Any,
     rules: Any,
     scopes: Iterable[str] | None = None,
+    language: str | None = None,
 ) -> Path:
-    """Edita el documento original respetando portada/secciones al 100%."""
+    """Edita el documento original respetando portada/secciones al 100%.
+
+    `language` es un parámetro aparte y no un campo de `rules` a propósito: el
+    idioma viaja en `PortadaData` (ver el motivo en `models.py`) y `rules` es
+    `APARuleSet`, así que leerlo de ahí sería leer una cosa que nunca estuvo.
+    """
     t0 = time.time()
     active = set(scopes) if scopes is not None else {"texto", "tablas_imagenes", "bibliografia"}
     body_start = max(_body_start(doc_model), 0)
@@ -259,6 +277,27 @@ def apply_inplace(
             tblPr.append(borders)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Tamaño de hoja e idioma. Esta es la ruta de export por omisión
+    # (`export_mode: "inplace"` con la portada original conservada), así que lo
+    # que no se escriba acá NO LLEGA AL `.docx`: el selector de la pestaña
+    # Documento sería otro control que no hace nada, que es el defecto exacto
+    # que esta fase viene a matar.
+    #
+    # La orientación se respeta: una sección apaisada se queda apaisada y se le
+    # cruzan ancho y alto. Los MÁRGENES no se tocan acá, porque el contrato duro
+    # de esta ruta es preservar la maquetación del original.
+    _page_size = getattr(rules, "page_size", None) or "carta"
+    for _sec in doc.sections:
+        _landscape = False
+        try:
+            _pg = _sec._sectPr.find(qn("w:pgSz"))
+            _landscape = _pg is not None and _pg.attrib.get(qn("w:orient")) == "landscape"
+        except Exception:
+            pass
+        aplicar_tamano_pagina(_sec, _page_size, landscape=_landscape)
+    aplicar_idioma_documento(doc, language or "es-ES", skip_body_paragraphs=body_start)
+
     doc.save(str(out_path))
 
     # VerificaciÃ³n post: asegurar que la portada no mutÃ³

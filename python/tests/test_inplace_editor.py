@@ -63,17 +63,81 @@ def test_portada_byte_identica(tmp_path):
     assert antes == despues
 
 
+def _sin_lang(xml: bytes) -> bytes:
+    """El `styles.xml` de entrada con todos los `w:lang` eliminados.
+
+    No alcanza con borrar el elemento: la plantilla de Word YA trae
+    `w:lang w:val="en-US"` en `docDefaults`, y lo que hace esta ruta es cambiarle
+    el valor. La comparación tiene que ser sobre el resto del documento.
+    """
+    from lxml import etree
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    root = etree.fromstring(xml)
+    for lang in root.findall(f".//{{{W}}}lang"):
+        lang.getparent().remove(lang)
+    return etree.tostring(root)
+
+
 def test_partes_globales_intactas(tmp_path):
+    """Encabezados y pies: byte a byte. `styles.xml`: lo único que puede cambiar
+    es el `w:lang`.
+
+    La excepción es deliberada y se cuenta acá en vez de dejarse pasar. Esta ruta
+    es la de exportación por omisión, y sin el idioma declarado en la hoja de
+    estilos el corrector de Word revisa un texto en español con su inglés por
+    defecto: el selector de la pestaña Documento se llenaba y el `.docx` no se
+    enteraba. Lo que NO puede cambiar es nada más, y eso es lo que se comprueba:
+    quitar los `w:lang` agregados tiene que devolver el archivo original.
+    """
     src = _build_doc(tmp_path)
     out = tmp_path / "out.docx"
+
     def parts(p):
         with zipfile.ZipFile(str(p)) as z:
             return {n: z.read(n) for n in z.namelist() if n.startswith(("word/styles.", "word/header", "word/footer"))}
-    apply_inplace(src, out, _Model(), _Rules())
+
+    apply_inplace(src, out, _Model(), _Rules(), language="es-ES")
     a, b = parts(src), parts(out)
     assert set(a) == set(b)
+
     for k in a:
-        assert a[k] == b[k], f"parte global modificada: {k}"
+        if k.startswith("word/styles."):
+            # Único cambio permitido: `w:lang`. Se comparan los dos XML con
+            # todos los `w:lang` eliminados: lo que queda tiene que ser idéntico.
+            assert _sin_lang(a[k]) == _sin_lang(b[k]), (
+                "styles.xml cambio en algo que no es w:lang"
+            )
+            assert b'w:val="es-ES"' in b[k], "el idioma no llego a styles.xml"
+        else:
+            assert a[k] == b[k], f"parte global modificada: {k}"
+
+
+def test_el_idioma_no_toca_la_portada(tmp_path):
+    """La portada no recibe `w:lang`, aunque lo herede de styles.xml.
+
+    `test_portada_byte_identica` ya lo cubre, y es el que importa: la portada es
+    zona protegida. Este dice POR QUE la función tiene el piso del cuerpo, para
+    que el próximo que agregue un `for para in doc.paragraphs` sin mirar sepa
+    que hay una frontera.
+    """
+    src = _build_doc(tmp_path)
+    out = tmp_path / "out.docx"
+    apply_inplace(src, out, _Model(), _Rules(), language="es-ES")
+
+    portada = Document(str(out)).paragraphs[:5]
+    assert portada, "la portada del fixture desaparecio"
+    for p in portada:
+        for run in p._element.iter(
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}r"
+        ):
+            rpr = run.find(
+                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rPr"
+            )
+            if rpr is None:
+                continue
+            assert rpr.find(
+                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}lang"
+            ) is None, "se escribio w:lang dentro de la portada"
 
 
 def test_cuerpo_si_cambia(tmp_path):

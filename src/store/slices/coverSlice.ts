@@ -17,6 +17,11 @@ export const defaultPortada: PortadaData = {
   date: '',
   running_head: '',
   author_note: '',
+  /* El idioma viaja en `PortadaData` y no en `DocumentMeta` por una razón
+     escrita en `python/models.py`: es el único de los dos que el cliente manda
+     en cada exportación. El default es el mismo que el del modelo, para que el
+     selector de la pestaña Documento no arranque sin opción elegida. */
+  language: 'es-ES',
 };
 
 export function syncCoverFieldToElements(elements: ElementModel[], field: keyof PortadaData, value: string): ElementModel[] {
