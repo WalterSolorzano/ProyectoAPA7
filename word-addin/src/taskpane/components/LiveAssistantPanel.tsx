@@ -46,6 +46,37 @@ interface LiveAssistantPanelProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void
 }
 
+/** Las cuatro preferencias, en el orden de `DEFAULT_OPTIONS`, con el texto que
+ *  dice lo que hacen. La lista vive acá y no en el JSX para que la prueba pueda
+ *  mirarla: una constante de render es indistinguishable de un `<div>` cuando
+ *  alguien agrega una quinta opción y se olvida de dibujarla. */
+export const OPCIONES_VISIBLES: ReadonlyArray<{
+  clave: keyof AssistantOptions
+  titulo: string
+  detalle: string
+}> = [
+  {
+    clave: 'autoFormat',
+    titulo: 'Formatear el párrafo',
+    detalle: 'Times New Roman 12, interlineado doble y sangría mientras escribís.',
+  },
+  {
+    clave: 'autoCaption',
+    titulo: 'Rotular figuras y tablas',
+    detalle: 'Inserta "Figura N" o "Tabla N" con su nota APA 7 al pegar una.',
+  },
+  {
+    clave: 'autoExtractCitations',
+    titulo: 'Guardar las citas',
+    detalle: 'Detecta (Autor, Año) y las manda a la bibliografía.',
+  },
+  {
+    clave: 'autoDetectAI',
+    titulo: 'Avisar de texto generado',
+    detalle: 'Analiza en busca de patrones de IA. Apagado por omisión porque es lo más pesado.',
+  },
+]
+
 export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
   running,
   options,
@@ -387,6 +418,61 @@ export const LiveAssistantPanel: React.FC<LiveAssistantPanelProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── SECCIÓN 1b: QUÉ HACE EL ASISTENTE MIENTRAS ESCRIBÍS ────────────── */}
+      {/* Las cuatro opciones viven en `AssistantOptions`, se guardan en
+          `roamingSettings` de Office y el motor las lee de verdad. Antes el
+          panel NO las dibujaba: `onOptionChange` aparecía en la declaración de
+          props y en la destructuración, y nada más. Cuatro preferencias
+          persistidas entre sesiones que nadie puede cambiar son deuda con
+          guarda, no una función —y una preferencia que no se puede cambiar
+          tampoco se puede apagar, que es lo que la gente necesita cuando algo
+          le molesta.
+
+          El orden es el de `DEFAULT_OPTIONS`, y el texto dice lo que la opción
+          hace, no su nombre de campo: "autoFormat" no le dice a nadie nada. */}
+      <div className="card">
+        <div className="card__header">
+          <div className="card__title">
+            <SparklesIcon size={16} color="var(--accent-primary)" />
+            <span>Qué hace el asistente mientras escribís</span>
+          </div>
+        </div>
+
+        <p className="card__subtitle">
+          Se guardan con tu cuenta de Office, así que el complemento se acuerda
+          de ellas la próxima vez que lo abras.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          {OPCIONES_VISIBLES.map(({ clave, titulo, detalle }) => (
+            <label
+              key={clave}
+              htmlFor={`opcion-${clave}`}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <input
+                id={`opcion-${clave}`}
+                type="checkbox"
+                checked={Boolean(options[clave])}
+                onChange={(e) => onOptionChange(clave, e.target.checked)}
+                style={{ marginTop: 2, cursor: 'pointer' }}
+              />
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{titulo}</span>
+                <span>{detalle}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* ── SECCIÓN 2: CRÍTICO Y APOYO EN VIVO (AL CURSOR EN WORD) ── */}

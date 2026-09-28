@@ -15,9 +15,7 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
   citationAuditResult: null,
   structureAuditResult: null,
   reviewResult: null,
-  isReviewOpen: false,
   isReviewLoading: false,
-  setReviewOpen: (open) => set({ isReviewOpen: open }),
   runAIReview: async () => {
     const { doc } = get();
     if (!doc) return;
@@ -50,8 +48,9 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
       get().showToast(err.message || 'Error en el revisor IA', 'error');
     }
   },
-  isContentReviewOpen: false,
-  setContentReviewOpen: (open) => set({ isContentReviewOpen: open }),
+  /* `isContentReviewOpen` / `setContentReviewOpen` se fueron con la Fase 7: la
+     revisión de contenido (Bloom, secciones) vive hoy en el workbench del paso
+     5, que se llega por fase y no por un flag. */
   providerStatus: null,
   fetchProviderStatus: async () => {
     try {

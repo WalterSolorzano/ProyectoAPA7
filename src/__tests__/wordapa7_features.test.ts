@@ -277,7 +277,6 @@ describe('R4: Fase E/F — Home + AI Review store actions', () => {
     useDocStore.setState({
       atHome: false,
       reviewResult: null,
-      isReviewOpen: false,
       isReviewLoading: false,
       doc: null,
     });
@@ -288,12 +287,11 @@ describe('R4: Fase E/F — Home + AI Review store actions', () => {
     expect(useDocStore.getState().atHome).toBe(true);
   });
 
-  it('setReviewOpen() toggles the reviewer modal visibility', () => {
-    useDocStore.getState().setReviewOpen(true);
-    expect(useDocStore.getState().isReviewOpen).toBe(true);
-    useDocStore.getState().setReviewOpen(false);
-    expect(useDocStore.getState().isReviewOpen).toBe(false);
-  });
+  /* El test de `setReviewOpen()` se fue con el flag. `isReviewOpen` no lo leía
+     ningún componente —la revisión se abre yendo a la fase 5— y una prueba que
+     verifica que un setter escriba en un store que nadie mira es la forma más
+     eficiente de mantener deuda viva. `flagsDeUiSinLector.test.ts` ahora es la
+     que vigila que no vuelva. */
 
   it('runAIReview() no-ops when there is no document without crashing', async () => {
     await expect(useDocStore.getState().runAIReview()).resolves.toBeUndefined();

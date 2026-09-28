@@ -285,10 +285,15 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   actionToast: null,
   triggerActionToast: (message) => set({ actionToast: { message, timestamp: Date.now() } }),
   clearActionToast: () => set({ actionToast: null }),
-  aiStudioOpen: false,
-  setAiStudioOpen: (open) => set({ aiStudioOpen: open }),
   liveChatOpen: true,
   setLiveChatOpen: (open) => set({ liveChatOpen: open }),
-  stressTestModalOpen: false,
-  setStressTestModalOpen: (open) => set({ stressTestModalOpen: open }),
+  /* Se fueron con la Fase 7, cada uno por su razón:
+       - `aiStudioOpen` / `setAiStudioOpen`: el estudio de IA que abría se
+         fusionó con el hub de Ajustes, y no quedó nadie que lo leyera.
+       - `stressTestModalOpen` / `setStressTestModalOpen`: el modal existía
+         (`StressTestModal.tsx`, 244 líneas) y `setStressTestModalOpen(true)`
+         no aparecía en ningún lado. Un banco de pruebas al que no se llega es
+         un banco de pruebas escrito al vacío. Con el flag y el modal se van
+         también `listSampleDocuments` y `getSampleDocumentUrl`, que solo
+         existían para dibujarlo. */
 });

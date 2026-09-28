@@ -233,23 +233,16 @@ export interface DocState {
   saveSnapshot: () => Promise<void>;
 
   // Revisor IA + Ortografía (Fase F)
+  /* `isReviewOpen` y su setter se fueron con la Fase 7: ningún componente los
+     leía. El workbench de Revisión (`ReviewWorkbench`, paso 5) es el que muestra
+     los hallazgos, y no se abre con un flag: se llega a la fase. Un flag que
+     solo lo escribía un test es un flag que no existe. */
   reviewResult: AIReviewResult | null;
-  isReviewOpen: boolean;
   isReviewLoading: boolean;
-  setReviewOpen: (open: boolean) => void;
   runAIReview: () => Promise<void>;
 
-  // Revisión de contenido (Bloom + secciones) — separada del formato
-  isContentReviewOpen: boolean;
-  setContentReviewOpen: (open: boolean) => void;
-
-  // IA Studio unificado + preflight (propuestas 1 y 3)
-  aiStudioOpen: boolean;
-  setAiStudioOpen: (open: boolean) => void;
   liveChatOpen: boolean;
   setLiveChatOpen: (open: boolean) => void;
-  stressTestModalOpen: boolean;
-  setStressTestModalOpen: (open: boolean) => void;
   runProactiveAutoCaptioning: () => Promise<void>;
   theme: 'dark' | 'light';
   setTheme: (t: 'dark' | 'light') => void;
