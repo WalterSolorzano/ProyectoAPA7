@@ -349,9 +349,17 @@ const StageRail: React.FC<{ llmStatus?: string }> = ({ llmStatus }) => {
 };
 
 // ── AMBIENT CANVAS ────────────────────────────────────────────────────────────
-// Subtle time-of-day atmosphere behind the fullscreen loading views.
-// Canvas 2D only; hex colors intentional (not UI tokens — pure draw layer).
-// Opacity stays at 0.32 so content (mascot, text) stays dominant.
+// Atmósfera suave sobre la capa de carga. Canvas 2D.
+//
+// LA PALETA HORARIA SE FUE. Había tres paletas con hex literales dentro de este
+// `.tsx`, y la de la tarde y la noche era morada: el usuario la vio y creyó que
+// le habían cambiado de pantalla. El comentario que lo justificaba decía que no
+// eran tokens de UI porque eran "una capa de dibujo pura", y ese comentario era
+// el error —es el fondo que se ve durante la carga—. El fondo ahora sale de
+// `--carga-fondo`, que vive en la hoja; el canvas ya no pinta el fondo, solo la
+// atmósfera, y su color sale de tokens leídos de la hoja en cada arranque. La
+// variación por hora no desaparece como efecto: desaparece como paleta, y lo que
+// queda es una atmósfera con el color de la app.
 const AmbientCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
@@ -363,21 +371,17 @@ const AmbientCanvas: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // ── Time-of-day palette ──────────────────────────────────────────────────
-    const hour = new Date().getHours();
-    type Palette = {
-      bg: [string, string];            // gradient top → bottom
-      blobs: [string, string];         // two radial blob colors
-      particle: string;                // dot fill
+    // ── El color, de la hoja ────────────────────────────────────────────────
+    /* Se lee con `getComputedStyle` porque un token no es un color: es una
+       cadena que el navegador resuelve. Leída una vez por montaje alcanza: el
+       tema no cambia mientras la capa está puesta, y si cambia, la siguiente
+       carga lo vuelve a leer. */
+    const leerToken = (nombre: string, respaldo: string): string => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+      return v || respaldo;
     };
-    const palette: Palette =
-      hour < 6
-        ? { bg: ['#020b18', '#071228'], blobs: ['#0d2a55', '#0a1e40'], particle: '#5b8dd9' }   // night
-        : hour < 12
-        ? { bg: ['#0f1e38', '#162840'], blobs: ['#1a3a6b', '#16325e'], particle: '#7fb3e8' }   // morning
-        : hour < 18
-        ? { bg: ['#1a1408', '#251c0d'], blobs: ['#4a3200', '#3d2a00'], particle: '#d4a952' }   // afternoon
-        : { bg: ['#1a0828', '#220b32'], blobs: ['#4a1060', '#3a0a50'], particle: '#c87deb' };  // evening
+    const blob = leerToken('--color-accent-soft', 'rgba(79, 124, 255, 0.10)');
+    const particle = leerToken('--color-text-tertiary', '#6b6b80');
 
     // ── Resize helper ────────────────────────────────────────────────────────
     const resize = () => {
@@ -385,6 +389,7 @@ const AmbientCanvas: React.FC = () => {
       canvas.height = canvas.offsetHeight || window.innerHeight;
     };
     resize();
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
@@ -401,8 +406,8 @@ const AmbientCanvas: React.FC = () => {
 
     // ── Blob pulse state ─────────────────────────────────────────────────────
     const blobs = [
-      { cx: 0.28, cy: 0.38, rFrac: 0.38, phase: 0,    color: palette.blobs[0] },
-      { cx: 0.72, cy: 0.65, rFrac: 0.30, phase: Math.PI, color: palette.blobs[1] },
+      { cx: 0.28, cy: 0.38, rFrac: 0.38, phase: 0 },
+      { cx: 0.72, cy: 0.65, rFrac: 0.30, phase: Math.PI },
     ];
 
     // ── Reduced-motion: single static frame ──────────────────────────────────
@@ -413,28 +418,30 @@ const AmbientCanvas: React.FC = () => {
       const W = canvas.width;
       const H = canvas.height;
 
-      // Background gradient
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, palette.bg[0]);
-      bg.addColorStop(1, palette.bg[1]);
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, W, H);
+      /* El FONDO no se pinta acá. Lo pinta `.loading-tips-fullscreen` con
+         `--carga-fondo`, y esa es toda la diferencia entre una capa de carga y
+         una segunda paleta: el lienzo solo aporta atmósfera encima de un fondo
+         que ya es el de la app. */
+      ctx.clearRect(0, 0, W, H);
 
       // Radial blobs (pulsing)
+      ctx.fillStyle = blob;
+      ctx.globalAlpha = 0.55;
       blobs.forEach(b => {
         const pulse = reducedMotion ? 1 : 0.9 + 0.1 * Math.sin((elapsed / 4000) * Math.PI * 2 + b.phase);
         const r = Math.min(W, H) * b.rFrac * pulse;
         const grad = ctx.createRadialGradient(b.cx * W, b.cy * H, 0, b.cx * W, b.cy * H, r);
-        grad.addColorStop(0, b.color + '55');
-        grad.addColorStop(1, b.color + '00');
+        grad.addColorStop(0, blob);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.ellipse(b.cx * W, b.cy * H, r, r * 0.75, 0, 0, Math.PI * 2);
         ctx.fill();
       });
+      ctx.globalAlpha = 1;
 
       // Drifting particles (upward + slight horizontal drift)
-      ctx.fillStyle = palette.particle;
+      ctx.fillStyle = particle;
       dots.forEach(d => {
         const px = ((d.x + d.drift * elapsed) % 1 + 1) % 1;
         const py = ((1 - ((d.y + d.speed * elapsed) % 1)) % 1 + 1) % 1;
@@ -482,7 +489,20 @@ const AmbientCanvas: React.FC = () => {
   );
 };
 
-export const LoadingTips: React.FC = () => {
+export interface LoadingTipsProps {
+  /**
+   * Fuerza el estado de la capa y SALTA el store. Sin esto, un componente que
+   * lee `isLoading` del store no se puede probar sin montar el store entero, y
+   * una capa que no se puede probar es una capa de la que nadie se ocupa. La
+   * app lo monta sin props —el store manda— y la Fase 7 lo monta con `que` para
+   * decir "Subiendo capitulo-3.docx (3 de 20)".
+   */
+  activo?: boolean;
+  /** QUÉ está pasando. Sin esto la capa dice que algo pasa, y no cuál. */
+  que?: string;
+}
+
+export const LoadingTips: React.FC<LoadingTipsProps> = ({ activo, que }) => {
   const isLoading = useDocStore((s) => s.isLoading);
   const llmStatus = useDocStore((s) => s.llmProgress?.status);
   const apiKey = useDocStore((s) => s.apiKey);
@@ -502,8 +522,12 @@ export const LoadingTips: React.FC = () => {
   const [connectingSecs, setConnectingSecs] = useState(0);
   const connectingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Tiempo mínimo de visibilidad: 3.5 segundos para que se aprecie el diseño
-  const MIN_DISPLAY_MS = 3500;
+  /* Tiempo mínimo de visibilidad. Bajó de 3500 a 350 porque 3500 era la razón de
+     que se viera tanto: una tarea de 180 ms dejaba la pantalla puesta 3.3 s más.
+     350 ms alcanza para que una carga instantánea no parpadee, que es lo único
+     que este mínimo hacía. Con la barra de proyectos subiendo veinte archivos en
+     serie, la cuenta anterior eran setenta segundos de pantalla fija. */
+  const MIN_DISPLAY_MS = 350;
 
   // ── Tip contextual: nombre de archivo + hora + tamaño ──
   const contextualInitialTip = (): Tip | null => {
@@ -554,8 +578,10 @@ export const LoadingTips: React.FC = () => {
   };
 
   useEffect(() => {
-    // Mostrar durante arranque del backend (!isBackendReady) o procesamiento de documento (isLoading).
-    const shouldShow = isLoading || !isBackendReady;
+    /* Mostrar durante arranque del backend (!isBackendReady) o procesamiento de
+       documento (isLoading). `activo` pisa las dos cuando viene dado, que es lo
+       que permite probar la capa sin montar el store. */
+    const shouldShow = activo ?? (isLoading || !isBackendReady);
     if (!shouldShow) {
       if (connectingInterval.current) { clearInterval(connectingInterval.current); connectingInterval.current = null; }
       // Delay hide: garantizar que el usuario aprecie el diseno durante MIN_DISPLAY_MS
@@ -589,7 +615,7 @@ export const LoadingTips: React.FC = () => {
       connectingInterval.current = setInterval(() => setConnectingSecs((s) => s + 1), 1000);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isBackendReady]);
+  }, [isLoading, isBackendReady, activo]);
 
   useEffect(() => {
     if (!visible) return;
@@ -642,12 +668,16 @@ export const LoadingTips: React.FC = () => {
 
   if (!visible) return null;
 
+  /* `que` gana sobre el mensaje derivado del estado: quien llama sabe QUÉ está
+     pasando y el componente solo sabe que algo pasa. Un spinner mudo obliga a
+     adivinar, y adivinar mientras se espera es la peor manera de esperar. */
   const message =
-    !isBackendReady
+    que ??
+    (!isBackendReady
       ? 'Iniciando motor de procesamiento...'
       : llmStatus === 'processing'
       ? 'Clasificando con IA…'
-      : 'Procesando documento…';
+      : 'Procesando documento…');
 
   // La mascota reacciona a la frase actual: cara + animación por categoría
   const mascotExpr = EXPRESSION_BY_CATEGORY[tip.category];
@@ -675,7 +705,7 @@ export const LoadingTips: React.FC = () => {
   // todos modos": entrar al inicio con el backend caído no tiene salida).
   if (!isBackendReady) {
     return (
-      <div className="loading-tips-fullscreen" role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
+      <div className="loading-tips-fullscreen" data-testid="carga-capa" role="status" aria-live="polite">
         <AmbientCanvas />
         <div className="loading-tips-fullscreen-inner" style={{ gap: '16px' }}>
             <LoadingMascotWalkers />
@@ -715,7 +745,7 @@ export const LoadingTips: React.FC = () => {
 
 
   return (
-    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
+    <div className="loading-tips-fullscreen loading-tips-fullscreen--minimal" data-testid="carga-capa" role="status" aria-live="polite">
       <AmbientCanvas />
       <LoadingMascotWalkers />
       <div className="loading-minimal-inner" style={{ maxWidth: '620px', gap: '20px' }}>

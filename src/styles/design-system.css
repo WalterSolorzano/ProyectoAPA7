@@ -142,6 +142,22 @@
   --z-overlay: 900;
   --z-modal: 1000;
   --z-toast: 1200;
+  /* La capa de carga va POR DEBAJO de `--z-dropdown`, y no es una elección de
+     gusto: `RailFlyout` está en `--z-dropdown` y el rail es permanente por
+     AGENTS.md §1. Con la carga por encima, apretar "escanear" se llevaba la
+     pantalla entera y el usuario creía que le habían cambiado de vista. La
+     carga tapa el lienzo; nunca la navegación. */
+  --z-carga: 50;
+
+  /* La carga no es decoración: es la capa que tapa la app mientras trabaja. Por
+     eso es del color del canvas y no de una paleta propia, y por eso vive en un
+     token y no en un array de hex dentro del componente. Los tres heredan de
+     tokens que ya existen, así que los dos temas dicen lo mismo: el overlay no
+     tiene identidad de color propia. Un overlay con color propio es una segunda
+     paleta que mantener, y ya se vio lo que cuesta. */
+  --carga-fondo: var(--color-bg-canvas);
+  --carga-velo: var(--scrim-overlay);
+  --carga-tinta: var(--color-text-primary);
 
   /* ════════════ ALIASES LEGACY (flujo -> tokens canónicos) ════════════ */
   --app-bg: var(--color-bg-canvas);
@@ -258,6 +274,14 @@
   /* TitleBar overlay (Electron) */
   --titlebar-bg: #18181c;
   --titlebar-symbol-color: #f2f2f5;
+
+  /* La capa de carga, en oscuro. Los MISMOS tres valores que en claro, y esa es
+     la parte importante: no porque no haga falta distinguirlos, sino porque la
+     carga no tiene identidad de color propia. Un token declarado en un solo
+     tema es la mitad de un bug, y esta fase no va a dejar la otra mitad suelta. */
+  --carga-fondo: var(--color-bg-canvas);
+  --carga-velo: var(--scrim-overlay);
+  --carga-tinta: var(--color-text-primary);
 }
 
 /* ── Iconos: stroke-width uniforme (regla §1.6) ──────────────────────────── */
@@ -1335,8 +1359,16 @@ html, body {
 .loading-tips-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 200;
-  background: var(--app-bg);
+  width: 100vw;
+  height: 100vh;
+  /* POR DEBAJO de `--z-dropdown`, que es donde vive `RailFlyout`. La carga
+     tapa el lienzo; nunca la navegación. Antes llevaba `z-index: 200` en la
+     clase y `zIndex: 9999` en el estilo en línea, que ganaba a la clase y se
+     llevaba por delante el rail, el flyout y el workbench. */
+  z-index: var(--z-carga);
+  overflow: hidden;
+  background: var(--carga-fondo);
+  color: var(--carga-tinta);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1353,7 +1385,7 @@ html, body {
 .loading-tips-fullscreen-title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--carga-tinta);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1365,7 +1397,7 @@ html, body {
    Reemplaza la tarjeta inferior derecha por overlay 100% del viewport:
    anillo giratorio limpio + mensaje + frase rotativa sutil. */
 .loading-tips-fullscreen--minimal {
-  background: var(--app-bg);
+  background: var(--carga-fondo);
 }
 .loading-minimal-inner {
   display: flex;

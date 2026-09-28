@@ -169,6 +169,15 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
         padding: '12px 0',
         backgroundColor: 'var(--color-bg-surface)',
         borderRight: '1px solid var(--color-border-subtle)',
+        /* El rail vive SIEMPRE (AGENTS.md §1), así que tiene que quedar por
+           encima de la capa de carga, que está en `--z-carga`. Sin esto el rail
+           es un ítem de flex sin posicionamiento, y cualquier capa fija con un
+           z-index positivo se lo come por el orden de pintado, no por el número:
+           por eso la capa de carga llegaba a tapar la navegación. El mismo
+           `--z-dropdown` que usa el flyout, para que los dos estén en la misma
+           fila de la escala y no haya un número suelto. */
+        position: 'relative',
+        zIndex: 'var(--z-dropdown)',
       }}
     >
       {items.map((item) => {
