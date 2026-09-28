@@ -102,16 +102,22 @@
  * en producción que en una prueba.
  *
  * Y por qué NO es `components/settings` entero, que era la tentación: en la raíz
- * de ese directorio está `SettingsPreviewStudio.tsx`, con CUARENTA Y CUATRO
- * ofensas (`#fff`, `rgba()`, radios y tres tokens que no existen), y es un
- * archivo que la Fase 7 borra junto con `SettingsMenu.tsx`. Poner el directorio
- * entero hoy sería poner en rojo el lint por una deuda con fecha de borrado, y
- * un lint rojo es un lint que nadie mira. La deuda queda NOMBRADA acá —con su
+ * de ese directorio estaba `SettingsPreviewStudio.tsx`, con CUARENTA Y CUATRO
+ * ofensas (`#fff`, `rgba()`, radios y tres tokens que no existen), y era un
+ * archivo con fecha de borrado. Poner el directorio entero antes de tiempo
+ * habría puesto el lint en rojo por una deuda que alguien iba a saldar, y un
+ * lint rojo es un lint que nadie mira. La deuda quedó NOMBRADA acá —con su
  * archivo y su cuenta— que es el mismo mecanismo que usa `fluent.css`, no una
- * exención silenciosa: si sobrevive a la Fase 7, esta línea tiene que pasar a ser
- * una cuenta fija.
- * Ninguno de los dos está en una lista de exenciones del lint, y ninguno puede
- * crecer sin que una cuenta se mueva.
+ * exención silenciosa.
+ *
+ * SALDADA. La Fase 7 borró `SettingsPreviewStudio.tsx` y `SettingsMenu.tsx`: las
+ * veinticuatro ofensas se fueron con el archivo, y ahora la raíz de
+ * `components/settings` tiene tres archivos, los tres ya en `ARCHIVOS`. Por eso
+ * `DIRECTORIOS` sigue teniendo `components/settings/tabs` y no el directorio
+ * padre: no es una excepción que se pueda retirar "después", es que la raíz ya
+ * no tiene nada que exceptuar. Si alguien vuelve a poner un panel de ajustes
+ * grande en esa raíz, tiene que poner su nombre en `ARCHIVOS` como cualquier
+ * otro, y no hay deuda con fecha de borrado que lo tape.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 
@@ -131,10 +137,11 @@ const ARCHIVOS = [
   'components/toolbar/ToolbarOverflowMenu.tsx',
   'components/wizard/CoverCarouselStudio.tsx',
   'components/wizard/Step5AuditIAWizard.tsx',
-  /* El cascarón del hub de Ajustes: la raíz de `components/settings` entra por
-     nombre, archivo por archivo, porque en esa misma raíz vive el estudio viejo
-     (ver la nota de arriba del archivo). Los cuerpos de las pestañas entran con
-     el directorio, así que los de las fases siguientes caen adentro solos. */
+  /* El cascarón del hub de Ajustes y su catálogo entran por nombre porque la
+     raíz de `components/settings` ya no es un directorio que se pueda agregar de
+     una vez (ver la nota de arriba del archivo: el estudio viejo, que era lo que
+     lo impedía, se borró en la Fase 7). Los cuerpos de las pestañas sí entran
+     con el directorio, así que los de las fases siguientes caen adentro solos. */
   'components/settings/SettingsHub.tsx',
   'components/settings/tabs.ts',
   'components/settings/mascotDePestana.tsx',
