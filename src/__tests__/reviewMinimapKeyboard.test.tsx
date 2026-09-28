@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import { ReviewMinimap, MinimapMark } from '../components/wizard/ReviewMinimap';
+import { ReviewMinimap, MinimapMark } from '../components/review/ReviewMinimap';
 
 const marks = new Map<number, MinimapMark>([
   [2, { color: 'var(--color-danger)', count: 3, label: 'Detector & Calidad IA' }],
@@ -71,10 +71,15 @@ describe('ReviewMinimap — teclado (roving tabindex)', () => {
     expect(onPageClick).toHaveBeenCalledWith(2);
   });
 
-  it('cada marca anuncia página, total y hallazgos', () => {
+  it('cada marca anuncia página, total, hallazgos y el motor dominante', () => {
+    /* El motor entra en el `aria-label` y no solo en el `title`. Con el color
+       como único portador del significado, el `title` era el único sitio donde
+       se nombraba el motor, y el `title` no se anuncia siempre ni es visible para
+       quien lee con lector de pantalla. El nombre del motor tiene que estar en
+       el texto de la marca. */
     const { buttons } = setup();
     expect(buttons[0].getAttribute('aria-label')).toBe('Página 1 de 5 de la revisión, 0 hallazgos');
-    expect(buttons[1].getAttribute('aria-label')).toBe('Página 2 de 5 de la revisión, 3 hallazgos');
+    expect(buttons[1].getAttribute('aria-label')).toBe('Página 2 de 5 de la revisión, 3 hallazgos, Detector & Calidad IA');
     expect(buttons[2].getAttribute('aria-label')).toBe('Página 3 de 5 de la revisión, 0 hallazgos');
   });
 
@@ -93,5 +98,14 @@ describe('ReviewMinimap — teclado (roving tabindex)', () => {
   it('las marcas usan un radio del sistema, no un literal', () => {
     const { buttons } = setup();
     for (const b of buttons) expect(b.getAttribute('style') || '').toContain('border-radius: var(--radius-sm)');
+  });
+
+  it('el número de página va en el TEXTO de la marca, no solo en el title', () => {
+    /* La columna pasó de 19 px a 44 px para que el número entre, así que el
+       número tiene que estar. Un botón de 14 px de alto con el número dentro es
+       legible; el mismo botón con el número solo en el `title` es el defecto que
+       esta fase vino a arreglar. */
+    const { buttons } = setup();
+    expect(buttons.map((b) => (b.textContent ?? '').trim())).toEqual(['1', '2', '3', '4', '5']);
   });
 });

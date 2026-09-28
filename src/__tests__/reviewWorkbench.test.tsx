@@ -38,8 +38,14 @@ vi.mock('../components/layout/PaperCanvas', async (importOriginal) => {
     },
   };
 });
-vi.mock('../components/wizard/ReviewMinimap', () => ({
+/* El mock trae las CONSTANTES tambien, no solo el componente: la grilla del
+   workbench decide si reserva la columna del minimapa con el mismo numero que el
+   componente, y un mock que solo devuelve el componente deja a la grilla sin
+   regla, que es como una grilla reserva una columna que nadie pinta. */
+vi.mock('../components/review/ReviewMinimap', () => ({
   ReviewMinimap: () => <div data-testid="minimap" />,
+  MINIMAP_WIDTH: 44,
+  MINIMAP_ANCHO_MINIMO: 640,
 }));
 
 /* ── Utilidades de datos ──────────────────────────────────────────────────── */
@@ -243,9 +249,26 @@ describe('T16 — ReviewWorkbench: las tres columnas', () => {
     render(<ReviewWorkbench />);
     expect(screen.queryByRole('complementary', { name: 'Hallazgos por motor' })).toBeNull();
     expect(tarjeta()).toBeTruthy();
-    // Y la grilla pierde la tercera columna en vez de dejar una vacía.
+    /* Y la grilla pierde la tercera columna en vez de dejar una vacía. La
+       primera es de 44 px, no de 19: el número de página tiene que entrar en la
+       columna, y una columna de 19 px no lo admite. A 900 px el minimapa sigue
+       visible, así que su columna sigue reservada. */
     const centro = tarjeta().parentElement as HTMLElement;
-    expect(centro.style.gridTemplateColumns).toBe('19px minmax(0, 1fr)');
+    expect(centro.style.gridTemplateColumns).toBe('44px minmax(0, 1fr)');
+  });
+
+  it('con la ventana mas angosta que el minimapa, la grilla NO reserva su columna', () => {
+    /* La otra mitad de la regla: si la columna se reservara siempre, en ventana
+       angosta quedaria un hueco de 44 px al lado del texto. Se veria que falta
+       algo y no se sabria que, que es peor que no tener minimapa. El componente
+       se esconde con `MINIMAP_ANCHO_MINIMO` y la grilla con el MISMO numero, y
+       por eso las dos mitades no pueden desincronizarse. */
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
+    fijarAncho(600);
+    render(<ReviewWorkbench />);
+    expect(screen.queryByTestId('minimap')).toBeNull();
+    const centro = tarjeta().parentElement as HTMLElement;
+    expect(centro.style.gridTemplateColumns).toBe('minmax(0, 1fr)');
   });
 
   it('el rack vuelve a aparecer al ensanchar la ventana', () => {

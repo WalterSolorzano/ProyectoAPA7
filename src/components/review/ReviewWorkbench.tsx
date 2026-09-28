@@ -29,7 +29,7 @@ import {
   type EngineGroup,
   type SubtypeGroup,
 } from '../../hooks/useReviewWorkbench';
-import { ReviewMinimap } from '../wizard/ReviewMinimap';
+import { ReviewMinimap, MINIMAP_WIDTH, MINIMAP_ANCHO_MINIMO } from './ReviewMinimap';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { ReviewStrip } from './ReviewStrip';
 import { FocusReadingCard } from './FocusReadingCard';
@@ -42,7 +42,6 @@ import { useDocStore } from '../../store/useDocStore';
 /** Por debajo de este ancho, el rack de 400px deja el centro inservible. */
 const RACK_BREAKPOINT = 1180;
 const RACK_WIDTH = 400;
-const MINIMAP_WIDTH = 19;
 
 const alternar = <T,>(lista: T[], valor: T): T[] =>
   lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor];
@@ -79,6 +78,13 @@ export function ReviewWorkbench() {
   }, []);
 
   const rackVisible = ancho >= RACK_BREAKPOINT;
+  /* El ancho de la columna del minimapa y el corte por debajo del cual desaparece
+     los DECIDE el componente (`ReviewMinimap`), no esta vista. Duplicar el número
+     acá es exactamente la clase de acuerdo que este hook ya no quiere: dos
+     números en dos archivos que se desincronizan, y una grilla que reserva una
+     columna que nadie pintó. La grilla guarda la columna con la MISMA regla que
+     la esconde, y por eso no queda un hueco vacío en su lugar. */
+  const minimapVisible = ancho >= MINIMAP_ANCHO_MINIMO;
 
   /* `nextFinding` recorre lo que el FILTRO deja ver, y `hasFindings` cuenta el
      documento entero: con un filtro que ya no tiene hallazgos propios, el
@@ -113,9 +119,15 @@ export function ReviewWorkbench() {
     return wb.items.filter((i) => i.element_id === sel.element_id).length;
   }, [wb.selected, wb.items]);
 
-  const columnas = rackVisible
-    ? `${MINIMAP_WIDTH}px minmax(0, 1fr) ${RACK_WIDTH}px`
-    : `${MINIMAP_WIDTH}px minmax(0, 1fr)`;
+  /* La grilla reserva la columna del minimapa SOLO si él se va a pintar. Si se
+     reservara siempre, en ventana angosta quedaría una columna de 44 px vacía al
+     lado del texto, que es peor que no tener minimapa: se ve que falta algo y no
+     se sabe qué. */
+  const columnas = [
+    ...(minimapVisible ? [`${MINIMAP_WIDTH}px`] : []),
+    'minmax(0, 1fr)',
+    ...(rackVisible ? [`${RACK_WIDTH}px`] : []),
+  ].join(' ');
 
   return (
     <div
@@ -179,12 +191,18 @@ export function ReviewWorkbench() {
           minHeight: 0,
         }}
       >
-        <ReviewMinimap
-          totalPages={wb.totalPages}
-          marks={wb.marks}
-          currentPage={wb.currentPage}
-          onPageClick={wb.goToPage}
-        />
+        {/* El minimapa se monta solo si la grilla reservó su columna. El componente
+            por su lado también se esconde con la MISMA regla, y por eso esto no es
+            una guarda redundante: es que las dos mitades de la decisión —el hueco
+            en la grilla y el componente— tienen que caer juntas. */}
+        {minimapVisible && (
+          <ReviewMinimap
+            totalPages={wb.totalPages}
+            marks={wb.marks}
+            currentPage={wb.currentPage}
+            onPageClick={wb.goToPage}
+          />
+        )}
 
         {wb.viewMode === 'ia' ? (
           /* El mapa de IA ocupa el CENTRO y el rack sigue a su derecha: el

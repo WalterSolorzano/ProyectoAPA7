@@ -33,7 +33,7 @@ import {
 } from 'react';
 import { useDocStore } from '../store/useDocStore';
 import { usePageIndex } from './usePageIndex';
-import type { MinimapMark } from '../components/wizard/ReviewMinimap';
+import type { MinimapMark } from '../components/review/ReviewMinimap';
 import {
   summarizeScanOutcomes,
   toReason,
