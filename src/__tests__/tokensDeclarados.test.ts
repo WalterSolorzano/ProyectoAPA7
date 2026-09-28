@@ -44,6 +44,15 @@ const sinComentarios = (src: string): string =>
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 let declarados = new Set<string>();
+/** Los mismos tokens, pero POR TEMA. Existe por una razón que la primera prueba
+ *  no puede ver: un token declarado en un solo `:root` está declarado, y a la vez
+ *  no lo está. La hoja separa a propósito lo que cambia con el tema (la paleta
+ *  `--color-*`) de lo que no (espacio, radio, tipografía), así que exigir "los dos
+ *  temas" para TODO sería falso de entrada. Pero para la paleta es exactamente al
+ *  revés: si `--color-accent-soft` falta en el `:root` claro, el chip del auditor
+ *  se queda sin fondo en tema claro y nadie ve un error. */
+let enClaro = new Set<string>();
+let enOscuro = new Set<string>();
 
 beforeAll(async () => {
   const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
@@ -68,7 +77,9 @@ beforeAll(async () => {
         break;
       }
     }
+    const destino = m[0].includes('dark') ? enOscuro : enClaro;
     for (const d of css.slice(abierto + 1, cierre).matchAll(/^\s*(--[\w-]+)\s*:/gm)) {
+      destino.add(d[1]);
       declarados.add(d[1]);
     }
   }
@@ -109,5 +120,39 @@ describe('F1 — todo var(--x) seco de src/** está declarado en design-system.c
        un token seco. Por eso separarlo es parte de la regla y no un detalle. */
     expect([...sinComentarios("background: 'var(--no-existe-nada, #ffffff)'").matchAll(/var\(\s*(--[\w-]+)\s*\)/g)].length)
       .toBe(0);
+  });
+
+  it('la PALETA está declarada en los DOS temas, y eso no es lo mismo que estar declarada', () => {
+    /* El agujero que encontró la mutación: borrar `--color-accent-soft` del
+       `:root` claro rompe la app —el chip del auditor se queda sin fondo en tema
+       claro— y la prueba de arriba la daba por buena, porque `declarados` juntaba
+       los dos temas en un mismo conjunto y el token seguía declarado en el
+       oscuro. Estar declarado y estar declarado EN TODOS LUGARES son dos
+       preguntas, y solo la segunda detecta ese borrado.
+
+       Y el alcance es la paleta, no todo: la hoja separa a propósito lo que
+       cambia con el tema de lo que no, así que `--space-4` vive solo en el
+       `:root` claro por diseño y exigirlo en oscuro sería una regla falsa. Lo
+       que NO puede pasar es que un `--color-*` falte en un tema, porque los dos
+       temas leen la misma paleta y un token que falta en uno es un elemento sin
+       color en uno. */
+    const paletaUsada = new Set<string>();
+    for (const ruta of rutas) {
+      for (const m of sinComentarios(fuentes[ruta]).matchAll(/var\(\s*(--color-[\w-]+)\s*\)/g)) {
+        paletaUsada.add(m[1]);
+      }
+    }
+    const sinEnAlguno: string[] = [];
+    for (const token of paletaUsada) {
+      if (!enClaro.has(token)) sinEnAlguno.push(`${token} no está declarado en el :root claro`);
+      if (!enOscuro.has(token)) sinEnAlguno.push(`${token} no está declarado en el :root oscuro`);
+    }
+    expect(sinEnAlguno).toEqual([]);
+
+    /* Y la guarda de vacuidad: sin esta mitad, `paletaUsada` vacío hace que la
+       regla de arriba pase sin mirar un solo token. */
+    expect(paletaUsada.size).toBeGreaterThan(10);
+    expect(enClaro.size).toBeGreaterThan(40);
+    expect(enOscuro.size).toBeGreaterThan(20);
   });
 });
