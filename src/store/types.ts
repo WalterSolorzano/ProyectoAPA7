@@ -134,6 +134,13 @@ export interface DocState {
 
   wizardStep: number;
   showFileMenu: boolean;
+  /* El hub de Ajustes (Fase 1 del plan de las cinco pestañas). La pestaña es
+     `PestanaId`, el tipo del catálogo: no se re-declara acá, o el store y la
+     barra de pestañas empezarían a aceptar conjuntos distintos. */
+  settingsHubOpen: boolean;
+  settingsHubTab: import('../components/settings/tabs').PestanaId;
+  setSettingsHubOpen: (open: boolean, tab?: import('../components/settings/tabs').PestanaId) => void;
+  setSettingsHubTab: (tab: import('../components/settings/tabs').PestanaId) => void;
   settingsStudioOpen: boolean;
   settingsStudioTab: 'format' | 'ai' | 'privacy' | 'about' | 'addin';
   setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about' | 'addin') => void;

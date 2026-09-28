@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
 import { DocumentModel } from '../../types';
+import type { PestanaId } from '../../components/settings/tabs';
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -73,6 +74,15 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   setStructureTab: (tab) => set({ structureTab: tab }),
   showFileMenu: false,
   setShowFileMenu: (show) => set({ showFileMenu: show }),
+  /* El hub de Ajustes: una sola pantalla con cinco pestañas, alcanzable desde
+     cualquier lado. La pestaña vive acá, no en el componente, para que las siete
+     entradas que lo abren compartan el mismo estado. `setSettingsStudioOpen` de
+     arriba es el menú viejo: no se borra hasta la Fase 7, porque `App.tsx` y
+     `Step0QuickStart.tsx` todavía lo leen. */
+  settingsHubOpen: false,
+  settingsHubTab: 'documento',
+  setSettingsHubOpen: (open: boolean, tab?: PestanaId) => set({ settingsHubOpen: open, settingsHubTab: tab || 'documento' }),
+  setSettingsHubTab: (tab: PestanaId) => set({ settingsHubTab: tab }),
   settingsStudioOpen: false,
   settingsStudioTab: 'format',
   setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about' | 'addin') => set({ settingsStudioOpen: open, settingsStudioTab: tab || (open ? 'format' : 'format') }),

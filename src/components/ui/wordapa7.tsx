@@ -55,7 +55,11 @@ export const Panel: React.FC<React.PropsWithChildren<{ style?: React.CSSProperti
   </div>
 );
 
-export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: () => void; style?: React.CSSProperties }>> = ({ open, onClose, style, children }) => {
+/* El backdrop es UNO en toda la app: lo trae este componente, con su velo y su
+   animación de entrada en la hoja, y nadie escribe el suyo con un `rgba()` a
+   mano. `zIndex` existe para el hub de Ajustes, que por DESIGN.md:123 tiene que
+   ir en `var(--z-modal)`; el default deja los overlays viejos donde estaban. */
+export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: () => void; style?: React.CSSProperties; zIndex?: number | string }>> = ({ open, onClose, style, zIndex = 20000, children }) => {
   if (!open) return null;
   return (
     <div
@@ -63,7 +67,7 @@ export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: 
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 20000,
+        zIndex,
         background: 'rgba(0, 0, 0, 0.40)',
         display: 'flex',
         alignItems: 'center',
