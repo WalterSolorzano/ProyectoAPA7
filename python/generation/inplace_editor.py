@@ -128,12 +128,20 @@ def apply_inplace(
     rules: Any,
     scopes: Iterable[str] | None = None,
     language: str | None = None,
+    acta: Any = None,
 ) -> Path:
     """Edita el documento original respetando portada/secciones al 100%.
 
     `language` es un parámetro aparte y no un campo de `rules` a propósito: el
     idioma viaja en `PortadaData` (ver el motivo en `models.py`) y `rules` es
     `APARuleSet`, así que leerlo de ahí sería leer una cosa que nunca estuvo.
+
+    `acta` es `DocumentMeta` y trae los datos del acta: autor, profesor asesor,
+    comite y fecha de defensa. Va aparte por la misma razon que el idioma, y por
+    una mas: son metadatos del DOCUMENTO, no de la portada, y esta funcion es la
+    ruta de exportacion por omision cuando la portada original se conserva. Sin
+    ella el `.docx` salia sin el autor ni el profesor, que es justo lo que
+    reporto el usuario al marcar "conservar original".
     """
     t0 = time.time()
     active = set(scopes) if scopes is not None else {"texto", "tablas_imagenes", "bibliografia"}
@@ -296,6 +304,20 @@ def apply_inplace(
         except Exception:
             pass
         aplicar_tamano_pagina(_sec, _page_size, landscape=_landscape)
+    # Los datos del acta se escriben DESPUES de la pasada de cuerpo y ANTES de
+    # la de idioma, por dos razones: la pasada de cuerpo no los tiene en cuenta
+    # (los acaba de crear) y la de idioma los necesita para no declarar el
+    # autor en el idioma de omision de la plantilla.
+    #
+    # Van en `body_start`, que es justo donde termina el bloque protegido: ni
+    # dentro de la portada ni delante de ella.
+    if acta is not None:
+        try:
+            from modules.portada_module import format_acta_documento
+            format_acta_documento(doc, acta, rules, indice_insercion=body_start)
+        except Exception as err:
+            log_event("inplace_editor", "acta_write_warning", data={"error": str(err)})
+
     aplicar_idioma_documento(doc, language or "es-ES", skip_body_paragraphs=body_start)
 
     doc.save(str(out_path))

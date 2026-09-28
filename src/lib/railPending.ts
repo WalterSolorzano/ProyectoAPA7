@@ -12,7 +12,7 @@
 
 import { collectAuditItems } from './auditItems';
 import { needsReview } from './portadaAuthors';
-import type { ElementModel, PortadaData, ProofreadFinding } from '../types';
+import type { ActaDocumento, ElementModel, PortadaData, ProofreadFinding } from '../types';
 
 export interface PhaseState {
   /** Cuántas cosas accionables le quedan al usuario en la fase. */
@@ -25,6 +25,11 @@ export interface RailPendingInput {
   /** Sin documento no hay fases que contar: `null` es la respuesta de todas. */
   hasDoc: boolean;
   portada: PortadaData | null;
+  /** El acta. El autor es un campo que el paso 1 pide y no vive en la portada
+   *  (ver `python/models.py`): sin esto el rail diria "listo" sobre un documento
+   *  sin autor, que es exactamente la contradiccion que este archivo existe
+   *  para que no vuelva. */
+  acta?: ActaDocumento | null;
   /** El usuario confirmó la configuración de portada en el paso 1. */
   coverSetupDone: boolean;
   elements: readonly ElementModel[];
@@ -50,11 +55,19 @@ const figuraAccionable = (e: ElementModel): boolean => {
 };
 
 /** Campos de portada sin contenido: es lo que el paso 1 pide antes de seguir. */
-export const countPortadaPending = (portada: PortadaData | null): number => {
+export const countPortadaPending = (
+  portada: PortadaData | null,
+  acta: ActaDocumento | null = null,
+): number => {
   if (!portada) return 0;
   let pending = 0;
   if (!portada.title?.trim()) pending++;
-  if (!portada.author?.trim()) pending++;
+  /* El autor es del acta y no de la portada (ver `python/models.py`). El rail
+     cuenta lo mismo que la pantalla a la que lleva, asi que si el campo se
+     mudó de lugar y acá no, el rail dice "listo" sobre un documento sin autor.
+     Por eso el acta es un parámetro y no un segundo `portada` inventado. */
+  const autor = acta?.autor?.trim() || '';
+  if (!autor) pending++;
   return pending;
 };
 
@@ -78,7 +91,7 @@ export function readPhaseStates(input: RailPendingInput): Record<number, PhaseSt
   // La portada tiene dos verdades —los campos vacíos y la confirmación del
   // usuario— y si no seajan con una, un "Listo" puede convivir con dos campos
   // en blanco. Confirmada manda: el usuario ya dijo que así la quiere.
-  const portada = input.coverSetupDone ? 0 : countPortadaPending(input.portada);
+  const portada = input.coverSetupDone ? 0 : countPortadaPending(input.portada, input.acta);
 
   return {
     1: { pending: portada, done: input.coverSetupDone },

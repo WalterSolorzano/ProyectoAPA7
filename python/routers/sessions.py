@@ -339,14 +339,16 @@ async def download_template_docx(
         apa_format=apa_format,
         use_original_cover=False,
         force_skip_cover=False,
-        title="TÃ­tulo del Trabajo",
-        author="Nombre del Autor o Autora",
-        institution="Nombre de la InstituciÃ³n",
+        title="Título del Trabajo",
+        institution="Nombre de la Institución",
         course="Nombre del Curso",
-        instructor="Nombre del Docente",
         date="Fecha",
         running_head=None,
     )
+    # El autor y el docente son datos del acta, no del diseno de la hoja:
+    # van en `meta` (ver el motivo en `models.py`).
+    doc_model.meta.autor = "Nombre del Autor o Autora"
+    doc_model.meta.profesor_asesor = ["Nombre del Docente"]
 
     out_dir: Path = STORAGE_DIR / "exports"
     out_dir.mkdir(parents=True, exist_ok=True)

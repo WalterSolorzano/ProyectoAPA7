@@ -145,6 +145,7 @@ def test_cover_scratch_pasa_portada_a_generate(client, monkeypatch):
 
     async def fake_generate(req):
         captured["portada"] = req.portada
+        captured["meta"] = req.meta
         out = Path(main.STORAGE_DIR) / "sessions" / req.session_id
         out.mkdir(parents=True, exist_ok=True)
         d = docx.Document()
@@ -164,11 +165,18 @@ def test_cover_scratch_pasa_portada_a_generate(client, monkeypatch):
     assert p is not None, "cover scratch no llego a generate_docx"
     assert p.use_original_cover is False, "scratch debe pedir portada sintetica"
     assert p.title == "Balance energetico"
-    assert p.author == "Walter Solorzano"
     assert p.institution == "UNI"
     assert p.course == "Tecnologia y Medio Ambiente"
-    assert p.instructor == "Ing. Eva Mairena"
     assert p.date == "octubre 2026"
+
+    # El autor y el profesor NO viajan en la portada: viajan en los metadatos
+    # del documento. Con una plantilla cargada la portada original se conserva
+    # intacta, asi que un autor guardado en `portada` no tendria de donde salir
+    # y el `.docx` saldria sin el. Ver el motivo en `models.py`.
+    m = captured.get("meta")
+    assert m is not None, "el acta no llego a generate_docx"
+    assert m.autor == "Walter Solorzano"
+    assert m.profesor_asesor == ["Ing. Eva Mairena"]
 
 
 def test_cover_vacio_sin_template_422(client):

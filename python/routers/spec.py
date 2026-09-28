@@ -189,11 +189,19 @@ async def generate_from_spec(
         # param `portada` (el endpoint apply-cover solo guarda el id).
         portada_req: PortadaData | None = None
         if spec.cover:
+            # El DISENO de la hoja va en `portada`; el QUIEN (autor y profesor
+            # asesor) es metadata del documento y va en `meta`. Con una
+            # plantilla de portada cargada, `use_original_cover` es True y el
+            # bloque original no se toca: si el autor viviera en `portada`, no
+            # habria de donde sacarlo y el `.docx` salia sin el.
             portada_req = PortadaData(
-                title=spec.cover.title, author=spec.cover.author,
+                title=spec.cover.title,
                 institution=spec.cover.institution, course=spec.cover.course,
-                instructor=spec.cover.instructor, date=spec.cover.date,
+                date=spec.cover.date,
                 use_original_cover=bool(spec.cover.template))
+            doc.meta.autor = spec.cover.author or None
+            if spec.cover.instructor:
+                doc.meta.profesor_asesor = [spec.cover.instructor]
             if spec.cover.template:
                 await apply_cover_endpoint(ApplyCoverRequest(
                     session_id=doc.session_id,
@@ -206,7 +214,7 @@ async def generate_from_spec(
         # 5. Generar con el pipeline existente
         result = await generate_docx(GenerateRequest(
             session_id=doc.session_id, rules=exp.rules,
-            portada=portada_req,
+            portada=portada_req, meta=doc.meta,
             references=exp.references or None))
 
         # 6. Post-paso: headings nativos, bordes por caption, tarjetas de anexo

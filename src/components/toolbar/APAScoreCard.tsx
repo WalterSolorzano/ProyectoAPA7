@@ -18,6 +18,9 @@ export const APAScoreCard: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const doc = useDocStore((s) => s.doc);
   const portada = useDocStore((s) => s.portada);
+  /* El autor es del acta: sin este selector, la portada "completa" de abajo se
+     evaluaria contra un campo que ya no existe. */
+  const acta = useDocStore((s) => s.acta);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
   const setWizardStep = useDocStore((s) => s.setWizardStep);
@@ -55,7 +58,7 @@ export const APAScoreCard: React.FC = () => {
     const warnings: Array<{ id: string; label: string; penalty: number; elementId?: string; step: number }> = [];
 
     // 1. Portada
-    const hasCover = portada.use_original_cover || (portada.title && portada.author);
+    const hasCover = portada.use_original_cover || (portada.title && acta.autor);
     if (!hasCover) {
       warnings.push({
         id: 'warn_cover',

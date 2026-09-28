@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models import (
     APAFormat,
     APARuleSet,
+    DocumentMeta,
     DocumentModel,
     ElementModel,
     ElementType,
@@ -216,15 +217,30 @@ def mock_llm_classifier(mock_nvidia_response):
 
 @pytest.fixture
 def portada_sample():
-    """Datos de portada de ejemplo."""
+    """Datos de portada de ejemplo.
+
+    Solo el DISENO de la hoja. El autor y el profesor asesor son datos del acta
+    y van en `DocumentMeta` (ver el motivo en `models.py`); si se los deja
+    acá, el fixture se sigue construyendo sin error y el `.docx` sale sin
+    ellos.
+    """
     return PortadaData(
         apa_format=APAFormat.STUDENT,
         title="Impacto de la Inteligencia Artificial en la Educación Superior",
-        author="María García López",
         institution="Universidad Nacional Autónoma de México",
         course="Seminario de Investigación Educativa",
-        instructor="Dr. Roberto Méndez Castillo",
         date="15 de mayo de 2025",
+    )
+
+
+@pytest.fixture
+def acta_sample():
+    """Los datos del acta de ejemplo: autor, profesor asesor y comité."""
+    return DocumentMeta(
+        autor="María García López",
+        profesor_asesor=["Dr. Roberto Méndez Castillo"],
+        comite=["Dra. Elena Vargas", "Lic. Miguel Castro"],
+        fecha_defensa="15 de mayo de 2025",
     )
 
 

@@ -203,7 +203,7 @@ export const PlantillasDeFormato: React.FC = () => {
               {p.profile_name}
             </span>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              {p.data?.institution || p.data?.author || 'sin institución'}
+              {p.data?.institution || 'sin institución'}
             </span>
             <button
               type="button"

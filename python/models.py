@@ -263,6 +263,25 @@ class DocumentMeta(BaseModel):
     portada_detected: bool = False
     apa_format: APAFormat = APAFormat.STUDENT
     work_mode: WorkMode = WorkMode.REVIEW
+    # ── EL ACTA ────────────────────────────────────────────────────────────
+    # Autor, profesor asesor, comité y fecha de defensa son METADATOS DEL
+    # DOCUMENTO, no de la portada. Antes vivían dentro de `PortadaData`, y con
+    # `use_original_cover: true` no había de dónde sacarlos: el bloque de
+    # portada no se toca, así que el `.docx` salía sin ellos. Eso es lo que
+    # reportó el usuario: "conservar original" pierde al profesor y al grupo.
+    #
+    # `profesor_asesor` y `comite` son LISTAS y no texto: el comité de una
+    # defensa tiene varias personas y un solo string las pegaba con comas, que
+    # después el corrector de ortografía subrayaba como si fuera una palabra
+    # rota.
+    #
+    # Todo con default vacío para que un documento guardado antes de este
+    # cambio siga abriendo.
+    autor: Optional[str] = None
+    profesor_asesor: List[str] = Field(default_factory=list)
+    comite: List[str] = Field(default_factory=list)
+    fecha_defensa: Optional[str] = None
+    grupo: Optional[str] = None
     content_source: str = "paragraphs"   # "paragraphs" | "textboxes" | "mixed"
     content_warning: Optional[str] = None
     sections: list[SectionInfo] = Field(default_factory=list)
@@ -498,15 +517,29 @@ class PortadaData(BaseModel):
     use_original_cover: bool = True  # Conservar portada original intacta del documento
     force_skip_cover: bool = False  # True = saltar todos los elementos de portada sin tocarlos
     title: str = ""
-    author: str = ""
     institution: str = ""
     course: Optional[str] = None
-    grupo: Optional[str] = None
-    instructor: Optional[str] = None
     date: Optional[str] = None
     running_head: Optional[str] = None
     author_note: Optional[str] = None
     departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
+
+    # QUÉ SALIÓ DE AQUÍ Y POR QUÉ.
+    #
+    # `author`, `grupo` e `instructor` eran los datos del acta y vivían
+    # DENTRO de la portada. Con `use_original_cover: true` el bloque de portada
+    # no se toca —es una promesa escrita en AGENTS.md—, así que no había de
+    # dónde sacarlos y el `.docx` salía sin el autor, sin el profesor asesor y
+    # sin el grupo. Eso es lo que reportó el usuario.
+    #
+    # Ahora viven en `DocumentMeta` (`autor`, `profesor_asesor`, `comite`,
+    # `fecha_defensa`, `grupo`), que es donde un dato del documento pertenece,
+    # y los escribe `portada_module.format_acta_documento`, que corre en los
+    # DOS modos: con portada sintética y con la original conservada.
+    #
+    # Lo que se queda acá es el DISEÑO de la hoja: qué dice el título, cuál es
+    # la institución, cuál la asignatura, dónde el área y qué día. Eso es
+    # portada. El quién es documento.
 
     # IDIOMA DEL DOCUMENTO. Antes no existía como dato: `date` era texto libre y
     # el idioma se lo adivinaba Word. Eso es lo que hace que la revisión de
@@ -544,6 +577,58 @@ class PortadaData(BaseModel):
                      "de": "de-DE", "it": "it-IT"}
             return corto.get(n.lower(), n)
         return v
+
+
+# ── MIGRACIÓN DE LOS DATOS DEL ACTA ───────────────────────────────────────────
+
+# Los nombres que el acta tenía DENTRO de `PortadaData` antes de mudarse a
+# `DocumentMeta`. Están escritos acá y no repetidos en el código porque la
+# migración tiene que ser idempotente: se puede correr dos veces sobre la misma
+# sesión sin duplicar nada.
+CLAVES_ACTA_EN_PORTADA: tuple[str, ...] = ("author", "grupo", "instructor")
+
+# A qué campo de `DocumentMeta` corresponde cada una. `instructor` era texto
+# libre y pasa a ser la primera entrada de la lista de profesores asesores: el
+# modelo es el mismo dato con su forma correcta.
+TRADUCCION_ACTA: dict[str, str] = {
+    "author": "autor",
+    "grupo": "grupo",
+    "instructor": "profesor_asesor",
+}
+
+
+def migrar_acta_vieja(portada_raw: Any, meta: DocumentMeta) -> list[str]:
+    """Sube de `portada` a `meta` los datos del acta de una sesión guardada.
+
+    Sin esto, un documento que el usuario guardó cuando el autor vivía dentro
+    de la portada abre y sale sin autor: pydantic ignora las claves que el
+    modelo ya no declara, y un dato que desaparece sin error es la peor forma
+    de migrar.
+
+    Idempotente: si `meta` ya tiene el dato, no lo pisa, y si `portada` ya no
+    trae la clave no hace nada. Devuelve los nombres de las claves que se
+    migraron, para que el llamador pueda avisar.
+    """
+    if not isinstance(portada_raw, dict):
+        return []
+    migradas: list[str] = []
+    for vieja in CLAVES_ACTA_EN_PORTADA:
+        valor = portada_raw.get(vieja)
+        if valor in (None, "", []):
+            continue
+        destino = TRADUCCION_ACTA[vieja]
+        actual = getattr(meta, destino, None)
+        if destino == "profesor_asesor":
+            # La lista gana: si ya hay anotados, se agregan los que falten.
+            nombres = [n.strip() for n in str(valor).replace("\n", ",").split(",") if n.strip()]
+            faltan = [n for n in nombres if n not in actual]
+            if faltan:
+                setattr(meta, destino, list(actual) + faltan)
+                migradas.append(vieja)
+        elif not actual:
+            setattr(meta, destino, valor)
+            migradas.append(vieja)
+    return migradas
 
 
 class CitationModel(BaseModel):

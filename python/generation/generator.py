@@ -933,10 +933,12 @@ def generate_apa7_docx(
                     print(f"[COVER-DESIGNER] Plantilla '{cover_template_id}' encontrada (source_type={selected_template.source_type}). Aplicando...")
                     # Preparar datos de portada para plantillas builtin
                     p_title = portada.title if portada else ""
-                    p_author = portada.author if portada else ""
+                    p_author = (doc_model.meta.autor or "") if portada else ""
                     p_institution = portada.institution if portada else ""
                     p_course = portada.course if portada else ""
-                    p_instructor = portada.instructor if portada else ""
+                    p_instructor = (
+                        ", ".join(doc_model.meta.profesor_asesor or []) if portada else ""
+                    )
                     p_date = portada.date if portada else ""
 
                     paragraphs_added = apply_cover_to_document(
@@ -1016,12 +1018,20 @@ def generate_apa7_docx(
 
                 from modules.portada_uni import generate_uni_cover
                 autores_parsed = []
-                if portada.author:
+                # El autor es un DATO DEL DOCUMENTO (`DocumentMeta.autor`), no de
+                # la portada. Con `use_original_cover` el bloque de portada no se
+                # toca —es una promesa de AGENTS.md—, así que un autor guardado
+                # ahí dentro no tenía de dónde salir.
+                autor_texto = (doc_model.meta.autor or "").strip()
+                if autor_texto:
                     from modules.portada_normalize import normalize_author_lines
-                    portada.author = normalize_author_lines(portada.author)
                     # Formato del frontend: "Br. Nombre Apellido | Carnet: 2023-XXXX"
                     # o dos lineas "Br. Nombre" + "Carnet: 2023-XXXX".
-                    author_lines = [l.strip() for l in portada.author.split('\n') if l.strip()]
+                    author_lines = [
+                        l.strip()
+                        for l in normalize_author_lines(autor_texto).split('\n')
+                        if l.strip()
+                    ]
                     pending_nombre = ""
                     for l in author_lines:
                         l_lower = l.lower()
@@ -1072,16 +1082,16 @@ def generate_apa7_docx(
                     titulo=portada.title or "Sin Título",
                     asignatura=portada.course or "",
                     autores=autores_parsed,
-                    tutor=portada.instructor or "",
-                    grupo=getattr(portada, 'grupo', '') or "",
+                    tutor=", ".join(doc_model.meta.profesor_asesor or []),
+                    grupo=doc_model.meta.grupo or "",
                     fecha=portada.date or "",
                     departamento=getattr(portada, 'departamento', '') or "",
                 )
             except Exception as err:
                 print(f"[WARN] Error creando portada UNI: {err}")
-                paragraphs_before_body = format_apa_portada(doc, portada, rules)
+                paragraphs_before_body = format_apa_portada(doc, portada, rules, acta=doc_model.meta)
         else:
-            paragraphs_before_body = format_apa_portada(doc, portada, rules)
+            paragraphs_before_body = format_apa_portada(doc, portada, rules, acta=doc_model.meta)
     for table in doc.tables:
         _tbl_style = getattr(rules, 'table_border_style', None)
         set_table_borders(table, _tbl_style.value if _tbl_style else "apa")
@@ -1186,6 +1196,26 @@ def generate_apa7_docx(
             print(f"[COVER-SAFETY] cover_paragraph_count ajustado desde modelo: {cover_paragraph_count}")
 
     p_idx = cover_paragraph_count
+
+    # 3.6 EL ACTA, y va AQUÍ y no antes porque es lo que faltaba.
+    #
+    # Los datos del acta son del DOCUMENTO, no de la portada (ver el motivo en
+    # `models.py`). Con la portada original conservada no hay bloque sintético
+    # donde escribirlos, así que se escriben como bloque propio, justo detrás
+    # del bloque protegido. Delante no: en `0` el acta se comería la primera
+    # línea de la portada, que es exactamente lo que `AGENTS.md` prohíbe.
+    #
+    # Con la portada SINTÉTICA no se escribe acá: autor y profesor asesor ya
+    # salen en la portada que se acaba de construir, y repetirlos sería el
+    # mismo dato dos veces en la misma hoja.
+    if use_orig_cover and not cover_template_applied:
+        from modules.portada_module import format_acta_documento
+        try:
+            format_acta_documento(
+                doc, doc_model.meta, rules, indice_insercion=cover_paragraph_count
+            )
+        except Exception as err:
+            print(f"[WARN] No se pudo escribir el acta del documento: {err}")
 
     existing_tables = list(doc.tables)
     table_count_processed = 0
@@ -1773,8 +1803,18 @@ def generate_apa7_docx(
 
     # 9.5 Idioma del documento. Va DESPUÉS de normalizar las fuentes, porque esa
     # pasada reescribe `rPr` de cada run y escribir `w:lang` antes se perdería.
+    #
+    # `skip_body_paragraphs` NO es opcional: `aplicar_idioma_documento` escribe
+    # `w:lang` en cada run, y sin el salto lo escribe también dentro del bloque
+    # de portada. La función lo dice en su propia documentación ("la portada es
+    # zona protegida, ahí no se escribe ni un byte") y el parámetro existe
+    # justamente para eso; no pasarlo era el bug.
     from generation.style_engine import aplicar_idioma_documento
-    aplicar_idioma_documento(doc, getattr(portada, "language", None) or "es-ES")
+    aplicar_idioma_documento(
+        doc,
+        getattr(portada, "language", None) or "es-ES",
+        skip_body_paragraphs=cover_paragraph_count,
+    )
 
     # 10. Guardar resultado final
     doc.save(out_path)

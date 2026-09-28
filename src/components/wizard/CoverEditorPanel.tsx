@@ -254,7 +254,7 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
 /* ── Componente principal ───────────────────────────────────────────────── */
 
 export const CoverEditorPanel: React.FC = () => {
-  const { portada, setPortada, updateCoverField, setCoverSetupDone } = useDocStore();
+  const { portada, acta, setPortada, updateCoverField, updateActaField, setCoverSetupDone } = useDocStore();
   const { integrantes, profesores, grupos } = useRosterStore();
 
   // Determinar modo actual
@@ -291,28 +291,32 @@ export const CoverEditorPanel: React.FC = () => {
 
   /* ── Integrantes / Autor ──────────────────────────────────────────────── */
 
-  const authorEntries = useMemo(() => parseAuthorEntries(portada.author || ''), [portada.author]);
+  /* El autor es un dato del ACTA, no del diseno de la portada. Con la portada
+     original conservada el bloque no se toca, asi que un autor guardado ahi
+     nunca llegaba al `.docx`: eso es lo que reporto el usuario. El motivo
+     entero esta en `python/models.py`. */
+  const authorEntries = useMemo(() => parseAuthorEntries(acta.autor || ''), [acta.autor]);
   const currentAuthors = useMemo(() => authorEntries.map((a) => a.nombre), [authorEntries]);
 
   const handleUpdateAuthorEntry = (index: number, field: 'nombre' | 'carnet', value: string) => {
     const updated = [...authorEntries];
     updated[index] = { ...updated[index], [field]: value };
     const serialized = serializeAuthorEntries(updated);
-    updateCoverField('author', serialized);
+    updateActaField('autor', serialized);
     requestCoverFieldHighlight('author');
   };
 
   const handleAddAuthorEntry = () => {
     const updated = [...authorEntries, { nombre: 'Br. Nuevo Estudiante', carnet: '' }];
     const serialized = serializeAuthorEntries(updated);
-    updateCoverField('author', serialized);
+    updateActaField('autor', serialized);
     requestCoverFieldHighlight('author');
   };
 
   const handleRemoveAuthorEntry = (index: number) => {
     const updated = authorEntries.filter((_, i) => i !== index);
     const serialized = serializeAuthorEntries(updated);
-    updateCoverField('author', serialized);
+    updateActaField('autor', serialized);
     requestCoverFieldHighlight('author');
   };
 
@@ -325,22 +329,26 @@ export const CoverEditorPanel: React.FC = () => {
       ? authorEntries.filter((a) => a.nombre.toLowerCase() !== nombre.toLowerCase())
       : [...authorEntries, { nombre, carnet: '' }];
     const serialized = serializeAuthorEntries(next);
-    updateCoverField('author', serialized);
+    updateActaField('autor', serialized);
     requestCoverFieldHighlight('author');
   };
 
   /* ── Docente / Profesor ──────────────────────────────────────────────── */
 
+  /* El profesor asesor es el PRIMERO de la lista del acta, y no un texto
+     suelto: el comite de una defensa son varias personas, y `instructor` como
+     string obligaba a pegarlas con comas. */
   const setInstructor = (nombre: string) => {
-    updateCoverField('instructor', nombre);
+    const esElActual = acta.profesor_asesor[0] === nombre;
+    updateActaField('profesor_asesor', esElActual ? [] : [nombre]);
     requestCoverFieldHighlight('instructor');
   };
 
   /* ── Grupo ───────────────────────────────────────────────────────────── */
 
   const setGrupo = (valor: string) => {
-    const isCurrent = (portada.grupo || '') === valor;
-    updateCoverField('grupo', isCurrent ? '' : valor);
+    const isCurrent = (acta.grupo || '') === valor;
+    updateActaField('grupo', isCurrent ? '' : valor);
     requestCoverFieldHighlight('grupo');
   };
 
@@ -665,8 +673,8 @@ export const CoverEditorPanel: React.FC = () => {
             <label style={fieldLabel}>Grupo</label>
             <input
               type="text"
-              value={portada.grupo || ''}
-              onChange={(e) => updateCoverField('grupo', e.target.value)}
+              value={acta.grupo || ''}
+              onChange={(e) => updateActaField('grupo', e.target.value)}
               onFocus={focusHighlight('grupo')}
               placeholder="Ej: 3T1 IND"
               style={baseInput}
@@ -678,7 +686,7 @@ export const CoverEditorPanel: React.FC = () => {
                 </div>
                 <div style={chipWrap}>
                   {grupos.map((g) => {
-                    const selected = (portada.grupo || '') === g;
+                    const selected = (acta.grupo || '') === g;
                     return (
                       <Chip
                         key={g}
@@ -699,14 +707,14 @@ export const CoverEditorPanel: React.FC = () => {
             <label style={fieldLabel}>Docente / Profesor</label>
             <input
               type="text"
-              value={portada.instructor || ''}
-              onChange={(e) => updateCoverField('instructor', e.target.value)}
+              value={acta.profesor_asesor[0] || ''}
+              onChange={(e) => updateActaField('profesor_asesor', e.target.value ? [e.target.value] : [])}
               onFocus={focusHighlight('instructor')}
               placeholder="Nombre y título del docente"
               style={baseInput}
             />
             {/* Tag del docente seleccionado (removible) */}
-            {portada.instructor && (
+            {acta.profesor_asesor.length > 0 && (
               <div style={{ display: 'flex', marginTop: '6px' }}>
                 <span style={removableTag}>
                   <GraduationCap size={12} color="var(--accent-primary)" />
@@ -714,11 +722,11 @@ export const CoverEditorPanel: React.FC = () => {
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     maxWidth: '200px',
                   }}>
-                    {portada.instructor}
+                    {acta.profesor_asesor.join(', ')}
                   </span>
                   <button
                     type="button"
-                    onClick={() => updateCoverField('instructor', '')}
+                    onClick={() => updateActaField('profesor_asesor', [])}
                     title="Quitar docente"
                     style={removeBtn}
                   >
@@ -735,7 +743,7 @@ export const CoverEditorPanel: React.FC = () => {
                 </div>
                 <div style={chipWrap}>
                   {profesores.map((prof) => {
-                    const selected = (portada.instructor || '') === prof.nombre;
+                    const selected = acta.profesor_asesor[0] === prof.nombre;
                     return (
                       <Chip
                         key={prof.id}

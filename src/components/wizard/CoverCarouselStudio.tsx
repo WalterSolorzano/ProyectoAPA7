@@ -217,7 +217,7 @@ const CoverStrategyStrip: React.FC<{
 );
 
 export const CoverCarouselStudio: React.FC = () => {
-  const { portada, setPortada, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
+  const { portada, acta, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
   const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -302,11 +302,20 @@ export const CoverCarouselStudio: React.FC = () => {
         cover_mode: '',
         cover_template_id: templateInfo.template.name,
         title: importedFields.title || portada.title || '',
-        author: importedFields.author || portada.author || '',
         institution: importedFields.institution || portada.institution || '',
         course: importedFields.course || portada.course || '',
-        instructor: importedFields.instructor || portada.instructor || '',
         date: importedFields.date || portada.date || '',
+      });
+      /* Autor y docente van al acta. La razon esta escrita en `models.py` y en
+         el tipo `PortadaData`: son del documento, y con la portada original
+         conservada un dato guardado dentro de la portada no sale nunca. Lo que
+         llega de la plantilla gana, que es el documento que el usuario acaba de
+         subir. */
+      setActa({
+        autor: importedFields.author || acta.autor,
+        profesor_asesor: importedFields.instructor
+          ? [importedFields.instructor]
+          : acta.profesor_asesor,
       });
 
       if (templateInfo.detected) {

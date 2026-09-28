@@ -70,14 +70,17 @@ from create_template import ensure_apa7_template
 from generation.generator import generate_apa7_docx
 from generation.track_changes_engine import create_tracked_changes_docx
 from models import (
+    migrar_acta_vieja,
     APAFormat,
     APARuleSet,
+    DocumentMeta,
     DocumentModel,
     ElementModel,
     ElementType,
     HealthResponse,
     PortadaData,
     ReferenciaModel,
+    migrar_acta_vieja,
 )
 from modules.apa_validator import validate_apa_integrity, validate_citations_with_llm
 from modules.referencias_module import resolve_doi
@@ -177,6 +180,25 @@ def _session_rules(doc: DocumentModel, req_rules: Optional[APARuleSet] = None) -
     if req_rules is not None:
         return req_rules
     return doc.apa_rules if doc.apa_rules else APARuleSet()
+
+
+def _session_meta(doc: DocumentModel, requested: Optional[DocumentMeta]) -> DocumentMeta:
+    """Los metadatos del documento, con la migracion de datos viejos.
+
+    Una sesion guardada cuando el autor vivia dentro de `portada` tiene ahi el
+    autor, el grupo y el profesor. `PortadaData` ya no declara esas claves, asi
+    que pydantic las ignora y el dato se pierde sin error: pydar un documento
+    viejo no puede significar devolverlo sin autor. `_migrar_acta_vieja` las sube
+    a `meta`, que es donde viven ahora.
+    """
+    if requested is not None:
+        meta = requested.model_copy(deep=True)
+    else:
+        meta = doc.meta.model_copy(deep=True)
+    migradas = migrar_acta_vieja(doc.portada, meta)
+    if migradas:
+        print(f"[ACTA] Migrados desde portada: {migradas}")
+    return meta
 
 
 def _session_portada(doc: DocumentModel, requested: Optional[PortadaData]) -> PortadaData:
@@ -389,6 +411,13 @@ class GenerateRequest(BaseModel):
     rules: Optional[APARuleSet] = None
     portada: Optional[PortadaData] = None
     references: Optional[List[ReferenciaModel]] = None
+    # `meta` es donde viajan los datos del acta (autor, profesor asesor, comite,
+    # fecha de defensa). Son metadatos del DOCUMENTO y hace un tiempo vivian
+    # DENTRO de `portada`; con `use_original_cover` no habia de donde sacarlos y
+    # el `.docx` salia sin ellos. El cliente los manda en cada exportacion, que
+    # es lo que hace falta: `DocumentMeta` del servidor es una copia y no hay
+    # ningun endpoint que la escriba desde el cliente.
+    meta: Optional[DocumentMeta] = None
 
 
 class PreviewRequest(BaseModel):
@@ -396,6 +425,7 @@ class PreviewRequest(BaseModel):
     rules: Optional[APARuleSet] = None
     portada: Optional[PortadaData] = None
     references: Optional[List[ReferenciaModel]] = None
+    meta: Optional[DocumentMeta] = None
 
 
 class ResolveDoiRequest(BaseModel):
@@ -1372,6 +1402,8 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     rules = _session_rules(doc, req.rules)
     portada = _session_portada(doc, req.portada)
+    meta = _session_meta(doc, req.meta)
+    doc.meta = meta  # el generador lee el acta de aca
     references = _session_references(doc, req.references)
 
     from services.doc_converter import get_doc_converter
@@ -1549,6 +1581,8 @@ async def generate_preview_pages(session_id: str, req: PreviewRequest) -> dict:
 
     rules = _session_rules(doc, req.rules)
     portada = _session_portada(doc, req.portada)
+    meta = _session_meta(doc, req.meta)
+    doc.meta = meta  # el generador lee el acta de aca
     references = _session_references(doc, req.references)
     out_dir: Path = STORAGE_DIR / "sessions" / session_id / "preview_pages"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1695,6 +1729,8 @@ async def generate_docx(req: GenerateRequest) -> dict:
     out_file: Path = _safe_output_path(raw_out_file)
     artifact_id = uuid.uuid4().hex
     portada = _session_portada(doc, req.portada)
+    meta = _session_meta(doc, req.meta)
+    doc.meta = meta  # el generador lee el acta de aca
     references = _session_references(doc, req.references)
 
     # RUTA IN-PLACE (default): edita el original; portada/secciones intocables
@@ -1708,6 +1744,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
                 apply_inplace(
                     original_path_ip, out_file, doc, rules, scopes=None,
                     language=getattr(portada, "language", None),
+                    acta=meta,
                 )
                 try:
                     from persistence.idempotency import add_marker_to_docx

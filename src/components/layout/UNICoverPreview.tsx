@@ -18,6 +18,10 @@ const BLACK = 'var(--paper-ink)';
 
 export const UNICoverPreview: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
+  /* Los integrantes, el docente y el grupo son datos del acta, no del diseno de
+     la portada. Ver el motivo en `python/models.py`: con `use_original_cover` un
+     dato guardado dentro de la portada no sale, porque el bloque no se toca. */
+  const acta = useDocStore((s) => s.acta);
   const [highlightField, setHighlightField] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,12 +40,12 @@ export const UNICoverPreview: React.FC = () => {
       ? { background: 'var(--color-accent-a20)', boxShadow: '0 0 0 2px var(--accent-primary)', borderRadius: 'var(--radius-xs)' }
       : {};
 
-  const autores = parseAuthorEntries(portada.author);
+  const autores = parseAuthorEntries(acta.autor);
   const tutores = autores.filter((a) => /^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
   const estudiantes = autores.filter((a) => !/^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
 
-  const tutorName = portada.instructor || (tutores.length > 0 ? tutores[0].nombre : '');
-  const grupo = portada.grupo || '';
+  const tutorName = acta.profesor_asesor[0] || (tutores.length > 0 ? tutores[0].nombre : '');
+  const grupo = acta.grupo || '';
 
   // Columnas de estudiantes dinámicas adaptativas:
   // 1 estudiante  -> 1 col (balanceado)

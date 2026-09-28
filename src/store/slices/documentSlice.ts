@@ -4,7 +4,7 @@ import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, Re
 import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
 import { parseDocumentVersion } from '../../lib/projectUtils';
-import { syncCoverFieldToElements, defaultPortada } from './coverSlice';
+import { syncCoverFieldToElements, defaultPortada, defaultActa, migrarActaDesdePortada } from './coverSlice';
 import {
   leerVariableDeLocalStorage,
   eleccionGuardada,
@@ -471,16 +471,24 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         const newTabDocs = { ...state.tabDocs, [doc.session_id]: doc };
 
         let updatedPortada = { ...state.portada };
+        let updatedActa = migrarActaDesdePortada(state.acta ? { ...state.acta, ...state.portada } : state.portada, state.acta);
         if (doc.portada?.fields && typeof doc.portada.fields === 'object') {
           const f = doc.portada.fields as any;
           const toStr = (v: any) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : v != null ? String(v) : '');
+          /* Autor y docente NO van a `portada`: van al acta. Con la portada
+             original conservada, un autor guardado en la portada no sale nunca
+             porque el bloque no se toca. Ver el motivo en `python/models.py`. */
+          const autor = toStr(f.author);
+          const docente = toStr(f.instructor);
+          if (autor && !updatedActa.autor) updatedActa = { ...updatedActa, autor };
+          if (docente && !updatedActa.profesor_asesor.includes(docente)) {
+            updatedActa = { ...updatedActa, profesor_asesor: [...updatedActa.profesor_asesor, docente] };
+          }
           updatedPortada = {
             ...updatedPortada,
             title: toStr(f.title) || updatedPortada.title,
-            author: toStr(f.author) || updatedPortada.author,
             institution: toStr(f.institution) || updatedPortada.institution,
             course: toStr(f.course) || updatedPortada.course || '',
-            instructor: toStr(f.instructor) || updatedPortada.instructor || '',
             date: toStr(f.date) || updatedPortada.date || '',
           };
         }
@@ -497,6 +505,9 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
+          /* Un documento nuevo arranca con el acta vacia: sin esto los datos
+             del acta del documento anterior quedan pegados al nuevo. */
+          acta: { ...defaultActa },
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
@@ -550,6 +561,9 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
+          /* Un documento nuevo arranca con el acta vacia: sin esto los datos
+             del acta del documento anterior quedan pegados al nuevo. */
+          acta: { ...defaultActa },
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
@@ -582,6 +596,9 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
+          /* Un documento nuevo arranca con el acta vacia: sin esto los datos
+             del acta del documento anterior quedan pegados al nuevo. */
+          acta: { ...defaultActa },
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
@@ -1147,7 +1164,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
   },
   exportDocx: async (tracked = false) => {
-    const { doc, rules, portada, references, sessionScopes } = get();
+    const { doc, rules, portada, acta, references, sessionScopes } = get();
     if (!doc) return;
     set({ isLoading: true });
     try {
@@ -1167,7 +1184,11 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: doc.session_id, rules, portada, references }),
+        /* `meta` lleva el acta. Sin esto el backend no tiene de donde sacar el
+           autor ni el profesor cuando la portada original se conserva, que es
+           justo el caso por omision. El backend solo toma de `meta` los campos
+           del acta y deja el resto de los metadatos como estaban. */
+        body: JSON.stringify({ session_id: doc.session_id, rules, portada, meta: acta, references }),
       });
       if (!res.ok) throw new Error('Error al generar el documento');
       const data = await res.json();
@@ -1185,7 +1206,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
   },
   exportPdf: async () => {
-    const { doc, rules, portada, references } = get();
+    const { doc, rules, portada, acta, references } = get();
     if (!doc) return;
     set({ isLoading: true });
     try {
@@ -1197,6 +1218,11 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           session_id: doc.session_id,
           rules,
           portada,
+          /* El acta viaja en `meta`. Las dos rutas de exportacion a PDF
+             necesitan mandarlo: el backend solo lee el autor y el profesor
+             asesor de ahi, y sin esto el PDF sale sin ellos igual que el
+             `.docx`. */
+          meta: acta,
           references,
         }),
       });
@@ -1228,7 +1254,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   activeFilePath: null,
   setActiveFilePath: (path) => set({ activeFilePath: path }),
   copyPdfToClipboard: async () => {
-    const { doc, rules, portada, references } = get();
+    const { doc, rules, portada, acta, references } = get();
     if (!doc) return false;
     set({ isLoading: true });
     try {
@@ -1240,6 +1266,11 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           session_id: doc.session_id,
           rules,
           portada,
+          /* El acta viaja en `meta`. Las dos rutas de exportacion a PDF
+             necesitan mandarlo: el backend solo lee el autor y el profesor
+             asesor de ahi, y sin esto el PDF sale sin ellos igual que el
+             `.docx`. */
+          meta: acta,
           references,
         }),
       });

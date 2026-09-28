@@ -1,5 +1,5 @@
 import * as api from '../api/backend';
-import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding } from '../types';
+import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding, ActaDocumento } from '../types';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
 import type { LayoutPaginateResult } from '../api/layout';
 /* Solo el TIPO del diff, y con `import type` a proposito: el runtime lo borra.
@@ -285,6 +285,11 @@ export interface DocState {
   fetchProfiles: () => Promise<void>;
   setActiveProfile: (profileId: string) => Promise<void>;
   portada: PortadaData;
+  /** Los datos del acta (autor, profesor asesor, comite, fecha de defensa).
+   *  Van aparte de `portada` y no por prolijidad: con la portada original
+   *  conservada, un dato guardado dentro de la portada no sale, porque el
+   *  bloque no se toca. El motivo esta en `python/models.py`. */
+  acta: ActaDocumento;
   portadaProfiles: PortadaProfile[];
   references: ReferenciaModel[];
   validationIssues: ValidationIssue[];
@@ -394,6 +399,10 @@ export interface DocState {
 
   setPortada: (portada: Partial<PortadaData>) => void;
   updateCoverField: (field: keyof PortadaData, value: any) => void;
+  setActa: (parcial: Partial<ActaDocumento>) => void;
+  updateActaField: (campo: keyof ActaDocumento, valor: string | string[]) => void;
+  /** Sube de una `portada` vieja los datos del acta a su nuevo lugar. */
+  migrarActa: (portadaVieja: Partial<PortadaData> | null | undefined) => void;
   savePortadaProfile: (name: string) => void;
 
   updateReferences: (refs: ReferenciaModel[]) => void;

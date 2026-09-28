@@ -197,10 +197,8 @@ class TestNoDuplication:
         portada = PortadaData(
             apa_format=APAFormat.STUDENT,
             title="Trabajo de Investigación",
-            author="Autor Principal",
             institution="Universidad de Prueba",
             course="Curso de Metodología",
-            instructor="Dr. Profesor Titular",
             date="2025",
         )
 
@@ -209,6 +207,10 @@ class TestNoDuplication:
             file_name="portada_test.docx",
             elements=elements,
         )
+        # El autor es un dato del acta: vive en `DocumentMeta` y no en la
+        # portada, que es el bloque que no se toca.
+        doc_model.meta.autor = "Autor Principal"
+        doc_model.meta.profesor_asesor = ["Dr. Profesor Titular"]
 
         out = test_output_dir / "portada_output.docx"
         generate_apa7_docx(doc_model, out, rules, portada=portada)

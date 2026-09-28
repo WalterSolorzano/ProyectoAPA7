@@ -76,13 +76,19 @@ beforeEach(() => {
     portada: {
       apa_format: 'student' as const,
       title: 'Título',
-      author: 'Ana García',
       institution: 'Universidad X',
       course: '',
-      instructor: '',
       date: '',
       running_head: '',
       author_note: '',
+    },
+    /* El autor es del acta. Ver el motivo en `python/models.py`. */
+    acta: {
+      autor: 'Ana García',
+      profesor_asesor: [],
+      comite: [],
+      fecha_defensa: '',
+      grupo: '',
     },
   });
 });

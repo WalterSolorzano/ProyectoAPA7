@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
-import { PortadaData, ElementModel } from '../../types';
+import { ActaDocumento, PortadaData, ElementModel } from '../../types';
 import * as api from '../../api/backend';
 
 const getApiBase = () => api.getApiBase();
@@ -9,11 +9,8 @@ export const defaultPortada: PortadaData = {
   apa_format: 'student',
   use_original_cover: true,
   title: '',
-  author: '',
   institution: '',
   course: '',
-  grupo: '',
-  instructor: '',
   date: '',
   running_head: '',
   author_note: '',
@@ -23,6 +20,52 @@ export const defaultPortada: PortadaData = {
      selector de la pestaña Documento no arranque sin opción elegida. */
   language: 'es-ES',
 };
+
+export const defaultActa: ActaDocumento = {
+  autor: '',
+  profesor_asesor: [],
+  comite: [],
+  fecha_defensa: '',
+  grupo: '',
+};
+
+/* Los datos del acta salen de la portada: con `use_original_cover: true` el
+   bloque de portada no se toca, asi que un autor guardado ahi no tiene de donde
+   salir y el `.docx` sale sin el. El motivo entero esta en `python/models.py`
+   y en el tipo `PortadaData`; esto es la parte que el usuario no ve. */
+/** Sube de `portada` a `acta` los datos de una sesion guardada antes del
+ *  cambio de lugar. Idempotente, y nunca pisa un dato que ya este en `acta`: una
+ *  sesion migrada dos veces tiene que seguir teniendo el mismo autor, no el
+ *  ultimo que se le hizo pasar. */
+export function migrarActaDesdePortada(
+  portada: Partial<PortadaData> | null | undefined,
+  actual: ActaDocumento = defaultActa,
+): ActaDocumento {
+  const viejo = portada as Record<string, unknown> | null | undefined;
+  if (!viejo) return actual;
+  const migro = { ...actual };
+
+  const autor = typeof viejo.author === 'string' ? viejo.author.trim() : '';
+  if (autor && !migro.autor) migro.autor = autor;
+
+  const grupo = typeof viejo.grupo === 'string' ? viejo.grupo.trim() : '';
+  if (grupo && !migro.grupo) migro.grupo = grupo;
+
+  /* `instructor` era texto libre. Se separa por comas o saltos de linea, que es
+     como los guardaba el formulario viejo, y se descarta lo que este repetido:
+     una lista con el mismo asesor dos veces se dibuja dos veces en el `.docx`. */
+  const crudo = typeof viejo.instructor === 'string' ? viejo.instructor : '';
+  const nombres = crudo
+    .split(/[,\n]/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const faltan = nombres.filter((n) => !migro.profesor_asesor.includes(n));
+  if (faltan.length > 0) {
+    migro.profesor_asesor = [...migro.profesor_asesor, ...faltan];
+  }
+
+  return migro;
+}
 
 export function syncCoverFieldToElements(elements: ElementModel[], field: keyof PortadaData, value: string): ElementModel[] {
   if (!elements || elements.length === 0) return elements;
@@ -43,38 +86,6 @@ export function syncCoverFieldToElements(elements: ElementModel[], field: keyof 
         const prefixMatch = newElements[idx].text.match(/^(tema\s*:\s*)/i);
         const prefix = prefixMatch ? prefixMatch[1] : '';
         newElements[idx] = { ...newElements[idx], text: prefix ? `${prefix}${value}` : value };
-      }
-    }
-  } else if (field === 'author') {
-    const authorElem = coverElems.find(e => 
-      e.text && (e.text.toLowerCase().includes('elaborado por') || e.text.toLowerCase().includes('br.') || e.text.toLowerCase().includes('carnet'))
-    );
-    if (authorElem) {
-      const idx = newElements.findIndex(e => e.id === authorElem.id);
-      if (idx !== -1) {
-        newElements[idx] = { ...newElements[idx], text: value };
-      }
-    }
-  } else if (field === 'instructor') {
-    const instElem = coverElems.find(e => 
-      e.text && (e.text.toLowerCase().includes('docente') || e.text.toLowerCase().includes('profesor') || e.text.toLowerCase().includes('tutor') || e.text.toLowerCase().includes('ing.') || e.text.toLowerCase().includes('lic.'))
-    );
-    if (instElem) {
-      const idx = newElements.findIndex(e => e.id === instElem.id);
-      if (idx !== -1) {
-        const prefixMatch = newElements[idx].text.match(/^(docente\s*:\s*|profesor\s*:\s*|tutor\s*:\s*)/i);
-        const prefix = prefixMatch ? prefixMatch[1] : 'Docente: ';
-        newElements[idx] = { ...newElements[idx], text: value ? `${prefix}${value}` : '' };
-      }
-    }
-  } else if (field === 'grupo') {
-    const grpElem = coverElems.find(e => e.text && e.text.toLowerCase().includes('grupo'));
-    if (grpElem) {
-      const idx = newElements.findIndex(e => e.id === grpElem.id);
-      if (idx !== -1) {
-        const prefixMatch = newElements[idx].text.match(/^(grupo\s*:\s*)/i);
-        const prefix = prefixMatch ? prefixMatch[1] : 'Grupo: ';
-        newElements[idx] = { ...newElements[idx], text: value ? `${prefix}${value}` : '' };
       }
     }
   } else if (field === 'date') {
@@ -118,6 +129,20 @@ export const createCoverSlice: StateCreator<DocState, [], [], Partial<DocState>>
   coverSetupDone: false,
   setCoverSetupDone: (done) => set({ coverSetupDone: done }),
   portada: defaultPortada,
+  acta: defaultActa,
+  /* `setActa` NO llama a `syncCoverFieldToElements` a proposito, y es la parte
+     que mas se nota si se cambia. Esa funcion reescribe los parrafos del
+     bloque de portada del documento del usuario, y con `use_original_cover`
+     ese bloque es zona protegida: `AGENTS.md` dice que de ahi no se toca ni un
+     caracter. El autor, el profesor y el grupo llegan al `.docx` por el bloque
+     del acta, que va detras de la portada. */
+  setActa: (parcial) => set((state) => ({ acta: { ...state.acta, ...parcial } })),
+  updateActaField: (campo, valor) => set((state) => ({
+    acta: { ...state.acta, [campo]: valor },
+  })),
+  migrarActa: (portadaVieja) => set((state) => ({
+    acta: migrarActaDesdePortada(portadaVieja, state.acta),
+  })),
   setPortada: (newPortada) => set((state) => {
     const updatedPortada = { ...state.portada, ...newPortada };
     let updatedDoc = state.doc;

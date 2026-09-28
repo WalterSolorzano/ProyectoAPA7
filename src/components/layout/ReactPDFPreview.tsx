@@ -2,7 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 import { useDocStore } from '../../store/useDocStore';
 import { useDebounce } from 'use-debounce';
-import { DocumentModel, PortadaData } from '../../types';
+import { ActaDocumento, DocumentModel, PortadaData } from '../../types';
 
 /**
  * La tinta del PDF, leída de la hoja en vez de escrita a mano.
@@ -107,7 +107,7 @@ const PageNumber: React.FC<{ startAt?: number }> = ({ startAt = 1 }) => (
 );
 
 /** Líneas de texto reales de la portada (del documento, no placeholders). */
-function getCoverLines(doc: DocumentModel, portada: PortadaData): string[] {
+function getCoverLines(doc: DocumentModel, portada: PortadaData, acta: ActaDocumento): string[] {
   const lines: string[] = [];
 
   // 1) Contenido REAL de la portada detectada (párrafos / bloques de portada)
@@ -123,11 +123,14 @@ function getCoverLines(doc: DocumentModel, portada: PortadaData): string[] {
   // 2) Fallback: campos de portada editados por el usuario
   if (lines.length === 0) {
     const fields: [string, string | undefined][] = [
+      /* El autor y el profesor son del acta, no de la portada. Ver el motivo
+         en `python/models.py`: con la portada original conservada, un dato
+         guardado dentro de ella no sale. */
       ['title', portada.title],
-      ['author', portada.author],
+      ['author', acta.autor],
       ['institution', portada.institution],
       ['course', portada.course],
-      ['instructor', portada.instructor],
+      ['instructor', acta.profesor_asesor[0]],
       ['date', portada.date],
     ];
     for (const [, v] of fields) {
@@ -150,9 +153,10 @@ function getCoverLines(doc: DocumentModel, portada: PortadaData): string[] {
 }
 
 export const ReactPDFPreview: React.FC = () => {
-  const { doc, portada } = useDocStore();
+  const { doc, portada, acta } = useDocStore();
   const [debouncedDoc] = useDebounce(doc, 500);
   const [debouncedPortada] = useDebounce(portada, 500);
+  const [debouncedActa] = useDebounce(acta, 500);
 
   if (!debouncedDoc) {
     return <div className="text-center p-8" style={{ color: 'var(--color-text-tertiary)' }}>No hay documento para previsualizar.</div>;
@@ -162,7 +166,7 @@ export const ReactPDFPreview: React.FC = () => {
   const coverOrientation =
     debouncedDoc.meta?.sections?.[0]?.orientation === 'landscape' ? 'landscape' : 'portrait';
   const bodyOrientation = isLandscape ? 'landscape' : 'portrait';
-  const coverLines = getCoverLines(debouncedDoc, debouncedPortada);
+  const coverLines = getCoverLines(debouncedDoc, debouncedPortada, debouncedActa);
 
   // Generamos el documento dinámico
   const PDFDoc = () => (

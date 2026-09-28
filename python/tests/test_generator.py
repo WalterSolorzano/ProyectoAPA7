@@ -105,7 +105,6 @@ class TestCoverPage:
         portada = PortadaData(
             apa_format=APAFormat.STUDENT,
             title="Impacto de la IA en Educación",
-            author="María García",
             institution="Universidad Nacional",
         )
 
@@ -118,6 +117,9 @@ class TestCoverPage:
             file_name="portada.docx",
             elements=elements,
         )
+        # El autor es un dato del acta, no del diseno de la portada: viaja en
+        # `DocumentMeta`. Ver el motivo en `models.py`.
+        doc_model.meta.autor = "María García"
 
         out = test_output_dir / "portada_output.docx"
         generate_apa7_docx(doc_model, out, rules, portada=portada)
@@ -135,7 +137,6 @@ class TestCoverPage:
         portada = PortadaData(
             apa_format=APAFormat.STUDENT,
             title="Portada al Inicio",
-            author="Autor Test",
             institution="Institución Test",
             cover_mode="generate_apa7_template",
             use_original_cover=False,
@@ -236,10 +237,8 @@ class TestCoverPage:
         portada = PortadaData(
             apa_format=APAFormat.STUDENT,
             title="Tesis de Grado",
-            author="Juan Pérez",
             institution="Universidad Central",
             course="Seminario de Investigación",
-            instructor="Dra. Ana Martínez",
             date="2025",
         )
 
@@ -251,6 +250,9 @@ class TestCoverPage:
             file_name="student_portada.docx",
             elements=elements,
         )
+        # Autor y profesor asesor son del acta: `DocumentMeta`, no `PortadaData`.
+        doc_model.meta.autor = "Juan Pérez"
+        doc_model.meta.profesor_asesor = ["Dra. Ana Martínez"]
 
         out = test_output_dir / "student_portada_output.docx"
         generate_apa7_docx(doc_model, out, rules, portada=portada)

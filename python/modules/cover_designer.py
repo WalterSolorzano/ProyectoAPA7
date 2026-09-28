@@ -593,14 +593,19 @@ def _apply_builtin_cover(
             r_inst.font.size = font_size
 
     elif template and template.name == "Portada con Logos":
-        # Portada con espacio para logos
+        # Espacio reservado para los logos, y VACIO a proposito.
+        #
+        # Antes escribia "[LOGOS INSTITUCIONALES]" en 14pt gris cursiva. Ese
+        # texto de interfaz viajaba al `.docx` final del usuario, que es la misma
+        # clase de fuga que "[Figura sin rotular]" en la revision: un marcador de
+        # la UI que llega a la entrega. El lugar del logo se reserva con un
+        # parrafo con el formato y nada mas; los logos de verdad los pone
+        # `portada.logos`.
         p_logo_placeholder = doc.add_paragraph()
         p_logo_placeholder.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r_logo = p_logo_placeholder.add_run("[LOGOS INSTITUCIONALES]")
-        r_logo.font.name = font_name
-        r_logo.font.size = Pt(14)
-        r_logo.font.color.rgb = RGBColor(150, 150, 150)
-        r_logo.italic = True
+        p_logo_placeholder.paragraph_format.line_spacing = 2.0
+        p_logo_placeholder.paragraph_format.space_before = Pt(0)
+        p_logo_placeholder.paragraph_format.space_after = Pt(0)
 
         for _ in range(4):
             doc.add_paragraph().paragraph_format.line_spacing = 2.0

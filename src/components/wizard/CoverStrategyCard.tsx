@@ -19,7 +19,7 @@ const thumbStyle: React.CSSProperties = {
 };
 
 export const CoverStrategyCard: React.FC = () => {
-  const { doc, portada, setPortada, setCoverSetupDone } = useDocStore();
+  const { doc, portada, acta, setPortada, setCoverSetupDone } = useDocStore();
 
   const [templates, setTemplates] = useState<CoverTemplateInfo[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -63,10 +63,13 @@ export const CoverStrategyCard: React.FC = () => {
         session_id: doc.session_id,
         cover_template_name: t.name,
         title: portada.title || '',
-        author: portada.author || '',
+        /* El endpoint `apply-cover` todavia pide autor e instructor con estos
+           nombres: son los campos del cover designer, que es otra cosa que el
+           acta. Se los pasa del acta. */
+        author: acta.autor || '',
         institution: portada.institution || '',
         course: portada.course || '',
-        instructor: portada.instructor || '',
+        instructor: acta.profesor_asesor[0] || '',
         date: portada.date || '',
       });
       if (result.document) {

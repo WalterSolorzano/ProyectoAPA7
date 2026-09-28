@@ -66,14 +66,16 @@ beforeEach(() => {
     portada: {
       apa_format: 'student' as APAFormat,
       title: '',
-      author: '',
       institution: '',
       course: '',
-      instructor: '',
       date: '',
       running_head: '',
       author_note: '',
     },
+    /* El acta va aparte de la portada: el autor es un dato del documento y con
+       la portada original conservada uno guardado dentro de la portada no sale.
+       Ver el motivo en `python/models.py`. */
+    acta: { autor: '', profesor_asesor: [], comite: [], fecha_defensa: '', grupo: '' },
     portadaProfiles: [],
     references: [],
     validationIssues: [],
@@ -151,18 +153,22 @@ describe('useDocStore — reglas', () => {
 
 describe('useDocStore — portada', () => {
   it('setPortada actualiza campos parciales', () => {
-    useDocStore.getState().setPortada({ title: 'Nuevo Titulo', author: 'Juan Perez' });
+    useDocStore.getState().setPortada({ title: 'Nuevo Titulo', institution: 'UNAN' });
+    useDocStore.getState().updateActaField('autor', 'Juan Perez');
 
-    const { portada } = useDocStore.getState();
+    const { portada, acta } = useDocStore.getState();
     expect(portada.title).toBe('Nuevo Titulo');
-    expect(portada.author).toBe('Juan Perez');
-    expect(portada.institution).toBe(''); // no cambia
+    expect(portada.institution).toBe('UNAN');
+    /* El autor NO pasa por la portada. Es la separacion de la fase: con
+       `use_original_cover` el bloque de portada no se toca, asi que un autor
+       guardado ahi no llegaba nunca al `.docx`. */
+    expect(acta.autor).toBe('Juan Perez');
+    expect('author' in portada).toBe(false);
   });
 
   it('savePortadaProfile guarda un perfil nuevo', () => {
     useDocStore.getState().setPortada({
       title: 'Tesis de Maestria',
-      author: 'Maria Garcia',
       institution: 'UNAM',
       apa_format: 'professional' as APAFormat,
     });

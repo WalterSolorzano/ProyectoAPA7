@@ -283,12 +283,22 @@ export interface PortadaData {
   cover_template_id?: string;
   cover_mode?: string;
   title: string;
-  author: string;
   institution: string;
   course?: string;
-  grupo?: string;
-  instructor?: string;
   date?: string;
+
+  /* LO QUE SE FUE DE ACA, y por que.
+     `author`, `grupo` e `instructor` eran los datos del acta y vivian DENTRO
+     de la portada. Con `use_original_cover: true` el bloque de portada no se
+     toca --es una promesa de AGENTS.md--, asi que no habia de donde sacarlos y
+     el `.docx` salia sin el autor, sin el profesor asesor y sin el grupo. Eso
+     es lo que reporto el usuario: "conservar original" pierde al profesor y al
+     grupo.
+
+     Ahora viven en `ActaDocumento`, que viaja al backend en el campo `meta` de
+     cada exportacion. Lo que se queda en la portada es el DISENO de la hoja:
+     que dice el titulo, cual es la institucion, cual la asignatura y que dia
+     es. El quien es del documento. */
   running_head?: string;
   author_note?: string;
   /** Área de Conocimiento / Departamento (portada UNI) — editable por el usuario. */
@@ -407,6 +417,31 @@ export interface SectionInfo {
   columns_space?: number | null;
 }
 
+/** Los datos del acta: QUIEN firma el trabajo.
+ *
+ *  Son metadatos del DOCUMENTO, no de la portada. El motivo esta escrito en
+ *  `python/models.py` y en la nota de arriba de `PortadaData`: con la portada
+ *  original conservada, un dato guardado dentro de la portada no tiene de
+ *  dónde salir, porque el bloque no se toca.
+ *
+ *  `autor` es texto porque la portada UNI escribe una tabla de integrantes con
+ *  carnet, y el formato que llega del cliente es el mismo que siempre
+ *  (`nombre | carnet`). `profesor_asesor` y `comite` son LISTAS: un comite de
+ *  defensa tiene varias personas, y pegarlas con comas en un solo string hacia
+ *  que el corrector de ortografia subrayara una coma pegada a dos apellidos.
+ */
+export interface ActaDocumento {
+  autor: string;
+  profesor_asesor: string[];
+  comite: string[];
+  fecha_defensa: string;
+  grupo: string;
+}
+
+/** Las claves del acta dentro de `PortadaData`, de donde vivian antes.
+ *  Solo se usan por la migracion de datos guardados. */
+export const CLAVES_ACTA_EN_PORTADA = ['author', 'grupo', 'instructor'] as const;
+
 export interface DocumentMeta {
   source_file: string;
   source_hash: string;
@@ -423,6 +458,14 @@ export interface DocumentMeta {
   portada_detected: boolean;
   apa_format: APAFormat;
   work_mode: WorkMode;
+  /* El acta viaja DENTRO de los metadatos del documento. No es una copia: es
+     el unico lugar donde esta, y la razon esta escrita arriba y en
+     `python/models.py`. */
+  autor?: string | null;
+  profesor_asesor?: string[];
+  comite?: string[];
+  fecha_defensa?: string | null;
+  grupo?: string | null;
   content_source: string;
   content_warning?: string;
   sections: SectionInfo[];

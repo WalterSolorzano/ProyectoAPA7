@@ -112,11 +112,13 @@ const InlineField: React.FC<InlineFieldProps> = ({
 
 export const APACoverEditor: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
+  const acta = useDocStore((s) => s.acta);
   const setPortada = useDocStore((s) => s.setPortada);
+  const updateActaField = useDocStore((s) => s.updateActaField);
   const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
   const [highlightField, setHighlightField] = useState<string | null>(null);
 
-  const authors = parseAuthorEntries(portada.author);
+  const authors = parseAuthorEntries(acta.autor);
   const isProfessional = portada.apa_format === 'professional';
 
   const commitField = useCallback(
@@ -254,8 +256,8 @@ export const APACoverEditor: React.FC = () => {
         {/* Docente / Tutor */}
         <div id="cover-field-instructor" style={{ ...fieldWrap('instructor'), width: '100%' }}>
           <InlineField
-            value={portada.instructor || ''}
-            onCommit={commitField('instructor')}
+            value={acta.profesor_asesor[0] || ''}
+            onCommit={(v) => updateActaField('profesor_asesor', v ? [v] : [])}
             placeholder="Docente / Tutor"
             ariaLabel="Docente"
             style={{ fontSize: '12pt', margin: '4px 0' }}
