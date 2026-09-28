@@ -137,7 +137,7 @@ export const ReactPDFPreview: React.FC = () => {
   const [debouncedPortada] = useDebounce(portada, 500);
 
   if (!debouncedDoc) {
-    return <div className="text-center p-8" style={{ color: 'var(--text-tertiary)' }}>No hay documento para previsualizar.</div>;
+    return <div className="text-center p-8" style={{ color: 'var(--color-text-tertiary)' }}>No hay documento para previsualizar.</div>;
   }
 
   const isLandscape = debouncedDoc.has_landscape_sections === true;

@@ -28,7 +28,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
         right: '16px',
         width: '320px',
         maxHeight: 'calc(100vh - 100px)',
-        backgroundColor: 'var(--surface-bg)',
+        backgroundColor: 'var(--color-bg-surface)',
         border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-lg)',
         boxShadow: 'var(--shadow-card)',
@@ -40,8 +40,8 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
     >
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>Recursos del Proyecto</span>
-          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', display: 'block' }}>{projectImages.length} imagen(es) en carpeta</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Recursos del Proyecto</span>
+          <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', display: 'block' }}>{projectImages.length} imagen(es) en carpeta</span>
         </div>
         <button
           type="button"
@@ -70,7 +70,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
             borderRadius: 'var(--radius-md)',
             padding: '16px 10px',
             textAlign: 'center',
-            backgroundColor: 'var(--surface-alt)',
+            backgroundColor: 'var(--color-bg-surface-alt)',
             cursor: 'pointer',
             transition: 'background 0.15s ease',
           }}
@@ -78,7 +78,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
           <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-primary)', display: 'block' }}>
             + Soltar o seleccionar imágenes
           </span>
-          <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '2px', display: 'block' }}>
+          <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: '2px', display: 'block' }}>
             PNG, JPG para asignación APA 7
           </span>
           <input
@@ -93,7 +93,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
 
         {/* Lista de imágenes */}
         {projectImages.length === 0 ? (
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', textAlign: 'center', margin: '20px 0' }}>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', textAlign: 'center', margin: '20px 0' }}>
             No hay imágenes en la carpeta del proyecto.
           </span>
         ) : (
@@ -105,7 +105,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-md)',
                   overflow: 'hidden',
-                  backgroundColor: 'var(--surface-bg)',
+                  backgroundColor: 'var(--color-bg-surface)',
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',

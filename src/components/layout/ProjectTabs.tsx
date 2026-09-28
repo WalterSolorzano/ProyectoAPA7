@@ -118,7 +118,7 @@ export const ProjectTabs: React.FC = () => {
                       fontWeight: 700,
                       padding: '1px 5px',
                       borderRadius: 'var(--radius-full)',
-                      backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--surface-alt)',
+                      backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--color-bg-surface-alt)',
                       color: isActive ? '#ffffff' : 'var(--text-secondary)',
                       lineHeight: 1.2,
                     }}

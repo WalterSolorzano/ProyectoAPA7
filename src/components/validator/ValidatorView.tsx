@@ -125,7 +125,7 @@ export const ValidatorView: React.FC = () => {
           </div>
           <div style={{ maxHeight: '460px', overflowY: 'auto' }}>
             {citations.length === 0 ? (
-              <div style={{ padding: 'var(--space-5)', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
+              <div style={{ padding: 'var(--space-5)', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
                 No se detectaron citas en el texto.
               </div>
             ) : (
@@ -282,7 +282,7 @@ export const ValidatorView: React.FC = () => {
           </div>
           <div style={{ maxHeight: '460px', overflowY: 'auto' }}>
             {refs.length === 0 ? (
-              <div style={{ padding: 'var(--space-5)', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
+              <div style={{ padding: 'var(--space-5)', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
                 Aún no hay referencias. Agrégales desde el paso Referencias.
               </div>
             ) : (

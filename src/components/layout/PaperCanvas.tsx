@@ -1673,7 +1673,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     
                     const hasGhostCitation = useDocStore.getState().citationAuditResult?.ghost_citations?.some((c: any) => c.element_id === elem.id);
                     let borderColor = 'transparent';
-                    if (hasGhostCitation) borderColor = 'var(--danger)';
+                    if (hasGhostCitation) borderColor = 'var(--color-danger)';
                     
                     if (showAIHeatmap) {
                       const score = elem.ai_score !== undefined ? elem.ai_score : (elem.confidence < 0.5 ? 0.9 : 0.1);
@@ -1734,7 +1734,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         }}
                         style={{
                           position: 'relative',
-                          border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed var(--danger)' : '2px solid transparent',
+                          border: isSelected ? '2px solid var(--word-blue)' : hasGhostCitation ? '2px dashed var(--color-danger)' : '2px solid transparent',
                           borderLeft: isSelected ? '2px solid var(--word-blue)' : aiMarginBorder,
                           borderRadius: '2px',
                           padding: '2px 2px 2px 6px',
@@ -1802,7 +1802,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             {(elem.type === 'image' || elem.type === 'table') && (
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--ok-bg)', color: 'var(--ok-text)', border: '1px solid var(--ok-line)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--severity-success-tint)', color: 'var(--color-success)', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleSuggestCaption(elem)}
                               >
                                 <Wand2 size={10} /> Sugerir Leyenda
@@ -1824,7 +1824,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             {(elem.type === 'paragraph' || elem.type === 'heading') && (
                               <button
                                 className="btn btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--ok-bg)', color: 'var(--ok-text)', border: '1px solid var(--ok-line)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                style={{ padding: '2px 6px', fontSize: '10px', backgroundColor: 'var(--severity-success-tint)', color: 'var(--color-success)', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 onClick={() => handleRewriteText(elem)}
                               >
                                 <Wand2 size={10} /> Reescribir Texto
@@ -2034,7 +2034,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--paper-line)', paddingBottom: '8px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <span style={{ fontWeight: 700, fontSize: '13pt', color: 'var(--paper-ink)' }}>Índice / Tabla de Contenidos</span>
-                                    <span style={{ fontSize: '10px', backgroundColor: 'var(--info-sky)', color: 'var(--info-cyan)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                    <span style={{ fontSize: '10px', backgroundColor: 'var(--severity-info-soft)', color: 'var(--color-info)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
                                       Nativo Word (TOC) con hipervínculos
                                     </span>
                                   </div>
@@ -2047,7 +2047,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     style={{
                                       background: 'none',
                                       border: 'none',
-                                      color: 'var(--danger-bright)',
+                                      color: 'var(--color-danger)',
                                       fontSize: '11px',
                                       fontWeight: 600,
                                       cursor: 'pointer',
@@ -2080,7 +2080,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                             marginLeft: `${(lvl - 1) * 20}px`,
                                             fontSize: `${rules.font_size_pt - 0.5}pt`,
                                             cursor: 'pointer',
-                                            color: 'var(--ink-strong, #1e293b)',
+                                            color: 'var(--paper-ink, #1e293b)',
                                             fontWeight: lvl === 1 ? 600 : 400,
                                             padding: '2px 4px',
                                             borderRadius: '4px',
@@ -2393,15 +2393,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               maxWidth: '100%',
                               borderCollapse: 'collapse',
                               tableLayout: 'auto',
-                              borderTop: `${borderW} solid var(--ink, #000000)`,
-                              borderBottom: `${borderW} solid var(--ink, #000000)`,
+                              borderTop: `${borderW} solid var(--paper-ink, #000000)`,
+                              borderBottom: `${borderW} solid var(--paper-ink, #000000)`,
                               margin: '8px 0',
                               wordBreak: 'break-word',
                               overflowWrap: 'break-word',
                             }}>
                               {elem.table_info.headers && (
                                 <thead>
-                                  <tr style={{ borderBottom: `${borderW} solid var(--ink, #000000)` }}>
+                                  <tr style={{ borderBottom: `${borderW} solid var(--paper-ink, #000000)` }}>
                                     {elem.table_info.headers.map((h, i) => (
                                       <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{h}</th>
                                     ))}

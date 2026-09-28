@@ -52,7 +52,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
       <div
         style={{
           width: '460px',
-          backgroundColor: 'var(--surface-bg)',
+          backgroundColor: 'var(--color-bg-surface)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-card)',
@@ -65,7 +65,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
               Combinar Retazos de Compañeros
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -108,7 +108,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
             ))}
           </select>
           {sourceDoc && (
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px', display: 'block' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
               Contiene {sourceDoc.elements?.length || 0} elementos y {sourceDoc.referencias?.length || 0} referencias.
             </span>
           )}
@@ -120,7 +120,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
             Secciones a Fusionar
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-primary)', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={includeCover}
@@ -129,7 +129,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
             <span>Portada (Reemplazar la portada actual por la de este archivo)</span>
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-primary)', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={includeBody}
@@ -138,7 +138,7 @@ export const MergeDocumentsModal: React.FC<{ isOpen: boolean; onClose: () => voi
             <span>Cuerpo / Capítulos (Anexar párrafos, tablas y figuras al final)</span>
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text-primary)', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={includeReferences}

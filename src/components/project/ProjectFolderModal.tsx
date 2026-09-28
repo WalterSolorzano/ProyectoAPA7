@@ -103,8 +103,8 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
         style={{
           width: '560px',
           maxHeight: '85vh',
-          backgroundColor: 'var(--surface-bg, #ffffff)',
-          borderRadius: 'var(--radius-lg, 12px)',
+          backgroundColor: 'var(--color-bg-surface)',
+          borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-card)',
           display: 'flex',

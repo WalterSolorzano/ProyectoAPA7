@@ -991,8 +991,8 @@ html, body {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  background-color: var(--accent-soft);
-  color: var(--accent-primary);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
   font-size: 12px;
   font-weight: 800;
 }

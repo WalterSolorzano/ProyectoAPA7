@@ -48,7 +48,7 @@ const TYPE_COLOR: Record<string, string> = {
   block_quote: 'var(--color-warning)',
   table: 'var(--color-info)',
   image: 'var(--color-success)',
-  empty: 'var(--text-tertiary)',
+  empty: 'var(--color-text-tertiary)',
 };
 
 export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({

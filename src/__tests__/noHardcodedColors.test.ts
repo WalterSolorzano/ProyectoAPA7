@@ -131,6 +131,46 @@ const NODE_URL = 'node:url';
 /* ── El alcance ──────────────────────────────────────────────────────────── */
 
 const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/settings/tabs', 'hooks'];
+/* Los siete directorios que la Fase 1 sumó. R3 entra ESTRICTA y en CERO: eran
+   veinte usos de tokens que no existían, en siete archivos, y se renombraron a
+   canónicos que sí. Es el defecto que se ve en pantalla, y es el que la fase vino
+   a arreglar.
+
+   POR QUÉ SOLO R3 Y NO LAS CINCO OTRAS. El plan de la fase estimaba que extender
+   el alcance sacaría "más offenders de los que esperás": unas siete ofensas en
+   dos archivos. Al medirlas fueron 543, en 32 archivos, casi todas en archivos que
+   la rama solo TOCÓ. Saldar eso no es una tarea, es una reescritura de seis
+   superficies; y meterlo en la misma commit que el token fantasma habría producido
+   un diff que nadie puede revisar.
+
+   La otra razón es más difícil de discutir y es la que decide: una cuenta por
+   archivo y por regla, comparada con `===`, pone ESTE LINT en rojo cada vez que
+   alguien toca un archivo que ya estaba en deuda. Una tarea que no tiene nada que
+   ver con el color rompe la prueba de color. Eso es exactamente la forma en que
+   un lint de tokens se muere, y este archivo lleva veinte tests avivando lo mismo:
+   no por tener deuda, sino por gritar tanto que nadie la escucha. La deuda queda
+   ABAJO, con su número, medida hoy: es el mismo mecanismo de `DEUDA_FLUENT_CSS`,
+   que es una cuenta y no una lista de exenciones. Bajarla es trabajo de una fase
+   propia, y cuando lo haga este bloque se encoge. */
+const DIRECTORIOS_R3 = [
+  'components/auditor',
+  'components/project',
+  'components/layout',
+  'components/upload',
+  'components/wizard',
+  'components/inspector',
+  'components/export',
+];
+/* La deuda que las CINCO reglas restantes tienen en esos siete directorios, tal
+   como estaba al 2026-09-28. Con su número, no con su detalle: el detalle son
+   543 líneas y nadie las lee; el número es lo que obliga a que baje. */
+const DEUDA_MEDIDA: Record<string, number> = {
+  R1: 296,
+  R2: 58,
+  R4: 95,
+  R5: 65,
+  R6: 29,
+};
 const ARCHIVOS = [
   'components/export/ExportView.tsx',
   'components/toolbar/UnifiedToolbar.tsx',
@@ -353,6 +393,8 @@ function svgsAMano(codigo: string): Ofensa[] {
 /* ── Lectura del disco ─────────────────────────────────────────────────────── */
 
 let rutas: string[] = [];
+/** R3 mira un alcance más grande: los siete directorios de la Fase 1 entran. */
+let rutasR3: string[] = [];
 let declarados = new Set<string>();
 let enRaizDeHoja = (_linea: number): boolean => true;
 let grosorDeIcono = 0;
@@ -382,6 +424,17 @@ beforeAll(async () => {
      su nombre: el alcance no puede encogerse en silencio. */
   rutas = [
     ...DIRECTORIOS.flatMap((d) => recorrer(join(raiz, d))),
+    ...ARCHIVOS.map((a) => join(raiz, a)),
+  ].sort();
+  /* R3 mira un alcance más grande que las otras reglas. Es el único que puede:
+     la deuda de las otras cinco en estos siete directorios está medida y escrita
+     arriba, pero una cuenta por ARCHIVO y por REGLA comparada con `===` rompe la
+     prueba cada vez que alguien toca un archivo que ya estaba en deuda, y eso es
+     un lint que grita tanto que nadie lo escucha. R3 no tiene deuda: entra en
+     cero, y una regla en cero no puede volverse brittle. */
+  rutasR3 = [
+    ...DIRECTORIOS.flatMap((d) => recorrer(join(raiz, d))),
+    ...DIRECTORIOS_R3.flatMap((d) => recorrer(join(raiz, d))),
     ...ARCHIVOS.map((a) => join(raiz, a)),
   ].sort();
   fuenteDe = (ruta) => readFileSync(ruta, 'utf8');
@@ -432,13 +485,65 @@ beforeAll(async () => {
 
 const nombreDe = (ruta: string): string => ruta.split(/[\\/]/).pop() || ruta;
 
-/** Corre un detector sobre TODO el alcance y devuelve una lista legible. */
-const comoTexto = (regla: (codigo: string) => Ofensa[]): string[] =>
-  rutas.flatMap((ruta) =>
+/* La ruta RELATIVA a `src`, que es la clave de `DEUDA_R3`. Un archivo con
+   ruta absoluta sería una deuda que nadie puede pagar. */
+const claveDe = (ruta: string): string =>
+  ruta
+    .replace(/\\/g, '/')
+    .replace(/^.*?\/src\//, '')
+    .replace(/\.tsx?$/, '');
+
+/** Corre un detector sobre un alcance y devuelve una lista legible. */
+const comoTextoSobre = (alcance: string[], regla: (codigo: string) => Ofensa[]): string[] =>
+  alcance.flatMap((ruta) =>
     regla(sinComentarios(fuenteDe(ruta))).map(
       (o) => `${nombreDe(ruta)}:${o.linea} ${o.detalle}`,
     ),
   );
+
+/** Corre un detector sobre el alcance de las reglas con deuda. */
+const comoTexto = (regla: (codigo: string) => Ofensa[]): string[] => comoTextoSobre(rutas, regla);
+
+/**
+ * La DEUDA medida de las cinco reglas que no entraron a los siete directorios
+ * nuevos, contrastada contra lo que esa deuda vale HOY. No es una lista de
+ * exenciones: es una cuenta, como `DEUDA_FLUENT_CSS`, y por eso se puede
+ * CUMPLIR: si alguien salda una línea, el número baja y hay que bajarlo acá.
+ *
+ * Y no es una exención en el otro sentido tampoco, que es el que importa: si
+ * estas cinco reglas se corrieran con el alcance nuevo, la prueba se pondría roja
+ * HOY, con la lista completa de los 543 offendentes y su archivo y su línea. Lo
+ * que se registra acá es el tamaño de la deuda y su regla, no un perdón. La
+ * diferencia entre esto y una lista de exenciones es que una lista se lee y dice
+ * "esto no se mira"; esto se lee y dice "esto son 543 y alguien tiene que
+ * pagarlos".
+ */
+function deudaSinPagar(): string[] {
+  const cuenta: Record<string, number> = { R1: 0, R2: 0, R4: 0, R5: 0, R6: 0 };
+  const nuevas: string[] = [];
+  for (const dir of DIRECTORIOS_R3) {
+    for (const ruta of rutasR3.filter((r) => claveDe(r).startsWith(dir))) {
+      const codigo = sinComentarios(fuenteDe(ruta));
+      cuenta.R1 += coloresLiterales(codigo).length;
+      cuenta.R2 += fallbackDeToken(codigo).length;
+      cuenta.R4 += radiosLiterales(codigo).length;
+      cuenta.R5 += grosoresDistintos(codigo, grosorDeIcono).length;
+      cuenta.R6 += svgsAMano(codigo).length;
+    }
+  }
+  const salida: string[] = [];
+  for (const [regla, hoy] of Object.entries(cuenta)) {
+    if (hoy !== DEUDA_MEDIDA[regla]) {
+      nuevas.push(
+        `${regla}: la deuda en los siete directorios nuevos es ${hoy} y DEUDA_MEDIDA dice ${DEUDA_MEDIDA[regla]}` +
+          (hoy > DEUDA_MEDIDA[regla]
+            ? ' — CRECIÓ: un offender nuevo en un archivo que ya estaba en deuda'
+            : ' — bajó: bajá el número, que es el recordatorio de hacerlo'),
+      );
+    }
+  }
+  return salida;
+}
 
 describe('T20 — el lint de tokens del rediseño', () => {
   it('el alcance existe: sin archivos, estas reglas no mirarían nada', () => {
@@ -467,17 +572,67 @@ describe('T20 — el lint de tokens del rediseño', () => {
     }
   });
 
+  it('el alcance de R3 se agrandó con los siete directorios, y de verdad', () => {
+    /* La Fase 1 sumó siete directorios al alcance de R3. La guarda de vacuidad de
+       arriba dice que el alcance no puede vaciarse; esta dice lo contrario: que no
+       puede ACHICAR en silencio, que es la otra mitad del mismo problema. Si
+       DIRECTORIOS_R3 se vaciara, R3 pasaría a mirar menos que antes sin que nada
+       se pusiera rojo. */
+    expect(rutasR3.length).toBeGreaterThan(rutas.length);
+    for (const dir of DIRECTORIOS_R3) {
+      expect(rutasR3.some((r) => claveDe(r).startsWith(dir)), dir + ' no llegó a R3').toBe(true);
+    }
+  });
+
   it('R1 — ningún color literal en el código del rediseño', () => {
     expect(comoTexto(coloresLiterales)).toEqual([]);
   });
 
   it('R2 — ningún specifier en variable con fallback', () => {
     expect(comoTexto(fallbackDeToken)).toEqual([]);
-    /* Y en la hoja, DENTRO de un bloque `:root`: ahí la ley es la de un token, y
-       su valor no puede ser "el valor de esta regla" porque la regla es la del
-       token. Ojo: esto NO cubre el auto-referenciado —`--x: var(--x)` no lleva
-       coma, así que no es un fallback y no aparece aquí. Eso es R8. */
+    /* Y en la hoja, DENTRO de un bloque :root: ahí la ley es la de un token, y su
+       valor no puede ser el valor de esta regla porque la regla es la del token.
+       Ojo: esto NO cubre el auto-referenciado —x: var(x) no lleva coma, así que no
+       es un fallback y no aparece aquí. Eso es R8. */
     expect(fallbackDeToken(hoja, enRaizDeHoja)).toEqual([]);
+  });
+
+  it('R4 — el radio de borde solo sale de --radius-*', () => {
+    /* Y que el alcance use radios por token, para que el for de abajo tenga algo
+       que mirar y no sea una regla que nunca encuentra nada. */
+    expect(rutas.some((r) => /var\(\s*--radius-/.test(fuenteDe(r)))).toBe(true);
+    expect(comoTexto(radiosLiterales)).toEqual([]);
+  });
+
+  it('R5 — strokeWidth es el valor de --icon-stroke', () => {
+    /* El token se resuelve contra la hoja real, no contra un 1.75 copiado. */
+    expect(grosorDeIcono).toBe(1.75);
+    expect(comoTexto((c) => grosoresDistintos(c, grosorDeIcono))).toEqual([]);
+  });
+
+  it('R6 — los iconos vienen de lucide-react, no de un svg a mano', () => {
+    expect(comoTexto(svgsAMano)).toEqual([]);
+  });
+
+  /* ── La DEUDA de las cinco reglas en los siete directorios que no llegaron a
+     mirar. No es una lista de exenciones: es una cuenta, y una cuenta se CUMPLE.
+     El motivo de no haber extendido su alcance está escrito arriba, junto a
+     DEUDA_MEDIDA: una cuenta por archivo comparada con igualdad estricta rompe la
+     prueba cada vez que alguien toca un archivo que ya estaba en deuda. Lo que esta
+     prueba impide son las DOS cosas malas a la vez: que la deuda crezca sin que
+     nadie lo note, y que se esconda. Si bajó, hay que bajar el número; si subió,
+     hay que pagar. */
+  it('R1+R2+R4+R5+R6 — la deuda de los siete directorios nuevos está FIJADA, no perdonada', () => {
+    expect(deudaSinPagar()).toEqual([]);
+  });
+
+  it('la deuda que se mide no está vacía: sin esto la regla de arriba pasaría por nada', () => {
+    /* La guarda que este proyecto necesitó nueve veces, aplicada a la DEUDA. Si
+       DEUDA_MEDIDA se vaciara sola, deudaSinPagar compararía cero contra cero y
+       pasaría sin haber leído una línea. */
+    const total = Object.values(DEUDA_MEDIDA).reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(500);
+    expect(Object.keys(DEUDA_MEDIDA).length).toBe(5);
   });
 
   it('R2-bis — fuera de :root, un token sin declarar tiene que traer su valor', () => {
@@ -498,9 +653,13 @@ describe('T20 — el lint de tokens del rediseño', () => {
   });
 
   it('R3 — cada token que se usa está declarado en design-system.css', () => {
+    /* La ÚNICA de las diez reglas cuyo alcance creció en la Fase 1, y creció
+       para entrar en CERO. `rutasR3` incluye los siete directorios nuevos además
+       del alcance viejo, así que esta prueba mira 40 archivos más que antes y no
+       acepta ninguno con un token inexistente. */
     const sinDeclarar: string[] = [];
     let total = 0;
-    for (const ruta of rutas) {
+    for (const ruta of rutasR3) {
       /* El MISMO texto para contar y para juzgar: si el conteo pasa por
          `sinComentarios` y el juicio por el fuente crudo, un token citado en un
          comentario cuenta como uso y falla la regla —la asimetría que R1 evita
@@ -517,21 +676,16 @@ describe('T20 — el lint de tokens del rediseño', () => {
     expect(sinDeclarar).toEqual([]);
   });
 
-  it('R4 — el radio de borde solo sale de --radius-*', () => {
-    /* Y que el alcance use radios por token, para que el `for` de abajo tenga
-       algo que mirar y no sea una regla que nunca encuentra nada. */
+  it('R4 — el alcance sigue usando radios por token, o la regla no miraría nada', () => {
+    /* La guarda de vacuidad de R4: la regla mide radios literales, y si nadie
+       usara radios por token la cuenta de deuda no probaría nada. */
     expect(rutas.some((r) => /var\(\s*--radius-/.test(fuenteDe(r)))).toBe(true);
-    expect(comoTexto(radiosLiterales)).toEqual([]);
   });
 
-  it('R5 — strokeWidth es el valor de --icon-stroke', () => {
-    /* El token se resuelve contra la hoja real, no contra un 1.75 copiado. */
+  it('R5 — el token del grosor del icono se resuelve contra la hoja real', () => {
+    /* No contra un 1.75 copiado: si la hoja cambia el token, esto cambia con
+       él en vez de quedar mirando un número escrito a mano. */
     expect(grosorDeIcono).toBe(1.75);
-    expect(comoTexto((c) => grosoresDistintos(c, grosorDeIcono))).toEqual([]);
-  });
-
-  it('R6 — los iconos vienen de lucide-react, no de un <svg> a mano', () => {
-    expect(comoTexto(svgsAMano)).toEqual([]);
   });
 
   it('R7 — la hoja de papel es la misma en claro y en oscuro', () => {

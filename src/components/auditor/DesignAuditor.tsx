@@ -175,7 +175,7 @@ export const DesignAuditor: React.FC<{ open: boolean; onClose: () => void }> = (
                   <span style={{
                     fontSize: '9px', fontWeight: 700, textTransform: 'uppercase',
                     padding: '2px 7px', borderRadius: 'var(--radius-sm)', letterSpacing: '0.04em',
-                    background: 'var(--accent-soft)', color: 'var(--color-accent)',
+                    background: 'var(--color-accent-soft)', color: 'var(--color-accent)',
                   }}>{issue.category}</span>
                 </div>
                 <p style={{ margin: '0 0 4px', fontSize: '13px', color: 'var(--color-text-primary)', lineHeight: '1.45' }}>
