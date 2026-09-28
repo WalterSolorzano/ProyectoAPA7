@@ -287,6 +287,21 @@ export interface PortadaData {
   course?: string;
   date?: string;
 
+  /* LA INSTITUCION ELEGIDA, COMO ESTADO.
+     Antes el chip se encendia con `institution.toLowerCase().includes(codigo)`,
+     o sea derivando el estado de un campo de TEXTO LIBRE. Con dos
+     instituciones escritas ahi quedaban los dos chips encendidos a la vez, y el
+     valor guardado no era el de ninguna: era lo que el usuario habia escrito.
+     El estado no era de la UI, era del DATO.
+
+     Ahora es un `codigo` de preset o `null`, comparado por igualdad EXACTA. El
+     nombre se resuelve del catalogo (`lib/portada/catalogo.ts`) y el campo de
+     texto libre sigue siendo el campo de texto libre: escribir a mano
+     deselecciona el chip. */
+  institucionSeleccionada?: string | null;
+  /** La carrera elegida, mismo patron. `departamento` es el texto libre. */
+  carreraSeleccionada?: string | null;
+
   /* LO QUE SE FUE DE ACA, y por que.
      `author`, `grupo` e `instructor` eran los datos del acta y vivian DENTRO
      de la portada. Con `use_original_cover: true` el bloque de portada no se

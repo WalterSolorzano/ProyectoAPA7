@@ -1,6 +1,10 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
 import { ActaDocumento, PortadaData, ElementModel } from '../../types';
+import {
+  CATALOGO_DE_CARRERAS,
+  CATALOGO_DE_UNIVERSIDADES,
+} from '../../lib/portada/catalogo';
 import * as api from '../../api/backend';
 
 const getApiBase = () => api.getApiBase();
@@ -158,8 +162,57 @@ export const createCoverSlice: StateCreator<DocState, [], [], Partial<DocState>>
     return { portada: updatedPortada, doc: updatedDoc };
   }),
   updateCoverField: (field, value) => {
+    /* Escribir a mano en un campo que tiene un selector DESELECCIONA el
+       selector. Sin esto el chip queda encendido con un valor que ya no es el del
+       catalogo, que es el fallo que se reporto: dos chips encendidos y un valor
+       guardado que no es ninguno de los dos. */
+    if (field === 'institution') get().updateCoverInstitucion(null);
+    if (field === 'departamento') get().updateCoverCarrera(null);
     get().setPortada({ [field]: value });
   },
+
+  /* Elegir una institucion es PONER UN VALOR, no concatenar texto. El codigo va
+     al estado y el nombre se resuelve del catalogo, asi que el valor guardado es
+     siempre uno de los dos y nunca una frase con las dos instituciones dentro.
+
+     Volver a hacer clic en la ya elegida la quita (`null`) y devuelve el campo de
+     texto libre a su estado: un control de un solo valor sin forma de
+     deseleccionar esta a medio hacer. */
+  updateCoverInstitucion: (codigo) => set((state) => {
+    if (codigo === null || state.portada.institucionSeleccionada === codigo) {
+      return { portada: { ...state.portada, institucionSeleccionada: null, institution: '' } };
+    }
+    const delCatalogo = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === codigo);
+    if (!delCatalogo) return {};
+    return {
+      portada: {
+        ...state.portada,
+        institucionSeleccionada: codigo,
+        institution: delCatalogo.nombre,
+        departamento: delCatalogo.areaDefault,
+      },
+    };
+  }),
+
+  /* La carrera tiene el mismo patron, y el defecto parejo: su `onClick`
+     escribia `departamento`, que es un campo distinto del que usa la
+     institucion, y como el nombre de la carrera no matcheaba con el de la
+     institucion, elegir una carrera dejaba la institucion en un estado que no
+     era el que el usuario habia escrito. */
+  updateCoverCarrera: (codigo) => set((state) => {
+    if (codigo === null || state.portada.carreraSeleccionada === codigo) {
+      return { portada: { ...state.portada, carreraSeleccionada: null, departamento: '' } };
+    }
+    const delCatalogo = CATALOGO_DE_CARRERAS.find((c) => c.id === codigo);
+    if (!delCatalogo) return {};
+    return {
+      portada: {
+        ...state.portada,
+        carreraSeleccionada: codigo,
+        departamento: delCatalogo.nombre,
+      },
+    };
+  }),
   portadaProfiles: [{ profile_name: 'Portada Estándar', created_at: new Date().toISOString(), data: defaultPortada }],
   savePortadaProfile: (name) => set((state) => {
     const profile = { profile_name: name, created_at: new Date().toISOString(), data: state.portada };

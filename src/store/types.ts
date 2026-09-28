@@ -399,6 +399,10 @@ export interface DocState {
 
   setPortada: (portada: Partial<PortadaData>) => void;
   updateCoverField: (field: keyof PortadaData, value: any) => void;
+  /** Elegir una institucion del catalogo. `null` la deselecciona. */
+  updateCoverInstitucion: (codigo: string | null) => void;
+  /** Elegir una carrera del catalogo. `null` la deselecciona. */
+  updateCoverCarrera: (codigo: string | null) => void;
   setActa: (parcial: Partial<ActaDocumento>) => void;
   updateActaField: (campo: keyof ActaDocumento, valor: string | string[]) => void;
   /** Sube de una `portada` vieja los datos del acta a su nuevo lugar. */

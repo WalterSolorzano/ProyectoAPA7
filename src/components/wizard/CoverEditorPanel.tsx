@@ -13,13 +13,17 @@
      campo correspondiente en la hoja (PaperCanvas).
    Sigue la regla de tokens del design-system: sin hex duro. */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   School, FileText, Check, ChevronRight, Users, Calendar,
-  GraduationCap, X, Hash, Layers, Cpu, Laptop, Building2, Factory, FlaskConical,
+  GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical,
 } from 'lucide-react';
+import {
+  CATALOGO_DE_CARRERAS as CARRERAS_PRESETS,
+  CATALOGO_DE_UNIVERSIDADES as UNIVERSIDADES_PRESETS,
+} from '../../lib/portada/catalogo';
 import { resolveAssetUrl } from '../../api/backend';
 import { requestCoverFieldHighlight, parseAuthorEntries, serializeAuthorEntries } from '../../lib/portadaAuthors';
 
@@ -71,78 +75,19 @@ function getShortName(name: string): string {
   return clean[0] || name;
 }
 
-interface CarreraPreset {
-  id: string;
-  label: string;
-  nombre: string;
-  area: string;
-  icon: React.ReactNode;
-}
-
-const CARRERAS_PRESETS: CarreraPreset[] = [
-  {
-    id: 'electronica',
-    label: 'Electrónica',
-    nombre: 'Ingeniería Electrónica',
-    area: 'Área de Conocimiento de Ingeniería y Afines',
-    icon: <Cpu size={12} strokeWidth={1.75} />,
-  },
-  {
-    id: 'sistemas',
-    label: 'Sistemas',
-    nombre: 'Ingeniería en Sistemas',
-    area: 'Área de Conocimiento de Ingeniería y Afines',
-    icon: <Laptop size={12} strokeWidth={1.75} />,
-  },
-  {
-    id: 'civil',
-    label: 'Civil',
-    nombre: 'Ingeniería Civil',
-    area: 'Facultad de Tecnología de la Construcción',
-    icon: <Building2 size={12} strokeWidth={1.75} />,
-  },
-  {
-    id: 'industrial',
-    label: 'Industrial',
-    nombre: 'Ingeniería Industrial',
-    area: 'Facultad de Tecnología de la Industria',
-    icon: <Factory size={12} strokeWidth={1.75} />,
-  },
-  {
-    id: 'quimica',
-    label: 'Química',
-    nombre: 'Ingeniería Química',
-    area: 'Facultad de Ingeniería Química',
-    icon: <FlaskConical size={12} strokeWidth={1.75} />,
-  },
-];
-
-interface UniversidadPreset {
-  id: string;
-  codigo: string;
-  nombre: string;
-  areaDefault: string;
-  logoUrl?: string;
-}
-
-const UNIVERSIDADES_PRESETS: UniversidadPreset[] = [
-  {
-    id: 'uni',
-    codigo: 'UNI',
-    nombre: 'Universidad Nacional de Ingeniería',
-    areaDefault: 'Área de Conocimiento de Ingeniería y Afines',
-    logoUrl: '/api/assets/logo_uni.png',
-  },
-  {
-    id: 'unan',
-    codigo: 'UNAN',
-    nombre: 'Universidad Nacional Autónoma de Nicaragua (UNAN-Managua)',
-    areaDefault: 'Facultad de Ciencias e Ingeniería',
-    logoUrl: '/api/assets/logo_unan.png',
-  },
-];
-
 /* ── Estilos compartidos (design tokens, sin hex duro) ─────────────────── */
+
+/* Los iconos de carrera son PRESENTACION y viven aca, no en el catalogo de
+   `lib/portada/catalogo.ts`: ese lo lee el store, y un store que importa un
+   `.tsx` para resolver un nombre es un store que depende de React. El dato del
+   catálogo es el texto; el dibujo es del componente. */
+const ICONO_DE_CARRERA: Record<string, React.ReactNode> = {
+  electronica: <Cpu size={12} strokeWidth="var(--icon-stroke)" />,
+  sistemas: <Laptop size={12} strokeWidth="var(--icon-stroke)" />,
+  civil: <Building2 size={12} strokeWidth="var(--icon-stroke)" />,
+  industrial: <Factory size={12} strokeWidth="var(--icon-stroke)" />,
+  quimica: <FlaskConical size={12} strokeWidth="var(--icon-stroke)" />,
+};
 
 const blockTitle: React.CSSProperties = {
   fontSize: '10px', fontWeight: 800, textTransform: 'uppercase',
@@ -224,6 +169,10 @@ interface ChipProps {
 const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) => (
   <button
     type="button"
+    /* `aria-pressed` y no solo el color. Un chip que se enciende solo con el
+       fondo no le dice nada a un lector de pantalla, y el estado de "elegido" es
+       el dato, no la decoracion. */
+    aria-pressed={selected}
     onClick={onClick}
     title={title || (selected ? 'Quitar' : 'Añadir')}
     style={{
@@ -254,7 +203,14 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
 /* ── Componente principal ───────────────────────────────────────────────── */
 
 export const CoverEditorPanel: React.FC = () => {
-  const { portada, acta, setPortada, updateCoverField, updateActaField, setCoverSetupDone } = useDocStore();
+  const {
+    portada, acta, setPortada, updateCoverField, updateActaField,
+    updateCoverInstitucion, updateCoverCarrera, setCoverSetupDone,
+  } = useDocStore();
+  /* Los logos que se pidieron y no llegaron. Un asset faltante es un dato
+     faltante, no un detalle de render: antes el `onError` hiding el `<img>` y
+     la UI no decía nada. */
+  const [logosQueNoCargan, setLogosQueNoCargan] = useState<Set<string>>(new Set());
   const { integrantes, profesores, grupos } = useRosterStore();
 
   // Determinar modo actual
@@ -569,15 +525,23 @@ export const CoverEditorPanel: React.FC = () => {
               <label style={fieldLabel}>Institución / Universidad</label>
               <div style={{ display: 'flex', gap: '5px' }}>
                 {UNIVERSIDADES_PRESETS.map((u) => {
-                  const isSelected = (portada.institution || '').toLowerCase().includes(u.codigo.toLowerCase()) ||
-                    (portada.institution || '').toLowerCase().includes(u.nombre.toLowerCase());
+                  /* El estado es el CÓDIGO, y la comparación es por igualdad
+                     exacta. Antes era `institution.toLowerCase().includes(codigo)`
+                     sobre texto libre: con dos instituciones escritas en el campo
+                     los dos chips quedaban encendidos, y el valor guardado no era
+                     el de ninguna. Un control de un solo valor que parece de dos
+                     no es un control de un solo valor. */
+                  const isSelected = portada.institucionSeleccionada === u.codigo;
                   return (
                     <button
                       key={u.id}
                       type="button"
+                      aria-pressed={isSelected}
+                      aria-label={u.nombre}
                       onClick={() => {
-                        updateCoverField('institution', u.nombre);
-                        updateCoverField('departamento', u.areaDefault);
+                        /* `null` cuando es la misma: hacer clic en la ya elegida
+                           la deselecciona y devuelve el campo de texto libre. */
+                        updateCoverInstitucion(isSelected ? null : u.codigo);
                         requestCoverFieldHighlight('institution');
                       }}
                       style={{
@@ -596,16 +560,30 @@ export const CoverEditorPanel: React.FC = () => {
                       }}
                       title={u.nombre}
                     >
-                      {u.logoUrl ? (
+                      {/* La miniatura de 14 px es un CHIP, no el logo del
+                          documento: ese tamaño está bien acá.
+                          Y si el logo no carga, se DICE. Con `display: none` la
+                          miniatura desaparecía y no había forma de saber que el
+                          asset faltaba. */}
+                      {u.logoUrl && !logosQueNoCargan.has(u.codigo) ? (
                         <img
                           src={resolveAssetUrl(u.logoUrl)}
                           alt={u.codigo}
                           style={{ width: '14px', height: '14px', objectFit: 'contain' }}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = 'none';
-                          }}
+                          onError={() => setLogosQueNoCargan((v) => new Set(v).add(u.codigo))}
                         />
                       ) : null}
+                      {u.logoUrl && logosQueNoCargan.has(u.codigo) && (
+                        <span
+                          role="status"
+                          style={{
+                            fontSize: '9px', fontWeight: 700, color: 'var(--color-danger)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {u.codigo}: el logo no se pudo cargar
+                        </span>
+                      )}
                       <span>{u.codigo}</span>
                     </button>
                   );
@@ -636,16 +614,19 @@ export const CoverEditorPanel: React.FC = () => {
             {/* Presets de carreras con avatares / iconos vectoriales */}
             <div style={chipWrap}>
               {CARRERAS_PRESETS.map((carr) => {
-                const selected = (portada.departamento || '').toLowerCase().includes(carr.label.toLowerCase()) ||
-                  (portada.departamento || '').toLowerCase().includes(carr.nombre.toLowerCase());
+                /* Mismo patron que la institucion, por el mismo motivo: el
+                   estado es el ID y la comparacion es por igualdad exacta. Con
+                   `includes` sobre `departamento`, escribir dos carreras a mano
+                   encendia los dos chips. */
+                const selected = portada.carreraSeleccionada === carr.id;
                 return (
                   <Chip
                     key={carr.id}
-                    icon={carr.icon}
+                    icon={ICONO_DE_CARRERA[carr.id]}
                     label={carr.label}
                     selected={selected}
                     onClick={() => {
-                      updateCoverField('departamento', carr.nombre);
+                      updateCoverCarrera(selected ? null : carr.id);
                       requestCoverFieldHighlight('departamento');
                     }}
                     title={carr.nombre}
