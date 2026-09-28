@@ -135,7 +135,7 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
         set({ proofreadFindings: res.findings || [] });
         // Marcas de transparencia: cada elemento marcado explica su motivo.
         // Los rótulos salen de `rotuloDeKind` y el mapa lleva versión; antes
-        // eran diez filas escritas a mano, y su `|| f.kind` guardaba el
+        // eran diez filas escritas a mano, y el fallback al `kind` guardaba el
         // `snake_case` crudo para que `PaperCanvas` lo pintara en el párrafo.
         escribirMarcas(res.findings || []);
       }

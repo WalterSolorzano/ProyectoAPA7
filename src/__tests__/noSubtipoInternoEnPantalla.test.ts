@@ -13,9 +13,10 @@
  * muestra nunca es la clave.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { rotuloDeSubtipo, agruparHallazgosPorFase } from '../hooks/useReviewWorkbench';
 import { PROOFREAD_SPECS } from '../lib/auditItems';
+import { escribirMarcas, leerMarcas, CLAVE_MARCAS } from '../lib/marcasMap';
 
 /** El mismo objeto que la vista recibe, con el tipo más flojo posible. */
 const item = (subtype: string) => ({
@@ -76,5 +77,55 @@ describe('ningún nombre interno llega a la pantalla', () => {
     expect(sub.items[0].subtype).toBe('verbatim_sin_comillas');
     const etiqueta = rotuloDeSubtipo(sub.items[0].subtype);
     expect(etiqueta).not.toContain('_');
+  });
+});
+
+/**
+ * El mismo guardián, del lado del mapa de marcas: el `snake_case` que el usuario
+ * vio en el lienzo salía de acá, no de la lista de correcciones.
+ *
+ * El mapa lo escribía `map[element_id] = KIND_LABELS[kind] || kind` dentro del
+ * slice del store. `KIND_LABELS` tenía diez filas y el backend emite unas treinta,
+ * así que las veinte que faltaban caían al `kind` crudo, y `PaperCanvas` lo
+ * pintaba encima del párrafo como si fuera un rótulo.
+ */
+describe('el mapa de marcas no puede contener un identificador interno', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('el mapa no puede contener un valor con guion bajo en minúsculas', () => {
+    escribirMarcas([
+      { element_id: 'elem_1', kind: 'paragraph_words' },
+      { element_id: 'elem_2', kind: 'g11_variaacion_oracion' },
+      { element_id: 'elem_3', kind: 'regla_que_nadie_registro' },
+    ]);
+    const marcas = leerMarcas();
+    for (const [elementId, etiqueta] of Object.entries(marcas)) {
+      expect(etiqueta, `marca de ${elementId}`).not.toMatch(/^[a-z0-9]+(_[a-z0-9]+)+$/);
+    }
+  });
+
+  it('el mapa se escribe con version, y sin version no se lee', () => {
+    /* Un mapa de la versión anterior guarda rótulos viejos: es una tabla que el
+       código ya no produce y no hay forma de traducirla. Se descarta. */
+    escribirMarcas([{ element_id: 'elem_1', kind: 'ortografia' }]);
+    expect(JSON.parse(localStorage.getItem(CLAVE_MARCAS) as string).version).toBeGreaterThan(0);
+    expect(leerMarcas()).toEqual({ elem_1: 'Falta ortográfica o tilde' });
+
+    localStorage.setItem(CLAVE_MARCAS, JSON.stringify({ elem_1: 'Primera persona' }));
+    expect(leerMarcas()).toEqual({});
+  });
+
+  it('el fuente del slice ya no declara su propia tabla de rótulos', async () => {
+    /* La firma del defecto: `KIND_LABELS` y su `|| f.kind`. Un test que la
+       reconoce por texto no necesita que nadie se acuerde de que existió.
+       La tercera mira es la lectura a mano: el slice puede BORRAR el mapa
+       cuando invalida hallazgos rancios, pero no puede leerlo con un
+       `JSON.parse` propio, porque eso es volver a conocer la forma. */
+    const fuente = await import('../store/slices/auditSlice?raw');
+    expect(fuente.default).not.toMatch(/KIND_LABELS/);
+    expect(fuente.default).not.toMatch(/\|\|\s*f\.kind/);
+    expect(fuente.default).not.toMatch(
+      /JSON\.parse\(localStorage\.getItem\(['"]wordapa7_marcas_map/,
+    );
   });
 });

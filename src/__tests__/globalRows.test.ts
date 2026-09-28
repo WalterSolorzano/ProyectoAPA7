@@ -6,7 +6,10 @@ import { collectAuditItems, type AuditSources } from '../lib/auditItems';
    subtipos es la tercera agrupación de la vista: fase → motor → subtipo. */
 
 const KINDS = [
-  'g11_variacion_oracion', 'g34_sigla_sin_definir', 'g35_unidades_mixtas',
+  // `g11_variaacion_oracion` con doble a es como lo emite `phase_scope.py`.
+  // Con la grafía "correcta" el backend nunca la mandaba y la fila quedaba
+  // muerta: nombre para un hallazgo que no existe.
+  'g11_variaacion_oracion', 'g34_sigla_sin_definir', 'g35_unidades_mixtas',
   'g51_registro_coloquial', 'g52_exclamacion', 'g53_segunda_persona',
   'g61_triada', 'g63_conectores_densidad',
 ];

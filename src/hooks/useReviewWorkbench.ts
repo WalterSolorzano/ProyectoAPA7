@@ -209,6 +209,11 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   largo_parrafo: 'mark',
   tiempo_verbal: 'mark',
   parafrasis: 'mark',
+  /* Los dos criterios de fase que entraban por el fallback. 'mark': el motor
+     propone la variable que falta o el detalle que falta, y escribirlo es
+     decidir por el autor qué van a medir. */
+  objetivo_generico: 'mark',
+  metodo_generico: 'mark',
   /* Las ocho universales del spec §12. 'mark' todas: el motor detecta y la
      persona corrige. Una reescritura automática de prosa argumental sería
      decidir por el usuario. */

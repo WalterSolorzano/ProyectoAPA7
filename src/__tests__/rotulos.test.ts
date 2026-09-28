@@ -36,7 +36,7 @@ describe('rotulos', () => {
        regla existe y tiene rótulo. Que las dos cosas convivan es lo que
        hace que el nombre se consulte y no se muestre. */
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    for (const kind of ['paragraph_words', 'g11_variacion_oracion']) {
+    for (const kind of ['paragraph_words', 'g11_variaacion_oracion']) {
       const etiqueta = rotuloDeKind(kind);
       expect(etiqueta).not.toContain('_');
       expect(etiqueta).not.toBe(ROTULO_GENERICO);
