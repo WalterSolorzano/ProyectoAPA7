@@ -91,6 +91,25 @@
  * panel. No se agregaron porque "el panel está lleno" —una lista de exenciones
  * es exactamente como muere un lint— sino porque se arreglaron y el alcance
  * es lo que impide que vuelvan.
+ * `components/settings/tabs` entró con el hub de Ajustes: es la superficie NUEVA
+ * de la app y trae ya cuarenta controles entre las cinco pestañas, de las cuales
+ * Conexión es la primera. Entra el DIRECTORIO ENTERO, no una lista de archivos,
+ * que es la diferencia entre que un archivo nuevo quede vigilado sin que nadie
+ * tenga que acordarse y que quede vigilado hasta que alguien lo escriba. No
+ * entró "porque es nuevo": entró porque un panel de cuarenta controles escrito
+ * desde cero es exactamente donde aparecen un hex copiado de un vecino y un
+ * `strokeWidth="2"` que nadie mira, y las dos cosas son más caras encontrarlas
+ * en producción que en una prueba.
+ *
+ * Y por qué NO es `components/settings` entero, que era la tentación: en la raíz
+ * de ese directorio está `SettingsPreviewStudio.tsx`, con CUARENTA Y CUATRO
+ * ofensas (`#fff`, `rgba()`, radios y tres tokens que no existen), y es un
+ * archivo que la Fase 7 borra junto con `SettingsMenu.tsx`. Poner el directorio
+ * entero hoy sería poner en rojo el lint por una deuda con fecha de borrado, y
+ * un lint rojo es un lint que nadie mira. La deuda queda NOMBRADA acá —con su
+ * archivo y su cuenta— que es el mismo mecanismo que usa `fluent.css`, no una
+ * exención silenciosa: si sobrevive a la Fase 7, esta línea tiene que pasar a ser
+ * una cuenta fija.
  * Ninguno de los dos está en una lista de exenciones del lint, y ninguno puede
  * crecer sin que una cuenta se mueva.
  */
@@ -105,13 +124,20 @@ const NODE_URL = 'node:url';
 
 /* ── El alcance ──────────────────────────────────────────────────────────── */
 
-const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'hooks'];
+const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/settings/tabs', 'hooks'];
 const ARCHIVOS = [
   'components/export/ExportView.tsx',
   'components/toolbar/UnifiedToolbar.tsx',
   'components/toolbar/ToolbarOverflowMenu.tsx',
   'components/wizard/CoverCarouselStudio.tsx',
   'components/wizard/Step5AuditIAWizard.tsx',
+  /* El cascarón del hub de Ajustes: la raíz de `components/settings` entra por
+     nombre, archivo por archivo, porque en esa misma raíz vive el estudio viejo
+     (ver la nota de arriba del archivo). Los cuerpos de las pestañas entran con
+     el directorio, así que los de las fases siguientes caen adentro solos. */
+  'components/settings/SettingsHub.tsx',
+  'components/settings/tabs.ts',
+  'components/settings/mascotDePestana.tsx',
   'lib/commentContext.ts',
 ];
 /** La hoja canónica. Los tokens se declaran AQUÍ y en ningún otro sitio. */

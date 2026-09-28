@@ -5,6 +5,12 @@ import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { syncCoverFieldToElements, defaultPortada } from './coverSlice';
+import {
+  leerVariableDeLocalStorage,
+  eleccionGuardada,
+  guardarEleccion,
+  resolverClave,
+} from '../../lib/proveedoresIA';
 
 const getApiBase = () => api.getApiBase();
 
@@ -152,27 +158,15 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   layoutCuts: null,
   layoutEcho: 0,
   wordLayoutUnavailable: false,
+  /* La clave que manda. Antes esta IIFE caminaba una lista de variables escrita
+     a mano y se quedaba con la primera que encontraba, en orden fijo: con dos
+     claves puestas no había forma de decir "usá Groq". Ahora la lista es
+     `PROVEEDORES_IA` —el mismo orden de prioridad que el backend— y la ELECCIÓN
+     gana cuando existe. Si la elección no tiene clave, cae al primer proveedor
+     listo, que es el comportamiento de siempre. */
   apiKey: (() => {
     try {
-      const providers = [
-        'NVIDIA_API_KEY',
-        'GROQ_API_KEY',
-        'OPENROUTER_API_KEY',
-        'CEREBRAS_API_KEY',
-        'MISTRAL_API_KEY',
-        'OPENCODEZEN_API_KEY',
-        'ZENMUX_API_KEY',
-        'GEMINI_API_KEY',
-        'CLOUDFLARE_API_TOKEN',
-        'AION_API_KEY',
-        'KILOCODE_API_KEY',
-        'OLLAMA_API_KEY',
-      ];
-      for (const p of providers) {
-        const val = localStorage.getItem(`wordapa7-provider-key:${p}`);
-        if (val && val.trim()) return val.trim();
-      }
-      return '';
+      return resolverClave(leerVariableDeLocalStorage, eleccionGuardada());
     } catch { return ''; }
   })(),
   // Consentimiento explícito para enviar contenido a un LLM en la nube.,
@@ -194,7 +188,13 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   aiProviderConfig: {
     nimUrl: 'http://localhost:8000/v1/chat/completions',
     useLocal: false,
-    providerId: 'nvidia_nim',
+    /* `''` es AUTOMÁTICO, no "sin proveedor": con `''` el backend no filtra y
+       responde el primero que conteste, que es el orden de `PROVEEDORES_IA`.
+       Antes decía `'nvidia_nim'` fijo, y eso era una mentira: si no había
+       clave de NVIDIA, el backend recibía un `provider_id` que no podía
+       satisfacer y respondía "Proveedor no configurado: nvidia_nim". Nadie lo
+       notaba porque `setAiProviderConfig` no lo escribía nunca. */
+    providerId: '',
   },
   pdfPreviewCache: null,
   history: [],
@@ -217,9 +217,22 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     set({ apiKey: key });
   },
   setLlmCloudConsent: (v) => set({ llmCloudConsent: v }),
-  setAiProviderConfig: (config) => set((state) => ({ 
-    aiProviderConfig: { ...state.aiProviderConfig, ...config } 
-  })),
+  /* Elegir proveedor no es solo guardar un texto: es volver a resolver la clave
+     que manda. `apiKey` viaja en cada llamada al backend, y antes de esta fase
+     quedaba clavada en la clave que hubiera encontrado al cargar la app: elegir
+     Groq con dos claves puestas guardaba el id y seguías mandando la de NVIDIA.
+     La elección se copia a localStorage porque `apiKey` se inicializa con una
+     IIFE sincrónica, antes de que `persist` rehidrate. */
+  setAiProviderConfig: (config) => set((state) => {
+    const aiProviderConfig = { ...state.aiProviderConfig, ...config };
+    if (config.providerId === undefined) return { aiProviderConfig };
+    guardarEleccion(config.providerId);
+    let apiKey = state.apiKey;
+    try {
+      apiKey = resolverClave(leerVariableDeLocalStorage, config.providerId);
+    } catch { /* sin localStorage se conserva la clave anterior */ }
+    return { aiProviderConfig, apiKey };
+  }),
   setSelectedElementId: (id) => set((state) => ({
     selectedElementId: id,
     selectedReferenceId: id ? null : state.selectedReferenceId,

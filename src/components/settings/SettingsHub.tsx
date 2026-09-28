@@ -14,6 +14,7 @@ import { X } from 'lucide-react';
 import { Modal } from '../ui/wordapa7';
 import { useDocStore } from '../../store/useDocStore';
 import { PESTANAS, pestanaPorId } from './tabs';
+import { ConexionTab } from './tabs/ConexionTab';
 
 export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const tab = useDocStore((s) => s.settingsHubTab);
@@ -169,13 +170,14 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
   );
 };
 
-/* Los cuerpos de las cinco pestañas. Los traen las fases siguientes; mientras
-   tanto la pestaña se ve con su barra, su ámbito y su nombre, que es lo que la
+/* Los cuerpos de las cinco pestañas. Cada una llega con su fase: Conexión es la
+   primera, porque era la que más controles mudos tenía. Las que siguen están en
+   `null` y se ven con su barra, su ámbito y su nombre, que es lo que la
    persona tiene que poder leer para saber dónde está. */
 const CUERPOS: Record<string, React.ReactNode> = {
   documento: null,
   formato: null,
-  conexion: null,
+  conexion: <ConexionTab />,
   revision: null,
   app: null,
 };
