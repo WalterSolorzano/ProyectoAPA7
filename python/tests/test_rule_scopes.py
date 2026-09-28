@@ -56,7 +56,7 @@ def test_todo_criterio_declarado_tiene_implementacion():
     """Un criterio declarado y no implementado es un criterio muerto.
 
     El guard anterior miraba los kinds EMITIDOS; este mira los criteria
-    DECLARADOS. Ese era el hueco: `parafraisis_vs_cita` estaba en
+    DECLARADOS. Ese era el hueco: `parafrasis_vs_cita` estaba en
     `marco_teorico.criteria` y en `RULE_SCOPES`, sin implementacion, y
     `phase_findings` lo ignoraba en silencio — la fase tenia 1 criterio vivo
     de 2 y nada lo delataba.

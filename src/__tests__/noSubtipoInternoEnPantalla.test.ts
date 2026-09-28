@@ -95,7 +95,7 @@ describe('el mapa de marcas no puede contener un identificador interno', () => {
   it('el mapa no puede contener un valor con guion bajo en minúsculas', () => {
     escribirMarcas([
       { element_id: 'elem_1', kind: 'paragraph_words' },
-      { element_id: 'elem_2', kind: 'g11_variaacion_oracion' },
+      { element_id: 'elem_2', kind: 'g11_variacion_oracion' },
       { element_id: 'elem_3', kind: 'regla_que_nadie_registro' },
     ]);
     const marcas = leerMarcas();

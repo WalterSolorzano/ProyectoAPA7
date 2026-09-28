@@ -428,7 +428,7 @@ def test_oraciones_todas_iguales_si_es_hallazgo():
              "El proceso fue lento en la segunda etapa del estudio. "
              "El proceso fue lento en la tercera etapa del estudio. "
              "El proceso fue lento en la cuarta etapa del estudio.")
-    assert "g11_variaacion_oracion" in {f["kind"] for f in _g(texto)}
+    assert "g11_variacion_oracion" in {f["kind"] for f in _g(texto)}
 
 
 def test_ritmo_variado_no_es_hallazgo():

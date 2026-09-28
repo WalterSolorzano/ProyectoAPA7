@@ -200,15 +200,20 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
      tercera agrupación de la vista: fase → motor → subtipo.
 
      Las CLAVES son las que emite el backend, escritas como las escribe
-     `python/modules/phase_scope.py`. `parafraisis_vs_cita` y
-     `g11_variaacion_oracion` llegan con esa falta de ortografía desde Python, y
-     acá se copian tal cual: la fila tiene que responder a la clave que llega, no
-     a la que debería llegar. Corregir la falta es cosa del backend, y hasta
-     que pase, esta tabla es la que habla el mismo idioma. La prueba
-     `reglasDeFaseConNombre` es la que avisa si las dos vuelven a divergir. */
+     `python/modules/phase_scope.py`: la fila tiene que responder a la clave que
+     LLEGA, no a la que debería llegar.
+
+     `parafrasis_vs_cita` y `g11_variacion_oracion` llegaron dos tareas con doble
+     letra desde Python y acá se copiaron tal cual, con esta nota. El backend ya
+     las corrigió y esta tabla sigue al backend: una fila escrita con la falta
+     sería una fila MUERTA —el backend nunca emitiría esa clave, y el hallazgo
+     volvería a salir como "Otro hallazgo del corrector"—, que es exactamente lo
+     que la nota decía que había que evitar pero que no se podía evitar desde acá.
+     La prueba `reglasDeFaseConNombre` lee `RULE_SCOPES` del fuente de Python y
+     falla si las dos vuelven a divergir en cualquier dirección. */
   paragraph_words: { category: 'style', subtype: 'largo_parrafo', severity: 'low', summary: DEL_MOTOR },
   verbo_pasado: { category: 'style', subtype: 'tiempo_verbal', severity: 'low', summary: DEL_MOTOR },
-  parafraisis_vs_cita: { category: 'style', subtype: 'parafrasis', severity: 'low', summary: DEL_MOTOR },
+  parafrasis_vs_cita: { category: 'style', subtype: 'parafrasis', severity: 'low', summary: DEL_MOTOR },
   /* Las dos que el backend declara en `RULE_SCOPES` y acá no tenían fila: salían
      como "Otro hallazgo del corrector", que es un nombre honesto para un
      hallazgo del que no sabemos qué es. No es el caso. */
@@ -224,7 +229,7 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
   /* Las ocho universales baratas del spec §12. Todas 'mark': ninguna trae un
      texto corregido, y una reescritura automática de prosa argumental sería
      decidir por el usuario. El motor detecta, la persona corrige. */
-  g11_variaacion_oracion: { category: 'style', subtype: 'ritmo_oracion', severity: 'low', summary: DEL_MOTOR },
+  g11_variacion_oracion: { category: 'style', subtype: 'ritmo_oracion', severity: 'low', summary: DEL_MOTOR },
   g34_sigla_sin_definir: { category: 'style', subtype: 'sigla_sin_definir', severity: 'medium', summary: DEL_MOTOR },
   g35_unidades_mixtas: { category: 'style', subtype: 'unidad_mixta', severity: 'low', summary: DEL_MOTOR },
   g51_registro_coloquial: { category: 'style', subtype: 'registro_coloquial', severity: 'high', summary: DEL_MOTOR },

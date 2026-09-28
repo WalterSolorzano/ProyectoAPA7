@@ -1,4 +1,4 @@
-﻿"""Ambitos de fase: los H1 abren un ambito y cada ambito tiene sus criterios.
+"""Ambitos de fase: los H1 abren un ambito y cada ambito tiene sus criterios.
 
 Este modulo es la UNA fuente de verdad. Antes, el alcance de una regla se
 deducia del TEXTO del elemento con `any(kw in low_t for kw in ...)`:
@@ -70,7 +70,7 @@ PHASES: Tuple[PhaseConfig, ...] = (
                 ("marco teorico", "marco referencial", "marco de referencia",
                  "antecedentes", "revision de la literatura", "revision teorica",
                  "fundamentacion teorica", "bases teoricas"),
-                criteria=("paragraph_words", "parafraisis_vs_cita"),
+                criteria=("paragraph_words", "parafrasis_vs_cita"),
                 paragraph_words=(80, 200)),
     PhaseConfig("metodo", "Metodo",
                 ("metodo", "metodologia", "materiales y metodos",
@@ -237,7 +237,7 @@ RULE_SCOPES: Dict[str, str] = {
     "metodo_sin_detalle": "metodo",
     "paragraph_words": "fase",
     "verbo_pasado": "fase",
-    "parafraisis_vs_cita": "marco_teorico",
+    "parafrasis_vs_cita": "marco_teorico",
     "portada_title_larga": PORTADA_KEY,
     "portada_punto_final": PORTADA_KEY,
     # Las ocho universales baratas del spec §12 NO se declaran todas aca: cada
@@ -419,7 +419,7 @@ _NOT_A_CITED_AUTHOR = {
 }
 
 
-def _check_parafraisis_vs_cita(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+def _check_parafrasis_vs_cita(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
     """Atribucion con forma de autor y sin cita.
 
     Version minima y honesta: mira un token con forma de apellido (mayuscula
@@ -434,7 +434,7 @@ def _check_parafraisis_vs_cita(eid: str, text: str, cfg: PhaseConfig, mk) -> Lis
         apellido = m.group(1).lower()
         if apellido in _NOT_A_CITED_AUTHOR:
             continue
-        return [mk(eid, text, m.start(1), m.end(1), "parafraisis_vs_cita", "info",
+        return [mk(eid, text, m.start(1), m.end(1), "parafrasis_vs_cita", "info",
                    f'Mencionas "{m.group(1)}" sin una cita (Autor, año) en el '
                    f"párrafo. En marco teórico, lo que se atribuye a un autor "
                    f"lleva cita o se parafrasea explícito.",
@@ -456,7 +456,7 @@ _PORTADA_ONLY = {"portada_title_larga", "portada_punto_final"}
 
 
 _CHECKS = {
-    "parafraisis_vs_cita": _check_parafraisis_vs_cita,
+    "parafrasis_vs_cita": _check_parafrasis_vs_cita,
     "bloom_verb": _check_bloom_verb,
     "objetivo_sin_variable": _check_objetivo_sin_variable,
     "metodo_sin_detalle": _check_metodo_sin_detalle,
@@ -464,7 +464,7 @@ _CHECKS = {
     "verbo_pasado": _check_verbo_pasado,
     "portada_title_larga": _check_portada_title_larga,
     "portada_punto_final": _check_portada_punto_final,
-    # `parafraisis_vs_cita` se vivio DOS TAREAS declarado en `marco_teorico`
+    # `parafrasis_vs_cita` se vivio DOS TAREAS declarado en `marco_teorico`
     # y en RULE_SCOPES sin entrada aca, y `phase_findings` lo ignoraba en
     # silencio: la fase marco teorico tenia 1 criterio vivo de 2 y nadie lo
     # notaba. `test_criterios_declarados_estan_implementados` es el guard que
@@ -749,7 +749,7 @@ def _check_g11_variacion_oracion(eid, text, ctx, mk):
     sigma = (sum((n - media) ** 2 for n in largos) / len(largos)) ** 0.5
     if sigma >= _SIGMA_FLOOR:
         return []
-    return [mk(eid, text, 0, len(text or ""), "g11_variaacion_oracion", "info",
+    return [mk(eid, text, 0, len(text or ""), "g11_variacion_oracion", "info",
               f"Las {len(sents)} oraciones del parrafo miden casi lo mismo "
               f"(desviacion {sigma:.1f} palabras). Una redaccion mecanica tiene "
               f"latidos iguales; alternar la longitud las hace mas leibles",
@@ -758,12 +758,12 @@ def _check_g11_variacion_oracion(eid, text, ctx, mk):
 
 RULE_SCOPES.update({
     "g53_segunda_persona": GLOBAL,
-    "g11_variaacion_oracion": GLOBAL,
+    "g11_variacion_oracion": GLOBAL,
 })
 
 GLOBAL_CHECKS.update({
     "g53_segunda_persona": _check_g53_segunda_persona,
-    "g11_variaacion_oracion": _check_g11_variacion_oracion,
+    "g11_variacion_oracion": _check_g11_variacion_oracion,
 })
 
 
