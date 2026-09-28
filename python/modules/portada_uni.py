@@ -24,7 +24,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt, RGBColor
+from docx.shared import Cm, Mm, Pt, RGBColor
 from docx.text.paragraph import Paragraph
 
 
@@ -47,6 +47,103 @@ FONT_DEPARTMENT = "Times New Roman"  # Área de Conocimiento / asignatura (20pt,
 FONT_TITLE = "Montserrat Black"      # Título del trabajo
 FONT_BODY = "Montserrat"             # Autores, fecha, lugar
 BLACK = RGBColor(0x00, 0x00, 0x00)
+
+# ── LA GEOMETRÍA DE LA HOJA ───────────────────────────────────────────────────
+#
+# Estos números están DUPLICADOS en `src/lib/portada/geometria.ts`, que es la
+# copia que usa la vista previa. La duplicación es a propósito y la razón está
+# escrita en el archivo de TypeScript: si el `.docx` importara el `.ts` no
+# podría existir el bug que este módulo vino a arreglar, que es que la preview y
+# el documento se separaron. El test `test_geometria_portada.py` mide que las
+# dos copias digan lo mismo, así que una que se mueva sola cae.
+#
+# EL `.DOCX MANDA Y LA PREVIEW COPIA. Si tocás un número, tocá el otro: el test
+# te va a decir que no.
+HOJA_CARTA_MM = (215.9, 279.4)      # 8.5" x 11", el default de APARuleSet.page_size
+HOJA_A4_MM = (210.0, 297.0)
+MARGENES_MM = 25.4                  # una pulgada, como create_template.py y DESIGN.md
+
+# La fraccion del ancho util que ocupa el logo. Reemplaza al `Cm(5.2)` absoluto.
+#
+# POR QUE UN 16% Y POR QUE ES DELIBERADO. Con milimetros fijos, un ancho
+# calibrado para una hoja se ve distinto en la otra, y con Carta y A4 elegibles
+# eso hace que el logo cambie de tamano segun el documento. Con una fraccion del
+# ancho util, el size RELATIVO es el mismo y el absoluto se acomoda a cada hoja.
+#
+# El 0.16 viene del plan de la fase y se respeta. Medido sobre el ancho util
+# real (16.51 cm en carta) son 2.64 cm, contra los 5.2 cm que ponia el
+# `Cm(5.2)`: el numero baja, asi que el logo queda mas pequeno en la hoja de lo
+# que estaba. La preview si lo empeoro, y de ahi el "sale todo super achicado":
+# 150 px de 680 es un 22% del ancho de la hoja, contra el 31.5% que llevaba el
+# `.docx`.
+FRACCION_DE_ANCHO_DEL_LOGO = 0.16
+
+# Los puntos de cada bloque. Esta tabla es la FUENTE DE VERDAD: la copia en
+# `src/lib/portada/geometria.ts` (`PT_PORTADA_UNI`) sale de acá.
+PT_DEPARTAMENTO = 20
+PT_TITULO = 20
+PT_ASIGNATURA = 20
+PT_ELABORADO_POR = 11
+PT_AUTOR = 10
+PT_CARNET = 10
+PT_FECHA = 11
+PT_LUGAR = 11
+
+
+def hoja_de(page_size: str | None) -> tuple[float, float]:
+    """Las dos hojas que la app sabe hacer, en milimetros."""
+    return HOJA_A4_MM if (page_size or "carta") == "a4" else HOJA_CARTA_MM
+
+
+def ancho_util_mm(page_size: str | None) -> float:
+    """El ancho de la hoja menos los margenes, en milimetros."""
+    ancho, _alto = hoja_de(page_size)
+    return ancho - 2 * MARGENES_MM
+
+
+def alto_util_mm(page_size: str | None) -> float:
+    """El alto de la hoja menos los margenes, en milimetros."""
+    _ancho, alto = hoja_de(page_size)
+    return alto - 2 * MARGENES_MM
+
+
+def aplicar_tamano_de_hoja(doc, page_size: str | None) -> None:
+    """Deja de heredar la hoja del documento y la aplica desde `page_size`.
+
+    `APARuleSet.page_size` existe desde la fase de Ajustes y NADIE lo aplicaba
+    en portada, que es justo lo que hace que el diseno "no sea de tamano
+    definido": el usuario elegia Carta en Ajustes y la portada salia con la
+    hoja que tuviera el original.
+
+    OJO CON LA FRONTERA, porque es la decision del usuario del 2026-09-28 y no
+    se vuelve a abrir: el tamano de pagina es propiedad del DOCUMENTO.
+    `section.page_width` es de la SECCION, o sea del contexto que rodea la
+    portada, no de la portada. Aplicarlo no altera ni un caracter del bloque
+    protegido: su texto, sus imagenes y su tipografia quedan intactos, y el test
+    de integridad compara el hash del bloque antes y despues para probarlo.
+    """
+    from generation.style_engine import aplicar_tamano_pagina
+
+    ancho_mm, alto_mm = hoja_de(page_size)
+    for section in doc.sections:
+        try:
+            landscape = False
+            try:
+                sect_pr = section._sectPr
+                pg_sz = sect_pr.find(qn("w:pgSz"))
+                landscape = (
+                    pg_sz is not None
+                    and pg_sz.attrib.get(qn("w:orient")) == "landscape"
+                )
+            except Exception:
+                landscape = False
+            # `aplicar_tamano_pagina` toma el nombre de la hoja y ya sabe los
+            # twips de cada una. Se le pasa el nombre para que no haya dos
+            #implementaciones del mismo numero en dos lugares.
+            aplicar_tamano_pagina(section, "a4" if page_size == "a4" else "carta",
+                                  landscape=landscape)
+        except Exception:
+            pass
 
 # Conversión de centímetros a "twentieths of a point" (dxa): 1 cm = 567 dxa
 _CM_TO_DXA = 567
@@ -231,6 +328,8 @@ def generate_uni_cover(
     fecha: str = "",
     lugar: str = "Managua, Nicaragua",
     font_family: str | None = None,
+    page_size: str | None = "carta",
+    logos: list | None = None,
 ) -> int:
     """
     Inserta al inicio del documento una portada institucional UNI fiel al
@@ -253,7 +352,17 @@ def generate_uni_cover(
         Managua, Nicaragua
 
     Returns: Número de párrafos insertados (para cover_paragraph_count).
+
+    `page_size` es el nombre de la hoja del DOCUMENTO ("carta" o "a4"), y es lo
+    que hace que el logo mida su misma fracción del ancho útil en las dos. Con
+    milimetros fijos, un ancho calibrado para una hoja se ve distinto en la otra.
+
+    `logos` es una lista de `LogoPortada`. Es `None` o vacía cuando el
+    documento no pidió logos, y en ese caso la portada UNI pone el suyo, que es
+    lo que se hizo siempre.
     """
+    aplicar_tamano_de_hoja(doc, page_size)
+
     # F-01: Desvincular encabezado/pie de la primera página para que no se superponga
     if doc.sections:
         try:
@@ -286,36 +395,43 @@ def generate_uni_cover(
     builder = _UniCoverBuilder(doc)
 
     # ── 1. Logo UNI centrado (la imagen incluye el nombre de la universidad) ──
+    #
+    # El ancho es una FRACCIÓN del ancho útil de la hoja, no `Cm(5.2)`. Es el
+    # cambio que hace que el mismo logo se vea igual en Carta y en A4, y el
+    # motivo está escrito arriba, en `FRACCION_DE_ANCHO_DEL_LOGO`.
     logo_p = builder.add_paragraph()
     logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     _set_paragraph_spacing(logo_p, before=0, after=6)
     if LOGO_PATH.exists():
         run_logo = logo_p.add_run()
-        run_logo.add_picture(str(LOGO_PATH), width=Cm(5.2))
+        run_logo.add_picture(
+            str(LOGO_PATH),
+            width=Mm(ancho_util_mm(page_size) * FRACCION_DE_ANCHO_DEL_LOGO),
+        )
 
     # ── 2. Departamento (Butler 20pt, centrado) ──────────────────────────────
     dept_p = builder.add_paragraph()
     dept_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run_styled(dept_p, departamento, bold=False, size_pt=20, font=font_dept)
+    _add_run_styled(dept_p, departamento, bold=False, size_pt=PT_DEPARTAMENTO, font=font_dept)
     _set_paragraph_spacing(dept_p, before=6, after=30)
 
     # ── 3. Título (Montserrat Black 20pt, centrado) ──────────────────────────
     titulo_p = builder.add_paragraph()
     titulo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run_styled(titulo_p, titulo, bold=False, size_pt=20, font=font_title)
+    _add_run_styled(titulo_p, titulo, bold=False, size_pt=PT_TITULO, font=font_title)
     _set_paragraph_spacing(titulo_p, before=0, after=30)
 
     # ── 4. Asignatura (Butler 20pt, centrado) ────────────────────────────────
     if asignatura:
         asig_p = builder.add_paragraph()
         asig_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _add_run_styled(asig_p, asignatura, bold=False, size_pt=20, font=font_dept)
+        _add_run_styled(asig_p, asignatura, bold=False, size_pt=PT_ASIGNATURA, font=font_dept)
         _set_paragraph_spacing(asig_p, before=0, after=60)
 
     # ── 5. "Elaborado por" (Montserrat Bold 11pt, izquierda) ─────────────────
     elab_p = builder.add_paragraph()
     elab_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(elab_p, "Elaborado por", bold=True, size_pt=11, font=font_body)
+    _add_run_styled(elab_p, "Elaborado por", bold=True, size_pt=PT_ELABORADO_POR, font=font_body)
     _set_paragraph_spacing(elab_p, before=0, after=10)
 
     # ── 6. Autores en columnas con separadores verticales negros ─────────────
@@ -399,26 +515,29 @@ def generate_uni_cover(
                     carnet = autor.get("carnet", "")
 
                     if is_tutor_col:
-                        _add_run_styled(p, nombre, bold=True, size_pt=10, font=font_body)
+                        _add_run_styled(p, nombre, bold=True, size_pt=PT_AUTOR, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
                             _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, f"Grupo: {carnet}", bold=True, size_pt=10, font=font_body)
+                            _add_run_styled(p2, f"Grupo: {carnet}", bold=True, size_pt=PT_CARNET, font=font_body)
                     else:
-                        _add_run_styled(p, nombre, bold=False, size_pt=10, font=font_body)
+                        _add_run_styled(p, nombre, bold=False, size_pt=PT_AUTOR, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
                             _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, carnet, bold=False, size_pt=10, font=font_body)
+                            _add_run_styled(p2, carnet, bold=False, size_pt=PT_CARNET, font=font_body)
 
         builder.insert_table(authors_table)
 
     # ── 6.5 Espaciador dinámico: empuja fecha/lugar hacia abajo de la hoja ──
     # Pocos autores = más espacio, para que la portada NO quede pegada arriba
     # con todo el vacío abajo (replica el flex:1 del preview).
-    PAGE_USABLE_CM = 24.6    # A4 29.7cm - márgenes 2.54cm ×2
+    # El alto útil sale de la hoja, no de un número. Antes estaba fijo en 24.6
+    # cm, que es el A4 con una pulgada de margen: en Carta sobraba medio
+    # centímetro de hueco y en A4 no, según de qué lado se mirara.
+    PAGE_USABLE_CM = alto_util_mm(page_size) / 10.0
     TOP_BLOCK_CM = 8.0       # logo + dept + título + asignatura + "Elaborado por"
     AUTH_ROW_CM = 1.5        # altura mínima por fila de autores (con padding)
     DATE_BLOCK_CM = 1.4      # fecha + lugar
@@ -433,13 +552,13 @@ def generate_uni_cover(
     # ── 7. Fecha (izquierda) ─────────────────────────────────────────────────
     fecha_p = builder.add_paragraph()
     fecha_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(fecha_p, fecha, bold=False, size_pt=11, font=font_body)
+    _add_run_styled(fecha_p, fecha, bold=False, size_pt=PT_FECHA, font=font_body)
     _set_paragraph_spacing(fecha_p, before=24, after=2)
 
     # ── 8. Lugar (Managua, Nicaragua) ────────────────────────────────────────
     lugar_p = builder.add_paragraph()
     lugar_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _add_run_styled(lugar_p, lugar, bold=False, size_pt=11, font=font_body)
+    _add_run_styled(lugar_p, lugar, bold=False, size_pt=PT_FECHA, font=font_body)
     _set_paragraph_spacing(lugar_p, before=0, after=0)
 
     # ── 9. Salto de página ───────────────────────────────────────────────────

@@ -37,6 +37,8 @@ import { APACoverEditor } from '../layout/APACoverEditor';
 import { UNICoverPreview } from '../layout/UNICoverPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { CoverEditorPanel } from './CoverEditorPanel';
+import { ANCHO_HOJA_PX } from '../layout/UNICoverPreview';
+import type { Hoja } from '../../lib/portada/geometria';
 
 /* ── Iconos ──────────────────────────────────────────────────────────────────
    T20: aquí había SEIS `<svg>` escritos a mano, con `strokeWidth="var(--icon-stroke)"` y uno con
@@ -217,7 +219,7 @@ const CoverStrategyStrip: React.FC<{
 );
 
 export const CoverCarouselStudio: React.FC = () => {
-  const { portada, acta, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
+  const { portada, acta, rules, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
   const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
@@ -244,6 +246,11 @@ export const CoverCarouselStudio: React.FC = () => {
   }, [portada.use_original_cover, portada.cover_mode, portada.cover_template_id]);
 
   const coverModeDesconocido = currentMode === null ? (portada.cover_mode ?? null) : null;
+
+  /* La hoja de la preview es la MISMA que escribe el `.docx`. Sin esto la
+     preview carta y el documento A4 se ven distintos y la preview miente, que
+     es el defecto que la Task 2 vino a arreglar. */
+  const hojaDeLaSesion: Hoja = rules.page_size === 'a4' ? 'a4' : 'carta';
 
   const selectMode = (mode: CoverMode, templateId?: string) => {
     if (mode === 'original') {
@@ -601,14 +608,25 @@ export const CoverCarouselStudio: React.FC = () => {
             backgroundColor: 'var(--canvas-bg)',
           }}>
             {currentMode === 'uni' ? (
-              <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                  <UNICoverPreview />
+              /* El `width: 680px` se queda porque es el ancho que hay en la
+                 pantalla, no una medida de la hoja. El ALTO lo pone
+                 `UNICoverPreview` desde la escala, y no un `minHeight` escrito a
+                 mano: antes no habia alto declarado y el papel se dibujaba mas
+                 corto que la hoja real, con 100 px de diferencia. */
+              <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
+                <div style={{
+                  width: ANCHO_HOJA_PX,
+                  backgroundColor: 'var(--paper-white)',
+                  boxShadow: 'var(--shadow-card)',
+                  borderRadius: 'var(--radius-sm)',
+                  overflow: 'hidden',
+                }}>
+                  <UNICoverPreview hoja={hojaDeLaSesion} anchoPx={ANCHO_HOJA_PX} />
                 </div>
               </div>
             ) : currentMode === 'apa7' || currentMode === 'pro' ? (
-              <div style={{ height: '100%', overflowY: 'auto', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '680px', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: ANCHO_HOJA_PX, backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                   <APACoverEditor />
                 </div>
               </div>

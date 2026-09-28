@@ -949,6 +949,7 @@ def generate_apa7_docx(
                         portada_course=p_course,
                         portada_instructor=p_instructor,
                         portada_date=p_date,
+                        page_size=getattr(rules, "page_size", "carta"),
                     )
                     cover_template_applied = True
                     print(f"[COVER-DESIGNER]  Portada '{cover_template_id}' aplicada. Parrafos agregados: {paragraphs_added}")
@@ -972,7 +973,17 @@ def generate_apa7_docx(
     if not original_file.exists():
         cover_mode = 'generate_apa7_template'
 
-    use_orig_cover = cover_mode != 'generate_apa7_template'
+    # QUE MODOS CONSERVAN LA PORTADA ORIGINAL. Solo los que lo dicen.
+    #
+    # Antes era `cover_mode != 'generate_apa7_template'`, y eso toma "conservar
+    # original" por todo lo que no sea la plantilla APA: `generate_uni_cover` y
+    # `apa_pro` tambien conservaban. O sea que elegir "Institucional UNI" en la
+    # app encendia el chip y dejaba la portada original del documento en su
+    # lugar, sin avisar. Un control que se ve y no hace nada.
+    #
+    # Los modos que preservan son los del comentario de arriba y nada mas.
+    MODOS_QUE_CONSERVAN = ('keep_original', 'keep_design_update_data')
+    use_orig_cover = cover_mode in MODOS_QUE_CONSERVAN
 
     # Si se aplico una portada via Cover Designer, forzar modo "preservar original"
     # para que el sistema NO genere otra portada sintetica y saltee los parrafos originales
@@ -1079,6 +1090,7 @@ def generate_apa7_docx(
 
                 paragraphs_before_body = generate_uni_cover(
                     doc,
+                    page_size=getattr(rules, "page_size", "carta"),
                     titulo=portada.title or "Sin Título",
                     asignatura=portada.course or "",
                     autores=autores_parsed,

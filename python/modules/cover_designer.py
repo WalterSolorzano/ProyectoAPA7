@@ -380,6 +380,7 @@ def apply_cover_to_document(
     portada_course: str = "",
     portada_instructor: str = "",
     portada_date: str = "",
+    page_size: str = "carta",
 ) -> int:
     """
     Antepone la portada al documento.
@@ -388,7 +389,19 @@ def apply_cover_to_document(
     - IMAGEN: crea pagina completa con imagen centrada
     - DOCX: copia contenido del DOCX origen al inicio del doc destino
     - BUILTIN: genera portada APA 7 con formato predefinido
+
+    `page_size` es la hoja del DOCUMENTO. Antes este modulo la heredaba del
+    original, y por eso el usuario elegia Carta en Ajustes y la portada salia
+    con la hoja que tuviera el `.docx` de entrada. Que el tamano de pagina sea
+    propiedad del documento y no del bloque protegido esta decidido en el
+    spec, seccion 6.2, y no se vuelve a abrir.
     """
+    from modules.portada_uni import aplicar_tamano_de_hoja
+    try:
+        aplicar_tamano_de_hoja(doc, page_size)
+    except Exception as e:
+        print(f"[WARN] No se pudo aplicar el tamano de hoja a la portada: {e}")
+
     paragraphs_before = len(doc.paragraphs)
     body = doc.element.body
     children_before = len(list(body))
@@ -402,6 +415,7 @@ def apply_cover_to_document(
             doc, cover_template, base_dir,
             portada_title, portada_author, portada_institution,
             portada_course, portada_instructor, portada_date,
+            page_size,
         )
 
     # Salto de pagina obligatorio despues de la portada
@@ -533,11 +547,25 @@ def _apply_builtin_cover(
     course: str = "",
     instructor: str = "",
     date_str: str = "",
+    page_size: str = "carta",
 ) -> None:
     """
     Genera una portada con formato APA 7 predefinido.
     Funciona como fallback cuando no hay plantilla.
+
+    `page_size` es la hoja del DOCUMENTO y no la que hereda el original. Antes
+    no se tocaba, y por eso el diseno no era "de tamano definido": el usuario
+    elegia Carta en Ajustes y la portada salia con la hoja que tuviera el
+    `.docx`. `apply_cover_to_document` tambien la aplica, y esta la vuelve a
+    aplicar para los llamadores directos: `aplicar_tamano_de_hoja` es
+    idempotente.
     """
+    from modules.portada_uni import aplicar_tamano_de_hoja
+    try:
+        aplicar_tamano_de_hoja(doc, page_size)
+    except Exception as e:
+        print(f"[WARN] No se pudo aplicar el tamano de hoja a la portada: {e}")
+
     font_name = "Times New Roman"
     font_size = Pt(12)
 

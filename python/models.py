@@ -516,6 +516,22 @@ class PortadaData(BaseModel):
     apa_format: APAFormat = APAFormat.STUDENT
     use_original_cover: bool = True  # Conservar portada original intacta del documento
     force_skip_cover: bool = False  # True = saltar todos los elementos de portada sin tocarlos
+
+    # EL MODO DE PORTADA. Estaba ausente del modelo y el cliente lo mandaba
+    # igual: pydantic descarta las claves que no declara, asi que
+    # `getattr(portada, "cover_mode", None)` era SIEMPRE `None` y
+    # `generator.py` caia siempre en la portada APA.
+    #
+    # O sea que la portada UNI --la institucional, la que dibuja
+    # `portada_uni.py` con el logo y la tabla de integrantes-- no se generaba
+    # NUNCA, por mucho que la app encendiera su chip. Un control que se ve y
+    # no hace nada.
+    #
+    # Los valores son los que el backend ya leia en `generator.py`:
+    # `keep_original`, `keep_design_update_data`, `generate_apa7_template`,
+    # `generate_uni_cover` y `apa_pro`. Vacio significa "el que toque por
+    # `use_original_cover`", que es como estaba antes.
+    cover_mode: str = ""
     title: str = ""
     institution: str = ""
     course: Optional[str] = None

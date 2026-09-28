@@ -1,12 +1,24 @@
 /* WordAPA7 — Vista previa de la portada universitaria (UNI).
    Renderiza la misma estructura que genera python/modules/portada_uni.py:
-   logo centrado, area de conocimiento (20pt), titulo (Montserrat Black 20pt),
-   asignatura (20pt), "Elaborado por", autores en 4 columnas con separadores
-   verticales negros, docente + grupo, fecha y lugar. */
+   logo centrado, area de conocimiento, titulo, asignatura, "Elaborado por",
+   autores en columnas con separadores verticales, docente + grupo, fecha y lugar.
+
+   NO HAY NI UN NUMERO DE MEDIDA ESCRITO A MANO EN ESTE ARCHIVO. Antes los
+   habia (un `minHeight: 780px` sin relacion de aspecto, un `width: 150px` para
+   el logo y seis `fontSize` en pt que no eran los del `.docx`), y por eso la
+   preview se veia mas chica de lo que iba a salir: el `.docx` ponia el titulo en
+   20pt y la preview lo pintaba en 16pt. Tres constantes duplicadas sin un token
+   que las amarre.
+
+   La direccion del arreglo es una sola: el `.docx` manda y la preview copia.
+   Todo sale de `lib/portada/geometria`, y los puntos vienen de la tabla
+   `PT_PORTADA_UNI`, que es una COPIA de los de `portada_uni.py`. El test de la
+   Task 2 mide que las dos copias coincidan. */
 import React, { useState, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { parseAuthorEntries, COVER_FIELD_HIGHLIGHT_EVENT } from '../../lib/portadaAuthors';
 import { resolveAssetUrl } from '../../api/backend';
+import { medidaDeLaHoja, PT_PORTADA_UNI, type Hoja } from '../../lib/portada/geometria';
 
 /* La tinta de la portada. Es una PREVISUALIZACION de una hoja impresa, asi que
    el color no es el de la interfaz sino el del papel: `--paper-ink`, que R7
@@ -16,13 +28,26 @@ import { resolveAssetUrl } from '../../api/backend';
    python/modules/portada_uni.py escribe. */
 const BLACK = 'var(--paper-ink)';
 
-export const UNICoverPreview: React.FC = () => {
+/** El ancho disponible de la hoja, en px. Es el ancho de la pantalla, no una
+ *  medida de la hoja, asi que vive aca y no en `geometria.ts`: todo lo demas
+ *  sale de la escala que este numero produce. */
+export const ANCHO_HOJA_PX = 680;
+
+export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
+  hoja = 'carta',
+  anchoPx = ANCHO_HOJA_PX,
+}) => {
   const portada = useDocStore((s) => s.portada);
   /* Los integrantes, el docente y el grupo son datos del acta, no del diseno de
      la portada. Ver el motivo en `python/models.py`: con `use_original_cover` un
      dato guardado dentro de la portada no sale, porque el bloque no se toca. */
   const acta = useDocStore((s) => s.acta);
   const [highlightField, setHighlightField] = useState<string | null>(null);
+  /* Un logo que se pidio y no llego es un DATO FALTANTE, no un detalle de
+     render. Antes el `onError` le hacia `display: none` y la portada se
+     drawneaba sin logo sin que nadie se enterara: es la forma peor de fallar,
+     porque no hay error, hay una hoja incompleta. */
+  const [logoFalto, setLogoFalto] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -39,6 +64,23 @@ export const UNICoverPreview: React.FC = () => {
     highlightField === field
       ? { background: 'var(--color-accent-a20)', boxShadow: '0 0 0 2px var(--accent-primary)', borderRadius: 'var(--radius-xs)' }
       : {};
+
+  /* Toda medida de esta hoja sale de aca. El alto sale de `medidaDeLaHoja` y
+     no de un `minHeight` escrito a mano: una carta a 680 px de ancho mide 880
+     px de alto, y el `780` de antes se comia cien pixeles de hoja. */
+  const m = medidaDeLaHoja(hoja, anchoPx);
+  /** Milimetros de papel a pixeles de pantalla, a la escala de esta hoja. */
+  const px = (mm: number) => Math.round(mm * m.escala * 10) / 10;
+  /** Puntos del `.docx` a pixeles de pantalla. */
+  const pt = (puntos: number) => Math.round(m.pt(puntos) * 100) / 100;
+  /* Los margenes van por el padding del contenedor, no por un `minHeight`: si
+     el papel tiene margen, el margen se ve. */
+  const marco = {
+    paddingTop: m.margenSuperiorPx,
+    paddingBottom: m.margenInferiorPx,
+    paddingLeft: m.margenIzquierdoPx,
+    paddingRight: m.margenDerechoPx,
+  };
 
   const autores = parseAuthorEntries(acta.autor);
   const tutores = autores.filter((a) => /^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
@@ -66,8 +108,8 @@ export const UNICoverPreview: React.FC = () => {
   const cellStyle: React.CSSProperties = {
     flex: 1,
     minWidth: 0,
-    padding: '6px 8px',
-    fontSize: '11pt',
+    padding: `${px(1.6)}px ${px(2)}px`,
+    fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
     color: BLACK,
     wordBreak: 'break-word',
     overflowWrap: 'break-word',
@@ -75,59 +117,128 @@ export const UNICoverPreview: React.FC = () => {
 
   return (
     <div
+      data-testid="portada-uni-preview"
+      data-hoja={hoja}
+      data-escala={m.escala}
       style={{
         display: 'flex',
         flexDirection: 'column',
         flex: 1,
-        padding: '22px 16px 4px',
-        minHeight: '780px',
+        height: m.altoPx,
+        minHeight: m.altoPx,
+        ...marco,
         fontFamily: 'Times New Roman, serif',
       }}
     >
-      {/* Logo centrado */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-        <img
-          src={resolveAssetUrl('/api/assets/logo_uni.png')}
-          alt="Logo UNI"
-          style={{ width: '150px', objectFit: 'contain' }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
+      {/* Logo centrado. El ancho es una FRACCION del ancho util, que es lo que
+          hace que se vea igual en Carta y en A4; sale del mismo lado que
+          `portada_uni.py` mide en el `.docx` y no de un `150px` a mano. */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: px(2) }}>
+        {logoFalto ? (
+          <div
+            role="status"
+            data-testid="logo-faltante"
+            style={{
+              width: m.anchoUtilPx * 0.16,
+              height: px(12),
+              border: '1px dashed var(--border-subtle)',
+              borderRadius: 'var(--radius-xs)',
+              background: 'var(--surface-subtle)',
+              color: 'var(--text-secondary)',
+              fontSize: 'var(--text-xs)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+            }}
+          >
+            <span>El logo no se pudo cargar</span>
+          </div>
+        ) : (
+          <img
+            src={resolveAssetUrl('/api/assets/logo_uni.png')}
+            alt="Logo UNI"
+            style={{ width: m.anchoUtilPx * 0.16, objectFit: 'contain' }}
+            onError={() => setLogoFalto(true)}
+          />
+        )}
       </div>
 
       {/* Área de conocimiento — centrado, escalable */}
-      <p id="cover-field-departamento" style={{ textAlign: 'center', fontSize: '15pt', color: BLACK, margin: '4px 0 18px', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('departamento') }}>
+      <p
+        id="cover-field-departamento"
+        style={{
+          textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.departamento)}px`, color: BLACK,
+          margin: `${px(1)}px 0 ${px(4.5)}px`,
+          wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('departamento'),
+        }}
+      >
         {portada.departamento || 'Área de Conocimiento de Ingeniería y Afines'}
       </p>
 
       {/* Título — Montserrat Black */}
-      <p id="cover-field-title" style={{ textAlign: 'center', fontSize: '16pt', fontWeight: 900, color: BLACK, margin: '0 0 18px', fontFamily: 'Montserrat, sans-serif', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('title') }}>
+      <p
+        id="cover-field-title"
+        style={{
+          textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.titulo)}px`, fontWeight: 900, color: BLACK,
+          margin: `0 0 ${px(4.5)}px`,
+          fontFamily: 'Montserrat, sans-serif',
+          wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('title'),
+        }}
+      >
         {portada.title || 'Título del trabajo'}
       </p>
 
       {/* Asignatura */}
       {portada.course && (
-        <p id="cover-field-course" style={{ textAlign: 'center', fontSize: '14pt', color: BLACK, margin: '0 0 24px', wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('course') }}>
+        <p
+          id="cover-field-course"
+          style={{
+            textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.asignatura)}px`, color: BLACK,
+            margin: `0 0 ${px(6)}px`,
+            wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('course'),
+          }}
+        >
           {portada.course}
         </p>
       )}
 
       {/* Elaborado por */}
-      <p style={{ textAlign: 'left', fontWeight: 700, fontSize: '12pt', color: BLACK, margin: '0 0 8px', fontFamily: 'Montserrat, sans-serif' }}>
+      <p
+        style={{
+          textAlign: 'left', fontWeight: 700, fontSize: `${pt(PT_PORTADA_UNI.elaboradoPor)}px`,
+          color: BLACK, margin: `0 0 ${px(2)}px`,
+          fontFamily: 'Montserrat, sans-serif',
+        }}
+      >
         Elaborado por
       </p>
 
       {/* Autores en columnas con separadores verticales */}
-      <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: '4px' }}>
+      <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: px(1) }}>
         {cols.map((col, ci) => (
           <React.Fragment key={ci}>
             <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
               {col.map((a, ai) => (
-                <div key={ai} style={{ marginBottom: '10px', fontFamily: 'Montserrat, sans-serif' }}>
-                  <div style={{ fontSize: '10.5pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK, wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2 }}>{a.nombre}</div>
+                <div key={ai} style={{ marginBottom: px(2.5), fontFamily: 'Montserrat, sans-serif' }}>
+                  <div
+                    style={{
+                      fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
+                      fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                      wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2,
+                    }}
+                  >
+                    {a.nombre}
+                  </div>
                   {a.carnet && (
-                    <div style={{ fontSize: '9.5pt', fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK, wordBreak: 'break-word', overflowWrap: 'break-word', marginTop: '2px', lineHeight: 1.2 }}>
+                    <div
+                      style={{
+                        fontSize: `${pt(PT_PORTADA_UNI.carnet)}px`,
+                        fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                        wordBreak: 'break-word', overflowWrap: 'break-word',
+                        marginTop: px(0.5), lineHeight: 1.2,
+                      }}
+                    >
                       {a.carnet.startsWith('Carnet:') || a.carnet.startsWith('Grupo:') ? a.carnet : `Carnet: ${a.carnet}`}
                     </div>
                   )}
@@ -141,10 +252,21 @@ export const UNICoverPreview: React.FC = () => {
       <div style={{ flex: 1 }} />
 
       {/* Fecha y lugar */}
-      <p style={{ textAlign: 'left', fontSize: '12pt', color: BLACK, margin: '2px 0 0', fontFamily: 'Montserrat, sans-serif' }}>
+      <p
+        style={{
+          textAlign: 'left', fontSize: `${pt(PT_PORTADA_UNI.fecha)}px`, color: BLACK,
+          margin: `${px(0.5)}px 0 0`,
+          fontFamily: 'Montserrat, sans-serif',
+        }}
+      >
         {portada.date || ''}
       </p>
-      <p style={{ textAlign: 'left', fontSize: '12pt', color: BLACK, margin: '0', fontFamily: 'Montserrat, sans-serif' }}>
+      <p
+        style={{
+          textAlign: 'left', fontSize: `${pt(PT_PORTADA_UNI.lugar)}px`, color: BLACK,
+          margin: 0, fontFamily: 'Montserrat, sans-serif',
+        }}
+      >
         Managua, Nicaragua
       </p>
     </div>
