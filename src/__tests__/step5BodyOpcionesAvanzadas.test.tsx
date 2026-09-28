@@ -27,12 +27,21 @@ vi.mock('../components/layout/PaperCanvas', () => ({
   PaperCanvas: () => <div data-testid="lienzo-de-mentira" />,
 }));
 
-/** El archivo entero, para mirar lo que la pantalla no muestra. */
+/**
+ * El archivo entero, para mirar lo que la pantalla no muestra.
+ *
+ * Se lee con `?raw` y NO con `node:fs`, a proposito: `vite.config.ts` aplica
+ * `nodePolyfills()`, que shimmea `fs`, y entonces `readFileSync` deja de ser una
+ * funcion. O sea que un test que lee el fuente con `fs` funciona con una config
+ * de vitest y se rompe con la del repo — que es exactamente la clase de test que
+ * pasa verde solo en la maquina de quien lo escribio. `?raw` lo resuelve Vite y
+ * no depende de los polyfills.
+ */
 const leer = async (): Promise<string> => {
-  const { readFileSync } = await import(/* @vite-ignore */ 'node:fs');
-  const { fileURLToPath } = await import(/* @vite-ignore */ 'node:url');
-  const carpeta = fileURLToPath(import.meta.url).replace(/[\\/][^\\/]+$/, '');
-  return readFileSync(`${carpeta}/../components/wizard/Step5BodyWizard.tsx`, 'utf8');
+  const mod = await import(
+    /* @vite-ignore */ '../components/wizard/Step5BodyWizard.tsx?raw'
+  );
+  return String(mod.default ?? '');
 };
 
 const makeDoc = () => ({

@@ -68,6 +68,10 @@ export default defineConfig({
       '**/dist-electron/**',
       '**/dist-electron-builder/**',
       'word-addin/**',
+      // Worktrees del harness dentro del repo. Cada worktree trae una copia
+      // completa de los tests, y correrlos dos veces no agrega nada: hace que un
+      // fallo aparezca en un archivo que no vas a editar.
+      '**/.kilo/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
     ],
