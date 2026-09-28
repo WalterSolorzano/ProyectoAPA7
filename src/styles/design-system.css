@@ -117,6 +117,13 @@
      `.tsx` significa: un color que no cambia con el tema. */
   --shadow-accent: 0 4px 14px rgba(79, 124, 255, 0.14);
   --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+  /* T20: el velo que pone un modal o una importación tapado encima del
+     contenido sin sacarlo del DOM. Vivía como `rgba(17, 24, 39, 0.18)` dentro
+     del componente, que es un color que no cambia con el tema. Negro con alfa
+     en vez de un tono de tinta: un velo tiene que apagar el contenido, no
+     teñirlo, así que en los dos temas es la misma tinta y solo cambia cuánto
+     apaga. */
+  --scrim-overlay: rgba(0, 0, 0, 0.18);
 
   /* ════════════ ICONOS ════════════ */
   --icon-size-sm: 14px;
@@ -231,6 +238,9 @@
      invierte la fuente (una sombra negra sobre algo casi negro no se ve). */
   --shadow-accent: 0 4px 14px rgba(79, 124, 255, 0.32);
   --shadow-inset: inset 0 1px 2px rgba(255, 255, 255, 0.06);
+  /* El velo sube de alfa en oscuro por el mismo motivo que `--mark-ai-bg` y las
+     sombras de acento: la superficie oscura se come el velo suave. */
+  --scrim-overlay: rgba(0, 0, 0, 0.32);
   --surface-subtle: rgba(255, 255, 255, 0.04);
 
   /* Canvas Paper Tokens (Authentic APA 7 Sheet - Always White & Crisp Ink in Dark Mode) */

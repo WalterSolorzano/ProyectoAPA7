@@ -25,8 +25,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+/* `?raw` y no `node:fs`: el shim de `nodePolyfills()` de `vite.config.ts`
+   deja `fs` sin `readFileSync`, así que leer del disco desde un test revienta
+   en el import. `?raw` además entrega el texto sin transformar, que es lo que
+   estas pruebas miran. */
+import heroCrudo from '../components/layout/HomeHero.tsx?raw';
+import inicioCrudo from '../components/wizard/Step0QuickStart.tsx?raw';
 
 /**
  * El código SIN comentarios. Un comentario puede —y debe— citar la constante que
@@ -41,12 +45,8 @@ const sinComentarios = (src: string): string =>
     .replace(/\/\*[\s\S]*?\*\//g, (bloque) => bloque.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-const hero = sinComentarios(readFileSync(
-  resolve(__dirname, '../components/layout/HomeHero.tsx'), 'utf8',
-));
-const inicio = sinComentarios(readFileSync(
-  resolve(__dirname, '../components/wizard/Step0QuickStart.tsx'), 'utf8',
-));
+const hero = sinComentarios(heroCrudo);
+const inicio = sinComentarios(inicioCrudo);
 
 describe('el texto que se repetía está fuera', () => {
   it('no quedan los tres pilares en el hero', () => {

@@ -30,13 +30,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
-const fuente = readFileSync(
-  resolve(__dirname, '../components/layout/HomeHero.tsx'),
-  'utf8',
-);
+/* El fuente se lee con `?raw`, no con `node:fs`: el shim de `nodePolyfills()`
+   de `vite.config.ts` deja `fs` como un objeto sin `readFileSync`, así que
+   leer del disco desde un test es un `TypeError` en tiempo de import. `?raw`
+   además devuelve el archivo SIN transformar, que es justo lo que estas
+   pruebas necesitan: miran el texto escrito, no el que compila. */
+import fuente from '../components/layout/HomeHero.tsx?raw';
 
 /**
  * Los objetos con silueta en el cielo. La estrella fugaz NO entra: es luz, no

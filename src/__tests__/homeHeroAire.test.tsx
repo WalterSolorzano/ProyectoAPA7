@@ -27,14 +27,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+/* `?raw` y no `node:fs`: el shim de `nodePolyfills()` de `vite.config.ts`
+   deja `fs` sin `readFileSync`, así que leer del disco desde un test revienta
+   en el import. */
+import fuente from '../components/layout/HomeHero.tsx?raw';
 import { HomeHero } from '../components/layout/HomeHero';
-
-const fuente = readFileSync(
-  resolve(__dirname, '../components/layout/HomeHero.tsx'),
-  'utf8',
-);
 
 const num = (re: RegExp, grupo = 1): number => {
   const m = fuente.match(re);
