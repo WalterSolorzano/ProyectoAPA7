@@ -372,11 +372,11 @@ export const NIMDiagnosticsModal: React.FC<NIMDiagnosticsModalProps> = ({
             </div>
 
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-              Las claves y el proveedor se gestionan en un solo lugar (Ajustes → IA y conexión), no acá.
+              Las claves y el proveedor se gestionan en un solo lugar (Ajustes → Conexión), no acá.
             </p>
             <button
               type="button"
-              onClick={() => useDocStore.getState().setSettingsStudioOpen(true, 'ai')}
+              onClick={() => useDocStore.getState().setSettingsHubOpen(true, 'conexion')}
               className="btn btn-primary btn-sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
             >

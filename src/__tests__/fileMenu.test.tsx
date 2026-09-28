@@ -23,7 +23,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { FileMenu } from '../components/layout/FileMenu';
 import { useDocStore } from '../store/useDocStore';
 
@@ -100,5 +100,20 @@ describe('el menú de Archivo', () => {
     const { container } = montarInicio();
     const botonExportar = within(container).getAllByRole('button', { name: /Exportar/i })[0];
     expect(botonExportar).toBeTruthy();
+  });
+
+  it('cierra el backstage tras cargar un archivo y deja el selector listo para volver a elegir el mismo archivo', () => {
+    const { container } = montarInicio();
+    fireEvent.click(screen.getByRole('button', { name: /Nuevo/i }));
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['hola'], 'tesis.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+    expect(input).toBeTruthy();
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(uploadFile).toHaveBeenCalledWith(file);
+    expect(useDocStore.getState().showFileMenu).toBe(false);
+    expect(input.value).toBe('');
   });
 });

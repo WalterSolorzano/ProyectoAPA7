@@ -141,9 +141,6 @@ export interface DocState {
   settingsHubTab: import('../components/settings/tabs').PestanaId;
   setSettingsHubOpen: (open: boolean, tab?: import('../components/settings/tabs').PestanaId) => void;
   setSettingsHubTab: (tab: import('../components/settings/tabs').PestanaId) => void;
-  settingsStudioOpen: boolean;
-  settingsStudioTab: 'format' | 'ai' | 'privacy' | 'about' | 'addin';
-  setSettingsStudioOpen: (open: boolean, tab?: 'format' | 'ai' | 'privacy' | 'about' | 'addin') => void;
   isDownloadModalOpen: boolean;
   setDownloadModalOpen: (open: boolean) => void;
   /** True si el modal de descarga se abrió desde Modo Rápido (bloqueadores duros deshabilitan Descargar) */

@@ -52,7 +52,8 @@ const btnStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 0,
+  gap: active || hovered ? 4 : 0,
+  padding: active || hovered ? '6px 2px 4px' : 0,
   border: 'none',
   borderRadius: active || hovered ? 'var(--radius-lg)' : 'var(--radius-md)',
   backgroundColor: surfaceOf(active, hovered),
@@ -78,23 +79,23 @@ const iconWrapStyle = (active: boolean, hovered: boolean): React.CSSProperties =
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  transform: active || hovered ? 'scale(1.22)' : 'scale(1)',
+  transform: active || hovered ? 'scale(1.08)' : 'scale(1)',
   transition: `transform ${SPRING_DUR} ${SPRING}`,
   flexShrink: 0,
   // Reserva altura fija para que el chip no empuje el icono al hacer max-height.
   lineHeight: 0,
 });
 
-// El chip de nombre: aria-hidden, mayúsculas, 10px.
+// El chip de nombre: aria-hidden, mayúsculas, 9px con respiro adecuado del icono.
 // max-height colapsa a 0 → el contenedor no reserva espacio en reposo.
 const chipStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
-  fontSize: 10,
+  fontSize: 9,
   fontWeight: 700,
-  letterSpacing: '0.04em',
+  letterSpacing: '0.03em',
   textTransform: 'uppercase',
   color: 'var(--color-accent)',
   whiteSpace: 'nowrap',
-  lineHeight: 1,
+  lineHeight: 1.1,
   maxHeight: active || hovered ? 14 : 0,
   opacity: active || hovered ? 1 : 0,
   overflow: 'hidden',
@@ -103,7 +104,7 @@ const chipStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
     `max-height 140ms ease-out ${active || hovered ? '40ms' : '0ms'}`,
     `opacity 130ms ease-out ${active || hovered ? '40ms' : '0ms'}`,
   ].join(', '),
-  marginTop: active || hovered ? 3 : 0,
+  marginTop: 0,
 });
 
 // ── Badge de pendientes: punto → pill numerada en hover ──────────────────────
@@ -183,8 +184,8 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             ? `${label}, listo`
             : label;
 
-        // Etiqueta abreviada para el chip (≤7 chars caben cómodos en 48px).
-        const chipLabel = label.length > 7 ? label.slice(0, 6) + '.' : label;
+        // Etiqueta abreviada para el chip (prioriza shortLabel declarada; fallback elegante).
+        const chipLabel = item.shortLabel ?? (label.length > 8 ? label.slice(0, 7) + '.' : label);
 
         return (
           <button

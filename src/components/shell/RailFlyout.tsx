@@ -58,6 +58,10 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
   // desmontar: el cierre lo programa y el shell lo cancela.
   if (!item) return null;
 
+  // El flyout se dibuja si el destino tiene descripción, estado o esquema documental.
+  const hasDetails = Boolean(item.description || item.status || item.showOutline);
+  if (!hasDetails) return null;
+
   const StatusIcon = item.status === 'done' ? Check : item.status === 'pending' ? AlertCircle : null;
   const pinned = railPinned;
   const pending = item.pending ?? 0;
@@ -73,15 +77,12 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
         top: 12,
         left: 64,
         width: 240,
+        height: item.showOutline ? 'calc(100% - 24px)' : 'auto',
         maxHeight: 'calc(100% - 24px)',
         display: 'flex',
         flexDirection: 'column',
-        /* T20: era `var(--space-1, 8px)`. El token existe y vale 4px, así que el
-           fallback nunca se aplicaba: era una línea que PROMETÍA 8px en el
-           fuente y pintaba 4px en pantalla. Un specifier en variable no lleva
-           fallback (lint R2). */
-        gap: 'var(--space-1)',
-        padding: '14px',
+        gap: 'var(--space-2)',
+        padding: '12px 14px',
         backgroundColor: 'var(--color-bg-surface)',
         border: '1px solid var(--color-border-subtle)',
         borderRadius: 'var(--radius-md)',
@@ -113,11 +114,6 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
           >
             <Pin size={13} strokeWidth={1.75} aria-hidden />
           </button>
-          {/* El cierre es un botón, no una tecla: un clic en una fase anclaba el
-              panel y lo dejaba sobre el documento con un único cierre posible
-              (Esc), y un usuario de ratón se quedaba con 240px de overlay sin
-              salida visible. El nombre "Cerrar detalle" dice qué se cierra —
-              el panel, no la fase— porque el clic no desancla. */}
           <button
             type="button"
             aria-label="Cerrar detalle"
@@ -133,6 +129,14 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
           </button>
         </div>
       </div>
+
+      {/* Descripción contextual para dar sentido al flyout */}
+      {item.description && (
+        <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
+          {item.description}
+        </p>
+      )}
+
 
       {/* La fila de estado se omite entera cuando el destino NO tiene estado.
           Ajustes, Tema y el Complemento de Word son acciones: no se completan,

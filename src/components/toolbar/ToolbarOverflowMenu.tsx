@@ -81,7 +81,7 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
   const undo = useDocStore((s) => s.undo);
   const redo = useDocStore((s) => s.redo);
   const setTheme = useDocStore((s) => s.setTheme);
-  const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
+  const setSettingsHubOpen = useDocStore((s) => s.setSettingsHubOpen);
   const copyPdfToClipboard = useDocStore((s) => s.copyPdfToClipboard);
   const updateState = useUpdateStore((s) => s.state);
   const initUpdate = useUpdateStore((s) => s.init);
@@ -142,7 +142,10 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
       </Item>
 
       <Separador />
-      <Item label="Complemento de Word" onClick={run(() => setSettingsStudioOpen(true, 'addin'))}>
+      {/* El complemento vive en la pestaña Conexión, que es donde están el
+          registro de Office, el certificado y la instalación. Antes apuntaba a
+          una pestaña 'addin' de un estudio que ya no existe. */}
+      <Item label="Complemento de Word" onClick={run(() => setSettingsHubOpen(true, 'conexion'))}>
         <Puzzle size={14} strokeWidth={1.75} aria-hidden />
       </Item>
       {updateState === 'downloaded' && (
@@ -157,7 +160,7 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
           ? <Moon size={14} strokeWidth={1.75} aria-hidden />
           : <Sun size={14} strokeWidth={1.75} aria-hidden />}
       </Item>
-      <Item label="Ajustes" onClick={run(() => setSettingsStudioOpen(true))}>
+      <Item label="Ajustes" onClick={run(() => setSettingsHubOpen(true))}>
         <Settings size={14} strokeWidth={1.75} aria-hidden />
       </Item>
     </div>

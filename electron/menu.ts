@@ -85,12 +85,15 @@ export function createMenu() {
             ]) as Electron.MenuItemConstructorOptions[]
       ]
     },
-    // Preferencias Menu (Custom)
+    /* Preferencias. UNA sola entrada, y abre lo mismo que las otras seis: el hub
+       de Ajustes. Antes se llamaba "Configuración de APA 7...", que prometía un
+       editor de formato y entregaba un estudio con cinco pestañas que no tenían
+       nada que ver entre sí. El nombre tiene que decir la pantalla. */
     {
       label: 'Preferencias',
       submenu: [
         {
-          label: 'Configuración de APA 7...',
+          label: 'Ajustes...',
           click: () => {
              const wins = BrowserWindow.getAllWindows();
              if(wins.length > 0) wins[0].webContents.send('menu-action', 'trigger-preferences');

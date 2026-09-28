@@ -14,7 +14,7 @@ import { PDFPreview } from './components/layout/PDFPreview';
 import { ReactPDFPreview } from './components/layout/ReactPDFPreview';
 import { StatusBar } from './components/layout/StatusBar';
 import { Step0QuickStart } from './components/wizard/Step0QuickStart';
-import { SettingsPreviewStudio } from './components/settings/SettingsPreviewStudio';
+import { SettingsHub } from './components/settings/SettingsHub';
 import { ExportView } from './components/export/ExportView';
 import { LoadingTips } from './components/layout/LoadingTips';
 import { DownloadSuccessOverlay } from './components/layout/DownloadSuccessOverlay';
@@ -237,7 +237,7 @@ export const App: React.FC = () => {
     setWizardStep,
     setIsNIMDiagnosticsOpen,
     viewMode,
-    settingsStudioOpen,
+    settingsHubOpen,
     commandPaletteOpen,
     atHome,
     goHome,
@@ -539,7 +539,14 @@ export const App: React.FC = () => {
       removeMenuListener = electronWindow.electronAPI.onMenuAction((_event: any, action: string) => {
         if (action === 'trigger-export') {
            useDocStore.getState().exportDocx(false);
-        } else if (action === 'trigger-upload' || action === 'wordapa7-start-blank' || action === 'trigger-preferences' || action === 'wordapa7-start-template') {
+        } else if (action === 'trigger-preferences') {
+           /* Entrada #7: la del menú nativo. Va directa al store, sin el viaje
+              de un CustomEvent: el evento era un segundo camino al mismo flag, y
+              dos caminos son dos verdades. Las otras tres acciones del menú sí
+              necesitan el evento, porque las escucha el componente que las
+              monta. */
+           useDocStore.getState().setSettingsHubOpen(true);
+        } else if (action === 'trigger-upload' || action === 'wordapa7-start-blank' || action === 'wordapa7-start-template') {
            window.dispatchEvent(new CustomEvent(action));
         }
       });
@@ -554,7 +561,6 @@ export const App: React.FC = () => {
     const listeners: Array<[string, () => void]> = [
       ['trigger-upload', () => useDocStore.getState().setShowFileMenu(true)],
       ['wordapa7-start-blank', () => { useDocStore.getState().startBlankDocument(); }],
-      ['trigger-preferences', () => useDocStore.getState().setSettingsStudioOpen(true)],
       ['wordapa7-start-template', () => useDocStore.getState().setShowTemplateDialog(true)],
     ];
     const cleanups = listeners.map(([action, handler]) => {
@@ -587,12 +593,17 @@ export const App: React.FC = () => {
     );
   }
 
-  if (settingsStudioOpen) {
+  /* El hub de Ajustes, montado AQUÍ y no dentro del editor a propósito. La rama
+     va antes de `showFileMenu` y antes del `!doc || atHome`, y no en `AppShell`:
+     Ajustes tiene que abrir con un documento abierto —que es el caso en el que
+     se lo necesita— y también desde el backstage, y una pantalla de
+     configuración que solo existe en una de las dos es media entrada. El flag
+     vive en el store, así que hay un solo sitio donde decidir y ninguno donde
+     se monte dos veces. */
+  if (settingsHubOpen) {
     return (
       <>
-        <SettingsPreviewStudio
-          onClose={() => useDocStore.setState({ settingsStudioOpen: false })}
-        />
+        <SettingsHub />
         <LoadingTips />
       </>
     );

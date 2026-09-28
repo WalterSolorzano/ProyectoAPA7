@@ -4,10 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { listSessions, recoverSession } from '../../api/backend';
 import { SessionRecovery } from '../../types';
-import { UpdateCard } from '../shared/UpdateCard';
 import {
   FileText, FilePlus, FolderOpen, Download, X, ArrowLeft,
-  Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate,
+  Upload, File, Clock, Plus, HardDrive, RefreshCw, LayoutTemplate, Settings,
   Type, Image, Table, ListOrdered, Quote,
 } from 'lucide-react';
 
@@ -43,12 +42,20 @@ export const FileMenu: React.FC = () => {
     setShowFileMenu, uploadFile, exportDocx,
     isLoading,
   } = useDocStore();
+  /* Para la página de Actualización: la tarjeta vive en Ajustes → App y desde
+     acá se abre esa pantalla, no se la reimprime. */
+  const setSettingsHubOpen = useDocStore((s) => s.setSettingsHubOpen);
   const [page, setPage] = useState<FileMenuPage>('home');
   const [sessions, setSessions] = useState<SessionRecovery[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const openFileInputRef = useRef<HTMLInputElement>(null);
+
+  const clearFileInputs = () => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (openFileInputRef.current) openFileInputRef.current.value = '';
+  };
 
   // Load sessions for "Open" page
   useEffect(() => {
@@ -63,7 +70,9 @@ export const FileMenu: React.FC = () => {
 
   const handleFileSelect = (file: File) => {
     uploadFile(file);
+    clearFileInputs();
     setPage('home');
+    setShowFileMenu(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -76,6 +85,7 @@ export const FileMenu: React.FC = () => {
   };
 
   const handleClose = () => {
+    clearFileInputs();
     setShowFileMenu(false);
     setPage('home');
   };
@@ -378,12 +388,28 @@ export const FileMenu: React.FC = () => {
         return (
           <div className="filemenu-content">
             <h2 className="filemenu-heading">Actualización</h2>
-            <UpdateCard />
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: '16px' }}>
+            {/* La tarjeta de actualización vive en UNA pantalla: la pestaña App
+                de Ajustes. Acá había una segunda copia, sin `compact`, y dos
+                copias de la misma tarjeta divergen: una se actualiza y la otra
+                miente. Esta página no desaparece —quedaría un enlace sin
+                destino— pero deja de prometer lo que no puede mostrar. */}
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: '4px' }}>
               La app se actualiza automáticamente desde GitHub Releases. Si hay una
-              versión nueva, se descarga en segundo plano y este menú te permite
-              instalarla con un clic (reinicia la app).
+              versión nueva, se descarga en segundo plano y se instala desde
+              Ajustes → App, que es donde vive la tarjeta.
             </p>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                setShowFileMenu(false);
+                setSettingsHubOpen(true, 'app');
+              }}
+              style={{ marginTop: '16px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            >
+              <Settings size={13} strokeWidth="var(--icon-stroke)" />
+              Abrir Ajustes
+            </button>
           </div>
         );
     }

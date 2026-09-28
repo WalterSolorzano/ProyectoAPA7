@@ -9,7 +9,6 @@ import {
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
-import { SettingsMenu } from '../layout/SettingsMenu';
 import { IconRail } from '../shell/IconRail';
 import { RailFlyout } from '../shell/RailFlyout';
 import { useRailFlyout } from '../../hooks/useRailFlyout';
@@ -254,7 +253,6 @@ export const Step0QuickStart: React.FC = () => {
   const [recentSessions, setRecentSessions] = useState<SessionRecovery[]>([]);
   const [loadingRecents, setLoadingRecents] = useState(false);
   const [recoveringId, setRecoveringId] = useState<string | null>(null);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -405,15 +403,13 @@ export const Step0QuickStart: React.FC = () => {
       case 'home-nueva':
         triggerFilePicker();
         break;
-      case 'home-addin':
-        // Igual que la entrada homónima del menú de la barra.
-        st.setSettingsStudioOpen(true, 'addin');
-        break;
       case 'home-ajustes':
-        setSettingsMenuOpen(true);
-        break;
-      case 'home-tema':
-        st.setTheme(st.theme === 'light' ? 'dark' : 'light');
+        /* Un destino, no tres. 'home-addin', 'home-ajustes' y 'home-tema' eran
+           tres filas del mismo hub en tres iconos, y cada una abría una pantalla
+           distinta: el complemento en el estudio viejo, Ajustes en un panel que
+           era INALCANZABLE con un documento abierto, y el tema en un toggle sin
+           memoria. Ahora las tres están en el hub, en Conexión y App. */
+        st.setSettingsHubOpen(true, 'conexion');
         break;
     }
   };
@@ -507,10 +503,8 @@ export const Step0QuickStart: React.FC = () => {
         onLeave={flyout.onLeavePanel}
       />
 
-      {/* Menú "Configuraciones" estilo Notion */}
-        {settingsMenuOpen && <SettingsMenu onClose={() => setSettingsMenuOpen(false)} />}
-
-
+      {/* El hub de Ajustes se abre desde `App.tsx`, no desde acá: es un flag del
+          store y un solo montaje. Este archivo ya no sabe qué hay dentro. */}
 
       {/* ── ÁREA PRINCIPAL ─── */}
       <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '60px 48px' }}>

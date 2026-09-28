@@ -62,7 +62,7 @@ export function UnifiedToolbar() {
   const setShowFileMenu = useDocStore((s) => s.setShowFileMenu);
   const liveChatOpen = useDocStore((s) => s.liveChatOpen);
   const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
-  const setSettingsStudioOpen = useDocStore((s) => s.setSettingsStudioOpen);
+  const setSettingsHubOpen = useDocStore((s) => s.setSettingsHubOpen);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
   const overflowButtonRef = useRef<HTMLButtonElement>(null);
@@ -257,12 +257,14 @@ export function UnifiedToolbar() {
 
         {/* Sin cuenta en el store, este botón no puede anunciar una sesión: la
             "W" de WordAPA7 es la marca, y lo que abre son Ajustes. Se nombra
-            por lo que hace. */}
+            por lo que hace. "Vista previa" se fue del nombre porque la
+            previsualización en vivo del estudio viejo también: lo que abría era
+            el hub, y el nombre tenía que decir el hub. */}
         <button
           type="button"
-          onClick={() => setSettingsStudioOpen(true)}
-          aria-label="Ajustes y vista previa"
-          title="Ajustes y vista previa"
+          onClick={() => setSettingsHubOpen(true)}
+          aria-label="Ajustes"
+          title="Ajustes"
           style={{
             width: 28, height: 28, borderRadius: 'var(--radius-full)',
             border: 'none', backgroundColor: 'var(--color-accent)',

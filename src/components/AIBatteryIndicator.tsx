@@ -47,7 +47,7 @@ const SignalBars = ({ percentage, status }: { percentage: number, status: AIHeal
 export const AIBatteryIndicator: React.FC = () => {
   const [health, setHealth] = useState<AIHealthResponse | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const { setSettingsStudioOpen, setIsNIMDiagnosticsOpen } = useDocStore();
+  const { setSettingsHubOpen, setIsNIMDiagnosticsOpen } = useDocStore();
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -85,9 +85,11 @@ export const AIBatteryIndicator: React.FC = () => {
       ? '0 0 16px color-mix(in srgb, var(--color-warning) 30%, transparent)'
       : 'var(--shadow-md)';
 
-  // Al hacer clic: abrir la configuración de IA del Settings Studio
+  // Al hacer clic: la pestaña Conexión del hub, que es donde se eligen
+  // proveedor, modelo y claves. Antes apuntaba a la pestaña 'ai' de un estudio
+  // que ya no existe, así que el clic no tenía destino.
   const handleClick = () => {
-    setSettingsStudioOpen(true, 'ai');
+    setSettingsHubOpen(true, 'conexion');
   };
 
   return (

@@ -40,8 +40,8 @@ describe('T7 — menú de desbordamiento', () => {
       history: [],
       historyIndex: 0,
       theme: 'light',
-      settingsStudioOpen: false,
-      settingsStudioTab: 'format',
+      settingsHubOpen: false,
+      settingsHubTab: 'documento',
       liveChatOpen: false,
       showFileMenu: false,
       atHome: false,
@@ -115,18 +115,19 @@ describe('T7 — menú de desbordamiento', () => {
     expect(screen.getByRole('menuitem', { name: 'Rehacer' })).toBeDisabled();
   });
 
-  it('“Complemento de Word” y “Ajustes” abren la configuración en su pestaña', () => {
+  it('“Complemento de Word” y “Ajustes” abren el hub, y el complemento en Conexión', () => {
     render(<ToolbarOverflowMenu onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Complemento de Word' }));
-    expect(useDocStore.getState().settingsStudioOpen).toBe(true);
-    expect(useDocStore.getState().settingsStudioTab).toBe('addin');
+    expect(useDocStore.getState().settingsHubOpen).toBe(true);
+    // El registro de Office, el certificado y la instalación están en Conexión.
+    expect(useDocStore.getState().settingsHubTab).toBe('conexion');
   });
 
-  it('“Ajustes” abre la configuración y “Tema” alterna el tema del store', () => {
+  it('“Ajustes” abre el hub sin forzar pestaña, y “Tema” alterna el tema del store', () => {
     render(<ToolbarOverflowMenu onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Ajustes' }));
-    expect(useDocStore.getState().settingsStudioOpen).toBe(true);
-    expect(useDocStore.getState().settingsStudioTab).toBe('format');
+    expect(useDocStore.getState().settingsHubOpen).toBe(true);
+    expect(useDocStore.getState().settingsHubTab).toBe('documento');
 
     const antes = useDocStore.getState().theme;
     fireEvent.click(screen.getByRole('menuitem', { name: 'Tema' }));
@@ -166,7 +167,7 @@ describe('T7 — la barra mínima', () => {
       doc: DOC_B,
       hasUnsavedChanges: false,
       liveChatOpen: false,
-      settingsStudioOpen: false,
+      settingsHubOpen: false,
       showFileMenu: false,
     } as never);
   });
@@ -257,12 +258,14 @@ describe('T7 — la barra mínima', () => {
   it('el Copiloto alterna el chat y el avatar abre Ajustes por su NOMBRE real', () => {
     // "Cuenta" anunciaba una sesión iniciada que no existe: no hay cuenta en el
     // store. La "W" es la marca de la app, y lo que el botón abre son Ajustes.
+    // El nombre perdió el "y vista previa": la previsualización en vivo era del
+    // estudio viejo, y el botón ya no la abre.
     render(<UnifiedToolbar />);
     fireEvent.click(screen.getByRole('button', { name: 'Copiloto Editorial IA' }));
     expect(useDocStore.getState().liveChatOpen).toBe(true);
 
     expect(screen.queryByRole('button', { name: 'Cuenta' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Ajustes y vista previa' }));
-    expect(useDocStore.getState().settingsStudioOpen).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }));
+    expect(useDocStore.getState().settingsHubOpen).toBe(true);
   });
 });

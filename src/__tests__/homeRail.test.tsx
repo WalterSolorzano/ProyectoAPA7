@@ -38,8 +38,8 @@ beforeEach(() => {
     isBackendReady: true,
     error: null,
     railPinned: false,
-    settingsStudioOpen: false,
-    settingsStudioTab: 'format',
+    settingsHubOpen: false,
+    settingsHubTab: 'documento',
     theme: 'light',
   } as never));
 });
@@ -47,7 +47,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => useDocStore.setState({
     railPinned: false,
-    settingsStudioOpen: false,
+    settingsHubOpen: false,
     wizardStep: wizardStepInicial,
   } as never));
 });
@@ -146,27 +146,21 @@ describe('T19 — rail de Inicio', () => {
     expect(screen.getByRole('heading', { name: 'Documentos Recientes' })).toBeTruthy();
   });
 
-  it('Ajustes abre el panel de Configuraciones, con sus secciones propias', async () => {
+  it('Ajustes abre el hub, y es el único destino de configuración del rail', async () => {
+    // Tres destinos de configuración ('home-addin', 'home-ajustes', 'home-tema')
+    // eran un menú disfrazado de iconos, y cada uno abría una pantalla distinta.
+    // Ahora hay uno, y abre el hub en Conexión: es donde vive el complemento de
+    // Word, que era lo que el icono del engranaje no decía.
     await montarInicio();
+    const deConfiguracion = HOME_RAIL_ITEMS.filter((i) => i.id.startsWith('home-'));
+    expect(deConfiguracion.map((i) => i.id)).toContain('home-ajustes');
+    expect(deConfiguracion.filter((i) => ['home-addin', 'home-tema'].includes(i.id))).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'Complemento de Word' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tema' })).toBeNull();
+
     fireEvent.click(destino('Ajustes'));
-    // "Mantenimiento y Desinstalación" solo existe en SettingsMenu: es lo que
-    // distingue esta superficie de SettingsPreviewStudio.
-    expect(screen.getByRole('button', { name: 'Mantenimiento y Desinstalación' })).toBeTruthy();
-  });
-
-  it('Complemento de Word abre su sección del estudio, como el menú de la barra', async () => {
-    await montarInicio();
-    fireEvent.click(destino('Complemento de Word'));
-    expect(useDocStore.getState().settingsStudioOpen).toBe(true);
-    expect(useDocStore.getState().settingsStudioTab).toBe('addin');
-  });
-
-  it('Tema alterna el tema sin abrir el panel de ajustes', async () => {
-    await montarInicio();
-    const antes = useDocStore.getState().theme;
-    fireEvent.click(destino('Tema'));
-    expect(useDocStore.getState().theme).toBe(antes === 'light' ? 'dark' : 'light');
-    expect(screen.queryByRole('button', { name: 'Mantenimiento y Desinstalación' })).toBeNull();
+    expect(useDocStore.getState().settingsHubOpen).toBe(true);
+    expect(useDocStore.getState().settingsHubTab).toBe('conexion');
   });
 
   it('Nueva transformación abre el selector de archivo', async () => {
@@ -247,7 +241,7 @@ describe('T19 — rail de Inicio', () => {
   });
 
   it('el detalle de un destino de Inicio no inventa un estado de trabajo', async () => {
-    // Ajustes, Tema y el Complemento de Word no se completan ni se posponen.
+    // Ajustes no se completa ni se pospone.
     // Con `status` obligatorio, el catálogo tenía que mentir con un `idle` y el
     // flyout imprimía "Sin pendientes" encima de un botón.
     await montarInicio();

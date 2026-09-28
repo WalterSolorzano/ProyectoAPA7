@@ -52,7 +52,7 @@ export function useRailDestinations(): RailDestination[] {
       citationAuditResult,
     });
 
-    return EDITOR_RAIL_ITEMS.map(({ step, label, Icon, showOutline }) => {
+    return EDITOR_RAIL_ITEMS.map(({ step, label, shortLabel, Icon, showOutline }) => {
       // La 6 (Exportar) no tiene clave: exportarle algo al usuario no es una
       // tarea con estado, y una fase sin clave tiene 0 pendientes. Antes se
       // inventaba un "Listo" para un destino que no se puede terminar.
@@ -75,6 +75,7 @@ export function useRailDestinations(): RailDestination[] {
         id: `step-${step}`,
         step,
         label,
+        shortLabel,
         Icon,
         status,
         pending,
