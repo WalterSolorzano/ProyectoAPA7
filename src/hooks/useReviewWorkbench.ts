@@ -42,6 +42,13 @@ import {
 } from '../components/wizard/scanOutcome';
 import { useReviewActions } from './useReviewActions';
 import { collectAuditItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
+import { rotuloDeSubtipo } from '../lib/rotulos';
+
+/* La tabla de rótulos y la de reglas viven en `lib/rotulos`, y no acá. Este hook
+   las consumía y las declaraba a la vez, que es lo que dejó al slice del store sin
+   puerta de entrada y con su propia tabla de diez filas: un slice no puede importar
+   de un hook. Se reexportan porque son parte del contrato público de este archivo. */
+export { rotuloDeSubtipo, SUBTYPE_LABELS, ROTULO_GENERICO } from '../lib/rotulos';
 
 /* La LISTA de hallazgos vive en `lib/auditItems` porque el rail necesita contar
    la misma que esta vista abre. Estos `export type` siguen siendo su puerta:
@@ -180,52 +187,6 @@ const SCAN_ENGINES: { id: ScanEngineId; label: string }[] = [
   { id: 'proofread', label: 'Ortografía' },
   { id: 'citations', label: 'Citas' },
 ];
-
-/**
- * Subtipo = el `kind` del proofreador NORMALIZADO. El backend emite un
- * `kind` por hallazgo ('ai_phrase', 'bloom_vague', 'bloom_low'...); sin esta
- * capa, cada uno sería su propia fila y ninguno tendría etiqueta de usuario.
- * Toda etiqueta que `PROOFREAD_SPECS` produce tiene fila aquí Y en
- * `SUBTYPE_ACTION`: un subtipo sin acción caería en la del motor, que para IA
- * es 'mark' pero para un motor objetivo sería 'accept' sobre un hallazgo que
- * nadie ha revisado.
- */
-const SUBTYPE_LABELS: Record<string, string> = {
-  portada: 'Título de portada',
-  largo_parrafo: 'Extensión del párrafo',
-  tiempo_verbal: 'Tiempo verbal de la fase',
-  parafrasis: 'Paráfrasis o cita',
-  registro_coloquial: 'Registro coloquial',
-  segunda_persona: 'Segunda persona al lector',
-  sigla_sin_definir: 'Sigla sin definir',
-  ritmo_oracion: 'Ritmo de las oraciones',
-  exclamacion: 'Exclamación en la prosa',
-  unidad_mixta: 'Unidad mezclada',
-  triada: 'Tríada repetida',
-  densidad_conectores: 'Densidad de conectores',
-  cifra_sin_cita: 'Cifra sin cita',
-  verbatim_sin_comillas: 'Texto copiado sin comillas',
-  parrafo_ia: 'Párrafo con índice IA alto',
-  frase_ia: 'Frase típica de IA',
-  muletilla: 'Muletilla o repetición',
-  repeticion: 'Repetición de n-gramas',
-  primera_persona: 'Primera persona gramatical',
-  mezcla_personas: 'Mezcla de personas gramaticales',
-  verbo_bloom: 'Verbo impreciso en objetivo (Bloom)',
-  ortografia: 'Falta ortográfica o tilde',
-  texto_pegado: 'Texto pegado sin espaciado',
-  palabra_repetida: 'Palabra repetida',
-  pronombre_ambiguo: 'Pronombre ambiguo',
-  voz_pasiva: 'Voz pasiva',
-  oracion_larga: 'Oración extensa',
-  idea_incompleta: 'Idea incompleta',
-  otro: 'Otro hallazgo del corrector',
-  cita_fantasma: 'Cita ausente en bibliografía',
-  referencia_huerfana: 'Referencia nunca citada',
-  encabezado: 'Jerarquía de encabezado',
-  figura: 'Figura sin rotular',
-  tabla: 'Tabla sin rotular',
-};
 
 /** Acción masiva por subtipo: qué tan objetiva es la corrección del motor. */
 const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
@@ -437,37 +398,6 @@ function accionDeItems(items: AuditItem[]): SubtypeAction {
   // El motor IA es probabilístico y jamás se "acepta" (AGENTS.md §1).
   if (aplicables.every((i) => i.category === 'ai')) return 'mark';
   return 'accept';
-}
-
-/**
- * El rótulo de un subtipo, y SIEMPRE uno de usuario.
- *
- * Antes era `SUBTYPE_LABELS[key] || key`, y ese `|| key` es un modo de fallo
- * por omisión: la primera vez que el backend emite una regla que la tabla no
- * conoce, el nombre interno de esa regla aparece en la lista de correcciones.
- * El usuario vio exactamente eso —`g74_verbatim_sin_comillas`— donde debía
- * leer "Texto copiado sin comillas".
- *
- * Un subtipo desconocido no se descarta ni se esconde: se muestra con un
- * nombre legible y se avisa en la consola, que es donde se arregla. La
- * prueba `noSubtipoInternoEnPantalla` verifica que hoy ninguno cae en el
- * rótulo genérico: si uno aparece, falta una fila en `SUBTYPE_LABELS`.
- */
-const ROTULO_GENERICO = 'Otro hallazgo del corrector';
-
-export function rotuloDeSubtipo(key: string): string {
-  const etiqueta = SUBTYPE_LABELS[key];
-  if (etiqueta) return etiqueta;
-  if (process.env.NODE_ENV !== 'production') {
-    /* Un `warn` y no un `throw`: la regla nueva tiene que verse aunque la tabla
-       no la haya alcanzado todavía, y caerse por eso sería peor que mostrarla
-       con un nombre feo. */
-    console.warn(
-      `[revisión] el subtipo "${key}" no tiene fila en SUBTYPE_LABELS. ` +
-      'Se muestra con el rótulo genérico; agregá la fila.',
-    );
-  }
-  return ROTULO_GENERICO;
 }
 
 export function agruparHallazgosPorFase(items: AuditItem[]): PhaseGroup[] {

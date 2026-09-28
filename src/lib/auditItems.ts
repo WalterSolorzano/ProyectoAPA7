@@ -16,6 +16,18 @@
       si algo es un hallazgo es esto, no dónde cae. */
 
 import type { ElementModel, ProofreadFinding } from '../types';
+import { PROOFREAD_SPECS, mensajeDelMotor } from './rotulos';
+import type { ProofreadSource } from './rotulos';
+
+/* `PROOFREAD_SPECS` y `ProofreadSource` viven en `lib/rotulos.ts` y se reexportan
+   acá. La tabla de reglas y la de rótulos son la misma pregunta en dos pasos —de
+   `kind` a `subtype`, de `subtype` a nombre—, y mientras estuvieron en archivos
+   distintos cada capa que no alcanzaba a la otra se inventó la suya: el store del
+   mapa de marcas tiene sus diez filas y por eso escribía el `snake_case` crudo en
+   `localStorage`. La reexportación existe para no romper los imports que ya
+   había. */
+export { PROOFREAD_SPECS } from './rotulos';
+export type { ProofreadSource } from './rotulos';
 
 export type EngineId = 'ai' | 'style' | 'spelling' | 'citations' | 'structure';
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
@@ -109,11 +121,8 @@ function faseDeHallazgo(f: ProofreadFinding): string | null {
    → localStorage + StorageEvent): el usuario leía en el lienzo un aviso que
    el panel de Revisión no tenía. Un panel que calla un hallazgo que el lienzo
    enseña rompe la sincronización que AGENTS.md §2 exige entre los dos
-   canales. */
-export interface ProofreadSource {
-  excerpt?: string;
-  message: string;
-}
+   canales. La tabla que hace esa traducción (`PROOFREAD_SPECS`) se reexporta
+   desde acá; vive en `lib/rotulos.ts`, junto a los rótulos. */
 
 interface ProofreadRow {
   category: EngineId;
@@ -122,17 +131,6 @@ interface ProofreadRow {
   summary: string;
   suggestedText?: string;
 }
-
-interface ProofreadSpec {
-  category: EngineId;
-  subtype: string;
-  severity: Severity;
-  /** Texto fijo de la fila, o el mensaje del motor si este ya lo explica. */
-  summary: string | ((f: ProofreadSource) => string);
-  suggestedText?: string;
-}
-
-const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
 /* ── La IDENTIDAD de un hallazgo ───────────────────────────────────────────
    `AuditItem.id` no es una etiqueta: es la clave de React del detalle, la que
@@ -165,102 +163,6 @@ const clave = (...partes: Array<string | number | undefined | null>): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const DEL_MOTOR = (f: ProofreadSource) => clip(f.message, 70);
-
-export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
-  // Ortografía y pegado: la corrección es mecánica (objetivos, 'accept').
-  ortografia: {
-    category: 'spelling',
-    subtype: 'ortografia',
-    severity: 'high',
-    summary: (f) => `Falta ortográfica o tilde: ${f.excerpt ?? ''}`,
-  },
-  pegado: {
-    category: 'spelling',
-    subtype: 'texto_pegado',
-    severity: 'medium',
-    summary: 'Texto pegado sin espaciado correcto',
-  },
-
-  // Redacción y Bloom.
-  first_person: {
-    category: 'style',
-    subtype: 'primera_persona',
-    severity: 'medium',
-    summary: 'Uso de primera persona gramatical',
-  },
-  persona: {
-    category: 'style',
-    subtype: 'mezcla_personas',
-    severity: 'medium',
-    summary: DEL_MOTOR,
-  },
-  bloom_vague: {
-    category: 'style',
-    subtype: 'verbo_bloom',
-    severity: 'high',
-    summary: 'Verbo impreciso en objetivo académico',
-    suggestedText: 'Determinar y analizar de forma rigurosa',
-  },
-  bloom_low: {
-    category: 'style',
-    subtype: 'verbo_bloom',
-    severity: 'high',
-    summary: 'Nivel de Bloom por debajo del objetivo del trabajo',
-    suggestedText: 'Determinar y analizar de forma rigurosa',
-  },
-
-  // Lo que el detector probabilístico señala: se marca, nunca se aplica.
-  ai_phrase: { category: 'ai', subtype: 'frase_ia', severity: 'medium', summary: DEL_MOTOR },
-  muletilla: { category: 'ai', subtype: 'muletilla', severity: 'medium', summary: DEL_MOTOR },
-  ngram_repetition: { category: 'ai', subtype: 'repeticion', severity: 'medium', summary: DEL_MOTOR },
-
-  /* Detectados con certeza, pero sin corrección automática posible: cuál de
-     las tres repeticiones se corta, a qué antecedente apunta "esto", dónde
-     partir una oración de 60 palabras, qué idea falta al final. Todos 'mark'
-     (la severidad espeja la que emite el auditor: incomplete → 'error',
-     long_sentence → 'warn', el resto → 'info'). */
-  repeticion: { category: 'style', subtype: 'palabra_repetida', severity: 'low', summary: DEL_MOTOR },
-  ambigua: { category: 'style', subtype: 'pronombre_ambiguo', severity: 'low', summary: DEL_MOTOR },
-  passive_voice: { category: 'style', subtype: 'voz_pasiva', severity: 'low', summary: DEL_MOTOR },
-  long_sentence: { category: 'style', subtype: 'oracion_larga', severity: 'medium', summary: DEL_MOTOR },
-  incompleta: { category: 'style', subtype: 'idea_incompleta', severity: 'high', summary: DEL_MOTOR },
-
-  /* Los criterios DE FASE. Sin fila propia caían todos en `otro` —"Otro
-     hallazgo del corrector"—, con el `kind` crudo en el mapa de transparencia
-     del lienzo (`portada_punto_final` literal en el chip). El subtipo es la
-     tercera agrupación de la vista: fase → motor → subtipo. */
-  paragraph_words: { category: 'style', subtype: 'largo_parrafo', severity: 'low', summary: DEL_MOTOR },
-  verbo_pasado: { category: 'style', subtype: 'tiempo_verbal', severity: 'low', summary: DEL_MOTOR },
-  parafrasis_vs_cita: { category: 'style', subtype: 'parafraisis', severity: 'low', summary: DEL_MOTOR },
-  /* Los dos de portada son de SOLO LECTURA: sin `suggestedText` y con subtipo
-     `portada`, que `SUBTYPE_ACTION` manda a 'mark'. Que un hallazgo se informe
-     y no se pueda aplicar es la invariante D6, y el subtipo la hace cumplir en
-     la vista sin depender del `readOnly` que ya viaja. */
-  portada_title_larga: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
-  portada_punto_final: { category: 'structure', subtype: 'portada', severity: 'low', summary: DEL_MOTOR },
-
-  /* Las ocho universales baratas del spec §12. Todas 'mark': ninguna trae un
-     texto corregido, y una reescritura automática de prosa argumental sería
-     decidir por el usuario. El motor detecta, la persona corrige. */
-  g11_variacion_oracion: { category: 'style', subtype: 'ritmo_oracion', severity: 'low', summary: DEL_MOTOR },
-  g34_sigla_sin_definir: { category: 'style', subtype: 'sigla_sin_definir', severity: 'medium', summary: DEL_MOTOR },
-  g35_unidades_mixtas: { category: 'style', subtype: 'unidad_mixta', severity: 'low', summary: DEL_MOTOR },
-  g51_registro_coloquial: { category: 'style', subtype: 'registro_coloquial', severity: 'high', summary: DEL_MOTOR },
-  g52_exclamacion: { category: 'style', subtype: 'exclamacion', severity: 'low', summary: DEL_MOTOR },
-  g53_segunda_persona: { category: 'style', subtype: 'segunda_persona', severity: 'medium', summary: DEL_MOTOR },
-  g61_triada: { category: 'style', subtype: 'triada', severity: 'low', summary: DEL_MOTOR },
-  g63_conectores_densidad: { category: 'style', subtype: 'densidad_conectores', severity: 'low', summary: DEL_MOTOR },
-  /* R-G71 es Critica en el catalogo y por eso va con severidad 'high'. Sigue
-     siendo 'mark' y no 'accept': el motor dice que le falta la cita, no sabe
-     cual es. */
-  g71_cifra_sin_cita: { category: 'citations', subtype: 'cifra_sin_cita', severity: 'high', summary: DEL_MOTOR },
-  /* El primo de R-G74, y NO es R-G74: mide un tramo largo sin entrecomillar, no
-     similitud contra la fuente, porque el documento solo guarda la entrada
-     bibliografica. El mensaje PREGUNTA, no acusa. */
-  g74_verbatim_sin_comillas: { category: 'citations', subtype: 'verbatim_sin_comillas', severity: 'low', summary: DEL_MOTOR },
-};
-
 /** Todo kind tiene fila: la tabla cubre los declarados y la última recoge lo
  *  que llegue nuevo. Nunca devuelve `null`: no hay kinds que se pierdan. */
 export function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
@@ -268,7 +170,7 @@ export function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
     category: 'style' as EngineId,
     subtype: 'otro',
     severity: 'low' as Severity,
-    summary: DEL_MOTOR,
+    summary: mensajeDelMotor,
   };
   return {
     category: spec.category,
