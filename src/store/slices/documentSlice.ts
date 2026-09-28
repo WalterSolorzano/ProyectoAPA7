@@ -1,6 +1,5 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
-import { refrescarDesdeWord as pedirDiffDesdeWord } from '../../lib/wordRefresh';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../../types';
 import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
@@ -350,19 +349,22 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       get().showToast(err.message || 'Error al abrir la sesión', 'error');
     }
   },
-  refrescarDesdeWord: async (ruta) => {
+  aplicarRefresco: async (diff) => {
     const { doc } = get();
+    /* Sin documento abierto no hay nada que recargar. El watcher dispara por
+       evento del sistema de archivos, no por accion del usuario: puede saltar
+       con la app en Home. */
     if (!doc) return { listo: false, cambiado: false, nuevos: 0, eliminados: 0, hallazgos: null };
-    const d = await pedirDiffDesdeWord(doc.session_id, ruta);
-    if (!d.listo || !d.cambiado) {
-      return { listo: d.listo, cambiado: d.cambiado, nuevos: 0, eliminados: 0, hallazgos: null };
+    if (!diff.listo || !diff.cambiado) {
+      return { listo: diff.listo, cambiado: diff.cambiado, nuevos: 0, eliminados: 0, hallazgos: null };
     }
-    /* El backend YA guardo el documento reparseado. Recargarlo es la unica forma
-     de que la pantalla y el backend no se contradigan: mientras tanto, el texto
-     nuevo estaria en el servidor y el viejo en la vista. Y a la inversa, cuando
-     `listo` es falso el backend NO guardo nada, asi que recargar ahi tiraria el
-     estado guardado para atras y el texto recien escrito se perderia de la
-     pantalla. Por eso la recarga va despues de los dos filtros, no antes. */
+    /* El backend YA guardo el documento reparseado, y el diff que se recibio es
+       la prueba. Recargarlo es la unica forma de que la pantalla y el backend no
+       se contradigan: mientras tanto, el texto nuevo estaria en el servidor y el
+       viejo en la vista. Y a la inversa, cuando `listo` es falso el backend NO
+       guardo nada, asi que recargar ahi tiraria el estado guardado para atras y
+       el texto recien escrito se perderia de la pantalla. Por eso la recarga va
+       despues de los dos filtros, no antes. */
     const recargado = migrateDocument(await api.recoverSession(doc.session_id));
     /* `references` es estado rancio del mismo tipo que los hallazgos: viene del
        documento y el documento acaba de cambiar. `openSession` lo actualiza con
@@ -379,8 +381,10 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     return {
       listo: true,
       cambiado: true,
-      nuevos: d.ids_nuevos.length,
-      eliminados: d.ids_eliminados.length,
+      /* Los conteos salen DEL DIFF, no de la recarga: el diff conto parrafos y
+         la recarga no cuenta nada. */
+      nuevos: diff.ids_nuevos.length,
+      eliminados: diff.ids_eliminados.length,
       hallazgos: null,
     };
   },

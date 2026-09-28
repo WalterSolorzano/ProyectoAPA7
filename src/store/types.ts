@@ -2,6 +2,11 @@ import * as api from '../api/backend';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding } from '../types';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
 import type { LayoutPaginateResult } from '../api/layout';
+/* Solo el TIPO del diff, y con `import type` a proposito: el runtime lo borra.
+   Igual asi el grafo de tipos se cierra solo —`DiffWord` y `RefrescoResultado`
+   se referencian mutuamente— y lo que no puede ser es un ciclo en el grafo de
+   MODULOS, que es el que rompe los mocks de los tests. */
+import type { DiffWord } from '../lib/wordRefresh';
 
 /**
  * Que paso cuando se leyo el `.docx` que Word tiene abierto.
@@ -195,8 +200,17 @@ export interface DocState {
   goHome: () => void;
   openSession: (sessionId: string) => Promise<void>;
   /**
-   * Lee el `.docx` que Word tiene abierto y, SOLO si el diff ve un cambio real,
-   * recarga el documento desde el backend.
+   * Aplica un diff de Word YA OBTENIDO: si el diff vio un cambio real, recarga
+   * el documento desde el backend. Si no, no toca nada.
+   *
+   * RECIBE EL DIFF, NO LA RUTA, Y POR QUE
+   *
+   * `/api/refresh-from-word` es de UN solo disparo: cuando ve un cambio, guarda
+   * el documento reparseado y recien ahi devuelve el diff. Volver a pegarle al
+   * endpoint compara el documento reparseado contra si mismo, responde
+   * `cambiado: false` y no recarga nada — la accion dead que se acaba de borrar.
+   * El diff que el watcher ya tiene es el UNICO que puede decir que algo cambio,
+   * asi que es lo unico que esta accion puede usar sin mentir.
    *
    * No toca tabs, no levanta `isLoading` y no resetea la geometria de pagina:
    * esto no es abrir un documento, es el mismo documento con el texto nuevo, y
@@ -205,7 +219,7 @@ export interface DocState {
    * Un archivo a medias (`listo: false`) no recarga nada, porque el backend no
    * guardo nada y recargar seria tirar el estado guardado para atras.
    */
-  refrescarDesdeWord: (ruta: string) => Promise<RefrescoResultado>;
+  aplicarRefresco: (diff: DiffWord) => Promise<RefrescoResultado>;
   saveSnapshot: () => Promise<void>;
 
   // Revisor IA + Ortografía (Fase F)

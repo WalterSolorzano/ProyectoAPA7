@@ -1,7 +1,7 @@
 /* WordAPA7 — Full Desktop Application Assembly (Fluent Design with Guided Wizard Flow) */
 
 import React, { useEffect, useRef } from 'react';
-import { useDocStore, migrateDocument } from './store/useDocStore';
+import { useDocStore } from './store/useDocStore';
 import { railPendingInputFrom } from './hooks/useRailDestinations';
 import { pendingCountForPhase as pendingCountForPhaseIn } from './lib/railPending';
 import { crearRefrescador, refrescarDesdeWord, type DiffWord } from './lib/wordRefresh';
@@ -32,7 +32,6 @@ import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
 
 import { LLMConsentDialog } from './components/shared/LLMConsentDialog';
 import { OnboardingTour } from './components/shared/OnboardingTour';
-import * as api from './api/backend';
 import { getApiBaseAsync, resetProtocolCache } from './api/http';
 import { syncAllProviderKeys } from './api/backend';
 import { AIBatteryIndicator } from './components/AIBatteryIndicator';
@@ -63,18 +62,16 @@ const pendingCountForPhase = (phaseId: number) =>
  * El cierre del ciclo del watcher, en una funcion aparte y exportada para que
  * se pueda probar sin montar la app entera.
  *
- * POR QUE RECARGA ACA Y NO CON LA ACCION `refrescarDesdeWord` DEL STORE
+ * LA RECARGA LA HACE `aplicarRefresco` DEL STORE, Y LE PASA ESTE MISMO DIFF
  *
  * El endpoint `/api/refresh-from-word` es de UN solo disparo: cuando ve un
  * cambio, guarda el documento reparseado (`python/routers/sessions.py:1103`) y
  * recien ahi devuelve el diff. La lectura siguiente, si Word no guardo otra vez,
  * compara el archivo contra el estado que ella misma acaba de escribir y
  * responde `cambiado: false`. O sea que el diff que el watcher ya consumio no se
- * puede volver a pedir. Si la recarga se pidiera con `refrescarDesdeWord`, esa
- * segunda lectura diria "no cambio nada", la accion no recargaria, y el ciclo
- * seguiria abierto: el backend con el texto nuevo y la pantalla con el viejo.
- *
- * Por eso la recarga se hace contra lo que YA esta guardado —`recoverSession` es
+ * puede volver a pedir, y por eso la recarga no vuelve a pegarle al endpoint:
+ * usa el diff que esta mano tiene, que es el UNICO que puede decir que algo
+ * cambio. Contra lo que YA esta guardado se recarga igual —`recoverSession` es
  * una lectura, no una escritura— y los conteos que se devuelven son los del
  * diff que detecto el cambio, que es el unico que los tiene.
  *
@@ -94,23 +91,17 @@ const pendingCountForPhase = (phaseId: number) =>
  */
 export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoResultado | null> {
   const st = useDocStore.getState();
-  const sessionId = st.doc?.session_id;
-  if (!sessionId) return null;
+  if (!st.doc?.session_id) return null;
 
-  let recargado;
+  // La recarga vive en el store: el diff ya esta en la mano, y pegarle otra vez
+  // al endpoint seria la lectura de un solo disparo que responde "no cambio nada".
+  let res;
   try {
-    recargado = migrateDocument(await api.recoverSession(sessionId));
+    res = await st.aplicarRefresco(diff);
   } catch {
     // Los hallazgos viejos se quedan: ver el porque mas arriba.
     return null;
   }
-  useDocStore.setState((s) => ({
-    doc: recargado,
-    // Las referencias vienen del documento y el documento acaba de cambiar: sin
-    // esto, el panel de Referencias seguiria mostrando la lista vieja.
-    references: recargado.referencias || [],
-    tabDocs: { ...s.tabDocs, [sessionId]: recargado },
-  }));
 
   st.invalidarHallazgosRancios();
   await Promise.all([
@@ -120,13 +111,10 @@ export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoRes
     // un estado honesto.
     st.runCitationAudit().catch(() => {}),
   ]);
-  return {
-    listo: true,
-    cambiado: true,
-    nuevos: diff.ids_nuevos.length,
-    eliminados: diff.ids_eliminados.length,
-    hallazgos: useDocStore.getState().proofreadFindings.length,
-  };
+  // `listo`, `cambiado` y los conteos de parrafos son los del store, que los
+  // saco del MISMO diff. Lo unico que se agrega aca es el numero de hallazgos,
+  // porque los motores son de esta tarea y el store no los corrio.
+  return { ...res, hallazgos: useDocStore.getState().proofreadFindings.length };
 }
 
 /** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
