@@ -57,6 +57,18 @@ export interface AuditItem {
    * dice que la portada original no se muta, así que no hay nada que aceptar.
    */
   readOnly: boolean;
+  /**
+   * Presente cuando el hallazgo apunta a un elemento que no tiene texto: una
+   * figura o una tabla sin leyenda. Antes esto se resolvía poniendo
+   * `'[Figura sin rotular]'` en `originalText`, y la vista lo pintaba como si
+   * fuera una cita del documento —y tachado, que se lee como "el documento tenía
+   * esto y se borró". No había nada que borrar.
+   *
+   * Cuando está presente, `originalText` es `''`. Es un discriminante cerrado a
+   * propósito: los tres estados (tiene texto, no tiene texto, todavía no se sabe)
+   * no se pueden confundir.
+   */
+  sinTexto?: { clase: 'figura' | 'tabla' };
 }
 
 /* "Fase" — el vocabulario del backend (`python/modules/phase_scope.py`).
@@ -346,6 +358,11 @@ export function collectAuditItems(
   }
 
   // 5. Estructura y rotulación APA 7.
+  /* La leyenda se mira con `trim()`: una leyenda de un punto ES una leyenda, y
+     marcar como "sin rotular" algo que tiene un punto de texto es un falso
+     positivo que el usuario no puede distinguir de uno real. El aviso es por
+     elemento, no por documento: un documento donde todas las figuras ya tienen
+     leyenda no produce ninguno. */
   for (const e of elements) {
     if (e.type === 'heading' && e.needs_review) {
       out.push({
@@ -361,7 +378,7 @@ export function collectAuditItems(
         phase: null,
         readOnly: false,
       });
-    } else if (e.type === 'image' && !e.is_cover_section && !e.image_info?.caption) {
+    } else if (e.type === 'image' && !e.is_cover_section && !(e.image_info?.caption ?? '').trim()) {
       out.push({
         id: registrar(`struct_fig_${e.id}`),
         element_id: e.id,
@@ -370,13 +387,14 @@ export function collectAuditItems(
         severity: 'high',
         summary: 'Figura sin rotulación APA 7 (Figura N y Nota)',
         detail: 'Las normas APA 7 exigen numeración secuencial en negrita, título cursivo y nota explicativa.',
-        originalText: '[Figura sin rotular]',
+        originalText: '',
+        sinTexto: { clase: 'figura' },
         suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
         pageNumber: page(e.id),
         phase: null,
         readOnly: false,
       });
-    } else if (e.type === 'table' && !e.table_info?.caption) {
+    } else if (e.type === 'table' && !(e.table_info?.caption ?? '').trim()) {
       out.push({
         id: registrar(`struct_tbl_${e.id}`),
         element_id: e.id,
@@ -385,7 +403,8 @@ export function collectAuditItems(
         severity: 'high',
         summary: 'Tabla sin rotulación reglamentaria APA 7',
         detail: 'Requiere etiqueta "Tabla N" superior y nota al pie con la fuente o especificación.',
-        originalText: '[Tabla sin rotular]',
+        originalText: '',
+        sinTexto: { clase: 'tabla' },
         suggestedText: 'Tabla 1. Datos recopilados durante la fase experimental.',
         pageNumber: page(e.id),
         phase: null,

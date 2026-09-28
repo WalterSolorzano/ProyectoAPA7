@@ -430,7 +430,12 @@ describe('T15 — rack de hallazgos', () => {
     const { props } = detalle({
       item: item({
         id: 'fig1', category: 'structure', subtype: 'figura',
-        originalText: '[Figura sin rotular]',
+        // Una figura sin leyenda no tiene texto: el modelo lo dice con
+        // `sinTexto` y `originalText` vacío. Este fixture fijaba el
+        // placeholder '[Figura sin rotular]' como si fuera el texto de la
+        // figura, o sea que consagraba el defecto.
+        originalText: '',
+        sinTexto: { clase: 'figura' },
         suggestedText: 'Figura 1. Representación esquemática del procedimiento.',
       }),
       action: 'autoCaption',
