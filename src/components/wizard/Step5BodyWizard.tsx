@@ -6,6 +6,7 @@ import { AlignLeft, CheckCircle2, SpellCheck, PanelLeftClose, PanelLeftOpen, Wan
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { Badge } from '../ui/wordapa7';
 import type { ProofreadFinding } from '../../types';
+import { escribirMarca } from '../../lib/marcasMap';
 
 const SPACING_OPTIONS = [
   { value: 2.0, label: 'Doble (APA)' },
@@ -39,14 +40,7 @@ const KIND_TONES: Record<string, string> = {
 
 /** Registra marca de transparencia para el elemento modificado (H21). */
 function recordMarca(elementId: string | null, label: string): void {
-  if (!elementId) return;
-  try {
-    const raw = localStorage.getItem('wordapa7_marcas_map');
-    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    map[elementId] = label;
-    localStorage.setItem('wordapa7_marcas_map', JSON.stringify(map));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'wordapa7_marcas_map' }));
-  } catch { /* noop */ }
+  escribirMarca(elementId, label);
 }
 
 const SAFE_KINDS = new Set(['ortografia', 'pegado']);

@@ -9,6 +9,7 @@ import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
+import { leerMarcas, borrarMarca } from '../../lib/marcasMap';
 import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
@@ -785,19 +786,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   }, [scrollTargetId, doc, rules]);
 
   // ── Marcas de transparencia: mapa elemento → etiqueta (SOLO LECTURA) ──
-  // Escrito por otro agente en localStorage key `wordapa7_marcas_map`.
+  // Lo escribe `store/slices/auditSlice` por `lib/marcasMap`, y se lee con la
+  // MISMA función: leer el `localStorage` a mano aquí significaba leer la forma
+  // vieja y mostrar `undefined` en cada marca sin que nada dijera nada.
   const marcasVisibles = useDocStore((s) => s.marcasVisibles);
   const [marcasMap, setMarcasMap] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!marcasVisibles) { setMarcasMap({}); return; }
-    const load = () => {
-      try {
-        const raw = JSON.parse(localStorage.getItem('wordapa7_marcas_map') || '{}');
-        setMarcasMap(raw && typeof raw === 'object' ? raw : {});
-      } catch {
-        setMarcasMap({});
-      }
-    };
+    const load = () => setMarcasMap(leerMarcas());
     load();
     window.addEventListener('storage', load);
     return () => window.removeEventListener('storage', load);
@@ -1857,9 +1853,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               const nextMap = { ...marcasMap };
                               delete nextMap[eid];
                               setMarcasMap(nextMap);
-                              try {
-                                localStorage.setItem('wordapa7_marcas_map', JSON.stringify(nextMap));
-                              } catch { /* noop */ }
+                              borrarMarca(eid);
                             }}
                           />
                         )}

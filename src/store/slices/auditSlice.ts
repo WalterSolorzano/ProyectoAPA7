@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { DocState } from '../types';
 import * as api from '../../api/backend';
+import { escribirMarcas } from '../../lib/marcasMap';
 
 const getApiBase = () => api.getApiBase();
 
@@ -133,27 +134,10 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
       if (sugerenciasProactivas) {
         set({ proofreadFindings: res.findings || [] });
         // Marcas de transparencia: cada elemento marcado explica su motivo.
-        try {
-          const raw = localStorage.getItem('wordapa7_marcas_map');
-          const map = raw ? JSON.parse(raw) : {};
-          const KIND_LABELS: Record<string, string> = {
-            first_person: 'Primera persona',
-            ortografia: 'Ortografía',
-            ai_phrase: 'Patrón sintético / IA',
-            pegado: 'Texto mal pegado',
-            muletilla: 'Muletilla repetitiva',
-            ngram_repetition: 'Repetición frecuente',
-            bloom_vague: 'Objetivo impreciso',
-            bloom_low: 'Nivel taxonómico bajo',
-            repeticion: 'Palabra repetida',
-            ambiguedad: 'Pronombre ambiguo',
-          };
-          for (const f of res.findings || []) {
-            map[f.element_id] = KIND_LABELS[f.kind] || f.kind;
-          }
-          localStorage.setItem('wordapa7_marcas_map', JSON.stringify(map));
-          window.dispatchEvent(new StorageEvent('storage', { key: 'wordapa7_marcas_map' }));
-        } catch { /* noop */ }
+        // Los rótulos salen de `rotuloDeKind` y el mapa lleva versión; antes
+        // eran diez filas escritas a mano, y su `|| f.kind` guardaba el
+        // `snake_case` crudo para que `PaperCanvas` lo pintara en el párrafo.
+        escribirMarcas(res.findings || []);
       }
     } catch { /* silencioso */ }
   },
