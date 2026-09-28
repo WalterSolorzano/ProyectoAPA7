@@ -1,7 +1,14 @@
 import React from 'react';
 
-export type MascotKind = 'highlighter' | 'ruler' | 'reference' | 'strike';
+/* `gear` es el quinto kind y lo pidió la pestaña App. Vive en el union type y en
+ * el Switch de abajo, o no vive: un kind declarado y no dibujado deja la mascota
+ * en blanco, que es un fallo que no se ve. */
+export type MascotKind = 'highlighter' | 'ruler' | 'reference' | 'strike' | 'gear';
 export type MascotExpression = 'neutral' | 'happy' | 'excited' | 'curious' | 'worried';
+
+/** Los ocho dientes del engranaje, en grados. Cada diente es el mismo rectángulo
+ *  girado: el dentado sale de acá y no de ocho coordenadas escritas a mano. */
+const DIENTES = [0, 45, 90, 135, 180, 225, 270, 315];
 
 interface EditorialMascotProps {
   size?: number;
@@ -92,6 +99,28 @@ export const EditorialMascot: React.FC<EditorialMascotProps> = ({
           <rect className="editorial-mascot-body editorial-mascot-strike-body" x="12" y="21" width="47" height="22" rx="9" />
           <path className="editorial-mascot-strike-line" d="M17 48 H53" />
           <Face expression={expression} x={39} y={27} scale={0.72} />
+        </>
+      )}
+
+      {/* El engranaje de la pestaña App. Los dientes son el mismo rectángulo ocho
+          veces, girado alrededor del centro: es la forma más barata de dibujar un
+          engranaje que se lee bien a 44px, y no necesita una tabla de 32
+          coordenadas como sí la necesitaría un dentado de verdad. */}
+      {kind === 'gear' && (
+        <>
+          <Arms />
+          <g className="editorial-mascot-gear-dientes">
+            {DIENTES.map((giro) => (
+              <rect
+                key={giro}
+                className="editorial-mascot-gear-diente"
+                x="29" y="6" width="6" height="7" rx="2"
+                transform={`rotate(${giro} 32 32)`}
+              />
+            ))}
+          </g>
+          <circle className="editorial-mascot-body editorial-mascot-gear-body" cx="32" cy="32" r="20" />
+          <Face expression={expression} x={32} y={37} scale={0.5} />
         </>
       )}
     </svg>

@@ -6,6 +6,15 @@ import { leerCortesGuardados, normalizarCortes, guardarCortes } from '../../lib/
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Dónde queda anotado que Ajustes se abrió alguna vez. Vive acá y no en la
+ *  pestaña App porque lo escribe quien abre el hub, no quien mira la pestaña. */
+export const AJUSTES_VISTOS = 'wordapa7-ajustes-vistos';
+
+/** Si Ajustes se abrió alguna vez en este equipo. */
+export function ajustesVistos(): boolean {
+  try { return localStorage.getItem(AJUSTES_VISTOS) === 'true'; } catch { return false; }
+}
+
 export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = (set, get) => ({
   isLoading: false,
   exportSuccessAt: null,
@@ -82,7 +91,17 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
      `Step0QuickStart.tsx` todavía lo leen. */
   settingsHubOpen: false,
   settingsHubTab: 'documento',
-  setSettingsHubOpen: (open: boolean, tab?: PestanaId) => set({ settingsHubOpen: open, settingsHubTab: tab || 'documento' }),
+  /* Abrir el hub, en cualquier pestaña, deja constancia de que se abrió. No es un
+     ajuste: es un hecho, y la mascota de la pestaña App lo usa para no poner la
+     cara de "contenta" a alguien a quien Ajustes le acaba de abrir en la cara.
+     Se escribe en el store y no en la pestaña porque la pestaña solo se entera
+     cuando la montan, y eso llega tarde. */
+  setSettingsHubOpen: (open: boolean, tab?: PestanaId) => {
+    if (open) {
+      try { localStorage.setItem(AJUSTES_VISTOS, 'true'); } catch { /* sin almacenamiento */ }
+    }
+    set({ settingsHubOpen: open, settingsHubTab: tab || 'documento' });
+  },
   setSettingsHubTab: (tab: PestanaId) => set({ settingsHubTab: tab }),
   settingsStudioOpen: false,
   settingsStudioTab: 'format',

@@ -1064,6 +1064,36 @@ export async function sideloadWordAddin(): Promise<AddinSideloadResult> {
   return res.json();
 }
 
+// ── MANTENIMIENTO ────────────────────────────────────────────────────────────
+
+/** Lo que devolvió `/api/admin/cleanup`. Los dos contadores están porque borrar
+ *  una sesión vencida y borrar un `preview.pdf` no es la misma cosa, y un
+ *  mensaje que solo dijera "se depuró" no dejaría leer ninguna de las dos. */
+export interface ResultadoDeLimpieza {
+  status: string;
+  sesiones_borradas: number;
+  archivos_temporales: number;
+  bytes: number;
+  /** El texto que arma el backend. Se muestra tal cual: la cuenta la hizo él,
+   *  que es el único que sabe qué encontró. */
+  message: string;
+}
+
+/** "Depurar caché". Antes el botón mostraba un toast de éxito sin borrar nada:
+ *  este es el endpoint que lo borra. */
+export async function depurarCache(): Promise<ResultadoDeLimpieza> {
+  const res = await fetchWithTrace(`${getApiBase()}/admin/cleanup`, { method: 'POST' });
+  if (!res.ok) {
+    let detalle = 'No se pudo contactar al motor para limpiar';
+    try {
+      const err = await res.json();
+      detalle = err.detail || detalle;
+    } catch { /* la respuesta puede no ser JSON */ }
+    throw new Error(detalle);
+  }
+  return res.json();
+}
+
 // ── LIVE AI CHAT & PROACTIVE CAPTIONS ────────────────────────────────────────
 
 export interface LiveChatAction {

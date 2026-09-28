@@ -3,6 +3,7 @@
    (electronAPI.onUpdateStatus) y expone acciones: check() e install(). */
 
 import { create } from 'zustand';
+import { version as VERSION_ENTREGADA } from '../../package.json';
 
 export type UpdateState =
   | 'idle'
@@ -27,9 +28,16 @@ interface UpdateStoreState {
 
 const ew = () => (window as any).electronAPI;
 
+/* El valor de arranque NO es un número escrito a mano. Sale de `package.json`,
+   que es el mismo archivo del que Electron saca `app.getVersion()`. Estaba
+   '1.0.18' mientras el paquete iba en 1.0.65: un "Acerca de" con un número
+   inventado es exactamente la clase de mentira que este proyecto vino a
+   matar, y un número viejo en un store se propaga a cada pantalla que lo lea.
+   En la app de escritorio lo pisa `getAppVersion()`; sin Electron, este es el
+   número real. */
 export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   state: 'idle',
-  version: '1.0.18',
+  version: VERSION_ENTREGADA,
   availableVersion: undefined,
   progress: undefined,
   message: undefined,

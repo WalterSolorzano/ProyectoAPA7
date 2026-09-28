@@ -1053,6 +1053,13 @@ html, body {
 .editorial-mascot-ruler-body { fill: var(--color-success); }
 .editorial-mascot-reference-body { fill: var(--accent-primary); }
 .editorial-mascot-strike-body { fill: var(--color-danger); }
+.editorial-mascot-gear-body { fill: var(--color-accent); }
+.editorial-mascot-gear-diente {
+  fill: var(--color-accent);
+  stroke: var(--text-main);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
 .editorial-mascot-strike-tip { fill: var(--text-main); }
 .editorial-mascot-reference-tail { fill: var(--accent-primary); stroke: var(--text-main); stroke-width: 1.7; stroke-linejoin: round; }
 .editorial-mascot-ruler-ticks,
@@ -1077,6 +1084,7 @@ html, body {
 .editorial-mascot-kind-ruler { animation: editorial-ruler-idle 3.6s ease-in-out infinite; }
 .editorial-mascot-kind-reference { animation: editorial-reference-idle 3.2s ease-in-out infinite; }
 .editorial-mascot-kind-strike { animation: editorial-strike-idle 2.4s ease-in-out infinite; }
+.editorial-mascot-kind-gear { animation: editorial-gear-idle 4.4s ease-in-out infinite; }
 .editorial-mascot-kind-highlighter .editorial-mascot-arm-right { transform-origin: 52px 40px; animation: editorial-arm-wave 1.5s ease-in-out infinite; }
 .editorial-mascot-kind-reference .editorial-mascot-arm-left { animation: editorial-arm-point 2.2s ease-in-out infinite; transform-origin: 12px 39px; }
 .editorial-mascot-expression-worried .editorial-mascot-brow { transform: translateY(2px) rotate(8deg); }
@@ -1085,6 +1093,7 @@ html, body {
 @keyframes editorial-ruler-idle { 0%, 100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(2deg) translateY(-3px); } }
 @keyframes editorial-reference-idle { 0%, 100% { transform: rotate(-2deg) translateY(2px); } 50% { transform: rotate(2deg) translateY(-5px); } }
 @keyframes editorial-strike-idle { 0%, 100% { transform: rotate(3deg) translateX(0); } 50% { transform: rotate(-2deg) translateX(4px); } }
+@keyframes editorial-gear-idle { 0%, 100% { transform: rotate(-1.5deg) translateY(0); } 50% { transform: rotate(1.5deg) translateY(-3px); } }
 @keyframes editorial-arm-wave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-18deg); } }
 @keyframes editorial-arm-point { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
 .loading-mascot-walkers {

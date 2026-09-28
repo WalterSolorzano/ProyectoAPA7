@@ -49,11 +49,11 @@ export const PESTANAS: Pestana[] = [
     subtitulo: 'Estos ajustes valen para toda la app, en todos tus documentos.' },
   { id: 'revision', etiqueta: 'Revisión', ambito: 'app', mascotKind: 'strike',
     subtitulo: 'Estos ajustes valen para toda la app, en todos tus documentos.' },
-  /* `reference` también para App, como pide el plan. La Fase 6 le da un kind
-   * propio (`gear`) dibujado en `EditorialMascot.tsx`, que es un archivo que hoy
-   * es trabajo sin commitear de otra sesión: mientras tanto se reusa uno que sí
-   * está dibujado en vez de apuntar a un kind que no existe. */
-  { id: 'app', etiqueta: 'App', ambito: 'app', mascotKind: 'reference',
+  /* La Fase 6 le dio a App su kind propio, `gear`, dibujado en
+   * `EditorialMascot.tsx`. Antes apuntaba a `reference` —el de Documento— para
+   * no dejar la mascota en blanco: dos pestañas con la misma cara hacen que la
+   * cara deje de ser una señal. */
+  { id: 'app', etiqueta: 'App', ambito: 'app', mascotKind: 'gear',
     subtitulo: 'Estos ajustes valen para toda la app, en todos tus documentos.' },
 ];
 

@@ -33,7 +33,7 @@ import React, { useEffect } from 'react';
 import { FileText, Globe, Layers, Square, AlertTriangle } from 'lucide-react';
 import { useDocStore } from '../../../store/useDocStore';
 import { EditorialMascot, type MascotExpression } from '../../layout/EditorialMascot';
-import { kindDePestana } from '../mascotDePestana';
+import { kindDePestana, expresionDePestana, expresionDeDocumento } from '../mascotDePestana';
 import { pestanaPorId } from '../tabs';
 import { Seccion } from './word/Seccion';
 import {
@@ -58,24 +58,14 @@ const ESTILO_CAMPO: React.CSSProperties = {
   border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
 };
 
-/* La cara sale del estado, no del decorado — igual que en la pestaña Formato, y
- * por el mismo motivo: `expresionDePestana` pregunta por claves de proveedor, y
- * que falte una clave de NIM no dice nada sobre el papel de este documento. La
- * pregunta real de esta pestaña es si el archivo va a decir lo que dice la
- * pantalla, y eso se responde con dos cosas: que haya un tamaño de hoja elegido
- * y que haya un idioma. */
-export function expresionDeDocumento(reglas: {
-  page_size?: string;
-}, portada: { language?: string }): MascotExpression {
-  if (!normalizarPageSize(reglas.page_size)) return 'worried';
-  if (!portada.language) return 'worried';
-  /* Carta es el default y también lo que dice la norma, así que estar en Carta
-     no es estar bien: es estar en lo que venía. La cara curiosa es para cuando
-     alguien eligió otra cosa a propósito, que sí es una decisión que se puede
-     revisar. */
-  if (normalizarPageSize(reglas.page_size) !== 'carta') return 'curious';
-  return 'happy';
-}
+/* La cara sale del estado, no del decorado, y la regla vive en
+ * `mascotDePestana.tsx` con las otras cuatro: preguntar por claves de proveedor
+ * en una pestaña que no configura el motor pondría una cara preocupada permanente
+ * donde no falta nada. La regla de esta pestaña es si el archivo va a decir lo
+ * que dice la pantalla, y eso se responde con dos cosas: que haya un tamaño de
+ * hoja elegido y que haya un idioma. Se reexporta acá porque es parte de la API
+ * de la pestaña y hay quien la importa desde acá. */
+export { expresionDeDocumento };
 
 export const DocumentoTab: React.FC = () => {
   const doc = useDocStore((s) => s.doc);
@@ -98,7 +88,13 @@ export const DocumentoTab: React.FC = () => {
 
   const pageSize = normalizarPageSize(rules.page_size);
   const language = portada.language || 'es-ES';
-  const expresion = doc ? expresionDeDocumento(rules, portada) : 'worried';
+  const expresion: MascotExpression = doc
+    ? expresionDePestana(PESTANA, {
+      documentoAbierto: true,
+      pageSize: rules.page_size,
+      idiomaPortada: portada.language,
+    })
+    : 'worried';
 
   /* Sin documento no hay papel que elegir: se lo dice, y no muestra los campos
      mudos. Es el Review Focus #4 de esta fase. */

@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useDocStore } from '../../../store/useDocStore';
 import { EditorialMascot, type MascotExpression } from '../../layout/EditorialMascot';
-import { kindDePestana } from '../mascotDePestana';
+import { kindDePestana, expresionDePestana, expresionDeFormato } from '../mascotDePestana';
 import { pestanaPorId } from '../tabs';
 import { Seccion } from './word/Seccion';
 import { PlantillasDeFormato } from './PlantillasDeFormato';
@@ -55,25 +55,12 @@ const ICONOS: Record<string, React.ElementType> = {
 };
 
 /* ── La cara de la mascota ───────────────────────────────────────────────────
- * No sale de `expresionDePestana` porque esa función pregunta por claves de
- * proveedor, y el formato de un documento no depende de si hay clave de NIM.
- * Preguntarle eso acá sería poner una cara preocupada permanente en una pestaña
- * donde no falta nada. La Fase 6 generaliza esta decisión.
- *
- * La pregunta real de esta pestaña es si el documento se sale de APA 7, y eso
- * se cuenta mirando las tres reglas que la norma fija: la fuente, el
- * interlineado y la alineación. */
-export function expresionDeFormato(rules: {
-  font_family: string; font_size_pt: number; line_spacing: number; alignment: string;
-}): MascotExpression {
-  if (!rules.font_family) return 'worried';
-  const FUENTES_DE_APA = ['Times New Roman', 'Calibri', 'Arial', 'Georgia'];
-  const esApa = FUENTES_DE_APA.includes(rules.font_family)
-    && rules.line_spacing === 2.0
-    && rules.alignment === 'left';
-  if (esApa) return 'happy';
-  return 'curious';
-}
+ * La regla vive en `mascotDePestana.tsx` con las otras cuatro. No sale de la
+ * regla del motor porque esa pregunta por claves de proveedor, y el formato de
+ * un documento no depende de si hay clave de NIM: preguntar eso acá pondría una
+ * cara preocupada permanente en una pestaña donde no falta nada. Se reexporta acá
+ * porque es parte de la API de la pestaña. */
+export { expresionDeFormato };
 
 /* ── Los controles ─────────────────────────────────────────────────────────
  * Todos llevan `data-campo`, y ese `data-campo` sale de `AJUSTES`. Un control
@@ -305,7 +292,14 @@ export const FormatoTab: React.FC = () => {
   const [pendiente, setPendiente] = useState<Record<string, unknown> | null>(null);
   const [restaurado, setRestaurado] = useState<string[] | null>(null);
 
-  const expresion = doc ? expresionDeFormato(rules) : 'worried';
+  const expresion: MascotExpression = doc
+    ? expresionDePestana(PESTANA, {
+      documentoAbierto: true,
+      fuente: rules.font_family,
+      interlineado: rules.line_spacing,
+      alineacion: rules.alignment,
+    })
+    : 'worried';
 
   /* Sin documento no hay formato que ajustar: los controles se ven, se tocan y
    * no conservan nada. El Review Focus #4 pide decir eso en vez de mostrar

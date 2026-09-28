@@ -18,6 +18,7 @@ import { ConexionTab } from './tabs/ConexionTab';
 import { RevisionTab } from './tabs/RevisionTab';
 import { FormatoTab } from './tabs/FormatoTab';
 import { DocumentoTab } from './tabs/DocumentoTab';
+import { AppTab } from './tabs/AppTab';
 
 export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const tab = useDocStore((s) => s.settingsHubTab);
@@ -173,16 +174,16 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
   );
 };
 
-/* Los cuerpos de las cinco pestañas. Cada una llega con su fase: Documento,
-   Formato, Conexión y Revisión ya tienen la suya, y App está en `null` y se ve
-   con su barra, su ámbito y su nombre, que es lo que la persona tiene que poder
-   leer para saber dónde está. */
+/* Los cuerpos de las cinco pestañas. Cada una llega con su fase, y ya están las
+   cinco: Documento y Formato (Fases 3 y 4), Conexión y Revisión (Fase 5) y App
+   (Fase 6). Que una quede en `null` no es una pestaña vacía: es una pantalla
+   rota, y el Review Focus #4 pide lo contrario. */
 const CUERPOS: Record<string, React.ReactNode> = {
   documento: <DocumentoTab />,
   formato: <FormatoTab />,
   conexion: <ConexionTab />,
   revision: <RevisionTab />,
-  app: null,
+  app: <AppTab />,
 };
 
 export default SettingsHub;

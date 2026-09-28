@@ -216,7 +216,46 @@ def save_session_snapshot(doc_model, storage_dir: Path):
         return None
 
 
-def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = None) -> int:
+def _tamano_de(ruta: Path) -> int:
+    """Bytes que ocupa un archivo o una carpeta, sin seguir enlaces simbolicos. Si
+    algo falla devuelve 0: el contador es INFORMATIVO, y una excepcion al medir
+    no puede impedir que se borre."""
+    total = 0
+    try:
+        if ruta.is_file():
+            return ruta.stat().st_size
+        for p in ruta.rglob("*"):
+            try:
+                if p.is_file() and not p.is_symlink():
+                    total += p.stat().st_size
+            except Exception:
+                continue
+    except Exception:
+        return total
+    return total
+
+
+def _sumar_bytes(contadores: Optional[dict], bytes_extra: int) -> None:
+    if contadores is not None:
+        contadores["bytes"] = contadores.get("bytes", 0) + bytes_extra
+
+
+def _borrar_contando(f: Path, contadores: Optional[dict]) -> None:
+    """Borra un temporal y lo anota. El `unlink` va primero que la cuenta a
+    propósito: si el borrado falla, el archivo sigue ocupando disco y sumarlo
+    sería mentir."""
+    _sumar_bytes(contadores, f.stat().st_size)
+    f.unlink()
+    if contadores is not None:
+        contadores["archivos_temporales"] = contadores.get("archivos_temporales", 0) + 1
+
+
+def cleanup_expired_sessions(
+    storage_dir: Path,
+    ttl_seconds: Optional[int] = None,
+    force: bool = False,
+    contadores: Optional[dict] = None,
+) -> int:
     """
     Elimina sesiones inactivas por más de `ttl_seconds`.
 
@@ -228,6 +267,17 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
 
     Devuelve el número de sesiones eliminadas. Es idempotente y seguro de
     llamar concurrentemente (protegido por _gc_lock).
+
+    `force=True` saltea el intervalo entre pasada y pasada. Solo lo usa una
+    acción explícita de la persona ("Depurar caché"): sin esto, apretar el
+    botón dos veces en cinco minutos devolvería 0 la segunda vez, y el botón
+    informaría que no había nada que borrar cuando en realidad no se miró.
+
+    `contadores` es un dict de salida: si viene, se lo completa con
+    `archivos_temporales` y `bytes`. La función sigue devolviendo solo el
+    número de sesiones; los archivos temporales que borra también ocupan disco,
+    y un mensaje que dice "se borraron 2 sesiones" sin decir cuántos archivos
+    dejó de ocupar es la mitad de la verdad.
     """
     global _last_gc_run
     if ttl_seconds is None:
@@ -237,13 +287,16 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
         init_db(storage_dir)
 
     deleted = 0
+    if contadores is not None:
+        contadores.setdefault("archivos_temporales", 0)
+        contadores.setdefault("bytes", 0)
     # THROTTLE: ejecutar como máximo una vez cada GC_INTERVAL_SECONDS.
     acquired = _gc_lock.acquire(blocking=False)
     if not acquired:
         return 0
     try:
         now = time.time()
-        if now - _last_gc_run < GC_INTERVAL_SECONDS:
+        if not force and now - _last_gc_run < GC_INTERVAL_SECONDS:
             return 0
         _last_gc_run = now
 
@@ -279,6 +332,7 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
             session_dir = sessions_root / sid
             if session_dir.exists():
                 try:
+                    _sumar_bytes(contadores, _tamano_de(session_dir))
                     shutil.rmtree(session_dir)
                 except Exception as e:
                     print(f"[GC] Error borrando directorio {session_dir}: {e}")
@@ -300,7 +354,7 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
                                     and f.stat().st_mtime < cutoff_mtime
                                     and (f.name.startswith(temp_patterns)
                                          or f.name.startswith("page_"))):
-                                f.unlink()
+                                _borrar_contando(f, contadores)
                         except Exception:
                             continue
                 except Exception:
@@ -316,7 +370,7 @@ def cleanup_expired_sessions(storage_dir: Path, ttl_seconds: Optional[int] = Non
                 for f in extra_dir.iterdir():
                     try:
                         if f.is_file() and f.stat().st_mtime < cutoff_mtime:
-                            f.unlink()
+                            _borrar_contando(f, contadores)
                     except Exception:
                         continue
             except Exception:
