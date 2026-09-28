@@ -7,8 +7,12 @@
  * ajuste repite su regla en un comentario; acá hay una sola tabla, y si mañana
  * alguien mete un ajuste de documento en la pestaña Conexión, esto se cae.
  */
-import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { PESTANAS, pestanaPorId, PESTANA_POR_DEFECTO } from '../components/settings/tabs';
+import { FormatoTab } from '../components/settings/tabs/FormatoTab';
+import { useDocStore } from '../store/useDocStore';
 
 describe('Ajustes — el ámbito es la pestaña', () => {
   it('NINGUN AJUSTE DE DOCUMENTO ESCRIBE EN localStorage', () => {
@@ -52,5 +56,105 @@ describe('Ajustes — el ámbito es la pestaña', () => {
     // El store arranca en `documento`; si el catálogo se renombra, el hub abre
     // con una barra sin pestaña activa.
     expect(PESTANAS.some((p) => p.id === PESTANA_POR_DEFECTO)).toBe(true);
+  });
+});
+
+/* ── El ámbito, comprobado sobre el CÓDIGO y no sobre el catálogo ────────────
+ * Las pruebas de arriba contrastan la promesa contra la tabla de `tabs.ts`. Esta
+ * la contrasta contra lo que la pestaña HACE: se mueven todos los controles de
+ * Formato y se mira que localStorage no se tocó, porque la línea de arriba de la
+ * pestaña dice "se guardan con el documento" y eso es una afirmación sobre el
+ * almacenamiento.
+ *
+ * Con dos documentos abiertos, además, el formato de uno no puede pisar al otro:
+ * es la otra mitad de la misma promesa, y la que casi nada garantiza hoy. */
+describe('Ajustes — la promesa del ámbito, escrita en el código', () => {
+  /* `render(<FormatoTab />)` no se puede escribir en un archivo `.ts`, y el
+     nombre del archivo no se cambia: es el que aparece en el comando de
+     verificación de la fase. */
+  const makeDoc = (session: string) => ({
+    session_id: session,
+    file_name: `${session}.docx`,
+    elements: [{ id: 'e0', type: 'paragraph', text: 'uno', page_number: 1 }],
+    meta: { page_count: 1 },
+    referencias: [],
+  }) as never;
+
+  const otro = (session: string) => ({
+    session_id: session,
+    file_name: `${session}.docx`,
+    elements: [],
+    meta: { page_count: 1 },
+    referencias: [],
+  }) as never;
+
+  beforeEach(() => {
+    localStorage.clear();
+    useDocStore.setState({
+      doc: makeDoc('s1'),
+      tabDocs: { s2: otro('s2') },
+      rules: { ...useDocStore.getState().rules, heading_levels: {} },
+      portadaProfiles: [],
+    } as never);
+  });
+
+  afterEach(() => cleanup());
+
+  it('mover TODOS los controles de Formato no escribe una sola vez en localStorage', () => {
+    const escribir = vi.spyOn(Storage.prototype, 'setItem');
+    render(React.createElement(FormatoTab));
+    /* Se tocan controles de los siete grupos: papel, tipografía, párrafo,
+     * listas, títulos, figuras y portada. Si uno escribiera en localStorage, el
+     * ámbito de la pestaña sería una mentira y esto se cae. */
+    for (const testid of [
+      'campo-margins_cm', 'campo-space_before_pt', 'campo-space_after_pt',
+      'campo-paragraph_indent_cm',
+    ]) {
+      fireEvent.change(screen.getByTestId(testid), { target: { value: '2' } });
+    }
+    for (const testid of [
+      'campo-font_family-Calibri', 'campo-font_size_pt-11',
+      'campo-line_spacing-1.5', 'campo-alignment-justify',
+      'campo-bullet_style_level1-circle', 'campo-number_style_level2-lowerRoman',
+      'campo-heading_numbering_style_lvl1-decimal', 'campo-heading_levels-2-alignment-center',
+      'campo-image_alignment-left', 'campo-image_style-journal', 'campo-toc_style-dotted',
+      'campo-portada-apa_format-professional',
+    ]) {
+      fireEvent.click(screen.getByTestId(testid));
+    }
+    fireEvent.click(screen.getByTestId('campo-heading_levels-1-bold'));
+    fireEvent.change(screen.getByTestId('campo-figure_label_prefix'), { target: { value: 'Figure' } });
+    fireEvent.change(screen.getByTestId('campo-table_label_prefix'), { target: { value: 'Table' } });
+    /* Y los dos que comparten: guardar y restaurar. */
+    fireEvent.change(screen.getByTestId('campo-nombre-plantilla'), { target: { value: 'Ensayo' } });
+    fireEvent.click(screen.getByTestId('boton-guardar-plantilla'));
+    fireEvent.click(screen.getByTestId('boton-restaurar-defecto'));
+    fireEvent.click(screen.getByTestId('boton-confirmar-restaurar'));
+
+    expect(escribir).not.toHaveBeenCalled();
+    escribir.mockRestore();
+  });
+
+  it('con dos documentos abiertos, Formato no guarda un estado de formato paralelo', () => {
+    render(React.createElement(FormatoTab));
+    fireEvent.click(screen.getByTestId('campo-font_family-Calibri'));
+    /* Lo que esta pestaña promete es "viaja con el documento". Hoy `rules` es
+     * UNO en el store, no uno por documento: esta prueba no puede verificar que
+     * el formato del documento B no cambie —eso es un trabajo de otra fase— y
+     * fingir que sí sería peor que no tenerla.
+     *
+     * Lo que sí verifica, y lo que importa para esta fase, es que la pestaña no
+     * tenga un estado de formato propio: si lo tuviera, se desincronizaría del
+     * store sin que nadie lo notara, y el bug aparecería al cambiar de
+     * documento. Que el valor venga del store se ve en que el render lo sigue:
+     * si la pestaña lo guardara aparte, cambiar el store por fuera no movería
+     * un solo control de la pantalla. */
+    act(() => {
+      useDocStore.setState({ rules: { ...useDocStore.getState().rules, font_family: 'Georgia' } } as never);
+    });
+    const calibri = screen.getByTestId('campo-font_family-Calibri');
+    const georgia = screen.getByTestId('campo-font_family-Georgia');
+    expect(calibri.getAttribute('aria-pressed')).toBe('false');
+    expect(georgia.getAttribute('aria-pressed')).toBe('true');
   });
 });

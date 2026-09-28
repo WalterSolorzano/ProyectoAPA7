@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { AlignLeft, CheckCircle2, SpellCheck, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, Wand2 } from 'lucide-react';
+import { AlignLeft, CheckCircle2, SpellCheck, PanelLeftClose, PanelLeftOpen, Wand2 } from 'lucide-react';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { Badge } from '../ui/wordapa7';
 import type { ProofreadFinding } from '../../types';
@@ -87,13 +87,6 @@ const RuleRow: React.FC<{ icon: React.ReactNode; label: string; value: string }>
 export const Step5BodyWizard: React.FC = () => {
   const { rules, setRules, doc, runAIReview, setForceRightPanelOpen, setRightPanelTab } = useDocStore();
   const [showPanel, setShowPanel] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [advJustify, setAdvJustify] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('wordapa7_body_advanced') || '{}').justify ?? false; } catch { return false; }
-  });
-  const [advIndent, setAdvIndent] = useState<string>(() => {
-    try { return String(JSON.parse(localStorage.getItem('wordapa7_body_advanced') || '{}').indentCm ?? '1.27'); } catch { return '1.27'; }
-  });
 
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const runProofreadBatch = useDocStore((s) => s.runProofreadBatch);
@@ -149,9 +142,13 @@ export const Step5BodyWizard: React.FC = () => {
               <Badge tone="success">Auto</Badge>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <RuleRow icon={<AlignLeft size={12} />} label="Sangría primera línea" value={`1.27 cm · ${totalParagraphs} párrafos`} />
+              {/* Estas dos filas se LEEN de `rules`. Tenían el 1,27 y el 2,54
+                  escritos a mano, y como la pestaña Formato deja cambiar los
+                  dos, un resumen que dice "2,54 cm" mientras el documento está
+                  en 3 es un resumen que miente en la cara de la persona. */}
+              <RuleRow icon={<AlignLeft size={12} />} label="Sangría primera línea" value={`${rules.paragraph_indent_cm} cm · ${totalParagraphs} párrafos`} />
               <RuleRow icon={<AlignLeft size={12} />} label="Enumeración de listas" value={`${totalLists} listas secuenciales`} />
-              <RuleRow icon={<AlignLeft size={12} />} label="Márgenes y tipografía" value={`2.54 cm · ${rules.font_family} ${rules.font_size_pt}pt`} />
+              <RuleRow icon={<AlignLeft size={12} />} label="Márgenes y tipografía" value={`${rules.margins_cm} cm · ${rules.font_family} ${rules.font_size_pt}pt`} />
             </div>
           </div>
 
@@ -329,60 +326,26 @@ export const Step5BodyWizard: React.FC = () => {
             )}
           </div>
 
-          {/* Opciones avanzadas (expandible) */}
-          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)' }}>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '9px 12px', background: 'transparent', border: 'none',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              {showAdvanced ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Opciones avanzadas</span>
-            </button>
-            {showAdvanced && (
-              <div style={{ padding: '4px 12px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={advJustify}
-                    onChange={(e) => {
-                      setAdvJustify(e.target.checked);
-                      try {
-                        const prev = JSON.parse(localStorage.getItem('wordapa7_body_advanced') || '{}');
-                        localStorage.setItem('wordapa7_body_advanced', JSON.stringify({ ...prev, justify: e.target.checked }));
-                      } catch { /* noop */ }
-                    }}
-                  />
-                  Texto justificado (algunas instituciones lo piden)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  Sangría primera línea (cm)
-                  <input
-                    type="number" step="0.1" min="0" max="5"
-                    value={advIndent}
-                    onChange={(e) => {
-                      setAdvIndent(e.target.value);
-                      try {
-                        const prev = JSON.parse(localStorage.getItem('wordapa7_body_advanced') || '{}');
-                        localStorage.setItem('wordapa7_body_advanced', JSON.stringify({ ...prev, indentCm: parseFloat(e.target.value) || 0 }));
-                      } catch { /* noop */ }
-                    }}
-                    style={{
-                      width: '64px', padding: '4px 6px', fontSize: '11px',
-                      background: 'var(--bg-input, transparent)', color: 'var(--text-main)',
-                      border: '1px solid var(--border-subtle)', borderRadius: '6px',
-                    }}
-                  />
-                </label>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  Se aplican al generar el documento final.
-                </span>
-              </div>
-            )}
+          {/* Dónde se cambia el resto del formato. Este bloque deja dicho que el
+              interlineado se cambia acá y que el resto no.
+              Lo que antes estaba bajo el desplegable de "Opciones avanzadas" —
+              "Texto justificado" y "Sangría primera línea" — se guardaba en
+              `wordapa7_body_advanced` y no lo leía nadie: ni `rules`, ni el
+              backend, ni este archivo después. Su texto decía "se aplican al
+              generar el documento final", que era falso, y encima se peleaban
+              con `alignment` y `paragraph_indent_cm` de la pestaña Formato de
+              Ajustes, que sí se aplican. El formato se cambia en un solo lugar:
+              la pestaña Formato. */}
+          <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-elevated)', padding: '10px 12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <AlignLeft size={13} />
+              Los demás ajustes de formato
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, display: 'block', marginTop: '4px' }}>
+              La fuente, el tamaño, la alineación y la sangría de primera línea se
+              cambian en Ajustes, pestaña Formato. Ahí sí se aplican al documento
+              final.
+            </span>
           </div>
         </div>
       </div>
