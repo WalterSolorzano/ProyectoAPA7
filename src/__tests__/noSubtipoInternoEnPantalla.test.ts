@@ -128,4 +128,14 @@ describe('el mapa de marcas no puede contener un identificador interno', () => {
       /JSON\.parse\(localStorage\.getItem\(['"]wordapa7_marcas_map/,
     );
   });
+
+  it('el archivo que escribe el mapa no vuelve al kind crudo', async () => {
+    /* El guardián de arriba mira el slice porque ahí estaba el defecto, pero el
+       mapa hoy se escribe en `lib/marcasMap`. Un guardián atado al archivo viejo
+       pasa en verde aunque el `|| f.kind` vuelva un metro más allá: esta
+      asignatura se corrió al mover el código, y con ella se fue la vigilancia. */
+    const fuente = await import('../lib/marcasMap?raw');
+    expect(fuente.default).not.toMatch(/\|\|\s*f\.kind/);
+    expect(fuente.default).not.toMatch(/KIND_LABELS/);
+  });
 });
