@@ -646,6 +646,21 @@ duplicadas a mano y ninguna las amarra.
   aplican `section.page_width`/`page_height` desde `APARuleSet.page_size`, que ya existe
   desde la fase de Ajustes. Hoy nadie lo toca en portada, y por eso el diseño "no es
   tamaño definido".
+
+> **Decisión del usuario, 2026-09-28. Resuelve el supuesto 4 y por eso el supuesto deja de
+> existir.** El tamaño de página es **propiedad del documento**, no del contenido
+> protegido. El bloque protegido es el texto, las imágenes y el formato tipográfico de la
+> portada original. `section.page_width` y `section.page_height` son propiedades de la
+> **sección** del documento: el contexto que rodea la portada, no la portada.
+>
+> Aplicarlas no altera ni un carácter del bloque protegido. Si el original viene en A4 y
+> el usuario configuró Carta en Ajustes, el `.docx` sale Carta en todo el cuerpo y la
+> portada conserva su texto, sus imágenes y su tipografía intactos.
+>
+> La Fase 2 **asume que aplica el tamaño de página sin partirse en dos.** El test de
+> `§6.4` que compara el hash del bloque de portada antes y después es la prueba de que
+> esto no rompió la protección.
+
 - `UNICoverPreview.tsx:11` (`BLACK = '#000000'`), `:30`, `:115` salen a token.
 
 ### 6.3 Logos: varios, sin romper UNI
@@ -1017,8 +1032,26 @@ un control decorativo con la etiqueta de uno funcional.
   `meta/llama-3.1-70b-instruct`** como "mayor precisión" (`ai_client.py:23` dice que murió
   el 2026-08-26).
 
-Si alguno de los nueve no llegara de verdad, **se borra de la UI**. No se deja un campo
-que no hace nada.
+> **Aclaración del usuario, 2026-09-28: la Fase 8 se cablea, no se borra.** Y hay que
+> separar dos cosas que el borrador mezclaba.
+>
+> **La redacción anterior era ambigua y estaba mal.** "Si alguno de los nueve no llegara,
+> se borra de la UI" sonaba a plan de borrado, y no lo es: es un **fusible**, no una
+> alternativa al cableado. El plan **se compromete a cablear los nueve**. La cláusula
+> existe para una sola cosa: que si al verificar la Fase 8 uno de los nueve no llega, eso
+> es un **test rojo que impide dar la fase por terminada**, no una tarea de borrar campos.
+>
+> **Y no es un breaking change, porque la premisa no se cumple.** El usuario pidió
+> confirmar esto, y la evidencia dice lo contrario: esas nueve variables **nunca
+> persistieron desde la UI**. `main.py:970-984` es un `dict` de variables de **clave**: los
+> modelos no entran por ahí, y el `localStorage` de la UI solo los guarda a nombre propio
+> (`proveedoresIA.ts:117`). Un usuario con key de Groq **tiene la key, no el modelo**. Lo
+> único que sobrevive hoy es lo que alguien puso a mano en un `.env` de desarrollo, y eso
+> `llm_classifier` **sigue leyendo después de la Fase 8**: la variable no se deja de leer,
+> se deja de poder cambiar de un sitio que miente.
+>
+> O sea: nadie pierde nada, y el campo pasa de decorativo a funcional. Lo que sí cambia es
+> que la UI deja de decir "el motor todavía no los recibe" y pasa a poder decirlo.
 
 ### 12.3 `provider_id` en los dieciocho
 
@@ -1110,6 +1143,14 @@ Estas dependencias son reales y hay que respetarlas:
   también F5.
 - `python/modules/portada_uni.py`, `cover_designer.py` y `models.py` los toca F2.
 - `python/modules/proactive_auditor.py` lo toca F0 y F8.
+- `src/store/slices/uiSlice.ts` lo toca F1 (`projectImages: []` es un slice de UI que hoy
+  es estado muerto) y F7, y su `partialize` es el punto exacto de la migración del
+  supuesto 3.
+- **`ReviewMinimap.tsx` cambia de carpeta en F1** (`components/wizard/` a
+  `components/review/`). **`src/__tests__/useReviewWorkbench.test.ts` lo importa desde la
+  ruta vieja**, así que el commit de la reubicación **tiene que actualizar ese import en
+  el mismo commit** o el build falla. Igual `src/__tests__/railPending.test.ts`, que
+  depende de `marks`. Buscar todos los importadores antes de mover el archivo, no después.
 
 **Nunca `git add -A`.** Explicit file by file. Dos fases que se pisan en un archivo
 terminan mezcladas en un commit, y un commit mezclado no se puede revertir por partes.
@@ -1154,11 +1195,33 @@ pero cada una puede cambiar el alcance de su fase.
 3. **La IndexedDB.** `useDocStore` persiste con `partialize`. La Fase 7 depende de cómo se
    migra un blob URL guardado a una referencia a disco. Hay que leer `useDocStore.ts` antes
    de escribir esa fase.
-4. **El tamaño de página de la portada.** `portada_uni.py` y `cover_designer.py` heredan
-   la hoja del original. Fijar `section.page_width` ahí **cambia la portada original**, que
-   `AGENTS.md` §1 dice que no se toca. Hay que decidir: ¿el tamaño de página del documento
-   es una propiedad del documento y sí se aplica, o es parte del bloque protegido? La Fase
-   2 asume que es del documento. **Esa decisión es del usuario, no mía.**
+## 15. Suposiciones: estado al 2026-09-28
+
+De las cuatro, **una está resuelta** (decisión del usuario) y las otras tres quedaron
+confirmadas o ampliadas por el usuario. Queda una sola que hay que reproducir en vivo.
+
+1. **El disparador del morado.** `scanAll` usa `isScanning` local y no pone `isLoading`,
+   así que el camino real es otro. **Confirmado por el usuario: se reproduce en vivo al
+   arrancar F1, antes de tocar `LoadingTips`.** Si el morado aparece en un momento que no
+   pasa por `documentSlice`, es un cuarto disparador sin encontrar, y se busca antes de
+   escribir código. No se toca el overlay hasta saber qué lo dispara.
+2. **"La UI desarmada" en Revisión.** Tema oscuro + overlay de carga blanco + minimapa de
+   4 px **alcanza para explicar lo que se vio**. **Confirmado por el usuario: no se abre
+   un problema separado.** Si después de arreglar F1 persiste algo de la sensación de
+   desarme, ahí sí se abre issue aparte, con el síntoma ya medido.
+3. **La IndexedDB — ampliado por el usuario.** La Fase 7 tiene que revisar **`partialize`
+   en `uiSlice.ts`**, no solo en `useDocStore.ts`. Es el punto exacto del problema:
+   `projectImages` vive en el slice de UI (`uiSlice.ts:206`) y es lo que `partialize`
+   persiste. El `URL.createObjectURL` guardado ahí **sobrevive a la recarga como un string
+   muerto**: el blob ya no existe y el URL no resuelve.
+   **F7 migra ese campo a una referencia por `asset_id` de `/api/assets` ANTES de tocar el
+   modelo de `Proyecto`.** El orden importa: si se cambia el modelo primero, la migración
+   del campo viejo no tiene contra qué verificarse.
+4. ~~**El tamaño de página de la portada.**~~ **RESUELTO. Decisión del usuario, registrada
+   en `§6.2`.** El tamaño de página es propiedad del documento, no del bloque protegido:
+   `section.page_width`/`page_height` son propiedades de la sección. La Fase 2 aplica el
+   tamaño de página **sin partirse en dos**, y el test de hash del bloque de portada es lo
+   que prueba que la protección sigue en pie.
 
 ---
 
