@@ -83,6 +83,17 @@ llenar el campo. Eso obliga a inventar.
 No es el dropzone. `src/components/upload/UploadDropzone.tsx:85,91,111` usa cuatro
 tokens que sí existen.
 
+> **Corrección del 2026-09-28, después de escribir el plan de F1.** El `position: fixed`
+> y el `zIndex: 9999` **no están commiteados**: son un cambio en el árbol de trabajo de
+> una sesión que se interrumpió. La versión commiteada de `LoadingTips.tsx:678` y
+> `:718` dice `position: 'relative'`, o sea que el overlay en flujo ya tapaba menos.
+> Ese cambio sin commitear **empeora** dos cosas (convierte el overlay en capa a
+> pantalla completa y saca el `setTimeout(..., 250)` que hacía esperar antes de mostrar)
+> y **mejora** una. El usuario revisó la app con él puesto, así que el síntoma es real.
+> La paleta morada, en cambio, sí está en el archivo commiteado y sí es la causa del
+> color. La Task 2 del plan de F1 arranca pidiendo una decisión sobre ese cambio sin
+> commitear antes de escribir una línea.
+
 Es `src/components/layout/LoadingTips.tsx`:
 
 - `:678` y `:718`: `position: 'fixed', inset: 0, zIndex: 9999`. Se pinta encima de todo,

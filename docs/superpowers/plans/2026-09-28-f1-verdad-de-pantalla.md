@@ -255,10 +255,34 @@ duros de Step3FiguresTablesWizard y el fondo del modal de proyecto pasaban impun
 
 **Files:**
 - Modify: `src/components/layout/LoadingTips.tsx` (`:353` comentario, `:355-483` el
-  canvas, `:486` el `isLoading`, `:506` el `MIN_DISPLAY_MS`, `:678` y `:718` los estilos
-  inline)
+  canvas, `:506` el `MIN_DISPLAY_MS`, `:678` y `:718` los estilos inline)
 - Modify: `src/styles/design-system.css:1335-1343` (`.loading-tips-fullscreen`)
 - Test: `src/__tests__/loadingTips.test.tsx` (crear)
+
+> ### ⚠️ HALLAZGO QUE CAMBIA ESTA TAREA — leelo antes de ejecutar
+>
+> El `zIndex: 9999` con `position: fixed; inset: 0; width: 100vw; height: 100vh`
+> **no está commiteado**. Salió de la sesión que se interrumpió, y está en el árbol
+> de trabajo sin commitear. La versión commiteada de `LoadingTips.tsx:678` y `:718`
+> dice `position: 'relative'`.
+>
+> Traducción: **el overlay que se comió la app es un cambio sin commitear, no código
+> del repo.** El usuario revisó la app con ese cambio puesto, así que el síntoma es
+> real, pero la causa está a medio camino y hay que decidir qué se hace con él antes de
+> "arreglarlo":
+>
+> - **El cambio sin commitear empeora dos cosas y mejora una.** Empeora: convierte un
+>   overlay en flujo (`relative`) en una capa a pantalla completa con `zIndex: 9999`
+>   inline, que pisa el `z-index: 200` de su propia clase y tapa rail, flyout y
+>   workbench. Mejora: **saca el `setTimeout(..., 250)`** (`:573-592`), que hoy obliga a
+>   esperar un cuarto de segundo antes de mostrar nada.
+> - **Antes de escribir código, preguntá al usuario** si ese cambio se commitea o se
+>   descarta. Si se descarta, el `zIndex: 9999` desaparece solo y esta tarea se reduce a
+>   la paleta, al `MIN_DISPLAY_MS` y a la prop `que`. **No lo reviertas sin preguntar:**
+>   es trabajo de otra sesión y el usuario la vió funcionando en pantalla.
+> - **Sea lo que se decida, la paleta horaria con hex queda.** Eso sí está en el
+>   archivo commiteado y es la causa del morado. Los pasos 3 y 5 de abajo van igual.
+
 
 **Interfaces:**
 - Consumes: el resultado de Task 0.
@@ -749,13 +773,23 @@ paso 4, los dos themes; (3) Task 2 paso 5, `MIN_DISPLAY_MS`; (4) Task 1 paso 1, 
 ignora a propósito los `var` con fallback y el paso 3 saca el de
 `ProjectFolderModal.tsx:106`; (5) Task 5 paso 1, el rail.
 
-paso 2, que es basura y está señalado para que nadie la copie. Y el `git add` de la Task 1
-que puede listar archivos que el implementador no haya tocado. Los dos están
-señalados, pero **un plan con errores propios es un plan que hay que leer**. No lo tomes
-por bueno sin mirarlo.
+**5. Lo que hay que mirar al leer este plan.** Los helpers de montaje de los tests de
+Task 4 y Task 5 **no existen**: hay que armarlos reusando el patrón de
+`railItems.test.ts` e `iconRail.test.tsx`, que ya montan el rail. El `git add` de la
+Task 1 puede listar archivos que el implementador no haya tocado. **Un plan con helpers
+pendientes no es un plan que se pueda correr sin leerlo.**
 
 **6. Orden.** Task 0 antes que nada. Task 1 antes que 2, 3 y 4, porque toca
 `design-system.css` y las tres lo necesitan. Task 2 y Task 4 se pisan en
 `design-system.css`: **van en commits distintos, y el de Task 4 no vuelve a tocar los
 tokens que declaró Task 1.** Si R3 falla al extender los directorios, es un token que
 Task 1 no declaró: **volvé a Task 1**, no lo parchees acá.
+
+**7. El hallazgo de la Task 2 es lo más importante del plan y no estaba en el spec.**
+El spec (§2.2) presenta el `position: fixed` y el `zIndex: 9999` como si fueran código
+del repo. **No lo son: son un cambio sin commitear de la sesión que se interrumpió.**
+La versión commiteada de `LoadingTips.tsx:678` y `:718` dice `position: 'relative'`.
+Eso cambia el alcance de la fase, y por eso la Task 2 arranca pidiendo una decisión al
+usuario antes de escribir nada. **El spec debería decir lo mismo en `§2.2`; queda como
+corrección pendiente del documento maestro.**
+
