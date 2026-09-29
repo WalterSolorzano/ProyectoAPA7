@@ -8,7 +8,7 @@
  * desincroniza del backend, o dos recuentos de IA distintos en la misma app.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   construirMosaico,
   cortesPorCuartiles,
@@ -197,6 +197,134 @@ describe('el mosaico no parte bloques', () => {
   });
 });
 
+/* ── La tinta de la rampa ───────────────────────────────────────────────────── */
+
+/* La hoja se lee por DENTRO, con el import dinámico que ya usan
+   `designTokens.test.ts` y `noHardcodedColors.test.ts`, y NO con `?raw`.
+
+   Y esto corrige una instrucción del plan de la F3, que decía que `readFileSync`
+   no era función y que había que leer todo con `?raw`. Medido en este repo:
+   `import hoja from '...css?raw'` devuelve CERO caracteres y
+   `import.meta.glob('...css', { query: '?raw' })` también, porque
+   `vite.config.ts` pone `css: false` y la cadena de CSS del runner devuelve la
+   cadena vacía antes de que el plugin de `?raw` puedaAjarla. Con un `.tsx` el
+   mismo `?raw` sí funciona, que es por eso que la guarda de la Task 5 va con
+   glob. Para una hoja, el import dinámico con `@vite-ignore` es lo único que
+   lee, y es la convención que ya tiene este proyecto para leerla. */
+const NODE_FS = 'node:fs';
+const NODE_PATH = 'node:path';
+const NODE_URL = 'node:url';
+
+let hoja = '';
+
+/** Los tokens declarados en un bloque `:root`, como un mapa. */
+function tokensDe(bloque: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const d of bloque.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) m.set(d[1], d[2].trim());
+  return m;
+}
+
+/* Los dos bloques de tema, LEÍDOS en el `beforeAll` y no al cargar el módulo: la
+   hoja llega después, y un `slice` calculado con la cadena vacía daría dos
+   bloques vacíos que pasan todos los-formato y no miran ningún token. */
+let bloqueClaro = '';
+let bloqueOscuro = '';
+
+beforeAll(async () => {
+  const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+  const { resolve } = await import(/* @vite-ignore */ NODE_PATH);
+  const { fileURLToPath } = await import(/* @vite-ignore */ NODE_URL);
+  const testDir = fileURLToPath(import.meta.url).replace(/[^/\\]+$/, '');
+  hoja = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
+  expect(hoja.length, 'la hoja no se pudo leer: las pruebas de la rampa no mirarían nada')
+    .toBeGreaterThan(0);
+  bloqueClaro = hoja.slice(hoja.indexOf(':root,'), hoja.indexOf(':root[data-theme="dark"]'));
+  bloqueOscuro = hoja.slice(hoja.indexOf(':root[data-theme="dark"]'));
+});
+
+/** El valor final de un token, following la cadena de `var()`. */
+function resolver(tokens: Map<string, string>, token: string): string {
+  let valor = tokens.get(token) ?? '';
+  for (let i = 0; i < 5; i++) {
+    const ref = valor.match(/var\(\s*(--[a-z0-9-]+)\s*\)/);
+    if (!ref) break;
+    valor = tokens.get(ref[1]) ?? '';
+  }
+  return valor;
+}
+
+/** `rgba(124, 58, 237, 0.40)` -> `[124, 58, 237, 0.4]`. `#7c3aed` -> alfa 1. */
+function canales(valor: string): [number, number, number, number] | null {
+  const hex = valor.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
+  }
+  const rgb = valor.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.%]+))?\s*\)$/);
+  if (!rgb) return null;
+  const alfa = rgb[4] === undefined ? 1 : parseFloat(rgb[4]) / (String(rgb[4]).includes('%') ? 100 : 1);
+  return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3]), alfa];
+}
+
+const NIVELES = ['--ia-nivel-1', '--ia-nivel-2', '--ia-nivel-3', '--ia-nivel-4'] as const;
+
+describe('la rampa se lee como intensidad, no como alarma', () => {
+  it('los cuatro escalones son cuatro tonos DISTINTOS', () => {
+    /* El defecto era una rampa monocroma, y una rampa monocroma no ordena: si
+     * los cuatro se ven igual no hay escala, hay un fondo. El test falla si los
+     * cuatro tienen el mismo tono, que es la forma en que una rampa deja de
+     * decir qué escalón es cuál. */
+    for (const [tema, bloque] of [['claro', bloqueClaro], ['oscuro', bloqueOscuro]] as const) {
+      const tokens = tokensDe(bloque);
+      const valores = NIVELES.map((t) => resolver(tokens, t));
+      for (const v of valores) expect(v, `${tema}: un escalón sin valor`).not.toBe('');
+      expect(new Set(valores).size, `${tema}: ${valores.join(' | ')}`).toBe(4);
+      const canalesValidos = valores.map(canales);
+      for (const c of canalesValidos) expect(c, 'un escalón no es un color').not.toBeNull();
+      expect(new Set(canalesValidos.map((c) => c!.join(','))).size, `${tema}`).toBe(4);
+    }
+  });
+
+  it('los cuatro son la MISMA tinta en alfa creciente, no cuatro colores', () => {
+    /* Cuatro colores distintos se leen como cuatro categorías. Cuatro pasos de
+     * una tinta se leen como una cantidad, que es lo que el mosaico afirma. */
+    for (const [tema, bloque] of [['claro', bloqueClaro], ['oscuro', bloqueOscuro]] as const) {
+      const tokens = tokensDe(bloque);
+      const cs = NIVELES.map((t) => canales(resolver(tokens, t))!);
+      const tintas = new Set(cs.map((c) => c.slice(0, 3).join(',')));
+      expect(tintas.size, `${tema}: la rampa usa más de una tinta`).toBe(1);
+      const alfas = cs.map((c) => c[3]);
+      for (let i = 1; i < alfas.length; i++) {
+        expect(alfas[i], `${tema}: el escalón ${i + 1} no es más marcado que el anterior`)
+          .toBeGreaterThan(alfas[i - 1]);
+      }
+    }
+  });
+
+  it('la rampa NO es la tinta del error', () => {
+    /* Cuatro tonos de rojo leen como alarma. El detector de IA es
+     * probabilístico: propone, y quien decide es la persona. Un mapa donde la
+     * mitad del documento está en el color del error no está midiendo
+     * intensidad, está señalando un problema que no existe. */
+    for (const [tema, bloque] of [['claro', bloqueClaro], ['oscuro', bloqueOscuro]] as const) {
+      const tokens = tokensDe(bloque);
+      const peligro = canales(resolver(tokens, '--color-danger'))!;
+      for (const t of NIVELES) {
+        const c = canales(resolver(tokens, t))!;
+        expect(c.slice(0, 3), `${tema}: ${t} es el rojo de error`).not.toEqual(peligro.slice(0, 3));
+      }
+    }
+  });
+
+  it('el primer escalón es casi neutro: donde el detector no vio nada no hay alarma', () => {
+    for (const [tema, bloque] of [['claro', bloqueClaro], ['oscuro', bloqueOscuro]] as const) {
+      const tokens = tokensDe(bloque);
+      const primero = canales(resolver(tokens, '--ia-nivel-1'))!;
+      expect(primero[3], `${tema}: el escalón 1 ya no es un velo`).toBeLessThanOrEqual(0.12);
+    }
+  });
+});
+
 /* ── La construcción ───────────────────────────────────────────────────────── */
 
 describe('las secciones del mosaico', () => {
@@ -288,5 +416,72 @@ describe('las secciones del mosaico', () => {
     /* El clic tiene que poder llevar al lugar, no solo filtrar. */
     const m = construirMosaico(documento, []);
     expect(m.find((b) => b.label === 'Resultados')!.elementId).toBe('h-res');
+  });
+});
+
+/* ── El nombre de la sección ───────────────────────────────────────────────── */
+
+describe('el mosaico no vuelve a decidir qué título abre qué fase', () => {
+  it('un H1 NUMERADO ya no sale "Seccion sin nombre"', () => {
+    /* El defecto que la F3 vino a matar: el match era EXACTO contra los rótulos,
+     * así que "1. Introducción" caía en sin_fase. Y el filtro de fase usa la
+     * misma clave, o sea que todos los capítulos numerados de una tesis —el
+     * caso normal— se fundían en un bloque sin nombre. */
+    const numerado = [
+      H1('1. Introducción', 'h1'),
+      el({ id: 'p1', text: 'Uno' }),
+      H1('2. Discusión', 'h2'),
+      el({ id: 'p2', text: 'Dos' }),
+    ];
+    expect(construirMosaico(numerado, []).map((b) => b.key)).toEqual(['introduccion', 'discusion']);
+  });
+
+  it('un H1 con el prefijo de capítulo también abre su fase', () => {
+    const conPrefijo = [
+      H1('CAPÍTULO 2: MARCO TEÓRICO', 'h1'),
+      el({ id: 'p1', text: 'Uno' }),
+    ];
+    expect(construirMosaico(conPrefijo, []).map((b) => b.key)).toEqual(['marco_teorico']);
+  });
+
+  it('DOS H1 de la misma fase son DOS bloques, no uno fundido', () => {
+    /* Con la fase como clave de agrupación se perdían: el mapa no distinguía un
+     * capítulo del otro y sus párrafos se contaban juntos. La fase pasó a ser un
+     * atributo, y cada encabezado es su nodo. */
+    const dosCapitulos = [
+      H1('Resultados', 'h1'),
+      el({ id: 'p1', text: 'Uno' }),
+      H1('Resultados del piloto', 'h2'),
+      el({ id: 'p2', text: 'Dos' }),
+    ];
+    const m = construirMosaico(dosCapitulos, []);
+    expect(m).toHaveLength(2);
+    expect(m[0].elementId).toBe('h1');
+    expect(m[1].elementId).toBe('h2');
+    /* Y cada uno cuenta SUS párrafos: el segundo no se lleva los del primero. */
+    expect(m.map((b) => b.parrafos)).toEqual([1, 1]);
+  });
+
+  it('la fase que trajo el hallazgo manda sobre la del título', () => {
+    /* `match_phase` del backend conoce el vocabulario completo y el frontend
+     * no. Cuando hay un hallazgo que trae la fase, esa es el dato: volver a
+     * derivarla del título es la quinta copia de la misma regla. */
+    const conAlias = [
+      H1('Metodología de la investigación', 'h1'),
+      el({ id: 'p1', text: 'Uno' }),
+    ];
+    expect(construirMosaico(conAlias, []).map((b) => b.key)).toEqual(['sin_fase']);
+    expect(construirMosaico(conAlias, [P('p1')]).map((b) => b.key)).toEqual(['metodo']);
+  });
+
+  it('un hallazgo de regla general no le inventa una fase a la sección', () => {
+    /* `phase: null` es "regla general, sin fase". Si eso contara como una fase,
+     * la primera sección del documento se pintaría con la fase de lo que se
+     * halló en ella, que es justo el error de la regla general. */
+    const soloReglas = [H1('Metodología', 'h1'), el({ id: 'p1', text: 'Uno' })];
+    const m = construirMosaico(soloReglas, [
+      item({ element_id: 'p1', id: 'g1', phase: null, category: 'ai' }),
+    ]);
+    expect(m.map((b) => b.key)).toEqual(['sin_fase']);
   });
 });

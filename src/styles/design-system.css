@@ -43,17 +43,25 @@
      competirían por el mismo canal y la vista dejaría de leerse.
 
      Cuatro escalones y no un degradado: doce matices no se ordenan de un
-     vistazo, cuatro sí. Y el tope es el `--color-danger` de la paleta, no un
-     rojo nuevo: la rampa es una sola tinta, la del error que ya existe, así
-     que no se introduce una familia de color que el resto de la app no tiene.
+     vistazo, cuatro sí.
+
+     LA TINTA ES LA DEL MOTOR IA, Y ANTES NO LO ERA. Los cuatro escalones eran
+     cuatro tonos de `--color-danger`, y cuatro tonos de rojo no leen como
+     intensidad: leen como error. El detector de IA es PROBABILÍSTICO —propone,
+     la persona decide—, y un mapa con la mitad del documento en rojo está
+     gritando sobre algo que no ha pasado. La rampa toma entonces la tinta que
+     ya identifica a este motor en el resto de la app y sus pasos de alfa, que
+     es la convención de las demás familias: una tinta, cuatro pasos, de tenue a
+     marcada. El tope sigue siendo sólido para que el escalón 4 se señale de un
+     vistazo.
 
      El primer escalón es casi neutro a propósito. Un bloque donde el detector
-     no vio nada no es una advertencia, y si su cuadrado se viera levemente rojo
-     el mapa estaría mintiendo sobre la mitad del documento. */
-  --ia-nivel-1: rgba(212, 56, 46, 0.06);
-  --ia-nivel-2: rgba(212, 56, 46, 0.16);
-  --ia-nivel-3: rgba(212, 56, 46, 0.34);
-  --ia-nivel-4: #d4382e;
+     no vio nada no es una advertencia, y si su cuadrado se viera levemente
+     marcado el mapa estaría mintiendo sobre la mitad del documento. */
+  --ia-nivel-1: var(--color-engine-ia-a08);
+  --ia-nivel-2: var(--color-engine-ia-a20);
+  --ia-nivel-3: var(--color-engine-ia-a40);
+  --ia-nivel-4: var(--color-engine-ia);
   --severity-critical-tint: rgba(220, 38, 38, 0.05);
   --severity-success-tint: rgba(22, 163, 74, 0.05);
   --color-paper: #ffffff;
@@ -132,6 +140,14 @@
   --color-engine-ia-a08: rgba(124, 58, 237, 0.08);
   --color-engine-ia-a12: rgba(124, 58, 237, 0.12);
   --color-engine-ia-a30: rgba(124, 58, 237, 0.30);
+  /* Los tres pasos que la rampa de `--ia-nivel-*` necesita: los mismos
+     escalones de alfa de las demás familias —20, 40 y 65— y ningún color nuevo.
+     La rampa del detector pasó de ser cuatro tonos de `--color-danger` a ser
+     cuatro pasos de ESTA tinta, que es justo lo que dice el comentario de
+     arriba: un hallazgo de IA no es un error. */
+  --color-engine-ia-a20: rgba(124, 58, 237, 0.20);
+  --color-engine-ia-a40: rgba(124, 58, 237, 0.40);
+  --color-engine-ia-a65: rgba(124, 58, 237, 0.65);
   --color-engine-tables: #06b6d4;
   --color-engine-tables-a12: rgba(6, 182, 212, 0.12);
 
@@ -372,21 +388,27 @@
   --color-engine-ia-a08: rgba(124, 58, 237, 0.08);
   --color-engine-ia-a12: rgba(124, 58, 237, 0.12);
   --color-engine-ia-a30: rgba(124, 58, 237, 0.30);
+  /* Los tres pasos que la rampa de `--ia-nivel-*` necesita y que esta familia no
+     tenía: los mismos escalones de alfa de las demás familias —20, 40 y 65— y
+     ningún color nuevo. La rampa del detector pasó de ser cuatro tonos del
+     rojo de error a ser cuatro pasos de la tinta de este motor. */
+  --color-engine-ia-a20: rgba(124, 58, 237, 0.20);
+  --color-engine-ia-a40: rgba(124, 58, 237, 0.40);
+  --color-engine-ia-a65: rgba(124, 58, 237, 0.65);
   --color-engine-tables: #06b6d4;
   --color-engine-tables-a12: rgba(6, 182, 212, 0.12);
 
   --color-ink-strong: #0f172a;
   --color-ink-soft: #9ca3af;
 
-  /* La rampa de IA, en oscuro, con MÁS alfa en los tres escalones bajos: la
-     superficie oscura se come el rojo suave (es lo mismo que pasó con
-     `--mark-ai-bg` y está anotado arriba). El tope es el `--color-danger` de
-     ESTE tema, no el de claro, para que el escalón 4 sea el mismo rojo que el
-     que marca un error en el resto de la app. */
-  --ia-nivel-1: rgba(255, 77, 79, 0.10);
-  --ia-nivel-2: rgba(255, 77, 79, 0.24);
-  --ia-nivel-3: rgba(255, 77, 79, 0.48);
-  --ia-nivel-4: #ff4d4f;
+  /* La rampa de IA, en oscuro, con MÁS alfa en los escalones bajos: la
+     superficie oscura se come un tinte suave (es lo mismo que pasó con
+     `--mark-ai-bg` y está anotado arriba). Los cuatro son pasos de la tinta del
+     motor IA, no del rojo de error, por el mismo motivo que en claro. */
+  --ia-nivel-1: var(--color-engine-ia-a12);
+  --ia-nivel-2: var(--color-engine-ia-a30);
+  --ia-nivel-3: var(--color-engine-ia-a65);
+  --ia-nivel-4: var(--color-engine-ia);
   --color-success: #52c41a;
   --color-warning: #faad14;
   --color-danger: #ff4d4f;

@@ -125,6 +125,25 @@ describe('el mosaico dibujado', () => {
     expect(screen.getByText('nada')).toBeTruthy();
   });
 
+  it('el nombre se IMPRIME dentro del bloque, no vive solo en el hover', () => {
+    /* El defecto que la F3 vino a matar: el rótulo iba al `title` y al nombre
+     * accesible, y dentro del botón no había nada más que un porcentaje. Veinte
+     * bloques sin nombre y con una cifra no son un mapa, son veinte números.
+     *
+     * Y el recorte con `ellipsis` no es una excusa para sacarlo de la pantalla:
+     * el nombre se pinta siempre, y en el bloque angosto lo que se recorta es la
+     * cola, no el nombre entero. */
+    montar([marcado('p2', 'metodo')]);
+    const botones = screen.getAllByRole('button');
+    const textos = botones.map((b) => b.textContent || '');
+    expect(textos.some((t) => t.includes('Metodo'))).toBe(true);
+    /* Y lo que se recorta se declara: el nombre entero sigue en el `title`. */
+    const conNombre = botones.find((b) => (b.textContent || '').includes('Metodo'))!;
+    expect(conNombre.getAttribute('title')).toContain('Metodo');
+    /* Y el porcentaje sigue debajo, en el mismo botón: un número, dos sitios. */
+    expect(conNombre.textContent).toContain('50%');
+  });
+
   it('NO hay lista de hallazgos, panel ni chat en el mosaico', () => {
     /* La regla de "no sobrecargar", fijada. El mapa contesta dónde está el
        trabajo; la revisión contesta qué hacer con él. Si aparece una lista

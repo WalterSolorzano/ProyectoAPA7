@@ -10,9 +10,11 @@
  *
  *   un bloque por sección, EN EL ORDEN DEL DOCUMENTO. El área es su tamaño,
  *   el color su intensidad, y el número impreso el porcentaje. El nombre de la
- *   sección va en el rótulo al pasar el mouse y en el nombre accesible, porque
- *   rotular veinte bloques convierte el mapa en una lista — y entonces no es un
- *   mapa, es la tabla que el mapa reemplazó.
+ *   sección se IMPREME dentro del bloque, arriba: estaba solo en el rótulo al
+ *   pasar el mouse y en el nombre accesible, que es como se construía esto —
+ *   veinte bloques sin nombre y con una cifra no se pueden leer. En el bloque
+ *   angosto el nombre se recorta con ellipsis y el entero queda en el `title`,
+ *   pero el nombre está en pantalla sin hover.
  *
  *   Una línea de leyenda, porque una rampa de color sin escala no se lee. Cuatro
  *   cuadrados, cuatro palabras. Nada más.
@@ -156,7 +158,10 @@ export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, cor
               const rotulo = `${b.label}: ${pct(b)} de ${b.parrafos} párrafos marcados`;
               return (
                 <button
-                  key={b.key}
+                  /* La clave es la fase CON el índice, no la fase sola: dos
+                     capítulos pueden abrir la misma fase y son dos bloques. Con
+                     la fase como clave, React los tachaba y el mapa perdía uno. */
+                  key={`${b.key}-${idx}`}
                   type="button"
                   onClick={() => onSelect(b.key)}
                   title={rotulo}
@@ -171,7 +176,7 @@ export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, cor
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+                    alignItems: 'stretch',
                     gap: 2,
                     padding: '6px 7px',
                     cursor: 'pointer',
@@ -180,26 +185,48 @@ export const AiMosaic: React.FC<AiMosaicProps> = ({ elements, items, activa, cor
                     borderRadius: 'var(--radius-sm)',
                     border: esActiva ? '1px solid var(--color-accent)' : '1px solid transparent',
                     background: tokenDeNivel(b.nivel),
-                    /* Sobre el escalón 4 el fondo es el rojo sólido de la
-                       paleta, y el texto tiene que ser el de encima de un
-                       botón primario. En los tres escalas de abajo el fondo es
-                       un tinte y alcanza el texto principal. */
+                    /* Sobre el escalón 4 el fondo es la tinta sólida de la rampa
+                       y el texto tiene que ser el de encima de un botón
+                       primario. En los tres escalas de abajo el fondo es un tinte
+                       y alcanza el texto principal. */
                     color: b.nivel === 4 ? 'var(--color-text-on-accent)' : 'var(--color-text-primary)',
                   }}
                 >
+                  {/* EL NOMBRE, EN PANTALLA. Antes vivía solo en el `title` y
+                      en el nombre accesible, y dentro del botón no había nada
+                      más que un porcentaje: veinte bloques sin nombre y con una
+                      cifra, que es un mapa que no se puede leer. En el bloque
+                      angosto se recorta con ellipsis y el `title` conserva el
+                      entero, pero el nombre está, no hay que pasar el mouse. */}
                   <span
                     style={{
-                      fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1,
-                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: 'var(--text-xs)',
+                      lineHeight: 1.1,
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {pct(b)}
+                    {b.label}
                   </span>
-                  {cols >= 2 && (
-                    <span style={{ fontSize: 'var(--text-xs)', opacity: 0.8, lineHeight: 1 }}>
-                      {b.parrafos} párr.
+                  <span
+                    style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {pct(b)}
                     </span>
-                  )}
+                    {cols >= 2 && (
+                      <span style={{ fontSize: 'var(--text-xs)', opacity: 0.8, lineHeight: 1 }}>
+                        {b.parrafos} párr.
+                      </span>
+                    )}
+                  </span>
                 </button>
               );
             })}

@@ -31,7 +31,8 @@
 
 import type { ElementModel } from '../types';
 import type { AuditItem } from './auditItems';
-import { PHASE_LABELS, phaseLabel } from './auditItems';
+import { phaseLabel } from './auditItems';
+import { faseDeTitulo } from './jerarquia';
 
 /** Un escalón de la rampa. 1 es lo más bajo; 4 lo más alto. */
 export type NivelIa = 1 | 2 | 3 | 4;
@@ -286,57 +287,72 @@ export function construirMosaico(
   /** La calibración editada en Ajustes. `null` = los cuartiles del documento. */
   cortes: CortesIa | null = null,
 ): BloqueMosaico[] {
-  /* 1. Los párrafos marcados, por sección. Sólo el motor IA: este mosaico es
-   *    de la IA, y dejar que la ortografía opinara sobre la intensidad de la IA
-   *    haría que el color dijera una cosa y el detector otra. */
-  const marcadosPor = new Map<string, Set<string>>();
+  /* 1. Los párrafos marcados, por ELEMENTO y no por fase.
+   *
+   * Antes el conteo se guardaba en un mapa por fase, y eso ataba el mosaico a la
+   * fase como clave: dos capítulos que abren la misma fase compartían el mismo
+   * conjunto, y el mapa no distinguía uno del otro. El elemento es la clave que
+   * sí es del documento, y además es la que necesita la cuenta: un bloque cuenta
+   * los párrafos SUYOS que el detector marcó, no los que marcó cualquier otro
+   * capítulo de la misma fase. Sólo el motor IA, porque este mosaico es de la
+   * IA, y dejar que la ortografía opinara sobre la intensidad de la IA haría
+   * que el color dijera una cosa y el detector otra. */
+  const marcados = new Set<string>();
   for (const it of items) {
     if (it.category !== 'ai') continue;
-    const fase = it.phase ?? 'sin_fase';
-    let set = marcadosPor.get(fase);
-    if (!set) marcadosPor.set(fase, (set = new Set()));
-    if (it.element_id) set.add(it.element_id);
+    if (it.element_id) marcados.add(it.element_id);
   }
 
-  /* 2. Los elementos por sección, con el H1 como única frontera. */
-  const porFase = new Map<string, { elementos: ElementModel[]; primero: ElementModel | null }>();
-  const orden: string[] = [];
-  let faseActual = 'portada';
+  /* 2. Una sección por H1, en el orden del documento.
+   *
+   * La fase YA NO ES LA CLAVE DE AGRUPACIÓN, que es lo que hacía que dos H1 que
+   * abrían la misma fase se fundieran en silencio. Ahora la fase es un atributo
+   * de la sección, y cada encabezado es el suyo.
+   *
+   * Y la fase de la sección la da el backend cuando hay un hallazgo que la
+   * traiga: es el dato que `match_phase` ya calculó sobre el vocabulario
+   * completo. Solo cuando el capítulo no tiene ningún hallazgo —una sección
+   * vacía, que es justo una de las que hay que poder señalar— se recurre al
+   * título, con `faseDeTitulo` de `jerarquia`, la misma función que usa el
+   * índice de estructura y no una copia local. */
+  const secciones: Seccion[] = [];
+  const abrir = (key: string, primero: ElementModel | null): Seccion => {
+    const seccion: Seccion = { key, elementos: [], primero };
+    secciones.push(seccion);
+    return seccion;
+  };
+  /* La sección que está abierta. Se abre con el PRIMER elemento: si es un H1, la
+     abre él —una portada escrita como "Portada" es un H1, no un bloque previo— y
+     si es contenido, ese contenido es la portada. Abrir la de portada antes de
+     tiempo metía un bloque vacío al principio de todos los documentos. */
+  let actual: Seccion | null = null;
   for (const el of elements) {
     if (el.type === 'heading' && el.heading_level === 1) {
-      faseActual = faseDeTitulo(el.text || '');
+      actual = abrir(faseDeSeccion(el, elements, items), el);
+      continue;
     }
-    let bucket = porFase.get(faseActual);
-    if (!bucket) {
-      orden.push(faseActual);
-      porFase.set(faseActual, (bucket = { elementos: [], primero: null }));
-    }
-    bucket.elementos.push(el);
-    if (!bucket.primero) bucket.primero = el;
+    if (actual === null) actual = abrir('portada', null);
+    if (!actual.primero) actual.primero = el;
+    actual.elementos.push(el);
   }
 
   /* 3. El mosaico. Una sección sin párrafos no tiene intensidad: cero de cero
    *    no es "poca IA", es "no hay nada que medir", y se ve como nivel 1. */
   const bloques: BloqueMosaico[] = [];
-  for (const key of orden) {
-    const bucket = porFase.get(key);
-    if (!bucket) continue;
-    const parrafos = bucket.elementos.filter(cuentaComoParrafo).length;
-    const marcadosSet = marcadosPor.get(key);
-    const marcados = marcadosSet
-      ? bucket.elementos.filter((e) => marcadosSet.has(e.id)).length
-      : 0;
+  for (const s of secciones) {
+    const parrafos = s.elementos.filter(cuentaComoParrafo).length;
+    const nMarcados = s.elementos.filter((e) => marcados.has(e.id)).length;
     bloques.push({
-      key,
+      key: s.key,
       /* `phaseLabel`, sin el `null` de la versión del filtro: `null` significa
          "sin filtro, todo el documento", que es la etiqueta de un chip, no el
          nombre de un bloque. Para el bloque de portada, el nombre es Portada. */
-      label: phaseLabel(key),
+      label: phaseLabel(s.key),
       parrafos,
-      marcados,
-      proporcion: parrafos > 0 ? marcados / parrafos : 0,
+      marcados: nMarcados,
+      proporcion: parrafos > 0 ? nMarcados / parrafos : 0,
       nivel: 1,
-      elementId: bucket.primero?.id ?? null,
+      elementId: s.primero?.id ?? null,
     });
   }
 
@@ -345,37 +361,74 @@ export function construirMosaico(
   return bloques;
 }
 
+/** Un capítulo en construcción: su fase, sus elementos y el primero. */
+interface Seccion {
+  key: string;
+  elementos: ElementModel[];
+  primero: ElementModel | null;
+}
+
+/* Los valores de `AuditItem.phase` que NO son una fase. `global` es una regla
+   general y `sin_fase` es la ausencia de fase, y ninguna de las dos dice a qué
+   capítulo del documento pertenece un hallazgo. Es la misma regla que aplica
+   `faseDeHallazgo` en `auditItems`: "no uses un valor que no significa una
+   fase", que no es una tabla y por eso no se importa. */
+const NO_ES_FASE = new Set(['global', 'sin_fase']);
+
+/**
+ * La fase de la sección que abre este H1.
+ *
+ * Primero la del backend, si algún hallazgo de la sección la trae: es el dato
+ * que el backend ya calculó y que el frontend no tiene con qué reproducirlo. Y
+ * si la sección no trae ninguno, la del título, con la función compartida.
+ */
+function faseDeSeccion(
+  encabezado: ElementModel,
+  elements: readonly ElementModel[],
+  items: readonly AuditItem[],
+): string {
+  const alcance = alcanceDe(encabezado, elements);
+  const fases = new Set<string>();
+  for (const it of items) {
+    if (!it.phase || NO_ES_FASE.has(it.phase)) continue;
+    if (alcance.has(it.element_id)) fases.add(it.phase);
+  }
+  if (fases.size === 1) return [...fases][0];
+  return faseDeTitulo(encabezado.text || '', false) ?? SIN_FASE;
+}
+
+/** El H1 y todo lo que cuelga de él, hasta el próximo H1. */
+function alcanceDe(encabezado: ElementModel, elements: readonly ElementModel[]): Set<string> {
+  const alcance = new Set<string>();
+  let abierto = false;
+  for (const el of elements) {
+    if (el.type === 'heading' && el.heading_level === 1) {
+      if (abierto) break;
+      if (el.id !== encabezado.id) continue;
+      abierto = true;
+    }
+    if (abierto) alcance.add(el.id);
+  }
+  return alcance;
+}
+
 const cuentaComoParrafo = (e: ElementModel): boolean =>
   e.type === 'paragraph' && (e.text || '').trim().length > 0;
 
 /* ── La clave de fase de un H1 ───────────────────────────────────────────────
  *
- * NO se reescribe el vocabulario. `PHASE_LABELS` es el espejo del backend
- * (`python/modules/phase_scope.py`) y ya lo usan la tira de filtros y el rack;
- * una lista de once fases escrita acá sería la quinta copia, y el día que el
- * backend sume una fase el mosaico mostraría "sin sección" donde la tira muestra
- * el nombre. Se compara contra ESA tabla, y lo que no está se muestra con su
- * nombre genérico en vez de desaparecer.
+ * YA NO ESTÁ AQUÍ. Este archivo tuvo su propia copia —un `Map` de rótulo
+ * normalizado a clave y una coincidencia EXACTA— y era la quinta de la misma
+ * regla: `PHASE_LABELS` es el espejo declarado del backend
+ * (`python/modules/phase_scope.py`), y `jerarquia.ts` es donde vive hoy la
+ * comparación, con la numeración y los prefijos de capítulo tolerados. Copiar
+ * esa tabla otra vez hacia dentro de este archivo era exactamente lo que el
+ * comentario de abajo prohibía y que el archivo incumplía dos pantallas más
+ * abajo.
  *
- * Y es `match_phase` del backend el que hizo la cuenta: `AuditItem.phase` viene
- * ya calculado. Este archivo no vuelve a decidir qué título abre qué fase.
+ * Y el nombre de la fase se pide primero al backend: es `match_phase` el que
+ * corrió la cuenta, y su resultado viaja en `AuditItem.phase`. Lo que queda acá
+ * es el respaldo para el capítulo que no tiene ningún hallazgo.
  */
 
 const SIN_FASE = 'sin_fase';
-
-function normalizar(s: string): string {
-  return (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
-}
-
-const CLAVE_POR_ETIQUETA: Map<string, string> = (() => {
-  const m = new Map<string, string>();
-  for (const clave of Object.keys(PHASE_LABELS)) {
-    if (clave === SIN_FASE) continue;
-    m.set(normalizar(PHASE_LABELS[clave]), clave);
-  }
-  return m;
-})();
-
-export function faseDeTitulo(titulo: string): string {
-  return CLAVE_POR_ETIQUETA.get(normalizar(titulo)) ?? SIN_FASE;
-}
