@@ -74,9 +74,16 @@ export const ExportView: React.FC = () => {
 
   const activeFilePath = useDocStore((s) => s.activeFilePath);
 
-  const [format, setFormat] = useState<Format>('docx');
+  /* El formato y el control de cambios salen del store, no de un `useState`
+     local. Eran locales y por eso se perdían al salir del paso, mientras el
+     menú de Archivo tenía los suyos: dos verdades para lo mismo. Ver el
+     comentario en `uiSlice.ts`. */
+  const format = useDocStore((s) => s.format);
+  const setFormat = useDocStore((s) => s.setFormat);
+  const tracked = useDocStore((s) => s.tracked);
+  const setTracked = useDocStore((s) => s.setTracked);
+
   const [previewMode, setPreviewMode] = useState<PreviewMode>('canvas');
-  const [tracked, setTracked] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve'>('idle');

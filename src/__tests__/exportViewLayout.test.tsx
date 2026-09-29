@@ -86,6 +86,13 @@ const cargar = (extra: Record<string, unknown> = {}) => {
     isLoading: false,
     atHome: false,
     citationAuditResult: null,
+    /* `format` pasó a ser estado del store (fase F6), así que sobrevive entre
+       pruebas de este archivo igual que entre fases de la app. Antes era
+       `useState` local y se reiniciaba solo en cada montaje; ahora hay que
+       devolverlo al default explícitamente, como cualquier otro estado
+       compartido. La prueba que elige PDF lo hace a propósito y no lo devuelve:
+       por eso el resto necesita nombrarlo. */
+    format: 'docx',
     exportDocx: vi.fn(),
     exportPdf: vi.fn(),
     exportLatex: vi.fn(),

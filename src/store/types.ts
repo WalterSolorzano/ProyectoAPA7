@@ -158,6 +158,14 @@ export interface DocState {
   coverSetupDone: boolean;
   setCoverSetupDone: (done: boolean) => void;
   viewMode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export';
+  /** El formato de salida elegido. Vive en el store porque hay DOS superficies
+   *  que lo ofrecen —la vista de Exportar y el menú de Archivo— y si cada una
+   *  tuviera el suyo dirían cosas distintas. Ver el comentario en `uiSlice.ts`. */
+  format: 'docx' | 'pdf' | 'latex';
+  setFormat: (formato: 'docx' | 'pdf' | 'latex') => void;
+  /** Marcas de control de cambios en la exportación. Mismo origen que `format`. */
+  tracked: boolean;
+  setTracked: (activo: boolean) => void;
   forceRightPanelOpen: boolean;
   setForceRightPanelOpen: (open: boolean) => void;
 

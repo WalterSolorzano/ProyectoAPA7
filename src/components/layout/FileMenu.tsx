@@ -39,9 +39,23 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 export const FileMenu: React.FC = () => {
   const {
     doc, tabs, activeTabIndex,
-    setShowFileMenu, uploadFile, exportDocx,
+    setShowFileMenu, uploadFile, exportDocx, exportPdf, exportLatex,
     isLoading,
   } = useDocStore();
+  /* El formato y el control de cambios son del store, no de esta pantalla.
+     Antes el menú tenía los suyos: dos tarjetas fijas, y la segunda llamaba
+     `exportDocx(true)` sin preguntar nada. Con `format` en el store, la
+     persona elige PDF en la vista de Exportar y el menú lo dice y lo hace. */
+  const format = useDocStore((s) => s.format);
+  const setFormat = useDocStore((s) => s.setFormat);
+  const tracked = useDocStore((s) => s.tracked);
+  const setTracked = useDocStore((s) => s.setTracked);
+  const FORMATOS_MENU: { id: typeof format; label: string; ext: string; desc: string }[] = [
+    { id: 'docx', label: 'APA 7 .DOCX', ext: '.docx', desc: 'Documento formateado con margenes, interlineado, portada, encabezados y referencias segun APA 7' },
+    { id: 'pdf', label: 'PDF Listo', ext: '.pdf', desc: 'PDF listo para entrega o para imprimir' },
+    { id: 'latex', label: 'LaTeX', ext: '.tex', desc: 'Codigo fuente .tex para compilar donde quieras' },
+  ];
+  const formatoElegido = FORMATOS_MENU.find((f) => f.id === format)!;
   /* Para la página de Actualización: la tarjeta vive en Ajustes → App y desde
      acá se abre esa pantalla, no se la reimprime. */
   const setSettingsHubOpen = useDocStore((s) => s.setSettingsHubOpen);
@@ -90,15 +104,21 @@ export const FileMenu: React.FC = () => {
     setPage('home');
   };
 
+  /* Exporta el formato ELEGIDO, no uno fijo. Con el store, el menú y la vista
+     de Exportar dicen lo mismo; antes el menú siempre sacaba un .docx. */
   const handleExportStandard = () => {
-    exportDocx();
+    if (format === 'pdf') exportPdf();
+    else if (format === 'latex') exportLatex();
+    else exportDocx(tracked);
     handleClose();
   };
 
-  const handleExportTracked = () => {
-    // Track Changes export — delegates to standard export with track_changes enabled
-    exportDocx(true);
-    handleClose();
+  /* La segunda tarjeta dejó de EXPORTAR con control de cambios y pasó a SER el
+     control de cambios. Antes llamaba `exportDocx(true)` fijo: activaba las
+     marcas sin preguntar y salía del menú, y la vista de Exportar no se
+     enteraba. Ahora la persona la enciende una vez y los dos lados la obey. */
+  const handleToggleTracked = () => {
+    setTracked(!tracked);
   };
 
   const handleOpenSession = async (sessionId: string) => {
@@ -170,10 +190,15 @@ export const FileMenu: React.FC = () => {
                 <h3 className="filemenu-section-title">Acciones rapidas</h3>
                 <div className="filemenu-actions-row">
                   <button className="btn btn-primary" onClick={handleExportStandard} disabled={isLoading}>
-                    <Download size={16} /> Exportar .DOCX
+                    <Download size={16} /> {`Exportar ${formatoElegido.ext}`}
                   </button>
-                  <button className="btn btn-secondary" onClick={handleExportTracked} disabled={isLoading}>
-                    <FileText size={16} /> Control de cambios
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleToggleTracked}
+                    disabled={isLoading}
+                    aria-pressed={tracked}
+                  >
+                    <FileText size={16} /> Control de Cambios
                   </button>
                 </div>
               </>
@@ -361,23 +386,34 @@ export const FileMenu: React.FC = () => {
                 <div className="filemenu-export-card-icon">
                   <FileText size={24} />
                 </div>
-                <div className="filemenu-export-card-title">APA 7 .DOCX</div>
+                {/* El formato elegido, CON su extension. Antes la tarjeta decía
+                    "APA 7 .DOCX" fijo y la persona iba al menú después de haber
+                    elegido PDF en la vista de Exportar. */}
+                <div className="filemenu-export-card-title">{`${formatoElegido.label} ${formatoElegido.ext}`}</div>
                 <div className="filemenu-export-card-desc">
-                  Documento formateado con margenes, interlineado, portada, encabezados y referencias segun APA 7
+                  {formatoElegido.desc}
                 </div>
               </button>
 
+              {/* El control de cambios. Dice si está encendido, porque es un
+                  estado compartido con la vista de Exportar: si no lo dijera,
+                  la persona no sabría si el archivo va a salir con marcas. */}
               <button
                 className="filemenu-export-card"
-                onClick={handleExportTracked}
+                onClick={handleToggleTracked}
                 disabled={isLoading || !doc}
+                aria-pressed={tracked}
               >
                 <div className="filemenu-export-card-icon">
                   <FileText size={24} />
                 </div>
-                <div className="filemenu-export-card-title">Control de Cambios</div>
+                <div className="filemenu-export-card-title">
+                  {tracked ? 'Control de Cambios: encendido' : 'Control de Cambios: apagado'}
+                </div>
                 <div className="filemenu-export-card-desc">
-                  Documento con marcas de revision (Track Changes) mostrando diferencias con el original
+                  {tracked
+                    ? 'El archivo sale con marcas de revision mostrando las diferencias con el original. Aplicalo solo al .docx.'
+                    : 'El archivo sale limpio, sin marcas. Aplicalo solo al .docx: PDF y LaTeX no llevan marcas.'}
                 </div>
               </button>
             </div>

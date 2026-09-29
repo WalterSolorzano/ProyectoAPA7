@@ -143,6 +143,25 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   setHasSeenTour: (seen) => set({ hasSeenTour: seen }),
   viewMode: 'edit',
   setViewMode: (mode) => set({ viewMode: mode }),
+  /* EL FORMATO DE SALIDA, UNO SOLO, Y CON VIDA DE FASE A FASE.
+     `format` era `useState` local de `ExportView`, o sea que se perdía al
+     salir del paso: se iba a Estructura y volvía a docx sin que nadie lo
+     hubiera pedido. Y `FileMenu` traía sus propios dos botones con
+     `exportDocx(true)` fijo, sin consultar nada. Dos verdades para lo mismo: la
+     persona elige PDF en la vista, va al menú, y el menú dice .docx.
+
+     Vive acá y no en `documentSlice` porque es una decisión de la sesión de
+     trabajo —como `viewMode` y `pendingQuickExport`, que también viven acá— y
+     no un dato del documento: no viaja al backend, no se persiste, y no se
+     reinicia al abrir otro archivo. Es exactamente la misma clase de estado
+     que el que ya estaba en la vista, solo que compartido. */
+  format: 'docx',
+  setFormat: (formato) => set({ format: formato }),
+  /* El control de cambios también. El menú lo forzaba a `true` al exportar
+     desde su segunda tarjeta, y la vista tenía el suyo: se activaba en un
+     lado y el otro no lo sabía. */
+  tracked: false,
+  setTracked: (activo) => set({ tracked: activo }),
   forceRightPanelOpen: false,
   setForceRightPanelOpen: (open: boolean) => set({ forceRightPanelOpen: open }),
   mascotMessage: null,
