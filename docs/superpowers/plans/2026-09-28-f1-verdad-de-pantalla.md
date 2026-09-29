@@ -27,7 +27,12 @@ Los mismos de F0, íntegros:
 - **Cero colores literales** en TS/TSX/CSS. Solo tokens `var(--...)`. **Esta fase es la
   que más toca esto**: los tokens que faltan se declaran, no se hardcodean.
 - `npx vitest` **no** type-chequea: `npx tsc --noEmit` aparte, obligatorio.
-- `nodePolyfills()` shimmea `fs`: para leer un fuente, `?raw`. **Nunca `node:fs`.**
+- **Leer un fuente en un test: `?raw` para `.ts`/`.tsx`; para `.css` NO sirve.** El runner
+  tiene `css: false` y devuelve **cadena vacía** para una hoja, así que un glob con
+  `*.css` es una guarda verde y muda. Para el CSS usá el rodeo del **specifier en
+  variable** que ya funciona en `designTokens.test.ts` y `noHardcodedColors.test.ts`.
+  **Esta regla estaba escrita al revés**: una regla a medias es peor que ninguna,
+  porque hace repetir un rodeo que sí funciona.
 - **No crees `vitest.config.ts`.**
 - PowerShell no sirve para cirugía por índice de array en archivos largos.
 - `git add` explícito archivo por archivo. **Nunca `git add -A`.**
@@ -135,22 +140,37 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';   // <-- NO. Leé el paso 2 antes de escribir esto.
 ```
 
-> **Importante.** El test tiene que leer los fuentes de `src/**` y el CSS. En este repo
-> `nodePolyfills()` shimmea `fs`, así que `readFileSync` importado de forma literal
-> **no es función**: ya costó tres suites enteras que nunca se colectaban. Usá
-> `import.meta.glob` de Vite, que es lo que corresponde:
+> **Importante.** El test tiene que leer los fuentes de `src/**` y **el CSS**, y cada uno
+> se lee con una técnica distinta. Esta fase lo tenía al revés y por eso costó tres
+> suites enteras que nunca se colectaban.
+>
+> **Los `.ts`/`.tsx`: `import.meta.glob` con `?raw`.** Ahí funciona:
 >
 > ```ts
-> const fuentes = import.meta.glob('/src/**/*.{ts,tsx,css}', {
+> const fuentes = import.meta.glob('/src/**/*.{ts,tsx}', {
 >   query: '?raw', import: 'default', eager: true,
 > }) as Record<string, string>;
 > ```
 >
-> Verificá primero que `import.meta.glob` esté disponible en este setup con un test
-> mínimo que imprima `Object.keys(fuentes).length`. Si no lo está, la salida es
-> `fs.readFileSync` con el rodeo por variable de specifier que ya usa
-> `src/__tests__/designTokens.test.ts:12-27` — **leé ese archivo y copiá el patrón
-> exacto**, no lo inventes.
+> **El `.css`: `import.meta.glob` con `?raw` NO sirve.** El runner tiene `css: false`, así
+> que un glob con `*.css` devuelve **cadena vacía**: cero caracteres. Una cadena vacía
+> matchea cero reglas y `Math.max(...[])` da `NaN`, así que la regla pasaba sin haber
+> leído una línea —verde falso, que es peor que no tener regla—. Para la hoja usá el
+> rodeo del **specifier en variable**:
+>
+> ```ts
+> const NODE_FS = 'node:fs';
+> const NODE_PATH = 'node:path';
+> const NODE_URL = 'node:url';
+> const { readFileSync } = await import(/* @vite-ignore */ NODE_FS);
+> ```
+>
+> Y el rodeo funciona por una razón que hay que entender, no memorizar: con el specifier
+> **literal** Vite puede analizarlo y lo manda por los shims de browser de
+> `nodePolyfills()`, que no traen `readFileSync`; en una **variable** no lo analiza y
+> llega el módulo real. Ya lo hacen `designTokens.test.ts:20-27` y
+> `noHardcodedColors.test.ts` — **leé esos dos archivos y copiá el patrón exacto**, no lo
+> inventes.
 
 El cuerpo del test:
 

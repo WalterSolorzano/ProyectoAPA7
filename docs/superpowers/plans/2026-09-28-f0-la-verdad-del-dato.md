@@ -27,8 +27,16 @@ forma de documento.
 - **Ningún identificador interno visible** en pantalla: ni `snake_case` de motor, ni
   `elem_`, ni `[placeholder]`.
 - `npx vitest` **no** type-chequea: `npx tsc --noEmit` aparte, obligatorio en cada tarea.
-- `nodePolyfills()` shimmea `fs`: `readFileSync` **no es función** en los tests. Para leer
-  un fuente usá `import mod from '../ruta/AlArchivo.ts?raw'`. **Nunca `node:fs`.**
+- **Leer un fuente en un test: `?raw` para `.ts`/`.tsx`; para `.css` NO sirve.** El runner
+  tiene `css: false`, así que `import.meta.glob('*.css', { query: '?raw' })` devuelve
+  **cadena vacía**: cero caracteres, y una cadena vacía matchea cero reglas, o sea una
+  guarda verde y muda. Para una hoja usá el rodeo del **specifier en variable** que ya
+  funciona en `designTokens.test.ts` y `noHardcodedColors.test.ts`:
+  `await import(/* @vite-ignore */ 'node:fs')`. La razón del rodeo es que con el
+  specifier **literal** Vite lo analiza y lo manda por los shims de browser de
+  `nodePolyfills()`, que no traen `readFileSync`; en una **variable** no lo analiza y
+  llega el módulo real. **Esta regla estaba escrita al revés**: una regla a medias es
+  peor que ninguna, porque hace repetir un rodeo que sí funciona.
 - **No crees `vitest.config.ts`.** Por precedencia pisa la config del repo.
 - PowerShell no sirve para cirugía por índice de array en archivos largos. Editá por
   contenido.

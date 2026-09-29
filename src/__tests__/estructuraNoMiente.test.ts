@@ -15,11 +15,14 @@
  * lo que se vigila aquí es la línea que escribe el nombre, que es donde la
  * volverían a escribir.
  *
- * La fuente se lee con `?raw` y no con `node:fs`: el shim de `nodePolyfills()` de
- * vite resuelve `readFileSync` a un stub de browser. Con un `.tsx` el `?raw`
- * funciona; con un `.css` NO —el runner tiene `css: false` y devuelve la cadena
- * vacía—, y por eso la rampa de `--ia-nivel-*` se prueba en `aiMosaic.test.ts`
- * con el import dinámico que ya usa el repo.
+ * La fuente se lee con `?raw`, y acá eso FUNCIONA porque los siete archivos de
+ * `structure/` son `.tsx`. La regla general, medida y no supuesta: `?raw`
+ * devuelve vacío para un `.css` —el runner tiene `css: false`—, así que para
+ * una hoja hay que usar el rodeo del specifier en variable con un
+ * `import()` dinámico de `node:fs`, que es lo que ya hacen
+ * `designTokens.test.ts` y `noHardcodedColors.test.ts`. La razón del rodeo es
+ * que el specifier va en una VARIABLE: si Vite puede analizarlo lo manda por
+ * los shims de browser de `nodePolyfills()`, y esos no traen `readFileSync`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -52,11 +55,35 @@ describe('la estructura no miente', () => {
   it('el mapa pinta el nombre de cada nodo, no solo lo esconde en un <title>', () => {
     /* La otra forma del mismo defecto: en SVG el nombre íntegro va en el
      * elemento `<title>`, que es un hover. Si el `<text>` desaparece, el mapa
-     * queda con veinte cajas numeradas y ningún nombre. */
+     * queda con veinte cajas numeradas y ningún nombre.
+     *
+     * ESTA GUARDA SE MUTÓ Y SE COMPROBÓ QUE CAE. Se sacó del `<text>` del nodo
+     * la etiqueta y se dejó el nombre solo en el `<title>`: dos pruebas fuera,
+     * una de ellas ésta. Un guardián que nadie vio caer es una afirmación, y
+     * este proyecto está contando afirmaciones.
+     *
+     * Y AHORA ES ESTRUCTURAL, NO UN GREP DEL ARCHIVO. La versión anterior
+     * buscaba `{n.etiqueta}` en cualquier parte del fuente, así que una línea
+     * decorativa con esa expresión la habría hecho pasar mientras el nombre del
+     * nodo se escondía en un atributo. Ahora se le pregunta al `<text>`: el
+     * nombre tiene que ser HIJO de un `<text>`, que es donde se ve. */
     const mapa = FUENTES['../components/structure/MapaEstructura.tsx'];
     expect(mapa, 'el mapa no está entre los fuentes').toBeTruthy();
     expect(mapa).toMatch(/<text/);
-    expect(mapa).toMatch(/\{\s*n\.etiqueta\s*\}/);
+
+    const nombreEnPantalla = (cuerpo: string) => /\{\s*n\.etiqueta\s*\}/.test(cuerpo);
+    const cuerpos = [...mapa.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)].map((m) => m[1]);
+    expect(cuerpos.length, 'el mapa no tiene ningún <text>').toBeGreaterThan(0);
+    expect(
+      cuerpos.some(nombreEnPantalla),
+      'el nombre del nodo no está dentro de ningún <text>',
+    ).toBe(true);
+
+    /* Y el detector se enciende con el delito, para que no pueda estar mirando
+       otra cosa: un `<text>` con el conteo de hijos y nada de nombre es
+       exactamente lo que esta guarda tiene que rechazar. */
+    const sinNombre = '<text x={n.x} y={n.y}>{`${n.hijos} subsecciones`}</text>';
+    expect(nombreEnPantalla(sinNombre)).toBe(false);
   });
 
   it('el mapa no usa ninguna librería de grafo', async () => {

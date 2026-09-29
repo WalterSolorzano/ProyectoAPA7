@@ -481,9 +481,22 @@ Invariantes que no se negocian en ninguna de las nueve fases:
 ### 3.1 Reglas de prueba que ya cobraron su costo
 
 - `npx vitest` **no** type-chequea: `npx tsc --noEmit` aparte, obligatorio.
-- `nodePolyfills()` shimmea `fs`: `readFileSync` **no es función** en los tests. Para leer
-  un fuente, `?raw`. **Nunca `node:fs`.** Ya costó tres suites enteras que nunca se
-  colectaban.
+- **Leer un fuente en un test — y esta regla se escribió al revés una vez, así que vale
+  la pena decir por qué:**
+  - **`.ts` / `.tsx`: `?raw`.** `import.meta.glob('/src/**\/*.{ts,tsx}', { query: '?raw',
+    import: 'default', eager: true })` funciona y es lo correcto.
+  - **`.css`: `?raw` NO sirve.** El runner tiene `css: false`, así que un glob con `*.css`
+    devuelve **cadena vacía**. Una cadena vacía matchea cero reglas y `Math.max(...[])`
+    da `NaN`, así que la guarda pasaba sin haber leído una línea. Para una hoja: el rodeo
+    del **specifier en variable**, `await import(/* @vite-ignore */ 'node:fs')`, que ya
+    hacen `designTokens.test.ts` y `noHardcodedColors.test.ts`.
+  - **El rodeo funciona por una razón, no por superstición**: con el specifier **literal**
+    Vite lo analiza y lo manda por los shims de browser de `nodePolyfills()`, que no
+    traen `readFileSync`; en una **variable** no lo analiza y llega el módulo real.
+  - **Por qué importa corregirla**: decir "nunca `node:fs`" sin decir "para CSS tampoco
+    sirve `?raw`" manda a repetir el rodeo del specifier literal, que es el que ya costó
+    tres suites enteras que nunca se colectaban. Una regla a medias es peor que ninguna,
+    porque propaga el error con la misma seguridad con la que recomienda el acierto.
 - No crear `vitest.config.ts`. Por precedencia pisa la config del repo. Ya pasó.
 - PowerShell no sirve para cirugía por índice de array en archivos largos. Editar por
   contenido. Ya destruyó `HomeHero.tsx` una vez y borró `node_modules` otra.

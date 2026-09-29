@@ -26,7 +26,11 @@ la Revisión y hoy es ilegible por un bug de coincidencia exacta.
   metés un literal, el build falla. `DEUDA_MEDIDA` ya no existe y su guarda exige que no
   vuelva.
 - `npx vitest` **no** type-chequea: `npx tsc --noEmit` aparte, OBLIGATORIO.
-- **`nodePolyfills()` shimmea `fs`**: para leer un fuente, `?raw`. **Nunca `node:fs`.**
+- **Leer un fuente en un test: `?raw` para `.ts`/`.tsx`; para `.css` NO sirve** (el runner
+  tiene `css: false` y devuelve cadena vacía, o sea una guarda verde y muda). Para una
+  hoja: el rodeo del **specifier en variable** que ya usan `designTokens.test.ts` y
+  `noHardcodedColors.test.ts`. **La regla estaba escrita al revés** y una regla a medias
+  es peor que ninguna, porque hace repetir un rodeo que sí funciona.
 - **NO crees `vitest.config.ts`.**
 - PowerShell no sirve para cirugía por índice de array en archivos largos. **`Set-Content`
   de PowerShell DESTRUYE el archivo**: ya loFormatting un `.py` con el docstring pegado a
@@ -593,11 +597,71 @@ contenido se lee como un estorbo."
 
 ---
 
+### Task 6: Montar la fase, y el guardián que lo exige
+
+> **ESTA TASK NO ESTABA EN EL PLAN, Y SU AUSENCIA ES EL DEFECTO.** Las cinco tasks de
+> arriba construyen siete componentes, los prueban y los dan por terminados. Ninguna
+> nombra `App.tsx` ni un `viewMode`. Resultado: 1239 tests verdes sobre una superficie
+> que el usuario no ve, y un `grep` de `from '.*structure/'` fuera de la propia carpeta
+> que da cero resultados. **Un componente sin hogar es un componente que no existe**:
+> es, literalmente, el defecto que este proyecto vino a matar, reconocido en su propia
+> carne.
+
+- [ ] **Step 1: Decidir qué pasa con la fase 2 que ya existe**
+
+La fase 2 del wizard es "Estructura" y hoy abre en `Step2HeadingsWizard`: el lienzo con
+el revisor secuencial de títulos. El spec §7 pide que el centro sea la jerarquía y que
+el documento sea un toggle. **No se borra lo que hay**: "Títulos" y "Cuerpo" hacen cosas
+que el índice no hace. Se les suma una pestaña, y la fase abre en ella.
+
+- [ ] **Step 2: El compositor**
+
+`src/components/structure/EscritorioEstructura.tsx`, en el orden del spec §7: pulso de
+cinco números arriba, índice con su diagnóstico al centro, inspector de la rama elegida
+a la derecha, qué le falta a APA 7 al pie. El documento entra por prop (`documento`),
+porque quien compone la fase es quien sabe qué es "el documento" en ese contexto. La
+fase de cada elemento sale de `collectAuditItems` —la misma lista que cuenta el rail—,
+nunca de un segundo recorrido.
+
+- [ ] **Step 3: El guardián**
+
+`src/__tests__/estructuraEstaMontada.test.tsx`, con dos pruebas negativas:
+
+1. la fase monta el índice y NO el documento entero;
+2. **todo** componente de la carpeta tiene un importador, y los nombres **se leen del
+   disco** con `import.meta.glob`, nunca escritos a mano. Los `__tests__` no cuentan
+   como montaje, porque una prueba que importa un componente para probarlo no lo pone
+   en pantalla.
+
+**Mutar el guardián y verlo caer** antes de dar la task por buena. Sin eso es una
+afirmación.
+
+- [ ] **Step 4: Verificación y commit**
+
+Run: `npx vitest run` && `npx tsc --noEmit` && `pytest python/tests/ -q` && `npm run build`
+Expected: frontend ≥1249, Python ≥800.
+**Y el criterio de aceptación de la fase, que no es un número:**
+
+```bash
+grep -rn "from '.*structure/" src/ | grep -v __tests__
+```
+
+Si eso no da resultados, la fase está construida y no montada, que es exactamente lo
+que pasó.
+
+---
+
 ## Self-Review
+
+**0. Lo que este plan se olvidó y la Task 6 tapa.** No nombraba `App.tsx` ni un
+`viewMode`: cinco tasks, siete componentes, 1239 tests en verde y una carpeta que
+`grep` daba por inhabitable. El error no fue de ejecución sino de plan, y por eso la
+task que falta es de plan. **Una fase sin montaje no es una fase, es un repositorio.**
 
 **1. Cobertura del spec §7.** 7.1 (índice con palabras, balance, salud) — Task 2;
 7.2 (faltas de APA 7) — Task 3; 7.3 (pulso) — Task 4; 7.4 (inspector de rama) — Task 4;
-7.5 (el mapa, y arreglar `AiMosaic`) — Tasks 1 y 5.
+7.5 (el mapa, y arreglar `AiMosaic`) — Tasks 1 y 5. **El montaje, que el spec da por
+supuesto y este plan no, — Task 6.**
 
 **2. La propuesta es del usuario y ajustada por la discusión.** Él pidió "ver cómo está el
 documento, qué H1/H2 tiene, o ver si algún H1 está en duda o algún H2 no sé". Eso es
