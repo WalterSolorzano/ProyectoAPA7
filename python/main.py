@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -2840,18 +2841,100 @@ async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
 
 class SendToWordReq(BaseModel):
     dest_path: str
+    """Descartar lo que la persona tiene SIN GUARDAR en Word.
+
+    Es explícito en el body y no un flag de estado: la persona decide, y la
+    decisión viaja con la operación. Sin esto, el endpoint no puede distinguir
+    "no había nada abierto" de "había un documento con trabajo sin guardar".
+    """
+    forzar: bool = False
+
+
+def _respaldo_de(dest: Path) -> Optional[Path]:
+    """Copia de seguridad del archivo que se va a pisar.
+
+    `shutil.copy2` sobre el archivo del estudiante, sin red: el primer
+    principio del producto dice no romper jamás su trabajo, y un write-back sin
+    vuelta lo rompe. Si el `.docx` generado estaba mal, el original no existe
+    más, y el único camino de vuelta era que la persona se acordara de que
+    tenía una copia. Eso no es un camino de vuelta.
+
+    EL BACKUP SE ESCRIBE UNA SOLA VEZ. El segundo write-back del mismo archivo
+    no crea un segundo backup ni pisa el primero, que para entonces ya sería el
+    contenido generado: guardar tres veces no deja tres copias del trabajo del
+    estudiante, deja una, la buena.
+
+    El nombre es `<archivo>.docx.bak`, junto al original: donde la persona lo va
+    a encontrar.
+
+    `None` = ya existía, no se vuelve a hacer. **Lanza `OSError` si no se pudo
+    escribir**: la operación tiene que cancelarse, y "ya existía" (que se sigue)
+    y "no se pudo" (que cancela) tienen que ser distinguibles, o el endpoint no
+    puede decidir. Por eso una de las dos es una excepción y no las dos un valor.
+    """
+    backup = dest.with_name(dest.name + ".bak")
+    if backup.exists():
+        return None
+    shutil.copy2(str(dest), str(backup))
+    return backup
+
+
+def _documento_abierto_en_word(app, dest: Path):
+    """El `Document` de Word que corresponde a `dest`, o `None`.
+
+    `None` y "está abierto pero no se pudo leer" se distinguen: en el primer
+    caso hay que preguntar por lo que tiene sin guardar, y en el segundo no se
+    puede preguntar, así que se sigue como si no estuviera abierto.
+    """
+    dest_str = str(dest).lower()
+    try:
+        for i in range(1, app.Documents.Count + 1):
+            try:
+                d = app.Documents(i)
+            except Exception:
+                continue
+            if str(getattr(d, "FullName", "")).lower() == dest_str:
+                return d
+    except Exception as e:
+        logger.warning("send_to_word: no se pudo iterar Documents: %s", e)
+    return None
+
+
+def _tiene_cambios_sin_guardar(doc) -> bool:
+    """Si el documento de Word tiene cambios que todavía no están en el disco.
+
+    `Saved` es la bandera que Word mantiene. Si el objeto no la expone —un doble
+    de prueba, una versión vieja de la interfaz— se asume que está guardado:
+    adivinar que hay trabajo sin guardar bloquearía el write-back sin motivo, que
+    es el otro extremo del mismo error.
+    """
+    valor = getattr(doc, "Saved", True)
+    if valor is None:
+        return False
+    return not bool(valor)
 
 
 @app.post("/api/send-to-word/{session_id}")
 async def send_to_word_endpoint(session_id: str, req: SendToWordReq) -> dict:
     """Write-back: copia el output.docx APA generado sobre el archivo original del usuario.
 
-    Estrategia de dos capas:
-    1. COM (si Word tiene el doc abierto): cierra sin guardar → copia → reabre.
-    2. Fallback file copy: copia directamente y avisa que hay que reabrir manualmente.
-    """
-    import shutil
+    Es la operación más destructiva de la app y hay un botón que la dispara, así
+    que tiene tresalvaguas y las tres son obligatorias:
 
+    1. **Una copia de seguridad antes de pisar.** El `.docx` del estudiante se
+       copia a `<archivo>.docx.bak` una sola vez, y si no se puede escribir, la
+       operación se cancela.
+    2. **No se descarta lo que está sin guardar.** `Close(SaveChanges=0)` borra
+       lo que la persona escribió en Word desde la última lectura; ese `0` existe
+       en `word_com.py` para cerrar la app, que es otra cosa. Con cambios sin
+       guardar el endpoint no cierra, no copia y devuelve
+       `requiere_confirmacion`: la salida es `forzar` en el body, explícito.
+    3. **Se avisa dónde quedó el respaldo**, en `backup` de la respuesta.
+
+    Estrategia de escritura, dos capas:
+    1. COM (si Word tiene el doc abierto): cierra → copia → reabre.
+    2. Fallback file copy: copia directamente y avisa que hay que reabrir a mano.
+    """
     # 1. Localizar output APA generado
     output_path = STORAGE_DIR / "sessions" / session_id / "output.docx"
     if not output_path.exists():
@@ -2864,58 +2947,82 @@ async def send_to_word_endpoint(session_id: str, req: SendToWordReq) -> dict:
     if not dest.exists():
         raise HTTPException(400, f"Archivo destino no encontrado: {dest}")
 
-    # 3. Intentar write-back vía COM
+    # 3. Preguntar a Word ANTES de escribir nada, ni siquiera el respaldo: con
+    #    cambios sin guardar la respuesta es "decidí vos", y hasta que la persona
+    #    no decida no se toca el disco.
+    #    `word_app` sobrevive al `with` a propósito: el documento sigue abierto
+    #    y se cierra después del respaldo, no antes. `word_session` solo cierra
+    #    los documentos que abre él, y acá no abre ninguno.
+    word_app = None
+    target_doc = None
     try:
         from modules.word_com import word_session  # import lazy: COM nunca toca startup
 
         with word_session() as app:
-            dest_str = str(dest).lower()
-            target_doc = None
-            try:
-                for i in range(1, app.Documents.Count + 1):
-                    try:
-                        d = app.Documents(i)
-                        if d.FullName.lower() == dest_str:
-                            target_doc = d
-                            break
-                    except Exception:
-                        continue
-            except Exception as e:
-                log.warning("send_to_word: no se pudo iterar Documents: %s", e)
-
-            if target_doc is not None:
-                try:
-                    target_doc.Close(SaveChanges=0)
-                    log.info("send_to_word: cerrado '%s' (COM)", dest)
-                except Exception as e:
-                    log.warning("send_to_word: Close() falló: %s", e)
-
-                shutil.copy2(str(output_path), str(dest))
-                log.info("send_to_word: copiado '%s' → '%s' (COM)", output_path, dest)
-
-                try:
-                    app.Documents.Open(str(dest))
-                    log.info("send_to_word: reabierto '%s' (COM)", dest)
-                except Exception as e:
-                    log.warning("send_to_word: Open() falló: %s", e)
-
-                return {
-                    "ok": True,
-                    "method": "com",
-                    "message": "Documento actualizado y reabierto en Word.",
-                }
-            else:
-                log.info("send_to_word: doc no estaba abierto en Word, fallback copy")
-
+            target_doc = _documento_abierto_en_word(app, dest)
+            if target_doc is not None and _tiene_cambios_sin_guardar(target_doc) and not req.forzar:
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "ok": False,
+                        "requiere_confirmacion": True,
+                        "message": (
+                            "Tenés cambios sin guardar en Word. Guardalos antes de "
+                            "enviar, o confirmá para descartarlos."
+                        ),
+                    },
+                )
+            word_app = app
     except Exception as e:
-        log.warning("send_to_word: COM no disponible, fallback copy: %s", e)
+        logger.warning("send_to_word: COM no disponible, copia directa: %s", e)
 
-    # 4. Fallback: copia directa sin COM
+    # 4. El respaldo. UNA vez, antes de la rama de COM y de la del respaldo en
+    #    disco, para que no haya dos caminos que se puedan olvidar.
+    try:
+        backup = _respaldo_de(dest)
+    except OSError as e:
+        logger.error("send_to_word: no se pudo escribir el respaldo de '%s': %s", dest, e)
+        raise HTTPException(
+            500,
+            "No se pudo escribir la copia de seguridad del archivo original. "
+            "La operación se canceló para no pisar tu documento.",
+        )
+    respaldo_en = str(backup) if backup is not None else None
+
+    # 5. Escribir
+    if target_doc is not None and word_app is not None:
+        try:
+            target_doc.Close(SaveChanges=0)
+            logger.info("send_to_word: cerrado '%s' (COM)", dest)
+        except Exception as e:
+            logger.warning("send_to_word: Close() falló: %s", e)
+
+        shutil.copy2(str(output_path), str(dest))
+        logger.info("send_to_word: copiado '%s' → '%s' (COM)", output_path, dest)
+
+        try:
+            word_app.Documents.Open(str(dest))
+            logger.info("send_to_word: reabierto '%s' (COM)", dest)
+        except Exception as e:
+            logger.warning("send_to_word: Open() falló: %s", e)
+
+        return {
+            "ok": True,
+            "method": "com",
+            "backup": respaldo_en,
+            "message": "Documento actualizado y reabierto en Word.",
+        }
+
+    if word_app is not None:
+        logger.info("send_to_word: doc no estaba abierto en Word, copia directa")
+
+    # 6. Fallback: copia directa sin COM
     shutil.copy2(str(output_path), str(dest))
-    log.info("send_to_word: copiado '%s' → '%s' (fallback)", output_path, dest)
+    logger.info("send_to_word: copiado '%s' → '%s' (fallback)", output_path, dest)
     return {
         "ok": True,
         "method": "copy",
+        "backup": respaldo_en,
         "message": "Documento actualizado. Reabrí el archivo en Word para ver los cambios.",
     }
 
