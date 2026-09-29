@@ -938,6 +938,33 @@ rediseño: es **dejar de ser de la generación anterior**.
 
 ## 10. Fase 6 — Exportar: el panel que no existe
 
+> ### Trabajo de otra sesion, ya commiteado, que la Fase 6 tiene que terminar
+>
+> While this spec was being written, another session added a **write-back** to Word:
+> `POST /api/send-to-word/{session_id}` (`python/main.py`) plus a button in `ExportView`
+> that calls it with `activeFilePath` and overwrites the user's original `.docx`.
+> Commits `a71c1bf` and `f7caf15`. **Approved by the user.** It is in the tree, it works,
+> and the user wants it.
+>
+> It is also **the most destructive thing in the app**, and now it is one click away.
+> Three things are missing, and they are not improvements, they are the difference
+> between a feature and an accident:
+>
+> 1. **There is no backup.** `shutil.copy2` overwrites the original and leaves no `.bak`.
+>    The first principle of the product (`PRODUCT.md`) is *"no romper jamás el trabajo
+>    del estudiante"*, and this button can destroy it with no way back except the user's
+>    own recollection that they have a copy. **That is not a way back.**
+> 2. **`Close(SaveChanges=0)` discards unsaved work.** The `0` exists in `word_com.py` to
+>    close the app, which is a different thing. Here there is an open document with the
+>    student's unsaved edits: they type a paragraph in Word, press the button, and the
+>    paragraph is gone. **The endpoint has to ask, or save first.**
+> 3. **Zero tests.** The five tests that arrived with the sibling change
+>    (`hash_de_imagenes`) are for the image diff, not for this endpoint.
+>
+> **These three are a mandatory Task 6.0, before the panel of advanced settings.** Not
+> as polish: a destructive operation with no undo and no tests is not finished, and the
+> rest of this phase is about the export surface being honest with the user.
+
 `ExportView` es la mejor pantalla de la app y el usuario lo dice. Solo le falta el panel.
 Y el panel no existe: lo que hay es un link terciario que revela un checkbox.
 
