@@ -208,5 +208,39 @@ describe('los grupos de la lista', () => {
     const { container } = montar([{ ...REF, id: 'larga', verificada: false }], null);
     expect(container.textContent).toMatch(/Sin verificar/);
   });
+});
 
+/* ── La mascota: la cara sale del estado de la fase ────────────────────────── */
+
+describe('la mascota de la fase', () => {
+  it('se pinta, y con el kind que EditorialMascot dibuja', () => {
+    /* Un `kind` declarado y no dibujado deja la mascota en blanco, que es un
+       fallo que no se ve: la pantalla parece tener icono y no tiene nada. */
+    const { container } = montar([REF]);
+    expect(container.querySelector('.editorial-mascot-kind-reference')).toBeTruthy();
+  });
+
+  it('con referencias incompletas está preocupada, y con la fase en orden está feliz', () => {
+    /* La expresión se deriva del estado, no del decorado. Si fuera fija, estas
+       dos pruebas daría lo mismo. */
+    const incompleta = montar([{ ...REF, authors: [], verificada: false }]);
+    expect(incompleta.container.querySelector('.editorial-mascot-expression-worried')).toBeTruthy();
+
+    const enOrden = montar([REF]);
+    expect(enOrden.container.querySelector('.editorial-mascot-expression-happy')).toBeTruthy();
+  });
+
+  it('sin documento está preocupada, aunque las referencias estén completas', () => {
+    /* El orden de las reglas de `expresionDeReferencias` importa: sin documento
+       no hay nada que verificar, por muchas fuentes que diga el store. */
+    const { container } = montar([REF], 'r1', null, null);
+    expect(container.querySelector('.editorial-mascot-expression-worried')).toBeTruthy();
+  });
+
+  it('con citas sin fuente está preocupada aunque no haya incompletas', () => {
+    const { container } = montar([REF], 'r1', {
+      ghost_citations: [{ raw_text: 'Alguien (2019) dijo algo' }], orphan_references: [],
+    });
+    expect(container.querySelector('.editorial-mascot-expression-worried')).toBeTruthy();
+  });
 });

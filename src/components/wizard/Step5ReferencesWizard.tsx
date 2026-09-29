@@ -10,7 +10,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
-  Trash2, BookOpen, Copy, Sparkles, Check,
+  Trash2, Copy, Sparkles, Check,
   ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
@@ -18,10 +18,12 @@ import {
   ROTULO_DE_ESTADO,
   TONO_DE_ESTADO,
   diagnosticoDeReferencia,
+  expresionDeReferencias,
   parrafosQueCitan,
   particionarReferencias,
   type DiagnosticoReferencia,
 } from '../../lib/referencias';
+import { EditorialMascot } from '../layout/EditorialMascot';
 
 /**
  * El texto que va al documento. Sin último recurso que INVENTE: si no hay
@@ -278,35 +280,44 @@ export const Step5ReferencesWizard: React.FC = () => {
     showToast(`Copiado: ${text}`, 'info');
   };
 
+  /* La cara de la mascota NO se elige por decorado: sale de lo que hay que
+   * hacer. Con referencias incompletas o citas sin fuente hay trabajo que la
+   * persona todavía no ve, y la cara lo dice antes de que abra un grupo. La
+   * regla vive en `lib/referencias.ts` junto al dato, y es la misma idea que
+   * `mascotDePestana.tsx` para las cinco pestañas de Ajustes. */
+  const expresionFase = expresionDeReferencias({
+    hayDocumento: !!doc,
+    totalReferencias: references.length,
+    incompletas: unverifiedReferences.filter((r) => diagnosticoDeReferencia(r).estado === 'incompleta').length,
+    citasSinFuente: ghosts.length,
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
-      {/* ── Top Header Bar ── */}
+      {/* ── Barra superior: mascota con la cara del estado, título y acciones ── */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 24px', backgroundColor: 'var(--sidebar-bg)',
-        borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
+        padding: 'var(--space-3) var(--space-6)', backgroundColor: 'var(--color-bg-surface)',
+        borderBottom: '1px solid var(--color-border-subtle)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '32px', height: '32px', borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
-          }}>
-            <BookOpen size={18} />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          {/* El `kind` es `reference`, que `EditorialMascot` ya dibujaba y que
+              hasta ahora ninguna pantalla del editor usaba. Un `kind` declarado
+              y no dibujado deja la mascota en blanco. */}
+          <EditorialMascot kind="reference" expression={expresionFase} size={36} />
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: 0, letterSpacing: '-0.01em' }}>
-                Estudio de Referencias & Citas APA 7
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+                Estudio de Referencias y Citas APA 7
               </h2>
               <span style={{
-                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)',
-                backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+                fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)',
               }}>
-                {references.length} Fuentes Registradas
+                {references.length} fuentes registradas
               </span>
             </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0, marginTop: '2px' }}>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 'var(--space-1) 0 0' }}>
               Agrupación por estado y verificación bidireccional entre el cuerpo y la bibliografía.
             </p>
           </div>
