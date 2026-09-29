@@ -92,6 +92,10 @@ class FakeDocumento:
         self.Saved = saved
         self.llamadas = []
 
+    def Save(self):  # noqa: N802 - el nombre es el de COM
+        self.llamadas.append(("Save",))
+        self.Saved = True
+
     def Close(self, SaveChanges=0):  # noqa: N803 - el nombre es el de COM
         self.llamadas.append(("Close", SaveChanges))
         self.Saved = True
@@ -241,6 +245,39 @@ class TestSinGuardar:
 
         assert r.status_code == 200, r.text
         assert destino.read_bytes() == GENERADO
+        assert doc.llamadas == [("Close", 0)]
+
+    def test_con_guardar_lo_guarda_primero_y_lo_manda(self, client, sesion, destino, palabra_sin_certeza):
+        """La otra salida, la que no pierde trabajo: guardar en Word y mandar.
+
+        El boton tiene que hacer algo. Un boton que dice "guardar y enviar" y no
+        guarda es la misma trampa que el toast, con mas palabras."""
+        doc = FakeDocumento(str(destino), saved=False)
+        palabra_sin_certeza(doc)
+
+        r = client.post(
+            f"/api/send-to-word/{sesion}",
+            json={"dest_path": str(destino), "guardar": True},
+        )
+
+        assert r.status_code == 200, r.text
+        # Guardo ANTES de cerrar y de copiar: el orden es el del rescate, no el
+        # del descarte. Un `Save` despues del `Close(0)` no guardaria nada.
+        assert doc.llamadas == [("Save",), ("Close", 0)], doc.llamadas
+        assert destino.read_bytes() == GENERADO
+
+    def test_guardar_sin_cambios_sin_guardar_no_hace_nada_raro(self, client, sesion, destino, palabra_sin_certeza):
+        """Con el documento limpio no hay nada que guardar: la peticion se
+        cumple igual, sin un `Save` de mentira."""
+        doc = FakeDocumento(str(destino), saved=True)
+        palabra_sin_certeza(doc)
+
+        r = client.post(
+            f"/api/send-to-word/{sesion}",
+            json={"dest_path": str(destino), "guardar": True},
+        )
+
+        assert r.status_code == 200, r.text
         assert doc.llamadas == [("Close", 0)]
 
     def test_sin_cambios_sin_guardar_cierra_y_copia(self, client, sesion, destino, palabra_sin_certeza):

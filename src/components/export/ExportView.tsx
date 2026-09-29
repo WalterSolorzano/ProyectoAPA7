@@ -21,7 +21,7 @@ import {
   AlertTriangle,
   Eye, ZoomIn, ZoomOut,
   Columns2,
-  Copy, FolderOpen, ExternalLink, Upload
+  Copy, FolderOpen, ExternalLink, Upload, ShieldCheck
 } from 'lucide-react';
 import { DocumentMascot } from '../layout/DocumentMascot';
 
@@ -84,21 +84,42 @@ export const ExportView: React.FC = () => {
   const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
 
-  const handleSendToWord = useCallback(async () => {
+  /* LO QUE ESTÁ SIN GUARDAR EN WORD.
+     El backend no lo descarta: devuelve 409 con `requiere_confirmacion` y no
+     toca nada. acá se ofrece LAS DOS SALIDAS, con un botón cada una: guardar en
+     Word y mandar, o descartar y mandar. Un toast con el texto "tenés cambios
+     sin guardar" informa y no deja decidir, que es el mismo defecto que el
+     aviso de citas fantasma que reaparecía al siguiente clic. */
+  const [sinGuardar, setSinGuardar] = useState<string | null>(null);
+  /* Dónde quedó la copia de seguridad, DICHA en la pantalla y no solo en un
+     toast que se va solo. Un `.bak` que la persona no sabe nombrar no lo puede
+     ir a buscar, y un respaldo que no se encuentra no es un respaldo. */
+  const [respaldo, setRespaldo] = useState<string | null>(null);
+
+  const enviarAWord = useCallback(async (opcion: { guardar?: boolean; forzar?: boolean } = {}) => {
     if (!doc?.session_id || !activeFilePath) return;
     setIsSending(true);
+    setSinGuardar(null);
+    setRespaldo(null);
     try {
       const res = await fetch(`${getApiBase()}/send-to-word/${doc.session_id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dest_path: activeFilePath }),
+        body: JSON.stringify({ dest_path: activeFilePath, ...opcion }),
       });
       const data = await res.json().catch(() => ({}));
+      if (data.requiere_confirmacion) {
+        /* No es un error: es una pregunta. El documento sigue abierto en Word
+           y el archivo original sigue como estaba. */
+        setSinGuardar(data.message ?? 'Tenés cambios sin guardar en Word.');
+        return;
+      }
       if (!res.ok) {
         showToast(data.detail || `Error ${res.status} al enviar a Word`, 'error');
         return;
       }
       showToast(data.message ?? 'Documento APA enviado a Word', data.method === 'com' ? 'success' : 'info');
+      if (data.backup) setRespaldo(data.backup);
     } catch (e) {
       showToast('No se pudo conectar al motor para enviar a Word', 'error');
     } finally {
@@ -263,20 +284,21 @@ export const ExportView: React.FC = () => {
 
         {/* Enviar a Word — solo visible cuando WordAPA7 detecta un .docx abierto en
             paralelo en Word (activeFilePath). Llama al motor que usa COM para
-            reemplazar el archivo original con la versión APA formateada. */}
+            reemplazar el archivo original con la versión APA formateada.
+            Antes de pisar, el motor deja una copia de seguridad al lado. */}
         {activeFilePath && format === 'docx' && (
           <button
             type="button"
-            onClick={handleSendToWord}
+            onClick={() => enviarAWord()}
             disabled={isSending || isLoading}
-            title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7`}
+            title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
             style={{
               display: 'flex', alignItems: 'center', gap: '7px',
               padding: '8px 14px',
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: 'transparent',
-              color: isSending ? 'var(--color-text-tertiary)' : 'var(--accent-primary)',
+              color: isSending ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
               fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
               cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
               opacity: isSending || isLoading ? 0.6 : 1,
@@ -286,6 +308,93 @@ export const ExportView: React.FC = () => {
             <Upload size={14} strokeWidth={1.75} aria-hidden />
             {isSending ? 'Enviando...' : 'Enviar a Word'}
           </button>
+        )}
+
+        {/* Dónde quedó la copia de seguridad, escrita y no sólo dicha. */}
+        {respaldo && (
+          <p
+            data-testid="ruta-del-respaldo"
+            style={{
+              margin: 0, width: '100%', display: 'flex', alignItems: 'flex-start', gap: '7px',
+              fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 'var(--leading-normal)',
+            }}
+          >
+            <ShieldCheck size={14} strokeWidth={1.75} aria-hidden style={{ flexShrink: 0, marginTop: '1px' }} />
+            <span>
+              {`Tu archivo original quedó respaldado en ${respaldo}. Si el resultado no era lo que esperabas, ese archivo es el tuyo.`}
+            </span>
+          </p>
+        )}
+
+        {/* ── La pregunta, no el aviso ──────────────────────────────────────
+            Dos salidas y un botón para no hacer nada. "Guardar y enviar"
+            guarda de verdad en Word a través del motor; "Descartar y enviar"
+            manda `forzar` y el trabajo sin guardar se pierde, que es lo que
+            dice el botón. Un aviso con un solo botón de cerrar no ofrece
+            ninguna de las dos. */}
+        {sinGuardar && (
+          <div
+            data-testid="confirmacion-sin-guardar"
+            role="alertdialog"
+            aria-label="El documento tiene cambios sin guardar en Word"
+            style={{
+              display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+              padding: '12px', width: '100%',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-warning)',
+              backgroundColor: 'var(--color-accent-soft)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <AlertTriangle size={15} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)', lineHeight: 'var(--leading-normal)' }}>
+                {sinGuardar}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => enviarAWord({ guardar: true })}
+                disabled={isSending}
+                style={{
+                  flex: 1, minWidth: '140px', padding: '6px 10px',
+                  backgroundColor: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
+                  border: 'none', borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)', fontWeight: 700, cursor: isSending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Guardar y enviar
+              </button>
+              <button
+                type="button"
+                onClick={() => enviarAWord({ forzar: true })}
+                disabled={isSending}
+                style={{
+                  flex: 1, minWidth: '140px', padding: '6px 10px',
+                  backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-danger)',
+                  border: '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)', fontWeight: 600, cursor: isSending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Descartar y enviar
+              </button>
+              <button
+                type="button"
+                onClick={() => setSinGuardar(null)}
+                disabled={isSending}
+                style={{
+                  padding: '6px 10px', background: 'transparent', color: 'var(--color-text-tertiary)',
+                  border: 'none', borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)', cursor: isSending ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Mejor no
+              </button>
+            </div>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 'var(--leading-normal)' }}>
+              El archivo original no se tocó: sigue como está, y la copia de seguridad todavía no se hizo.
+            </span>
+          </div>
         )}
 
         {downloadedFile && (

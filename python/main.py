@@ -2848,6 +2848,13 @@ class SendToWordReq(BaseModel):
     "no había nada abierto" de "había un documento con trabajo sin guardar".
     """
     forzar: bool = False
+    """Guardar en Word lo que está sin guardar, en vez de descartarlo.
+
+    La otra salida, y la que no pierde trabajo. También explícita en el body: si
+    el frontend no puede hacer que Word guarde, tiene que decirlo, no ofrecer un
+    botón que no guarda nada.
+    """
+    guardar: bool = False
 
 
 def _respaldo_de(dest: Path) -> Optional[Path]:
@@ -2928,7 +2935,10 @@ async def send_to_word_endpoint(session_id: str, req: SendToWordReq) -> dict:
        lo que la persona escribió en Word desde la última lectura; ese `0` existe
        en `word_com.py` para cerrar la app, que es otra cosa. Con cambios sin
        guardar el endpoint no cierra, no copia y devuelve
-       `requiere_confirmacion`: la salida es `forzar` en el body, explícito.
+       `requiere_confirmacion`: las dos salidas viajan explícitas en el body,
+       `guardar` (guardar en Word y mandar) y `forzar` (descartar y mandar). Las
+       dos hacen algo: un botón que promete guardar y no guarda es la misma
+       trampa que el aviso, con más palabras.
     3. **Se avisa dónde quedó el respaldo**, en `backup` de la respuesta.
 
     Estrategia de escritura, dos capas:
@@ -2960,18 +2970,28 @@ async def send_to_word_endpoint(session_id: str, req: SendToWordReq) -> dict:
 
         with word_session() as app:
             target_doc = _documento_abierto_en_word(app, dest)
-            if target_doc is not None and _tiene_cambios_sin_guardar(target_doc) and not req.forzar:
-                return JSONResponse(
-                    status_code=409,
-                    content={
-                        "ok": False,
-                        "requiere_confirmacion": True,
-                        "message": (
-                            "Tenés cambios sin guardar en Word. Guardalos antes de "
-                            "enviar, o confirmá para descartarlos."
-                        ),
-                    },
-                )
+            if target_doc is not None and _tiene_cambios_sin_guardar(target_doc):
+                if req.guardar:
+                    # La salida que no pierde trabajo. El `Save` va ACÁ, antes
+                    # del respaldo y antes del `Close`: guardar despues de cerrar
+                    # sin guardar no guarda nada.
+                    try:
+                        target_doc.Save()
+                        logger.info("send_to_word: guardado lo que estaba sin guardar en Word")
+                    except Exception as e:
+                        logger.warning("send_to_word: Save() falló: %s", e)
+                elif not req.forzar:
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "ok": False,
+                            "requiere_confirmacion": True,
+                            "message": (
+                                "Tenés cambios sin guardar en Word. Guardalos antes de "
+                                "enviar, o confirmá para descartarlos."
+                            ),
+                        },
+                    )
             word_app = app
     except Exception as e:
         logger.warning("send_to_word: COM no disponible, copia directa: %s", e)
