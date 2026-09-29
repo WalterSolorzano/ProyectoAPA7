@@ -25,7 +25,7 @@ import {
   balanceDe,
   motivoDe,
   porDefectoSeVeElDocumento,
-  VISIBLE_POR_DEFECTO,
+  VISTA_POR_DEFECTO,
   filasDelIndice,
 } from '../components/structure/IndiceEstructura';
 import { construirJerarquia, type NodoJerarquia } from '../lib/jerarquia';
@@ -237,7 +237,29 @@ describe('el documento entero no es el centro', () => {
      * y un toggle apagado por omisión es una decisión que alguien tomó; uno
      * encendido por omisión es un forgot que nadie revisó. */
     expect(porDefectoSeVeElDocumento()).toBe(false);
-    expect(VISIBLE_POR_DEFECTO).toBe(false);
+    expect(VISTA_POR_DEFECTO).toBe('indice');
+  });
+
+  it('el mapa es un toggle DENTRO del índice, no una capa encima', () => {
+    /* El mapa no flota: reemplaza la lista en el flujo y el toggle la devuelve.
+     * Con dos banderas se podría mostrar el mapa y el documento a la vez, que es
+     * justo la capa que se pidió sacar. */
+    const { container } = render(
+      <IndiceEstructura elementos={[h1('1. Introducción'), parrafo(200), h1('2. Metodología'), parrafo(80)]} />,
+    );
+    expect(container.querySelector('[data-testid="mapa-estructura"]')).toBeNull();
+    expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /ver el mapa/i }));
+    expect(container.querySelector('[data-testid="mapa-estructura"]')).not.toBeNull();
+    expect(container.querySelector('svg')).toBeTruthy();
+    /* Con el mapa prendido, el documento sigue sin aparecer: son tres estados
+     * excluyentes y no dos banderas. */
+    expect(container.querySelector('[data-testid="documento-completo"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /ver el indice/i }));
+    expect(container.querySelector('[data-testid="mapa-estructura"]')).toBeNull();
+    expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0);
   });
 
   it('montado, el documento NO está en el árbol hasta que se lo prende', () => {

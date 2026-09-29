@@ -35,6 +35,7 @@ import {
 } from '../../lib/jerarquia';
 import type { ElementModel } from '../../types';
 import { NodoIndice } from './NodoIndice';
+import { MapaEstructura } from './MapaEstructura';
 import { miles } from './BarraBalance';
 
 /* Las reglas y los diagnósticos se IMPORTAN y no se redefinen: el componente
@@ -54,18 +55,24 @@ export {
 } from '../../lib/jerarquia';
 
 /**
- * El estado inicial del toggle del documento.
+ * Qué se ve en el centro de la vista de estructura.
  *
- * APAGADO, y es lo importante. Un toggle apagado por defecto es una decisión
- * que alguien tomó; un toggle encendido por defecto es una omisión que nadie
- * revisó. Lo que se reportó fue que el centro era el documento vomitado, y esa
- * omisión es exactamente lo que hay que deshacer.
+ * `indice` es el estado inicial y es el que tiene que serlo: el defecto
+ * reportado fue que el centro era el documento vomitado, y un documento
+ * apagado por omisión es una decisión que alguien tomó mientras que uno encendido
+ * es un forgot que nadie revisó.
+ *
+ * SON TRES ESTADOS Y NO DOS BOOLEANOS. Con dos banderas se puede estar mostrando
+ * el documento y el mapa a la vez, que es exactamente la capa flotante que se
+ * pidió sacar. Un solo valor de estado hace que eso sea imposible de escribir.
  */
-export const VISIBLE_POR_DEFECTO = false;
+export type VistaEstructura = 'indice' | 'documento' | 'mapa';
+
+export const VISTA_POR_DEFECTO: VistaEstructura = 'indice';
 
 /** ¿El documento se ve por omisión? La regla, en una función que se puede leer. */
 export function porDefectoSeVeElDocumento(): boolean {
-  return VISIBLE_POR_DEFECTO;
+  return VISTA_POR_DEFECTO === 'documento';
 }
 
 /** El resumen de una fila, en una línea de texto: palabras y estado. */
@@ -90,6 +97,34 @@ export interface IndiceEstructuraProps {
   onSelect?: (nodo: NodoJerarquia) => void;
 }
 
+/** Un toggle: dice qué muestra, y por eso `aria-pressed` alcanza con su texto. */
+const BotonToggle: React.FC<{ activo: boolean; onClick: () => void; children: React.ReactNode }> = ({
+  activo,
+  onClick,
+  children,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={activo}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      font: 'inherit',
+      fontSize: 'var(--text-xs)',
+      color: 'var(--color-text-secondary)',
+      background: 'var(--color-bg-surface)',
+      border: '1px solid var(--color-border-subtle)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '4px 8px',
+      cursor: 'pointer',
+    }}
+  >
+    {children}
+  </button>
+);
+
 export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   elementos,
   faseConocida,
@@ -97,7 +132,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   documento,
   onSelect,
 }) => {
-  const [verDocumento, setVerDocumento] = useState<boolean>(VISIBLE_POR_DEFECTO);
+  const [vista, setVista] = useState<VistaEstructura>(VISTA_POR_DEFECTO);
   const raices = useMemo(
     () => construirJerarquia(elementos ?? [], faseConocida ?? {}, vocabulario),
     [elementos, faseConocida, vocabulario],
@@ -133,37 +168,39 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
         minHeight: 0,
       }}
     >
-      {/* El toggle. UNA línea, arriba, y apagado: el documento entero existe,
-          pero no es el centro de esta pantalla. */}
+      {/* Los toggles. UNA línea, arriba, y arrancando en el índice.
+       *
+       * El mapa entra AQUÍ, dentro de la vista de índice y en el flujo, nunca
+       * como una capa encima: una capa que tapa el contenido se lee como un
+       * estorbo, y además un mapa superpuesto deja de poder compararse con la
+       * lista de al lado. Por eso son tres estados y no dos banderas. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
         <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
         <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Estructura</span>
-        <button
-          type="button"
-          onClick={() => setVerDocumento((v) => !v)}
-          aria-pressed={verDocumento}
-          style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            font: 'inherit',
-            fontSize: 'var(--text-xs)',
-            color: 'var(--color-text-secondary)',
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '4px 8px',
-            cursor: 'pointer',
-          }}
-        >
-          <FileText size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
-          {verDocumento ? 'Ver la estructura' : 'Ver el documento'}
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
+          <BotonToggle
+            activo={vista === 'mapa'}
+            onClick={() => setVista(vista === 'mapa' ? 'indice' : 'mapa')}
+          >
+            {vista === 'mapa' ? 'Ver el indice' : 'Ver el mapa'}
+          </BotonToggle>
+          <BotonToggle
+            activo={vista === 'documento'}
+            onClick={() => setVista(vista === 'documento' ? 'indice' : 'documento')}
+          >
+            <FileText size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
+            {vista === 'documento' ? 'Ver la estructura' : 'Ver el documento'}
+          </BotonToggle>
+        </div>
       </div>
 
-      {verDocumento ? (
+      {vista === 'documento' ? (
         <div data-testid="documento-completo">{documento ?? null}</div>
+      ) : vista === 'mapa' ? (
+        /* El mapa reemplaza la lista en el flujo, y el toggle lo devuelve. */
+        <div data-testid="mapa-estructura" style={{ overflow: 'auto' }}>
+          <MapaEstructura raices={raices} />
+        </div>
       ) : (
         <>
           {/* El preámbulo existe y no es un capítulo. Decirlo evita que la
