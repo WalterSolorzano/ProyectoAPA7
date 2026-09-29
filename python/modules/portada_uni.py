@@ -463,11 +463,19 @@ def generate_uni_cover(
     if not titulo:
         titulo = "Título del trabajo"
 
-    # Si la portada se genera vacía/editable inicialmente sin datos
-    if not autores and not tutor:
-        autores = [{"nombre": "[Br. Nombre del Estudiante]", "carnet": "Carnet: 202X-XXXXU"}]
-        tutor = "[Ing. Nombre del Docente]"
-        grupo = grupo or "3T1 IND"
+    # SIN INTEGRANTES NO SE INVENTA NINGUNO.
+    #
+    # Antes, si no venian autores ni tutor, la funcion fabricaba
+    # "[Br. Nombre del Estudiante]", "Carnet: 202X-XXXXU", "[Ing. Nombre del
+    # Docente]" y el grupo "3T1 IND", y todo eso iba al `.docx` del usuario. Es
+    # la misma clase de fuga que "[LOGOS INSTITUCIONALES]" y que
+    # "[Figura sin rotular]" en la revision: texto de interfaz en el documento
+    # final. Lo encontro `test_placeholder_en_docx.py`, que recorre todos los
+    # generadores.
+    #
+    # Sin integrantes, la portada no lleva tabla. La app muestra el diseno en la
+    # preview y el usuario escribe lo suyo; el `.docx` sale sin nombres en vez de
+    # salir con nombres falsos.
 
     if not fecha:
         from datetime import date
