@@ -14,12 +14,14 @@ import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
-import { resolveAssetUrl } from '../../api/backend';import {
+import { resolveAssetUrl } from '../../api/backend';
+import { getApiBase } from '../../api/http';
+import {
   FileText, FileType, FileCode, CheckCircle2,
   AlertTriangle,
   Eye, ZoomIn, ZoomOut,
   Columns2,
-  Copy, FolderOpen, ExternalLink
+  Copy, FolderOpen, ExternalLink, Upload
 } from 'lucide-react';
 import { DocumentMascot } from '../layout/DocumentMascot';
 
@@ -67,8 +69,10 @@ export const ExportView: React.FC = () => {
     setViewMode,
     citationAuditResult, sayMascot, clearQuickExport,
     zoomLevel, setZoomLevel,
-    goHome,
+    goHome, showToast,
   } = useDocStore();
+
+  const activeFilePath = useDocStore((s) => s.activeFilePath);
 
   const [format, setFormat] = useState<Format>('docx');
   const [previewMode, setPreviewMode] = useState<PreviewMode>('canvas');
@@ -78,6 +82,29 @@ export const ExportView: React.FC = () => {
   const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve'>('idle');
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
   const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSendToWord = useCallback(async () => {
+    if (!doc?.session_id || !activeFilePath) return;
+    setIsSending(true);
+    try {
+      const res = await fetch(`${getApiBase()}/send-to-word/${doc.session_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dest_path: activeFilePath }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.detail || `Error ${res.status} al enviar a Word`, 'error');
+        return;
+      }
+      showToast(data.message ?? 'Documento APA enviado a Word', data.method === 'com' ? 'success' : 'info');
+    } catch (e) {
+      showToast('No se pudo conectar al motor para enviar a Word', 'error');
+    } finally {
+      setIsSending(false);
+    }
+  }, [doc?.session_id, activeFilePath, showToast]);
 
   useEffect(() => {
     sayMascot('Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.', 'success');
@@ -233,6 +260,33 @@ export const ExportView: React.FC = () => {
             Convertir otro
           </button>
         </div>
+
+        {/* Enviar a Word — solo visible cuando WordAPA7 detecta un .docx abierto en
+            paralelo en Word (activeFilePath). Llama al motor que usa COM para
+            reemplazar el archivo original con la versión APA formateada. */}
+        {activeFilePath && format === 'docx' && (
+          <button
+            type="button"
+            onClick={handleSendToWord}
+            disabled={isSending || isLoading}
+            title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7`}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '8px 14px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              background: 'transparent',
+              color: isSending ? 'var(--color-text-tertiary)' : 'var(--accent-primary)',
+              fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+              cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
+              opacity: isSending || isLoading ? 0.6 : 1,
+              transition: 'color 0.15s, opacity 0.15s',
+            }}
+          >
+            <Upload size={14} strokeWidth={1.75} aria-hidden />
+            {isSending ? 'Enviando...' : 'Enviar a Word'}
+          </button>
+        )}
 
         {downloadedFile && (
           <div className="export-downloaded-actions" aria-live="polite">
