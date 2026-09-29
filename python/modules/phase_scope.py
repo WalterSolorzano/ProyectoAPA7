@@ -100,8 +100,20 @@ PHASE_BY_KEY: Dict[str, PhaseConfig] = {p.key: p for p in PHASES}
 
 # "Capitulo III. Metodologia" -> "Metodologia". Sin esto, ningun titulo de
 # tesis con ese prefijo abria fase, y es la forma mas comun en un capitulo.
+#
+# LOS DIGITOS Y LOS DOS PUNTOS TAMBIEN, y no es una concession: son la forma mas
+# comun en la otra convencion de capitulos. "CAPITULO 2: MARCO TEORICO" caia en
+# `None` porque el grupo del medio no aceptaba el `2` y porque el cierre no
+# aceptaba el `:` — y el frontend SI lo resolvia, con el mismo prefijo y los
+# dos admitidos. Dos reglas que deberian ser la misma y no lo eran, y el
+# siguiente bug de eso no es un titulo mal leido: es que el mosaico dice una
+# fase y el auditor otra, y nadie sabe cual de las dos miente. El patron
+# espelado es `PREFIJO_CAPITULO` de `src/lib/jerarquia.ts`.
+#
+# "Seccion de resultados" sigue intacto: `seccion` exige un espacio y un digito
+# o romano despues, y "de" no es ninguno de los dos.
 _CHAPTER_PREFIX = re.compile(
-    r"^\s*(?:capitulo|capitulo|parte|seccion|unit)\s+[ivxlcdm]+[.)]?\s+",
+    r"^\s*(?:capitulo|capitulo|parte|seccion|unidad|unit)\s+[0-9ivxlcdm]+[.):]?\s+",
     re.IGNORECASE,
 )
 

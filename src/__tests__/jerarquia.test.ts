@@ -123,6 +123,67 @@ describe('faseDeTitulo', () => {
   });
 });
 
+/**
+ * LA MISMA REGLA QUE EN PYTHON, Y LA MISMA TABLA.
+ *
+ * `match_phase` de `python/modules/phase_scope.py` y `faseDeTitulo` de acá
+ * tienen que decir lo mismo: son dos copias de una regla, y cuando no coinciden
+ * el síntoma no es un título mal leído sino que el mosaico de la revisión dice
+ * una fase y el auditor otra, con el usuario mirando las dos a la vez.
+ *
+ * La tabla de acá es la MISMA de `python/tests/test_phase_scope.py::_PARIDAD`,
+ * título por título, y la misma respuesta. Si un lado cambia y el otro no, uno
+ * de los dos se pone rojo.
+ *
+ * LO QUE AÚN DIVERGE Y ESTÁ DECLARADO: los alias. El backend tiene la tupla
+ * `titles` de cada fase ("metodologia", "antecedentes", "metodologia de la
+ * investigacion") y el espejo local tiene un rótulo por fase, así que
+ * "1.1 Antecedentes" da `marco_teorico` en Python y `null` acá. Eso no es un
+ * regex roto: es el vocabulario que no viaja, y se cierra con el endpoint que
+ * expone `PHASES`, no escribiendo la lista en TypeScript, que sería la sexta
+ * copia de una tabla que es de otro.
+ */
+const PARIDAD: [string, string | null][] = [
+  ['1. Introducción', 'introduccion'],
+  ['CAPÍTULO 2: MARCO TEÓRICO', 'marco_teorico'],
+  ['Capítulo 3. Discusión', 'discusion'],
+  ['Sección 3: Resultados', 'resultados'],
+  ['Unidad 2: Conclusiones', 'conclusiones'],
+  ['IV. METODO', 'metodo'],
+  ['Resultados de la encuesta', 'resultados'],
+  ['Seccion de resultados', null],
+  ['Introducciones', null],
+  ['Agradecimientos', null],
+];
+
+/** Los tres que dependen de un alias que no viaja, y acá dan `null`. */
+const SOLO_ALIAS = [
+  '1.1 Antecedentes',
+  'Parte 1. Metodología',
+  'Metodología de la investigación',
+];
+
+describe('paridad con el backend', () => {
+  it('la tabla de prefijos dice lo mismo que match_phase', () => {
+    /* "CAPÍTULO 2: MARCO TEÓRICO" es la fila que ABIÓ la divergencia: acá
+       resolvía y el auditor devolvía `None`, porque `_CHAPTER_PREFIX` no
+       aceptaba el dígito ni los dos puntos. Arreglado de un lado, esta tabla es
+       la que se pone roja si el otro lado vuelve. */
+    for (const [titulo, esperado] of PARIDAD) {
+      expect(faseDeTitulo(titulo, false), titulo).toBe(esperado);
+    }
+  });
+
+  it('la divergencia que queda son los alias, y son tres', () => {
+    /* No es un test de compatibilidad: es el RECUENTO de lo que todavía no
+       viaja. Si uno de estos deja de dar `null` sin que exista el vocabulario
+       completo, alguien escribió una copia local de la tabla de alias. */
+    for (const titulo of SOLO_ALIAS) {
+      expect(faseDeTitulo(titulo, false), titulo).toBeNull();
+    }
+  });
+});
+
 describe('construirJerarquia', () => {
   it('arma un arbol H1 > H2 > H3 y cuenta palabras por rama', () => {
     const arbol = construirJerarquia([

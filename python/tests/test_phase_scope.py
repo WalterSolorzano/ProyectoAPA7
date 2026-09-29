@@ -55,6 +55,89 @@ def test_match_titulo_exacto():
     assert match_phase("Conclusiones") == "conclusiones"
 
 
+# -- Paridad de prefijos con el frontend -------------------------------------
+#
+# ESTA TABLA ESTA COPIADA, PALABRA POR PALABRA, en `src/__tests__/jerarquia.test.ts`.
+# Es la misma en los dos languages y con la misma respuesta, y esa es toda la
+# idea: `match_phase` y `faseDeTitulo` son LA MISMA regla en dos lugares, y cuando
+# no lo eran el sintoma no era un titulo mal leido sino que el mosaico de la
+# revision decia una fase y el auditor otra.
+#
+# El caso que abrio la divergencia: "CAPITULO 2: MARCO TEORICO" caia en `None`
+# porque `_CHAPTER_PREFIX` no aceptaba el digito ni los dos puntos, y el frontend
+# si lo resolvia. La diferencia era de una linea y se arreglo en una linea.
+#
+# LO QUE SIGUE DIVERGIENDO ESTA DECLARADO Y NO SE ARREGLA ACA: los ALIAS. El
+# backend tiene la tupla `titles` de cada fase ("metodologia", "antecedentes",
+# "metodologia de la investigacion") y el frontend solo tiene un rotulo por fase.
+# `_ALIAS_SIN_VIAJAR` son los titulos que caen en esa diferencia, y la lista es
+# corta a proposito: escribirla en TypeScript seria la sexta copia de una tabla
+# que es de otro. Se cierra con el endpoint que expone `PHASES`.
+
+_PARIDAD = (
+    ("1. Introduccion", "introduccion"),
+    ("CAPITULO 2: MARCO TEORICO", "marco_teorico"),
+    ("Capitulo 3. Discusion", "discusion"),
+    ("Seccion 3: Resultados", "resultados"),
+    ("Unidad 2: Conclusiones", "conclusiones"),
+    ("IV. METODO", "metodo"),
+    ("Resultados de la encuesta", "resultados"),
+    ("Seccion de resultados", None),
+    ("Introducciones", None),
+    ("Agradecimientos", None),
+)
+
+# Los tres que dependen de un alias que no viaja al frontend.
+_ALIAS_SIN_VIAJAR = (
+    ("1.1 Antecedentes", "marco_teorico"),
+    ("Parte 1. Metodologia", "metodo"),
+    ("Metodologia de la investigacion", "metodo"),
+)
+
+
+def test_prefijos_de_capitulo_con_digitos_y_dos_puntos():
+    # El caso que se rompio, escrito con y sin tilde y con el prefijo en las
+    # cuatro formas que usa una tesis.
+    assert match_phase("CAPÍTULO 2: MARCO TEÓRICO") == "marco_teorico"
+    assert match_phase("CAPITULO 2: MARCO TEORICO") == "marco_teorico"
+    assert match_phase("Capitulo 2. Marco teorico") == "marco_teorico"
+    assert match_phase("Parte 1. Metodologia") == "metodo"
+    # Y el editor, que es el que distingue una fase mal puesta de una deliberada,
+    # tiene que seguir distinguiendo: quitar la numeracion es normalizar, no
+    # perdonar el nivel.
+    assert match_phase_exact("1.1 Resultados") == "resultados"
+    assert match_phase_exact("1.1 Resultados de la encuesta") is None
+
+
+def test_seccion_de_no_come_una_palabra_que_empieza_como_prefijo():
+    # El modo de fallo que el filtro de mayuscula ya cubria para los romanos,
+    # extendido al grupo de capitulo: "de" no es un digito ni un romano, asi que
+    # el prefijo no come la palabra y el titulo sigue siendo del autor.
+    assert match_phase("Seccion de resultados") is None
+    assert match_phase("Parte del documento") is None
+    assert match_phase("Unidad de medida") is None
+
+
+def test_la_tabla_de_paridad_dice_lo_mismo_que_el_frontend():
+    # Solo el modo del AUDITOR. El modo estricto del editor es otra pregunta a
+    # proposito —"Resultados de la encuesta" es `resultados` para el auditor y
+    # `None` para el editor, porque ahi el calificador avisa de que el autor
+    # quiso decir algo concreto—, y esa diferencia esta declarada en las dos
+    # paredes, no aca.
+    for titulo, esperado in _PARIDAD:
+        assert match_phase(titulo) == esperado, f"{titulo} abrio otra fase"
+
+
+def test_los_alias_que_no_viajan_son_tres_y_estan_nombrados():
+    # No es un test de compatibilidad: es el RECUENTO de la divergencia que
+    # queda. Si alguien agrega un titulo a esta lista, esta pasando algo que no
+    # es un alias —y entonces el prefijo volveria a estar roto en un lado—, y si
+    # alguien la deja vacia es que el endpoint que expone `PHASES` ya existe y
+    # esta tabla hay que borrarla.
+    for titulo, esperado in _ALIAS_SIN_VIAJAR:
+        assert match_phase(titulo) == esperado, f"{titulo} abrio otra fase"
+
+
 def test_match_titulo_con_calificador():
     # El calificador no rompe el reconocimiento: el titulo sigue siendo la fase.
     assert match_phase("Resultados de la encuesta") == "resultados"
