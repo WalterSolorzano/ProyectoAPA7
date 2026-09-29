@@ -37,6 +37,7 @@ import { APACoverEditor } from '../layout/APACoverEditor';
 import { UNICoverPreview } from '../layout/UNICoverPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { CoverEditorPanel } from './CoverEditorPanel';
+import { CarruselPortada } from './portada/CarruselPortada';
 import { ANCHO_HOJA_PX } from '../layout/UNICoverPreview';
 import type { Hoja } from '../../lib/portada/geometria';
 
@@ -222,9 +223,7 @@ export const CoverCarouselStudio: React.FC = () => {
   const { portada, acta, rules, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
   const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
-  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
 
   /* Modo actual derivado, o `null` si el documento trae un `cover_mode` que la
      app no reconoce.
@@ -404,203 +403,29 @@ export const CoverCarouselStudio: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Controles de desplazamiento del carrusel */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-            gap: 'var(--space-1)', padding: `var(--space-2) var(--space-5) 0`, flexShrink: 0,
-          }}>
-            <button
-              type="button"
-              aria-label="Desplazar a la izquierda"
-              onClick={() => carouselRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
-              style={{
-                background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
-                borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-primary)',
-              }}
-            >
-              <ChevronLeft size={12} strokeWidth={1.75} aria-hidden />
-            </button>
-            <button
-              type="button"
-              aria-label="Desplazar a la derecha"
-              onClick={() => carouselRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
-              style={{
-                background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
-                borderRadius: 'var(--radius-sm)', width: '24px', height: '24px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-primary)',
-              }}
-            >
-              <ChevronRight size={12} strokeWidth={1.75} aria-hidden />
-            </button>
-          </div>
+          {/* EL CARRUSEL. Antes eran cinco tarjetas con miniaturas dibujadas a
+              mano con `div` (lineas grises que fingen un texto) y dos botones que
+              hacian `scrollBy`, sin indice, sin teclado, sin aria y con
+              `transform` en cada tarjeta sin mirar `prefers-reduced-motion`. Ahora
+              cada miniatura renderiza el DISENO REAL con los datos de la portada,
+              y el carrusel tiene indice, controles y teclado. */}
+          <CarruselPortada
+            modoActivo={currentMode}
+            hoja={hojaDeLaSesion}
+            onSelect={(id) => selectMode(id as CoverMode)}
+            onUpload={abrirSelector}
+          />
 
-          {/* Carrusel Desplazable de Tarjetas con Mini-Preview */}
-          <div
-            ref={carouselRef}
-            data-testid="cover-model-track"
-            className="cover-carousel-track"
-            style={{
-              display: 'flex',
-              gap: '16px',
-              overflowX: 'auto',
-              scrollSnapType: 'x mandatory',
-              padding: `var(--space-3) var(--space-4) var(--space-3)`,
-              scrollbarWidth: 'thin',
-              alignItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".docx" style={{ display: 'none' }} />
-            {COVER_CARDS.map((c) => {
-              const isSelected = currentMode === c.id;
-              const elegir = () => (c.isUpload ? abrirSelector() : selectMode(c.id));
-              return (
-                <div
-                  key={c.id}
-                  /* T20: la tarjeta era un `<div onClick>` sin teclado: se podía
-                     VER y elegir con el ratón, y no se podía alcanzar. Ahora es
-                     un control: `role="button"`, enfocable, y Enter y Espacio
-                     eligen —Espacio no hace scroll porque se previene, que es lo
-                     que un `<button>` real hace solo. Se queda en `div` (y no
-                     un `<button>`) porque la miniatura es esqueleto de `div`s y
-                     el modelo de contenido de un botón es contenido en línea. */
-                  role="button"
-                  tabIndex={0}
-                  /* La última tarjeta es una ACCIÓN, no un estado: con
-                     `aria-pressed` el lector de pantalla anuncia "no
-                     presionado" y lo que hace es abrir el selector de archivos.
-                     Es el mismo criterio que aplica al chip de la tira. */
-                  aria-pressed={c.isUpload ? undefined : isSelected}
-                  onClick={elegir}
-                  onMouseEnter={() => setHoveredCardId(c.id)}
-                  onMouseLeave={() => setHoveredCardId(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                      e.preventDefault();
-                      elegir();
-                    }
-                  }}
-                  style={{
-                    minWidth: '196px',
-                    maxWidth: '224px',
-                    flex: '0 0 auto',
-                    scrollSnapAlign: 'center',
-                    padding: '8px 10px',
-                    borderRadius: 'var(--radius-md)',
-                    cursor: 'pointer',
-                    backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                    border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    boxShadow: isSelected ? 'var(--shadow-card)' : 'var(--shadow-sm)',
-                    transform: isSelected
-                      ? 'scale(1.07)'
-                      : hoveredCardId === c.id
-                      ? 'scale(0.99)'
-                      : 'scale(0.95)',
-                    opacity: isSelected ? 1 : hoveredCardId === c.id ? 0.95 : 0.85,
-                    transformOrigin: 'center center',
-                    transition: [
-                      'transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-                      'box-shadow var(--transition-fast)',
-                      'border-color var(--transition-fast)',
-                      'background-color var(--transition-fast)',
-                      'opacity var(--transition-fast)',
-                    ].join(', '),
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    position: 'relative',
-                    zIndex: isSelected ? 3 : 1,
-                  }}
-                >
-                  {isSelected && (
-                    <div style={{
-                      position: 'absolute', top: '8px', right: '8px', width: '18px', height: '18px',
-                      borderRadius: 'var(--radius-full)', backgroundColor: 'var(--accent-primary)', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-on-accent)', zIndex: 10,
-                    }}>
-                      <Check size={10} strokeWidth={1.75} aria-hidden />
-                    </div>
-                  )}
-
-                  {/* Miniatura visual de portada */}
-                  <div style={{
-                    height: '56px',
-                    backgroundColor: 'var(--paper-white)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '6px 8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxShadow: 'var(--shadow-inset)',
-                    overflow: 'hidden',
-                  }}>
-                    {c.id === 'original' && (
-                      <>
-                        <div style={{ width: '80%', height: '4px', backgroundColor: 'var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.6 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
-                          <div style={{ width: '60%', height: '3px', backgroundColor: 'var(--text-secondary)', opacity: 0.5 }} />
-                          <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                        </div>
-                        <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                      </>
-                    )}
-                    {c.id === 'apa7' && (
-                      <>
-                        <div style={{ width: '15%', height: '2px', alignSelf: 'flex-end', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%', alignItems: 'center', marginTop: '2px' }}>
-                          <div style={{ width: '70%', height: '4px', backgroundColor: 'var(--text-main)', borderRadius: 'var(--radius-sm)', opacity: 0.8 }} />
-                          <div style={{ width: '50%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.7 }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', alignItems: 'center' }}>
-                          <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                          <div style={{ width: '30%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                        </div>
-                      </>
-                    )}
-                    {c.id === 'uni' && (
-                      <>
-                        <div style={{ width: '16px', height: '10px', border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-sm)', opacity: 0.7 }} />
-                        <div style={{ width: '65%', height: '3px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width: '100%', alignItems: 'center' }}>
-                          <div style={{ width: '45%', height: '2px', backgroundColor: 'var(--accent-primary)', opacity: 0.6 }} />
-                          <div style={{ width: '35%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.4 }} />
-                        </div>
-                      </>
-                    )}
-                    {c.id === 'pro' && (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', opacity: 0.5 }}>
-                          <div style={{ width: '25%', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
-                          <div style={{ width: '6px', height: '2px', backgroundColor: 'var(--text-secondary)' }} />
-                        </div>
-                        <div style={{ width: '60%', height: '4px', backgroundColor: 'var(--text-main)', opacity: 0.8 }} />
-                        <div style={{ width: '40%', height: '2px', backgroundColor: 'var(--text-secondary)', opacity: 0.3 }} />
-                      </>
-                    )}
-                    {c.id === 'custom' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '3px', color: 'var(--accent-primary)' }}>
-                        <CloudUpload {...ICONO} />
-                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>.docx</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)' }}>
-                    {c.icon}
-                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.title}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.subtitle}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {/* El selector de archivos es de ESTE componente, no de la pista: la
+              quinta tarjeta y el chip de la tira llaman a `abrirSelector`, y sin
+              este input el "abrir" no abre nada. */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFile}
+            accept=".docx"
+            style={{ display: 'none' }}
+          />
 
           {/* Previsualizador Dinámico en Vivo */}
           <div style={{

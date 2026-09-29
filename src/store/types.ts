@@ -133,6 +133,12 @@ export interface DocState {
   setIsNIMDiagnosticsOpen: (open: boolean) => void;
 
   wizardStep: number;
+  /** De que fase se salio la ultima vez. Ver el comentario en `uiSlice.ts`. */
+  wizardStepAnterior: number;
+  /** Volver a la portada (paso 1), sea cual sea la etapa en la que se este. */
+  volverAPortada: () => void;
+  /** Lo llama el rail al entrar a una fase del editor. */
+  recordarFaseAnterior: (paso: number) => void;
   showFileMenu: boolean;
   /* El hub de Ajustes (Fase 1 del plan de las cinco pestañas). La pestaña es
      `PestanaId`, el tipo del catálogo: no se re-declara acá, o el store y la

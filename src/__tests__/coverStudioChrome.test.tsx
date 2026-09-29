@@ -87,7 +87,13 @@ let CHROME = '';
 /* Los dos bloques de antes de este commit que la guarda estricta no mira, por
    pares [inicio, fin]. Ver el comentario del `beforeAll`. */
 const CONGELADOS: [string, string][] = [
-  ['{COVER_CARDS.map((c) => {', '{/* Previsualizador'],
+  /* El primer bloque congelado era el `{COVER_CARDS.map((c) => {` ... del
+     carrusel. YA NO EXISTE: la Task 5 de la fase de portada movio las tarjetas a
+     `wizard/portada/CarruselPortada.tsx`, y ese archivo nuevo no tiene ni un
+     literal de color. Un bloque congelado que desaparece no se relaja: se
+     actualiza la lista, y el resto de la guarda sigue mirando el archivo
+     entero. Si alguien vuelve a escribir un `COVER_CARDS.map` con un color
+     suelto, el lint lo agarra igual. */
   ['{/* Previsualizador', '{/* COLUMNA DERECHA'],
 ];
 const CONGELADO: string[] = [];
@@ -120,13 +126,16 @@ beforeAll(async () => {
   expect(desde).toBeGreaterThan(-1);
   TIRA = desde > -1 ? SRC.slice(desde) : '';
 
-  /* Se CONGELAN dos bloques: el de las tarjetas del carrusel y el de los
-     envoltorios de la vista previa. Los dos son de antes de este commit -este
-     solo los reindento-, y sus literales (`rgba` de sombras y de la hoja, el
-     fallback de `--paper-white`, el `borderRadius: '4px'`) estaban en el reporte
-     de T18 para triaje. T20 los saldó, y la cuenta de abajo quedó en cero; los
-     marcadores de cada bloque se comprueban igual: sin eso, un archivo reordenado
-     dejaria la guarda sin region congelada y "pasaria" sin mirar nada. */
+  /* Se CONGELA un bloque: el de los envoltorios de la vista previa. Es de antes
+     del rediseño, y sus literales (`rgba` de sombras y de la hoja, el fallback
+     de `--paper-white`, el `borderRadius: '4px'`) estaban en el reporte de T18
+     para triaje. T20 los saldó, y la cuenta quedó en cero; los marcadores del
+     bloque se comprueban igual: sin eso, un archivo reordenado dejaria la guarda
+     sin region congelada y "pasaria" sin mirar nada.
+
+     El segundo bloque congelado (las tarjetas del carrusel) ya no esta: la fase
+     de portada movio las miniaturas a `wizard/portada/CarruselPortada.tsx`, que
+     no tiene literales. Ver la nota de `CONGELADOS`. */
   let resto = TIRA;
   for (const [ini, fin] of CONGELADOS) {
     const a = resto.indexOf(ini);
@@ -268,7 +277,12 @@ describe('T18 — tira y carrusel no cuentan historias distintas', () => {
     /* Una tarjeta por estrategia, con el rótulo que la nombra. Si la pista
        tuviera una tarjeta que la tira no lista, ese modo no se podría elegir
        desde la barra; y al revés, un chip sin tarjeta no tendría miniatura. */
-    expect(pista.querySelectorAll(':scope > div')).toHaveLength(ESTRATEGIAS.length);
+    /* `:scope > button` y no `> div`: la Task 5 de la fase de portada cambio las
+       tarjetas de `div role="button"` a `<button>` de verdad. El invariante que
+       este test protege —una tarjeta por estrategia, y las mismas cinco que la
+       tira— no cambia; lo que cambia es que ahora el control es nativo, con su
+       tabulacion y su Enter y Espacio del navegador. */
+    expect(pista.querySelectorAll(':scope > button')).toHaveLength(ESTRATEGIAS.length);
     for (const titulo of ESTRATEGIAS) {
       expect(within(pista).getByText(titulo, { selector: 'span' })).toBeTruthy();
     }
@@ -276,26 +290,36 @@ describe('T18 — tira y carrusel no cuentan historias distintas', () => {
 
   it('la tarjeta del carrusel se alcanza y se elige con el teclado', () => {
     /* Una tarjeta que solo responde al clic es un modo que no se puede elegir
-       sin ratón. El control tiene que estar en el orden de tabulación, con
-       `role="button"`, y Enter y Espacio tienen que elegir. */
+       sin ratón.
+
+       La fase de portada cambió las tarjetas de `div role="button"` con
+       `tabIndex={0}` y un manejador manual de Enter y Espacio, a `<button>` de
+       verdad. Eso NO es una relajación: un `<button>` es enfocable y responde a
+       Enter y Espacio por el navegador, en los cinco casos, y con la semántica
+       correcta para un lector de pantalla. Lo que este test sigue exigiendo es
+       lo mismo de antes: que las cinco se alcancen y que elegir una encienda su
+       chip. */
     portada();
     render(<CoverCarouselStudio />);
     const pista = screen.getByTestId('cover-model-track');
     const tarjetas = within(pista).getAllByRole('button');
     expect(tarjetas).toHaveLength(ESTRATEGIAS.length);
-    for (const t of tarjetas) expect(t.getAttribute('tabindex')).toBe('0');
+    for (const t of tarjetas) {
+      expect(t.tagName).toBe('BUTTON');
+      // Un `<button>` no lleva `tabindex`: ya está en el orden de tabulación.
+      expect(t.getAttribute('tabindex')).toBeNull();
+    }
 
     const uni = within(pista).getByRole('button', { name: /Institucional UNI/ });
     uni.focus();
     expect(document.activeElement).toBe(uni);
-    fireEvent.keyDown(uni, { key: 'Enter' });
+    fireEvent.click(uni);
     expect(chip('Institucional UNI').getAttribute('aria-pressed')).toBe('true');
     expect(estado().cover_mode).toBe('generate_uni_cover');
 
-    // Y Espacio, que además no debe dejar desplazar la página: `fireEvent`
-    // devuelve `false` cuando el evento fue cancelado.
     const pro = within(pista).getByRole('button', { name: /Profesional APA/ });
-    expect(fireEvent.keyDown(pro, { key: ' ' })).toBe(false);
+    fireEvent.click(pro);
+    expect(chip('Profesional APA').getAttribute('aria-pressed')).toBe('true');
     expect(estado().cover_mode).toBe('apa_pro');
   });
 
@@ -310,7 +334,12 @@ describe('T18 — tira y carrusel no cuentan historias distintas', () => {
       name: /Subir plantilla/,
     });
     expect(tarjeta.hasAttribute('aria-pressed')).toBe(false);
-    fireEvent.keyDown(tarjeta, { key: 'Enter' });
+    /* `fireEvent.click` y no `keyDown`: la tarjeta paso a ser un `<button>` de
+       verdad, y en un boton nativo la activacion por teclado la resuelve el
+       navegador, no un manejador `onKeyDown` que `fireEvent.keyDown` no
+       dispara. El invariante que este test protege —abrir el selector y no
+       anunciarse como interruptor— es el mismo. */
+    fireEvent.click(tarjeta);
     expect(abierto).toHaveBeenCalled();
     abierto.mockRestore();
   });

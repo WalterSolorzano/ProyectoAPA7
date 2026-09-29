@@ -79,7 +79,28 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   lastRequestId: null,
   setLastRequestId: (id) => set({ lastRequestId: id }),
   wizardStep: 1,
-  setWizardStep: (step) => set({ wizardStep: Math.min(6, Math.max(1, step)), viewMode: step === 6 ? 'export' : 'edit' }),
+  /* DE DONDE VIENES.
+     `wizardStep` no tenia memoria: al ir a la etapa 3 y volver, no se recordaba
+     que estabas en la 1, y la portada se perdia. Ese es el bug que reporto el
+     usuario, textualmente: "se va a otra etapa y no vuelve a la portada".
+
+     El rail actualiza `wizardStepAnterior` cuando entra a una fase del editor
+     (AGENTS.md: un destino del rail es una fase, asi que un clic tambien
+     vuelve a `viewMode: 'edit'`), y `setWizardStep` lo actualiza en cada salto.
+     Con eso, volver a la portada es una pregunta con respuesta. */
+  wizardStepAnterior: 1,
+  volverAPortada: () => set({ wizardStep: 1, viewMode: 'edit' }),
+  recordarFaseAnterior: (paso) => set({ wizardStepAnterior: Math.min(6, Math.max(1, paso)) }),
+  setWizardStep: (step) => set((state) => {
+    const acotado = Math.min(6, Math.max(1, step));
+    return {
+      wizardStep: acotado,
+      /* Solo se recuerda el salto de fase a fase. Al exportar (6) y volver, el
+         destino es el editor, no "la pantalla de exportacion de antes". */
+      wizardStepAnterior: acotado === 1 ? state.wizardStepAnterior : acotado,
+      viewMode: acotado === 6 ? 'export' : 'edit',
+    };
+  }),
   structureTab: 'headings',
   setStructureTab: (tab) => set({ structureTab: tab }),
   showFileMenu: false,
