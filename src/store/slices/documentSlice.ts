@@ -1187,8 +1187,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   },
   resolveGhostCitation: async (authors: string[], year: string) => {
     // NOTA: sin isLoading global — el overlay fullscreen de carga tapaba toda
-    // la UI (parecía "volver al menú de carga"). El panel ya muestra su propio
-    // spinner por ítem (ReferencesPanel.resolving).
+    // la UI (parecía "volver al menú de carga"). El paso 4 ya muestra su propio
+    // spinner por ítem.
     try {
       const result = await api.resolveGhostCitation(authors, year);
       if (result.found && result.candidates && result.candidates.length > 0) {

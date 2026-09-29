@@ -14,7 +14,6 @@ import { ElementInspector } from '../inspector/ElementInspector';
 import { ImageEditPanel } from '../inspector/ImageEditPanel';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
-import { ReferencesPanel } from '../referencias/ReferencesPanel';
 import { OutlineTree } from '../wizard/OutlineTree';
 import { Activity, X, FileText, ListChecks, BookOpen, Map, Sparkles } from 'lucide-react';
 
@@ -92,12 +91,11 @@ export const RightSidePanel: React.FC = () => {
     if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
   }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
 
-  // En paso 4 (Referencias) el panel siempre se abre al entrar, porque ahi vive
-  // el editor principal de esa seccion.
-  useEffect(() => {
-    if (!doc) return;
-    if (wizardStep === 4) setForceRightPanelOpen(true);
-  }, [wizardStep, doc, setForceRightPanelOpen]);
+  /* El efecto que abría el panel al entrar en el paso 4 SE FUE con la rama de
+     paso 4, y por el mismo motivo: `App.tsx` EXCLUYE el panel derecho del paso
+     4, así que este componente no se monta ahí y su condición nunca era cierta.
+     El paso 4 tiene su propio espacio de trabajo, y el inspector general se
+     abre —como en cualquier otra fase— al seleccionar un elemento. */
 
   // Guardar ancho en localStorage
   useEffect(() => {
@@ -289,9 +287,13 @@ export const RightSidePanel: React.FC = () => {
           <ElementInspector />
         ) : hasReference ? (
           <ReferenceForm key={selectedReferenceId} />
-        ) : wizardStep === 4 ? (
-          <ReferencesPanel />
         ) : (
+          /* `wizardStep === 4` estaba acá y era INALCANZABLE: `App.tsx` excluye
+             este panel del paso 4. No era un panel del paso: era una rama que no
+             se podía ejecutar y que mantenía vivo un componente entero de 395
+             líneas con dos archivos de prueba que nadie veía. El paso 4 no lleva
+             tercera columna a propósito: su propio taller ya son dos, y F4
+             encontró que "una columna más" es donde aparecen los bugs. */
           <DocumentPanel />
         )}
       </div>

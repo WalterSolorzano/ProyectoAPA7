@@ -10,8 +10,8 @@
  *     año `s.f.`, que es una fecha válida de APA 7 para una obra sin fecha. El
  *     spec §9 lo dice: "deja de clasificar por heurística de texto y **verifica
  *     si la referencia resuelve de verdad**". Y el repo YA tiene ese dato:
- *     `ReferenciaModel.verificada`, que pone un resolutor real y que
- *     `ReferencesPanel.tsx:58-62` ya lee y pinta como "Verificada"/"Sin verificar".
+ *     `ReferenciaModel.verificada`, que pone un resolutor real y que el paso 4
+ *     lee y pinta como "Verificada"/"Sin verificar".
  *     Ignorarlo y re-derivar desde los autores es crear una segunda verdad sobre
  *     lo mismo, que es lo que `AGENTS.md` §1 prohíbe.
  *

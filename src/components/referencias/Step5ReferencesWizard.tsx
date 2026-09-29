@@ -31,8 +31,8 @@ import { Seccion } from '../settings/tabs/word/Seccion';
  * El texto que va al documento. Sin último recurso que INVENTE: si no hay
  * `formatted_apa` ni `raw_text`, se devuelve cadena vacía y el bloque lo dice.
  * La alternativa —componer `Autor (s.f.). Título.` en el render— es la que la
- * vista previa tenía, y está conectada al mismo motivo por el que
- * `ReferencesPanel.tsx:46-55` no la tiene: la elipsis de APA de 21+ autores y el
+ * vista previa tenía, y está conectada al mismo motivo por el que este archivo
+ * no la tiene: la elipsis de APA de 21+ autores y el
  * DOI normalizado sólo los sabe armar el backend, y lo que la persona lee tiene
  * que ser lo que el documento recibe.
  */
@@ -348,7 +348,8 @@ export const Step5ReferencesWizard: React.FC = () => {
             es agregar una referencia: "Continuar a Auditoría" es navegación, y
             cuando las dos competían por el acento el botón de adelante ganaba
             porque estaba más a la derecha. `data-accion="principal"` es lo que
-            permite comprobar que hay una sola, como en `ReferencesPanel`. */}
+            permite comprobar que hay una sola, como en el modal de nueva
+            referencia, que tiene su propio bloque. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }} data-accion="principal">
           <button
             type="button"
@@ -1036,8 +1037,9 @@ const Grupo: React.FC<{
  * son de la generación anterior: no las define este archivo, no las define
  * ningún token, y funcionan por herencia de algo que nadie puede leer desde acá.
  * `principal` marca la acción de acento, y es lo que permite comprobar que hay
- * UNA sola por bloque —como ya hace `ReferencesPanel.tsx:274-281`— en vez de
- * dos botones de acento compitiendo por la atención.
+ * UNA sola por bloque —en la barra de arriba y en el modal de nueva referencia,
+ * que son los dos bloques con acciones— en vez de dos botones de acento
+ * compitiendo por la atención.
  */
 const botonInline = (principal = false, extra?: React.CSSProperties): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',

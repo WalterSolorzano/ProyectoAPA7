@@ -7,8 +7,8 @@
  *
  * 1. EL ESTADO NO SE ADIVINA, SE LEE. `ReferenciaModel.verificada` lo pone un
  *    resolutor real —un DOI contra CrossRef, o una búsqueda que devuelva la obra—
- *    y `fuente_verificacion` dice de dónde salió. `ReferencesPanel.tsx:58-62` ya
- *    lo lee y lo pinta como "Verificada"/"Sin verificar". El paso 4, en cambio,
+ *    y `fuente_verificacion` dice de dónde salió. El paso 4 lo lee y lo pinta
+ *    como "Verificada"/"Sin verificar". Antes, en cambio,
  *    miraba que la referencia tuviera autor y un título de más de cinco
  *    caracteres. Con esos dos criterios:
  *
