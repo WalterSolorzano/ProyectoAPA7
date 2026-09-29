@@ -14,6 +14,59 @@ import {
   ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
+import {
+  ROTULO_DE_ESTADO,
+  TONO_DE_ESTADO,
+  diagnosticoDeReferencia,
+  parrafosQueCitan,
+  particionarReferencias,
+  type DiagnosticoReferencia,
+} from '../../lib/referencias';
+
+/**
+ * El texto que va al documento. Sin último recurso que INVENTE: si no hay
+ * `formatted_apa` ni `raw_text`, se devuelve cadena vacía y el bloque lo dice.
+ * La alternativa —componer `Autor (s.f.). Título.` en el render— es la que la
+ * vista previa tenía, y está conectada al mismo motivo por el que
+ * `ReferencesPanel.tsx:46-55` no la tiene: la elipsis de APA de 21+ autores y el
+ * DOI normalizado sólo los sabe armar el backend, y lo que la persona lee tiene
+ * que ser lo que el documento recibe.
+ */
+function textoDeLaReferencia(ref: ReferenciaModel | null): string {
+  return (ref?.formatted_apa || '').trim() || (ref?.raw_text || '').trim();
+}
+
+/**
+ * POR QUÉ esta referencia está en el estado en que está.
+ *
+ * Tres ramas, y son tres hechos distintos:
+ *
+ *  - Le falta un campo: se nombran los campos. Sin autores o sin título no hay
+ *    nada que escribir en el documento, y eso es un problema de captura.
+ *  - Tiene todo y no está verificada: el motivo NO es un campo que falta, es
+ *    que nadie la contrastó contra una fuente. Agregarla a mano no la verifica,
+ *    y por eso el texto nombra `fuente_verificacion` cuando existe: "contrastada
+ *    contra el DOI" y "nadie la contrastó" son afirmaciones distintas.
+ *  - Está verificada: no hay nada que reportar. Se nombra la fuente contra la
+ *    que se contrastó y se dice, porque una ficha sin explanation no se puede
+ *    auditar después.
+ */
+function porQueDeLaReferencia(
+  diagnostico: DiagnosticoReferencia,
+  ref: ReferenciaModel | null,
+): string {
+  if (diagnostico.faltantes.length > 0) {
+    const campos = diagnostico.faltantes.join(' y ');
+    return `Faltan ${campos}: sin ${campos} no hay nada que escribir en el documento.`;
+  }
+  if (diagnostico.estado === 'verificada') {
+    const fuente = ref?.fuente_verificacion?.trim();
+    return fuente
+      ? `Contrastada contra ${fuente}.`
+      : 'Contrastada contra una fuente externa.';
+  }
+  return 'Nadie la contrastó contra una fuente: tiene los datos, pero su exactitud está sin comprobar.';
+}
 
 export const Step5ReferencesWizard: React.FC = () => {
   const {
@@ -73,37 +126,48 @@ export const Step5ReferencesWizard: React.FC = () => {
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
 
-  // Clasificación de referencias en Válidas vs Sin Verificar (Zombie Data)
-  const { validReferences, unverifiedReferences } = useMemo(() => {
-    const valid: ReferenciaModel[] = [];
-    const unverified: ReferenciaModel[] = [];
+  /* El conjunto de HUÉRFANAS sale del backend y de nada más.
+   *
+   * `citation_matcher.py:162` calcula `never_cited` y devuelve el modelo
+   * completo de cada referencia en `orphan_references`. La versión vieja de esta
+   * pantalla re-derivaba lo mismo en el cliente con
+   * `s.includes(refItem.authors?.[0] || '---')`, y eso tenía dos fallos: con
+   * autores vacíos comparaba contra la cadena `'---'`, y con autores presentes
+   * comparaba el NOMBRE COMPLETO contra un texto donde lo que está es el
+   * apellido. Re-derivarlo acá además de ser otra verdad, sería una sin la
+   * normalización sin tildes y sin el emparejamiento tolerante del backend. */
+  /* `undefined` —no un conjunto vacío— cuando la auditoría NO corrió. Es la
+   * diferencia entre "miré y no encontré" y "nadie miró", y un conjunto vacío
+   * no la expresa: `diagnosticoDeReferencia` con un `Set` devuelve siempre un
+   * booleano, y entonces la pantalla afirma que la referencia está citada cuando
+   * lo único que hay es que nadie buscó. */
+  const huerfanas = useMemo(() => {
+    if (!citationAuditResult) return undefined;
+    const ids = new Set<string>();
+    for (const o of orphans) {
+      /* El backend manda el modelo entero, así que el `id` está. La defensiva
+         con la cadena es porque `ghostText` ya la tenía y una respuesta vieja
+         puede venir como texto: sin `id` no hay dato, y una referencia sin dato
+         no se marca. */
+      const id = typeof o === 'string' ? '' : (o?.id ?? '');
+      if (id) ids.add(String(id));
+    }
+    return ids;
+  }, [orphans, citationAuditResult]);
 
-    references.forEach((r) => {
-      const authorText = (r.authors?.[0] || '').toLowerCase();
-      const titleText = (r.title || r.raw_text || '').toLowerCase();
-      const isZombie =
-        !r.authors?.length ||
-        authorText.includes('autor (s.f.)') ||
-        authorText.includes('s.f.') ||
-        titleText.includes('sin título') ||
-        titleText.length < 5;
+  /* Las dos listas salen de `src/lib/referencias.ts`, no de un `useMemo` con
+     heurísticas. La razón es la misma que movió los contextos de figura a
+     `lib/figuras.ts` en F4: una verdad que vive dentro de un `useMemo` no se
+     puede probar, y la segunda copia diverge el primer día que cambia. */
+  const { verificadas: validReferences, pendientes: unverifiedReferences } = useMemo(
+    () => particionarReferencias(references),
+    [references],
+  );
 
-      if (isZombie) {
-        unverified.push(r);
-      } else {
-        valid.push(r);
-      }
-    });
-
-    // Ordenar alfabéticamente
-    const sortFn = (a: ReferenciaModel, b: ReferenciaModel) =>
-      (a.authors?.[0] || a.title || '').localeCompare(b.authors?.[0] || b.title || '', 'es', { sensitivity: 'base' });
-
-    valid.sort(sortFn);
-    unverified.sort(sortFn);
-
-    return { validReferences: valid, unverifiedReferences: unverified };
-  }, [references]);
+  const diagnostico = useMemo(
+    () => (selectedRef ? diagnosticoDeReferencia(selectedRef, { huerfanas }) : null),
+    [selectedRef, huerfanas],
+  );
 
   const handleResolveDoi = async () => {
     if (!doiQuery.trim()) return;
@@ -188,19 +252,16 @@ export const Step5ReferencesWizard: React.FC = () => {
     }
   };
 
-  // Buscar menciones en el texto para la referencia activa
-  const linkedParagraphs = useMemo(() => {
-    if (!doc || !selectedRef) return [];
-    const mainAuthor = (selectedRef.authors?.[0] || selectedRef.title || '').split(',')[0].trim().toLowerCase();
-    const yr = (selectedRef.year || '').trim();
-    if (!mainAuthor || mainAuthor.length < 3) return [];
-
-    return doc.elements.filter((e) => {
-      if (e.type === 'heading' || e.is_cover_section) return false;
-      const text = (e.text || '').toLowerCase();
-      return text.includes(mainAuthor) && (!yr || text.includes(yr));
-    });
-  }, [doc, selectedRef]);
+  /* Los párrafos que citan esta referencia. El criterio —primer apellido y año,
+     sin encabezados y sin la portada— es el del backend, y por eso la función
+     es la misma que usa la auditoría: `toKey` quita tildes y `firstSurname`
+     saca el apellido, y los dos ya vivían en `lib/citationMatcher.ts`.
+     La versión vieja comparaba el nombre completo del autor contra el texto en
+     minúsculas, sin normalizar: una referencia citada salía sin menciones. */
+  const linkedParagraphs = useMemo(
+    () => (selectedRef ? parrafosQueCitan(selectedRef, doc?.elements) : []),
+    [doc, selectedRef],
+  );
 
   const copyInTextCitation = (refItem: ReferenciaModel) => {
     const main = (refItem.authors?.[0] || 'Autor').split(',')[0].trim();
@@ -533,42 +594,102 @@ export const Step5ReferencesWizard: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* Vista Previa Tipográfica APA 7 (Wrapping Completo sin truncamiento) */}
+              {/* EL ESTADO, Y POR QUÉ. Arriba del detalle, antes del formulario.
+                  El chip sale de `diagnosticoDeReferencia` —del `verificada` que
+                  pone un resolutor real— y la línea de debajo dice la razón. Un
+                  chip sin razón obliga a la persona a adivinar, y adivinar el
+                  estado de una referencia es exactamente el trabajo que esta
+                  pantalla existe para ahorrar. */}
+              <div
+                data-testid="estado-referencia"
+                style={{
+                  display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+                  padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--color-border-subtle)',
+                  background: 'var(--color-bg-surface)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span
+                    data-testid="chip-estado"
+                    style={{
+                      fontSize: 'var(--text-sm)', fontWeight: 700,
+                      padding: '2px 10px', borderRadius: 'var(--radius-full)',
+                      color: diagnostico ? TONO_DE_ESTADO[diagnostico.estado] : 'var(--color-text-tertiary)',
+                      background: 'var(--color-bg-surface-hover)',
+                    }}
+                  >
+                    {diagnostico ? ROTULO_DE_ESTADO[diagnostico.estado] : ''}
+                  </span>
+                  {diagnostico?.huerfana === true && (
+                    /* Sólo cuando la auditoría CORRIÓ. `huerfana` es `null`
+                       mientras nadie miró, y `null` no es `false`: decir "sin
+                       citar" sobre una búsqueda que no se hizo es afirmar sin
+                       dato. */
+                    <span
+                      data-testid="marca-sin-citar"
+                      style={{
+                        fontSize: 'var(--text-xs)', fontWeight: 700,
+                        padding: '2px 8px', borderRadius: 'var(--radius-xs)',
+                        color: 'var(--color-warning)', background: 'var(--color-bg-surface-hover)',
+                      }}
+                    >
+                      Sin citar en el texto
+                    </span>
+                  )}
+                </div>
+
+                <p style={{ margin: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
+                  {diagnostico ? porQueDeLaReferencia(diagnostico, selectedRef) : ''}
+                </p>
+              </div>
+
+              {/* Vista previa: lo que va al documento, no un texto compuesto acá. */}
               <div style={{
                 backgroundColor: 'var(--paper-white)', borderRadius: 'var(--radius-lg)',
-                padding: '20px 24px', border: '1px solid var(--border-subtle)',
+                padding: 'var(--space-5) var(--space-6)', border: '1px solid var(--border-subtle)',
                 boxShadow: 'var(--shadow-md)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={14} color="var(--accent-primary)" />
-                    <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-                      Vista Previa APA 7ma Edición (Sangría Francesa)
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <Sparkles size={14} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" />
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
+                      Vista previa APA 7 (Sangría francesa)
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => copyInTextCitation(selectedRef)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', gap: '4px' }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)',
+                      fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)',
+                      background: 'transparent', border: '1px solid var(--color-border-subtle)',
+                      color: 'var(--color-text-secondary)',
+                    }}
                   >
-                    <Copy size={12} />
-                    <span>Copiar Cita en Texto</span>
+                    <Copy size={12} strokeWidth="var(--icon-stroke)" />
+                    <span>Copiar cita en texto</span>
                   </button>
                 </div>
 
-                <div style={{
-                  fontFamily: "'Times New Roman', serif", fontSize: '13pt', lineHeight: 2.0,
-                  color: 'var(--paper-ink)', paddingLeft: '36px', textIndent: '-36px',
-                  backgroundColor: 'var(--surface-subtle)', padding: '16px 20px 16px 48px',
-                  borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)',
-                  wordBreak: 'break-word', whiteSpace: 'normal',
-                }}>
-                  {editAuthors || 'Autor, A.'} ({editYear || 's.f.'}). <em>{editTitle || 'Título del trabajo'}</em>. {editSource || 'Fuente'}.{' '}
-                  {editDoi && (
-                    <a href={editDoi} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>
-                      {editDoi}
-                    </a>
+                <div
+                  data-testid="vista-previa-apa"
+                  style={{
+                    fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
+                    color: 'var(--paper-ink)', paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
+                    backgroundColor: 'var(--color-bg-surface)', padding: 'var(--space-4) var(--space-5) var(--space-4) var(--space-12)',
+                    borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)',
+                    wordBreak: 'break-word', whiteSpace: 'normal',
+                  }}
+                >
+                  {textoDeLaReferencia(selectedRef) || (
+                    /* Sin `formatted_apa` ni `raw_text` no hay nada que escribir.
+                       Componer `Autor (s.f.). Título.` acá sería pintar una
+                       referencia que el backend nunca produjo. */
+                    <em style={{ color: 'var(--color-text-tertiary)' }}>
+                      Esta referencia no tiene texto para escribir en el documento.
+                    </em>
                   )}
                 </div>
               </div>
