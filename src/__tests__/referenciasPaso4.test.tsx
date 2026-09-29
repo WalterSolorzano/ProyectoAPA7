@@ -32,7 +32,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import { Step5ReferencesWizard } from '../components/referencias/Step5ReferencesWizard';
 import { useDocStore } from '../store/useDocStore';
 
@@ -41,6 +41,7 @@ const addReference = vi.fn();
 const removeReference = vi.fn();
 const updateReferences = vi.fn();
 const resolveDoiReference = vi.fn().mockResolvedValue(undefined);
+const resolveDoisBlock = vi.fn().mockResolvedValue(undefined);
 const resolveGhostCitation = vi.fn().mockResolvedValue(undefined);
 const showToast = vi.fn();
 
@@ -81,6 +82,7 @@ function montar(
     removeReference,
     updateReferences,
     resolveDoiReference,
+    resolveDoisBlock,
     runCitationAudit,
     resolveGhostCitation,
     showToast,
@@ -318,5 +320,81 @@ describe('la jerarquía de acciones', () => {
     fireEvent.click(screen.getByRole('button', { name: /nueva referencia/i }));
     expect(screen.getByRole('button', { name: /doi|crossref/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /entrada manual/i })).toBeTruthy();
+  });
+});
+
+/* ── El campo de DOI acepta un BLOQUE ──────────────────────────────────────── */
+
+/**
+ * El pegado masivo. El caso real es la literatura completa: se seleccionan veinte
+ * papers en el navegador, se copian, se pega. Con un `input` de una línea no hay
+ * forma de pegar más de uno, y con veinte clicks la bibliografía no se arma nunca.
+ *
+ * Estas pruebas vivían en `referencesPanelBlock.test.tsx`, que probaba un panel
+ * que la aplicación no le mostraba a nadie. El comportamiento —el que vale— se
+ * fija acá, en la pantalla que sí está montada (`App.tsx:688` y `:707`).
+ */
+describe('el campo de DOI acepta un bloque', () => {
+  const campoDOI = () => screen.getByRole('textbox', { name: /doi o título/i });
+
+  const abrirModoDoi = () => {
+    montar([REF]);
+    fireEvent.click(screen.getByRole('button', { name: /nueva referencia/i }));
+  };
+
+  it('el campo es un área de texto, no una línea', () => {
+    /* El primer defecto de un `input type="text"` con pegado masivo: la segunda
+       línea no existe, y lo que se pega es media bibliografía. */
+    abrirModoDoi();
+    expect(campoDOI().tagName).toBe('TEXTAREA');
+  });
+
+  it('el rótulo dice que se pueden pegar varios, porque la capacidad existe', () => {
+    abrirModoDoi();
+    expect(document.body.textContent || '').toMatch(/uno por línea|uno por linea/i);
+  });
+
+  it('varias líneas van al endpoint de LOTE, no al de uno', async () => {
+    /* El lote es lo que deduplica por DOI normalizado y reporta lo que falló uno
+       por uno (`python/routers/references.py:42-51`): un DOI malo no puede tirar
+       abajo los otros diecinueve. Mandar el bloque al endpoint de uno perdería
+       justo eso. */
+    abrirModoDoi();
+    fireEvent.change(campoDOI(), { target: { value: '10.1000/a\n10.1000/b\n10.1000/c' } });
+    /* `act` y no `fireEvent` suelto: el handler es `await` y el `setShowAddModal`
+       de después llega en un microtask, fuera del `act` de `fireEvent`. */
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /buscar y extraer metadatos/i }));
+    });
+    expect(resolveDoisBlock).toHaveBeenCalledWith('10.1000/a\n10.1000/b\n10.1000/c');
+    expect(resolveDoiReference).not.toHaveBeenCalled();
+  });
+
+  it('una sola línea sigue yendo al endpoint de uno', async () => {
+    /* El caso de siempre no se rompe: una línea con el mensaje del servidor
+       ("eso no parece un DOI", `references.py:102-106`) es más útil que un
+       contador de lote para un campo mal pegado. */
+    abrirModoDoi();
+    fireEvent.change(campoDOI(), { target: { value: '10.1000/solo' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /buscar y extraer metadatos/i }));
+    });
+    expect(resolveDoiReference).toHaveBeenCalledWith('10.1000/solo');
+    expect(resolveDoisBlock).not.toHaveBeenCalled();
+  });
+
+  it('Enter resuelve y Shift+Enter parte línea', async () => {
+    /* Sin esto no hay bloque: en un `input` Enter manda la acción y no hay
+       forma de escribir la segunda línea. */
+    abrirModoDoi();
+    fireEvent.change(campoDOI(), { target: { value: '10.1000/a' } });
+    fireEvent.keyDown(campoDOI(), { key: 'Enter', shiftKey: true });
+    expect(resolveDoisBlock).not.toHaveBeenCalled();
+    expect(resolveDoiReference).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.keyDown(campoDOI(), { key: 'Enter' });
+    });
+    expect(resolveDoiReference).toHaveBeenCalledWith('10.1000/a');
   });
 });

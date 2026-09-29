@@ -75,7 +75,7 @@ function porQueDeLaReferencia(
 export const Step5ReferencesWizard: React.FC = () => {
   const {
     doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
-    addReference, removeReference, updateReferences, resolveDoiReference, isLoading,
+    addReference, removeReference, updateReferences, resolveDoiReference, resolveDoisBlock, isLoading,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
     setScrollTargetId, setWizardStep,
   } = useDocStore();
@@ -177,8 +177,27 @@ export const Step5ReferencesWizard: React.FC = () => {
     if (!doiQuery.trim()) return;
     const query = doiQuery.trim();
     setDoiQuery('');
-    showToast('Consultando metadatos DOI…', 'info');
-    await resolveDoiReference(query);
+    /* UN campo, DOS informes. Lo que decide la rama no es el tamaño del código
+     * que se ejecuta sino qué le llega a la persona.
+     *
+     *  - Una sola línea es el caso de siempre, y conserva el mensaje del
+     *    servidor: "eso no parece un DOI" con la forma que acepta
+     *    (`python/routers/references.py:102-106`). Por un campo mal pegado, un
+     *    contador no dice nada.
+     *  - Varias líneas van al endpoint de LOTE, que deduplica por DOI
+     *    normalizado y reporta lo que falló UNO POR UNO (`references.py:42-51`).
+     *    Un DOI malo no puede tirar abajo los otros diecinueve: perder veinte
+     *    referencias por un typo es la peor falla posible de un pegado masivo.
+     *
+     * Dos endpoints, un solo camino: el lote llama al mismo `resolve_doi` de a
+     * uno (`references.py:75-76`), así que no hay dos caminos que diverjan. */
+    const esBloque = query.split('\n').filter((l) => l.trim()).length > 1;
+    showToast(esBloque ? 'Consultando metadatos de tus DOI…' : 'Consultando metadatos DOI…', 'info');
+    if (esBloque) {
+      await resolveDoisBlock(query);
+    } else {
+      await resolveDoiReference(query);
+    }
     setShowAddModal(false);
   };
 
@@ -873,13 +892,21 @@ export const Step5ReferencesWizard: React.FC = () => {
 
               {addMode === 'doi' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <label style={labelFullStyle}>Ingrese DOI o Título de la publicación</label>
-                  <input
-                    type="text"
+                  <label style={labelFullStyle}>Ingrese un DOI, o varios, uno por línea</label>
+                  {/* Un `textarea` y no un `input`: pegar veinte DOI del navegador
+                      es el caso de la literatura completa, y con un input de una
+                      línea no hay forma de pegar más de uno. Enter resuelve y
+                      Shift+Enter parte línea; al revés no habría bloque. */}
+                  <textarea
+                    aria-label="DOI o título de la publicación"
                     value={doiQuery}
                     onChange={(e) => setDoiQuery(e.target.value)}
-                    placeholder="10.1037/arc0000014..."
-                    style={inputFullStyle}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResolveDoi(); }
+                    }}
+                    rows={3}
+                    placeholder={'10.1037/arc0000014...\n10.1037/arc0000015...'}
+                    style={{ ...inputFullStyle, resize: 'vertical', lineHeight: 1.5 }}
                   />
                   <button
                     type="button"
