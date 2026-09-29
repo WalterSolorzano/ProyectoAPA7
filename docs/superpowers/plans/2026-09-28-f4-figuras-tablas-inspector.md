@@ -198,9 +198,73 @@ leyenda trae `sinTexto: { clase: 'figura' }` y `element_id` (`src/lib/auditItems
 
 ---
 
-## Checklist de §8 contra este plan
+## Checklist de §8 contra este plan — ESTADO AL 2026-09-28
 
-Lo que §8 pide, y dónde está. Si algo de esta tabla no está, la fase está incompleta.
+> **ESTA TABLA ESTÁ EJECUTADA.** Las cinco tasks están hechas y commiteadas. La
+> columna de estado es el resultado medido, no una promesa. Donde la ejecución se
+> desvió del plan, dice por qué: esas tres filas son las que valen leer.
+
+| §8 | Exigencia | Dónde | Estado |
+|---|---|---|---|
+| 8.1 | La figura es el eje, el documento es la referencia | Toggle "Ver el documento" apagado por omisión | **Hecho.** `EscenarioFigura.tsx:92-97` (`VISTA_POR_DEFECTO`), y el guardián afirma que `PaperCanvas` NO está montado |
+| 8.1 | Miniatura con el tamaño real | `medidaDeFigura` + `ListaContextual` + `EscenarioFigura` | **Hecho.** Cero inventados: el `grep` de `\|\| 12` / `\|\| 8` da **cero** en los dos archivos |
+| 8.1 | Leyenda actual **o la ausencia de leyenda dicha** | `ContextoFigura.tieneLeyenda` | **Hecho**, y en tres superficies: lista, escenario e inspector |
+| 8.1 | El párrafo anterior | `parrafoAnterior` | **Hecho**, y `null` se dice en palabras en los tres lugares |
+| 8.1 | El H1/H2 al que pertenece | `seccionesDeElementos` | **Hecho.** Vive en `jerarquia.ts`, no en `figuras.ts` |
+| 8.1 | El buscador busca **también por sección** | `buscarFiguras` | **Hecho**, y también por el H1 completo (ver nota 1) |
+| 8.1 | `sectionMap` indexado por **posición** | `ContextoFigura.indice` | **Hecho.** El `Map` por `element_id` no existe |
+| 8.1 | La miniatura cae a **placeholder** en `onError` | `MiniaturaFigura` | **Hecho** |
+| 8.1 | Las tablas **muestran sus datos** | `DatosDeTabla` + `TablaDelEscenario` | **Hecho** |
+| 8.2 | Inspector: tamaño real en cm, alineación, posición | `ImageEditPanel` reescrito | **Hecho** |
+| 8.2 | **Aplicar a todas / aplicar a esta** | `aplicarImagenAMuchas` | **Hecho.** No existía de ninguna manera |
+| 8.2 | La previsualización usa la geometría de F2 | `mmAPx` + `anchoUtilMm` | **Hecho** |
+| 8.2 | Aguanta 20 figuras de golpe | scroller único con `minHeight: 0` | **Hecho para el layout.** El volumen real lo prueba la F7 |
+| 8.3 | Se elige la opción **(a)**: reescribir | `ImageEditPanel` | **Hecho.** Los cinco presets, subfiguras, reemplazo de archivo y "Sugerir con IA" siguen |
+| 8.3 | `Abrir panel de edición` **navega** y hay un **"volver al inspector"** | `ElementInspector` + `RightSidePanel` | **Hecho.** La fila de la lista y el clic del lienzo ya no abren el panel de imagen |
+| 8.3 | Se borra el código muerto | `ElementInspector` | **Hecho**: `APARuleSet`, `portada`/`setPortada`, `TabId` |
+| 8.3 | Se deja de escribir en el store en cada tecla | Task 4 Step 2 | **Hecho**: nueve campos, en los dos paneles |
+| 8.3 | Se decide si el Inspector aparece en Revisión | Decisión de arquitectura | **Decidido: no en esta fase**, con motivo |
+| 8.4 | Scroller con `minHeight: 0` y `minWidth: 0`; ningún header `flexShrink: 0` sin `maxHeight` | `listaContextualLayout.test.ts` | **Hecho** (ver nota 2) |
+| 8.4 | Test de caja | `listaContextualLayout.test.ts` | **Hecho como test de código**, no de DOM (ver nota 2) |
+| 3.2 | Ningún estado vacío mudo | `EstadoVacio` de F1 | **Hecho**, con el filtro nombrado |
+| 3.4 | Ningún identificador interno visible | `data-testid`, nunca el texto | **Hecho**, y hay una prueba que lo afirma |
+| 14 | No se reintroduce `ReviewMinimap` | No se importa | **Hecho**, afirmado en dos suites |
+
+### Tres notas de la ejecución, que corrigen al plan
+
+1. **El buscador busca por la miga COMPLETA, no solo por `seccion`.** `seccion` es
+   el H2 cuando hay H2, así que una figura de "2.1 Instrumentos" no tiene
+   "Metodología" en su `seccion`, y quien escribe "metodología" en el buscador
+   quiere las figuras **del capítulo**. Por eso `buscarFiguras` mira `rotulo`,
+   `leyenda`, `seccion`, `h1` y `h2`.
+
+2. **La guarda de layout dejó de ser una ventana de caracteres.** La versión del
+   plan (`match(/data-testid="..."[\s\S]{0,400}/)`) leía `minWidth: 0` de un `<div>`
+   cuatro líneas más abajo y daba **verde con el scroller sin él**. Ahora extrae el
+   bloque `style={{...}}` que le sigue al `data-testid` (`estiloDe`), y la regla del
+   header se posa sobre **bloques de estilo**, no sobre cualquier `flexShrink: 0`:
+   un chip de 56 px con `flexShrink: 0` no se come nada, y una regla que salta con
+   los iconos se desactiva sola.
+
+3. **`ANCHO_DE_LA_HOJA_PX` NO se declara dos veces.** El plan pedía `720` en
+   `figuras.ts`; `portada/geometria.ts` ya lo declara en `680` con el mismo
+   significado. `figuras.ts` lo **reexporta**. Dos constantes con el mismo nombre y
+   valores distintos es la forma más común de que dos pantallas digan cosas
+   diferentes sobre la misma hoja.
+
+### Lo que la fase NO resolvió, y queda declarado
+
+- El **endpoint en lote** de §8.2: "aplicar a todas" son N llamadas al endpoint que
+  ya existe, y el motivo está escrito en el código.
+- El **Inspector en Revisión** (§8.3): decidido que no, con motivo.
+- El `onError` que dice "No se pudo cargar" cuando la causa real puede ser que el
+  backend todavía no escribió el archivo. Esa distinción se decide mirando un caso
+  real.
+- El **ancho de 280 px** del rail: con bloques de cinco líneas, 320 px sería más
+  cómodo, pero cambiar el ancho de una columna que el usuario ya conoce sin verla
+  es una decisión de producto, no de plan.
+
+---
 
 | §8 | Exigencia | Dónde |
 |---|---|---|
@@ -440,7 +504,7 @@ corta a `MAX_CARACTERES_PARRAFO_ANTERIOR`. Si no hay ninguno, `null` — que es 
 > logotipos de la portada no aparecen en esta fase). Lo que queda antes del primer H1
 > sigue siendo un contexto real y se nombra "Portada", no "Sin sección".
 
-- [ ] **Step 1: El test que falla primero**
+- [x] **Step 1: El test que falla primero**
 
 `src/__tests__/figuras.test.ts`:
 
@@ -611,7 +675,7 @@ describe('navegar y elegir', () => {
 });
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 `seccionesDeElementos` al final de `src/lib/jerarquia.ts` (el archivo tiene 504 líneas y
 termina en `preambuloDe`). `src/lib/figuras.ts` nuevo, con el bloque de interfaces y
@@ -622,7 +686,7 @@ ya construido, agrupando por la clave `h1 + '\u0000' + h2`. **La clave de agrupa
 incluye el H1**, porque dos "2.1 Instrumentos" de capítulos distintos son dos secciones
 distintas, y agruparlas por el H2 solo junta dos capítulos en un bloque.
 
-- [ ] **Step 3: Verificar que las pruebas MUERDEN**
+- [x] **Step 3: Verificar que las pruebas MUERDEN**
 
 ```bash
 npx vitest run src/__tests__/figuras.test.ts src/__tests__/jerarquia.test.ts
@@ -637,7 +701,7 @@ npx tsc --noEmit
 Select-String -Path 'src/lib/figuras.ts','src/lib/jerarquia.ts' -Pattern '[\u4e00-\u9fff\uac00-\ud7af\ufffd]'
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/lib/jerarquia.ts src/lib/figuras.ts src/__tests__/figuras.test.ts src/__tests__/jerarquia.test.ts
@@ -760,7 +824,7 @@ las dos que le faltan:
 **El colapsado.** `:159-173` (el rail de 40 px con un botón) y el `listCollapsed` de `:45`
 se conservan. El `PanelRight` de `:214-222` también.
 
-- [ ] **Step 1: El test que falla primero**
+- [x] **Step 1: El test que falla primero**
 
 `src/__tests__/listaContextual.test.tsx`:
 
@@ -954,7 +1018,7 @@ describe('§8.4: nada se tapa y ninguna lista queda en 0 px', () => {
 > `estructuraEstaMontada.test.tsx:48-52`. Dos helpers para leer el disco es la segunda
 > copia.
 
-- [ ] **Step 2: Implementar `ListaContextual.tsx`**
+- [x] **Step 2: Implementar `ListaContextual.tsx`**
 
 ```ts
 export interface ListaContextualProps {
@@ -992,7 +1056,7 @@ Cada fila es un `<button>` con `data-testid={'contexto-' + c.id}` (el id va en e
 `data-testid` y **no** en el texto: §3.4, ningún identificador interno visible), y su
 contenido es el bloque de cinco puntos de más arriba.
 
-- [ ] **Step 3: Reensamblar el rail de `Step3FiguresTablesWizard.tsx`**
+- [x] **Step 3: Reensamblar el rail de `Step3FiguresTablesWizard.tsx`**
 
 Sustituir `:159-439` por el `<ListaContextual>`. **Lo que se borra y lo que se queda,
 punto por punto** (esta tabla es la que evita el `git checkout` a mitad de camino):
@@ -1031,7 +1095,7 @@ siguiente: mientras sigan ahí, hacer clic en una figura te saca del inspector, 
 defecto de §8.3. El `RightSidePanel.tsx:84` sigue abriendo el panel ante una selección, y
 eso se decide en la Task 4.
 
-- [ ] **Step 4: Verificar**
+- [x] **Step 4: Verificar**
 
 ```bash
 npx vitest run src/__tests__/listaContextual.test.tsx src/__tests__/listaContextualLayout.test.ts src/__tests__/noHardcodedColors.test.ts
@@ -1041,7 +1105,7 @@ npx tsc --noEmit
 **Y mutar las dos guardas de layout**: sacale el `minHeight: 0` al scroller y corré
 `listaContextualLayout.test.ts`. Si sigue verde, no está vigilando.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/figures/ListaContextual.tsx \
@@ -1144,7 +1208,7 @@ figura que no es la que está en el lienzo, y un borrado con alcance ambiguo es 
 clase de defecto que las "acciones con alcance" de F3. La alineación y el reset **también**
 están en el inspector (Task 4), que sí es el lugar de la figura activa.
 
-- [ ] **Step 1: El test que falla primero**
+- [x] **Step 1: El test que falla primero**
 
 ```tsx
 // src/__tests__/escenarioFigura.test.tsx
@@ -1268,7 +1332,7 @@ describe('el documento es un toggle, y por omision apagado', () => {
 });
 ```
 
-- [ ] **Step 2: Implementar `EscenarioFigura.tsx`**
+- [x] **Step 2: Implementar `EscenarioFigura.tsx`**
 
 ```ts
 export interface EscenarioFiguraProps {
@@ -1293,7 +1357,7 @@ figura. No es `EstadoVacio` de pantalla completa, porque la lista y el inspector
 vivos; es el bloque central. El texto nombra la acción real: *"Elegí una figura en la lista
 para verla aquí con su contexto"*.
 
-- [ ] **Step 3: Reensamblar `:445-476`**
+- [x] **Step 3: Reensamblar `:445-476`**
 
 ```tsx
 <EscenarioFigura
@@ -1319,7 +1383,7 @@ const persistirLeyenda = useCallback((c: ContextoFigura, texto: string) => {
 }, [updateElementImage, updateElementTable]);
 ```
 
-- [ ] **Step 4: Verificar**
+- [x] **Step 4: Verificar**
 
 ```bash
 npx vitest run src/__tests__/escenarioFigura.test.tsx
@@ -1327,7 +1391,7 @@ npx tsc --noEmit
 Select-String -Path 'src/components/figures/EscenarioFigura.tsx' -Pattern '[\u4e00-\u9fff\uac00-\ud7af\ufffd]'
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/figures/EscenarioFigura.tsx \
@@ -1437,7 +1501,7 @@ aplicarImagenAMuchas: async (
 },
 ```
 
-- [ ] **Step 2 — `ImageEditPanel.tsx`: los `<textarea>` dejan de escribir por tecla**
+- [x] **Step 2 — `ImageEditPanel.tsx`: los `<textarea>` dejan de escribir por tecla**
 
 `setProp` (`:143`) es `updateElementImage(elem.id, { [p]: v })`, y eso se llama en el
 `onChange` de **cinco** campos: la leyenda (`:460`), la nota (`:483`), el texto alternativo
@@ -1480,7 +1544,7 @@ Cada `<textarea>` lleva `onChange={(e) => setBorrador(e.target.value)}`,
 inputs de la tabla (`:317-322` número, `:332-337` título, `:346-351` nota) llaman
 `updateElementTable` en cada tecla. Los cuatro pasan al mismo patrón.
 
-- [ ] **Step 3 — los nueve `|| 12` / `|| 8`**
+- [x] **Step 3 — los nueve `|| 12` / `|| 8`**
 
 `ImageEditPanel.tsx:137,138,243,346,348,357,359,369,376`. Todos salen y se sustituyen por
 una función de Task 1 y una respuesta honesta:
@@ -1505,7 +1569,7 @@ las dos constantes**, sin tocar el resto del lienzo: ahí el default es la últi
 para que la figura no mida 0, y la caja del lienzo es un papel, no un inspector. Se
 reemplaza por un valor derivado del ancho útil de `geometria.ts`.
 
-- [ ] **Step 4 — "aplicar a esta / aplicar a todas"**
+- [x] **Step 4 — "aplicar a esta / aplicar a todas"**
 
 Se **restauran los controles de diseño** que `d2f7c37` borró de esta pantalla, y se
 restauran **bien**: con alcance.
@@ -1542,7 +1606,7 @@ restauran **bien**: con alcance.
 - El alcance por defecto es `"esta"`. Aplicar a 20 figuras es una acción de tres
   segundos de deliberación; que sea un clic por defecto es un accidente esperando.
 
-- [ ] **Step 5 — `Abrir panel de edición` navega, y hay un "volver al inspector"**
+- [x] **Step 5 — `Abrir panel de edición` navega, y hay un "volver al inspector"**
 
 `ElementInspector.tsx:286-298` (`onClick={() => setImagePanelOpen(true)}`, `:288`) queda
 igual **en lo que hace**, y cambia en lo que dice y en lo que lo dispara:
@@ -1564,7 +1628,7 @@ igual **en lo que hace**, y cambia en lo que dice y en lo que lo dispara:
   no se dispara solo. Se **documenta la decisión** con un comentario al lado, porque la
   próxima persona va a querer "optimizar" ese efecto.
 
-- [ ] **Step 6 — el código muerto, y por qué sigue ahí**
+- [x] **Step 6 — el código muerto, y por qué sigue ahí**
 
 ```ts
 // ElementInspector.tsx
@@ -1591,7 +1655,7 @@ tablas. **Ningún componente de esta fase vuelve a poner un texto de reserva** d
 hay: una figura sin leyenda se dice con el rótulo de §8.1, que es un dato del elemento, y
 no con un `[Figura sin rotular]` que es un placeholder de la generación anterior.
 
-- [ ] **Step 7: El test que falla primero**
+- [x] **Step 7: El test que falla primero**
 
 `src/__tests__/aplicarImagenAMuchas.test.ts`:
 
@@ -1674,7 +1738,7 @@ prueba y afirma las seis cosas:
 6. `RightSidePanel` con `imagePanelOpen` muestra un botón cuyo nombre accesible es
    **"Volver al inspector"**.
 
-- [ ] **Step 8: Verificar**
+- [x] **Step 8: Verificar**
 
 ```bash
 npx vitest run src/__tests__/aplicarImagenAMuchas.test.ts src/__tests__/inspectorFigura.test.tsx src/__tests__/inspector.test.tsx
@@ -1685,7 +1749,7 @@ Select-String -Path 'src/components/inspector/ImageEditPanel.tsx','src/component
 **Y mutar**: volvé a poner `setProp('caption', ...)` en el `onChange` del textarea y corré
 el caso 3. Si pasa, el caso 3 no está probando lo que dice.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/components/inspector/ImageEditPanel.tsx \
@@ -1743,7 +1807,7 @@ agrega un `viewMode` ni un wizard step: **reutiliza el que ya está**, que es lo
 hizo F3 con su pestaña en la fase 2. Lo que hay que garantizar es que la fase 3 monte
 las tres cosas y no un recorte.
 
-- [ ] **Step 1: El guardián**
+- [x] **Step 1: El guardián**
 
 `src/__tests__/figurasEstaMontada.test.tsx`, modelado sobre
 `estructuraEstaMontada.test.tsx` con sus cinco pruebas negativas:
@@ -1895,12 +1959,12 @@ describe('la verdad de la figura no se re-deriva en la vista', () => {
 });
 ```
 
-- [ ] **Step 2: Mutar el guardián y verlo caer**
+- [x] **Step 2: Mutar el guardián y verlo caer**
 
 Comentá el import de `ListaContextual` en el ensamblado y corré la prueba de importadores.
 Tiene que fallar nombrando el huérfano. Sin eso, la guarda es una afirmación.
 
-- [ ] **Step 3: Verificación completa de la fase**
+- [x] **Step 3: Verificación completa de la fase**
 
 ```bash
 npx vitest run
@@ -1920,7 +1984,7 @@ Select-String -Path (Get-ChildItem -Recurse -Include '*.ts','*.tsx' -Path src).F
 
 Si eso no da resultados fuera de `src/__tests__`, la fase está construida y no montada.
 
-- [ ] **Step 4: Actualizar esta tabla del plan y commitear**
+- [x] **Step 4: Actualizar esta tabla del plan y commitear**
 
 ```bash
 git add docs/superpowers/plans/2026-09-28-f4-figuras-tablas-inspector.md src/__tests__/figurasEstaMontada.test.tsx
