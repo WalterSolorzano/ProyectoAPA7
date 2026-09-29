@@ -8,14 +8,14 @@ import { Check, X, Trash2, Link2, BookOpen, Wand2 } from 'lucide-react';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', fontSize: '12px', padding: '6px 8px', boxSizing: 'border-box',
-  backgroundColor: 'var(--canvas-bg)', color: 'var(--text-main)',
+  backgroundColor: 'var(--canvas-bg)', color: 'var(--color-text-primary)',
   border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
   fontFamily: 'inherit', marginTop: '4px',
 };
 
 const labelStyle: React.CSSProperties = {
   fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.4px', color: 'var(--text-secondary)', display: 'block',
+  letterSpacing: '0.4px', color: 'var(--color-text-secondary)', display: 'block',
 };
 
 export const ReferenceForm: React.FC = () => {
@@ -30,7 +30,7 @@ export const ReferenceForm: React.FC = () => {
 
   if (!ref) {
     return (
-      <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
+      <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--color-text-tertiary)', textAlign: 'center', lineHeight: 1.6 }}>
         Seleccioná una referencia en el lienzo para ver y editar sus datos acá.
       </div>
     );
@@ -65,10 +65,10 @@ export const ReferenceForm: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '14px' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-          <BookOpen size={15} color="var(--accent-primary)" />
-          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>Detalles de referencia</span>
+          <BookOpen size={15} color="var(--color-accent)" />
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-primary)' }}>Detalles de referencia</span>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
           Verificá los datos extraídos y guardalos.
         </div>
       </div>
@@ -99,7 +99,7 @@ export const ReferenceForm: React.FC = () => {
         <label style={labelStyle}>Cita en el texto</label>
         <div style={{
           fontFamily: "'Times New Roman', serif", fontSize: '12px', lineHeight: 1.6,
-          color: 'var(--text-main)', marginTop: '4px', background: 'var(--canvas-bg)',
+          color: 'var(--color-text-primary)', marginTop: '4px', background: 'var(--canvas-bg)',
           border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '8px 10px',
         }}>
           {authorsArr(authors) && <>({authorsArr(authors)}, {year || 's.f.'})</>}
@@ -119,7 +119,7 @@ export const ReferenceForm: React.FC = () => {
       </div>
 
       {ref.doi_or_url && (
-        <a href={ref.doi_or_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '11px', color: 'var(--accent-primary)', textDecoration: 'none' }}>
+        <a href={ref.doi_or_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '11px', color: 'var(--color-accent)', textDecoration: 'none' }}>
           <Link2 size={11} /> {ref.doi_or_url}
         </a>
       )}

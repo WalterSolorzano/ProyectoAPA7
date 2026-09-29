@@ -58,7 +58,7 @@ function textoDeLaReferencia(referencia: any): string {
 function estadoDeLaReferencia(referencia: any): { texto: string; color: string } {
   return referencia?.verificada
     ? { texto: 'Verificada', color: 'var(--color-success)' }
-    : { texto: 'Sin verificar', color: 'var(--text-muted)' };
+    : { texto: 'Sin verificar', color: 'var(--color-text-tertiary)' };
 }
 
 /**
@@ -91,8 +91,8 @@ const Fila: React.FC<{
           backgroundColor: seleccionado ? 'var(--color-accent-soft)' : 'transparent',
         }}
       >
-        <span style={{ flex: 1, minWidth: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--text-main)', fontFamily: "'Times New Roman', serif" }}>
-          <span style={{ color: 'var(--text-muted)' }}>{numero}. </span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--color-text-primary)', fontFamily: "'Times New Roman', serif" }}>
+          <span style={{ color: 'var(--color-text-tertiary)' }}>{numero}. </span>
           {texto || (
             <span style={{ color: 'var(--color-warning)' }}>
               Sin texto: agregale el autor, el año o el título.
@@ -108,7 +108,7 @@ const Fila: React.FC<{
           title="Ver campos"
           aria-label={`Ver campos de la referencia ${numero}`}
           aria-expanded={detalleAbierto}
-          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: '2px' }}
         >
           <ChevronRight size={12} style={{ transform: detalleAbierto ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
         </button>
@@ -117,22 +117,22 @@ const Fila: React.FC<{
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           title="Quitar referencia"
           aria-label="Quitar referencia"
-          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+          style={{ flexShrink: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: '2px' }}
         >
           <Trash2 size={12} />
         </button>
       </div>
       {detalleAbierto && (
-        <div style={{ padding: '0 12px 9px 12px', fontSize: '10.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+        <div style={{ padding: '0 12px 9px 12px', fontSize: '10.5px', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
           {referencia.authors?.length > 0 && (
-            <div><span style={{ color: 'var(--text-muted)' }}>Autores: </span>{referencia.authors.join('; ')}</div>
+            <div><span style={{ color: 'var(--color-text-tertiary)' }}>Autores: </span>{referencia.authors.join('; ')}</div>
           )}
-          {referencia.year && <div><span style={{ color: 'var(--text-muted)' }}>Año: </span>{referencia.year}</div>}
-          {referencia.title && <div><span style={{ color: 'var(--text-muted)' }}>Título: </span>{referencia.title}</div>}
-          {referencia.source && <div><span style={{ color: 'var(--text-muted)' }}>Fuente: </span>{referencia.source}</div>}
-          {referencia.doi_or_url && <div><span style={{ color: 'var(--text-muted)' }}>DOI/URL: </span>{referencia.doi_or_url}</div>}
+          {referencia.year && <div><span style={{ color: 'var(--color-text-tertiary)' }}>Año: </span>{referencia.year}</div>}
+          {referencia.title && <div><span style={{ color: 'var(--color-text-tertiary)' }}>Título: </span>{referencia.title}</div>}
+          {referencia.source && <div><span style={{ color: 'var(--color-text-tertiary)' }}>Fuente: </span>{referencia.source}</div>}
+          {referencia.doi_or_url && <div><span style={{ color: 'var(--color-text-tertiary)' }}>DOI/URL: </span>{referencia.doi_or_url}</div>}
           <div>
-            <span style={{ color: 'var(--text-muted)' }}>Estado: </span>
+            <span style={{ color: 'var(--color-text-tertiary)' }}>Estado: </span>
             {estado.texto}
             {!referencia.verificada && ' — nadie la contrastó contra una fuente.'}
             {referencia.fuente_verificacion && ` (${referencia.fuente_verificacion})`}
@@ -256,7 +256,7 @@ export const ReferencesPanel: React.FC = () => {
       {/* ── 1. LA ACCIÓN. Un campo, un botón de acento. ─────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '5px 9px', backgroundColor: 'var(--canvas-bg)' }}>
-          <Search size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <Search size={13} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
           <textarea
             aria-label="DOI o referencias"
             value={rawInput}
@@ -268,7 +268,7 @@ export const ReferencesPanel: React.FC = () => {
             }}
             rows={2}
             placeholder="Pegá tus DOI, uno por línea"
-            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: '12px', backgroundColor: 'transparent', color: 'var(--text-main)', fontFamily: 'inherit', resize: 'vertical' }}
+            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', fontSize: '12px', backgroundColor: 'transparent', color: 'var(--color-text-primary)', fontFamily: 'inherit', resize: 'vertical' }}
           />
         </div>
         {/* `data-accion="principal"` no es decoración: es lo que el test mide
@@ -286,7 +286,7 @@ export const ReferencesPanel: React.FC = () => {
             onClick={handleAddManual}
             disabled={!rawInput.trim()}
             className="btn btn-ghost btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-muted)' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-text-tertiary)' }}
           >
             <Plus size={11} /> Añadir a mano
           </button>
@@ -295,7 +295,7 @@ export const ReferencesPanel: React.FC = () => {
             onClick={() => autoResolveAllGhostCitations()}
             disabled={isLoading}
             className="btn btn-ghost btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-muted)' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--color-text-tertiary)' }}
           >
             <Sparkles size={11} /> Auto-resolver con IA
           </button>
@@ -311,10 +311,10 @@ export const ReferencesPanel: React.FC = () => {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '7px',
           padding: '8px 10px', borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-elevated)',
+          border: '1px solid var(--border-subtle)', backgroundColor: 'var(--color-bg-surface-hover)',
         }}>
           <AlertTriangle size={12} color="var(--color-warning)" style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: '11px', color: 'var(--color-text-secondary)' }}>
             {ghostsDistintas.length > 0 && (
               <>{ghostsDistintas.length} {ghostsDistintas.length === 1 ? 'cita sin referencia' : 'citas sin referencia'}</>
             )}
@@ -327,7 +327,7 @@ export const ReferencesPanel: React.FC = () => {
             type="button"
             onClick={correrAuditoria}
             className="btn btn-ghost btn-sm"
-            style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0 }}
+            style={{ fontSize: '10px', color: 'var(--color-accent)', flexShrink: 0 }}
           >
             Resolver
           </button>
@@ -339,11 +339,11 @@ export const ReferencesPanel: React.FC = () => {
       {/* ── 4. LA LISTA. El entregable. ──────────────────────────────────────── */}
       <div style={{
         border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
-        backgroundColor: 'var(--surface-elevated)', overflow: 'hidden',
+        backgroundColor: 'var(--color-bg-surface-hover)', overflow: 'hidden',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>Referencias</span>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>· {references.length}</span>
+          <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--color-text-primary)' }}>Referencias</span>
+          <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>· {references.length}</span>
           {references.length > 0 && <div style={{ flex: 1 }} />}
           {references.length > 0 && (
             /* Un botón que hace algo: corre la auditoría de citas. Antes este
@@ -352,7 +352,7 @@ export const ReferencesPanel: React.FC = () => {
               type="button"
               onClick={correrAuditoria}
               className="btn btn-ghost btn-sm"
-              style={{ fontSize: '10px', color: 'var(--text-muted)' }}
+              style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}
             >
               <Link2 size={11} /> Validar
             </button>
@@ -361,12 +361,12 @@ export const ReferencesPanel: React.FC = () => {
 
         {references.length === 0 ? (
           <div style={{
-            padding: '24px 14px', fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.5,
+            padding: '24px 14px', fontSize: '11.5px', color: 'var(--color-text-secondary)', lineHeight: 1.5,
             textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
           }}>
-            <BookOpen size={24} color="var(--text-muted)" style={{ opacity: 0.6 }} />
-            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '12px' }}>Tu bibliografía aparece acá</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            <BookOpen size={24} color="var(--color-text-tertiary)" style={{ opacity: 0.6 }} />
+            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '12px' }}>Tu bibliografía aparece acá</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
               Pegá un DOI —o varios, uno por línea— y se arma solo.
             </span>
           </div>
@@ -377,7 +377,7 @@ export const ReferencesPanel: React.FC = () => {
             ))}
             {sinApellido.length > 0 && (
               <>
-                <div style={{ padding: '7px 12px 4px', fontSize: '10px', color: 'var(--text-muted)', backgroundColor: 'var(--canvas-bg)' }}>
+                <div style={{ padding: '7px 12px 4px', fontSize: '10px', color: 'var(--color-text-tertiary)', backgroundColor: 'var(--canvas-bg)' }}>
                   Sin autor ({sinApellido.length}) — van al final de la lista en el documento
                 </div>
                 {sinApellido.map((referencia: any, i: number) => (
