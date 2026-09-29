@@ -1,5 +1,5 @@
 import * as api from '../api/backend';
-import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding, ActaDocumento } from '../types';
+import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding, ActaDocumento, ImagenProyecto } from '../types';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
 import type { LayoutPaginateResult } from '../api/layout';
 /* Solo el TIPO del diff, y con `import type` a proposito: el runtime lo borra.
@@ -214,8 +214,9 @@ export interface DocState {
   activeTabIndex: number;
   tabDocs: Record<string, DocumentModel>;
   pdfPreviewCache: { hash: string; url: string } | null;
-  projectImages: { id: string; name: string; url: string; file?: File }[];
-  addProjectImage: (file: File) => void;
+  projectImages: ImagenProyecto[];
+  /** Sube la imagen a disco y devuelve su id, o `null` si la subida falló. */
+  addProjectImage: (file: File) => Promise<string | null>;
   removeProjectImage: (id: string) => void;
   mergeDocuments: (targetSessionId: string, sourceSessionId: string, parts: ('cover' | 'body' | 'references')[]) => void;
 

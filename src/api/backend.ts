@@ -14,7 +14,7 @@ import {
   TableModel,
 } from '../types';
 import { useDocStore } from '../store/useDocStore';
-import { getApiBase, getApiBaseAsync, fetchWithTrace } from './http';
+import { getApiBase, getApiBaseAsync, fetchWithTrace, resolveAssetUrl } from './http';
 
 export { getApiBase, getApiBaseAsync, resolveAssetUrl } from './http';
 
@@ -943,6 +943,45 @@ export async function uploadCoverDocx(file: File, name?: string, description?: s
 
 export function getCoverPreviewUrl(name: string): string {
   return `${getApiBase()}/cover-templates/preview/${encodeURIComponent(name)}`;
+}
+
+/**
+ * Sube una imagen del proyecto a disco y devuelve su `assetId`.
+ *
+ * F7 Task 1. Antes la imagen se quedaba en un `URL.createObjectURL` del store,
+ * que muere con la pestaña: al reabrir la app el string sobreviva pero no
+ * resuelve. Ahora lo que sobrevive es un identificador, y lo que se muestra es
+ * la URL del asset.
+ *
+ * `getApiBaseAsync()` y no `getApiBase()`, por el mismo motivo que
+ * `uploadDocxFile`: es la unica forma de garantizar que el protocolo este
+ * detectado antes de la peticion. Sin eso la subida falla en silencio cuando el
+ * motor corre por HTTPS.
+ */
+export async function subirImagenDeProyecto(
+  file: File,
+): Promise<{ assetId: string; name: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/assets/subir`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'No se pudo subir la imagen');
+  }
+
+  const data = await res.json();
+  return { assetId: data.asset_id, name: data.name || file.name };
+}
+
+/** La ruta de un asset, ya resuelta para el esquema de la app (Electron). */
+export function urlDeAsset(assetId: string): string {
+  return resolveAssetUrl(`/api/assets/archivo/${encodeURIComponent(assetId)}`);
 }
 
 export async function resolveReferencesBatch(

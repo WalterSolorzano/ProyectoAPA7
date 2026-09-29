@@ -28,6 +28,33 @@ const idbStorage: StateStorage = {
   },
 };
 
+/** La clave con la que este store se escribe en el almacenamiento. */
+export const PERSIST_NOMBRE = 'wordapa7-storage';
+
+/**
+ * Lo que se persiste, en un SOLO lugar.
+ *
+ * F7 Task 1. `projectImages` entra acá. Antes no entraba: las imagenes del
+ * proyecto eran un `object URL` en memoria, asi que no habia nada que
+ * persistir y por eso no estaban en esta lista. Ahora lo que se persiste es el
+ * `assetId` y la URL del asset, que es lo unico que sigue resolviendo manana.
+ *
+ * Esta funcion se EXPORTA, y no por adorno: el test de la fase la usa para
+ * serializar el estado con la misma logica que usa la app. Un `partialize`
+ * reescrito en el test seria otra verdad, y mediria la copia y no la cosa.
+ */
+export const persistPartialize = (state: DocState) => ({
+  apiKey: state.apiKey,
+  rules: state.rules,
+  ruleProfiles: state.ruleProfiles,
+  portadaProfiles: state.portadaProfiles,
+  aiProviderConfig: state.aiProviderConfig,
+  activeProfileId: state.activeProfileId,
+  profiles: state.profiles,
+  hasSeenTour: state.hasSeenTour,
+  projectImages: state.projectImages,
+});
+
 export const useDocStore = create<DocState>()(
   persist(
     (set, get, api) => ({
@@ -37,18 +64,9 @@ export const useDocStore = create<DocState>()(
       ...createDocumentSlice(set, get, api),
     } as DocState),
     {
-      name: 'wordapa7-storage',
+      name: PERSIST_NOMBRE,
       storage: createJSONStorage(() => idbStorage),
-      partialize: (state) => ({
-        apiKey: state.apiKey,
-        rules: state.rules,
-        ruleProfiles: state.ruleProfiles,
-        portadaProfiles: state.portadaProfiles,
-        aiProviderConfig: state.aiProviderConfig,
-        activeProfileId: state.activeProfileId,
-        profiles: state.profiles,
-        hasSeenTour: state.hasSeenTour,
-      }),
+      partialize: persistPartialize,
     }
   )
 );

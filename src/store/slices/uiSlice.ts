@@ -3,6 +3,7 @@ import { DocState } from '../types';
 import { DocumentModel } from '../../types';
 import type { PestanaId } from '../../components/settings/tabs';
 import { leerCortesGuardados, normalizarCortes, guardarCortes } from '../../lib/aiMosaic';
+import * as api from '../../api/backend';
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -248,13 +249,61 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
     };
   }),
   projectImages: [],
-  addProjectImage: (file: File) => {
-    const url = URL.createObjectURL(file);
-    const item = { id: `pimg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, url, file };
-    set((state) => ({ projectImages: [...state.projectImages, item] }));
+  addProjectImage: async (file: File) => {
+    /* F7 Task 1. Antes esto era un object URL mas el `File` entero en el store.
+       El blob vivia en la memoria de la PESTANA: al reabrir la app, el string
+       que quedo guardado no resuelve, y la galeria se llenaba de imagenes
+       rotas que parecian cargadas. Ademas el `File` ocupaba la memoria del
+       archivo entero por cada imagen.
+
+       Ahora la imagen sube a `/api/assets` y lo que queda en el store es su
+       identificador y la URL del asset. El `File` desaparece: no hace falta
+       para volver a mostrar la imagen manana, y era lo que la mantenia viva en
+       memoria.
+
+       Y NO hay object URL ni siquiera como previsualizacion mientras sube. La
+       tentacion —"mientras espera, mostrala igual"— tiene un precio que no se ve
+       en la pantalla: el store vuelve a llevar un `blob:`, que es la clase
+       exacta de dato que esta tarea vino a matar. Un store donde el mismo campo
+       a veces es una URL que resuelve y a veces un string muerto no es un store
+       con un caso raro: es un store que hay que leer dos veces. La galeria
+       muestra la imagen cuando llega, y el aviso de subida dice cuantas van. */
+    try {
+      const { assetId } = await api.subirImagenDeProyecto(file);
+      const item = {
+        id: `pimg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name,
+        assetId,
+        previewUrl: api.urlDeAsset(assetId),
+      };
+      set((state) => ({ projectImages: [...state.projectImages, item] }));
+      return item.id;
+    } catch {
+      /* Una subida que falla no deja una entrada: una imagen que no esta en disco
+         no se puede volver a bajar de ningun lado, y un thumbnail con la
+         miniatura rota y sin forma de arreglarlo es peor que no tenerlo. */
+      get().showToast(`No se pudo subir "${file.name}"`, 'error');
+      return null;
+    }
   },
   removeProjectImage: (id: string) => {
-    set((state) => ({ projectImages: state.projectImages.filter((img) => img.id !== id) }));
+    /* F7 Task 1: esto NO revocaba nada. Era una fuga de memoria: cada imagen
+       borrada dejaba su blob vivo hasta que moria la pestana, y con muchos
+       proyectos se acumula.
+
+       El `revoke` sigue aqui aunque hoy el store no cree blobs, y no es codigo
+       muerto: es lo que libera el object URL de las imagenes VIEJAS que una
+       instalacion anterior dejo persistidas. Mientras esos blobs esten vivos en
+       la sesion —que es exactamente lo que pasa en la sesion en que se actualiza
+       la app— quitarlos sin revocar seria cambiar una fuga por otra. Cuando el
+       store ya no tenga ninguno, esta rama se puede borrar con la certeza de que
+       no hace falta, y el guardián de la fase avisa cuando ya no hay nada que
+       revocar. */
+    set((state) => {
+      const img = state.projectImages.find((i) => i.id === id);
+      if (img?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(img.previewUrl);
+      return { projectImages: state.projectImages.filter((i) => i.id !== id) };
+    });
   },
   mergeDocuments: (targetSessionId: string, sourceSessionId: string, parts: ('cover' | 'body' | 'references')[]) => {
     set((state) => {

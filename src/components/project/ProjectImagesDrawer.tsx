@@ -12,13 +12,19 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
+    /* `addProjectImage` es `async` desde la F7: sube a disco. La cuenta del
+       aviso es la de los archivos ACEPTADOS, no la del `FileList`: el drawer
+       recibe arrastres mezclados y prometer "cinco imagenes agregadas" sobre un
+       arrastre de cinco archivos con dos `.txt` seria mentir. */
+    let aceptadas = 0;
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       if (f.type.startsWith('image/')) {
-        addProjectImage(f);
+        void addProjectImage(f);
+        aceptadas++;
       }
     }
-    showToast(`${files.length} imagen(es) agregadas al proyecto`, 'success');
+    if (aceptadas > 0) showToast(`${aceptadas} imagen(es) agregadas al proyecto`, 'success');
   };
 
   return (
@@ -110,7 +116,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
                 }}
               >
                 <img
-                  src={img.url}
+                  src={img.previewUrl}
                   alt={img.name}
                   style={{ width: '100%', height: '70px', objectFit: 'cover' }}
                 />

@@ -49,8 +49,11 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     const imgFiles = files.filter((f) => /\.(png|jpe?g|webp|svg)$/i.test(f.name));
 
     // Cargar imágenes detectadas en la carpeta
+    /* `addProjectImage` es `async` desde la F7: sube a disco. El `await` en
+       serie es lo correcto acá y no una pena: el Explorador ya subía los `.docx`
+       uno por uno, y estas son archivos chicos contra un documento completo. */
     for (const img of imgFiles) {
-      addProjectImage(img);
+      await addProjectImage(img);
     }
 
     if (docxFiles.length > 0) {
@@ -78,10 +81,10 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     }
   };
 
-  const handleAddImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAddImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     for (const f of files) {
-      addProjectImage(f);
+      await addProjectImage(f);
     }
     if (files.length > 0) {
       showToast(`${files.length} imagen(es) agregada(s) al proyecto`, 'success');
@@ -369,7 +372,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                     title={img.name}
                   >
                     <img
-                      src={img.url}
+                      src={img.previewUrl}
                       alt={img.name}
                       /* `contain` y NO `cover`: sobre un logo vertical, `cover`
                          lo recorta a una banda y lo que se ve no es el logo. Es

@@ -310,7 +310,10 @@ export const Step0QuickStart: React.FC = () => {
     const imgFiles = files.filter(f => /\.(png|jpe?g|webp|svg)$/i.test(f.name));
 
     for (const img of imgFiles) {
-      useDocStore.getState().addProjectImage(img);
+      /* La F7 hizo `addProjectImage` asincrona: la imagen sube a
+         `/api/assets`. Sin el `await`, el aviso de abajo contaria imagenes que
+         todavia no estan en disco. */
+      await useDocStore.getState().addProjectImage(img);
     }
 
     if (docxFiles.length > 0) {

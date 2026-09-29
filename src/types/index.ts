@@ -56,6 +56,27 @@ export interface SubfigureItem {
   filename?: string;
 }
 
+/**
+ * Una imagen del proyecto, en disco y no en la memoria de la pestaña.
+ *
+ * `assetId` es lo que la identifica, y `previewUrl` es la ruta del asset ya
+ * resuelta. El `File` NO vive acá: un `File` es la imagen entera en memoria, y
+ * lo que hace falta para volver a mostrarla manana es el identificador.
+ *
+ * F7 Task 1. Antes esto era `{ id, name, url, file }` con `url` hecho a
+ * `URL.createObjectURL`, que muere con la pestaña.
+ */
+export interface ImagenProyecto {
+  id: string;
+  name: string;
+  /** Identificador del asset en `/api/assets`. Es la identidad de la imagen. */
+  assetId: string;
+  /** Ruta del asset, resuelta con `resolveAssetUrl`. Nunca un `blob:`. */
+  previewUrl: string;
+  /** Solo mientras la subida no termina: el `File` todavia no esta en disco. */
+  pending?: boolean;
+}
+
 export interface ImageModel {
   element_id: string;
   file_path: string;

@@ -294,6 +294,11 @@ app.include_router(ws_router.router)
 from routers import sessions as sessions_router
 
 app.include_router(sessions_router.router)
+# F7 Task 1: los assets de imagen del proyecto. Antes la imagen vivia en un
+# `URL.createObjectURL` del navegador y se perdia al cerrar la pestana.
+from routers import assets as assets_router
+
+app.include_router(assets_router.router)
 
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
