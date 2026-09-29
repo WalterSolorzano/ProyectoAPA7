@@ -262,7 +262,93 @@ describe('los rótulos del estado', () => {
   });
 });
 
-/* ── La mascota: la cara sale del estado ──────────────────────────────────── */
+/* ── El guardián de la deuda que R3 cobra ──────────────────────────────────── */
+
+/** El fuente SIN comentarios. Un regex no sabe qué es un comentario, y un
+ *  guardián que se desactiva con un `//` no vigila nada. La lección viene de
+ *  `figurasEstaMontada.test.tsx:38-42`, donde la cabecera del paso explica el
+ *  defecto NOMBRANDO el código que ya no está. */
+const SIN_COMENTARIOS = (f: string) => f
+  .replace(/\/\*[\s\S]*?\*\//g, (b) => b.replace(/[^\n]/g, ' '))
+  .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+const FUENTES = import.meta.glob('/src/**/*.{ts,tsx}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const PASO = '/src/components/wizard/Step5ReferencesWizard.tsx';
+
+describe('el paso de Referencias no reintroduce la deuda que R3 cobra', () => {
+  /* La primera de las seis, y la que más veces se ha escrito mal: si el glob
+     devuelve vacío, `FUENTES[PASO] ?? ''` es cadena vacía, una cadena vacía no
+     matchea ninguna regla, y TODAS las guardas de este bloque pasan sin haber
+     leído una línea. Por eso se comprueba que el archivo esté entre los leídos
+     y que el glob haya leído más de cien. */
+  it('el glob lee de verdad y el archivo está entre los leídos', () => {
+    expect(Object.keys(FUENTES).length).toBeGreaterThan(100);
+    expect(FUENTES[PASO]).toBeTruthy();
+    expect(FUENTES[PASO].length).toBeGreaterThan(1000);
+  });
+
+  /* Cuarenta y un tamaños de fuente literales. La tabla del plan:
+     9px→xs, 10px→xs, 11px→sm, 11.5px→sm, 12px→sm, 13px→base, 14px→base,
+     15px→lg, 24px→2xl. */
+  it('ningún tamaño de fuente literal: todos salen de un token', () => {
+    const literales = SIN_COMENTARIOS(FUENTES[PASO]).match(/fontSize:\s*'[\d.]+px'/g);
+    expect(literales, `quedan ${literales?.length ?? 0} tamaños literales`).toBeNull();
+  });
+
+  /* Los siete alias legacy: están declarados y son deuda histórica. Un alias
+     nuevo en código nuevo hace crecer la lista de excepciones que R3 tiene que
+     mantener, y es exactamente lo que este guardián mide. */
+  it('ningún alias legacy: el canónico es el que se usa', () => {
+    const paso = SIN_COMENTARIOS(FUENTES[PASO]);
+    for (const alias of ['--accent-primary', '--text-main', '--text-secondary',
+      '--text-muted', '--surface-elevated', '--sidebar-bg', '--surface-subtle']) {
+      expect(paso.includes(alias), `vuelve el alias legacy ${alias}`).toBe(false);
+    }
+  });
+
+  it('ninguna clase btn-*, que es la del diseño anterior', () => {
+    expect(SIN_COMENTARIOS(FUENTES[PASO])).not.toMatch(/className="btn btn-/);
+  });
+
+  /* Los ocho `'4px'` son `gap` y `padding`, no radios: mandarlos a
+     `--radius-sm` habría hecho la pantalla más cerrada de lo que el diseño
+     pide. Van a `--space-1`. */
+  it('ningún espaciado de 4px escrito a mano: sale de --space-1', () => {
+    expect(SIN_COMENTARIOS(FUENTES[PASO])).not.toMatch(/'4px'/);
+  });
+
+  it('los bloques pasan por Seccion y los vacíos por EstadoVacio', () => {
+    const paso = SIN_COMENTARIOS(FUENTES[PASO]);
+    expect(paso).toMatch(/<Seccion/);
+    expect(paso).toMatch(/<EstadoVacio/);
+  });
+
+  /* Los dos estilos que reescribían el molde de sección a mano. Con `Seccion`
+     en el archivo, la copia del molde es una segunda versión que diverge. */
+  it('no quedan los dos estilos que reescribían el molde a mano', () => {
+    const paso = SIN_COMENTARIOS(FUENTES[PASO]);
+    expect(paso).not.toMatch(/groupCardStyle/);
+    expect(paso).not.toMatch(/groupHeaderStyle/);
+  });
+
+  /* El estado de la referencia se LEE, no se re-deriva en el render: si el
+     componente vuelve a mirar `verificada` por su cuenta, hay dos verdades. */
+  it('el estado sale de diagnosticoDeReferencia, no de una heurística en el render', () => {
+    const paso = SIN_COMENTARIOS(FUENTES[PASO]);
+    expect(paso).toMatch(/diagnosticoDeReferencia/);
+    expect(paso).not.toMatch(/isZombie/);
+    /* Y la comparación de huérfanas por texto —`includes(authors?.[0] || '---')`—
+       se va con ella: el dato llega del backend con el `id`. */
+    expect(paso).not.toMatch(/isOrphan/);
+    expect(paso).not.toMatch(/'---'/);
+  });
+});
+
 
 describe('la cara de la mascota', () => {
   const feliz = {

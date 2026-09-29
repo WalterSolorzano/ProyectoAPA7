@@ -24,6 +24,8 @@ import {
   type DiagnosticoReferencia,
 } from '../../lib/referencias';
 import { EditorialMascot } from '../layout/EditorialMascot';
+import { EstadoVacio } from '../shared/EstadoVacio';
+import { Seccion } from '../settings/tabs/word/Seccion';
 
 /**
  * El texto que va al documento. Sin último recurso que INVENTE: si no hay
@@ -323,34 +325,36 @@ export const Step5ReferencesWizard: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Un botón de acento por bloque. La acción principal de ESTA pantalla
+            es agregar una referencia: "Continuar a Auditoría" es navegación, y
+            cuando las dos competían por el acento el botón de adelante ganaba
+            porque estaba más a la derecha. `data-accion="principal"` es lo que
+            permite comprobar que hay una sola, como en `ReferencesPanel`. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }} data-accion="principal">
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="btn btn-primary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+            style={botonInline(true)}
           >
-            <Plus size={14} />
-            <span>Nueva Referencia</span>
+            <Plus size={14} strokeWidth="var(--icon-stroke)" />
+            <span>Nueva referencia</span>
           </button>
           <button
             type="button"
             onClick={() => runCitationAudit()}
             title="Re-auditar correspondencia de citas"
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={botonInline()}
           >
-            <RefreshCw size={13} />
-            <span>Auditar Citas</span>
+            <RefreshCw size={13} strokeWidth="var(--icon-stroke)" />
+            <span>Auditar citas</span>
           </button>
           <button
             type="button"
             onClick={() => setWizardStep(5)}
-            className="btn btn-primary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 800 }}
+            style={botonInline()}
           >
             <span>Continuar a Auditoría</span>
-            <ChevronRight size={14} />
+            <ChevronRight size={14} strokeWidth="var(--icon-stroke)" />
           </button>
         </div>
       </header>
@@ -361,220 +365,206 @@ export const Step5ReferencesWizard: React.FC = () => {
         {/* ══ COLUMNA 1: Lista Agrupada por Estado (420px) ══ */}
         <div style={{
           width: '420px', flexShrink: 0, height: '100%', overflowY: 'auto',
-          backgroundColor: 'var(--sidebar-bg)', borderRight: '1px solid var(--border-subtle)',
+          backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--border-subtle)',
           display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px',
         }}>
 
-          {/* GRUPO 1: VÁLIDAS (Verificadas DOI OK) */}
-          <div style={groupCardStyle}>
-            <div
-              onClick={() => setOpenValid(!openValid)}
-              style={groupHeaderStyle}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle2 size={15} color="var(--color-success)" />
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Válidas ({validReferences.length})
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>· DOI verificado OK</span>
-              </div>
-              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openValid ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-            </div>
+          {/* GRUPO 1: VERIFICADAS. El rótulo dice lo que el grupo ES —verificadas
+              contra una fuente— y no "válidas con DOI verificado", que era una
+              etiqueta que el sistema se daba a sí mismo por tener autor y título. */}
+          <Grupo
+            titulo="Verificadas"
+            detalle="Contrastadas contra una fuente real."
+            conteo={validReferences.length}
+            Icon={CheckCircle2}
+            tono="var(--color-success)"
+            abierto={openValid}
+            alAlternar={() => setOpenValid(!openValid)}
+          >
+            {validReferences.length === 0 ? (
+              <EstadoVacio
+                motivo="sin-resultados"
+                filtroActivo="el grupo de verificadas"
+                accion={
+                  <button type="button" onClick={() => setShowAddModal(true)} style={botonInline()}>
+                    <Plus size={12} strokeWidth="var(--icon-stroke)" />
+                    <span>Nueva referencia</span>
+                  </button>
+                }
+              />
+            ) : (
+              validReferences.map((refItem, idx) => {
+                const isSelected = selectedRef?.id === refItem.id;
+                /* El dato de "sin citar" es el `id` que devolvió el backend, y
+                   sólo existe si la auditoría corrió. Antes se re-derivaba
+                   comparando texto contra el nombre completo del autor. */
+                const sinCitar = huerfanas?.has(refItem.id) === true;
 
-            {openValid && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
-                {validReferences.length === 0 ? (
-                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    No hay fuentes válidas aún.
-                  </div>
-                ) : (
-                  validReferences.map((refItem, idx) => {
-                    const isSelected = selectedRef?.id === refItem.id;
-                    const isOrphan = orphans.some((o: any) => {
-                      const s = typeof o === 'string' ? o : (o.title || o.raw_text || '');
-                      return s.includes(refItem.authors?.[0] || '---') || s.includes(refItem.title || '---');
-                    });
-
-                    return (
-                      <div
-                        key={refItem.id}
-                        onClick={() => setSelectedReferenceId(refItem.id)}
-                        style={{
-                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                          backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                          border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                          transition: 'all 0.15s ease',
-                          display: 'flex', flexDirection: 'column', gap: '4px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)' }}>
-                            {idx + 1}. {(refItem.authors?.[0] || 'Autor').split(',')[0]} ({refItem.year || 's.f.'})
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); copyInTextCitation(refItem); }}
-                              title="Copiar cita en texto"
-                              style={iconBtnStyle}
-                            >
-                              {copiedId === refItem.id ? <Check size={11} color="var(--color-success)" /> : <Copy size={11} />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
-                              title="Eliminar"
-                              style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-main)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {refItem.title || refItem.raw_text || 'Sin título'}
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                          {refItem.doi_or_url && (
-                            <span style={{ fontSize: '10px', color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              <Link2 size={10} /> DOI
-                            </span>
-                          )}
-                          {isOrphan && (
-                            <span
-                              title="Esta referencia no está citada en el texto. Haz clic para opciones."
-                              style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)' }}
-                            >
-                              Sin citar en texto
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* GRUPO 2: SIN VERIFICAR (Zombie Data / Metadatos Incompletos) */}
-          <div style={groupCardStyle}>
-            <div
-              onClick={() => setOpenUnverified(!openUnverified)}
-              style={groupHeaderStyle}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <HelpCircle size={15} color="var(--color-warning)" />
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  Sin verificar ({unverifiedReferences.length})
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>· Requieren completar datos</span>
-              </div>
-              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openUnverified ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-            </div>
-
-            {openUnverified && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
-                {unverifiedReferences.length === 0 ? (
-                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    No hay entradas pendientes de verificación.
-                  </div>
-                ) : (
-                  unverifiedReferences.map((refItem) => {
-                    const isSelected = selectedRef?.id === refItem.id;
-                    return (
-                      <div
-                        key={refItem.id}
-                        onClick={() => setSelectedReferenceId(refItem.id)}
-                        style={{
-                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                          backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                          border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                          transition: 'all 0.15s ease',
-                          display: 'flex', flexDirection: 'column', gap: '4px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--color-warning)' }}>
-                            Metadatos Incompletos
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); }}
-                            title="Eliminar"
-                            style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-main)', fontWeight: 600 }}>
-                          {refItem.title || refItem.raw_text || 'Entrada sin título'}
-                        </div>
-                        <span style={{ fontSize: '10px', color: 'var(--accent-primary)', fontWeight: 700 }}>
-                          Haz clic para completar datos →
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* GRUPO 3: CITAS FANTASMA ("En texto, no en biblio") */}
-          <div style={groupCardStyle}>
-            <div
-              onClick={() => setOpenGhosts(!openGhosts)}
-              style={groupHeaderStyle}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={15} color="var(--color-danger)" />
-                <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-                  En texto, no en biblio ({ghosts.length})
-                </span>
-              </div>
-              <ChevronDown size={14} color="var(--text-secondary)" style={{ transform: openGhosts ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-            </div>
-
-            {openGhosts && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px' }}>
-                {ghosts.length === 0 ? (
-                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    No se detectaron citas huérfanas en el texto.
-                  </div>
-                ) : (
-                  ghosts.map((g: any, i: number) => {
-                    const txt = ghostText(g);
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          padding: '10px 12px', borderRadius: 'var(--radius-md)',
-                          backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border-subtle)',
-                          display: 'flex', flexDirection: 'column', gap: '6px',
-                        }}
-                      >
-                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-main)' }}>
-                          {txt}
-                        </span>
+                return (
+                  <div
+                    key={refItem.id}
+                    onClick={() => setSelectedReferenceId(refItem.id)}
+                    style={{
+                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
+                      border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                      transition: 'all 0.15s ease',
+                      display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-text-secondary)' }}>
+                        {idx + 1}. {(refItem.authors?.[0] || 'Autor').split(',')[0]} ({refItem.year || 's.f.'})
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                         <button
                           type="button"
-                          onClick={() => handleResolveGhost(i)}
-                          disabled={resolvingGhostIdx === i}
-                          className="btn btn-primary btn-sm"
-                          style={{ alignSelf: 'flex-start', fontSize: '11px' }}
+                          onClick={(e) => { e.stopPropagation(); copyInTextCitation(refItem); }}
+                          title="Copiar cita en texto"
+                          style={iconBtnStyle}
                         >
-                          {resolvingGhostIdx === i ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                          <span>Completar Referencia</span>
+                          {copiedId === refItem.id
+                            ? <Check size={11} strokeWidth="var(--icon-stroke)" color="var(--color-success)" />
+                            : <Copy size={11} strokeWidth="var(--icon-stroke)" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
+                          title="Eliminar"
+                          style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
+                        >
+                          <Trash2 size={11} strokeWidth="var(--icon-stroke)" />
                         </button>
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    </div>
+
+                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {refItem.title || refItem.raw_text || 'Sin título'}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                      {refItem.doi_or_url && (
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <Link2 size={10} strokeWidth="var(--icon-stroke)" /> DOI
+                        </span>
+                      )}
+                      {sinCitar && (
+                        <span
+                          title="Esta referencia no está citada en el texto. Haz clic para opciones."
+                          style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
+                        >
+                          Sin citar en texto
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
-          </div>
+          </Grupo>
+
+          {/* GRUPO 2: PENDIENTES. Antes decía "metadatos incompletos" para todo lo
+              que no fuera válida, y ese rótulo mentía: una referencia con todos
+              sus campos y jamás contrastada no tiene un metadato incompleto. */}
+          <Grupo
+            titulo="Pendientes"
+            detalle="Faltan datos o falta contrastarlas contra una fuente."
+            conteo={unverifiedReferences.length}
+            Icon={HelpCircle}
+            tono="var(--color-warning)"
+            abierto={openUnverified}
+            alAlternar={() => setOpenUnverified(!openUnverified)}
+          >
+            {unverifiedReferences.length === 0 ? (
+              <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
+            ) : (
+                  unverifiedReferences.map((refItem) => {
+                const isSelected = selectedRef?.id === refItem.id;
+                const falta = diagnosticoDeReferencia(refItem).faltantes;
+                return (
+                  <div
+                    key={refItem.id}
+                    onClick={() => setSelectedReferenceId(refItem.id)}
+                    style={{
+                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
+                      border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                      transition: 'all 0.15s ease',
+                      display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-warning)' }}>
+                        {/* El motivo sale del diagnóstico, y el rótulo viejo ponía
+                            "metadatos incompletos" a una referencia que lo que
+                            tiene es los metadatos completos y ninguna
+                            verificación. */}
+                        {falta.length > 0 ? `Faltan ${falta.join(' y ')}` : 'Sin contrastar contra una fuente'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); }}
+                        title="Eliminar"
+                        style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
+                      >
+                        <Trash2 size={11} strokeWidth="var(--icon-stroke)" />
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                      {refItem.title || refItem.raw_text || 'Entrada sin título'}
+                    </div>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', fontWeight: 700 }}>
+                      Elegila para revisar su ficha
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </Grupo>
+
+          {/* GRUPO 3: CITAS SIN FUENTE ("En texto, no en biblio") */}
+          <Grupo
+            titulo="En texto, no en biblio"
+            detalle="Citas que aparecen en el cuerpo y no tienen ficha."
+            conteo={ghosts.length}
+            Icon={AlertTriangle}
+            tono="var(--color-danger)"
+            abierto={openGhosts}
+            alAlternar={() => setOpenGhosts(!openGhosts)}
+          >
+            {ghosts.length === 0 ? (
+              <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de citas sin fuente" />
+            ) : (
+              ghosts.map((g: unknown, i: number) => {
+                const txt = ghostText(g);
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--color-bg-surface-hover)', border: '1px solid var(--color-border-subtle)',
+                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+                    }}
+                  >
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                      {txt}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleResolveGhost(i)}
+                      disabled={resolvingGhostIdx === i}
+                      style={botonInline(true, { alignSelf: 'flex-start' })}
+                    >
+                      {resolvingGhostIdx === i
+                        ? <Loader2 size={11} className="animate-spin" strokeWidth="var(--icon-stroke)" />
+                        : <Plus size={11} strokeWidth="var(--icon-stroke)" />}
+                      <span>Completar referencia</span>
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </Grupo>
         </div>
 
         {/* ══ COLUMNA 2: Detalle de Referencia / Editor & Menciones en Texto (Flex 1) ══ */}
@@ -583,26 +573,24 @@ export const Step5ReferencesWizard: React.FC = () => {
           display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--canvas-bg)',
         }}>
           {!selectedRef ? (
-            /* Dashboard de Resumen cuando no hay selección */
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '20px', textAlign: 'center' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', maxWidth: '600px', width: '100%' }}>
-                <div style={kpiBoxStyle}>
-                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total Fuentes</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{references.length}</span>
-                </div>
-                <div style={kpiBoxStyle}>
-                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Verificadas OK</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--color-success)' }}>{validReferences.length}</span>
-                </div>
-                <div style={kpiBoxStyle}>
-                  <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Por Resolver</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--color-warning)' }}>{unverifiedReferences.length + ghosts.length}</span>
-                </div>
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '400px' }}>
-                Selecciona una referencia de la izquierda para editar sus campos y consultar sus menciones directas en el cuerpo del documento.
-              </div>
-            </div>
+            /* Sin selección no hay un tablero de tres cifras que nadie pidió:
+               §3 de la barra de calidad dice que la pantalla no repite
+               diagnósticos para parecer una pantalla con datos. Lo que hay es
+               el motivo de por qué está vacía, y es uno solo: no elegiste
+               ninguna referencia. */
+            <EstadoVacio
+              motivo="sin-seleccion"
+              accion={
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  style={botonInline(true)}
+                >
+                  <Plus size={12} strokeWidth="var(--icon-stroke)" />
+                  <span>Nueva referencia</span>
+                </button>
+              }
+            />
           ) : (
             <>
               {/* EL ESTADO, Y POR QUÉ. Arriba del detalle, antes del formulario.
@@ -611,14 +599,10 @@ export const Step5ReferencesWizard: React.FC = () => {
                   chip sin razón obliga a la persona a adivinar, y adivinar el
                   estado de una referencia es exactamente el trabajo que esta
                   pantalla existe para ahorrar. */}
+              <Seccion titulo="Estado de la referencia" descripcion="Lo que el sistema sabe de esta ficha, y lo que no.">
               <div
                 data-testid="estado-referencia"
-                style={{
-                  display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-                  padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--color-border-subtle)',
-                  background: 'var(--color-bg-surface)',
-                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                   <span
@@ -654,30 +638,21 @@ export const Step5ReferencesWizard: React.FC = () => {
                   {diagnostico ? porQueDeLaReferencia(diagnostico, selectedRef) : ''}
                 </p>
               </div>
+              </Seccion>
 
               {/* Vista previa: lo que va al documento, no un texto compuesto acá. */}
-              <div style={{
-                backgroundColor: 'var(--paper-white)', borderRadius: 'var(--radius-lg)',
-                padding: 'var(--space-5) var(--space-6)', border: '1px solid var(--border-subtle)',
-                boxShadow: 'var(--shadow-md)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+              <Seccion titulo="Vista previa APA 7" descripcion="Sangría francesa. Es el texto que va al documento, no uno compuesto en pantalla.">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                     <Sparkles size={14} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" />
                     <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
-                      Vista previa APA 7 (Sangría francesa)
+                      Como sale en la bibliografía
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => copyInTextCitation(selectedRef)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)',
-                      fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                      padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)',
-                      background: 'transparent', border: '1px solid var(--color-border-subtle)',
-                      color: 'var(--color-text-secondary)',
-                    }}
+                    style={botonInline()}
                   >
                     <Copy size={12} strokeWidth="var(--icon-stroke)" />
                     <span>Copiar cita en texto</span>
@@ -703,19 +678,11 @@ export const Step5ReferencesWizard: React.FC = () => {
                     </em>
                   )}
                 </div>
-              </div>
+              </Seccion>
 
               {/* Editor de Campos */}
-              <div style={{
-                backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
-                padding: '20px', border: '1px solid var(--border-subtle)',
-                display: 'flex', flexDirection: 'column', gap: '14px',
-              }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
-                  Editar Ficha Bibliográfica
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+              <Seccion titulo="Ficha bibliográfica" descripcion="Lo que edites acá es lo que se arma como formatted_apa al guardar.">
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-3)' }}>
                   <div>
                     <label style={labelFullStyle}>Autores (Formato: Apellido, Iniciales)</label>
                     <input
@@ -746,7 +713,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                   <div>
                     <label style={labelFullStyle}>Fuente / Revista / Editorial</label>
                     <input
@@ -767,33 +734,30 @@ export const Step5ReferencesWizard: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }} data-accion="principal">
                   <button
                     type="button"
                     onClick={handleSaveSelected}
-                    className="btn btn-primary"
-                    style={{ fontSize: '12px', fontWeight: 700 }}
+                    style={botonInline(true)}
                   >
-                    <Check size={14} />
-                    <span>Guardar Cambios</span>
+                    <Check size={14} strokeWidth="var(--icon-stroke)" />
+                    <span>Guardar cambios</span>
                   </button>
                 </div>
-              </div>
+              </Seccion>
 
               {/* Menciones en el Texto */}
-              <div style={{
-                backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
-                padding: '16px 20px', border: '1px solid var(--border-subtle)',
-              }}>
-                <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '8px' }}>
-                  Menciones Detectadas en el Documento ({linkedParagraphs.length})
-                </div>
+              <Seccion
+                titulo="Menciones en el texto"
+                descripcion="Párrafos del documento que citan esta fuente, por apellido y año."
+              >
                 {linkedParagraphs.length === 0 ? (
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    No se detectaron menciones explícitas de esta fuente en los párrafos del documento.
-                  </div>
+                  <EstadoVacio
+                    motivo="sin-resultados"
+                    filtroActivo="la búsqueda de menciones por apellido y año"
+                  />
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     {linkedParagraphs.map((p) => (
                       <div
                         key={p.id}
@@ -802,22 +766,22 @@ export const Step5ReferencesWizard: React.FC = () => {
                           setScrollTargetId(p.id);
                         }}
                         style={{
-                          padding: '14px 16px',
+                          padding: 'var(--space-4)',
                           borderRadius: 'var(--radius-md)',
                           backgroundColor: 'var(--paper-white)',
-                          border: '1px solid var(--border-subtle)',
+                          border: '1px solid var(--color-border-subtle)',
                           boxShadow: '0 2px 8px var(--color-ink-a05)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '10px',
+                          gap: 'var(--space-3)',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
                         }}
                       >
                         <div style={{
-                          fontSize: '12px',
+                          fontSize: 'var(--text-sm)',
                           lineHeight: '1.6',
-                          color: 'var(--text-main)',
+                          color: 'var(--color-text-primary)',
                           fontStyle: 'italic',
                           wordBreak: 'break-word',
                           whiteSpace: 'pre-wrap',
@@ -832,24 +796,17 @@ export const Step5ReferencesWizard: React.FC = () => {
                               setSelectedElementId(p.id);
                               setScrollTargetId(p.id);
                             }}
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              color: 'var(--accent-primary)',
-                              gap: '4px',
-                              padding: '4px 10px',
-                            }}
+                            style={botonInline()}
                           >
-                            <span>Ver en Hoja</span>
-                            <ArrowRight size={12} />
+                            <span>Ver en la hoja</span>
+                            <ArrowRight size={12} strokeWidth="var(--icon-stroke)" />
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </Seccion>
             </>
           )}
         </div>
@@ -863,7 +820,7 @@ export const Step5ReferencesWizard: React.FC = () => {
           zIndex: 1000, padding: '20px',
         }}>
           <div style={{
-            width: '460px', backgroundColor: 'var(--surface-elevated)', borderRadius: 'var(--radius-lg)',
+            width: '460px', backgroundColor: 'var(--color-bg-surface-hover)', borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border-subtle)', boxShadow: '0 12px 32px var(--color-ink-a20)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
@@ -871,15 +828,15 @@ export const Step5ReferencesWizard: React.FC = () => {
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 18px', borderBottom: '1px solid var(--border-subtle)',
-              backgroundColor: 'var(--sidebar-bg)',
+              backgroundColor: 'var(--color-bg-surface)',
             }}>
-              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+              <span style={{ fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
                 Añadir Nueva Referencia Bibliográfica
               </span>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
               >
                 <X size={16} />
               </button>
@@ -892,10 +849,10 @@ export const Step5ReferencesWizard: React.FC = () => {
                   type="button"
                   onClick={() => setAddMode('doi')}
                   style={{
-                    flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                    flex: 1, padding: '6px', fontSize: 'var(--text-sm)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
                     border: 'none', cursor: 'pointer',
-                    backgroundColor: addMode === 'doi' ? 'var(--surface-elevated)' : 'transparent',
-                    color: addMode === 'doi' ? 'var(--text-main)' : 'var(--text-secondary)',
+                    backgroundColor: addMode === 'doi' ? 'var(--color-bg-surface-hover)' : 'transparent',
+                    color: addMode === 'doi' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   }}
                 >
                   Buscador DOI / CrossRef
@@ -904,10 +861,10 @@ export const Step5ReferencesWizard: React.FC = () => {
                   type="button"
                   onClick={() => setAddMode('manual')}
                   style={{
-                    flex: 1, padding: '6px', fontSize: '11px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                    flex: 1, padding: '6px', fontSize: 'var(--text-sm)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
                     border: 'none', cursor: 'pointer',
-                    backgroundColor: addMode === 'manual' ? 'var(--surface-elevated)' : 'transparent',
-                    color: addMode === 'manual' ? 'var(--text-main)' : 'var(--text-secondary)',
+                    backgroundColor: addMode === 'manual' ? 'var(--color-bg-surface-hover)' : 'transparent',
+                    color: addMode === 'manual' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   }}
                 >
                   Entrada Manual
@@ -928,26 +885,27 @@ export const Step5ReferencesWizard: React.FC = () => {
                     type="button"
                     onClick={handleResolveDoi}
                     disabled={isLoading || !doiQuery.trim()}
-                    className="btn btn-primary"
-                    style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }}
+                    style={botonInline(true, { width: '100%' })}
                   >
-                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                    <span>Buscar & Extraer Metadatos</span>
+                    {isLoading
+                      ? <Loader2 size={14} className="animate-spin" strokeWidth="var(--icon-stroke)" />
+                      : <Search size={14} strokeWidth="var(--icon-stroke)" />}
+                    <span>Buscar y extraer metadatos</span>
                   </button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-1)' }}>
                     {(['journal', 'book', 'thesis', 'web'] as const).map((tKey) => (
                       <button
                         key={tKey}
                         type="button"
                         onClick={() => setRefType(tKey)}
                         style={{
-                          padding: '4px', fontSize: '10px', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                          border: refType === tKey ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          padding: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
+                          border: refType === tKey ? '1px solid var(--color-accent)' : '1px solid var(--border-subtle)',
                           backgroundColor: refType === tKey ? 'var(--color-accent-soft)' : 'transparent',
-                          color: refType === tKey ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                          color: refType === tKey ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                           cursor: 'pointer',
                         }}
                       >
@@ -978,11 +936,10 @@ export const Step5ReferencesWizard: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddManual}
-                    className="btn btn-primary"
-                    style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }}
+                    style={botonInline(true, { width: '100%' })}
                   >
-                    <Plus size={14} />
-                    <span>Guardar en Bibliografía</span>
+                    <Plus size={14} strokeWidth="var(--icon-stroke)" />
+                    <span>Guardar en la bibliografía</span>
                   </button>
                 </div>
               )}
@@ -995,50 +952,91 @@ export const Step5ReferencesWizard: React.FC = () => {
 };
 
 // Estilos auxiliares
-const groupCardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--surface-elevated)',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-lg)',
-  overflow: 'hidden',
-};
 
-const groupHeaderStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  cursor: 'pointer',
-  backgroundColor: 'var(--sidebar-bg)',
-  borderBottom: '1px solid var(--border-subtle)',
-  userSelect: 'none',
-};
+/**
+ * Un grupo de la lista, sobre el molde `Seccion`.
+ *
+ * Antes eran DOS estilos escritos a mano —`groupCardStyle` y
+ * `groupHeaderStyle`— que reimplementaban el mismo molde de Ajustes con otros
+ * radios y otros fondos. Dos copias del mismo borde divergen en la primera
+ * corrección de estilo, y entonces el paso se ve como si fuera de otra
+ * aplicación. El molde va con un encabezado que además es botón de plegado: la
+ * sección sabe que su título se abre y se cierra, y por eso usa un `<button>`
+ * de verdad y no un `<div onClick>` que no se puede abrir con el teclado.
+ */
+const Grupo: React.FC<{
+  titulo: string;
+  detalle?: string;
+  conteo: number;
+  Icon: typeof CheckCircle2;
+  tono: string;
+  abierto: boolean;
+  alAlternar: () => void;
+  children: React.ReactNode;
+}> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, children }) => (
+  <Seccion titulo={`${titulo} (${conteo})`} descripcion={detalle}>
+    <button
+      type="button"
+      onClick={alAlternar}
+      aria-expanded={abierto}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)',
+        width: '100%', padding: 'var(--space-1) 0', cursor: 'pointer', fontFamily: 'inherit',
+        background: 'transparent', border: 'none',
+      }}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <Icon size={15} strokeWidth="var(--icon-stroke)" color={tono} />
+        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+          {titulo} ({conteo})
+        </span>
+      </span>
+      <ChevronDown
+        size={14}
+        strokeWidth="var(--icon-stroke)"
+        color="var(--color-text-secondary)"
+        style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+      />
+    </button>
+    {abierto && <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>{children}</div>}
+  </Seccion>
+);
+
+/**
+ * El botón inline del proyecto.
+ *
+ * El archivo tenía nueve `<button className="btn btn-…">`, y las clases `.btn`
+ * son de la generación anterior: no las define este archivo, no las define
+ * ningún token, y funcionan por herencia de algo que nadie puede leer desde acá.
+ * `principal` marca la acción de acento, y es lo que permite comprobar que hay
+ * UNA sola por bloque —como ya hace `ReferencesPanel.tsx:274-281`— en vez de
+ * dos botones de acento compitiendo por la atención.
+ */
+const botonInline = (principal = false, extra?: React.CSSProperties): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
+  padding: 'var(--space-2) var(--space-4)', borderRadius: 'var(--radius-sm)',
+  fontSize: 'var(--text-sm)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+  background: principal ? 'var(--color-accent)' : 'transparent',
+  color: principal ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+  border: `1px solid ${principal ? 'var(--color-accent)' : 'var(--color-border-subtle)'}`,
+  ...extra,
+});
 
 const iconBtnStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  padding: '2px',
-  color: 'var(--text-secondary)',
+  padding: 'var(--space-1)',
+  color: 'var(--color-text-secondary)',
   display: 'flex',
-  alignItems: 'center',
-};
-
-const kpiBoxStyle: React.CSSProperties = {
-  padding: '14px',
-  borderRadius: 'var(--radius-md)',
-  backgroundColor: 'var(--surface-elevated)',
-  border: '1px solid var(--border-subtle)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
   alignItems: 'center',
 };
 
 const labelFullStyle: React.CSSProperties = {
-  fontSize: '10px',
+  fontSize: 'var(--text-xs)',
   fontWeight: 700,
   textTransform: 'uppercase',
-  color: 'var(--text-secondary)',
+  color: 'var(--color-text-secondary)',
   display: 'block',
   marginBottom: '3px',
 };
@@ -1046,11 +1044,11 @@ const labelFullStyle: React.CSSProperties = {
 const inputFullStyle: React.CSSProperties = {
   width: '100%',
   padding: '7px 10px',
-  fontSize: '12px',
+  fontSize: 'var(--text-sm)',
   borderRadius: 'var(--radius-md)',
   border: '1px solid var(--border-subtle)',
   backgroundColor: 'var(--canvas-bg)',
-  color: 'var(--text-main)',
+  color: 'var(--color-text-primary)',
   outline: 'none',
   boxSizing: 'border-box',
 };

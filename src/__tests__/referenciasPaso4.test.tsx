@@ -32,7 +32,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { Step5ReferencesWizard } from '../components/wizard/Step5ReferencesWizard';
 import { useDocStore } from '../store/useDocStore';
 
@@ -204,9 +204,21 @@ describe('el formulario no se rompió', () => {
 describe('los grupos de la lista', () => {
   it('una referencia con datos pero sin verificar NO va al grupo de verificadas', () => {
     /* El defecto: `titleText.length < 5` mandaba a "Sin verificar" un artículo
-       titulado "AI", y una referencia jamás contrastada entraba como válida. */
+       titulado "AI", y una referencia jamás contrastada entraba como válida. El
+       rótulo del grupo es "Pendientes" y no "Metadatos incompletos": lo que
+       tiene esa referencia son los metadatos completos y ninguna verificación. */
     const { container } = montar([{ ...REF, id: 'larga', verificada: false }], null);
-    expect(container.textContent).toMatch(/Sin verificar/);
+    expect(container.textContent).toMatch(/Pendientes/);
+    expect(container.textContent).not.toMatch(/Metadatos Incompletos/);
+  });
+
+  /* Los rótulos viejos afirmaban cosas que el grupo no comprobaba. "Válidas
+     (DOI verificado OK)" sobre un grupo que sólo miraba autor y título era una
+     etiqueta que el sistema se daba a sí mismo. */
+  it('el grupo de verificadas no se rotula a sí mismo como "válidas"', () => {
+    const { container } = montar([REF]);
+    expect(container.textContent).not.toMatch(/Válidas/);
+    expect(container.textContent).toMatch(/Verificadas/);
   });
 });
 
@@ -242,5 +254,69 @@ describe('la mascota de la fase', () => {
       ghost_citations: [{ raw_text: 'Alguien (2019) dijo algo' }], orphan_references: [],
     });
     expect(container.querySelector('.editorial-mascot-expression-worried')).toBeTruthy();
+  });
+});
+
+/* ── Los vacíos son los compartidos ────────────────────────────────────────── */
+
+describe('los estados vacíos', () => {
+  it('los tres grupos vacíos usan EstadoVacio, no un div con texto a mano', () => {
+    /* Los tres textos viejos —"No hay fuentes válidas aún", "No hay entradas
+       pendientes", "No se detectaron citas huérfanas"— no decían SU CAUSA, que
+       es lo que el componente compartido exige. */
+    const { container } = montar([], null);
+    expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
+      .toBeGreaterThanOrEqual(3);
+  });
+
+  it('el vacío nombra el filtro que lo dejó así, que es lo único tocable', () => {
+    const { container } = montar([], null);
+    expect(container.textContent).toMatch(/filtro activo/i);
+  });
+
+  it('el detalle sin selección es un vacío con motivo, no un tablero de números', () => {
+    /* El tablero de tres cifras que nadie pidió y que el §3 de la barra de
+       calidad prohíbe repetir como si fueran un resultado. */
+    const { container } = montar([REF], null);
+    expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
+      .toBeGreaterThanOrEqual(1);
+    expect(container.textContent).not.toMatch(/Total Fuentes/);
+  });
+
+  it('sin documento, el motivo es el de documento ausente', () => {
+    const { container } = montar([REF], 'r1', null, null);
+    expect(container.textContent).toMatch(/documento/i);
+  });
+});
+
+/* ── Una acción de acento por bloque ───────────────────────────────────────── */
+
+describe('la jerarquía de acciones', () => {
+  it('la barra superior tiene UN solo botón de acento', () => {
+    /* Antes "Nueva Referencia" y "Continuar a Auditoría" eran los dos
+       `btn-primary`, y el que ganaba la mirada era el de adelante porque
+       estaba más a la derecha. Agregar una referencia es el trabajo de la
+       pantalla; continuar es navegación. */
+    const { container } = montar([REF]);
+    expect(container.querySelectorAll('header [data-accion="principal"]')).toHaveLength(1);
+  });
+
+  it('el botón de acento es el de agregar, y el de continuar es secundario', () => {
+    const { container } = montar([REF]);
+    const principal = container.querySelector('header [data-accion="principal"]');
+    expect(principal?.textContent).toMatch(/nueva referencia/i);
+    const continuar = screen.getByRole('button', { name: /continuar a auditor/i });
+    expect(continuar.getAttribute('data-accion')).not.toBe('principal');
+  });
+
+  it('el modal conserva sus dos modos: DOI y entrada manual', () => {
+    /* El modal no se toca en esta fase, pero si al migrar los botones se
+       hubiera caído un modo, nadie lo notaría hasta que alguien lo use. */
+    montar([REF]);
+    /* `fireEvent`, no `.click()` directo: el `.click()` de DOM native no lo
+       envuelve en `act` y el modal no llega a pintarse antes del assert. */
+    fireEvent.click(screen.getByRole('button', { name: /nueva referencia/i }));
+    expect(screen.getByRole('button', { name: /doi|crossref/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /entrada manual/i })).toBeTruthy();
   });
 });
