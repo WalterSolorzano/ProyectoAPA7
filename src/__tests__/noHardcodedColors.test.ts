@@ -171,6 +171,12 @@ const DIRECTORIOS_R3 = [
   'components/wizard',
   'components/inspector',
   'components/export',
+  /* La carpeta de figuras entra con la F4, que escribe `ListaContextual` y
+     `EscenarioFigura`. Entra ANTES de que exista el primer archivo, porque el
+     orden importa: una carpeta creada y usada primero, y sumada al alcance
+     despues, es una carpeta donde un color literal no rompio nada durante los
+     tres commits en los que estuvo fuera. */
+  'components/figures',
 ];
 /* La deuda MEDIDA de las cinco reglas en esos siete directorios YA NO EXISTE, y
    por eso este bloque ya no declara una `DEUDA_MEDIDA`. No se vacio: se pago.
@@ -822,6 +828,14 @@ describe('T20 — el lint de tokens del rediseño', () => {
      es el error: sería una lista de excepciones disfrazada de cuenta, y volvería
      a ser el lugar donde un color nuevo se esconde. Esta prueba falla si el
      nombre vuelve a declararse. */
+  it('la carpeta de figuras esta en el alcance de R3', () => {
+    /* Una carpeta nueva fuera de la lista es una carpeta donde un color literal
+       no rompe nada. El lint tiene que crecer CON el alcance, no al reves: por eso
+       esto es una prueba y no una linea de codigo. Un alcance que se encoge no se
+       nota, y un alcance que nunca crece deja de mirar justo el codigo nuevo. */
+    expect(DIRECTORIOS_R3).toContain('components/figures');
+  });
+
   it('la deuda se PAGO: el mecanismo de la cuenta no puede volver', () => {
     /* El aviso que este proyecto necesito nueve veces, y la novena vez dice lo
        contrario de las ocho anteriores. Las ocho primeras eran "el alcance no

@@ -72,6 +72,17 @@ export interface ContextoFigura {
   /** 1-based, dentro de la sección y del mismo tipo. */
   posicionEnSeccion: number;
   totalEnSeccion: number;
+  /** El archivo de la imagen, crudo, o `null` si no hay o si esto es una tabla.
+   *  Va crudo a propósito: quién lo resuelve a una URL es de la capa de red, y
+   *  `contextosDeFiguras` no sabe de HTTP. */
+  url: string | null;
+  /** El tamaño DECLARADO, en centímetros, o `null` si el documento no lo dice.
+   *  `null` no es `0` ni `12`: es "no declarado", y la pantalla lo dice. */
+  anchoCm: number | null;
+  altoCm: number | null;
+  /** Los datos de una tabla, o `null` si esto es una figura. `TableModel` tiene
+   *  `headers: string[]` y `rows: string[][]` (`src/types/index.ts:88-95`). */
+  tabla: { headers: string[]; rows: string[][] } | null;
 }
 
 export interface MedidaFigura {
@@ -188,6 +199,12 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       parrafoAnterior: anterior,
       posicionEnSeccion: 0,
       totalEnSeccion: 0,
+      url: esImagen ? el.image_info?.relative_url ?? null : null,
+      anchoCm: esImagen && typeof el.image_info?.width_cm === 'number' ? el.image_info.width_cm : null,
+      altoCm: esImagen && typeof el.image_info?.height_cm === 'number' ? el.image_info.height_cm : null,
+      tabla: esImagen
+        ? null
+        : { headers: el.table_info?.headers ?? [], rows: el.table_info?.rows ?? [] },
     });
   }
 
