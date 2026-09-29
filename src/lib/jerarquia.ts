@@ -502,3 +502,55 @@ export function preambuloDe(elementos: readonly ElementModel[]): Preambulo {
     palabras: antes.filter((e) => ES_PROSA.has(e.type)).reduce((n, e) => n + palabrasDe(e.text), 0),
   };
 }
+
+/** La sección que estaba abierta en un punto del documento. */
+export interface SeccionVigente {
+  /** El H1 vigente, o `null` antes del primer H1. */
+  h1: string | null;
+  /** El H2 vigente, o `null`. Un H2 hereda su H1 y no abre sección propia. */
+  h2: string | null;
+  /** `true` para todo lo que está antes del primer H1. */
+  enPreambulo: boolean;
+}
+
+/**
+ * La sección vigente en CADA posición del documento.
+ *
+ * POR QUÉ UN ARRAY Y NO UN MAP POR `element.id`. Los ids son `elem_N`, un índice
+ * posicional que genera el backend (`src/store/slices/auditSlice.ts:150-154`):
+ * insertar un párrafo arriba en Word corre TODOS los ids de abajo. Un mapa por id
+ * sigue siendo correcto dentro de una pasada —se construye del mismo
+ * `doc.elements` que se consulta—, pero la IDENTIDAD que la UI guarda entre
+ * pasadas (`selectedElementId`, `setScrollTargetId`) no lo es: después de un
+ * refresco, `elem_7` es otro elemento y todo lo que se le colgó a `elem_7` quedó
+ * pegado al párrafo equivocado. Es el mismo bug del diff por `element_id` que ya
+ * se corrigió recalculando.
+ *
+ * Un array paralelo al de `elementos` hace la cosa a prueba de refresco por
+ * construcción: si los ids corren, la posición que ocupa la figura también se
+ * recalcula, y no hay nada que reconciliar. `elementos[i]` y `salida[i]` son el
+ * mismo elemento SIEMPRE, porque se llenaron en la misma vuelta.
+ *
+ * POR QUÉ VIVE ACÁ Y NO EN `figuras.ts`. El recorrido de encabezados ya existe en
+ * este archivo, con la regla de que antes del primer H1 hay preámbulo y de que un
+ * H3 no abre sección propia. Una segunda vuelta por los encabezados en otro lado
+ * es la segunda regla, y las dos reglas se contradicen el primer día que una cambia.
+ */
+export function seccionesDeElementos(elementos: readonly ElementModel[]): SeccionVigente[] {
+  const salida: SeccionVigente[] = [];
+  let h1: string | null = null;
+  let h2: string | null = null;
+  for (const el of elementos) {
+    if (el.type === 'heading') {
+      const nivel = Math.max(1, el.heading_level ?? 1);
+      if (nivel === 1) {
+        h1 = (el.text || '').trim();
+        h2 = null;                    // un H1 nuevo cierra el H2 anterior
+      } else if (nivel === 2 && h1 !== null) {
+        h2 = (el.text || '').trim();  // un H2 antes del primer H1 no abre nada
+      }
+    }
+    salida.push({ h1, h2, enPreambulo: h1 === null });
+  }
+  return salida;
+}
