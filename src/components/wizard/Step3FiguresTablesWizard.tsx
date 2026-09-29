@@ -35,7 +35,8 @@ import { PaperCanvas } from '../layout/PaperCanvas';
 import { MiniToolbar, MiniToolbarAction } from '../MiniToolbar';
 import { Image, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, ChevronRight } from 'lucide-react';
 import { ListaContextual } from '../figures/ListaContextual';
-import { buscarFiguras, contextosDeFiguras, type ContextoFigura, type TipoFigura } from '../../lib/figuras';
+import { EscenarioFigura } from '../figures/EscenarioFigura';
+import { buscarFiguras, contextosDeFiguras, figuraActiva, vecina, type ContextoFigura, type TipoFigura } from '../../lib/figuras';
 
 const controlSelectStyle: React.CSSProperties = {
   width: '100%',
@@ -69,6 +70,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
   const doc = useDocStore((s) => s.doc);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const updateElementImage = useDocStore((s) => s.updateElementImage);
+  const updateElementTable = useDocStore((s) => s.updateElementTable);
   const tableStyles = useDocStore((s) => s.tableStyles);
   const setTableStyle = useDocStore((s) => s.setTableStyle);
   const selectedElementId = useDocStore((s) => s.selectedElementId);
@@ -128,6 +130,42 @@ export const Step3FiguresTablesWizard: React.FC = () => {
     setSelectedElementId(c.id);
     useDocStore.getState().setScrollTargetId(c.id);
   }, [contextos, setSelectedElementId]);
+
+  /* La figura que se mira. Si todavia no se eligio ninguna, es la primera del
+     tipo: una pantalla con dos figuras no empieza con el centro vacio. */
+  const contextoActivo = useMemo(() => {
+    if (indiceActivo !== null) {
+      const elegida = figuraActiva(contextos, indiceActivo);
+      if (elegida) return elegida;
+    }
+    return contextos.find((c) => c.tipo === tipo) ?? null;
+  }, [contextos, indiceActivo, tipo]);
+
+  /* La navegacion salta DENTRO DEL MISMO TIPO, no dentro de la lista filtrada: con
+     el buscador puesto, "siguiente" tiene que llevar a la figura que viene en el
+     documento, no a la siguiente de lo que coincide con la busqueda. */
+  const handleNavigate = useCallback((paso: 1 | -1) => {
+    if (!contextoActivo) return;
+    const delTipo = contextos.filter((c) => c.tipo === contextoActivo.tipo);
+    const siguiente = vecina(delTipo, contextoActivo.indice, paso);
+    if (!siguiente) return;
+    setIndiceActivo(siguiente.indice);
+    setSelectedElementId(siguiente.id);
+  }, [contextos, contextoActivo, setSelectedElementId]);
+
+  /* La leyenda se guarda al SALIR del campo, nunca en cada tecla:
+     `updateElementImage` es una llamada HTTP con `pushHistory`, y con `caption`
+     corre `cleanRedundantTitleParagraphs`, que reescribe parrafos del documento. */
+  const persistirLeyenda = useCallback((texto: string) => {
+    const c = contextoActivo;
+    if (!c) return;
+    if (c.tipo === 'image') {
+      updateElementImage(c.id, { caption: texto });
+      return;
+    }
+    const info = doc?.elements[c.indice]?.table_info;
+    updateElementTable(c.id, { ...(info ?? {}), caption: texto } as never);
+  }, [contextoActivo, updateElementImage, updateElementTable, doc?.elements]);
 
   const handleElementClick = useCallback((elementId: string, rect: DOMRect, element: any) => {
     if (tipo === 'image' && element.type === 'image') {
@@ -239,50 +277,54 @@ export const Step3FiguresTablesWizard: React.FC = () => {
       </ListaContextual>
       )}
 
-      {/* Contenedor del escenario. `minHeight: 0` Y `minWidth: 0`: el primero para
-          que el scroller hijo baje de su alto de contenido, el segundo —el que
-          faltaba en `:445`— para que un hijo ancho no estire la columna. */}
-      <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', backgroundColor: 'var(--canvas-bg)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        <PaperCanvas onElementClick={handleElementClick} />
-        {/* Botón de acción rápida: Siguiente etapa */}
-        <div style={{
-          position: 'absolute', bottom: 20, right: 24, zIndex: 30,
-          display: 'flex', gap: '8px',
-        }}>
-          <button
-            type="button"
-            onClick={() => useDocStore.getState().setWizardStep(4)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '10px 18px',
-              backgroundColor: 'var(--accent-primary)',
-              color: 'var(--color-text-on-accent)',
-              borderRadius: 'var(--radius-full)',
-              border: 'none',
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px var(--color-accent-a40)',
-              fontFamily: 'inherit',
-              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-            <span>Siguiente: Referencias</span>
-            <ChevronRight size={16} strokeWidth="var(--icon-stroke)" />
-          </button>
-        </div>
-      </div>
-
-      {/* El panel de edición de imagen ahora vive a nivel raíz en App.tsx
-          (ImageEditSidePanel) para estar disponible en cualquier paso. */}
-
-      <MiniToolbar
-        items={imageActions}
-        anchorRect={toolbarAnchor}
-        visible={toolbarAnchor !== null}
-        onClose={() => { setToolbarAnchor(null); setToolbarElementId(null); }}
+      {/* EL ESCENARIO: una figura a la vez, a la escala de la hoja, y el documento
+          por un toggle apagado por omision (§8.1). El documento entero como centro
+          era el defecto: veinte figuras de golpe son veinte clicks para llegar a
+          la que se quiere ver. `MiniToolbar` va ADENTRO del toggle del documento,
+          porque sus tres acciones —alinear, resetear, eliminar— son sobre el
+          elemento del lienzo, y un "Eliminar" al lado de una figura que no es la
+          del lienzo es un borrado de alcance ambiguo. */}
+      <EscenarioFigura
+        contexto={contextoActivo}
+        totalEnDocumento={contextos.length}
+        onNavigate={handleNavigate}
+        onLegendChange={persistirLeyenda}
+        documento={(
+          <>
+            <PaperCanvas onElementClick={handleElementClick} />
+            {/* El boton de la proxima etapa va dentro del documento y no flotando
+                arriba: un boton absoluto anclado a un contenedor que ya no esta
+                siempre montado flota sobre la figura sin explicar a que pertenece. */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 'var(--space-3) var(--space-4)' }}>
+              <button
+                type="button"
+                onClick={() => useDocStore.getState().setWizardStep(4)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 18px',
+                  backgroundColor: 'var(--accent-primary)',
+                  color: 'var(--color-text-on-accent)',
+                  borderRadius: 'var(--radius-full)',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-md)',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span>Siguiente: Referencias</span>
+                <ChevronRight size={16} strokeWidth="var(--icon-stroke)" />
+              </button>
+            </div>
+            <MiniToolbar
+              items={imageActions}
+              anchorRect={toolbarAnchor}
+              visible={toolbarAnchor !== null}
+              onClose={() => { setToolbarAnchor(null); setToolbarElementId(null); }}
+            />
+          </>
+        )}
       />
     </div>
   );

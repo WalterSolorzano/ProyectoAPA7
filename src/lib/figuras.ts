@@ -72,6 +72,10 @@ export interface ContextoFigura {
   /** 1-based, dentro de la sección y del mismo tipo. */
   posicionEnSeccion: number;
   totalEnSeccion: number;
+  /** 1-based, dentro del mismo tipo en TODO el documento. Son los que el toggle
+   *  Figuras | Tablas tiene que poder recorrerse enteros. */
+  posicionEnTipo: number;
+  totalEnTipo: number;
   /** El archivo de la imagen, crudo, o `null` si no hay o si esto es una tabla.
    *  Va crudo a propósito: quién lo resuelve a una URL es de la capa de red, y
    *  `contextosDeFiguras` no sabe de HTTP. */
@@ -199,6 +203,8 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       parrafoAnterior: anterior,
       posicionEnSeccion: 0,
       totalEnSeccion: 0,
+      posicionEnTipo: 0,
+      totalEnTipo: 0,
       url: esImagen ? el.image_info?.relative_url ?? null : null,
       anchoCm: esImagen && typeof el.image_info?.width_cm === 'number' ? el.image_info.width_cm : null,
       altoCm: esImagen && typeof el.image_info?.height_cm === 'number' ? el.image_info.height_cm : null,
@@ -221,6 +227,19 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
     vistas.set(clave, visto);
     c.posicionEnSeccion = visto;
     c.totalEnSeccion = totales.get(clave) ?? visto;
+  }
+
+  /* Y los conteos por tipo, que son los que gobiernan el toggle y las flechas.
+     Se cuentan sobre la SALIDA ya ordenada, así que el número que ve la persona
+     y el índice que se guardó salen de la misma vuelta. */
+  const porTipo = new Map<TipoFigura, number>();
+  for (const c of salida) porTipo.set(c.tipo, (porTipo.get(c.tipo) ?? 0) + 1);
+  const vistosPorTipo = new Map<TipoFigura, number>();
+  for (const c of salida) {
+    const visto = (vistosPorTipo.get(c.tipo) ?? 0) + 1;
+    vistosPorTipo.set(c.tipo, visto);
+    c.posicionEnTipo = visto;
+    c.totalEnTipo = porTipo.get(c.tipo) ?? visto;
   }
 
   return salida;

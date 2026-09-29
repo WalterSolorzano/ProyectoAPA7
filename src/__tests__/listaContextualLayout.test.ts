@@ -39,6 +39,25 @@ function bloquesDeEstilo(fuente: string): string[] {
   return bloques;
 }
 
+/**
+ * El bloque de estilo DEL ELEMENTO que lleva ese `data-testid`, y no una ventana
+ * de caracteres alrededor.
+ *
+ * POR QUE NO UNA VENTANA. La primera version de esta guarda buscaba 400 caracteres
+ * despues del `data-testid` y asi leia `minWidth: 0` de un `<div>` que estaba
+ * cuatro lineas mas abajo: la prueba daba verde con el scroller SIN `minWidth: 0`.
+ * Una guarda que lee de mas es peor que ninguna, porque seReporta vigilando. Esta
+ * devuelve el `style={{ ... }}` que le sigue al `data-testid`, que es el del
+ * elemento y solo el suyo.
+ */
+function estiloDe(fuente: string, testid: string): string {
+  const desde = fuente.indexOf(`data-testid="${testid}"`);
+  if (desde === -1) return '';
+  const resto = fuente.slice(desde);
+  const m = resto.match(/style=\{\{([\s\S]*?)\}\}/);
+  return m ? m[1] : '';
+}
+
 describe('§8.4: nada se tapa y ninguna lista queda en 0 px', () => {
   it('el glob esta leyendo de verdad', () => {
     expect(Object.keys(FUENTES).length).toBeGreaterThan(100);
@@ -51,7 +70,7 @@ describe('§8.4: nada se tapa y ninguna lista queda en 0 px', () => {
   });
 
   it('el scroller de la lista lleva minHeight: 0 y minWidth: 0', () => {
-    const scroller = lista.match(/data-testid="lista-figuras-scroller"[\s\S]{0,400}/)?.[0] ?? '';
+    const scroller = estiloDe(lista, 'lista-figuras-scroller');
     expect(scroller).not.toBe('');
     expect(scroller).toMatch(/minHeight:\s*0/);
     expect(scroller).toMatch(/minWidth:\s*0/);
@@ -84,28 +103,27 @@ describe('§8.4: nada se tapa y ninguna lista queda en 0 px', () => {
   });
 
   it('el header de la lista declara su maxHeight, y el tope es un valor', () => {
-    const header = lista.match(/data-testid="lista-figuras-header"[\s\S]{0,400}/)?.[0] ?? '';
+    const header = estiloDe(lista, 'lista-figuras-header');
     expect(header).not.toBe('');
     /* Admite el literal o la constante que lo nombra: lo que se prohibe es que no
        haya tope, no que el tope este escrito de una forma o de otra. */
     expect(header).toMatch(/maxHeight:\s*('[^']*'|[A-Z_]+)/);
+    /* Y el `flexShrink: 0` del header tiene que estar EN ese bloque, no en el
+       del rail de al lado: son dos cajas distintas. */
+    expect(header).toMatch(/flexShrink:\s*0/);
   });
 
   it('el contenedor del escenario lleva minWidth: 0, que es lo que faltaba en :445', () => {
     const escenario = FUENTES['/src/components/figures/EscenarioFigura.tsx'];
-    if (escenario === undefined) {
-      /* La regla se escribe ahora aunque el escenario llegue en la Task 3: una
-         guarda que espera al archivo para poder leerse pasa verde sin haber leido
-         nada, que es la forma de una guarda que no vigila. Mientras tanto vigila
-         el contenedor del lienzo del paso, que es el `:445` al que §8.4 le falta
-         el `minWidth: 0`. */
-      expect(paso, 'el contenedor del lienzo tiene que llevar minHeight: 0 y minWidth: 0')
-        .toMatch(/flex:\s*1,\s*minHeight:\s*0,\s*minWidth:\s*0/);
-      return;
-    }
-    const scroller = escenario.match(/data-testid="escenario-scroller"[\s\S]{0,400}/)?.[0] ?? '';
-    expect(escenario).toBeTruthy();
-    expect(scroller).not.toBe('');
+    /* SIN RAMA DE RESGUARDO, A PROPOSITO. Cuando se escribio esta prueba el
+       `EscenarioFigura.tsx` todavia no existia y la guarda admitia "si no esta,
+       mira el paso". Hoy el archivo esta: una rama de esas es una guarda que
+       puede quedarse mirando la mitad equivocada sin que nadie lo note, y esta
+       regla fue media guarda durante tres commits. Si el archivo se borra, esto
+       tiene que CAER. */
+    expect(escenario, 'EscenarioFigura.tsx tiene que estar: si no esta, esta guarda no vigila').toBeTruthy();
+    const scroller = estiloDe(escenario!, 'escenario-scroller');
+    expect(scroller, 'no se encontro el estilo del scroller del escenario').not.toBe('');
     expect(scroller).toMatch(/minHeight:\s*0/);
     expect(scroller).toMatch(/minWidth:\s*0/);
   });
