@@ -18,6 +18,11 @@ export const defaultPortada: PortadaData = {
   date: '',
   running_head: '',
   author_note: '',
+  /* Los logos viajan como dato, no como una constante del `.docx`. El default
+     es una lista VACIA y no `undefined`: "no hay logos pedidos" y "el campo no
+     existe" son dos estados distintos, y el segundo hace que el `.docx` tenga
+     que adivinar. */
+  logos: [],
   /* El idioma viaja en `PortadaData` y no en `DocumentMeta` por una razón
      escrita en `python/models.py`: es el único de los dos que el cliente manda
      en cada exportación. El default es el mismo que el del modelo, para que el
@@ -180,7 +185,16 @@ export const createCoverSlice: StateCreator<DocState, [], [], Partial<DocState>>
      deseleccionar esta a medio hacer. */
   updateCoverInstitucion: (codigo) => set((state) => {
     if (codigo === null || state.portada.institucionSeleccionada === codigo) {
-      return { portada: { ...state.portada, institucionSeleccionada: null, institution: '' } };
+      return {
+        portada: {
+          ...state.portada,
+          institucionSeleccionada: null,
+          institution: '',
+          // El logo se va con la institucion: un documento sin institucion no
+          // tiene de que insignia.
+          logos: [],
+        },
+      };
     }
     const delCatalogo = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === codigo);
     if (!delCatalogo) return {};
@@ -190,6 +204,17 @@ export const createCoverSlice: StateCreator<DocState, [], [], Partial<DocState>>
         institucionSeleccionada: codigo,
         institution: delCatalogo.nombre,
         departamento: delCatalogo.areaDefault,
+        /* El logo viaja con la institucion. Antes era una constante del `.docx`
+           y poner el de la UNI era lo unico que sabia hacer: elegir UNAN salia
+           con el logo de la UNI, en silencio, y el `.docx` quedaba equivocado
+           sin que hubiera ningun error. */
+        logos: delCatalogo.logoUrl
+          ? [{
+              asset: delCatalogo.logoUrl.split('/').pop() as string,
+              ancho_fraccion: 0.16,
+              institucion: delCatalogo.codigo,
+            }]
+          : [],
       },
     };
   }),

@@ -512,6 +512,62 @@ class EquationConfig(BaseModel):
     font_size_pt: float = 12.0
 
 
+class LogoPortada(BaseModel):
+    """Un logo que la portada pide, como DATO.
+
+    `asset` es el nombre del archivo dentro de `python/assets/`, no una URL
+    escrita en el `.tsx`. La diferencia importa: hoy la insignia vivia hardcodeada
+    en el componente, y elegir UNAN pedia `logo_anan.png` con doble `a` mientras
+    que el backend servia `logo_unan.png`. Un 404, y ninguno de los dos lados se
+    entera.
+
+    `ancho_fraccion` es una FRACCIÓN DEL ANCHO ÚTIL DE LA HOJA, no un milímetro.
+    Es lo que hace que el mismo logo se vea igual en Carta y en A4: con
+    milimetros absolutos, un ancho calibrado para una hoja se ve distinto en la
+    otra, y con las dos hojas elegibles eso hace que el mismo diseño salga de dos
+    tamaños.
+
+    El default (0.16) viene del plan de la fase y se respeta. Medido sobre el
+    ancho útil real de una carta (16.51 cm) son 2.64 cm, contra los 5.2 cm que
+    ponía el `Cm(5.2)` de antes. O sea que el logo queda MÁS CHICO en la hoja de
+    lo que estaba, no más grande: el número baja de 5.2 a 2.64. La preview sí lo
+    empeoraba, y de ahí el "sale todo super achicado": 150 px de 680 es un 22% del
+    ancho de la hoja, contra el 31.5% que llevaba el `.docx`.
+    """
+    asset: str
+    ancho_fraccion: float = 0.16
+    institucion: Optional[str] = None
+
+    @field_validator("ancho_fraccion")
+    @classmethod
+    def _validar_fraccion(cls, v: float) -> float:
+        """Una fracción negativa o de más de la hoja produce un ancho que
+        python-docx acepta y Word no sabe dibujar. Que lo rechace el modelo, que
+        es donde un dato inválido se puede decir."""
+        if v <= 0 or v > 1:
+            raise ValueError(
+                f"ancho_fraccion debe estar entre 0 y 1 (excluidos); vino {v}"
+            )
+        return v
+
+    @field_validator("asset")
+    @classmethod
+    def _validar_asset(cls, v: str) -> str:
+        """El asset es un NOMBRE de archivo, no una ruta ni una URL.
+
+        Sin esto, un `asset` con `../` sale de la carpeta de assets y un
+        `asset` con `https://` se resuelve contra el disco y falla en silencio.
+        """
+        limpio = str(v).strip()
+        if not limpio:
+            raise ValueError("el asset no puede estar vacio")
+        if "/" in limpio or "\\" in limpio or limpio.startswith("."):
+            raise ValueError(
+                f"el asset es un nombre de archivo dentro de python/assets/, no una ruta: {v}"
+            )
+        return limpio
+
+
 class PortadaData(BaseModel):
     apa_format: APAFormat = APAFormat.STUDENT
     use_original_cover: bool = True  # Conservar portada original intacta del documento
@@ -539,6 +595,7 @@ class PortadaData(BaseModel):
     running_head: Optional[str] = None
     author_note: Optional[str] = None
     departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
+    logos: list[LogoPortada] = Field(default_factory=list)
 
     # QUÉ SALIÓ DE AQUÍ Y POR QUÉ.
     #

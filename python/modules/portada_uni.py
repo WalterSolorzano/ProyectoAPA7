@@ -28,19 +28,38 @@ from docx.shared import Cm, Mm, Pt, RGBColor
 from docx.text.paragraph import Paragraph
 
 
-def _resolve_logo_path() -> Path:
+def _resolve_logo_path(asset: str = "logo_uni.png") -> Path:
+    """Resuelve EL ASSET QUE PIDIÓ EL DOCUMENTO.
+
+    ANTES NO TENÍA ARGUMENTO y siempre terminaba en `logo_uni.png`. Con el
+    `if LOGO_PATH.exists()` que lo acompañaba, que solo salta si el archivo no
+    está en disco, elegir UNAN producía un `.docx` con el logo de la UNI sin decir
+    nada. Es la forma peor de fallar: no hay error, hay un documento equivocado.
+
+    Los candidatos se conservan tal cual: `meipass/assets/` para el ejecutable
+    empaquetado con PyInstaller y `../assets/` para desarrollo. Si se limpian, el
+    instalador deja de encontrar los logos, y eso no se nota en un `pytest`.
+
+    Si el asset no existe devuelve la PRIMERA ruta candidata, que no existe. Es
+    deliberado: el llamador decide qué hacer con un logo que no llegó, y lo que
+    decide es avisar, no substituting otro en su lugar.
+    """
     meipass = getattr(sys, '_MEIPASS', None)
-    candidates = []
+    candidatos = []
     if meipass:
-        candidates.append(Path(meipass) / "assets" / "logo_uni.png")  # PyInstaller frozen
-    candidates.append(Path(__file__).parent.parent / "assets" / "logo_uni.png")  # desarrollo
-    for cand in candidates:
+        candidatos.append(Path(meipass) / "assets" / asset)  # PyInstaller frozen
+    candidatos.append(Path(__file__).parent.parent / "assets" / asset)  # desarrollo
+    for cand in candidatos:
         if cand.exists():
             return cand
-    return candidates[0]
+    return candidatos[0]
 
 
-LOGO_PATH: Path = _resolve_logo_path()
+# El logo de la portada UNI, que es el de por omisión. Es una CONSTANTE con
+# nombre, no el resultado de una función sin argumentos: que alguien lea esto y
+# entienda que este es el de UNI y no "el logo".
+LOGO_UNI_ASSET = "logo_uni.png"
+LOGO_PATH: Path = _resolve_logo_path(LOGO_UNI_ASSET)
 
 # Tipografía institucional (idéntica a la de los trabajos UNI reales)
 FONT_DEPARTMENT = "Times New Roman"  # Área de Conocimiento / asignatura (20pt, serif)
@@ -78,6 +97,48 @@ MARGENES_MM = 25.4                  # una pulgada, como create_template.py y DES
 # `.docx`.
 FRACCION_DE_ANCHO_DEL_LOGO = 0.16
 
+# Que logo lleva que institucion. Es DATO y no una URL en el `.tsx`, por lo que
+# dijo `CoverEditorPanel`: con la insignia hardcodeada en el componente, elegir
+# UNAN pedia `logo_anan.png` con doble `a` y el backend servia
+# `logo_unan.png`. Un 404 en el que ninguno de los dos lados se enteraba.
+#
+# Se busca por el CODIGO primero y despues por el nombre completo, porque el
+# cliente manda el nombre ("Universidad Nacional Autónoma de Nicaragua
+# (UNAN-Managua)") y no siempre el codigo.
+ASSET_POR_CODIGO_DE_INSTITUCION = {
+    "UNI": "logo_uni.png",
+    "UNAN": "logo_unan.png",
+}
+ASSET_POR_NOMBRE_DE_INSTITUCION = {
+    "universidad nacional de ingenier": "logo_uni.png",
+    "universidad nacional autonoma de nicaragua": "logo_unan.png",
+    "unan": "logo_unan.png",
+    "uni": "logo_uni.png",
+}
+
+
+def asset_de_institucion(institucion: str | None) -> str:
+    """El asset que corresponde a una institucion, o `None` si no se conoce.
+
+    `None` significa "no hay logo que poner" y es una respuesta VALIDA: una
+    institucion que no esta en el catalogo no es un error, y no se le pone el
+    logo de otra. Devolver el de UNI como fallback es exactamente el defecto que
+    esta función vino a arreglar.
+    """
+    if not institucion:
+        return None
+    texto = str(institucion).strip()
+    if not texto:
+        return None
+    codigo = texto.upper()
+    if codigo in ASSET_POR_CODIGO_DE_INSTITUCION:
+        return ASSET_POR_CODIGO_DE_INSTITUCION[codigo]
+    plano = texto.lower()
+    for prefijo, asset in ASSET_POR_NOMBRE_DE_INSTITUCION.items():
+        if prefijo in plano:
+            return asset
+    return None
+
 # Los puntos de cada bloque. Esta tabla es la FUENTE DE VERDAD: la copia en
 # `src/lib/portada/geometria.ts` (`PT_PORTADA_UNI`) sale de acá.
 PT_DEPARTAMENTO = 20
@@ -88,6 +149,22 @@ PT_AUTOR = 10
 PT_CARNET = 10
 PT_FECHA = 11
 PT_LUGAR = 11
+
+
+class _LogoPedido:
+    """Un logo pedido, con los defaults puestos.
+
+    Existe para no depender de que el llamador use `LogoPortada`: la función
+    acepta la lista del modelo y también una lista de objetos con los mismos dos
+    campos, que es lo que necesitan los tests y el fallback interno.
+    """
+
+    __slots__ = ("asset", "ancho_fraccion", "institucion")
+
+    def __init__(self, asset: str, ancho_fraccion: float, institucion: str | None = None):
+        self.asset = asset
+        self.ancho_fraccion = ancho_fraccion
+        self.institucion = institucion
 
 
 def hoja_de(page_size: str | None) -> tuple[float, float]:
@@ -330,6 +407,7 @@ def generate_uni_cover(
     font_family: str | None = None,
     page_size: str | None = "carta",
     logos: list | None = None,
+    institucion: str | None = None,
 ) -> int:
     """
     Inserta al inicio del documento una portada institucional UNI fiel al
@@ -357,9 +435,15 @@ def generate_uni_cover(
     que hace que el logo mida su misma fracción del ancho útil en las dos. Con
     milimetros fijos, un ancho calibrado para una hoja se ve distinto en la otra.
 
-    `logos` es una lista de `LogoPortada`. Es `None` o vacía cuando el
-    documento no pidió logos, y en ese caso la portada UNI pone el suyo, que es
-    lo que se hizo siempre.
+    `logos` es una lista de `LogoPortada` (o de `_LogoPedido`, que es lo mismo
+    con los defaults puestos). Es `None` o vacía cuando el documento no pidió
+    logos, y en ese caso se usa el de la institución elegida, o el de UNI si la
+    institución no se conoce.
+
+    `institucion` es el nombre de la institución del documento. Decide el logo
+    cuando no hay lista explícita, y antes no decidía nada: la portada UNI
+    ponía SIEMPRE el logo de la UNI, y elegir UNAN salía con el logo de la UNI en
+    silencio.
     """
     aplicar_tamano_de_hoja(doc, page_size)
 
@@ -399,15 +483,38 @@ def generate_uni_cover(
     # El ancho es una FRACCIÓN del ancho útil de la hoja, no `Cm(5.2)`. Es el
     # cambio que hace que el mismo logo se vea igual en Carta y en A4, y el
     # motivo está escrito arriba, en `FRACCION_DE_ANCHO_DEL_LOGO`.
-    logo_p = builder.add_paragraph()
-    logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _set_paragraph_spacing(logo_p, before=0, after=6)
-    if LOGO_PATH.exists():
-        run_logo = logo_p.add_run()
-        run_logo.add_picture(
-            str(LOGO_PATH),
-            width=Mm(ancho_util_mm(page_size) * FRACCION_DE_ANCHO_DEL_LOGO),
+    pedido = [
+        lg for lg in (logos or [])
+        if getattr(lg, "asset", None)
+    ]
+    if not pedido:
+        # Sin logos pedidos: el de la institucion elegida, y si no se sabe cual
+        # es, el de UNI, que es lo que se hizo siempre.
+        asset = asset_de_institucion(institucion) or LOGO_UNI_ASSET
+        pedido = [_LogoPedido(asset, FRACCION_DE_ANCHO_DEL_LOGO)]
+
+    fila = builder.add_paragraph()
+    fila.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _set_paragraph_spacing(fila, before=0, after=6)
+    for lg in pedido:
+        asset = getattr(lg, "asset", "")
+        frac = float(
+            getattr(lg, "ancho_fraccion", FRACCION_DE_ANCHO_DEL_LOGO) or FRACCION_DE_ANCHO_DEL_LOGO
         )
+        ancho_mm = ancho_util_mm(page_size) * frac
+        ruta_logo = _resolve_logo_path(asset)
+        if not ruta_logo.exists():
+            # Se pidio un logo y no llego. ANTES esto saltaba en silencio y el
+            # documento salia sin el, que es la forma peor de fallar: no hay
+            # error, hay un documento equivocado. Ahora avisa, y NO sustituye
+            # el logo de otro: un asset que falta es un dato faltante, no una
+            # excuse para poner algo que el autor no pidio.
+            print(
+                f"[PORTADA-UNI] El logo '{asset}' no se encontro en "
+                f"{ruta_logo.parent}; se omite."
+            )
+            continue
+        fila.add_run().add_picture(str(ruta_logo), width=Mm(ancho_mm))
 
     # ── 2. Departamento (Butler 20pt, centrado) ──────────────────────────────
     dept_p = builder.add_paragraph()

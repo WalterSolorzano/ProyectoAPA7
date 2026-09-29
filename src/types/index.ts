@@ -301,6 +301,17 @@ export interface PortadaData {
   institucionSeleccionada?: string | null;
   /** La carrera elegida, mismo patron. `departamento` es el texto libre. */
   carreraSeleccionada?: string | null;
+  /**
+   * Los logos de la portada, como DATO.
+   *
+   * Antes el logo era una constante del `.docx`: poner el de la UNI era lo único
+   * que sabía hacer, y elegir UNAN salía con el de la UNI en silencio. Ahora el
+   * asset viaja en el modelo y `portada_uni._resolve_logo_path` lo pide.
+   *
+   * `ancho_fraccion` es una FRACCIÓN DEL ANCHO ÚTIL y no un milímetro, y esa es
+   * la diferencia entre un logo que se ve igual en Carta y en A4 y uno que no.
+   */
+  logos?: LogoPortada[];
 
   /* LO QUE SE FUE DE ACA, y por que.
      `author`, `grupo` e `instructor` eran los datos del acta y vivian DENTRO
@@ -430,6 +441,15 @@ export interface SectionInfo {
   preserve_margins: boolean;
   columns?: number | null;
   columns_space?: number | null;
+}
+
+/** Un logo pedido por la portada. Espejo de `LogoPortada` en `python/models.py`. */
+export interface LogoPortada {
+  /** El nombre del archivo dentro de `python/assets/`, no una URL. */
+  asset: string;
+  /** Fracción del ancho ÚTIL de la hoja. 0.16 son 2.64 cm en una carta. */
+  ancho_fraccion: number;
+  institucion?: string | null;
 }
 
 /** Los datos del acta: QUIEN firma el trabajo.

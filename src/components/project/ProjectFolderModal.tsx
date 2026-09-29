@@ -9,6 +9,10 @@ interface ProjectFolderModalProps {
   onOpenMerge?: () => void;
 }
 
+/* Cuántas imágenes se muestran en la rejilla antes de avisar cuántas faltan.
+   El número estaba escrito en el `slice` y nada más. */
+const MAXIMO_DE_IMAGENES_VISIBLES = 8;
+
 export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
   isOpen,
   onClose,
@@ -344,8 +348,14 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                 No hay imágenes registradas aún en este proyecto. Puedes subir figuras o vincular una carpeta completa.
               </div>
             ) : (
+              /* `slice(0, 8)` sin "ver mas" era un recorte invisible: las
+                 imagenes de la novena en adelante existian en el store, no se
+                 veian, y nadie decia cuantas faltaban. Ahora se las cuenta y se
+                 lo dice. El fragment es por el comentario: un comentario suelto
+                 no puede ser la primera cosa de una rama de un ternario. */
+              <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                {projectImages.slice(0, 8).map((img) => (
+                {projectImages.slice(0, MAXIMO_DE_IMAGENES_VISIBLES).map((img) => (
                   <div
                     key={img.id}
                     style={{
@@ -361,11 +371,30 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                     <img
                       src={img.url}
                       alt={img.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      /* `contain` y NO `cover`: sobre un logo vertical, `cover`
+                         lo recorta a una banda y lo que se ve no es el logo. Es
+                         el mismo defecto de la miniatura de la portada, y con
+                         el logo de la UNI se nota a simple vista. */
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
                     />
                   </div>
                 ))}
               </div>
+              {projectImages.length > MAXIMO_DE_IMAGENES_VISIBLES && (
+                <div
+                  role="status"
+                  data-testid="imagenes-ocultas"
+                  style={{
+                    marginTop: '8px', fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                >
+                  <span>
+                    {`${projectImages.length - MAXIMO_DE_IMAGENES_VISIBLES} imagen más en la carpeta, no se muestran en la rejilla.`}
+                  </span>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>

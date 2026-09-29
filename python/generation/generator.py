@@ -1091,6 +1091,12 @@ def generate_apa7_docx(
                 paragraphs_before_body = generate_uni_cover(
                     doc,
                     page_size=getattr(rules, "page_size", "carta"),
+                    # Los logos viajan como DATO. Antes la insignia era una
+                    # constante del modulo: poner el logo de la UNI era lo unico
+                    # que sabia hacer, y elegir UNAN salia con el de la UNI sin
+                    # decir nada.
+                    logos=portada.logos or None,
+                    institucion=portada.institution or "",
                     titulo=portada.title or "Sin Título",
                     asignatura=portada.course or "",
                     autores=autores_parsed,

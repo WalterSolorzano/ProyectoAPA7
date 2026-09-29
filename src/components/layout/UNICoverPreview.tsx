@@ -47,7 +47,13 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
      render. Antes el `onError` le hacia `display: none` y la portada se
      drawneaba sin logo sin que nadie se enterara: es la forma peor de fallar,
      porque no hay error, hay una hoja incompleta. */
-  const [logoFalto, setLogoFalto] = useState(false);
+  /* Los logos que el documento pidió, por su `asset`. Antes la preview
+     apuntaba siempre a `logo_uni.png` y el `.docx` ponía siempre el logo de la
+     UNI: los dosgjuntos tenían la insignia fija y elegir UNAN no se notaba ni en
+     la preview ni en el documento. La lista viene del store, que es donde el
+     `onClick` del chip la dejó. */
+  const logos = portada.logos?.length ? portada.logos : [{ asset: 'logo_uni.png', ancho_fraccion: 0.16 }];
+  const [logosQueNoCargan, setLogosQueNoCargan] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -133,35 +139,49 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
       {/* Logo centrado. El ancho es una FRACCION del ancho util, que es lo que
           hace que se vea igual en Carta y en A4; sale del mismo lado que
           `portada_uni.py` mide en el `.docx` y no de un `150px` a mano. */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: px(2) }}>
-        {logoFalto ? (
-          <div
-            role="status"
-            data-testid="logo-faltante"
-            style={{
-              width: m.anchoUtilPx * 0.16,
-              height: px(12),
-              border: '1px dashed var(--border-subtle)',
-              borderRadius: 'var(--radius-xs)',
-              background: 'var(--surface-subtle)',
-              color: 'var(--text-secondary)',
-              fontSize: 'var(--text-xs)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-            }}
-          >
-            <span>El logo no se pudo cargar</span>
-          </div>
-        ) : (
-          <img
-            src={resolveAssetUrl('/api/assets/logo_uni.png')}
-            alt="Logo UNI"
-            style={{ width: m.anchoUtilPx * 0.16, objectFit: 'contain' }}
-            onError={() => setLogoFalto(true)}
-          />
-        )}
+      <div
+        data-testid="logos-de-la-portada"
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: px(4), marginBottom: px(2) }}
+      >
+        {logos.map((lg) => {
+          const ancho = m.anchoUtilPx * (lg.ancho_fraccion || 0.16);
+          const noCarga = logosQueNoCargan.has(lg.asset);
+          return noCarga ? (
+            <div
+              key={lg.asset}
+              role="status"
+              data-testid="logo-faltante"
+              data-asset={lg.asset}
+              style={{
+                width: ancho,
+                height: px(12),
+                border: '1px dashed var(--border-subtle)',
+                borderRadius: 'var(--radius-xs)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--text-secondary)',
+                fontSize: 'var(--text-xs)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+              }}
+            >
+              <span>El logo {lg.asset} no se pudo cargar</span>
+            </div>
+          ) : (
+            <img
+              key={lg.asset}
+              data-asset={lg.asset}
+              src={resolveAssetUrl(`/api/assets/${lg.asset}`)}
+              alt={lg.institucion ? `Logo de ${lg.institucion}` : `Logo ${lg.asset}`}
+              /* La MISMA fracción del ancho útil que usa `portada_uni.py`. Con
+                 un ancho absoluto, el logo se ve distinto en Carta y en A4 y la
+                 preview miente otra vez. */
+              style={{ width: ancho, objectFit: 'contain' }}
+              onError={() => setLogosQueNoCargan((v) => new Set(v).add(lg.asset))}
+            />
+          );
+        })}
       </div>
 
       {/* Área de conocimiento — centrado, escalable */}

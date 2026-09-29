@@ -39,13 +39,32 @@ const num = (re: RegExp, grupo = 1): number => {
   return Number(m![grupo]);
 };
 
+/**
+ * Los metodos de `CanvasRenderingContext2D` que `HomeHero.tsx` llama, en un solo
+ * lugar. La lista vivia partida en los dos mocks del archivo y en los dos
+ * faltaban cuatro, asi que el test tiraba al dibujar el primer cuadro.
+ *
+ * NO es un arreglo del componente: es un contexto falso que se habia quedado
+ * corto. Lo que se vigila aca es que el bucle de animacion corra y se cancele,
+ * no el dibujo.
+ */
+const METODOS_DE_CTX = {
+  save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
+  beginPath: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
+  fillRect: vi.fn(), clearRect: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
+  arc: vi.fn(), ellipse: vi.fn(), rect: vi.fn(), clip: vi.fn(),
+  bezierCurveTo: vi.fn(), strokeRect: vi.fn(),
+} as const;
+
 /** Un contexto 2D que responde, para que el componente llegue al final. */
 function ctxFalso() {
   const c = {
-    save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-    beginPath: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
-    fillRect: vi.fn(), clearRect: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
-    arc: vi.fn(), ellipse: vi.fn(),
+    /* Los metodos que `HomeHero.tsx` llama de verdad. La lista estaba
+       incompleta: faltaban `rect`, `clip`, `bezierCurveTo` y `strokeRect`, y
+       el componente los usa desde el commit que redibujo el cielo, asi que el
+       mock tiraba `ctx.rect is not a function` al primer cuadro. No es un
+       defecto del componente: es un contexto falso que ya no alcanzaba. */
+    ...METODOS_DE_CTX,
     createRadialGradient: () => ({ addColorStop: vi.fn() }),
     createLinearGradient: () => ({ addColorStop: vi.fn() }),
   };
@@ -156,10 +175,7 @@ describe('el movimiento reducido sigue funcionando (caracterización)', () => {
 
     window.matchMedia = vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as never;
     HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-      save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-      beginPath: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
-      fillRect: vi.fn(), clearRect: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
-      arc: vi.fn(), ellipse: vi.fn(),
+      ...METODOS_DE_CTX,
       createRadialGradient: () => ({ addColorStop: vi.fn() }),
       createLinearGradient: () => ({ addColorStop: vi.fn() }),
       fillStyle: '', strokeStyle: '', lineWidth: 1, lineCap: '',
