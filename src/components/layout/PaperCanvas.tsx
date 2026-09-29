@@ -9,6 +9,7 @@ import { APACoverEditor } from './APACoverEditor';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
+import { anchoUtilMm } from '../../lib/portada/geometria';
 import { leerMarcas, borrarMarca } from '../../lib/marcasMap';
 import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
@@ -583,8 +584,14 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
   const startFigureResize = (e: React.PointerEvent, elem: ElementModel) => {
     if (!elem.image_info) return;
-    const w = elem.image_info.width_cm || 12;
-    const h = elem.image_info.height_cm || 8;
+    /* SIN LOS DEFAULT DE 12 Y 8. Aquí el default NO es un dato que se muestra: es la
+       última defensa para que el tirador de redimensionado no mida 0 y no se pueda
+       agarrar. Sale del ancho ÚTIL de la hoja (`portada/geometria.ts`), o sea de
+       la misma geometría que usa la portada, y no de un número que alguien escribió
+       una vez. La medida real la dice el inspector, y ahí lo no declarado se DICE. */
+    const utilCm = anchoUtilMm('carta') / 10;
+    const w = elem.image_info.width_cm || utilCm;
+    const h = elem.image_info.height_cm || utilCm * 0.66;
     setResizeState({
       id: elem.id,
       startX: e.clientX,
@@ -1163,9 +1170,18 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
             {/* Ancho */}
             <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               Ancho
-              <input type="number" min={2} max={20} step={0.5}
-                value={img.width_cm || 12}
-                onChange={(e) => useDocStore.getState().updateElementImage(selElem.id, { width_cm: parseFloat(e.target.value) || 12 })}
+              {/* Sin el default de 12: un `12` en el campo cuando el documento no
+                  declara 12 es un dato falso, y el `parseFloat` de un campo vacío
+                  terminaba escribiendo 12 con solo borrar el contenido. Vacío es
+                  vacío; el inspector dice el tamaño real. */}
+              <input type="number" min={2} max={20} step={0.5} placeholder="sin declarar"
+                value={img.width_cm ?? ''}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  useDocStore.getState().updateElementImage(selElem.id, {
+                    width_cm: Number.isFinite(v) && v > 0 ? v : undefined,
+                  });
+                }}
                 style={{ width: '56px', padding: '2px 4px', fontSize: '10px', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-xs)', color: 'var(--text-main)' }}
               /> cm
             </label>

@@ -838,6 +838,63 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       get().showToast(err?.message || 'Error al actualizar tabla', 'error');
     }
   },
+  /**
+   * El mismo `patch` sobre varias figuras, de a una.
+   *
+   * POR QUÉ UN `for` Y NO UN ENDPOINT EN LOTE. El endpoint es `/api/update-element`
+   * (`python/routers/sessions.py:684`) y acepta un `element_id` por llamada; las
+   * veinte figuras de la F7 son veinte llamadas, y eso es un costo conocido y
+   * tolerable. Un endpoint en lote es el arreglo correcto y es otra fase: cablear
+   * un botón a un endpoint que no existe es peor que no cablearlo (spec §3.5).
+   *
+   * EL ALCANCE SE DECLARA EN EL PARÁMETRO. Esta action no sabe qué es "todas" y no
+   * lo deduce: quien llama pasa los ids, y el que pasó los ids es el que sabe por
+   * qué. Un `for` sobre `figures.length` adentro de la vista sería una decisión de
+   * alcance escondida en un botón, que es exactamente lo que F3 resolvió
+   * mostrando "(esta rama)" al lado de cada acción.
+   *
+   * `onProgreso` es lo que permite que la UI diga "7 de 20" en vez de freezing.
+   */
+  aplicarImagenAMuchas: async (
+    elementIds: readonly string[],
+    patch: Partial<ImageModel>,
+    onProgreso?: (hechos: number, total: number) => void,
+  ) => {
+    const { doc, showToast } = get();
+    if (!doc) return;
+    /* Deduplicar ANTES de empezar: un ids con repetidos hace el trabajo dos veces
+       y cobra dos veces, y el "N de N" que se muestra no cuadra con nada. */
+    const unicos = Array.from(new Set(elementIds));
+    const total = unicos.length;
+    if (total === 0) return;
+
+    let ultimo: DocumentModel | null = null;
+    for (let i = 0; i < total; i++) {
+      const id = unicos[i];
+      try {
+        /* NO se consulta `ultimo.elements` para saltar los ya aplicados. El
+           endpoint devuelve el documento ENTERO, no solo el elemento tocado, así
+           que ese chequeo encuentra todos los ids presentes y la corrida termina
+           después de la primera llamada. La deduplicación va antes, sobre el ids. */
+        ultimo = await api.updateElementImage(doc.session_id, id, patch);
+      } catch (err: any) {
+        /* Se dice cuántas salieron y por qué se paró, y se deja el store en el
+           último estado bueno. Decir "listo" con la mitad aplicada es la peor
+           versión de este botón: la persona cree que el documento está uniforme y
+           no lo está. */
+        showToast(
+          `Se aplicó a ${i} de ${total} figuras. La ${i + 1} falló: ${err?.message ?? 'error desconocido'}`,
+          'error',
+        );
+        if (ultimo) { get().pushHistory(ultimo); set({ doc: ultimo }); }
+        return;
+      }
+      onProgreso?.(i + 1, total);
+    }
+    if (ultimo) { get().pushHistory(ultimo); set({ doc: ultimo }); }
+    showToast(`Se aplicó a ${total} ${total === 1 ? 'figura' : 'figuras'}`, 'success');
+  },
+
   replaceImage: async (elementId, file) => {
     const { doc, pushHistory } = get();
     if (!doc) return;

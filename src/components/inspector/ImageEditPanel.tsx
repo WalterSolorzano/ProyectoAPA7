@@ -2,10 +2,11 @@
    Organizado en 4 secciones funcionales: Formato, Texto, Estilo y Revisión.
    Cero emojis — tokens de diseño del sistema. */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { SubfigureItem } from '../../types';
 import { suggestCaption } from '../../api/backend';
+import { medidaDeFigura } from '../../lib/figuras';
 import {
   UploadCloud, Loader2, Image as ImageIcon, RefreshCw, Plus, Trash2,
   CheckCircle2, AlertCircle, Sparkles, Sliders, Type, Palette, ShieldCheck,
@@ -122,32 +123,121 @@ const sectionCardStyle: React.CSSProperties = {
   gap: '10px',
 };
 
-export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
+/** Cuántas figuras del documento hay. Lo cuenta quien compone, no este panel: el
+ *  panel no sabe qué es "todas" y no lo deduce. Con una sola, el radio de "todas"
+ *  no se pinta, porque serían la misma operación con dos nombres. */
+export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({ elem, totalFiguras = 1 }) => {
   const updateElementImage = useDocStore((s) => s.updateElementImage);
-  const showToast = useDocStore((s) => s.showToast);
+  const aplicarImagenAMuchas = useDocStore((s) => s.aplicarImagenAMuchas);
   const doc = useDocStore((s) => s.doc);
+  const showToast = useDocStore((s) => s.showToast);
+  const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
 
+  /* EL ALCANCE POR OMISIÓN ES "ESTA". Aplicar a veinte figuras es una acción de
+     tres segundos de deliberación; que sea un clic por omisión es un accidente
+     esperando. */
+  const [alcance, setAlcance] = useState<'esta' | 'todas'>('esta');
+  const [aplicando, setAplicando] = useState(false);
+  const [hechos, setHechos] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('formato');
-  const [constrain, setConstrain] = useState(elem.image_info?.constrain_proportions !== false);
   const [replacing, setReplacing] = useState(false);
   const [suggestingIA, setSuggestingIA] = useState(false);
+  const [subfiguraAbierta, setSubfiguraAbierta] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [constrain, setConstrain] = useState(elem.image_info?.constrain_proportions !== false);
 
   const img = elem.image_info || {};
-  const originalWidth = img.width_cm || 12;
-  const originalHeight = img.height_cm || 8;
-  const aspectRatio = originalWidth / (originalHeight || 1);
+
+  /* EL TAMAÑO, O SU AUSENCIA DICHA.
+   *
+   * Antes eran un "o 12" y un "o 8" sobre `width_cm` y `height_cm`, en NUEVE
+   * lugares de este archivo. Un default así sobre un campo que el documento no
+   * declara no es un default: es una cifra inventada con la apariencia de un dato, y quien va a
+   * exportar mide lo que dice el `.docx`, no lo que dice la pantalla. Una figura
+   * sin tamaño declarado no es una figura de 12 x 8: es una figura SIN TAMAÑO
+   * DECLARADO, y el panel lo dice.
+   *
+   * `medidaDeFigura` es la geometría de la hoja de la F2: lo que se ve es lo que
+   * sale. Acá se usa solo para el aviso de "no declarada"; el ancho y el alto que
+   * se escriben son los que dice el documento. */
+  const declaradoAncho = typeof img.width_cm === 'number' && img.width_cm > 0 ? img.width_cm : null;
+  const declaradoAlto = typeof img.height_cm === 'number' && img.height_cm > 0 ? img.height_cm : null;
+  const hayTamanoDeclarado = declaradoAncho !== null && declaradoAlto !== null;
+  const medida = medidaDeFigura(
+    hayTamanoDeclarado ? { width_cm: declaradoAncho, height_cm: declaradoAlto } : null,
+  );
+  const aspectRatio = hayTamanoDeclarado ? declaradoAncho! / declaradoAlto! : 1;
   const rotation = img.rotation || 0;
   const currentDesign = img.design_style || 'standard';
 
   const setProp = (p: string, v: any) => updateElementImage(elem.id, { [p]: v });
+
+  /* UN CAMPO DE TEXTO QUE NO ESCRIBE EN EL STORE EN CADA TECLA.
+   *
+   * `updateElementImage` es una llamada HTTP con `pushHistory`
+   * (`documentSlice.ts:808`), y además con `caption` corre
+   * `cleanRedundantTitleParagraphs` (`:815-817`), que REESCRIBE párrafos del
+   * documento. Escribir la leyenda letra por letra era un PATCH por letra que
+   * reescribía el documento letra por letra. Los cuatro textos de este panel
+   * (leyenda, nota, alternativo y título de subfigura) van a estado local y se
+   * confirman al perder el foco. */
+  const [borrador, setBorrador] = useState<string>(img.caption ?? '');
+  const [nota, setNota] = useState<string>(img.note ?? '');
+  const [alt, setAlt] = useState<string>(img.alt_text ?? '');
+  const [titulosSub, setTitulosSub] = useState<Record<number, string>>({});
+
+  /* Se resincroniza cuando cambia la FIGURA, y no mientras la persona escribe: sin
+     esto el campo queda con el texto de la figura anterior, que es peor que un
+     PATCH por letra. */
+  useEffect(() => {
+    setBorrador(img.caption ?? '');
+    setNota(img.note ?? '');
+    setAlt(img.alt_text ?? '');
+    setTitulosSub({});
+  }, [elem.id]);
+
+  const confirmar = (campo: 'caption' | 'note' | 'alt_text', valor: string) => {
+    if (valor === (img[campo] ?? '')) return;   // no se escribe lo que no cambió
+    setProp(campo, valor);
+  };
+
+  /* "APLICAR A ESTA / A TODAS": lo que el usuario pidió y lo que no existía de
+     ninguna manera. El patch se manda a la action con el alcance ya resuelto, y
+     durante la corrida el botón dice "7 de 20" en vez de freezing. */
+  const aplicarEstilo = async () => {
+    const valor = currentDesign;
+    if (alcance === 'esta') {
+      setProp('design_style', valor);
+      showToast('Diseño aplicado a esta figura', 'success');
+      return;
+    }
+    const ids = (doc?.elements ?? [])
+      .filter((e: any) => e.type === 'image' && !e.is_cover_section)
+      .map((e: any) => e.id);
+    if (ids.length === 0) return;
+    setAplicando(true);
+    setHechos(0);
+    try {
+      await aplicarImagenAMuchas(ids, { design_style: valor }, (h) => setHechos(h));
+    } finally {
+      setAplicando(false);
+    }
+  };
 
   // Debounce (280ms)
   const debounceTimerW = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceTimerH = useRef<ReturnType<typeof setTimeout> | null>(null);
   const DEBOUNCE_MS = 280;
 
-  const setWidth = (w: number) => {
+  const setWidth = (crudo: string) => {
+    const w = parseFloat(crudo);
+    /* SIN EL DEFAULT DE 12. Un campo con "abc" no se convierte en 12 cm: se avisa
+       y no se escribe. Poner 12 ahí es inventar una medida que el documento no
+       tiene, y el `parseFloat` de un campo vacío daba exactamente eso. */
+    if (!Number.isFinite(w) || w <= 0) {
+      showToast('El ancho tiene que ser un número en centímetros', 'warning');
+      return;
+    }
     if (debounceTimerW.current) clearTimeout(debounceTimerW.current);
     debounceTimerW.current = setTimeout(() => {
       if (constrain) updateElementImage(elem.id, { width_cm: w, height_cm: Math.round((w / aspectRatio) * 10) / 10 });
@@ -155,7 +245,12 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
     }, DEBOUNCE_MS);
   };
 
-  const setHeight = (h: number) => {
+  const setHeight = (crudo: string) => {
+    const h = parseFloat(crudo);
+    if (!Number.isFinite(h) || h <= 0) {
+      showToast('El alto tiene que ser un número en centímetros', 'warning');
+      return;
+    }
     if (debounceTimerH.current) clearTimeout(debounceTimerH.current);
     debounceTimerH.current = setTimeout(() => {
       if (constrain) updateElementImage(elem.id, { height_cm: h, width_cm: Math.round((h * aspectRatio) * 10) / 10 });
@@ -164,12 +259,16 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
   };
 
   const restoreSize = () => {
+    /* Deshabilitado sin tamaño declarado, y con el `title` que lo explica: no se
+       puede restablecer algo que nunca se midió. Antes "Restablecer" ponía 12 x 8
+       y decía "Tamaño original restaurado", que era una mentira en el toast. */
+    if (!hayTamanoDeclarado) return;
     if (debounceTimerW.current) clearTimeout(debounceTimerW.current);
     if (debounceTimerH.current) clearTimeout(debounceTimerH.current);
     updateElementImage(elem.id, {
-      width_cm: originalWidth, height_cm: originalHeight, width_inches: null, height_inches: null,
+      width_cm: declaradoAncho, height_cm: declaradoAlto, width_inches: null, height_inches: null,
     });
-    showToast('Tamaño original restaurado', 'success');
+    showToast(`Tamaño restaurado a ${declaradoAncho} × ${declaradoAlto} cm`, 'success');
   };
 
   const replaceFile = async (file: File) => {
@@ -239,8 +338,12 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
               {needsAttention ? 'Sin leyenda' : 'APA 7'}
             </span>
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '1px' }}>
-            {img.width_cm || 12} × {img.height_cm || 8} cm · {img.alignment === 'center' ? 'Centrada' : img.alignment === 'left' ? 'Izquierda' : 'Derecha'}
+          <div data-testid="inspector-medida" style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '1px' }}>
+            {hayTamanoDeclarado
+              ? `${declaradoAncho} × ${declaradoAlto} cm`
+              : 'Sin tamaño declarado'}
+            {' · '}
+            {img.alignment === 'center' ? 'Centrada' : img.alignment === 'left' ? 'Izquierda' : 'Derecha'}
           </div>
         </div>
       </div>
@@ -334,29 +437,43 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
 
           <div style={sectionCardStyle}>
             <FieldLabel>Dimensiones físicas</FieldLabel>
+            {/* Sin tamaño declarado se lo dice arriba del todo, una vez, y los
+                campos quedan vacíos con su placeholder: un `12` adentro de un
+                input cuando el documento no dice 12 es un dato falso con caja. */}
+            {!hayTamanoDeclarado && (
+              <div style={{ fontSize: '10px', color: 'var(--color-warning)', lineHeight: 1.4 }}>
+                Esta figura no declara tamaño en el documento. Escribí el ancho y el
+                alto reales, o dejalos vacíos para que el tamaño lo ponga la
+                proporción natural del archivo.
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Ancho (cm)</span>
+                <label htmlFor="ancho-cm" style={{ fontSize: '9px', color: 'var(--color-text-tertiary)', display: 'block' }}>Ancho (cm)</label>
                 <input
+                  id="ancho-cm"
                   type="number"
                   step="0.5"
                   min={2}
                   max={25}
                   style={inputStyle}
-                  value={img.width_cm || 12}
-                  onChange={(e) => setWidth(parseFloat(e.target.value) || 12)}
+                  placeholder="sin declarar"
+                  value={declaradoAncho ?? ''}
+                  onChange={(e) => setWidth(e.target.value)}
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Alto (cm)</span>
+                <label htmlFor="alto-cm" style={{ fontSize: '9px', color: 'var(--color-text-tertiary)', display: 'block' }}>Alto (cm)</label>
                 <input
+                  id="alto-cm"
                   type="number"
                   step="0.5"
                   min={2}
                   max={25}
                   style={inputStyle}
-                  value={img.height_cm || 8}
-                  onChange={(e) => setHeight(parseFloat(e.target.value) || 8)}
+                  placeholder="sin declarar"
+                  value={declaradoAlto ?? ''}
+                  onChange={(e) => setHeight(e.target.value)}
                 />
               </div>
             </div>
@@ -367,13 +484,16 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
                 min={3}
                 max={20}
                 step={0.5}
-                value={img.width_cm || 12}
-                onChange={(e) => setWidth(parseFloat(e.target.value))}
+                aria-label="Ancho en centímetros"
+                value={declaradoAncho ?? medida.anchoPx > 0 ? declaradoAncho ?? 3 : 3}
+                onChange={(e) => setWidth(e.target.value)}
                 style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--color-text-tertiary)' }}>
                 <span>3 cm</span>
-                <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>{img.width_cm || 12} cm</span>
+                <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
+                  {declaradoAncho !== null ? `${declaradoAncho} cm` : 'sin declarar'}
+                </span>
                 <span>20 cm (página)</span>
               </div>
             </div>
@@ -391,13 +511,18 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
               <button
                 type="button"
                 onClick={restoreSize}
+                disabled={!hayTamanoDeclarado}
+                title={hayTamanoDeclarado
+                  ? `Restablecer a ${declaradoAncho} × ${declaradoAlto} cm, la medida declarada`
+                  : 'No hay tamaño declarado que restablecer: esta figura no trae medida en el documento'}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '4px',
                   background: 'none', border: 'none', fontSize: '10px',
-                  color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600,
+                  color: hayTamanoDeclarado ? 'var(--accent-primary)' : 'var(--color-text-tertiary)',
+                  cursor: hayTamanoDeclarado ? 'pointer' : 'not-allowed', fontWeight: 600,
                 }}
               >
-                <RefreshCw size={11} /> Resetear
+                <RefreshCw size={11} strokeWidth="var(--icon-stroke)" /> Restablecer
               </button>
             </div>
           </div>
@@ -454,16 +579,23 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
             </div>
 
             <textarea
+              id="leyenda-cm"
               rows={2}
+              aria-label="Leyenda de la figura"
               style={{ ...inputStyle, resize: 'vertical' }}
-              value={img.caption || ''}
-              onChange={(e) => setProp('caption', e.target.value)}
+              value={borrador}
+              onChange={(e) => setBorrador(e.target.value)}
+              onBlur={() => confirmar('caption', borrador)}
               placeholder="Ej: Diagrama de flujo del balance de materia y energía"
             />
 
             <div>
-              <FieldLabel>Posición de la leyenda</FieldLabel>
+              <label htmlFor="pos-leyenda" style={{ fontSize: '10px', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Posición de la leyenda
+              </label>
               <select
+                id="pos-leyenda"
+                aria-label="Posición de la leyenda"
                 style={inputStyle}
                 value={img.caption_position || 'above'}
                 onChange={(e) => setProp('caption_position', e.target.value)}
@@ -475,12 +607,17 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
           </div>
 
           <div style={sectionCardStyle}>
-            <FieldLabel>Nota al pie de figura</FieldLabel>
+            <label htmlFor="nota-cm" style={{ fontSize: '10px', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Nota al pie de figura
+            </label>
             <textarea
+              id="nota-cm"
+              aria-label="Nota al pie de la figura"
               rows={2}
               style={{ ...inputStyle, resize: 'vertical' }}
-              value={img.note || ''}
-              onChange={(e) => setProp('note', e.target.value)}
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              onBlur={() => confirmar('note', nota)}
               placeholder="Ej: Nota. Adaptado de Guía Metodológica de Balance (p. 42), por..."
             />
             <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
@@ -489,12 +626,17 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
           </div>
 
           <div style={sectionCardStyle}>
-            <FieldLabel>Texto alternativo (Accesibilidad)</FieldLabel>
+            <label htmlFor="alt-cm" style={{ fontSize: '10px', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Texto alternativo (Accesibilidad)
+            </label>
             <textarea
+              id="alt-cm"
+              aria-label="Texto alternativo de la figura"
               rows={2}
               style={{ ...inputStyle, resize: 'vertical' }}
-              value={img.alt_text || ''}
-              onChange={(e) => setProp('alt_text', e.target.value)}
+              value={alt}
+              onChange={(e) => setAlt(e.target.value)}
+              onBlur={() => confirmar('alt_text', alt)}
               placeholder="Descripción breve y precisa para lectores de pantalla"
             />
           </div>
@@ -507,6 +649,60 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
           <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
             Selecciona un preset con diseño editorial APA:
           </div>
+
+          {/* EL ALCANCE, ANTES DE LOS PRESETS Y pegado a lo que aplica.
+              "Aplicar a todas" es lo que el usuario pidió y lo que no existía de
+              ninguna manera: no había endpoint en lote y `updateElementImage` es de
+              a una. Ahora es N llamadas contra el endpoint que ya existe, con el
+              alcance DECLARADO en el botón y no escondido en un `for`. */}
+          <fieldset style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '8px 10px' }}>
+            <legend style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '0 4px' }}>
+              Alcance
+            </legend>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="alcance-figura"
+                  checked={alcance === 'esta'}
+                  onChange={() => setAlcance('esta')}
+                />
+                Esta figura
+              </label>
+              {/* CON UNA SOLA FIGURA, "todas" Y "esta" SON LA MISMA OPERACIÓN: dos
+                  nombres para un mismo botón es un control que miente sobre lo que
+                  hace, así que el radio no aparece. */}
+              {totalFiguras > 1 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="alcance-figura"
+                    checked={alcance === 'todas'}
+                    onChange={() => setAlcance('todas')}
+                  />
+                  Las {totalFiguras} figuras del documento
+                </label>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={aplicarEstilo}
+              disabled={aplicando}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                width: '100%', marginTop: '8px', padding: '6px 10px',
+                fontSize: '11px', fontWeight: 700, fontFamily: 'inherit', cursor: aplicando ? 'wait' : 'pointer',
+                backgroundColor: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
+                border: '1px solid var(--accent-primary)', borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              {aplicando
+                ? `Aplicando… ${hechos} de ${totalFiguras}`
+                : alcance === 'todas'
+                  ? `Aplicar a las ${totalFiguras} figuras`
+                  : 'Aplicar a esta figura'}
+            </button>
+          </fieldset>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {DESIGN_STYLES.map((style) => {
@@ -604,12 +800,18 @@ export const ImageEditPanel: React.FC<{ elem: any }> = ({ elem }) => {
                   </div>
                   <input
                     type="text"
+                    aria-label={`Título del panel ${sub.label || `(${String.fromCharCode(97 + idx)})`}`}
                     style={inputStyle}
-                    value={sub.title || ''}
+                    value={titulosSub[idx] ?? sub.title ?? ''}
                     placeholder="Título del panel..."
-                    onChange={(e) => {
+                    onChange={(e) => setTitulosSub({ ...titulosSub, [idx]: e.target.value })}
+                    onBlur={() => {
+                      /* El quinto texto que escribía por pulsación. Ahora se
+                         confirma al salir del campo, como los otros cuatro. */
+                      const nuevo = titulosSub[idx];
+                      if (nuevo === undefined || nuevo === (sub.title ?? '')) return;
                       const newSubs = [...(img.subfigures || [])];
-                      newSubs[idx] = { ...newSubs[idx], title: e.target.value };
+                      newSubs[idx] = { ...newSubs[idx], title: nuevo };
                       setProp('subfigures', newSubs);
                     }}
                   />

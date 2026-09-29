@@ -383,6 +383,13 @@ export interface DocState {
   updateElementText: (elementId: string, text: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
+  /** El mismo parche sobre varias figuras, de a una. El alcance lo DECLARA quien
+   *  llama pasando los ids: esta action no sabe qué es "todas" ni lo deduce. */
+  aplicarImagenAMuchas: (
+    elementIds: readonly string[],
+    imageInfo: Partial<ImageModel>,
+    onProgreso?: (hechos: number, total: number) => void,
+  ) => Promise<void>;
   replaceImage: (elementId: string, file: File) => Promise<void>;
   reorderElements: (elementIds: string[]) => Promise<void>;
   acceptHighConfidenceElements: () => Promise<void>;

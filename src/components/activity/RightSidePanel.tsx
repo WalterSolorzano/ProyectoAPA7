@@ -79,7 +79,15 @@ export const RightSidePanel: React.FC = () => {
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Se abre automaticamente al seleccionar un elemento
+  /* Se abre automáticamente al seleccionar un elemento.
+     ESTO SE QUEDA, Y POR QUÉ. El Inspector general (tipo, nivel, contenido) es útil
+     en cualquier paso, así que abrir el panel ante una selección es lo correcto. Lo
+     que NO se hace es abrir el INSPECTOR DE FIGURA: ese solo se monta si
+     `imagePanelOpen` (`:159-163`), y desde la fase de figuras el clic ya no lo
+     activa por sorpresa (`Step3FiguresTablesWizard` ya no llama a
+     `setImagePanelOpen`). "Optimizar" este efecto para que también abra el panel de
+     imagen devuelve el defecto de §8.3: tocar una figura te saca del inspector sin
+     pedirlo. */
   useEffect(() => {
     if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
   }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
@@ -162,6 +170,13 @@ export const RightSidePanel: React.FC = () => {
       )
     : undefined;
 
+  /* Cuántas figuras hay en el documento, para el alcance de "aplicar a todas". Se
+     cuenta UNA vez acá, con los logotipos de la portada afuera, que es la misma
+     regla que aplica `contextosDeFiguras`. El panel no lo cuenta: lo recibe. */
+  const totalFiguras = doc
+    ? doc.elements.filter((e) => e.type === 'image' && !e.is_cover_section).length
+    : 0;
+
   const sectionNames: Record<number, string> = {
     1: 'Portada', 2: 'Estructura', 3: 'Figuras y tablas', 4: 'Referencias',
   };
@@ -241,25 +256,33 @@ export const RightSidePanel: React.FC = () => {
                 fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)',
                 textTransform: 'uppercase', letterSpacing: '0.04em',
               }}>
-                Panel de edición
+                Inspector de la figura
               </span>
+              {/* ESTO NAVEGA, NO CIERRA. La función ya era la correcta
+                  (`setImagePanelOpen(false)`); lo que faltaba era el NOMBRE. Una
+                  `X` muda es un control que hay que adivinar, y sin nombre no hay
+                  forma de saber si se cierra el panel o si se vuelve al inspector
+                  general. Ahora dice a dónde lleva, y lo dice en texto. */}
               <button
                 type="button"
                 onClick={() => setImagePanelOpen(false)}
-                title="Ocultar panel"
-                aria-label="Ocultar panel de edición"
+                title="Volver al inspector general del elemento"
+                aria-label="Volver al inspector"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: '22px', height: '22px', cursor: 'pointer', background: 'transparent',
+                  width: 'auto', cursor: 'pointer', background: 'transparent',
                   border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
-                  fontFamily: 'inherit', padding: 0,
+                  fontFamily: 'inherit', padding: '3px 8px', gap: '4px',
                 }}
               >
-                <X size={13} />
+                <X size={12} strokeWidth="var(--icon-stroke)" /> Volver al inspector
               </button>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-              <ImageEditPanel elem={selectedImage} />
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto' }}>
+              {/* `totalFiguras` lo cuenta el panel que tiene el documento delante: el
+                  inspector no deduce el alcance de "todas", lo RECIBE. Con una sola
+                  figura, el selector de alcance no aparece. */}
+              <ImageEditPanel elem={selectedImage} totalFiguras={totalFiguras} />
             </div>
           </>
         ) : hasSelection ? (

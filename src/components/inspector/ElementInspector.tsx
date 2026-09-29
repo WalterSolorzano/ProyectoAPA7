@@ -2,9 +2,9 @@
    Incluye el EDITOR DE PORTADA rediseñado: estrategia en chips, asistente IA
    visible y lista de autores limpia. */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { ElementType, APARuleSet } from '../../types';
+import { ElementType } from '../../types';
 import { Info, Sigma, Sparkles, PanelRight } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { suggestCaption } from '../../api/backend';
@@ -82,10 +82,12 @@ const TYPE_OPTIONS: { value: ElementType; label: string }[] = [
   { value: 'empty', label: 'Vacio (Omitir)' },
 ];
 
-type TabId = 'info' | 'style' | 'advanced';
-
 export const ElementInspector: React.FC = () => {
-  const { doc, selectedElementId, updateElementType, portada, setPortada } = useDocStore();
+  /* `portada` y `setPortada` se desestructuraban y no se usaban: el editor de
+     portada vive en su propio paso y acá solo se redirige. `APARuleSet` estaba
+     importado sin usarse. Nadie lo vio porque `tsconfig.json` tiene
+     `noUnusedLocals: false` y un import sin usar no es un error de compilación. */
+  const { doc, selectedElementId, updateElementType } = useDocStore();
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
 
   if (!doc) return null;
@@ -217,6 +219,30 @@ export const ElementInspector: React.FC = () => {
 
 const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImagePanelOpen: (open: boolean) => void }> = ({ selectedElem, triggerUpdate, setImagePanelOpen }) => {
   const updateElementTable = useDocStore((s) => s.updateElementTable);
+  const updateElementType = useDocStore((s) => s.updateElementType);
+
+  /* Los cuatro campos de texto de esta pestaña —el contenido del elemento y los
+     tres de la tabla— escribían en el store en CADA pulsación. `updateElementType`
+     y `updateElementTable` son llamadas HTTP con `pushHistory`, así que eso era un
+     PATCH por letra. Ahora hay estado local y se confirma al perder el foco, que
+     es lo que ya hacía el `ImageEditPanel` para el ancho y el alto. */
+  const [borrador, setBorrador] = useState(selectedElem?.text ?? '');
+  const [numTabla, setNumTabla] = useState(
+    selectedElem?.table_info?.table_number != null ? String(selectedElem.table_info.table_number) : '',
+  );
+  const [tituloTabla, setTituloTabla] = useState(selectedElem?.table_info?.caption ?? '');
+  const [notaTabla, setNotaTabla] = useState(selectedElem?.table_info?.note ?? '');
+
+  /* Se resincroniza al cambiar de elemento, para no quedar con el texto del
+     anterior: sin esto, el campo muestra el contenido de la figura previa. */
+  useEffect(() => {
+    setBorrador(selectedElem?.text ?? '');
+    setNumTabla(selectedElem?.table_info?.table_number != null ? String(selectedElem.table_info.table_number) : '');
+    setTituloTabla(selectedElem?.table_info?.caption ?? '');
+    setNotaTabla(selectedElem?.table_info?.note ?? '');
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [selectedElem?.id]);
+
   return (
   <>
     {/* C4: Solo el selector de tipo compacto (sin badge "Tipo de Elemento") */}
@@ -263,14 +289,21 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImage
 
     {/* Contenido del texto */}
     <div className="inspector-section">
-      <label className="inspector-label">Contenido</label>
+      <label className="inspector-label" htmlFor="contenido-elem">Contenido</label>
+      {/* ESTADO LOCAL, Y SE CONFIRMA AL SALIR. Antes cada pulsación llamaba a
+          `updateElementType` → `api.updateElement`: un PATCH por letra. Y el
+          elemento se mutaba en el.store (`selectedElem.text = ...`), o sea que el
+          documento del store cambiaba sin pasar por ninguna acción. */}
       <textarea
+        id="contenido-elem"
+        aria-label="Contenido del elemento"
         className="form-textarea"
         rows={4}
-        value={selectedElem.text}
-        onChange={(e) => {
-          selectedElem.text = e.target.value;
-          triggerUpdate();
+        value={borrador}
+        onChange={(e) => setBorrador(e.target.value)}
+        onBlur={() => {
+          if (borrador === (selectedElem.text ?? '')) return;
+          updateElementType(selectedElem.id, selectedElem.type, selectedElem.heading_level || 1, borrador);
         }}
         style={{ fontSize: '11px' }}
       />
@@ -292,9 +325,9 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImage
             background: 'var(--surface-subtle)', color: 'var(--text-secondary)',
             border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
           }}
-          title="Abrir el panel de edición de imagen a la derecha"
+          title="El panel de la derecha cambia de contenido: pasa del inspector general al inspector de la figura"
         >
-          <PanelRight size={13} /> Abrir panel de edición
+          <PanelRight size={13} strokeWidth="var(--icon-stroke)" /> Abrir el inspector de la figura
         </button>
       </div>
     )}
@@ -308,48 +341,49 @@ const InfoTab: React.FC<{ selectedElem: any; triggerUpdate: () => void; setImage
         </label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Numero de Tabla</label>
+            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }} htmlFor="num-tabla">Numero de Tabla</label>
             <input
+              id="num-tabla"
               type="number"
               className="form-control"
               style={{ fontSize: '11px' }}
-              value={selectedElem.table_info?.table_number || 1}
-              onChange={(e) => {
-                updateElementTable(selectedElem.id, {
-                  ...selectedElem.table_info,
-                  table_number: parseInt(e.target.value) || 1,
-                });
+              value={numTabla}
+              onChange={(e) => setNumTabla(e.target.value)}
+              onBlur={() => {
+                const n = parseInt(numTabla, 10);
+                if (!Number.isFinite(n) || n === selectedElem.table_info?.table_number) return;
+                updateElementTable(selectedElem.id, { ...selectedElem.table_info, table_number: n });
               }}
             />
           </div>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Titulo de la Tabla</label>
+            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }} htmlFor="titulo-tabla">Titulo de la Tabla</label>
             <input
+              id="titulo-tabla"
               type="text"
               className="form-control"
               style={{ fontSize: '11px' }}
-              value={selectedElem.table_info?.caption || ''}
-              onChange={(e) => {
-                updateElementTable(selectedElem.id, {
-                  ...selectedElem.table_info,
-                  caption: e.target.value,
-                });
+              value={tituloTabla}
+              onChange={(e) => setTituloTabla(e.target.value)}
+              onBlur={() => {
+                if (tituloTabla === (selectedElem.table_info?.caption ?? '')) return;
+                updateElementTable(selectedElem.id, { ...selectedElem.table_info, caption: tituloTabla });
               }}
               placeholder="Ej: Resumen Estadistico"
             />
           </div>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Nota de Tabla</label>
+            <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '2px' }} htmlFor="nota-tabla">Nota de Tabla</label>
             <input
+              id="nota-tabla"
               type="text"
               className="form-control"
               style={{ fontSize: '11px' }}
-              value={selectedElem.table_info?.note || ''}
-              onChange={(e) => {
-                updateElementTable(selectedElem.id, {
-                  ...selectedElem.table_info,
-                  note: e.target.value,
-                });
+              value={notaTabla}
+              onChange={(e) => setNotaTabla(e.target.value)}
+              onBlur={() => {
+                if (notaTabla === (selectedElem.table_info?.note ?? '')) return;
+                updateElementTable(selectedElem.id, { ...selectedElem.table_info, note: notaTabla });
               }}
               placeholder="Ej: Datos recopilados en el periodo 2024-2026."
             />
