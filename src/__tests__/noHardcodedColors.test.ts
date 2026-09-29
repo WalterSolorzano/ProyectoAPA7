@@ -126,6 +126,12 @@
  * no tiene nada que exceptuar. Si alguien vuelve a poner un panel de ajustes
  * grande en esa raíz, tiene que poner su nombre en `ARCHIVOS` como cualquier
  * otro, y no hay deuda con fecha de borrado que lo tape.
+ *
+ * La F3 sumó `components/structure` con las DIEZ reglas y no con una cuenta: la
+ * superficie es nueva y entra limpia, que es la única forma de que entrar. La
+ * F3 lo miró ANTES de escribir los componentes, no después de arreglar lo que
+ * salió: un panel nuevo escrito sin red es un panel nuevo con seis colores a
+ * mano, y se habría dejado así por no mirar.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 
@@ -138,7 +144,7 @@ const NODE_URL = 'node:url';
 
 /* ── El alcance ──────────────────────────────────────────────────────────── */
 
-const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/settings/tabs', 'hooks'];
+const DIRECTORIOS = ['components/shell', 'components/review', 'components/referencias', 'components/settings/tabs', 'hooks', 'components/structure'];
 /* Los siete directorios que la Fase 1 sumó, y que hoy miran las DIEZ reglas.
  *
    La Fase 1 los sumó solo para R3, y dejó las otras cinco midiendo su deuda con
