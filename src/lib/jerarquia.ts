@@ -212,6 +212,171 @@ export function faseDeTitulo(
   return vocabulario.get(cabeza) ?? null;
 }
 
+/* ── El diagnóstico de una rama ───────────────────────────────────────────── */
+
+/**
+ * El estado de salud de una rama.
+ *
+ * `completa` es un estado y no la ausencia de estado: una rama que no tiene
+ * nada que reportar tiene que poder decirlo, y `undefined` no lo dice.
+ */
+export type SaludNodo = 'completa' | 'en-duda' | 'desbalanceada' | 'sin-contenido';
+
+/**
+ * La comparación entre hermanas.
+ *
+ * `null` cuando hay menos de dos: no es un cero ni un 100 %, es la ausencia de
+ * una comparación, y es un estado de primera clase porque un documento de un
+ * solo capítulo es un documento real.
+ */
+export interface BalanceRama {
+  /** La palabra de la hermana más larga. TODAS las barras usan esta escala. */
+  mayor: number;
+  /** El porcentaje de cada hermana, en el orden en que se le pasaron. */
+  porcentajes: number[];
+  /** El título de la hermana más larga, para poder decir contra quién se mide. */
+  laMasLarga: string;
+}
+
+export interface DiagnosticoRama {
+  salud: SaludNodo;
+  /** El motivo, EN PALABRAS. Nunca un punto de color suelto. */
+  motivo: string;
+  balance: BalanceRama | null;
+  /** El título del encabezado sospechoso, para que la persona vea cuál. */
+  tituloEnDuda: string | null;
+}
+
+/**
+ * Una rama está desbalanceada cuando tiene menos de quince por ciento de su
+ * hermana más larga.
+ *
+ * El número sale de comparar la fila con sus hermanas, no de un promedio del
+ * documento: un capítulo de 80 al lado de uno de 12.000 es un problema de
+ * redacción local, y un promedio global lo escondería entre los capítulos que
+ * están bien.
+ */
+export const UMBRAL_DESBALANCE = 0.15;
+
+/**
+ * El balance de un grupo de hermanas, o `null` si no hay con qué comparar.
+ *
+ * La escala es la de la hermana MÁS LARGA del grupo, y no la de cada una: con
+ * escala propia cada barra se llenaría y la comparación no diría nada.
+ */
+export function balanceDe(hermanas: readonly NodoJerarquia[]): BalanceRama | null {
+  if (hermanas.length < 2) return null;
+  let mayor = 0;
+  let laMasLarga = '';
+  for (const h of hermanas) {
+    if (h.palabras > mayor) {
+      mayor = h.palabras;
+      laMasLarga = h.titulo;
+    }
+  }
+  const escala = Math.max(1, mayor);
+  return {
+    mayor,
+    porcentajes: hermanas.map((h) => (h.palabras / escala) * 100),
+    laMasLarga,
+  };
+}
+
+/** El encabezado de nivel 2 o más cuyo título, en modo estricto, abre una fase.
+ *
+ * ESTA ES LA REGLA, y sale de `match_phase_exact` del backend: un H2 que dice
+ * "Resultados" a secas es una fase mal puesta; uno que dice "Resultados de la
+ * encuesta" lleva un calificador que avisa de que el autor quiso decir algo
+ * concreto, y se deja quieto. Promover los dos sería peor que no promover
+ * ninguno.
+ *
+ * NUNCA se decide por heurísticas de texto —"si termina en punto raro, está en
+ * duda"—: `AGENTS.md` §1 prohíbe buscar palabras en el cuerpo para decidir el
+ * ámbito, porque "meta" estaba dentro de "metodología" y disparaba la regla de
+ * objetivos en un párrafo que no la tenía. Acá la comparación es contra el
+ * TÍTULO de un encabezado y nada más. */
+export function tituloEnDuda(nodo: NodoJerarquia): string | null {
+  let culpable: string | null = null;
+  const visitar = (n: NodoJerarquia): void => {
+    if (culpable) return;
+    if (n.nivel >= 2 && faseDeTitulo(n.titulo, true)) culpable = n.titulo;
+    for (const h of n.hijos) visitar(h);
+  };
+  visitar(nodo);
+  return culpable;
+}
+
+/** El estado de una rama y el motivo, dicho en palabras. */
+export function diagnosticoDe(nodo: NodoJerarquia, balance: BalanceRama | null = null): DiagnosticoRama {
+  if (nodo.palabras === 0) {
+    return {
+      salud: 'sin-contenido',
+      motivo: 'Sin contenido: el capítulo existe y no tiene nada escrito',
+      balance,
+      tituloEnDuda: null,
+    };
+  }
+  const enDuda = tituloEnDuda(nodo);
+  if (enDuda) {
+    return {
+      salud: 'en-duda',
+      motivo: `En duda: el encabezado dice "${enDuda}" a secas y parece una fase mal nivelada`,
+      balance,
+      tituloEnDuda: enDuda,
+    };
+  }
+  if (balance && nodo.palabras < balance.mayor * UMBRAL_DESBALANCE) {
+    const pct = Math.round((nodo.palabras / Math.max(1, balance.mayor)) * 100);
+    return {
+      salud: 'desbalanceada',
+      motivo: `Desbalanceada: ${pct} % de la rama hermana más larga`,
+      balance,
+      tituloEnDuda: null,
+    };
+  }
+  return { salud: 'completa', motivo: 'Completa', balance, tituloEnDuda: null };
+}
+
+/** El estado de una rama. Atajo de `diagnosticoDe(...).salud`. */
+export function saludDe(nodo: NodoJerarquia, balance: BalanceRama | null = null): SaludNodo {
+  return diagnosticoDe(nodo, balance).salud;
+}
+
+/**
+ * El texto del balance de una fila.
+ *
+ * Con una sola hermana devuelve la ausencia de comparación, DICHA. Un 100 % solo
+ * es un bug esperando: parece una nota, y una rama sin comparable no tiene.
+ */
+export function motivoDe(nodo: NodoJerarquia, balance: BalanceRama | null): string {
+  if (!balance) return 'Sin hermanas: no hay con qué comparar';
+  const suyas = nodo.palabras.toLocaleString('es-ES');
+  const mayor = balance.mayor.toLocaleString('es-ES');
+  const pct = Math.round((nodo.palabras / Math.max(1, balance.mayor)) * 100);
+  return `${suyas} palabras; la rama más larga tiene ${mayor} ("${balance.laMasLarga}"), o sea ${pct} %`;
+}
+
+/**
+ * Las filas del índice, en orden, con el balance de sus hermanas ya resuelto.
+ *
+ * El balance se calcula ENTRE HERMANAS del mismo padre, no contra el capítulo
+ * padre: un H2 y un H3 que cuelgan del mismo H1 son las dos ramas que se
+ * comparan. Comparar cada hijo contra su padre haría que el índice marcara como
+ * desbalanceado un resumen de un solo párrafo.
+ */
+export function filasDelIndice(raices: readonly NodoJerarquia[]): { nodo: NodoJerarquia; diagnostico: DiagnosticoRama; profundidad: number }[] {
+  const filas: { nodo: NodoJerarquia; diagnostico: DiagnosticoRama; profundidad: number }[] = [];
+  const recorrer = (hermanos: readonly NodoJerarquia[], profundidad: number): void => {
+    const balance = balanceDe(hermanos);
+    for (const n of hermanos) {
+      filas.push({ nodo: n, diagnostico: diagnosticoDe(n, balance), profundidad });
+      recorrer(n.hijos, profundidad + 1);
+    }
+  };
+  recorrer(raices, 0);
+  return filas;
+}
+
 /* ── El árbol ─────────────────────────────────────────────────────────────── */
 
 /* Los tipos que son PROSA. Un encabezado es el rótulo de su rama, no lo que hay
