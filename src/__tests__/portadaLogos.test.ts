@@ -22,7 +22,7 @@ vi.mock('../api/backend', () => ({
 import { useDocStore } from '../store/useDocStore';
 import { defaultActa, defaultPortada } from '../store/slices/coverSlice';
 import { CATALOGO_DE_UNIVERSIDADES } from '../lib/portada/catalogo';
-import { fraccionDeAnchoUtil, anchoUtilMm } from '../lib/portada/geometria';
+import { fraccionDeAnchoUtil, anchoUtilMm, FRACCION_DE_ANCHO_DEL_LOGO } from '../lib/portada/geometria';
 import type { PortadaData } from '../types';
 
 const estado = () => useDocStore.getState();
@@ -75,6 +75,22 @@ describe('los logos de la portada', () => {
     expect(carta / anchoUtilMm('carta')).toBeCloseTo(logo.ancho_fraccion, 6);
     expect(a4 / anchoUtilMm('a4')).toBeCloseTo(logo.ancho_fraccion, 6);
     expect(carta).not.toBeCloseTo(a4, 1);
+  });
+
+  it('el logo UNI mide 5.2 cm en carta, no la mitad', () => {
+    /* La cuenta que fija el default, del lado del cliente: el logo se ponia con
+       `Cm(5.2)` y eso es 5.2 / 16.51 = 0.315 del ancho util de una carta. Con el
+       0.16 del plan (que salia de un ancho util de 13.59 cm que el proyecto
+       nunca tuvo) el logo quedaba en 2.64 cm: la mitad, y el usuario lo reporto
+       como "el logo que puso es super pequeno no se ve".
+
+       El store escribe la MISMA fraccion que el default de `LogoPortada` en
+       `python/models.py`. Si divergen, la miniatura miente sobre el `.docx`,
+       que es justo lo que la fase vino a matar. */
+    estado().updateCoverInstitucion('UNI');
+    const logo = estado().portada.logos![0];
+    expect(logo.ancho_fraccion).toBeCloseTo(FRACCION_DE_ANCHO_DEL_LOGO, 6);
+    expect(fraccionDeAnchoUtil(logo.ancho_fraccion, 'carta') / 10).toBeCloseTo(5.2, 1);
   });
 
   it('un documento guardado con el logo dentro de la institucion abre igual', () => {

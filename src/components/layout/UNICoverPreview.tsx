@@ -18,7 +18,7 @@ import React, { useState, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { parseAuthorEntries, COVER_FIELD_HIGHLIGHT_EVENT } from '../../lib/portadaAuthors';
 import { resolveAssetUrl } from '../../api/backend';
-import { medidaDeLaHoja, PT_PORTADA_UNI, type Hoja } from '../../lib/portada/geometria';
+import { medidaDeLaHoja, PT_PORTADA_UNI, FRACCION_DE_ANCHO_DEL_LOGO, type Hoja } from '../../lib/portada/geometria';
 
 /* La tinta de la portada. Es una PREVISUALIZACION de una hoja impresa, asi que
    el color no es el de la interfaz sino el del papel: `--paper-ink`, que R7
@@ -52,7 +52,9 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
      UNI: los dosgjuntos tenían la insignia fija y elegir UNAN no se notaba ni en
      la preview ni en el documento. La lista viene del store, que es donde el
      `onClick` del chip la dejó. */
-  const logos = portada.logos?.length ? portada.logos : [{ asset: 'logo_uni.png', ancho_fraccion: 0.16 }];
+  const logos = portada.logos?.length
+    ? portada.logos
+    : [{ asset: 'logo_uni.png', ancho_fraccion: FRACCION_DE_ANCHO_DEL_LOGO }];
   const [logosQueNoCargan, setLogosQueNoCargan] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -144,7 +146,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
         style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: px(4), marginBottom: px(2) }}
       >
         {logos.map((lg) => {
-          const ancho = m.anchoUtilPx * (lg.ancho_fraccion || 0.16);
+          const ancho = m.anchoUtilPx * (lg.ancho_fraccion || FRACCION_DE_ANCHO_DEL_LOGO);
           const noCarga = logosQueNoCargan.has(lg.asset);
           return noCarga ? (
             <div

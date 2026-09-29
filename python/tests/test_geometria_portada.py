@@ -258,9 +258,13 @@ class TestLaHojaDelDocumentoLlegaAlDocx:
 
     def test_la_preview_dibuja_el_logo_con_la_misma_fraccion(self, tmp_path):
         """La otra mitad del Review Focus #4: la preview ponia `150px`, que es
-        un 22% del ancho de la hoja, contra el 31.5% que llevaba el `.docx` --
+        un 28.8% del ancho util, contra el 31.5% que llevaba el `.docx` --
         o sea, la preview lo achicaba y el usuario lo descubre al exportar.
-        Ahora las dos sides salen de `FRACCION_DE_ANCHO_DEL_LOGO`."""
+        Ahora las dos sides salen de `FRACCION_DE_ANCHO_DEL_LOGO`.
+
+        Los numeros esperados salen de la misma cuenta que el default del
+        modelo: `165.1 mm de ancho util x 0.315 = 52.0 mm`, que son los
+        `5.2 cm` del `Cm(5.2)` de antes. A 680 px de hoja eso son 163.8 px."""
         escala = _escala_de_preview_calculada(ANCHO_HOJA_PX)
         # La fraccion es del ANCHO UTIL, no del ancho de la hoja: los dos lados
         # tienen que medir sobre lo mismo, o la comparacion no dice nada.
@@ -270,10 +274,10 @@ class TestLaHojaDelDocumentoLlegaAlDocx:
         mm_que_escribe_el_docx = (
             portada_uni.ancho_util_mm("carta") * portada_uni.FRACCION_DE_ANCHO_DEL_LOGO
         )
-        assert px_que_pinta_la_preview == pytest.approx(83.2, abs=0.5)
-        assert mm_que_escribe_el_docx == pytest.approx(26.42, abs=0.02)
+        assert px_que_pinta_la_preview == pytest.approx(163.8, abs=0.5)
+        assert mm_que_escribe_el_docx == pytest.approx(52.0, abs=0.05)
         # El `150px` de antes era un 28.8% del ancho util: la preview achicaba
-        # el logo un 45% respecto de lo que llevaba el `.docx`.
+        # el logo casi a la mitad de lo que llevaba el `.docx`.
         assert 150 / ancho_util_px > 0.28
 
 

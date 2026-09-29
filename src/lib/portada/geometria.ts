@@ -100,6 +100,29 @@ export function fraccionDeAnchoUtil(fraccion: number, hoja: Hoja = 'carta'): num
   return fraccion * anchoUtilMm(hoja);
 }
 
+/**
+ * La fraccion del ancho util que ocupa el logo de la portada.
+ *
+ * NO ES UN NUMERO ELEGIDO A OJO: es el `Cm(5.2)` de antes, dividido por el ancho
+ * util real de una carta. La cuenta entera:
+ *
+ *     ancho util = 215.9 mm - 2 x 25.4 mm = 165.1 mm = 16.51 cm
+ *     5.2 cm / 16.51 cm = 0.315
+ *
+ * Los margenes son de UNA PULGADA, no de 40 mm. El plan de la fase calibro el
+ * 0.16 como si el ancho util fuera 13.59 cm (0.16 x 135.9 mm = 21.7 mm, que es
+ * lo que el plan decia). Con el ancho util real de 16.51 cm, ese mismo 0.16
+ * son 2.64 cm: la mitad de lo que tenia el logo, y lo que el usuario reporto
+ * como "el logo que puso es super pequeno no se ve".
+ *
+ * La fuente de verdad de este numero es `FRACCION_DE_ANCHO_DEL_LOGO` en
+ * `python/modules/portada_uni.py` y el default de `LogoPortada.ancho_fraccion`
+ * en `python/models.py`. Esta copia existe para que la preview y la miniatura
+ * no traigan un literal propio: cuando el documento se agranda, la preview se
+ * agranda con el.
+ */
+export const FRACCION_DE_ANCHO_DEL_LOGO = 0.315;
+
 /** La misma fraccion, en centimetros, que es como lo mide `python-docx`. */
 export function fraccionDeAnchoUtilCm(fraccion: number, hoja: Hoja = 'carta'): number {
   return fraccionDeAnchoUtil(fraccion, hoja) / 10;

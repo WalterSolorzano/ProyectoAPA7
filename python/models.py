@@ -527,15 +527,22 @@ class LogoPortada(BaseModel):
     otra, y con las dos hojas elegibles eso hace que el mismo diseño salga de dos
     tamaños.
 
-    El default (0.16) viene del plan de la fase y se respeta. Medido sobre el
-    ancho útil real de una carta (16.51 cm) son 2.64 cm, contra los 5.2 cm que
-    ponía el `Cm(5.2)` de antes. O sea que el logo queda MÁS CHICO en la hoja de
-    lo que estaba, no más grande: el número baja de 5.2 a 2.64. La preview sí lo
-    empeoraba, y de ahí el "sale todo super achicado": 150 px de 680 es un 22% del
-    ancho de la hoja, contra el 31.5% que llevaba el `.docx`.
+    EL DEFAULT ES EL TAMAÑO QUE TENÍA ANTES, CON LA CUENTA HECHA.
+    `portada_uni.py` ponía el logo con `add_picture(..., width=Cm(5.2))`. Para
+    escribirlo como fracción del ancho útil hay que dividirlo por el ancho útil
+    REAL de una carta, que es `215.9 - 2 × 25.4 = 165.1 mm = 16.51 cm`
+    (`APARuleSet.margins_cm` es 2.54, o sea una pulgada por lado; NO 40 mm):
+
+        5.2 cm / 16.51 cm = 0.315
+
+    El 0.16 del plan se calibró como si el ancho útil fuera 13.59 cm, que este
+    proyecto nunca produce; con el ancho útil real ese 0.16 son 2.64 cm: la
+    mitad de lo que estaba, que es exactamente lo que reportó el usuario ("el
+    logo que puso es super pequeño no se ve"). El número no se cambia sin motivo
+    nuevo y escrito; si cambia el ancho útil, cambia la cuenta y no el default.
     """
     asset: str
-    ancho_fraccion: float = 0.16
+    ancho_fraccion: float = 0.315
     institucion: Optional[str] = None
 
     @field_validator("ancho_fraccion")

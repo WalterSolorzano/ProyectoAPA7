@@ -447,7 +447,15 @@ export interface SectionInfo {
 export interface LogoPortada {
   /** El nombre del archivo dentro de `python/assets/`, no una URL. */
   asset: string;
-  /** Fracción del ancho ÚTIL de la hoja. 0.16 son 2.64 cm en una carta. */
+  /**
+   * Fracción del ancho ÚTIL de la hoja.
+   *
+   * El default (0.315) son los 5.2 cm que ponía el `Cm(5.2)` de antes, medidos
+   * sobre los 16.51 cm de ancho útil de una carta (una pulgada de margen por
+   * lado). La cuenta completa está en `FRACCION_DE_ANCHO_DEL_LOGO`, en
+   * `src/lib/portada/geometria.ts`, y el default de Python en
+   * `LogoPortada.ancho_fraccion`.
+   */
   ancho_fraccion: number;
   institucion?: string | null;
 }

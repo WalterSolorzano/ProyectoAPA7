@@ -25,6 +25,7 @@ import {
   mmAPx,
   ptAPx,
   fraccionDeAnchoUtil,
+  FRACCION_DE_ANCHO_DEL_LOGO,
 } from '../lib/portada/geometria';
 
 describe('geometria de la portada', () => {
@@ -77,10 +78,10 @@ describe('una fraccion del ancho util, y no milimetros absolutos', () => {
   it('la misma fraccion da el mismo size relativo en carta y en a4', () => {
     // El Review Focus #4: si el ancho esta en mm fijos, el logo se ve distinto en
     // cada hoja. La fraccion tiene que ser la misma.
-    const carta = fraccionDeAnchoUtil(0.16, 'carta');
-    const a4 = fraccionDeAnchoUtil(0.16, 'a4');
-    expect(carta / anchoUtilMm('carta')).toBeCloseTo(0.16, 6);
-    expect(a4 / anchoUtilMm('a4')).toBeCloseTo(0.16, 6);
+    const carta = fraccionDeAnchoUtil(0.315, 'carta');
+    const a4 = fraccionDeAnchoUtil(0.315, 'a4');
+    expect(carta / anchoUtilMm('carta')).toBeCloseTo(0.315, 6);
+    expect(a4 / anchoUtilMm('a4')).toBeCloseTo(0.315, 6);
     expect(carta).not.toBeCloseTo(a4, 1); // los mm absolutos SI son distintos
   });
 
@@ -97,13 +98,22 @@ describe('una fraccion del ancho util, y no milimetros absolutos', () => {
     expect(anchoUtilMm('a4')).toBeCloseTo(159.2, 1);
   });
 
-  it('el 16% por defecto del logo es 2.64 mm de ancho util, no 2.17', () => {
-    /* El plan de la fase calcula 2.17 cm a partir de un ancho util de 13.59 cm.
-       Con el ancho util real son 2.64 cm. La fraccion (0.16) es la misma en las
-       dos hojas, que es lo que el Review Focus #4 mide; los milimetros
-       absolutos cambian con los margenes reales y hay que decirlo. */
-    expect(fraccionDeAnchoUtil(0.16, 'carta')).toBeCloseTo(26.416, 2);
-    expect(fraccionDeAnchoUtil(0.16, 'a4')).toBeCloseTo(25.472, 2);
+  it('la fraccion por defecto del logo es el 31.5%, y son los 5.2 cm de antes', () => {
+    /* La cuenta, entera: el logo se ponia con `Cm(5.2)` y para decirlo como
+       fraccion del ancho util se divide 5.2 cm por 16.51 cm, que es lo que
+       queda de una carta (215.9 mm) con una pulgada de margen por lado. Da
+       0.315. El 0.16 del plan salia de un ancho util de 13.59 cm que el
+       proyecto nunca tuvo, y con el ancho util real dejaba el logo en 2.64 cm:
+       la mitad de lo que estaba.
+
+       La fraccion es la misma en las dos hojas, que es lo que el Review Focus
+       #4 mide; los milimetros absolutos cambian con los margenes reales y hay
+       que decirlo. */
+    expect(FRACCION_DE_ANCHO_DEL_LOGO).toBeCloseTo(5.2 / 16.51, 3);
+    expect(fraccionDeAnchoUtil(FRACCION_DE_ANCHO_DEL_LOGO, 'carta')).toBeCloseTo(52.0, 1);
+    expect(fraccionDeAnchoUtil(FRACCION_DE_ANCHO_DEL_LOGO, 'a4')).toBeCloseTo(50.1, 1);
+    // Y el que achicaba el logo a la mitad, para que quede dicho por que no vuelve.
+    expect(fraccionDeAnchoUtil(0.16, 'carta')).toBeCloseTo(26.4, 1);
   });
 
   it('una hoja con margenes mas anchos tiene menos ancho util', () => {

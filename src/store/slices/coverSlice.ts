@@ -5,6 +5,7 @@ import {
   CATALOGO_DE_CARRERAS,
   CATALOGO_DE_UNIVERSIDADES,
 } from '../../lib/portada/catalogo';
+import { FRACCION_DE_ANCHO_DEL_LOGO } from '../../lib/portada/geometria';
 import * as api from '../../api/backend';
 
 const getApiBase = () => api.getApiBase();
@@ -211,7 +212,12 @@ export const createCoverSlice: StateCreator<DocState, [], [], Partial<DocState>>
         logos: delCatalogo.logoUrl
           ? [{
               asset: delCatalogo.logoUrl.split('/').pop() as string,
-              ancho_fraccion: 0.16,
+              /* La misma fracción que el default de `LogoPortada` en
+                 `python/models.py`, sacada de `geometria.ts` y no escrita a
+                 mano: 5.2 cm sobre los 16.51 cm de ancho útil de una carta. Con
+                 un 0.16 el logo quedaba en 2.64 cm, la mitad de lo que
+                 llevaba, y la miniatura y el `.docx` dejaban de parecerse. */
+              ancho_fraccion: FRACCION_DE_ANCHO_DEL_LOGO,
               institucion: delCatalogo.codigo,
             }]
           : [],

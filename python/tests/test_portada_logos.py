@@ -97,7 +97,12 @@ def con_logos(*logos: LogoPortada) -> PortadaData:
     )
 
 
-def logo(asset: str, ancho_fraccion: float = 0.16, institucion: str | None = None) -> LogoPortada:
+def logo(asset: str, ancho_fraccion: float | None = None, institucion: str | None = None) -> LogoPortada:
+    """Un logo pedido. Sin `ancho_fraccion` usa el DEFAULT del modelo, que es el
+    numero que la portada UNI tenía antes de esta fase y el que hay que
+    conservar."""
+    if ancho_fraccion is None:
+        return LogoPortada(asset=asset, institucion=institucion)
     return LogoPortada(asset=asset, ancho_fraccion=ancho_fraccion, institucion=institucion)
 
 
@@ -202,7 +207,7 @@ class TestVariosLogos:
     def test_con_dos_logos_llegan_los_dos(self, tmp_path):
         doc = generar(
             tmp_path,
-            con_logos(logo("logo_uni.png", 0.16), logo("logo_unan.png", 0.10)),
+            con_logos(logo("logo_uni.png", 0.315), logo("logo_unan.png", 0.10)),
         )
         assert _usa_asset(doc, "logo_uni.png")
         assert _usa_asset(doc, "logo_unan.png")
@@ -210,17 +215,17 @@ class TestVariosLogos:
     def test_cada_logo_mide_su_fraccion(self, tmp_path):
         doc = generar(
             tmp_path,
-            con_logos(logo("logo_uni.png", 0.16), logo("logo_unan.png", 0.10)),
+            con_logos(logo("logo_uni.png", 0.315), logo("logo_unan.png", 0.10)),
         )
         util_cm = portada_uni.ancho_util_mm("carta") / 10.0
         fracciones = sorted(round(w / util_cm, 2) for w in _anchos_de_imagen_cm(doc))
-        assert fracciones == [0.10, 0.16]
+        assert fracciones == [0.10, 0.32]
 
     def test_un_asset_que_no_existe_no_inventa_una_imagen(self, tmp_path):
         """Un logo que se pidió y no llegó se avisa, no se sustituye en
         silencio por el de otro. Es la diferencia entre un documento incompleto y
         un documento equivocado."""
-        doc = generar(tmp_path, con_logos(logo("logo_que_no_existe.png", 0.16)))
+        doc = generar(tmp_path, con_logos(logo("logo_que_no_existe.png", 0.315)))
         assert not _usa_asset(doc, "logo_que_no_existe.png")
         assert not _usa_asset(doc, "logo_uni.png"), (
             "un asset inexistente no puede terminar poniendo el logo de la UNI"
@@ -233,29 +238,54 @@ class TestElLogoMideSuFraccionDelAnchoUtil:
     def test_el_logo_mide_su_fraccion_del_ancho_util_en_carta_y_en_a4(self):
         """El Review Focus #4. Con mm absolutos el logo se ve distinto en cada
         hoja, porque el ancho util de Carta y de A4 no es el mismo."""
-        carta = generar(_tmp(), con_logos(logo("logo_uni.png", 0.16)), page_size="carta")
-        a4 = generar(_tmp(), con_logos(logo("logo_uni.png", 0.16)), page_size="a4")
+        carta = generar(_tmp(), con_logos(logo("logo_uni.png", 0.315)), page_size="carta")
+        a4 = generar(_tmp(), con_logos(logo("logo_uni.png", 0.315)), page_size="a4")
         util_carta = portada_uni.ancho_util_mm("carta") / 10.0
         util_a4 = portada_uni.ancho_util_mm("a4") / 10.0
         frac_carta = _ancho_de_imagen_cm(carta) / util_carta
         frac_a4 = _ancho_de_imagen_cm(a4) / util_a4
-        assert frac_carta == pytest.approx(0.16, abs=0.01)
-        assert frac_a4 == pytest.approx(0.16, abs=0.01)
+        assert frac_carta == pytest.approx(0.315, abs=0.01)
+        assert frac_a4 == pytest.approx(0.315, abs=0.01)
 
-    def test_el_16_por_ciento_son_2_64_cm_y_no_2_17(self):
-        """MEDIDO. El plan de la fase calcula 2.17 cm a partir de un ancho util
-        de 13.59 cm, que salia de restar 40 mm por lado. El `.docx` real usa una
-        pulgada: 165.1 mm de ancho util, y 0.16 de eso son 26.4 mm.
+    def test_el_ancho_util_de_verdad_es_16_51_cm_no_el_13_59_del_plan(self):
+        """MEDIDO. El plan de la fase calcula sus numeros a partir de un ancho
+        util de 13.59 cm, que sale de restar 40 mm por lado. El `.docx` real usa
+        una pulgada: 165.1 mm de ancho util en carta y 159.2 mm en A4.
 
-        Y el `Cm(5.2)` de antes eran 5.2 cm, o sea un 31.5% del ancho util. El
-        0.16 por defecto deja el logo mas CHICO en la hoja de lo que estaba, no
-        mas grande: el numero baja de 5.2 a 2.64. Es deliberado y viene del
-        plan, pero conviene que quede dicho con la cuenta.
+        De ese 13.59 cm salio tambien el default equivocado del logo, asi que
+        esto esta aqui para que el error de las cuentas del plan no vuelva a
+        entrar por la puerta del ancho util.
         """
         assert portada_uni.ancho_util_mm("carta") == pytest.approx(165.1, abs=0.05)
-        assert portada_uni.ancho_util_mm("carta") * 0.16 / 10 == pytest.approx(2.64, abs=0.01)
-        # Lo que la preview ponia: 150 px de 680, un 22% del ancho de la hoja.
-        assert 150 / 680 < 0.23
+        assert portada_uni.ancho_util_mm("a4") == pytest.approx(159.2, abs=0.05)
+
+
+class TestElLogoUniConservaSuTamano:
+    """El logo UNI medía `Cm(5.2)` antes de esta fase y tiene que seguir
+    midiendo eso. Un 16% del ancho util son 2.64 cm: la mitad, y el usuario lo
+    reporta como "el logo que puso es super pequeño no se ve".
+
+    La cuenta, que es la que fija el default:
+        5.2 cm / 16.51 cm de ancho util = 0.315
+    Los margenes son de una pulgada (`APARuleSet.margins_cm = 2.54`), no de
+    40 mm, y por eso el ancho util es 16.51 cm y no 13.59 cm.
+    """
+
+    def test_el_logo_uni_conserva_su_tamano_anterior(self):
+        """Un logo UNI y carta: 5.2 cm, que es lo que ponía el `Cm(5.2)`."""
+        doc = generar(_tmp(), con_logos(logo("logo_uni.png")), page_size="carta")
+        assert _ancho_de_imagen_cm(doc) == pytest.approx(5.2, abs=0.05)
+
+    def test_el_logo_uni_es_la_misma_fraccion_en_a4(self):
+        """En A4 el ancho ABSOLUTO cambia (el ancho util de A4 no es el de
+        carta) y la FRACCIÓN no. Que se espere 0.31, y no 5.2 cm, es lo
+        correcto: son hojas distintas."""
+        doc = generar(_tmp(), con_logos(logo("logo_uni.png")), page_size="a4")
+        util_a4_cm = portada_uni.ancho_util_mm("a4") / 10.0
+        fraccion = _ancho_de_imagen_cm(doc) / util_a4_cm
+        assert fraccion == pytest.approx(0.315, abs=0.01)
+        # Y el absoluto es OTRO numero, no el mismo 5.2 cm repetido.
+        assert _ancho_de_imagen_cm(doc) == pytest.approx(5.01, abs=0.05)
 
 
 def _tmp():
@@ -270,11 +300,22 @@ class TestElModeloDeLogos:
     def test_el_logo_default_es_una_fraccion_y_no_un_milimetro(self):
         # El plan declaraba `LogoPortada = {asset, ancho_mm, institucion}` y en
         # el mismo parrafo `ancho_fraccion: float = 0.16`. La fraccion es la que
-        # funciona: un `ancho_mm` no puede ser el mismo en Carta y en A4.
+        # funciona: un `ancho_mm` no puede ser el mismo en Carta y en A4. El
+        # NUMERO del default si se corrigio: 0.16 salia de un ancho util de
+        # 13.59 cm que el proyecto nunca tuvo.
         assert "ancho_fraccion" in LogoPortada.model_fields
         assert "ancho_mm" not in LogoPortada.model_fields
         # `asset` es obligatorio: un logo sin saber cual es no es un logo.
-        assert LogoPortada(asset="logo_uni.png").ancho_fraccion == 0.16
+        # 0.315 es 5.2 cm sobre los 16.51 cm de ancho util de una carta: el
+        # tamano que llevaba el `Cm(5.2)` de antes.
+        assert LogoPortada(asset="logo_uni.png").ancho_fraccion == 0.315
+        # Y el default del modelo y el fallback interno del generador son el
+        # MISMO numero. Son dos copias de una sola cuenta, y si se separan el
+        # logo cambia de tamano segun si la portada venga con lista de logos o
+        # sin ella.
+        assert LogoPortada(asset="logo_uni.png").ancho_fraccion == (
+            portada_uni.FRACCION_DE_ANCHO_DEL_LOGO
+        )
         with pytest.raises(Exception):
             LogoPortada()
 

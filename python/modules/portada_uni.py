@@ -84,18 +84,27 @@ MARGENES_MM = 25.4                  # una pulgada, como create_template.py y DES
 
 # La fraccion del ancho util que ocupa el logo. Reemplaza al `Cm(5.2)` absoluto.
 #
-# POR QUE UN 16% Y POR QUE ES DELIBERADO. Con milimetros fijos, un ancho
+# POR QUE UNA FRACCION Y NO MILIMETROS. Con milimetros fijos, un ancho
 # calibrado para una hoja se ve distinto en la otra, y con Carta y A4 elegibles
 # eso hace que el logo cambie de tamano segun el documento. Con una fraccion del
 # ancho util, el size RELATIVO es el mismo y el absoluto se acomoda a cada hoja.
 #
-# El 0.16 viene del plan de la fase y se respeta. Medido sobre el ancho util
-# real (16.51 cm en carta) son 2.64 cm, contra los 5.2 cm que ponia el
-# `Cm(5.2)`: el numero baja, asi que el logo queda mas pequeno en la hoja de lo
-# que estaba. La preview si lo empeoro, y de ahi el "sale todo super achicado":
-# 150 px de 680 es un 22% del ancho de la hoja, contra el 31.5% que llevaba el
-# `.docx`.
-FRACCION_DE_ANCHO_DEL_LOGO = 0.16
+# POR QUE 0.315 Y NO 0.16. Porque el logo tiene que seguir midiendo lo que
+# media. Antes de esta fase se ponia con `add_picture(..., width=Cm(5.2))`, y
+# para decirlo como fraccion hay que dividir 5.2 cm por el ancho util REAL de
+# una carta:
+#
+#     ancho util = 215.9 mm - 2 x 25.4 mm = 165.1 mm = 16.51 cm
+#     5.2 / 16.51 = 0.315
+#
+# Los margenes son de UNA PULGADA (`APARuleSet.margins_cm = 2.54`), no de 40 mm.
+# El plan de la fase calibro el 0.16 como si el ancho util fuera 13.59 cm
+# (0.16 x 135.9 mm = 21.7 mm, que es lo que el plan decia). Con el ancho util
+# real de 16.51 cm, ese mismo 0.16 son 2.64 cm: LA MITAD de lo que tenia, que es
+# lo que reporto el usuario ("el logo que puso es super pequeno no se ve"). La
+# fraccion no es un numero ilustrativo: es el que preserva el tamano, y se
+# cambia solo con la cuenta al lado.
+FRACCION_DE_ANCHO_DEL_LOGO = 0.315
 
 # Que logo lleva que institucion. Es DATO y no una URL en el `.tsx`, por lo que
 # dijo `CoverEditorPanel`: con la insignia hardcodeada en el componente, elegir

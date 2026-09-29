@@ -16,7 +16,7 @@ import React from 'react';
 import { CloudUpload } from 'lucide-react';
 import type { ActaDocumento, APARuleSet, PortadaData } from '../../../types';
 import { parseAuthorEntries } from '../../../lib/portadaAuthors';
-import { PT_PORTADA_UNI, type Hoja } from '../../../lib/portada/geometria';
+import { PT_PORTADA_UNI, FRACCION_DE_ANCHO_DEL_LOGO, type Hoja } from '../../../lib/portada/geometria';
 
 export type DisenoDePortada = {
   id: string;
@@ -164,7 +164,7 @@ export const MiniaturasDeDiseno: React.FC<Props> = ({ diseno, medida, portada, a
             key={lg.asset}
             alt={lg.institucion ? `Logo de ${lg.institucion}` : `Logo ${lg.asset}`}
             src={`/api/assets/${lg.asset}`}
-            style={{ width: medida.anchoUtilPx * (lg.ancho_fraccion || 0.16), objectFit: 'contain' }}
+            style={{ width: medida.anchoUtilPx * (lg.ancho_fraccion || FRACCION_DE_ANCHO_DEL_LOGO), objectFit: 'contain' }}
           />
         ))}
         <p data-campo="departamento" style={{ ...centro, fontSize: medida.pt(PT_PORTADA_UNI.departamento), marginTop: 4 }}>
