@@ -25,6 +25,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     removeTab,
     uploadFile,
     isLoading,
+    proyecto,
     projectImages,
     addProjectImage,
     activeFilePath,
@@ -37,9 +38,24 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
 
   if (!isOpen) return null;
 
-  const activeTab = tabs[activeTabIndex];
-  const activeParsed = activeTab ? parseDocumentVersion(activeTab.file_name) : null;
-  const projectName = activeParsed?.projectName || 'Proyecto APA 7';
+  /* F7 Task 3. EL NOMBRE DEL PROYECTO.
+     *
+     * Antes: `activeParsed?.projectName || 'Proyecto APA 7'`. O sea, el nombre de
+     * un trabajo salia del nombre del archivo de la pestaña activa, y cuando no
+     * habia pestaña la pantalla decia, con todas las letras, "Proyecto APA 7".
+     * Un nombre inventado en pantalla es peor que no tener chrome: la persona lo
+     * lee y razona sobre un trabajo que no existe.
+     *
+     * Ahora el nombre viene de `store.proyecto`, que es persistido. Sin proyecto
+     * NO HAY titulo: el bloque entero se sale del render. No se muestra un
+     * nombre de reserva, porque cualquier nombre de reserva es mentira, y la
+     * mentira mas cara es la que se lee como cierta.
+     *
+     * Y `parseDocumentVersion` sigue usandose ABAJO, para la ETIQUETA DE VERSION
+     * de cada documento de la lista: eso es un dato del archivo, y como dato del
+     * archivo es correcto. Lo que no puede ser un dato del archivo es el nombre
+     * del proyecto. */
+  const nombreProyecto = proyecto?.nombre ?? null;
 
   const handleSelectFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -145,12 +161,29 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                 flexShrink: 0,
               }}
             >
-              <Folder size={18} />
+              <Folder size={18} strokeWidth="var(--icon-stroke)" />
             </div>
+            {/* El titulo del proyecto NO tiene bloque vacio a su lado: sin proyecto
+                no hay nombre, y un `div` de 14px reservado para un texto que no
+                existe empuja el contenido y deja el hueco como si algo faltara.
+                Faltaba algo: falta el proyecto. */}
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{projectName}</span>
+            {nombreProyecto && (
+              <div
+                data-testid="proyecto-titulo"
+                style={{ fontSize: '14px', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombreProyecto}</span>
               </div>
+            )}
+            {/* LA RUTA Y EL BOTON NO DEPENDEN DEL NOMBRE. La fila vivia dentro
+                  del bloque del titulo, o sea que el "Abrir carpeta" —el unico
+                  boton de esta pantalla que hace algo con el disco— era
+                  inalcanzable sin proyecto. Y `activeFilePath` se establece al
+                  SUBIR un archivo (F7 Task 3), que no abre ningun proyecto. Un
+                  boton que depende de un dato que su propio camino no escribe
+                  es un boton muerto, y hay que meter el boton y su dato al mismo
+                  nivel para que se pueda ver que existen juntos. */}
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                 {activeFilePath ? (
                   <>

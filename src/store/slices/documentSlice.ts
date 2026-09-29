@@ -443,6 +443,26 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
   },
   uploadFile: async (file, opts) => {
+    /* F7 Task 3. `activeFilePath` es `null` por defecto y antes NUNCA se
+       escribia en este camino: solo se establecia en `App.tsx:298`, que es el
+       menu contextual de Windows. O sea, el boton "Abrir carpeta" del Explorador
+       —`ProjectFolderModal.tsx`— no aparecia nunca en el modo de uso normal, que
+       es elegir el archivo desde la app. Nadie lo noto porque nadie lo veia.
+
+       ESTA ES LA PRIMERA SENTENCIA DEL CAMINO, Y NO POR ORDEN ESTETICO. Este
+       `uploadFile` arranca con un `await import` de los chistes, o sea que antes
+       de llegar a la subida hay un salto al microtask queue. Escribir la ruta
+       despues de ese salto hacia que la ruta arrive tarde: la persona abre el
+       Explorador mientras la subida sigue en curso y el boton no esta. La ruta
+       del archivo ya se conoce en este punto, asi que se escribe antes de
+       cualquier salto.
+
+       Y SOLO si la hay: un `File` de navegador no trae `.path`, y poner `null` en
+       ese caso borraria la ruta del documento que todavia esta abierto,
+       dejandolo sin "Abrir carpeta" sobre el archivo que tiene delante. */
+    const rutaDelArchivo = (file as File & { path?: string }).path;
+    if (rutaDelArchivo) set({ activeFilePath: rutaDelArchivo });
+
     // Chistes contextuales: nombre de archivo tipo "final_v3" y reincidencia
     try {
       const { getFilenameComment, getRepeatComment } = await import('../../lib/studentJokes');

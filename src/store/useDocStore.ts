@@ -42,6 +42,12 @@ export const PERSIST_NOMBRE = 'wordapa7-storage';
  * Esta funcion se EXPORTA, y no por adorno: el test de la fase la usa para
  * serializar el estado con la misma logica que usa la app. Un `partialize`
  * reescrito en el test seria otra verdad, y mediria la copia y no la cosa.
+ *
+ * F7 Task 3. `proyecto` entra acá. Sin esto, cerrar y reabrir la app devuelve el
+ * nombre del proyecto a la nada y el chrome de proyecto vuelve a no tener nada
+ * que mostrar: la entidad que esta fase creo se desarmaba en cada reinicio. Lo
+ * que se persiste es el `Proyecto` entero, y su `raiz` es la ruta en disco, que
+ * es un dato y no una promesa: el boton "Abrir carpeta" la usa.
  */
 export const persistPartialize = (state: DocState) => ({
   apiKey: state.apiKey,
@@ -53,6 +59,7 @@ export const persistPartialize = (state: DocState) => ({
   profiles: state.profiles,
   hasSeenTour: state.hasSeenTour,
   projectImages: state.projectImages,
+  proyecto: state.proyecto,
 });
 
 export const useDocStore = create<DocState>()(

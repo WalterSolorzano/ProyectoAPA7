@@ -3,6 +3,7 @@ import { DocState } from '../types';
 import { DocumentModel } from '../../types';
 import type { PestanaId } from '../../components/settings/tabs';
 import { leerCortesGuardados, normalizarCortes, guardarCortes } from '../../lib/aiMosaic';
+import type { Proyecto } from '../../lib/proyecto';
 import * as api from '../../api/backend';
 
 let mascotTimer: ReturnType<typeof setTimeout> | null = null;
@@ -248,6 +249,24 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       ...(docChanged ? { layoutCuts: null, layoutEcho: 0, wordLayoutUnavailable: false } : {}),
     };
   }),
+  /* EL PROYECTO ABIERTO. F7 Task 3.
+     *
+     * Antes no había nada acá: el nombre del proyecto se derivaba del nombre
+     * del archivo de la pestaña activa, y cuando no había pestaña, la pantalla
+     * ponía la cadena literal `'Proyecto APA 7'`. Renombrar el archivo renombraba
+     * el proyecto, y cerrar la app lo dejaba en nada.
+     *
+     * `setProyecto` RECIBE un `Proyecto` armado por `crearProyecto` y no arma
+     * ninguno: si el store completara los campos que faltan, cada lugar que
+     * guarda un proyecto volvería a ser un lugar que puede dejar uno incompleto.
+     *
+     * El nombre NO se deriva de la pestaña acá. Si algún día hace falta
+     * suggesting un nombre a partir de un archivo, eso es `parseDocumentVersion`,
+     * que para eso existe, y el resultado se le pasa a `crearProyecto` como
+     * sugerencia — nunca se recalcula sobre cada render. */
+  proyecto: null,
+  setProyecto: (proyecto: Proyecto) => set({ proyecto }),
+  cerrarProyecto: () => set({ proyecto: null }),
   projectImages: [],
   addProjectImage: async (file: File) => {
     /* F7 Task 1. Antes esto era un object URL mas el `File` entero en el store.

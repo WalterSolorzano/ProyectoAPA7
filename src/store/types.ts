@@ -1,5 +1,6 @@
 import * as api from '../api/backend';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, PortadaData, PortadaProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel, ProofreadFinding, ActaDocumento, ImagenProyecto } from '../types';
+import type { Proyecto } from '../lib/proyecto';
 import type { AIReviewResult, ProviderStatusResult, RewriteVariationsResult, CitationFixResult, StructureAuditResult, AIIndicesSummary } from '../api/backend';
 import type { LayoutPaginateResult } from '../api/layout';
 /* Solo el TIPO del diff, y con `import type` a proposito: el runtime lo borra.
@@ -214,6 +215,25 @@ export interface DocState {
   activeTabIndex: number;
   tabDocs: Record<string, DocumentModel>;
   pdfPreviewCache: { hash: string; url: string } | null;
+  /**
+   * El proyecto abierto, o `null` si no hay ninguno.
+   *
+   * F7 Task 3. Vive acá y no en `documentSlice` porque es una decisión de la
+   * SESIÓN DE TRABAJO, como `viewMode` y `pendingQuickExport`: no viaja al
+   * backend como parte del documento y no se reinicia al abrir otro archivo. Lo
+   * que lo distingue de `projectImages` es que este SÍ se persiste (está en el
+   * `partialize`), porque un proyecto que muere al cerrar la app es la etiqueta
+   * que la F7 vino a matar.
+   *
+   * `null` es una respuesta, no un forgot: sin proyecto, el chrome de proyecto
+   * no se monta. Antes la app ponía `'Proyecto APA 7'` en pantalla, y un nombre
+   * inventado en pantalla es peor que no tener nombre.
+   */
+  proyecto: Proyecto | null;
+  /** Fija el proyecto abierto. */
+  setProyecto: (proyecto: Proyecto) => void;
+  /** Cierra el proyecto: `null` es la respuesta, no un nombre de relleno. */
+  cerrarProyecto: () => void;
   projectImages: ImagenProyecto[];
   /** Sube la imagen a disco y devuelve su id, o `null` si la subida falló. */
   addProjectImage: (file: File) => Promise<string | null>;
