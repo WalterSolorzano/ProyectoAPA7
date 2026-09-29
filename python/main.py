@@ -1,4 +1,4 @@
-﻿"""
+"""
 WordAPA7 — Servidor Principal FastAPI
 
 Servidor Web unificado que expone los endpoints REST para la manipulacion de documentos
@@ -2836,6 +2836,88 @@ async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
         raise HTTPException(400, "Archivo no encontrado")
     os.startfile(str(target))
     return {"ok": True}
+
+
+class SendToWordReq(BaseModel):
+    dest_path: str
+
+
+@app.post("/api/send-to-word/{session_id}")
+async def send_to_word_endpoint(session_id: str, req: SendToWordReq) -> dict:
+    """Write-back: copia el output.docx APA generado sobre el archivo original del usuario.
+
+    Estrategia de dos capas:
+    1. COM (si Word tiene el doc abierto): cierra sin guardar → copia → reabre.
+    2. Fallback file copy: copia directamente y avisa que hay que reabrir manualmente.
+    """
+    import shutil
+
+    # 1. Localizar output APA generado
+    output_path = STORAGE_DIR / "sessions" / session_id / "output.docx"
+    if not output_path.exists():
+        raise HTTPException(404, "Generá primero el documento APA 7")
+
+    # 2. Validar dest_path
+    dest = Path(req.dest_path)
+    if dest.suffix.lower() != ".docx":
+        raise HTTPException(400, "dest_path debe ser un archivo .docx")
+    if not dest.exists():
+        raise HTTPException(400, f"Archivo destino no encontrado: {dest}")
+
+    # 3. Intentar write-back vía COM
+    try:
+        from modules.word_com import word_session  # import lazy: COM nunca toca startup
+
+        with word_session() as app:
+            dest_str = str(dest).lower()
+            target_doc = None
+            try:
+                for i in range(1, app.Documents.Count + 1):
+                    try:
+                        d = app.Documents(i)
+                        if d.FullName.lower() == dest_str:
+                            target_doc = d
+                            break
+                    except Exception:
+                        continue
+            except Exception as e:
+                log.warning("send_to_word: no se pudo iterar Documents: %s", e)
+
+            if target_doc is not None:
+                try:
+                    target_doc.Close(SaveChanges=0)
+                    log.info("send_to_word: cerrado '%s' (COM)", dest)
+                except Exception as e:
+                    log.warning("send_to_word: Close() falló: %s", e)
+
+                shutil.copy2(str(output_path), str(dest))
+                log.info("send_to_word: copiado '%s' → '%s' (COM)", output_path, dest)
+
+                try:
+                    app.Documents.Open(str(dest))
+                    log.info("send_to_word: reabierto '%s' (COM)", dest)
+                except Exception as e:
+                    log.warning("send_to_word: Open() falló: %s", e)
+
+                return {
+                    "ok": True,
+                    "method": "com",
+                    "message": "Documento actualizado y reabierto en Word.",
+                }
+            else:
+                log.info("send_to_word: doc no estaba abierto en Word, fallback copy")
+
+    except Exception as e:
+        log.warning("send_to_word: COM no disponible, fallback copy: %s", e)
+
+    # 4. Fallback: copia directa sin COM
+    shutil.copy2(str(output_path), str(dest))
+    log.info("send_to_word: copiado '%s' → '%s' (fallback)", output_path, dest)
+    return {
+        "ok": True,
+        "method": "copy",
+        "message": "Documento actualizado. Reabrí el archivo en Word para ver los cambios.",
+    }
 
 
 @app.get("/api/addin/build-info")
