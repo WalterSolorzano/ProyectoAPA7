@@ -21,9 +21,14 @@ import {
   AlertTriangle,
   Eye, ZoomIn, ZoomOut,
   Columns2,
-  Copy, FolderOpen, ExternalLink, Upload, ShieldCheck
+  Copy, FolderOpen, ExternalLink, Upload, ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { DocumentMascot } from '../layout/DocumentMascot';
+import {
+  CUATRO_GRUPOS, CONTROLES_DEL_PANEL, DERIVADOS_DEL_PANEL,
+} from './panelDeExportacion';
+import { PORTADA_IDIOMAS, type PortadaLanguage } from '../../types';
 
 type Format = 'docx' | 'pdf' | 'latex';
 type PreviewMode = 'canvas' | 'diff' | 'pdf';
@@ -86,7 +91,16 @@ export const ExportView: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<PreviewMode>('canvas');
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve'>('idle');
+  /* LA FRICCIÓN DE CITAS FANTASMA, con un estado que el anterior no tenía.
+     `idle` no es "la persona ya decidió": es "todavía no se le preguntó". Con
+     solo esos tres estados, volver a `idle` después de "Descargar igual" hace
+     que el AVISO reaparezca en el siguiente clic, que es exactamente lo que se
+     quería quitar. `decidido` es la respuesta: se preguntó una vez y la persona
+     contestó, para bien o para mal, y no se le vuelve a preguntar.
+
+     Los cuatro estados: `idle` nadie preguntó · `ask` se está preguntando ·
+     `resolve` está buscando referencias · `decidido` ya contestó. */
+  const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve' | 'decidido'>('idle');
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
   const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -174,6 +188,9 @@ export const ExportView: React.FC = () => {
   }, [clearQuickExport, format, tracked, exportPdf, exportLatex, exportDocx]);
 
   const handleDownloadClick = useCallback(() => {
+    /* Solo se pregunta UNA vez. `decidido` es la respuesta de la persona y no
+       se vuelve a preguntar: con `idle` como único estado de "ya contestado",
+       el aviso reaparece en cada clic siguiente. */
     if (ghostCount > 0 && friction === 'idle') {
       setOptionsOpen(true);
       setFriction('ask');
@@ -426,19 +443,27 @@ export const ExportView: React.FC = () => {
           </div>
         )}
 
-        {/* Lo secundario (formato, avisos, vista previa) se abre y se cierra desde
-            acá: la columna final no lo muestra, solo lo guarda. */}
+        {/* Lo secundario (formato, ajustes, avisos, vista previa) se abre y se
+            cierra desde acá: la columna final no lo muestra, solo lo guarda.
+
+            El toggle deja de ser un link terciario sin icono y pasa a ser un
+            botón CON ICONO y con la misma jerarquía que "Volver a editar": las
+            dos entradas son del mismo nivel, y antes una era terciaria
+            (`--color-text-tertiary`, sin icono) y la otra no, en un `div` que
+            no jerarquizaba nada entre ellas. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={() => setOptionsOpen((v) => !v)}
             aria-expanded={optionsOpen}
             style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
               padding: 0, border: 'none', background: 'transparent',
-              color: 'var(--color-text-tertiary)', fontFamily: 'inherit',
-              fontSize: 'var(--text-xs)', fontWeight: 500, cursor: 'pointer',
+              color: 'var(--color-accent)', fontFamily: 'inherit',
+              fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
             }}
           >
+            <SlidersHorizontal size={14} strokeWidth={1.75} aria-hidden />
             Opciones
           </button>
           <button
@@ -515,47 +540,39 @@ export const ExportView: React.FC = () => {
                     }}
                   >
                     <Icon size={20} style={{ color: f.iconColor }} />
+                    {/* La extensión y el sublabel van ACÁ, que es donde la
+                        persona elige. Antes solo aparecían en la línea de
+                        identidad del documento, que no es donde se decide: un
+                        formato del que hay que acordarse. */}
                     <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', marginTop: 'var(--space-1)' }}>
                       {f.label}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                      {f.ext}
+                    </span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                      {f.sublabel}
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Opciones de DOCX */}
-            {format === 'docx' && (
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--color-text-secondary)',
-                  padding: '2px 4px',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={tracked}
-                  onChange={(e) => setTracked(e.target.checked)}
-                  style={{
-                    borderRadius: 'var(--radius-sm)',
-                    width: '14px',
-                    height: '14px',
-                    cursor: 'pointer',
-                    accentColor: 'var(--color-accent)',
-                  }}
-                />
-                <span>Incluir marcas de control de cambios (Track Changes)</span>
-              </label>
-            )}
+            {/* ── EL PANEL DE AJUSTES ─────────────────────────────────────
+                Lo que se revelaba antes era UN checkbox de track changes,
+                visible solo si el formato era docx. Eso no era un panel de
+                ajustes: era un interruptor con un botón al lado.
+
+                La tabla de controles vive en `panelDeExportacion.ts`, con el
+                destino de cada uno escrito. Lo que no llega a una llamada o a un
+                parámetro del generador no está en el panel, y su motivo está
+                en ese archivo y no en un comentario perdido acá. */}
+            <PanelDeAjustes />
 
             {/* Advertencia de Citas Fantasma */}
             {ghostCount > 0 && friction === 'ask' && (
               <div
+                data-testid="aviso-citas-fantasma"
                 style={{
                   padding: '12px',
                   borderRadius: 'var(--radius-lg)',
@@ -575,7 +592,15 @@ export const ExportView: React.FC = () => {
                 <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                   <button
                     type="button"
-                    onClick={doExport}
+                    /* `friction` vuelve a 'idle' TAMBIÉN acá, y no solo en
+                       "Ocultar". Sin esto la decisión de la persona se perdía
+                       al remontar la vista —`friction` es `useState` local— y
+                       el aviso reaparecía en el siguiente clic, como si nadie
+                       hubiera contestado nada. */
+                    /* `decidido`, no `idle`: con `idle` el aviso reaparece en
+                       el siguiente clic, que es el defecto que esto arregla.
+                       Antes solo "Ocultar" lo cambiaba, y tampoco. */
+                    onClick={() => { setFriction('decidido'); doExport(); }}
                     style={{
                       flex: 1,
                       padding: '5px 10px',
@@ -637,7 +662,7 @@ export const ExportView: React.FC = () => {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setFriction('idle')}
+                    onClick={() => setFriction('decidido')}
                     style={{
                       fontSize: 'var(--text-xs)',
                       color: 'var(--color-text-tertiary)',
@@ -987,8 +1012,186 @@ export const ExportView: React.FC = () => {
   );
 };
 
-const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
-  const elements = (doc?.elements || []).filter((e: any) => e.type !== 'empty' && e.type !== 'page_break');
+/* ── EL PANEL DE AJUSTES ───────────────────────────────────────────────────
+ *
+ * Cuatro grupos, y cada control dice qué pasa si se APAGA, no solo qué pasa si
+ * se activa: un interruptor que solo dice qué activa vende una cosa y hace
+ * otra.
+ *
+ * LO QUE NO ESTÁ ACÁ Y POR QUÉ. La tabla de `panelDeExportacion.ts` lo dice
+ * completo; lo que suma este componente es la regla que se ve:
+ *
+ *  - Un control edita. Un DERIVADO se lee. Los tamaño de hoja, los márgenes y
+ *    la tipografía son DERIVADOS: Ajustes ya los tiene, con 31 controles en su
+ *    pestaña Formato, y un segundo control editable sobre el mismo campo serían
+ *    dos verdades para un dato.
+ *  - El plan pedía "qué se incluye: portada, índice, figuras, tablas, referencias
+ *    y apéndices". De esos, solo la portada tiene un parámetro real detrás. Los
+ *    otros cinco tienen un interruptor que no llega a nada, y eso es peor que
+ *    que no estén: ocupa el lugar de uno que sí llega.
+ */
+const PanelDeAjustes: React.FC = () => {
+  const portada = useDocStore((s) => s.portada);
+  const setPortada = useDocStore((s) => s.setPortada);
+  const rules = useDocStore((s) => s.rules);
+  const tracked = useDocStore((s) => s.tracked);
+  const setTracked = useDocStore((s) => s.setTracked);
+  const format = useDocStore((s) => s.format);
+
+  const idioma = portada.language || 'es-ES';
+  const incluyePortada = !portada.force_skip_cover;
+
+  /* El valor y el setter de cada control, en un solo lugar. Un control sin
+     entrada acá no se dibuja: la tabla y lo dibujado no pueden separarse. */
+  const valorDe = (id: string): boolean => {
+    if (id === 'incluir-portada') return incluyePortada;
+    if (id === 'idioma') return idioma === PORTADA_IDIOMAS[0]?.valor;
+    if (id === 'marcas-de-cambio') return tracked;
+    return false;
+  };
+
+  const cambiar = (id: string, v: boolean) => {
+    if (id === 'incluir-portada') {
+      setPortada({ force_skip_cover: !v });
+      return;
+    }
+    if (id === 'idioma') {
+      setPortada({ language: (v ? PORTADA_IDIOMAS[1] : PORTADA_IDIOMAS[0])?.valor as PortadaLanguage });
+      return;
+    }
+    if (id === 'marcas-de-cambio') setTracked(v);
+  };
+
+  return (
+    <div
+      aria-label="Ajustes de exportación"
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+    >
+      {CUATRO_GRUPOS.map((titulo) => {
+        const controles = CONTROLES_DEL_PANEL.filter((c) => c.grupo === titulo);
+        const derivados = DERIVADOS_DEL_PANEL.filter((d) => d.grupo === titulo);
+        if (controles.length === 0 && derivados.length === 0) return null;
+        return (
+          <section
+            key={titulo}
+            aria-label={titulo}
+            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+          >
+            <span
+              style={{
+                fontSize: 'var(--text-xs)', fontWeight: 700,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              {titulo}
+            </span>
+
+            {/* Lo que se cambia acá. */}
+            {controles.map((c) => {
+              /* Un control que solo aplica a .docx no se dibuja con otro
+                 formato encendido: se dibujaría y no haría nada. */
+              if (c.soloDocx && format !== 'docx') return null;
+              if (c.id === 'idioma') {
+                return (
+                  <div
+                    key={c.id}
+                    data-testid={`control-${c.id}`}
+                    data-al-apagar={c.alApagar}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+                  >
+                    <label
+                      htmlFor="export-idioma"
+                      style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)' }}
+                    >
+                      {c.etiqueta}
+                    </label>
+                    <select
+                      id="export-idioma"
+                      data-testid="campo-idioma"
+                      value={idioma}
+                      onChange={(e) => setPortada({ language: e.target.value as PortadaLanguage })}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        padding: 'var(--space-2) var(--space-3)',
+                        fontSize: 'var(--text-sm)', fontFamily: 'var(--font-family)',
+                        background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)',
+                        border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)',
+                      }}
+                    >
+                      {PORTADA_IDIOMAS.map((i) => (
+                        <option key={i.valor} value={i.valor}>{i.etiqueta}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                      {c.alEncender}
+                    </span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                      {c.alApagar}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <label
+                  key={c.id}
+                  data-testid={`control-${c.id}`}
+                  data-al-apagar={c.alApagar}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)',
+                    cursor: 'pointer', fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-secondary)', userSelect: 'none',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    data-testid={`campo-${c.id}`}
+                    checked={valorDe(c.id)}
+                    onChange={(e) => cambiar(c.id, e.target.checked)}
+                    style={{
+                      marginTop: '2px',
+                      borderRadius: 'var(--radius-sm)',
+                      width: '14px', height: '14px',
+                      cursor: 'pointer', accentColor: 'var(--color-accent)',
+                    }}
+                  />
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{c.etiqueta}</span>
+                    <span>{c.alEncender}</span>
+                    <span style={{ color: 'var(--color-text-tertiary)' }}>{c.alApagar}</span>
+                  </span>
+                </label>
+              );
+            })}
+
+            {/* Lo que Ajustes ya tiene y acá solo se lee. */}
+            {derivados.map((d) => (
+              <div
+                key={d.id}
+                data-testid={`derivado-${d.id}`}
+                data-solo-lectura="true"
+                style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  gap: 'var(--space-2)', fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                <span style={{ color: 'var(--color-text-primary)' }}>{d.etiqueta}</span>
+                <span style={{ textAlign: 'right' }}>
+                  {d.leer()}
+                  <span style={{ display: 'block', color: 'var(--color-text-tertiary)' }}>
+                    {`Se cambia en ${d.seCambiaEn}`}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </section>
+        );
+      })}
+    </div>
+  );
+};
+
+const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements = (doc?.elements || []).filter((e: any) => e.type !== 'empty' && e.type !== 'page_break');
   const leftScrollRef = React.useRef<HTMLDivElement>(null);
   const rightScrollRef = React.useRef<HTMLDivElement>(null);
   const syncingRef = React.useRef(false);
