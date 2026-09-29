@@ -330,9 +330,15 @@ describe('la jerarquía de acciones', () => {
  * papers en el navegador, se copian, se pega. Con un `input` de una línea no hay
  * forma de pegar más de uno, y con veinte clicks la bibliografía no se arma nunca.
  *
- * Estas pruebas vivían en `referencesPanelBlock.test.tsx`, que probaba un panel
- * que la aplicación no le mostraba a nadie. El comportamiento —el que vale— se
- * fija acá, en la pantalla que sí está montada (`App.tsx:688` y `:707`).
+ * Estas pruebas vivían en un archivo de pruebas del panel borrado, que probaba un
+ * componente que la aplicación no le mostraba a nadie. El comportamiento —el que
+ * vale— queda fijo acá, en la pantalla que sí está montada (`App.tsx:688` y
+ * `:707`).
+ *
+ * El nombre del panel no aparece en esta línea a propósito: la guarda de
+ * `referenciasEstaMontada.test.tsx` lee este archivo del disco y no admite ni una
+ * mención, y una mención en un comentario es exactamente el falso positivo que
+ * esa guarda evita.
  */
 describe('el campo de DOI acepta un bloque', () => {
   const campoDOI = () => screen.getByRole('textbox', { name: /doi o título/i });
