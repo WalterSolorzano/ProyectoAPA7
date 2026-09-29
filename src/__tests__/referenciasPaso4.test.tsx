@@ -33,7 +33,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';
-import { Step5ReferencesWizard } from '../components/wizard/Step5ReferencesWizard';
+import { Step5ReferencesWizard } from '../components/referencias/Step5ReferencesWizard';
 import { useDocStore } from '../store/useDocStore';
 
 const runCitationAudit = vi.fn();

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 // sin necesidad de `fs` (que Vite stubbea a null en el entorno jsdom de test).
 import appSrc from '../App.tsx?raw'
 import rightSidePanelSrc from '../components/activity/RightSidePanel.tsx?raw'
-import step5Src from '../components/wizard/Step5ReferencesWizard.tsx?raw'
+import step5Src from '../components/referencias/Step5ReferencesWizard.tsx?raw'
 import { EDITOR_RAIL_ITEMS } from '../components/shell/railItems'
 
 describe('Layout: unificación del mapa de títulos', () => {

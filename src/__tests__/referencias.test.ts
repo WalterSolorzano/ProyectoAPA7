@@ -278,7 +278,7 @@ const FUENTES = import.meta.glob('/src/**/*.{ts,tsx}', {
   eager: true,
 }) as Record<string, string>;
 
-const PASO = '/src/components/wizard/Step5ReferencesWizard.tsx';
+const PASO = '/src/components/referencias/Step5ReferencesWizard.tsx';
 
 describe('el paso de Referencias no reintroduce la deuda que R3 cobra', () => {
   /* La primera de las seis, y la que más veces se ha escrito mal: si el glob

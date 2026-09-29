@@ -30,7 +30,7 @@ import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
 import { EscritorioEstructura } from './components/structure/EscritorioEstructura';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
-import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
+import { Step5ReferencesWizard } from './components/referencias/Step5ReferencesWizard';
 import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
 import { AppShell } from './components/shell/AppShell';
 import { CoverEditorPanel } from './components/wizard/CoverEditorPanel';
