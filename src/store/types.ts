@@ -305,8 +305,11 @@ export interface DocState {
   setWizardStep: (step: number) => void;
   /** Sub-pestaña del paso 2 (Estructura): Títulos | Cuerpo. Global para que
       acciones del store (p.ej. goToCitation del validador) puedan navegar al cuerpo. */
-  structureTab: 'headings' | 'body';
-  setStructureTab: (tab: 'headings' | 'body') => void;
+  /* `indice` es la vista que se ve al llegar a la fase 2, y la que el spec §7
+     pide de centro: el armazón del documento, no el archivo. Las otras dos
+     siguen ahí para lo que hacen y no se reemplazan. */
+  structureTab: 'indice' | 'headings' | 'body';
+  setStructureTab: (tab: 'indice' | 'headings' | 'body') => void;
   setSelectedElementId: (id: string | null) => void;
   setSelectedReferenceId: (id: string | null) => void;
   setShowTemplateDialog: (show: boolean) => void;

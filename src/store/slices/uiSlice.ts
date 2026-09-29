@@ -101,7 +101,11 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       viewMode: acotado === 6 ? 'export' : 'edit',
     };
   }),
-  structureTab: 'headings',
+  /* El índice es lo que se ve al llegar a Estructura. Antes arrancaba en
+     'headings', que es el lienzo con el revisor de títulos, y eso es lo que el
+     usuario reportó: el centro de la fase era el documento entero. El
+     documento sigue a un clic, como toggle DENTRO del índice. */
+  structureTab: 'indice',
   setStructureTab: (tab) => set({ structureTab: tab }),
   showFileMenu: false,
   setShowFileMenu: (show) => set({ showFileMenu: show }),

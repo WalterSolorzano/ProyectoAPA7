@@ -159,6 +159,10 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
 
   return (
     <div
+      /* El nombre de la vista, para el guardián que vigila que siga montada. Un
+         componente terminado que nadie importa no existe, y el cheapest jeito
+         de saber que existe es preguntárselo a la pantalla. */
+      data-testid="indice-estructura"
       style={{
         display: 'flex',
         flexDirection: 'column',

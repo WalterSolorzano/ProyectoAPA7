@@ -23,6 +23,11 @@ import { CommandPalette } from './components/CommandPalette';
 // Guided Wizard Components
 import { Step1PortadaWizard } from './components/wizard/Step1PortadaWizard';
 import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
+/* F3: la fase 2 abre acá. `EscritorioEstructura` compone los siete
+   componentes de `components/structure` —pulso, índice con su diagnóstico,
+   mapa como toggle, inspector de rama y faltas de APA 7— y es la vista que el
+   rail promete cuando se pulsa "Estructura". */
+import { EscritorioEstructura } from './components/structure/EscritorioEstructura';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
 import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/wizard/Step5ReferencesWizard';
@@ -45,7 +50,7 @@ import { X } from 'lucide-react';
 
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
    1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
-   2. Estructura   (Títulos + Cuerpo)  — Step2HeadingsWizard / Step5BodyWizard
+   2. Estructura   (Índice + Títulos + Cuerpo) — EscritorioEstructura / Step2HeadingsWizard / Step5BodyWizard
    3. Figuras y tablas                 — Step3FiguresTablesWizard
    4. Referencias                      — Step5ReferencesWizard
    5. Exportar                         — openExportTunnel() (viewMode='export')
@@ -117,14 +122,23 @@ export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoRes
   return { ...res, hallazgos: useDocStore.getState().proofreadFindings.length };
 }
 
-/** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
-const StructureTabBar: React.FC<{ tab: 'headings' | 'body'; setTab: (t: 'headings' | 'body') => void }> = ({ tab, setTab }) => (
+/** Barra de pestañas de la fase 2 (Estructura): Índice | Títulos | Cuerpo.
+ *
+ *  El ÍNDICE abre la fase. Es lo que pide el spec §7 —el eje es la jerarquía y
+ *  el documento es un toggle— y antes esta fase abría en el lienzo, que es
+ *  exactamente el defecto reportado. "Títulos" y "Cuerpo" no se quitan: hacen
+ *  cosas que el índice no hace, y sacarlas sería tapar una pantalla viva para
+ *  dejar ver otra. */
+const StructureTabBar: React.FC<{
+  tab: 'indice' | 'headings' | 'body';
+  setTab: (t: 'indice' | 'headings' | 'body') => void;
+}> = ({ tab, setTab }) => (
   <div style={{
     display: 'flex', gap: '2px', padding: '6px 10px',
     borderBottom: '1px solid var(--border-subtle)',
     backgroundColor: 'var(--sidebar-bg)', flexShrink: 0,
   }}>
-    {([['headings', 'Títulos'], ['body', 'Cuerpo']] as const).map(([key, label]) => (
+    {([['indice', 'Índice'], ['headings', 'Títulos'], ['body', 'Cuerpo']] as const).map(([key, label]) => (
       <button
         key={key}
         type="button"
@@ -669,7 +683,7 @@ export const App: React.FC = () => {
             {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
             <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
               {wizardStep === 1 && <Step1PortadaWizard />}
-              {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+              {wizardStep === 2 && (structureTab === 'indice' ? <EscritorioEstructura documento={<Step2HeadingsWizard />} /> : structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
               {wizardStep === 3 && <Step3FiguresTablesWizard />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
             </div>
@@ -688,7 +702,7 @@ export const App: React.FC = () => {
           <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {wizardStep === 2 && !focusMode && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
             <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
-              {wizardStep === 2 && (structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+              {wizardStep === 2 && (structureTab === 'indice' ? <EscritorioEstructura documento={<Step2HeadingsWizard />} /> : structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
               {wizardStep === 3 && <Step3FiguresTablesWizard />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
               {wizardStep === 5 && <Step5AuditIAWizard />}
