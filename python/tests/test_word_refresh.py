@@ -44,11 +44,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from models import DocumentModel, ElementModel  # noqa: E402
+from models import DocumentModel, ElementModel, ImageModel  # noqa: E402
 
 from modules.word_refresh import (  # noqa: E402
     diff_por_elemento,
     hash_de_estructura,
+    hash_de_imagenes,
     hash_de_texto,
 )
 
@@ -212,3 +213,63 @@ def test_el_hash_usa_sha256_del_texto_recortado():
     d = diff_por_elemento(_doc(), _doc(_el("a", "  Uno  ")))
     assert d["elementos"][0]["hash"] == esperado
     assert hash_de_texto(None) == hash_de_texto("")
+
+
+# ---------------------------------------------------------------------------
+# Tests de deteccion de imagenes
+# ---------------------------------------------------------------------------
+
+def _img(id, filename):
+    """Elemento IMAGE con image_info apuntando a un filename dado."""
+    return ElementModel(
+        id=id,
+        type="image",  # ElementType.IMAGE.value
+        image_info=ImageModel(
+            element_id=id,
+            file_path=f"/sessions/s1/images/{filename}",
+            filename=filename,
+        ),
+    )
+
+
+def test_una_imagen_nueva_en_word_activa_cambiado():
+    """Pegar una imagen en Word (sin nuevo texto) debe activar cambiado."""
+    antes = _doc()
+    despues = _doc(_img("img_1", "fig1.png"))
+    d = diff_por_elemento(antes, despues)
+    assert d["cambiado"] is True
+    # La imagen no tiene texto; ids_nuevos queda vacio (solo texto cuenta ahi)
+    assert d["ids_nuevos"] == []
+
+
+def test_una_imagen_eliminada_en_word_activa_cambiado():
+    """Borrar la unica imagen del documento debe activar cambiado."""
+    antes = _doc(_img("img_1", "fig1.png"))
+    despues = _doc()
+    d = diff_por_elemento(antes, despues)
+    assert d["cambiado"] is True
+
+
+def test_imagen_sin_cambio_no_activa_cambiado():
+    """El mismo filename antes y despues: cambiado debe ser False (texto igual)."""
+    antes = _doc(_img("img_1", "fig1.png"))
+    despues = _doc(_img("img_1", "fig1.png"))
+    d = diff_por_elemento(antes, despues)
+    assert d["cambiado"] is False
+
+
+def test_hash_de_imagenes_sobre_doc_sin_imagenes_no_rompe():
+    """Un documento sin elementos IMAGE devuelve string sin lanzar."""
+    doc = _doc(_el("a", "Solo texto"))
+    resultado = hash_de_imagenes(doc)
+    assert isinstance(resultado, str)
+    assert len(resultado) > 0
+
+
+def test_texto_nuevo_mas_imagen_nueva_ambos_detectados():
+    """Texto nuevo y imagen nueva simultaneamente: cambiado True e id del parrafo en ids_nuevos."""
+    antes = _doc(_el("a", "Intro"))
+    despues = _doc(_el("a", "Intro"), _el("b", "Parrafo nuevo"), _img("img_1", "fig1.png"))
+    d = diff_por_elemento(antes, despues)
+    assert d["cambiado"] is True
+    assert "b" in d["ids_nuevos"]

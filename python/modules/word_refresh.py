@@ -3,7 +3,7 @@
 El watcher de Word detecta que el `.docx` cambio y nada mas: `src/App.tsx:267`
 muestra un toast que dice "el documento esta sincronizado" y no reparsea nada.
 Este modulo contesta la pregunta que hace falta para no gastar de mas, que no es
-"cambio el archivo" sino "cambio ESTE TEXTO".
+"cambio el archivo" sino "cambio ESTE TEXTO o ESTAS IMAGENES".
 
 POR QUE ESTE TRABAJA POR TEXTO Y NO POR `id`, Y POR QUE ESO NO ES UN DETALLE.
 
@@ -82,20 +82,51 @@ def hash_de_estructura(doc) -> str:
     return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()
 
 
+def hash_de_imagenes(doc) -> str:
+    """Hash del conjunto de imágenes del documento, por filename.
+
+    Usa `image_info.filename` (nombre de archivo extraído, único por imagen)
+    y NO `file_path` (ruta absoluta de sesión que varía entre recargas).
+    Si `image_info` es None en un elemento IMAGE, ese elemento se ignora.
+    Devuelve sha256 del join ordenado de filenames; nunca lanza.
+    """
+    filenames: List[str] = []
+    for e in _elementos(doc):
+        if getattr(e, "type", None) != "image":
+            continue
+        img = getattr(e, "image_info", None)
+        if img is None:
+            continue
+        fn = getattr(img, "filename", None)
+        if fn:
+            filenames.append(fn)
+    return hashlib.sha256("|".join(sorted(filenames)).encode("utf-8")).hexdigest()
+
+
 def diff_por_elemento(antes, despues) -> Dict[str, Any]:
-    """Qué textos son nuevos y cuáles se fueron, más el veredicto global.
+    """Qué textos e imágenes son nuevos y cuáles se fueron, más el veredicto global.
 
     Se comparan TEXTOS y no `id`, y el motivo está en el docstring del módulo:
     los ids son un índice posicional y un diff por id reporta el documento entero
     como cambiado en cada guardado de Word.
+
+    También compara el hash de imágenes (por filename): si el usuario pegó o
+    borró una imagen en Word, `cambiado` sale True aunque no haya texto nuevo.
     """
-    hashes_antes: Set[str] = {hash_de_texto(getattr(e, "text", "")) for e in _elementos(antes)}
+    hashes_antes: Set[str] = {
+        hash_de_texto(getattr(e, "text", ""))
+        for e in _elementos(antes)
+        if getattr(e, "type", None) != "image"
+    }
 
     hashes_despues: Set[str] = set()
     elementos: List[Dict[str, Any]] = []
     ids_nuevos: List[str] = []
 
     for e in _elementos(despues):
+        if getattr(e, "type", None) == "image":
+            elementos.append({"id": e.id, "hash": "", "nuevo": False})
+            continue
         h = hash_de_texto(getattr(e, "text", ""))
         es_nuevo = h not in hashes_antes
         if es_nuevo:
@@ -109,12 +140,14 @@ def diff_por_elemento(antes, despues) -> Dict[str, Any]:
     hashes_nuevos = {e["hash"] for e in elementos}
     ids_eliminados = [
         e.id for e in _elementos(antes)
-        if hash_de_texto(getattr(e, "text", "")) not in hashes_nuevos
+        if getattr(e, "type", None) != "image"
+        and hash_de_texto(getattr(e, "text", "")) not in hashes_nuevos
     ]
 
     estructura_igual = hash_de_estructura(antes) == hash_de_estructura(despues)
+    imagenes_igual = hash_de_imagenes(antes) == hash_de_imagenes(despues)
     return {
-        "cambiado": bool(ids_nuevos or ids_eliminados) or not estructura_igual,
+        "cambiado": bool(ids_nuevos or ids_eliminados) or not estructura_igual or not imagenes_igual,
         "hash_estructura": hash_de_estructura(despues),
         "elementos": elementos,
         "ids_nuevos": ids_nuevos,
