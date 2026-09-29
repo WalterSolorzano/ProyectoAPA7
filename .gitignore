@@ -141,3 +141,6 @@ python/test_estudio_diag.py
 
 # Workspace de subagent-driven-development (ledger, briefs, reports)
 .superpowers/
+
+# Capturas de tests de Electron: son artefactos, no codigo
+electron_test_screen*.png
