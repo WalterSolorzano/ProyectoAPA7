@@ -234,6 +234,15 @@ export interface DocState {
   setProyecto: (proyecto: Proyecto) => void;
   /** Cierra el proyecto: `null` es la respuesta, no un nombre de relleno. */
   cerrarProyecto: () => void;
+  /** El Explorador de Proyecto abierto. Vive en el store porque lo abre el rail
+   *  y lo cierra el propio modal: dos pantallas, un estado. */
+  exploradorAbierto: boolean;
+  abrirExplorador: () => void;
+  cerrarExplorador: () => void;
+  /** Clic en el destino del rail: abre si estaba cerrado, cierra si estaba
+   *  abierto. Un destino de un clic que solo abre es medio camino a un boton que
+   *  no se puede deshacer. */
+  alternarExplorador: () => void;
   projectImages: ImagenProyecto[];
   /** Sube la imagen a disco y devuelve su id, o `null` si la subida falló. */
   addProjectImage: (file: File) => Promise<string | null>;

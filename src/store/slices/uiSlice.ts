@@ -267,6 +267,26 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   proyecto: null,
   setProyecto: (proyecto: Proyecto) => set({ proyecto }),
   cerrarProyecto: () => set({ proyecto: null }),
+
+  /* EL EXPLORADOR ABIERTO. F7 Task 5.
+     *
+     * Antes esto era `useState` dentro de `ProjectTabs`, y ese componente es el
+     * UNICO montaje del Explorador. Con cero documentos hacia `return null` —ver
+     * `ProjectTabs.tsx:48`—, y entonces el modulo no se podia abrir con el rail
+     * porque el rail no tenia nada que abrir y el componente ni existia.
+     *
+     * Vive en el store por la misma razon que `viewMode`: es estado de la SESION
+     * DE TRABAJO, no del documento, y lo escribe mas de una pantalla. Si se
+     * quedara local, el rail y el boton de la barra estarian de acuerdo por
+     * casualidad, que es la clase de acuerdo que se rompe en el primer caso que
+     * no se prueba. */
+  exploradorAbierto: false,
+  abrirExplorador: () => set({ exploradorAbierto: true }),
+  cerrarExplorador: () => set({ exploradorAbierto: false }),
+  /* Un Clic es un interruptor, no un "abrir": el mismo destino del rail que
+     abre el Explorador lo cierra. Sin esto, el unico camino para cerrarlo
+     seria el boton X de adentro del propio modal. */
+  alternarExplorador: () => set((s) => ({ exploradorAbierto: !s.exploradorAbierto })),
   projectImages: [],
   addProjectImage: async (file: File) => {
     /* F7 Task 1. Antes esto era un object URL mas el `File` entero en el store.

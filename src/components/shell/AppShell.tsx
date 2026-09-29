@@ -9,6 +9,7 @@ import { UnifiedToolbar } from '../toolbar/UnifiedToolbar';
 import { ProjectTabs } from '../layout/ProjectTabs';
 import { StatusBar } from '../layout/StatusBar';
 import { IconRail } from './IconRail';
+import { ProjectFolderModal } from '../project/ProjectFolderModal';
 import { RailFlyout } from './RailFlyout';
 import { useRailDestinations } from '../../hooks/useRailDestinations';
 import { useRailFlyout } from '../../hooks/useRailFlyout';
@@ -20,6 +21,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const setWizardStep = useDocStore((s) => s.setWizardStep);
   const viewMode = useDocStore((s) => s.viewMode);
   const setViewMode = useDocStore((s) => s.setViewMode);
+  const alternarExplorador = useDocStore((s) => s.alternarExplorador);
+  const exploradorAbierto = useDocStore((s) => s.exploradorAbierto);
+  const cerrarExplorador = useDocStore((s) => s.cerrarExplorador);
 
   // La navegación del rail: un destino es una FASE del editor. Si el centro que
   // está a la vista no es el editor (túnel de export, vista nativa, split),
@@ -30,11 +34,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // mismo hook que usa Inicio: los dos rails escriben el mismo flag global.
   const navigate = useCallback(
     (item: RailDestination) => {
-      if (item.step === null) return;
+      /* Un destino sin fase abre lo suyo en vez de saltar de fase. El Explorador
+         es el caso: no avanza el asistente. Y el `return` temprano de antes lo
+         dejaba muerto sin decir nada —el rail dibujaba el boton, aceptaba el
+         clic y no pasaba nada, que es peor que no dibujarlo. */
+      if (item.step === null) {
+        if (item.id === 'proyecto') alternarExplorador();
+        return;
+      }
       if (viewMode !== 'edit') setViewMode('edit');
       setWizardStep(item.step);
     },
-    [viewMode, setViewMode, setWizardStep],
+    [viewMode, setViewMode, setWizardStep, alternarExplorador],
   );
 
   const flyout = useRailFlyout(navigate);
@@ -82,6 +93,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* EL EXPLORADOR SE MONTA ACA, NO EN `ProjectTabs`. F7 Task 5.
+          *
+          * `ProjectTabs` era el unico montaje, y hacia `return null` con cero
+          * documentos: sin barra no habia Explorador, y el rail no lo podia
+          * abrir porque el componente no existia. Montandolo en el shell, que
+          * vive siempre (AGENTS.md seccion 1), el modulo queda disponible
+          * con cualquier cantidad de documentos, y el rail tiene un destino real.
+          *
+          * `ProjectTabs` conserva su propio boton de Carpeta: son dos caminos al
+          * MISMO estado del store, no dos caminos a dos estados. El boton de
+          * adentro pone `true` y el del rail alterna. */}
+      <ProjectFolderModal isOpen={exploradorAbierto} onClose={cerrarExplorador} />
 
       <StatusBar />
     </div>

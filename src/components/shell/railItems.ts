@@ -3,7 +3,7 @@
    compartan la misma gramática de navegación sin duplicar JSX. */
 
 import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download,
-  Home, History, PlusCircle, Settings } from 'lucide-react';
+  Home, History, PlusCircle, Settings, FolderOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type RailStatus = 'done' | 'pending' | 'idle';
@@ -37,20 +37,36 @@ export interface RailDestination {
   current?: boolean;
 }
 
+/* F7 Task 5: el catalogo del rail mezcla DOS clases de cosa y el tipo lo dice de
+   una vez. Las seis primeras son FASES (`step` es un numero y el `wizardStep` las
+   enciende). `proyecto` tiene `step: null` porque no es una fase: es un modulo,
+   `AGENTS.md` §5 lo lista como principal, y abrirlo no avanza el asistente. El
+   `step: null` no es un caso raro del tipo: es lo que hace que `IconRail` no lo
+   ilumine y que `AppShell` sepa que no hay fase a la que saltar. */
 export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
-  step: number;
+  id: string;
+  step: number | null;
   label: string;
   shortLabel?: string;
   description?: string;
   Icon: LucideIcon;
   showOutline: boolean;
 }> = [
-  { step: 1, label: 'Portada', shortLabel: 'Portada', description: 'Edición y formato de portada estándar APA 7.', Icon: FileText, showOutline: false },
-  { step: 2, label: 'Estructura', shortLabel: 'Estruct.', description: 'Niveles de títulos y organización de secciones.', Icon: ListTree, showOutline: true },
-  { step: 3, label: 'Figuras', shortLabel: 'Figuras', description: 'Tablas, figuras y numeración editorial.', Icon: ImageIcon, showOutline: true },
-  { step: 4, label: 'Referencias', shortLabel: 'Refer.', description: 'Bibliografía, sangría francesa y formato APA.', Icon: BookOpen, showOutline: true },
-  { step: 5, label: 'Revisión & IA', shortLabel: 'Revisión', description: 'Auditoría de estilo, ortografía y citas cruzadas.', Icon: ShieldCheck, showOutline: false },
-  { step: 6, label: 'Exportar', shortLabel: 'Exportar', description: 'Generación final de archivo .docx validado.', Icon: Download, showOutline: false },
+  { id: 'step-1', step: 1, label: 'Portada', shortLabel: 'Portada', description: 'Edición y formato de portada estándar APA 7.', Icon: FileText, showOutline: false },
+  { id: 'step-2', step: 2, label: 'Estructura', shortLabel: 'Estruct.', description: 'Niveles de títulos y organización de secciones.', Icon: ListTree, showOutline: true },
+  { id: 'step-3', step: 3, label: 'Figuras', shortLabel: 'Figuras', description: 'Tablas, figuras y numeración editorial.', Icon: ImageIcon, showOutline: true },
+  { id: 'step-4', step: 4, label: 'Referencias', shortLabel: 'Refer.', description: 'Bibliografía, sangría francesa y formato APA.', Icon: BookOpen, showOutline: true },
+  { id: 'step-5', step: 5, label: 'Revisión & IA', shortLabel: 'Revisión', description: 'Auditoría de estilo, ortografía y citas cruzadas.', Icon: ShieldCheck, showOutline: false },
+  { id: 'step-6', step: 6, label: 'Exportar', shortLabel: 'Exportar', description: 'Generación final de archivo .docx validado.', Icon: Download, showOutline: false },
+  /* SIN `status` Y SIN `pending`, Y NO POR OLVIDO. Es un modulo, no una fase: no
+     hay trabajo que completar ni que posponer, asi que no tiene un cero honesto
+     que anunciar. Es el mismo motivo por el que Ajustes no lleva estado (ver
+     `HOME_RAIL_ITEMS`) y por el que `status` es opcional en `RailDestination`:
+     un "Listo" sobre un boton que abre una pantalla es un vocabulario de estado
+     aplicado a una accion, y el rail no puede contradecir a la pantalla a la que
+     lleva. `railPending` sigue siendo la UNICA derivacion de trabajo pendiente,
+     y este destino no participa porque no tiene trabajo. */
+  { id: 'proyecto', step: null, label: 'Explorador de proyecto', shortLabel: 'Proyecto', description: 'Documentos, imágenes y carpeta de trabajo del proyecto.', Icon: FolderOpen, showOutline: false },
 ];
 
 /* Inicio tiene su propio juego de destinos, pero el MISMO componente de rail.

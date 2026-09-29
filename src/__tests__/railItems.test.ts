@@ -32,6 +32,25 @@ const byStep = (items: ReturnType<typeof useRailDestinations>, step: number) => 
   return found;
 };
 
+/**
+ * SOLO LAS FASES, Y POR QUE.
+ *
+ * F7 Task 5 sumo `proyecto` al catalogo: el Explorador es un modulo que
+ * `AGENTS.md` §5 lista como principal y antes era inalcanzable con cero
+ * documentos. Este archivo antes afirmaba "son las seis" sobre el catalogo
+ * ENTERO, o sea que cualquier destino nuevo lo rompia.
+ *
+ * La forma de arreglarlo NO es aflojar la afirmacion a "las que haya": es
+ * separar las dos clases. Estas pruebas hablan de FASES, y una fase tiene `step`
+ * numerico. El modulo tiene `step: null` y se cuenta aparte, con su propia
+ * prueba (`proyectoEstaAccesible.test.tsx`). Un filtro explicito ademas evita el
+ * modo de fallo de leer un token de un elemento vecino: si el filtro fuera
+ * `.slice(0, 6)`, un destino nuevo insertado en el medio pasaria la prueba
+ * midiendo las seis primeras sin comprobar que sean las fases.
+ */
+const fasesDelCatalogo = () => EDITOR_RAIL_ITEMS.filter((i) => i.step !== null);
+const fasesPintadas = () => readDestinations().filter((i) => i.step !== null);
+
 describe('T3 — destinos del rail', () => {
   beforeEach(() => {
     useDocStore.setState({
@@ -44,12 +63,23 @@ describe('T3 — destinos del rail', () => {
   });
 
   it('son las seis fases, en orden, con etiqueta sin emojis', () => {
-    expect(EDITOR_RAIL_ITEMS.map((i) => i.label)).toEqual([
+    expect(fasesDelCatalogo().map((i) => i.label)).toEqual([
       'Portada', 'Estructura', 'Figuras', 'Referencias', 'Revisión & IA', 'Exportar',
     ]);
+    // La afirmacion de "seis" se sostiene sobre las FASES, no sobre el
+    // catalogo entero: el Explorador se sumo en la F7 Task 5 y no es una fase.
+    expect(fasesDelCatalogo()).toHaveLength(6);
     for (const item of EDITOR_RAIL_ITEMS) {
       expect(item.label).not.toMatch(/\p{Extended_Pictographic}/u);
     }
+  });
+
+  it('las fases siguen siendo las unicas con numero de paso', () => {
+    // El control de la de arriba. Si un modulo con `step: null` colara en la
+    // lista de fases, `byStep` dejaria de encontrarlo y estas pruebas empezarian
+    // a medir un subconjunto sin decirlo.
+    expect(fasesDelCatalogo().every((i) => typeof i.step === 'number')).toBe(true);
+    expect(EDITOR_RAIL_ITEMS.filter((i) => i.step === null).map((i) => i.id)).toEqual(['proyecto']);
   });
 
   it('el mapa del documento solo se ofrece en las fases de sección', () => {
@@ -58,17 +88,22 @@ describe('T3 — destinos del rail', () => {
   });
 
   it('cada destino lleva id estable, icono y la misma gramática del catálogo', () => {
-    const items = readDestinations();
+    // El emparejamiento es POR ID, no por indice. Con indice, insertar el
+    // Explorador en medio del catalogo corria el `label` de una fila contra el
+    // `Icon` de otra y la prueba comparaba dos cosas que no se corresponden sin
+    // quejarse: el quinto fallo de guarda de esta lista, y el mismo.
+    const items = fasesPintadas();
     expect(items.map((i) => i.id)).toEqual([
       'step-1', 'step-2', 'step-3', 'step-4', 'step-5', 'step-6',
     ]);
-    items.forEach((item, idx) => {
-      const src = EDITOR_RAIL_ITEMS[idx];
-      expect(item.step).toBe(src.step);
-      expect(item.label).toBe(src.label);
-      expect(item.Icon).toBe(src.Icon);
-      expect(item.showOutline).toBe(src.showOutline);
-    });
+    for (const item of items) {
+      const src = EDITOR_RAIL_ITEMS.find((i) => i.id === item.id);
+      expect(src, `el destino ${item.id} no esta en el catalogo`).toBeTruthy();
+      expect(item.step).toBe(src!.step);
+      expect(item.label).toBe(src!.label);
+      expect(item.Icon).toBe(src!.Icon);
+      expect(item.showOutline).toBe(src!.showOutline);
+    }
   });
 });
 
@@ -84,7 +119,10 @@ describe('T3b — estado por destino', () => {
   });
 
   it('sin documento, todas las fases quedan idle', () => {
-    const items = readDestinations();
+    // Se cuenta sobre las FASES. El Explorador no cuenta, y no es una excepcion
+    // escondida: es que no tiene `status` porque no es una tarea — es el mismo
+    // motivo por el que Ajustes no lleva estado en `HOME_RAIL_ITEMS`.
+    const items = fasesPintadas();
     expect(items).toHaveLength(6);
     expect(items.every((i) => i.status === 'idle')).toBe(true);
     expect(items.every((i) => i.pending === 0)).toBe(true);

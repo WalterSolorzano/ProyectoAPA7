@@ -31,8 +31,13 @@ const abrirDesborde = () => fireEvent.click(screen.getByRole('button', { name: '
 
 describe('ProjectTabs — el guard es del strip, no de la pantalla', () => {
   beforeEach(() => {
+    /* `exploradorAbierto` tambien se limpia: es estado de un store singleton y
+       sobrevive entre tests. Sin este reset, el primer test que abre el
+       Explorador lo deja en `true` y el siguiente arranca abierto — el mismo
+       modo de fallo que hace que un guardián dependa del orden en que corre. */
     useDocStore.setState({
       tabs: conTabs(1), activeTabIndex: 0, isLoading: false, projectImages: [],
+      exploradorAbierto: false,
     } as never);
   });
 
@@ -42,13 +47,28 @@ describe('ProjectTabs — el guard es del strip, no de la pantalla', () => {
     expect(screen.queryByRole('button', { name: 'Abrir otra versión (.docx)' })).toBeNull();
   });
 
-  it('con un documento, el Explorador de Proyecto sigue siendo alcanzable', () => {
-    // `AGENTS.md` §5 nombra este módulo como principal: es el lugar desde donde
-    // se abre la carpeta de trabajo y se combinan retazos.
+  it('con un documento, el boton de Carpeta escribe el estado del Explorador', () => {
+    /* `AGENTS.md` §5 nombra este módulo como principal: es el lugar desde donde
+       se abre la carpeta de trabajo y se combinan retazos.
+
+       LO QUE CAMBIO Y POR QUE (F7 Task 5): este archivo antes afirmaba que el
+       `ProjectFolderModal` aparecia DENTRO de `ProjectTabs`. Ese era el montaje
+       UNICO de la app, y `ProjectTabs` hace `return null` con cero documentos:
+       el Explorador era inalcanzable en el estado más común. El modal se montó
+       en `AppShell`, que vive siempre, y ahora hay un destino en el rail.
+
+       La garantía NO se relaja: lo que se afirma ahora es que el botón de
+       `ProjectTabs` y el destino del rail abren la MISMA cosa. Antes se
+       afirmaba "este componente monta el modal", que es un detalle de montaje;
+       ahora se afirma "este botón abre el Explorador", que es lo que la persona
+       usa. Un botón que pone `true` y un rail que alterna el mismo flag son dos
+       caminos a una verdad, y el modal se verifica montado en
+       `proyectoEstaAccesible.test.tsx`. */
     render(<ProjectTabs />);
+    expect(useDocStore.getState().exploradorAbierto).toBe(false);
     abrirDesborde();
     fireEvent.click(screen.getByTitle('Explorador de archivos y carpeta del proyecto'));
-    expect(screen.getByTestId('folder')).toBeTruthy();
+    expect(useDocStore.getState().exploradorAbierto).toBe(true);
   });
 
   it('con un documento, el cajón de imágenes también', () => {

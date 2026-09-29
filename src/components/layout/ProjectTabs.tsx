@@ -11,12 +11,12 @@ import { ProjectFolderModal } from '../project/ProjectFolderModal';
 export const ProjectTabs: React.FC = () => {
   const {
     tabs, activeTabIndex,
-    switchToTab, removeTab, uploadFile, isLoading, projectImages
+    switchToTab, removeTab, uploadFile, isLoading, projectImages,
+    abrirExplorador
   } = useDocStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [imagesDrawerOpen, setImagesDrawerOpen] = useState(false);
-  const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -189,7 +189,7 @@ export const ProjectTabs: React.FC = () => {
               <OverflowItem
                 label={`Carpeta (${tabs.length})`}
                 title="Explorador de archivos y carpeta del proyecto"
-                onClick={() => { setOverflowOpen(false); setFolderModalOpen(true); }}
+                onClick={() => { setOverflowOpen(false); abrirExplorador(); }}
               >
                 <Folder size={12} strokeWidth="var(--icon-stroke)" />
               </OverflowItem>
@@ -234,11 +234,13 @@ export const ProjectTabs: React.FC = () => {
         onClose={() => setImagesDrawerOpen(false)}
       />
 
-      <ProjectFolderModal
-        isOpen={folderModalOpen}
-        onClose={() => setFolderModalOpen(false)}
-        onOpenMerge={() => setMergeModalOpen(true)}
-      />
+      {/* El Explorador NO se monta acá desde la F7 Task 5: vive en `AppShell`, que
+          es donde esta siempre montado. Este boton y el destino del rail escriben
+          el MISMO estado (`abrirExplorador`), o sea que son dos caminos a una
+          sola verdad y no dos verdades. `onOpenMerge` tampoco pasa mas: el modal
+          de combinar se abria desde el Explorador y el Explorador ya no esta
+          abajo de este arbol, asi que el cable queda desconectado en vez de
+          apuntar a un `setState` de otro componente. */}
     </>
   );
 };
