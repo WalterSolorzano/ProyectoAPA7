@@ -13,7 +13,9 @@
  * Una lista escrita a mano es la tautología que hay que evitar: se agrega un
  * componente, no se monta, y la guarda sigue verde porque no lo conocía.
  *
- * La sexta de las seis dice algo incómodo, y por eso está. Se lee abajo.
+ * Y hay una guarda más, al final, que vigila lo contrario: que el nombre del
+ * componente que esta fase BORRÓ no vuelva. Borrar sin guardar es la mitad de
+ * la tarea; la otra mitad es que no regrese disfrazado de comentario.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -49,7 +51,7 @@ describe('la superficie de referencias está montada', () => {
     expect(FUENTES['/src/App.tsx']).toBeTruthy();
   });
 
-  it('la carpeta tiene los tres componentes que se esperan', () => {
+  it('la carpeta tiene los dos componentes que se esperan', () => {
     /* Y esta lista NO esta vacia a proposito: `NOMBRES` sale del disco, y si el
        glob se rompe la lista queda vacia, el `for` de la guarda siguiente no
        corre ni una vez, y la prueba pasa sin comprobar nada. Hay dos guardas
@@ -57,8 +59,8 @@ describe('la superficie de referencias está montada', () => {
        La primera version del archivo no la tenia, y se cazo mutando el glob a
        `{}`: seis pruebas se cayeron y dos de las ocho seguian verdes. Dos
        verdes sobre un glob vacio es un guardian que no vigila nada. */
-    expect(NOMBRES).toHaveLength(3);
-    expect(NOMBRES.sort()).toEqual(['ReferenceForm', 'ReferencesPanel', 'Step5ReferencesWizard']);
+    expect(NOMBRES).toHaveLength(2);
+    expect(NOMBRES.sort()).toEqual(['ReferenceForm', 'Step5ReferencesWizard']);
   });
 
   /* La guarda de verdad. Para cada componente de la carpeta, su nombre tiene
@@ -119,10 +121,10 @@ describe('la verdad de la referencia no se re-deriva en la vista', () => {
     expect(paso).not.toMatch(/'---'/);
   });
 
-  it('los tres componentes de la carpeta usan tokens canónicos, sin alias legacy', () => {
-    /* Extiende el guardián de deuda al resto de la carpeta. `ReferenceForm` y
-       `ReferencesPanel` son los otros dos que se van a quedar sin pagar si
-       nadie los mide, y son los que nadie vuelve a tocar. */
+  it('los componentes de la carpeta usan tokens canónicos, sin alias legacy', () => {
+    /* Extiende el guardián de deuda al resto de la carpeta. `ReferenceForm` es
+       el otro que se queda sin pagar si nadie lo mide, y es el que nadie vuelve
+       a tocar. */
     const ALIAS = ['--accent-primary', '--text-main', '--text-secondary',
       '--text-muted', '--surface-elevated', '--sidebar-bg', '--surface-subtle'];
     /* La misma trampa que la guarda de importadores: lista vacía, `for` que no
@@ -137,62 +139,80 @@ describe('la verdad de la referencia no se re-deriva en la vista', () => {
   });
 });
 
-describe('la rama del paso 4 en el panel derecho es inalcanzable, y se dice', () => {
-  /* Esta es la sexta guarda, la que nadie pidió y la que más importa.
+describe('el paso 4 no tiene panel derecho, y el panel muerto no vuelve', () => {
+  /* Esta era la sexta guarda de la primera versión, y decía una cosa incómoda:
+     que había un componente de 395 líneas con dos archivos de prueba que
+     `RightSidePanel` montaba en una rama a la que no se podía llegar, y que eso
+     era una decisión de producto que la fase no tomaba. La fase la tomó, y lo
+     que sigue es lo que queda después de tomarla.
 
-     `App.tsx:713` monta el panel derecho con
-     `{wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}`.
-     El paso 4 está EXCLUIDO. Y `RightSidePanel.tsx:292` tiene una rama
-     `) : wizardStep === 4 ? (<ReferencesPanel />)`.
+     La decisión: el panel se BORRÓ. El paso 4 tiene las cuatro acciones por
+     otro camino —resolver DOI, agregar a mano, resolver una cita sin fuente y
+     correr la auditoría— y la única que le faltaba, el pegado de un bloque de
+     DOI, entró por el modal que el paso ya tenía. Montarlo, en cambio, agregaba
+     una tercera columna con una SEGUNDA lista de las mismas referencias, más
+     pobre que la del paso: es el defecto que F4 encontró cuando el plan de
+     figuras terminó siendo tres columnas. */
 
-     Como el panel no se monta en el paso 4, esa rama no se puede alcanzar y
-     `ReferencesPanel` —395 líneas con dos archivos de prueba— no se ve nunca.
-     Es el mismo defecto que F3 cometió con `components/structure/`, y existe un
-     archivo de prueba exactamente para cazar este defecto.
-
-     F5 NO lo arregla, y la razón es que arreglarlo es una decisión de producto:
-     las dos opciones son montar el panel derecho en el paso 4 —lo que agrega
-     una columna y abre la discusión de F4 otra vez— o borrar `ReferencesPanel`.
-     Las dos son legítimas y ninguna la toma esta fase sin que la elija quien
-     decide. Lo que sí hace esta fase es dejarlo escrito y medido.
-
-     Y si mañana alguien monta el panel en el paso 4, ESTA PRUEBA SE CAE, que
-     es lo que tiene que pasar: la rama dejaría de ser inalcanzable y la
-     afirmación de arriba dejaría de ser cierta. */
-  it('el panel derecho no se monta en el paso 4, y la rama que lo dice está anotada', () => {
+  it('el panel derecho NO se monta en el paso 4, y no es un descuido', () => {
+    /* La primera mitad de la afirmación. `App.tsx:713` excluye el panel
+       derecho de los pasos 4, 5 y 6, y la exclusión es la DECISIÓN: el paso 4
+       ya es un taller de dos columnas, y `figurasEstaMontada.test.tsx:143`
+       exige esta misma línea porque su tercera columna es la que ya existía. */
     const app = SIN_COMENTARIOS(FUENTES['/src/App.tsx']);
-    /* La primera mitad de la afirmación: el panel NO se monta en el paso 4. */
-    expect(app, 'App.tsx no esta entre los fuentes leidos').toMatch(
+    expect(app, 'App.tsx no esta entre los fuentes leidos').toBeTruthy();
+    expect(app).toMatch(
       /wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel \/>/,
     );
-
-    /* La segunda mitad: existe la rama. Si alguien la eliminó, esto NO es un
-       fallo de la guarda sino un cambio de producto que hay que decidir, y la
-       guarda lo dice con un mensaje que lo nombra. */
-    const panel = SIN_COMENTARIOS(FUENTES['/src/components/activity/RightSidePanel.tsx']);
-    const rama = /wizardStep === 4 \? \(\s*<([A-Za-z]+)/.exec(panel);
-    expect(
-      rama,
-      'la rama de paso 4 se elimino: ReferencesPanel quedo sin pantalla, y eso hay que decidirlo',
-    ).not.toBeNull();
-    expect(rama?.[1]).toBe('ReferencesPanel');
   });
 
-  it('ReferencesPanel se importa, se prueba, y no llega a la pantalla', () => {
-    /* Las tres cosas, juntas. Se importa —porque si no, el archivo está muerto
-       del todo—, tiene dos archivos de prueba, y su rama no se alcanza. Las
-       tres son ciertas a la vez, y esa combinación es la que hace raro al
-       componente: trabajo real, probado, que la aplicación no le muestra a
-       nadie. */
+  it('RightSidePanel no tiene rama de paso 4: la que había no se podía ejecutar', () => {
+    /* La segunda mitad. La rama de paso 4 vivía en un componente que la app no
+       monta en el paso 4: inalcanzable por construcción, y por eso el panel no
+       se le mostraba a nadie. Se midió durante una fase y hoy se mide lo
+       contrario. */
     const panel = SIN_COMENTARIOS(FUENTES['/src/components/activity/RightSidePanel.tsx']);
-    expect(panel).toMatch(/import \{ ReferencesPanel \}/);
+    expect(panel, 'RightSidePanel no esta entre los fuentes leidos').toBeTruthy();
+    expect(panel, 'volvio una rama de paso 4 en un panel que no se monta en el paso 4')
+      .not.toMatch(/wizardStep === 4/);
+  });
 
-    const pruebas = Object.keys(FUENTES).filter(
-      (r) => r.includes('/__tests__/') && SIN_COMENTARIOS(FUENTES[r]).includes('<ReferencesPanel'),
-    );
-    expect(pruebas.length, 'ReferencesPanel no tiene pruebas propias').toBeGreaterThan(0);
+  it('el nombre del panel borrado no reaparece: ni archivo, ni import, ni JSX', () => {
+    /* La guarda que falta si sólo se borra el archivo. Un `import` comentado
+       CUENTA como importador si no se limpian los comentarios primero, y un
+       `<Nombre />` en un test cuenta como montaje a medias. Las dos formas de
+       guardar el componente sin montarlo se cazan con la misma herramienta: se
+       lee TODO lo del disco, pruebas incluidas.
 
-    /* Y la prueba que sigue es la que se cae si alguien lo monta. */
-    expect(SIN_COMENTARIOS(FUENTES['/src/App.tsx'])).toMatch(/wizardStep !== 4 &&/);
+       El nombre se arma con dos trozos a propósito. Esta prueba está en el disco
+       como cualquier otro archivo, y si escribiera el nombre entero, la guarda
+       se acusaría a sí misma de mantener vivo al componente. */
+    const PROHIBIDO = ['Reference', 'sPanel'].join('');
+    const rutas = Object.keys(FUENTES);
+    expect(rutas.length, 'el glob no leyó nada: esta guarda pasaría en falso').toBeGreaterThan(100);
+
+    /* Ni el archivo. La carpeta se lee del disco, no de una lista escrita a
+       mano: una lista escrita a mano no falla cuando el archivo reaparece. */
+    expect(
+      rutas.filter((r) => r.includes(PROHIBIDO)),
+      'volvio un archivo con el nombre del panel borrado',
+    ).toEqual([]);
+
+    /* Y el nombre, en ninguna parte del código. Un comentario no cuenta, y por
+       eso se leen las fuentes SIN comentarios. */
+    expect(
+      rutas.filter((r) => SIN_COMENTARIOS(FUENTES[r]).includes(PROHIBIDO)),
+      'alguien volvio a nombrar el panel borrado',
+    ).toEqual([]);
+  });
+
+  it('el bloque de DOI quedó en la pantalla montada, no se perdió con el panel', () => {
+    /* Lo que se perdió al borrar el panel no se perdió: el pegado masivo entró
+       por el modal que el paso ya tenía. Esta prueba es la que impide que la
+       próxima limpieza borre la capacidad y deje el endpoint de lote sin
+       pantalla, que es el mismo defecto con otro disfraz. */
+    const paso = SIN_COMENTARIOS(FUENTES[`${CARPETA}Step5ReferencesWizard.tsx`]);
+    expect(paso).toMatch(/resolveDoisBlock/);
+    expect(paso, 'el campo de DOI volvio a ser de una sola linea').toMatch(/<textarea/);
   });
 });
