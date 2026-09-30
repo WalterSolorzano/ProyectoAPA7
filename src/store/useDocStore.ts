@@ -10,6 +10,7 @@ import { createUISlice } from './slices/uiSlice';
 import { createCoverSlice, defaultPortada, syncCoverFieldToElements } from './slices/coverSlice';
 import { createAuditSlice } from './slices/auditSlice';
 import { createDocumentSlice } from './slices/documentSlice';
+import { createProyectoSlice } from './slices/proyectoSlice';
 
 // Re-export text utilities, helper functions and types for 100% backward compatibility
 export { toRoman, cleanHeadingPrefix, migrateDocument } from '../lib/textUtils';
@@ -69,7 +70,8 @@ export const useDocStore = create<DocState>()(
       ...createCoverSlice(set, get, api),
       ...createAuditSlice(set, get, api),
       ...createDocumentSlice(set, get, api),
-    } as DocState),
+      ...createProyectoSlice(set, get, api),
+    } as unknown as DocState),
     {
       name: PERSIST_NOMBRE,
       storage: createJSONStorage(() => idbStorage),

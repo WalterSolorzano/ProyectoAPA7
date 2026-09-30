@@ -62,6 +62,7 @@ const proyectoDePrueba = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   borrarProyectoEnDisco.mockResolvedValue(undefined);
+  borrarProyectoEnDisco.mockClear();
   /* `crearProyectoEnDisco` sin default A PROPOSITO: obliga a cada test que
      abre un proyecto a decir que id devuelve el backend. Un `mockResolvedValue`
      global devolveria siempre el mismo y una prueba que olvide el `await`
