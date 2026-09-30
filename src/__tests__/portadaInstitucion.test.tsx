@@ -191,3 +191,27 @@ describe('seleccion de institucion', () => {
     ).toBeTruthy();
   });
 });
+
+describe('el formulario se agrupa en secciones plegables', () => {
+  it('la entrega arranca cerrada y se abre con su disparador', () => {
+    /* El editor tenía ocho campos sueltos en una columna, cada uno con su roster
+       de chips debajo: un muro. La sección de entrega es la que menos se toca al
+       elegir la portada, así que arranca cerrada y el resto del trabajo —título,
+       integrantes, institución, carrera— queda a la vista. */
+    montarPanel();
+    const disparador = screen.getByRole('button', { name: /Docente y entrega/i });
+    expect(disparador.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByPlaceholderText('Nombre de la asignatura')).toBeNull();
+
+    fireEvent.click(disparador);
+    expect(disparador.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByPlaceholderText('Nombre de la asignatura')).toBeTruthy();
+  });
+
+  it('la institución y la carrera arrancan abiertas: son el trabajo del paso', () => {
+    montarPanel();
+    const disparador = screen.getByRole('button', { name: /Institución y carrera/i });
+    expect(disparador.getAttribute('aria-expanded')).toBe('true');
+    expect(chipUNI()).toBeTruthy();
+  });
+});

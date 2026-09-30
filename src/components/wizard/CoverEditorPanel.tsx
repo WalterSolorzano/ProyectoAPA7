@@ -17,7 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
-  School, FileText, Check, ChevronRight, Users, Calendar,
+  School, FileText, Check, ChevronRight, ChevronDown, Users, Calendar,
   GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical,
 } from 'lucide-react';
 import {
@@ -87,12 +87,6 @@ const ICONO_DE_CARRERA: Record<string, React.ReactNode> = {
   civil: <Building2 size={12} strokeWidth="var(--icon-stroke)" />,
   industrial: <Factory size={12} strokeWidth="var(--icon-stroke)" />,
   quimica: <FlaskConical size={12} strokeWidth="var(--icon-stroke)" />,
-};
-
-const blockTitle: React.CSSProperties = {
-  fontSize: '10px', fontWeight: 800, textTransform: 'uppercase',
-  letterSpacing: '0.5px', color: 'var(--text-muted)',
-  display: 'flex', alignItems: 'center', gap: '6px',
 };
 
 const sectionHeader: React.CSSProperties = {
@@ -199,6 +193,59 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
     <span>{label}</span>
   </button>
 );
+
+/* ── Sub-componente: sección plegable del formulario ─────────────────────────
+ *  El editor tenía ocho campos sueltos en una sola columna, cada uno con su
+ *  roster de chips debajo: un muro. Agrupados en tres secciones, la pantalla
+ *  muestra lo que se está usando y el resto se abre cuando hace falta. El
+ *  disparador es un `<button>` con `aria-expanded` y no un `<div>` con clic: así
+ *  el teclado y el lector de pantalla saben que es un desplegable. */
+interface SeccionProps {
+  titulo: string;
+  icono: React.ReactNode;
+  abiertaPorDefecto?: boolean;
+  children: React.ReactNode;
+}
+
+const Seccion: React.FC<SeccionProps> = ({ titulo, icono, abiertaPorDefecto = false, children }) => {
+  const [abierta, setAbierta] = useState(abiertaPorDefecto);
+  const id = `seccion-portada-${titulo.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <button
+        type="button"
+        aria-expanded={abierta}
+        aria-controls={id}
+        onClick={() => setAbierta((v) => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+          width: '100%', padding: '8px 10px',
+          background: 'var(--color-bg-surface-alt)',
+          border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)',
+          color: 'var(--text-main)', fontFamily: 'inherit', cursor: 'pointer',
+        }}
+      >
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: '7px',
+          fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px',
+        }}>
+          {icono}{titulo}
+        </span>
+        <ChevronDown
+          size={14}
+          strokeWidth="var(--icon-stroke)"
+          aria-hidden
+          style={{ transition: 'transform var(--transition-fast)', transform: abierta ? 'rotate(180deg)' : 'none' }}
+        />
+      </button>
+      {abierta && (
+        <div id={id} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+};
 
 /* ── Componente principal ───────────────────────────────────────────────── */
 
@@ -367,7 +414,7 @@ export const CoverEditorPanel: React.FC = () => {
         <div style={{
           display: 'flex', flexDirection: 'column', gap: '16px',
         }}>
-          <div style={blockTitle}><FileText size={12} /> Datos de la portada</div>
+          <Seccion titulo="Identificación" icono={<FileText size={12} color="var(--accent-primary)" />} abiertaPorDefecto>
 
           {/* ── Título del trabajo ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -518,7 +565,9 @@ export const CoverEditorPanel: React.FC = () => {
               </div>
             )}
           </div>
+          </Seccion>
 
+          <Seccion titulo="Institución y carrera" icono={<School size={12} color="var(--accent-primary)" />} abiertaPorDefecto>
           {/* ── Institución / Universidad con Logos e Insignias Rápidas ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -651,6 +700,9 @@ export const CoverEditorPanel: React.FC = () => {
             </div>
           </div>
 
+          </Seccion>
+
+          <Seccion titulo="Docente y entrega" icono={<GraduationCap size={12} color="var(--accent-primary)" />}>
           {/* ── Asignatura / Curso ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={fieldLabel}>Asignatura / Curso</label>
@@ -791,6 +843,7 @@ export const CoverEditorPanel: React.FC = () => {
               </div>
             )}
           </div>
+          </Seccion>
         </div>
       </div>
 
