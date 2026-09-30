@@ -143,7 +143,7 @@ Lo que falta **no es color**:
 
 | # | Tipo | Falta |
 |---|---|---|
-| 1 | **DECISIÓN** | **No hay tipografía editorial.** La casa usa `--font-sans` (Inter); no hay serif ni display. Lo "editorial" del panel de Objetivos sale de tamaño, peso, interlínea y ancho de lectura con `--text-*` y `--space-*`, **o** se agrega un token nuevo. Hay que elegir. |
+| 1 | **DECISIÓN** | **No hay tipografía editorial.** La casa usa `--font-sans` (Inter); no hay serif ni display. Lo "editorial" del panel de Objetivos sale de tamaño, peso, interlínea y ancho de lectura con `--text-*` y `--space-*`, **o** se agrega un token nuevo. **Decidido (2026-09-30): T1** — Inter con jerarquía, cero token nuevo. |
 | 2 | **A11Y** | **Las filas no son de teclado.** `NodoIndice` es un `div onClick` con `role="listitem"`: no se tabula, no tiene `aria-selected` ni anillo de foco. Falta `roving tabindex` + `--shadow-focus`, y `aria-pressed` en el selector de vistas. |
 | 3 | **CONTRASTE** | **El badge de nivel usa `--color-accent` y tiñe todos los capítulos.** Es el mismo gesto que la banda navy: el acento es la señal de "mirá acá". Debe ser tinta neutra; el acento queda solo para la fila seleccionada. |
 | 4 | **ESTADOS** | **Falta el estado "analizando".** El panel combina cálculo determinista + una pasada de LLM con caché. Hace falta un estado de carga honesto con su deshacer, no un hueco que parece vacío. |
@@ -192,6 +192,19 @@ Cada propuesta se suma al diseño de Estructura o se descarta con el usuario.
 - **Títulos duplicados**: dos H2 con el mismo nombre en la misma fase.
 - **Profundidad H3+**: definir el comportamiento (¿se muestran? ¿se pliegan?).
 - **Anuncios accesibles** al cambiar de nodo o de vista (`aria-live`).
+
+### 8.7 Decidido el 2026-09-30
+
+**Tipografía (T1)**: Inter con jerarquía. Cero token nuevo. Lo editorial sale de tamaño de lectura (16–17 px), interlínea 1.7 y ancho de 52–56 caracteres, con `--text-*` y `--space-*`.
+
+**Propuestas elegidas**: **P5** (buscar y filtrar en el índice + colapsar ramas), **P6** (puentes hacia Figuras y Referencias, y de Revisión al nodo) y **P7** (multi-selección para acciones en lote).
+
+**Propuestas NO elegidas por ahora** (quedan registradas, no se ejecutan):
+- **P1** — fases obligatorias como dato del backend. Sigue abierto: `FaltasApa7` mantiene su mensaje honesto de que no tiene la lista. Es la única que, si el usuario la quiere, desbloquea "falta Discusión".
+- **P2** — insertar plantilla APA.
+- **P3** — reordenar con vista previa.
+- **P4** — deshacer y persistencia (nota: es seguridad de la edición, no una feature; evaluar si se retoma con F4 en marcha).
+- **P8** — "¿por qué?", títulos duplicados, H3+.
 
 ---
 
