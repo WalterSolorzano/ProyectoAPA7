@@ -133,8 +133,70 @@ Viven en `.superpowers/brainstorm/wordapa7-ui/content/` (gitignoreado, persiste 
 
 ---
 
-## 7. Cómo sigue
+## 7. Refinamiento pendiente de Estructura (auditoría contra el sistema de diseño)
 
-1. Cerrar los pendientes de §4 con el usuario (E1/E2/E3, C1/C2/C3).
+Auditoría contra `src/styles/design-system.css` y el código de `src/components/structure`.
+
+**Veredicto de paleta**: el diseño **entra en los tokens sin agregar ninguno**. Los hex de los mockups son referencia de dibujo; todos tienen token real (`--color-bg-canvas`, `--color-bg-surface`, `--color-bg-surface-alt`, `--color-bg-surface-hover`, `--color-accent-soft`, `--color-warning`, `--color-success`, `--color-text-primary/secondary/tertiary`). `components/structure` ya está en el alcance de R3 (`noHardcodedColors.test.ts`, `DIRECTORIOS_R3`) y `NodoIndice` ya usa tokens. **La deuda de paleta está saldada.**
+
+Lo que falta **no es color**:
+
+| # | Tipo | Falta |
+|---|---|---|
+| 1 | **DECISIÓN** | **No hay tipografía editorial.** La casa usa `--font-sans` (Inter); no hay serif ni display. Lo "editorial" del panel de Objetivos sale de tamaño, peso, interlínea y ancho de lectura con `--text-*` y `--space-*`, **o** se agrega un token nuevo. Hay que elegir. |
+| 2 | **A11Y** | **Las filas no son de teclado.** `NodoIndice` es un `div onClick` con `role="listitem"`: no se tabula, no tiene `aria-selected` ni anillo de foco. Falta `roving tabindex` + `--shadow-focus`, y `aria-pressed` en el selector de vistas. |
+| 3 | **CONTRASTE** | **El badge de nivel usa `--color-accent` y tiñe todos los capítulos.** Es el mismo gesto que la banda navy: el acento es la señal de "mirá acá". Debe ser tinta neutra; el acento queda solo para la fila seleccionada. |
+| 4 | **ESTADOS** | **Falta el estado "analizando".** El panel combina cálculo determinista + una pasada de LLM con caché. Hace falta un estado de carga honesto con su deshacer, no un hueco que parece vacío. |
+| 5 | **ESTADOS** | **Vacíos con `EstadoVacio`** (sección sin fase, sin resultados de filtro, mapa sin documento), sobreviviendo a la ventana angosta. |
+| 6 | **MAPA** | **El SVG no puede llevar hex.** Cada nodo y línea por `currentColor` / `var(--…)` vía clase, en los dos temas. Un `fill="#fff"` en el SVG es el mismo defecto que un hex en TSX. |
+| 7 | **RESPONSIVE** | **Comportamiento por debajo de 1280x800**: colapsa primero la columna derecha (su función pasa al flyout del rail); el índice se queda. Ningún panel se aplasta. |
+| 8 | **MOTION** | Transiciones con `--transition-fast` y respeto de `prefers-reduced-motion` en el despliegue del mapa y la aparición de correcciones. |
+| 9 | **ICONOS** | Todo con `lucide-react` y `strokeWidth="var(--icon-stroke)"`. Falta decidir qué íconos llevan el selector y las acciones del nodo. |
+
+---
+
+## 8. Propuestas para Estructura (lo que el diseño todavía no cubre)
+
+Cada propuesta se suma al diseño de Estructura o se descarta con el usuario.
+
+### 8.1 Datos que faltan en el backend
+
+- **Las fases obligatorias de APA 7 no existen como dato.** `RULE_SCOPES` mapea regla→ámbito, `PhaseConfig` no tiene campo `required`, y no hay endpoint. `FaltasApa7` recibe la lista por prop y, sin ella, lo dice en pantalla. **Sin este dato, "que me diga qué le falta" está a medias.** Propuesta: `required: bool` en `PhaseConfig` + endpoint que exponga `PHASES`.
+- **Divergencia Python/TS pendiente** en tres títulos (`1.1 Antecedentes`, `Parte 1. Metodología`, `Metodología de la investigación`). Se cierra con el mismo endpoint.
+
+### 8.2 Acciones que faltan
+
+- **Insertar lo que falta desde una plantilla APA 7** (una sección, un esqueleto entero) — es lo que resuelve en automático lo que el diagnóstico detectó. Hoy no existe.
+- **Reordenar ramas con alcance y vista previa**: subir / bajar / mover un nodo, mostrando **qué va a cambiar antes de aplicar**. Sin preview, un botón de reordenar en un árbol es una amenaza.
+- **Normalizar la numeración de títulos** (`3. Marco teórico` vs `Marco teórico`) como **acción explícita**, nunca impuesta (el mapa declara la numeración del documento, no una propia).
+- **Multi-selección de nodos** para acciones en lote ("Aplicar a los 4 títulos").
+
+### 8.3 Seguridad de la edición
+
+- **Deshacer y persistencia**: cada acción estructural (promover, degradar, renombrar, insertar, reordenar) entra al stack de deshacer y se guarda, como se hizo con `updateElementEquation`.
+- **Volver al original / estado "ediciones sin guardar"**: poder comparar contra el `.docx` cargado.
+
+### 8.4 Encontrar en documentos largos
+
+- **Buscar en el índice** (hoy `Step3FiguresTablesWizard` no busca por sección aunque la sección ya está calculada) y **filtrar por estado**: solo desbalanceadas, vacías, sin figuras, sin citas.
+- **Colapsar y expandir ramas**: 40 capítulos exigen cerrar un H1 y trabajar en otro.
+
+### 8.5 Puentes entre fases (sin contaminar)
+
+- **De un nodo a sus objetos**: saltar a las figuras de esa rama (F5) y a sus referencias (F6). Es un enlace con alcance, no traer F5/F6 dentro de Estructura.
+- **De un hallazgo de Revisión al nodo**: caer en Estructura en la sección del hallazgo.
+
+### 8.6 Honestidad y calidad
+
+- **"¿Por qué?"**: ver la regla detrás de cada `✗` de la columna, sin salir de la pantalla.
+- **Títulos duplicados**: dos H2 con el mismo nombre en la misma fase.
+- **Profundidad H3+**: definir el comportamiento (¿se muestran? ¿se pliegan?).
+- **Anuncios accesibles** al cambiar de nodo o de vista (`aria-live`).
+
+---
+
+## 9. Cómo sigue
+
+1. Cerrar los pendientes de §4 (E1/E2/E3, C1/C2/C3), la §7.1 (tipografía editorial) y elegir de §8.
 2. Diseñar las superficies restantes con el mismo método (Figuras, Referencias, Revisión, Exportar).
 3. Volcar estas decisiones a los planes de fase (`writing-plans`) y ejecutar, fase por fase, con `impeccable` aplicado.
