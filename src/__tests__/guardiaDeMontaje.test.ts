@@ -210,6 +210,59 @@ describe('nada de la fase F7 quedo huerfano', () => {
   });
 });
 
+describe('la API de proyectos no tiene funciones huerfanas', () => {
+  /* ESTA GUARDA NACIO DE UN GREP, NO DE UNA IDEA. Al revisar que la fase
+     dejara nada colgando, el grep de importadores mostro que tres de las cuatro
+     funciones de `api/backend.ts` —listar, crear y sincronizar— estaban escritas
+     y no las llamaba NADIE: superficie terminada, probada por el lado de Python,
+     y que el frontend no usa. Es literalmente el criterio de aceptacion de la
+     fase ("una superficie terminada que nadie ve no esta terminada"), y se
+     cumplio por el camino corto.
+
+     La forma de vigilarlo NO es contar la aparicion de la palabra: la propia
+     declaracion en `backend.ts` contaria, y con eso la guarda pasaria siempre.
+     Hay que distinguir la DECLARACION de la LLAMADA: `export async function X`
+     es la primera, y `X(` en cualquier otro archivo es la segunda. */
+  let mapa: Map<string, string>;
+  beforeAll(async () => { mapa = await textosDeLaApp(); });
+
+  const declaradas = (texto: string) =>
+    [...texto.matchAll(/export\s+async\s+function\s+(\w+)/g)].map((m) => m[1]);
+
+  /* EL PUNTO ESTA PERMITIDO A DELANTE, Y NO ES UN DETALLE. La primera version
+     uso `[^\\w.]` para no contar la propia declaracion, y con eso `api.X()` —que
+     es COMO se llama a la API en todo el repo— no contaba como llamada: la
+     guarda declaraba huerfana una funcion que si se usaba. La forma correcta de
+     no contar la declaracion es excluir el archivo que la declara, que es lo que
+     hace el filtro de arriba, no un Lucky caracter en la expresion. */
+  const llamadasFueraDeLaApi = (fn: string) =>
+    [...mapa.entries()]
+      .filter(([ruta]) => !ruta.endsWith('/api/backend.ts'))
+      .filter(([, texto]) => new RegExp(`\\b${fn}\\s*\\(`).test(texto))
+      .map(([ruta]) => ruta)
+      .sort();
+
+  it('toda funcion de proyecto declarada tiene un consumidor en la app', () => {
+    const api = mapa.get('/src/api/backend.ts') ?? '';
+    const deProyectos = declaradas(api).filter((n) => /proyecto|Proyecto/i.test(n));
+    expect(deProyectos.length, 'no se encontro ninguna funcion de proyecto en la API').toBeGreaterThan(0);
+
+    const huerfanas = deProyectos.filter((fn) => llamadasFueraDeLaApi(fn).length === 0);
+    expect(
+      huerfanas,
+      `estas funciones no las llama nadie: ${JSON.stringify(huerfanas)}`,
+    ).toEqual([]);
+  });
+
+  it('el control: la guarda distingue declaracion de llamada', () => {
+    // Si `llamadasFueraDeLaApi` contara la declaracion, la de arriba no podria
+    // fallar nunca. Se afirma con un nombre que SOLO aparece en la declaracion.
+    const texto = 'export async function soloDeclarada() { return 1; }';
+    expect(declaradas(texto)).toEqual(['soloDeclarada']);
+    expect(llamadasFueraDeLaApi('soloDeclarada')).toEqual([]);
+  });
+});
+
 describe('el catalogo del rail declara los destinos completos', () => {
   it('todo destino declara id y step, y el modulo tiene step null', () => {
     const carga = archivosDeLaApp['/src/components/shell/railItems.ts'] as () => Promise<string>;

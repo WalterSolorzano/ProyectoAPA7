@@ -22,6 +22,8 @@ import { crearProyecto } from '../lib/proyecto';
 // se lee del archivo antes de hablar con el backend: espiar la API deja que el
 // resto de `uploadFile` corra sin red y sin romper el store.
 const borrarProyectoEnDisco = vi.fn().mockResolvedValue(undefined);
+const crearProyectoEnDisco = vi.fn();
+const sincronizarProyecto = vi.fn();
 
 vi.mock('../api/backend', async () => {
   const real = await vi.importActual<typeof import('../api/backend')>('../api/backend');
@@ -29,6 +31,8 @@ vi.mock('../api/backend', async () => {
     ...real,
     uploadDocxFile: vi.fn().mockResolvedValue({ session_id: 's1', file_name: 'x.docx', elements: [] }),
     borrarProyectoEnDisco: (...a: unknown[]) => borrarProyectoEnDisco(...a),
+    crearProyectoEnDisco: (...a: unknown[]) => crearProyectoEnDisco(...a),
+    sincronizarProyecto: (...a: unknown[]) => sincronizarProyecto(...a),
   };
 });
 
@@ -58,6 +62,15 @@ const proyectoDePrueba = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   borrarProyectoEnDisco.mockResolvedValue(undefined);
+  /* `crearProyectoEnDisco` sin default A PROPOSITO: obliga a cada test que
+     abre un proyecto a decir que id devuelve el backend. Un `mockResolvedValue`
+     global devolveria siempre el mismo y una prueba que olvide el `await`
+     pasaria midiendo el store sin el backend — que es como se cuela un
+     `setProyecto` que nadie verifica que registre nada. */
+  crearProyectoEnDisco.mockImplementation(async (p: { nombre: string; raiz?: string | null }) =>
+    crearProyecto({ nombre: p.nombre, raiz: p.raiz, id: 'srv1' }),
+  );
+  sincronizarProyecto.mockResolvedValue({ proyecto: null, documentos: [], error: null });
   useDocStore.setState({
     proyecto: null,
     projectImages: [],
@@ -113,13 +126,71 @@ describe('el proyecto sobrevive al reinicio', () => {
     expect(rehidratar().proyecto?.documentos).toEqual(['abc123']);
   });
 
+  it('abrir un proyecto lo REGISTRA en el backend', async () => {
+    // Sin esto, el proyecto vive solo en indexedDB y no hay contra que
+    // sincronizar ni borrar: `cerrarProyecto` borraria una fila que nunca
+    // existio, o sea que el borrado responderia "ok" sin borrar nada. Un borrado
+    // que dice que si y no borra es peor que uno que falla.
+    await useDocStore.getState().setProyecto(proyectoDePrueba());
+    expect(crearProyectoEnDisco).toHaveBeenCalledWith({ nombre: 'Mi tesis', raiz: 'C:\\tesis' });
+  });
+
+  it('si el backend no responde, el proyecto NO se pierde en memoria', async () => {
+    // Perder el nombre del trabajo por un fallo de red es la peor respuesta
+    // posible: el aviso dice por que, y el nombre sigue a la vista.
+    crearProyectoEnDisco.mockRejectedValueOnce(new Error('sin conexion'));
+    espiarToasts();
+    await useDocStore.getState().setProyecto(proyectoDePrueba());
+    expect(useDocStore.getState().proyecto?.nombre).toBe('Mi tesis');
+    expect(usarToast).toHaveBeenCalledWith(expect.stringContaining('sin conexion'), 'warning');
+  });
+
+  it('una carpeta es UNA sincronizacion, no una subida por archivo', async () => {
+    // El defecto que cierra esta prueba: el Explorador subia un `.docx` por
+    // archivo, en serie, cada uno con su auditoria completa y su `isLoading`.
+    // Veinte capitulos eran veinte pantallas de carga seguidas. Con la entidad
+    // del backend, releer la carpeta es una sola llamada.
+    crearProyectoEnDisco.mockImplementation(async (p: { nombre: string; raiz?: string | null }) =>
+      crearProyecto({ nombre: p.nombre, raiz: p.raiz, id: 'srv1' }),
+    );
+    await useDocStore.getState().setProyecto(proyectoDePrueba());
+    sincronizarProyecto.mockResolvedValue({
+      proyecto: { ...proyectoDePrueba(), id: 'srv1' },
+      documentos: ['c1.docx', 'c2.docx', 'c3.docx'],
+      error: null,
+    });
+
+    const hallados = await useDocStore.getState().sincronizarProyectoActual();
+
+    expect(hallados).toEqual(['c1.docx', 'c2.docx', 'c3.docx']);
+    /* UNA llamada para los tres capitulos. Si esto hiciese una por documento,
+       el conteo seria tres y el defecto estaria de vuelta. */
+    expect(sincronizarProyecto).toHaveBeenCalledTimes(1);
+    expect(sincronizarProyecto).toHaveBeenCalledWith('srv1');
+  });
+
+  it('una carpeta ilegible avisa y conserva lo que ya habia', async () => {
+    // El backend contesta 200 con la lista que conservo y un texto de por que no
+    // pudo. Si el store tirara el error, perderia los documentos que SI se
+    // pudieron leer: el Explorador quedaria vacio por un fallo de lectura.
+    crearProyectoEnDisco.mockImplementation(async (p: { nombre: string; raiz?: string | null }) =>
+      crearProyecto({ nombre: p.nombre, raiz: p.raiz, id: 'srv1' }),
+    );
+    await useDocStore.getState().setProyecto(proyectoDePrueba());
+    sincronizarProyecto.mockResolvedValue({
+      proyecto: { ...proyectoDePrueba(), id: 'srv1' },
+      documentos: ['c1.docx'],
+      error: 'No such file or directory',
+    });
+    espiarToasts();
+
+    const hallados = await useDocStore.getState().sincronizarProyectoActual();
+
+    expect(hallados).toEqual(['c1.docx']);
+    expect(usarToast).toHaveBeenCalledWith(expect.stringContaining('No such file'), 'warning');
+  });
+
   it('cerrar el proyecto tambien lo borra del backend', async () => {
-    // F7 Task 2. El store persistia el proyecto en indexedDB, que es la memoria
-    // de ESTA maquina: sobrevive al reinicio de la pestana y no al de la app en
-    // otra maquina. Con la entidad del backend, cerrar el proyecto tiene que
-    // llamar al backend. Si no lo hace, "borrar el proyecto" borra una copia
-    // local y deja el proyecto de verdad, que es la clase de borrado que hace
-    // que la persona lo borre dos veces.
     useDocStore.getState().setProyecto({ ...proyectoDePrueba(), id: 'p1' });
     espiarToasts();
     await useDocStore.getState().cerrarProyecto();

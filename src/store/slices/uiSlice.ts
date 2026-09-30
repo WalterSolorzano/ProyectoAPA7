@@ -265,7 +265,29 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
      * que para eso existe, y el resultado se le pasa a `crearProyecto` como
      * sugerencia — nunca se recalcula sobre cada render. */
   proyecto: null,
-  setProyecto: (proyecto: Proyecto) => set({ proyecto }),
+  /* F7 Task 2. `setProyecto` REGISTRA el proyecto en el backend cuando todavia
+     no existe ahi.
+
+     Antes era un `set` puro y con eso bastaba, porque el proyecto vivia solo en
+     indexedDB. Con la entidad del backend no basta: un proyecto que no esta en
+     la base no tiene contra que synchronous, y `cerrarProyecto` borraria una
+     fila que nunca existio — un borrado que dice "ok" sin borrar nada, que es
+     peor que uno que falla.
+
+     El id se conserva: el que paso el llamador sigue siendo el del store, y el
+     backend devuelve el suyo, que manda. Si la creacion falla, el proyecto
+     sigue en el store: perder el nombre del trabajo en memoria por un fallo de
+     red es la peor respuesta posible, y se avisa. */
+  setProyecto: async (proyecto: Proyecto) => {
+    set({ proyecto });
+    try {
+      const creado = await api.crearProyectoEnDisco({ nombre: proyecto.nombre, raiz: proyecto.raiz });
+      if (creado?.id) set({ proyecto: { ...proyecto, id: creado.id, creado: creado.creado ?? proyecto.creado } });
+    } catch (e) {
+      const detalle = e instanceof Error ? e.message : 'sin conexion';
+      get().showToast(`El proyecto "${proyecto.nombre}" quedo solo en esta maquina: ${detalle}`, 'warning');
+    }
+  },
   /* F7 Task 2. `cerrarProyecto` borra ADEMAS en el backend, y por eso es async.
 
      Antes (y ahora todavia en el `partialize`) el proyecto vivia solo en
@@ -290,6 +312,50 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
       }
     }
     set({ proyecto: null });
+  },
+
+  /* SINCRONIZAR CON EL DISCO. F7 Task 2/4.
+   *
+   * Antes el Explorador subiaba un `.docx` por archivo, en serie, cada uno con su
+   * auditoria completa y su `isLoading`: veinte capitulos eran veinte pantallas
+   * de carga seguidas. Con la entidad del backend, "abrir la carpeta" es UNA
+   * operacion: el backend relee el disco y devuelve que encontro.
+   *
+   * Y `setProyecto` con `persistir: true` REGISTRA el proyecto en el backend la
+   * primera vez. Sin eso el proyecto vive solo en indexedDB —la memoria de esta
+   * maquina— y `cerrarProyecto` no tendria nada que borrar, osea que el borrado
+   * pareceria funcionar sin borrar nunca nada. */
+  sincronizarProyectoActual: async () => {
+    const actual = get().proyecto;
+    if (!actual) return null;
+    try {
+      const r = await api.sincronizarProyecto(actual.id);
+      set({ proyecto: { ...actual, documentos: r.documentos } });
+      /* El `error` del backend NO se tira: el endpoint contesta 200 con la lista
+         que conservo y el por que. Tirarlo perderia los documentos que si se
+         pudieron leer, y el aviso va aparte para que la pantalla diga que no
+         pudo releer sin perder lo que ya tenia. */
+      if (r.error) {
+        get().showToast(`No se pudo releer la carpeta: ${r.error}`, 'warning');
+      }
+      return r.documentos;
+    } catch (e) {
+      const detalle = e instanceof Error ? e.message : 'No se pudo sincronizar';
+      get().showToast(`No se pudo sincronizar "${actual.nombre}": ${detalle}`, 'error');
+      return null;
+    }
+  },
+
+  /* Los proyectos del backend, para reabrir uno en otra maquina. */
+  cargarProyectos: async () => {
+    try {
+      return await api.listarProyectos();
+    } catch {
+      /* Sin lista no hay picker de proyectos, pero el proyecto ABIERTO sigue
+         en pie y la app sigue trabajando. Un fallo al listar no puede ser un
+         fallo de la app entera. */
+      return [];
+    }
   },
 
   /* EL EXPLORADOR ABIERTO. F7 Task 5.

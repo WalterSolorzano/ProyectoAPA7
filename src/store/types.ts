@@ -230,8 +230,10 @@ export interface DocState {
    * inventado en pantalla es peor que no tener nombre.
    */
   proyecto: Proyecto | null;
-  /** Fija el proyecto abierto. */
-  setProyecto: (proyecto: Proyecto) => void;
+  /** Fija el proyecto abierto y lo REGISTRA en el backend si no existe ahi.
+   *  `async` por eso: un proyecto que queda solo en indexedDB no se puede
+   *  sincronizar ni borrar despues. */
+  setProyecto: (proyecto: Proyecto) => Promise<void>;
   /** Cierra el proyecto: borra en el backend y, si eso sale bien, en el store.
    *  Si el borrado falla, conserva el proyecto y avisa. `async` por eso. */
   cerrarProyecto: () => Promise<void>;
@@ -244,6 +246,11 @@ export interface DocState {
    *  abierto. Un destino de un clic que solo abre es medio camino a un boton que
    *  no se puede deshacer. */
   alternarExplorador: () => void;
+  /** Relee la carpeta del proyecto abierto por el backend y devuelve la lista de
+   *  documentos, o `null` si no se pudo. Es UNA operacion para toda la carpeta. */
+  sincronizarProyectoActual: () => Promise<string[] | null>;
+  /** Los proyectos que tiene el backend, para reabrir uno. */
+  cargarProyectos: () => Promise<Proyecto[]>;
   projectImages: ImagenProyecto[];
   /** Sube la imagen a disco y devuelve su id, o `null` si la subida falló. */
   addProjectImage: (file: File) => Promise<string | null>;
