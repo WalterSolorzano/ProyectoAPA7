@@ -166,14 +166,22 @@ describe('la fase de Estructura está montada', () => {
     expect(screen.queryByTestId('documento-real')).toBeNull();
   });
 
-  it('el pulso de cinco números está arriba, y el inspector espera a que se elija', () => {
+  it('sin nodo elegido el inspector dice qué hacer, en vez de dejar un hueco', () => {
     montarFase('estructura');
-    /* El pulso es lo primero que se ve: cinco celdas con nombre y valor. */
-    const pulso = screen.getByLabelText('Pulso del documento');
-    expect(pulso.querySelectorAll('li').length).toBe(5);
-    expect(pulso.textContent).toContain('12.080');
-    /* Y sin nodo elegido el inspector dice qué hacer, en vez de dejar un hueco. */
     expect(screen.getByRole('status').textContent).toMatch(/elegí un capítulo/i);
+  });
+
+  it('el pulso de cinco números YA NO ESTÁ: no se mide lo que no se acciona', () => {
+    /* La tira de palabras / balance / fases que faltan / figuras sin leyenda /
+       referencias sin citar se borró. Palabras y balance son métricas sin acción;
+       las otras tres duplicaban algo que ya vive donde se acciona (figuras en su
+       fase, referencias en el rail, fases que faltan en `FaltasApa7`, que está en
+       esta misma pantalla). Esta guarda existe para que nadie la reintroduzca
+       como una tira muda arriba del trabajo: si vuelve, vuelve como superficie
+       propia y con su prueba. */
+    montarFase('estructura');
+    expect(screen.queryByLabelText('Pulso del documento')).toBeNull();
+    expect(screen.queryByText('Palabras')).toBeNull();
   });
 
   it('elegir un nodo abre su rama, con las cuatro acciones y su alcance a la vista', () => {

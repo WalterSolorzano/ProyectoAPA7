@@ -1,28 +1,22 @@
 /**
- * El pulso del documento y el inspector de rama.
- *
- * DOS COSAS DISTINTAS Y QUE A VECES SE CONFUNDEN.
- *
- * El pulso son CINCO NÚMEROS y nada más: palabras, balance, fases que faltan,
- * figuras sin leyenda y referencias que no se citan. Es lo que un redactor mira
- * primero y no existía en ninguna parte de la app. Que sean cinco y no seis es
- * la regla: si aparece otro, es porque alguien empezó a agregar cosas, y cada
- * número tiene que decir SU valor, no un ícono.
+ * El inspector de rama de la fase de Estructura.
  *
  * El inspector es lo que hay adentro de UNA rama y qué se puede hacer SOLO ahí.
- * Y la parte que se prueba más fuerte es la del alcance: "Reordenar" en un
- * índice jerárquico sin decir a qué aplica es una amenaza, y una acción que dice
- * "esta rama" y toca las hermanas es peor que una que no existiera.
+ * Y la parte que se prueba más fuerte es la del ALCANCE: "Reordenar" en un índice
+ * jerárquico sin decir a qué aplica es una amenaza, y una acción que dice "esta
+ * rama" y toca las hermanas es peor que una que no existiera.
+ *
+ * NOTA DE HISTORIA. Este archivo era `pulsoDocumento.test.tsx` y traía DOS
+ * describes: el del inspector de rama y el del pulso de cinco números. El pulso
+ * se borró del producto (palabras, balance, fases que faltan, figuras sin
+ * leyenda y referencias sin citar se veían arriba de Estructura y el usuario no
+ * les veía utilidad ahí: cada dato duplica algo que ya vive donde se acciona).
+ * Con él se fueron sus siete pruebas. Lo que queda es lo que sigue vivo.
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import {
-  PulsoDocumento,
-  pulsoDe,
-  celdasDelPulso,
-} from '../components/structure/PulsoDocumento';
 import {
   InspectorRama,
   ACCIONES,
@@ -32,9 +26,7 @@ import {
   preguntaDeIa,
 } from '../components/structure/InspectorRama';
 import { construirJerarquia } from '../lib/jerarquia';
-import { useDocStore } from '../store/useDocStore';
 import type { ElementModel } from '../types';
-import type { AuditItem } from '../lib/auditItems';
 
 let secuencia = 0;
 const el = (o: Partial<ElementModel> & { type: ElementModel['type']; text: string }): ElementModel =>
@@ -59,109 +51,6 @@ const el = (o: Partial<ElementModel> & { type: ElementModel['type']; text: strin
 const h1 = (titulo: string): ElementModel => el({ type: 'heading', heading_level: 1, text: titulo });
 const h2 = (titulo: string): ElementModel => el({ type: 'heading', heading_level: 2, text: titulo });
 const parrafo = (texto: string): ElementModel => el({ type: 'paragraph', text: texto });
-const palabras = (n: number): string => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
-
-const titulos = (ts: string[]): ElementModel[] => ts.map(h1);
-
-const hallazgo = (over: Partial<AuditItem> & { id: string }): AuditItem =>
-  ({
-    element_id: 'e0',
-    category: 'citations',
-    subtype: 'referencia_huerfana',
-    severity: 'warn',
-    summary: '',
-    detail: '',
-    originalText: '',
-    pageNumber: null,
-    phase: null,
-    readOnly: false,
-    ...over,
-  }) as AuditItem;
-
-describe('el pulso del documento', () => {
-  it('son cinco números y nada más', () => {
-    /* Si aparecen más, es porque alguien empezó a agregar cosas. Y cada número
-     * tiene que decir SU valor: un número sin nombre es un número que nadie
-     * sabe qué medir. */
-    expect(celdasDelPulso(pulsoDe(titulos(['1. Introducción', '2. Metodología'])))).toHaveLength(5);
-  });
-
-  it('cada celda dice su nombre Y su valor', () => {
-    const celdas = celdasDelPulso(pulsoDe([h1('1. Introducción'), parrafo(palabras(12000))]));
-    expect(celdas.map((c) => c.nombre)).toEqual([
-      'Palabras',
-      'Balance',
-      'Fases que faltan',
-      'Figuras sin leyenda',
-      'Referencias sin citar',
-    ]);
-    expect(celdas[0].valor).toContain('12.000');
-  });
-
-  it('el balance de un documento de un solo capítulo es null, no 100%', () => {
-    /* Una rampa comparativa sin hermanas no significa nada, y un 100 % parece una
-     * nota. `null` es un estado de primera clase, no cero. */
-    expect(pulsoDe(titulos(['1. Introducción'])).balance).toBeNull();
-    expect(pulsoDe(titulos(['1. Introducción', '2. Metodología'])).balance).not.toBeNull();
-  });
-
-  it('el balance es la rama más corta contra la más larga', () => {
-    /* 80 contra 12.000 es un problema de redacción que solo aparece cuando las
-     * dos están en la misma escala. El pulso lo dice con un número. */
-    const p = pulsoDe([
-      h1('1. Introducción'),
-      parrafo(palabras(12000)),
-      h1('2. Metodología'),
-      parrafo(palabras(80)),
-    ]);
-    expect(p.balance).toBeLessThan(2);
-  });
-
-  it('las figuras sin leyenda se CUENTAN, no se estiman', () => {
-    const conFigura = el({
-      type: 'image',
-      text: 'Figura 1',
-      image_info: { element_id: 'x', file_path: 'a.png', filename: 'a.png', caption: '' } as never,
-    });
-    const conLeyenda = el({
-      type: 'image',
-      text: 'Figura 2',
-      image_info: { element_id: 'y', file_path: 'b.png', filename: 'b.png', caption: 'Figura 2. El proceso' } as never,
-    });
-    expect(pulsoDe([h1('1. Metodología'), conFigura, conLeyenda]).figurasSinLeyenda).toBe(1);
-  });
-
-  it('las referencias sin citar salen de la MISMA lista de hallazgos', () => {
-    /* La lista es la que abre el workbench y la que cuenta el rail. Un segundo
-     * conteo de referencias es la forma de que el pulso diga 2 y la revisión
-     * diga 3, que es exactamente lo que `railPending.ts` existe para impedir. */
-    const hallazgos = [hallazgo({ id: 'r1' }), hallazgo({ id: 'r2' })];
-    expect(pulsoDe([h1('1. Metodología')], [], hallazgos).referenciasNoCitadas).toBe(2);
-  });
-
-  it('las fases que faltan vienen de la lista que trae quien la tiene', () => {
-    /* Sin la lista, cero fases que faltan: la ausencia del dato no es evidencia
-     * de que falten veinte capítulos. Y con la lista, solo las que de verdad no
-     * están, por su NOMBRE y no por su clave. Se usa "Discusión" y no
-     * "Metodología" porque el espejo local de rótulos no trae el alias, y eso
-     * está declarado en `jerarquia.test.ts`: el hueco es del vocabulario, no de
-     * esta cuenta. */
-    const p = pulsoDe([h1('1. Introducción'), h1('2. Discusión')], ['introduccion', 'discusion', 'resultados']);
-    expect(p.fasesQueFaltan).toHaveLength(1);
-    expect(p.fasesQueFaltan[0]).toMatch(/Resultado/i);
-  });
-
-  it('sin lista de requeridas, el pulso no inventa fases que faltan', () => {
-    expect(pulsoDe([h1('1. Introducción')]).fasesQueFaltan).toEqual([]);
-  });
-
-  it('dibujado, el pulso muestra las cinco celdas y el balance ausente se dice', () => {
-    render(<PulsoDocumento elementos={[h1('1. Introducción'), parrafo(palabras(400))]} />);
-    expect(screen.getByText('Palabras')).toBeTruthy();
-    expect(screen.getByText(/no hay con qué comparar/i)).toBeTruthy();
-    expect(screen.getAllByRole('listitem')).toHaveLength(5);
-  });
-});
 
 describe('el inspector de rama', () => {
   const DOC: ElementModel[] = [

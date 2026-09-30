@@ -9,10 +9,18 @@
  *
  * LA COMPOSICIÓN, EN EL ORDEN QUE PIDE EL SPEC §7:
  *
- *   1. el pulso de cinco números arriba, y nada más;
- *   2. el índice jerárquico con su diagnóstico, al centro;
- *   3. el inspector de la rama elegida, a la derecha, con sus cuatro acciones;
- *   4. qué le falta a APA 7, al pie de la columna derecha.
+ *   1. el índice jerárquico con su diagnóstico, al centro;
+ *   2. el inspector de la rama elegida, a la derecha, con sus cuatro acciones;
+ *   3. qué le falta a APA 7, al pie de la columna derecha.
+ *
+ * Y NO HAY PULSO. La tira de cinco números (palabras, balance, fases que faltan,
+ * figuras sin leyenda, referencias sin citar) se montaba arriba de todo y se
+ * borró: el usuario no le veía utilidad AHÍ, y tenía razón de principio —cada
+ * dato duplicaba algo que ya vive donde se acciona: las figuras sin leyenda en
+ * la fase de figuras, las referencias sin citar en el rail y en la fase de
+ * referencias, y las fases que faltan en `FaltasApa7`, que ya está en esta misma
+ * pantalla—. Palabras y balance son métricas sin acción. Si vuelven, vuelven
+ * como una superficie visual propia, no como una tira muda arriba del trabajo.
  *
  * EL CENTRO ES EL ÍNDICE, Y EL DOCUMENTO ES UN TOGGLE APAGADO. Ese fue el
  * defecto reportado: el centro era el archivo vomitado. Por eso la fase 2 abre
@@ -41,7 +49,6 @@ import { construirJerarquia, type FasesConocidas, type NodoJerarquia } from '../
 import { IndiceEstructura } from './IndiceEstructura';
 import { InspectorRama } from './InspectorRama';
 import { FaltasApa7 } from './FaltasApa7';
-import { PulsoDocumento } from './PulsoDocumento';
 
 export interface EscritorioEstructuraProps {
   /**
@@ -150,19 +157,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
         backgroundColor: 'var(--canvas-bg)',
       }}
     >
-      {/* 1. EL PULSO. Cinco números y nada más, arriba de todo. */}
-      <div
-        style={{
-          flexShrink: 0,
-          padding: 'var(--space-3) var(--space-6)',
-          borderBottom: '1px solid var(--color-border-subtle)',
-          backgroundColor: 'var(--color-bg-surface)',
-        }}
-      >
-        <PulsoDocumento elementos={elementos} hallazgos={hallazgos} faseConocida={faseConocida} />
-      </div>
-
-      {/* 2 y 3. El índice al centro; el inspector de la rama a la derecha. */}
+      {/* El índice al centro; el inspector de la rama a la derecha. */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
         <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <IndiceEstructura
