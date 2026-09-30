@@ -395,6 +395,7 @@ async def validate_citations_with_llm(
     api_key: Optional[str] = None,
     nim_url: Optional[str] = None,
     use_local: bool = False,
+    provider_id: Optional[str] = None,
 ) -> List[ValidationIssueModel]:
     """
     Optional LLM-powered citation validation. Takes uncertain citation matches
@@ -463,6 +464,7 @@ async def validate_citations_with_llm(
                 api_key=api_key,
                 nim_url=nim_url,
                 use_local=use_local,
+                provider_id=provider_id,
                 temperature=0.1,
                 max_tokens=2000,
                 use_cache=True

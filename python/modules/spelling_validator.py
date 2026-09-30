@@ -75,7 +75,7 @@ async def validate_spelling_and_grammar(docx_path: str) -> Dict[str, Any]:
         return {"spelling_errors": [], "grammar_errors_count": 0, "status": "error", "message": str(e)}
 
 @en_lote
-async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional[str] = None, provider_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Filtra los errores usando IA (NVIDIA NIM u otros) para descartar jerga técnica, usando fallback y chunking.
     """
@@ -109,6 +109,7 @@ async def check_spelling_with_ia(errors: List[Dict[str, Any]], api_key: Optional
                 system_prompt=system_prompt,
                 specialty="FAST",
                 api_key=api_key,
+                provider_id=provider_id,
                 temperature=0.1,
                 max_tokens=1000,
                 use_cache=True

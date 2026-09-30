@@ -106,12 +106,38 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
     """
     Return ordered list of available AI providers with their keys and endpoints.
     Priority: NVIDIA NIM > Groq > OpenRouter > Cerebras > Mistral > OpenCodeZen > ZenMux > Gemini > Cloudflare AI
+
+    `custom_key` es la clave que eligio el usuario en la pestana Conexion. Antes
+    se inyectaba en la entrada de NVIDIA NIM sin mirar de que proveedor vinha:
+    elegias Groq, mandabas la key de Groq, se ponia en NIM, NIM contestaba 401 y
+    la entrada entraba en cooldown de 600 s. Elegir proveedor en la UI no
+    seleccionaba proveedor: seleccionaba que key se le mandaba al primero de la
+    lista.
+
+    Ahora la clave se resuelve POR PROVEEDOR: cada entrada usa la suya, leida
+    del entorno. `custom_key` ya no se inyecta en ninguna: es la clave del
+    proveedor que eligio el usuario, y meterla en la entrada de NIM hacia que
+    la key de Groq se mandara a NVIDIA, con un 401 y un cooldown de 600 s por
+    detrás.
+
+    Un proveedor que pide una clave y no la tiene NO entra a la cola. Entrar a
+    disparar un 401 cuesta un cooldown para todos los que vengan atras, y el
+    proveedor elegido por el usuario no puede ser el unico que se cuelgue.
     """
     providers = []
 
     # 1. NVIDIA NIM (Priority 1 — Default or Local)
-    nv_key = custom_key or os.getenv("NVIDIA_API_KEY", "")
-
+    #    NIM usa SU clave. Antes tomaba `custom_key` sin mirar de que proveedor
+    #    venía, con lo cual la key de Groq se mandaba a
+    #    `integrate.api.nvidia.com`, contestaban 401 y la entrada entraba en
+    #    cooldown de 600 s para todos los que vinieran atras.
+    #
+    #    `custom_key` ya no entra aca. Es la clave del proveedor que eligio el
+    #    usuario, y el frontend la escribe en el entorno de este proceso al
+    #    arrancar (`syncAllProviderKeys`), asi que la variable de entorno de NIM
+    #    ya esta puesta cuando hay una key de NIM. Lo que no puede pasar es que
+    #    una key de otro proveedor rellene este hueco.
+    nv_key = os.getenv("NVIDIA_API_KEY", "")
     if use_local and custom_nim_url:
         providers.append({
             "name": "NVIDIA NIM (Local)",
@@ -494,6 +520,7 @@ async def classify_document_with_llm(
                     api_key=api_key,
                     nim_url=nim_url,
                     use_local=use_local,
+                    provider_id=provider_id,
                     temperature=0.1,
                     max_tokens=2000,
                     use_cache=False, # Cache is handled manually here to cache per-element!

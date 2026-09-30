@@ -1104,16 +1104,32 @@ un control decorativo con la etiqueta de uno funcional.
 > O sea: nadie pierde nada, y el campo pasa de decorativo a funcional. Lo que sí cambia es
 > que la UI deja de decir "el motor todavía no los recibe" y pasa a poder decirlo.
 
-### 12.3 `provider_id` en los dieciocho
+### 12.3 `provider_id` en los diecisiete
 
-`api_key` se inyecta en `nvidia_nim` sin importar de qué proveedor venga
-(`llm_classifier.py:113`), y **17 de 18 endpoints ignoran `provider_id`**. Elegir Groq
-manda la key de Groq a NIM, NIM responde 401, cooldown de 600 s.
+> **Corrección, 2026-09-29 (F8).** Este apartado decía **dieciocho** y está
+> mal. El número real, verificado greppeando `execute_with_specialty` en `python/`:
+> **18 llamadas, 17 endpoints**. La decimoctava es `execute_with_fallback`
+> (`ai_client.py:441`), que es el MISMO router con otro nombre —reenvía
+> `*args, **kwargs`— contando el router llamándose a sí mismo. Una llamada más,
+> `check_spelling_with_ia` (`spelling_validator.py:78`), es un motor LLM sin
+> ningún llamador: existe, llama al router, y no lo llama nadie. No se cuenta
+> como endpoint porque no hay superficie que la alcance.
+> El inventario se construye por código en `python/tests/test_provider_id.py`, y
+> una prueba afirma que el número no se reescriba para que pase.
 
-- `api_key` se resuelve **por proveedor** en `_get_active_providers`, no se inyecta en el
-  primero.
-- El `provider_id` viaja a los dieciocho endpoints. `doc_auditor.py:528-529` lo recibe y
-  no lo reenvía: se arregla.
+`api_key` se inyectaba en `nvidia_nim` sin importar de qué proveedor venga
+(`llm_classifier.py:113`), y **16 de 17 endpoints ignoran `provider_id`**. Elegir Groq
+manda la key de Groq a NIM, NIM responde 401, cooldown de 600 s. Y no solo eso: la
+clave del request **no llegaba a ningún proveedor** salvo NVIDIA, así que elegir
+Groq y tener la key de Groq puesta en la UI no bastaba: el backend necesita su
+propia variable de entorno, y esa es la razón de que ahora `custom_key` no se
+inyecte en ninguna entrada.
+
+- `api_key` se resuelve **por proveedor** en `_get_active_providers`, no se inyecta en
+  el primero. Un proveedor que pide una clave y no la tiene **no entra en la cola**,
+  en vez de entrar a disparar un 401 y un cooldown.
+- El `provider_id` viaja a los diecisiete endpoints. `doc_auditor.py:528-529` lo recibía
+  y no lo reenviaba: se arregla.
 - La UI **deja de fingir** que elegir proveedor selecciona proveedor, hasta que sea
   cierto. Hoy hace exactamente eso.
 

@@ -97,6 +97,7 @@ async def process_live_document_chat(
     selected_element_id: Optional[str] = None,
     history: Optional[List[Dict[str, str]]] = None,
     api_key: Optional[str] = None,
+    provider_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Procesa una petición conversacional del usuario y retorna la respuesta con las acciones sugeridas."""
     # Construir resumen del contexto del documento
@@ -146,6 +147,7 @@ async def process_live_document_chat(
             system_prompt=SYSTEM_PROMPT,
             specialty="REASONING",
             api_key=api_key,
+            provider_id=provider_id,
             temperature=0.2,
             max_tokens=1500,
             use_cache=False,

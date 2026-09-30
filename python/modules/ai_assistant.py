@@ -5,7 +5,7 @@ from modules.ai_client import execute_with_specialty
 
 logger = logging.getLogger(__name__)
 
-async def generate_caption_suggestion(context_text: str, api_key: Optional[str] = None) -> str:
+async def generate_caption_suggestion(context_text: str, api_key: Optional[str] = None, provider_id: Optional[str] = None) -> str:
     """Generates a figure/table caption suggestion using an LLM provider."""
 
     prompt = (
@@ -25,6 +25,7 @@ async def generate_caption_suggestion(context_text: str, api_key: Optional[str] 
             system_prompt=system_prompt,
             specialty="FAST",
             api_key=api_key,
+            provider_id=provider_id,
             temperature=0.3,
             max_tokens=100,
             use_cache=True
@@ -35,7 +36,7 @@ async def generate_caption_suggestion(context_text: str, api_key: Optional[str] 
         logger.error(f"Error generando caption: {e}")
         raise
 
-async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional[str] = None) -> str:
+async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional[str] = None, provider_id: Optional[str] = None) -> str:
     """Rewrites a paragraph according to a specific instruction using an LLM provider."""
 
     prompt = (
@@ -56,6 +57,7 @@ async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional
             system_prompt=system_prompt,
             specialty="FAST",
             api_key=api_key,
+            provider_id=provider_id,
             temperature=0.4,
             max_tokens=1000,
             use_cache=True
@@ -65,7 +67,7 @@ async def rewrite_text_suggestion(text: str, instruction: str, api_key: Optional
         logger.error(f"Error reescribiendo texto: {e}")
         raise
 
-async def explain_element(element_type: str, text: str, rules_applied: str, confidence: float, api_key: Optional[str] = None) -> str:
+async def explain_element(element_type: str, text: str, rules_applied: str, confidence: float, api_key: Optional[str] = None, provider_id: Optional[str] = None) -> str:
     """Explains why an element was classified as such."""
 
     prompt = (
@@ -85,6 +87,7 @@ async def explain_element(element_type: str, text: str, rules_applied: str, conf
             system_prompt=system_prompt,
             specialty="REASONING",
             api_key=api_key,
+            provider_id=provider_id,
             temperature=0.2,
             max_tokens=150,
             use_cache=True

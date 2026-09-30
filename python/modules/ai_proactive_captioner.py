@@ -28,7 +28,8 @@ Responde ÚNICAMENTE en formato JSON válido:
 @en_lote
 async def analyze_document_proactive_captions(
     document: DocumentModel,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    provider_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Recorre las tablas e imágenes del documento y sugiere leyendas y notas para aquellas que las necesite."""
     suggestions = []
@@ -74,6 +75,7 @@ async def analyze_document_proactive_captions(
                 system_prompt=CAPTION_PROMPT,
                 specialty="FAST",
                 api_key=api_key,
+                provider_id=provider_id,
                 temperature=0.3,
                 max_tokens=250,
                 use_cache=True,

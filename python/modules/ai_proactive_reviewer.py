@@ -85,7 +85,8 @@ def generate_local_diagnostic(elem: ElementModel) -> Optional[Dict[str, Any]]:
 async def diagnose_element_with_ai(
     elem: ElementModel,
     surrounding_context: str = "",
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    provider_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Usa el router rápido (Groq/Cerebras) para formular una propuesta académica proactiva de 1 clic."""
     local = generate_local_diagnostic(elem)
@@ -116,6 +117,7 @@ async def diagnose_element_with_ai(
             system_prompt=system_prompt,
             specialty="FAST",
             api_key=api_key,
+            provider_id=provider_id,
             temperature=0.2,
             max_tokens=600,
             use_cache=True,

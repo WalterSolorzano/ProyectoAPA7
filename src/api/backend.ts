@@ -516,7 +516,8 @@ export async function suggestCaption(
       session_id: sessionId,
       element_id: elementId,
       context_text: contextText,
-      api_key: apiKey
+      api_key: apiKey,
+      provider_id: proveedorElegido(),
     }),
   });
 
@@ -543,7 +544,8 @@ export async function rewriteText(
       element_id: elementId,
       text: text,
       instruction: instruction,
-      api_key: apiKey
+      api_key: apiKey,
+      provider_id: proveedorElegido(),
     }),
   });
 
@@ -575,6 +577,7 @@ export async function rewriteVariations(
     body: JSON.stringify({
       session_id: sessionId, element_id: elementId, text,
       instruction, n, api_key: apiKey,
+      provider_id: proveedorElegido(),
     }),
   });
   if (!res.ok) {
@@ -589,6 +592,17 @@ export interface AIProviderConfigShape {
   useLocal?: boolean;
   providerId?: string;
 }
+
+/** El proveedor que el usuario eligió, leído del store.
+ *
+ *  Los endpoints que llaman al LLM necesitan saber a cuál se le pregunta: sin
+ *  esto, elegir Groq en la pestaña Conexión solo cambiaba la clasificación y
+ *  todo lo demás iba por la cadena completa, con la especialidad como único
+ *  criterio. Los que ya reciben `aiProviderConfig` usan el que les pasan; el
+ *  resto lo lee de acá, porque hacer que cada llamada lo pasara a mano es
+ *  exactamente la forma de que uno se quede sin él sin que nadie lo note. */
+const proveedorElegido = (): string =>
+  useDocStore.getState().aiProviderConfig?.providerId || '';
 
 /** Genera un comentario humorístico estilo WhatsApp con el LLM (opcional). */
 export async function generateChatComment(
@@ -666,6 +680,7 @@ export async function citationFix(
     body: JSON.stringify({
       session_id: sessionId, citation_text: citationText,
       reference_id: referenceId, problem: problem, api_key: apiKey,
+      provider_id: proveedorElegido(),
     }),
   });
   if (!res.ok) {
@@ -1127,6 +1142,7 @@ export async function explainElement(
       confidence: element.confidence ?? 0,
       question: question || '',
       api_key: apiKey,
+      provider_id: proveedorElegido(),
     }),
   });
   if (!res.ok) {
@@ -1261,6 +1277,7 @@ export async function sendLiveChat(
       selected_element_id: selectedElementId || undefined,
       history: history || [],
       api_key: apiKey || undefined,
+      provider_id: proveedorElegido(),
     }),
   });
 
@@ -1292,6 +1309,7 @@ export async function fetchProactiveCaptions(sessionId: string): Promise<{
     body: JSON.stringify({
       session_id: sessionId,
       api_key: apiKey || undefined,
+      provider_id: proveedorElegido(),
     }),
   });
 
@@ -1333,6 +1351,7 @@ export async function fetchProactiveElementDiagnosis(
       session_id: sessionId,
       element_id: elementId,
       api_key: apiKey || undefined,
+      provider_id: proveedorElegido(),
     }),
   });
 

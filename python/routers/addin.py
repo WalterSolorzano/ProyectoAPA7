@@ -60,6 +60,10 @@ class AnalyzeSelectionRequest(BaseModel):
 class SuggestCaptionRequest(BaseModel):
     type: str  # "figure" | "table"
     context_text: str
+    # Que proveedor consulta el motor. El complemento corre dentro de Word y no
+    # tiene una pestana de Conexion, asi que sin esto cada leyenda que sugiere
+    # va por la cadena completa con la especialidad como unico criterio.
+    provider_id: Optional[str] = None
 
 
 class ValidateFragmentRequest(BaseModel):
@@ -95,6 +99,7 @@ class SaveReferenceRequest(BaseModel):
 
 class SuggestCoverRequest(BaseModel):
     document_text: str
+    provider_id: Optional[str] = None
 
 
 class DetectHeadingsRequest(BaseModel):
@@ -125,6 +130,7 @@ class AnalyzeAIDocumentRequest(BaseModel):
 class AIRewriteRequest(BaseModel):
     """Solicitud de reescritura de texto en estilo académico APA 7."""
     text: str
+    provider_id: Optional[str] = None
 
 
 class AnalyzeTableAIRequest(BaseModel):
@@ -403,6 +409,7 @@ async def suggest_caption(req: SuggestCaptionRequest) -> dict:
             prompt=user_prompt,
             system_prompt=system_prompt,
             specialty="FAST",
+            provider_id=req.provider_id,
             temperature=0.3,
             max_tokens=220,
             use_cache=True,
@@ -877,6 +884,7 @@ async def suggest_cover(req: SuggestCoverRequest) -> dict:
             prompt=user_prompt,
             system_prompt=system_prompt,
             specialty="FAST",
+            provider_id=req.provider_id,
             temperature=0.2,
             max_tokens=300,
             use_cache=True,
@@ -1067,6 +1075,7 @@ async def ai_rewrite(req: AIRewriteRequest) -> Any:
             prompt=text,
             system_prompt=system_prompt,
             specialty="FAST",
+            provider_id=req.provider_id,
             temperature=0.4,
             max_tokens=2000,
             use_cache=False,

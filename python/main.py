@@ -459,6 +459,7 @@ class SuggestCaptionRequest(BaseModel):
     element_id: str
     context_text: str
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 class ExplainElementRequest(BaseModel):
     element_type: str = ""
@@ -466,6 +467,7 @@ class ExplainElementRequest(BaseModel):
     rules_applied: str = ""
     confidence: float = 0.0
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
     # C3: campos de compatibilidad enviados por el frontend
     session_id: Optional[str] = None
     element_id: Optional[str] = None
@@ -478,6 +480,7 @@ class RewriteTextRequest(BaseModel):
     text: str
     instruction: str
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class RewriteVariationsRequest(BaseModel):
@@ -488,6 +491,7 @@ class RewriteVariationsRequest(BaseModel):
     instruction: str = "Reescribe el párrafo en tono académico formal sin muletillas de IA."
     n: int = 3
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class LiveChatRequest(BaseModel):
@@ -496,17 +500,20 @@ class LiveChatRequest(BaseModel):
     selected_element_id: Optional[str] = None
     history: Optional[List[dict]] = None
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class ProactiveCaptionsRequest(BaseModel):
     session_id: str
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class ProactiveDiagnoseRequest(BaseModel):
     session_id: str
     element_id: str
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class ChatCommentRequest(BaseModel):
@@ -539,6 +546,7 @@ class CitationFixRequest(BaseModel):
     reference_id: Optional[str] = None
     problem: str = ""
     api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 # ── ENDPOINTS DE LA API REST ──────────────────────────────────────────────────
@@ -563,7 +571,8 @@ class DoiRequest(BaseModel):
 async def api_suggest_caption(req: SuggestCaptionRequest) -> dict:
     from modules.ai_assistant import generate_caption_suggestion
     try:
-        suggestion = await generate_caption_suggestion(req.context_text, req.api_key)
+        suggestion = await generate_caption_suggestion(
+            req.context_text, req.api_key, req.provider_id)
         return {"suggestion": suggestion}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -572,7 +581,9 @@ async def api_suggest_caption(req: SuggestCaptionRequest) -> dict:
 async def api_explain_element(req: ExplainElementRequest) -> dict:
     from modules.ai_assistant import explain_element
     try:
-        explanation = await explain_element(req.element_type, req.text, req.rules_applied, req.confidence, req.api_key)
+        explanation = await explain_element(
+            req.element_type, req.text, req.rules_applied, req.confidence,
+            req.api_key, req.provider_id)
         return {"explanation": explanation}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -581,7 +592,8 @@ async def api_explain_element(req: ExplainElementRequest) -> dict:
 async def api_rewrite_text(req: RewriteTextRequest) -> dict:
     from modules.ai_assistant import rewrite_text_suggestion
     try:
-        rewritten = await rewrite_text_suggestion(req.text, req.instruction, req.api_key)
+        rewritten = await rewrite_text_suggestion(
+            req.text, req.instruction, req.api_key, req.provider_id)
         return {"rewritten": rewritten}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -615,6 +627,7 @@ async def api_rewrite_variations(req: RewriteVariationsRequest) -> dict:
             system_prompt=system_prompt,
             specialty="FAST",
             api_key=req.api_key,
+            provider_id=req.provider_id,
             temperature=0.6,
             max_tokens=1400,
             use_cache=False,
@@ -665,6 +678,7 @@ async def api_live_chat(req: LiveChatRequest) -> dict:
             selected_element_id=req.selected_element_id,
             history=req.history,
             api_key=req.api_key,
+            provider_id=req.provider_id,
         )
         return result
     except Exception as e:
@@ -685,6 +699,7 @@ async def api_proactive_captions(req: ProactiveCaptionsRequest) -> dict:
         suggestions = await analyze_document_proactive_captions(
             document=doc,
             api_key=req.api_key,
+            provider_id=req.provider_id,
         )
         return {"suggestions": suggestions}
     except Exception as e:
@@ -710,6 +725,7 @@ async def api_proactive_diagnose(req: ProactiveDiagnoseRequest) -> dict:
         diagnosis = await diagnose_element_with_ai(
             elem=elem,
             api_key=req.api_key,
+            provider_id=req.provider_id,
         )
         return {"proposal": diagnosis}
     except Exception as e:
@@ -838,6 +854,7 @@ async def api_chat_comment(req: ChatCommentRequest) -> dict:
             api_key=req.api_key,
             nim_url=req.nim_url,
             use_local=req.use_local,
+            provider_id=req.provider_id,
             temperature=0.85,
             max_tokens=90,
             use_cache=False,
@@ -931,6 +948,7 @@ async def api_loading_tip(req: LoadingTipRequest) -> dict:
             api_key=req.api_key,
             nim_url=req.nim_url,
             use_local=req.use_local,
+            provider_id=req.provider_id,
             temperature=0.9,
             max_tokens=70,
             use_cache=True,
@@ -973,6 +991,7 @@ async def api_citation_fix(req: CitationFixRequest) -> dict:
             system_prompt=system_prompt,
             specialty="FAST",
             api_key=req.api_key,
+            provider_id=req.provider_id,
             temperature=0.2,
             max_tokens=300,
             use_cache=True,
@@ -1208,7 +1227,8 @@ async def validate_document_with_ai(
     refs = json.loads(references) if references else []
     ref_models = [ReferenciaModel(**r) for r in refs]
 
-    issues = await validate_citations_with_llm(doc, ref_models, api_key, nim_url, use_local == 'true')
+    issues = await validate_citations_with_llm(
+        doc, ref_models, api_key, nim_url, use_local == 'true', provider_id)
     return {"issues": [i.model_dump() for i in issues]}
 
 

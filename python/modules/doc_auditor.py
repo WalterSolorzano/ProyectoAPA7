@@ -520,6 +520,16 @@ async def audit_document_structure(
     try:
         from modules.ai_client import execute_with_specialty
 
+        # `provider_config` trae `provider_id` desde `sessions.py`, que lo lee
+        # del body. Se recibia y no se pasaba: la eleccion de proveedor se perdia
+        # en el ultimo tramo, y este es el mas caro —HEAVY, mil tokens, la
+        # estructura entera del documento.
+        #
+        # Este comentario esta FUERA de la llamada a proposito. El guardian que
+        # comprueba que la llamada lleva `provider_id` lee los argumentos
+        # contando parentesis, asi que un comentario puesto entre los argumentos
+        # es indistinguible de un argumento: el comentario se contaria a si
+        # mismo y el guardian pasaria con el defecto puesto.
         response = await execute_with_specialty(
             prompt=structure_text,
             system_prompt=_AUDIT_SYSTEM_PROMPT,
@@ -527,6 +537,7 @@ async def audit_document_structure(
             api_key=api_key,
             nim_url=(provider_config or {}).get("nim_url", ""),
             use_local=(provider_config or {}).get("use_local", False),
+            provider_id=(provider_config or {}).get("provider_id") or None,
             temperature=0.2,
             max_tokens=1000,
             use_cache=True,
