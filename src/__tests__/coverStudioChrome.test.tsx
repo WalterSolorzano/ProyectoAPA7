@@ -1,35 +1,32 @@
 /**
- * WordAPA7 — T18: la pantalla de portada entra al chrome del workbench: una
- * tira de 44px con las estrategias arriba, el carrusel con la vista previa al
- * centro y el editor de portada a 320px a la derecha.
+ * WordAPA7 — T18 (revisado): la portada se ELIGE en el carrusel y se EDITA a la
+ * derecha, en 320px.
  *
- * Lo que este archivo protege, en orden de importancia:
+ * LA TIRA DE ESTRATEGIAS YA NO EXISTE. Era una barra de 44px con un chip de texto
+ * por estrategia y el botón "Usar este diseño y Continuar", y encima se montaba
+ * SIEMPRE (recibía `visible` y lo ignoraba). Repetía las cinco opciones que cada
+ * tarjeta ya dibuja con su miniatura REAL, y su único aporte propio —el nombre de
+ * la plantilla cargada y el aviso de un `cover_mode` que la app no reconoce— es
+ * honestidad, no decoración: sobrevive, reubicado donde el usuario lo necesita.
  *
- *  1. La tira lista las CINCO estrategias REALES del componente —las de `cards`:
- *     original, APA 7, UNI, Pro y la de subir plantilla—, no una lista
- *     inventada. Un chip de más es un modo que no se puede elegir; uno de menos
- *     es un modo inalcanzable, que es el mismo defecto que un filtro que se
- *     reduce a un solo chip.
- *  2. Tira y carrusel eligen LO MISMO: son dos controles del mismo estado
- *     derivado de `portada`, y el chip tiene que seguir a la tarjeta.
- *  3. El editor de 320px es `CoverEditorPanel` de verdad, no una caja vacía con
- *     el ancho correcto, y la cadena de alto llega hasta él: sin alto definido
- *     en la raíz, el panel crece, su cuerpo nunca se desplaza y
- *     `Step1PortadaWizard` recorta el botón "Continuar a Estructura" fuera de
- *     pantalla. OJO: eso lo que se comprueba aquí son DECLARACIONES. jsdom no
- *     calcula layout; el tamaño real se verificó en un navegador (ver el
- *     reporte de T18), no aquí.
- *  4. La portada sigue siendo INDIVISIBLE porque este componente NO pagina ni
- *     vuelve a medir el documento: la paginación es de `PaperCanvas`
- *     (`computeRenderedPages`, geometría del documento), y un `overflow` de un
- *     ancestro no la cambia —`offsetHeight` es alto de contenido y
- *     `PaperCanvas` no lee `clientHeight` en ningún lado. Lo que sí rompería la
- *     invariante es un SEGUNDO paginador o una re-medición, y por eso el test
- *     buscaImports y llamadas de medición en este archivo, no estilos.
- *  5. La tira no enciende un chip para un modo que no reconoce, y lo dice.
+ * Lo que este archivo protege, en orden:
  *
- * `PaperCanvas` va simulado (como en T16) porque no hace falta la hoja real para
- * probar el chrome, y porque medirse a sí mismo en jsdom no significa nada.
+ *  1. Hay UNA sola superficie de elección: el carrusel. No queda ningún grupo de
+ *     chips de estrategia, ni el botón de salida duplicado de la tira.
+ *  2. Honestidad: un `cover_mode` que la app no reconoce se DICE (y no se
+ *     disfraza de APA 7), y la plantilla cargada se nombra.
+ *  3. El editor de 320px es `CoverEditorPanel` de verdad, es la última zona, y la
+ *     salida del paso vive ahí ("Continuar a Estructura").
+ *  4. La cadena de alto sigue declarada (raíz y fila con `height: 100%` y
+ *     `minHeight: 0`): sin ella el editor crece, su cuerpo nunca se desplaza y
+ *     `Step1PortadaWizard` recorta la salida del paso. OJO: son DECLARACIONES;
+ *     jsdom no calcula layout.
+ *  5. La portada sigue siendo INDIVISIBLE: este componente no pagina ni vuelve a
+ *     medir la hoja (`PaperCanvas` es el único paginador).
+ *  6. El chrome usa tokens declarados y no lleva emojis.
+ *
+ * `PaperCanvas` va simulado: no hace falta la hoja real para probar el chrome, y
+ * medirse a sí mismo en jsdom no significa nada.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeAll } from 'vitest';
@@ -62,14 +59,10 @@ const portada = (over: Record<string, unknown> = {}) => {
 
 const estado = () => useDocStore.getState().portada as unknown as Record<string, unknown>;
 
-/** La tira: la barra de 44px. El grupo de estrategias es lo único de arriba
- *  que son chips: la barra lleva además la salida del paso. */
-const grupo = (): HTMLElement => screen.getByRole('group', { name: 'Estrategias de portada' });
-const tira = (): HTMLElement => grupo().closest('div[style*="height: 44px"]') as HTMLElement;
-const chips = (): HTMLElement[] => within(grupo()).getAllByRole('button');
-const chip = (nombre: string | RegExp): HTMLElement => within(grupo()).getByRole('button', { name: nombre });
+/** La única superficie de elección. */
+const pista = (): HTMLElement => screen.getByTestId('cover-model-track');
 
-/* Las CINCO estrategias del componente, con el rótulo que las nombra. */
+/** Las CINCO estrategias reales, con el rótulo que las nombra. */
 const ESTRATEGIAS = [
   'Conservar original',
   'APA 7 Estándar',
@@ -81,22 +74,7 @@ const ESTRATEGIAS = [
 /* ── Lectura del archivo ──────────────────────────────────────────────────── */
 
 let SRC = '';
-let TIRA = '';
-let TARJETAS = '';
 let CHROME = '';
-/* Los dos bloques de antes de este commit que la guarda estricta no mira, por
-   pares [inicio, fin]. Ver el comentario del `beforeAll`. */
-const CONGELADOS: [string, string][] = [
-  /* El primer bloque congelado era el `{COVER_CARDS.map((c) => {` ... del
-     carrusel. YA NO EXISTE: la Task 5 de la fase de portada movio las tarjetas a
-     `wizard/portada/CarruselPortada.tsx`, y ese archivo nuevo no tiene ni un
-     literal de color. Un bloque congelado que desaparece no se relaja: se
-     actualiza la lista, y el resto de la guarda sigue mirando el archivo
-     entero. Si alguien vuelve a escribir un `COVER_CARDS.map` con un color
-     suelto, el lint lo agarra igual. */
-  ['{/* Previsualizador', '{/* COLUMNA DERECHA'],
-];
-const CONGELADO: string[] = [];
 let declarados = new Set<string>();
 /** Lo que se busca es un color en un ESTILO, no en un comentario. */
 const codigo = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -119,233 +97,131 @@ beforeAll(async () => {
   const css = readFileSync(resolve(testDir, '../styles/design-system.css'), 'utf8');
   declarados = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
 
-  /* El chrome nuevo va de `COVER_CARDS` al FINAL del archivo: la raíz, la fila
-     del cuerpo, las flechas y el `aside` están en el cuerpo del componente, y
-     una guarda que termina en `export const` no los mira. */
-  const desde = SRC.indexOf('const COVER_CARDS');
-  expect(desde).toBeGreaterThan(-1);
-  TIRA = desde > -1 ? SRC.slice(desde) : '';
-
-  /* Se CONGELA un bloque: el de los envoltorios de la vista previa. Es de antes
-     del rediseño, y sus literales (`rgba` de sombras y de la hoja, el fallback
-     de `--paper-white`, el `borderRadius: '4px'`) estaban en el reporte de T18
-     para triaje. T20 los saldó, y la cuenta quedó en cero; los marcadores del
-     bloque se comprueban igual: sin eso, un archivo reordenado dejaria la guarda
-     sin region congelada y "pasaria" sin mirar nada.
-
-     El segundo bloque congelado (las tarjetas del carrusel) ya no esta: la fase
-     de portada movio las miniaturas a `wizard/portada/CarruselPortada.tsx`, que
-     no tiene literales. Ver la nota de `CONGELADOS`. */
-  let resto = TIRA;
-  for (const [ini, fin] of CONGELADOS) {
-    const a = resto.indexOf(ini);
-    const b = resto.indexOf(fin);
-    expect(a, `no se encuentra el inicio del bloque congelado ${ini}`).toBeGreaterThan(-1);
-    expect(b, `no se encuentra el fin del bloque congelado ${fin}`).toBeGreaterThan(a);
-    CONGELADO.push(resto.slice(a, b));
-    resto = resto.slice(0, a) + resto.slice(b);
-  }
-  TARJETAS = CONGELADO.join('\n');
-  CHROME = resto;
+  /* El chrome es el archivo ENTERO. Antes había que recortarlo hasta `COVER_CARDS`
+     porque la tira era la única zona nueva; con la tira fuera, cada declaración
+     del archivo es "chrome nuevo" y la guarda mira todo (los comentarios los
+     quita `codigo`). */
+  CHROME = SRC;
 });
 
-/* ── La tira de estrategias ───────────────────────────────────────────────── */
+/* ── Una sola superficie de elección ──────────────────────────────────────── */
 
-describe('T18 — la tira lista las estrategias que la app tiene', () => {
-  it('la tira es la primera zona y mide 44px', () => {
-    portada();
-    const { container } = render(<CoverCarouselStudio />);
-    const raiz = container.firstElementChild as HTMLElement;
-    expect(raiz.children[0]).toBe(tira());
-    expect(tira().style.height).toBe('44px');
-    // `flexShrink` es un número sin unidad: jsdom lo serializa '0'.
-    expect(tira().style.flexShrink).toBe('0');
-  });
-
-  it('un chip por estrategia real, y ninguno de más', () => {
+describe('T18 — una sola superficie de elección: el carrusel', () => {
+  it('no queda ninguna tira de estrategias', () => {
+    /* El defecto reportado: la tira de chips arriba repetía en texto lo que el
+       carrusel ya dibuja con su miniatura. Ni el grupo de chips ni el botón
+       "Usar este diseño y Continuar" vuelven. */
     portada();
     render(<CoverCarouselStudio />);
-    // La cuenta sale de los chips: si `COVER_CARDS` crece y la tira no, el modo
-    // nuevo queda solo en el carrusel, y si la tira inventa uno, el chip no hace
-    // nada.
-    expect(chips().map((c) => (c.textContent || '').trim())).toEqual(ESTRATEGIAS);
+    expect(screen.queryByRole('group', { name: 'Estrategias de portada' })).toBeNull();
+    expect(screen.queryByText(/Usar este diseño/i)).toBeNull();
   });
 
-  it('el chip encendido es el modo derivado del documento, no un estado propio', () => {
-    portada({ use_original_cover: false, cover_mode: 'generate_uni_cover' });
-    render(<CoverCarouselStudio />);
-    expect(chip('Institucional UNI').getAttribute('aria-pressed')).toBe('true');
-    expect(chip('Conservar original').getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('una plantilla ya cargada no enciende el chip de acción, y la nombra', () => {
-    /* Un documento con `cover_template_id` SÍ tiene un modo —el 'custom'—, pero
-       su chip es una acción, así que no puede quedar "presionado". Lo que dice
-       qué plantilla está puesta es el rótulo de al lado. */
-    portada({ use_original_cover: false, cover_mode: '', cover_template_id: 'custom-7' });
-    render(<CoverCarouselStudio />);
-    expect(chip('+ Subir plantilla').hasAttribute('aria-pressed')).toBe(false);
-    expect(chips().map((c) => (c.textContent || '').trim())).toEqual(ESTRATEGIAS);
-  });
-
-  it('elegir un chip cambia la portada del documento', () => {
+  it('las cinco estrategias se ofrecen una vez, como tarjetas del carrusel', () => {
     portada();
     render(<CoverCarouselStudio />);
-    fireEvent.click(chip('Institucional UNI'));
-    expect(estado().cover_mode).toBe('generate_uni_cover');
+    // Una tarjeta por estrategia, con el rótulo que la nombra. Si el carrusel
+    // creciera a una estrategia sin tarjeta, ese modo no se podría elegir.
+    expect(within(pista()).getAllByRole('button')).toHaveLength(ESTRATEGIAS.length);
+    for (const titulo of ESTRATEGIAS) {
+      expect(within(pista()).getByText(titulo, { selector: 'span' })).toBeTruthy();
+    }
+  });
+
+  it('elegir una tarjeta escribe el modo en el documento', () => {
+    portada();
+    render(<CoverCarouselStudio />);
+    fireEvent.click(within(pista()).getByRole('button', { name: /Profesional APA/ }));
+    expect(estado().cover_mode).toBe('apa_pro');
     expect(estado().use_original_cover).toBe(false);
-    // Y el chip se enciende solo: la tira no guarda el modo, lo deriva.
-    expect(chip('Institucional UNI').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('el chip de plantilla abre el selector de archivos en vez de elegir un modo', () => {
-    // "Subir plantilla" no es un modo más: es una acción. Si el chip lo
+  it('la tarjeta de plantilla es una acción y no elige un modo', () => {
+    // "+ Subir plantilla" no es un modo más: abre el selector de archivos. Si se
     // tratara como los demás pondría `cover_template_id` sin que haya una
     // plantilla detrás, y el documento declararía una portada que no existe.
     portada();
     const abierto = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
     render(<CoverCarouselStudio />);
-    fireEvent.click(chip('+ Subir plantilla'));
+    fireEvent.click(within(pista()).getByRole('button', { name: /Subir plantilla/ }));
     expect(abierto).toHaveBeenCalled();
     expect(estado().cover_template_id).toBeUndefined();
     abierto.mockRestore();
   });
 
-  it('el chip de plantilla NO se anuncia como un interruptor', () => {
-    /* Un `aria-pressed` sobre una acción: el lector de pantalla anuncia
-       "botón, no presionado" y lo que hace es abrir un diálogo de archivos. Y
-       con una plantilla ya cargada el chip queda "presionado" sin decir cuál. */
+  it('la tarjeta de plantilla no se anuncia como interruptor, y las otras cuatro sí', () => {
+    /* Un `aria-pressed` sobre una acción: el lector de pantalla anuncia "botón,
+       no presionado" y lo que hace es abrir un diálogo de archivos. */
     portada();
     render(<CoverCarouselStudio />);
-    const subir = chip('+ Subir plantilla');
+    const subir = within(pista()).getByRole('button', { name: /Subir plantilla/ });
     expect(subir.hasAttribute('aria-pressed')).toBe(false);
-    // Los otros cuatro sí son interruptores: eligen un modo.
     for (const modo of ['Conservar original', 'APA 7 Estándar', 'Institucional UNI', 'Profesional APA']) {
-      expect(chip(modo).hasAttribute('aria-pressed')).toBe(true);
+      expect(within(pista()).getByRole('button', { name: new RegExp(modo) }).hasAttribute('aria-pressed')).toBe(true);
     }
   });
 
-  it('la plantilla cargada se nombra en la tira', () => {
-    /* Sin esto, la persona ve la misma barra que antes de subir nada y no
-       tiene cómo saber que su .docx está puesto. */
-    portada({ use_original_cover: false, cover_mode: '', cover_template_id: 'custom-7' });
-    render(<CoverCarouselStudio />);
-    expect(within(tira()).getByText(/custom-7/)).toBeTruthy();
-  });
-
-  it('un modo que la app no reconoce no enciende ningún chip, y lo dice', () => {
-    /* El backend tiene su propio vocabulario de `cover_mode`
-       (`keep_original`, `keep_design_update_data`, `generate_apa7_template`), así
-       que un valor desconocido es real, no hipotético. Encender "APA 7" para un
-       documento que no es APA 7 es una afirmación falsa en la barra; lo honesto
-       es no encender nada y decirlo. */
-    portada({ use_original_cover: false, cover_mode: 'cover_del_año_que_viene' });
-    render(<CoverCarouselStudio />);
-    for (const modo of ['Conservar original', 'APA 7 Estándar', 'Institucional UNI', 'Profesional APA']) {
-      expect(chip(modo).getAttribute('aria-pressed')).toBe('false');
-    }
-    expect(within(tira()).getByText(/no reconoce/i)).toBeTruthy();
-    expect(within(tira()).getByText(/cover_del_año_que_viene/)).toBeTruthy();
-  });
-
-  it('un cover_mode del backend que SÍ es APA 7 enciende el chip de APA 7', () => {
-    // `generate_apa7_template` es la palabra del backend por el mismo estado que
-    // la app escribe como `cover_mode: ''`. Tratarlo como desconocido haría que
-    // un documento APA 7 real no encendiera nada.
-    portada({ use_original_cover: false, cover_mode: 'generate_apa7_template' });
-    render(<CoverCarouselStudio />);
-    expect(chip('APA 7 Estándar').getAttribute('aria-pressed')).toBe('true');
-  });
-});
-
-/* ── La tira y el carrusel son el mismo control ───────────────────────────── */
-
-describe('T18 — tira y carrusel no cuentan historias distintas', () => {
-  it('elegir en la tarjeta enciende el chip de la tira', () => {
+  it('el carrusel se alcanza y se elige con el teclado', () => {
+    // Una tarjeta que solo responde al clic es un modo que no se puede elegir sin
+    // ratón. Las tarjetas son `<button>` de verdad: enfocables, con Enter y
+    // Espacio del navegador y sin `tabindex` manual.
     portada();
     render(<CoverCarouselStudio />);
-    const pista = screen.getByTestId('cover-model-track');
-    fireEvent.click(within(pista).getByText('Profesional APA'));
-    expect(chip('Profesional APA').getAttribute('aria-pressed')).toBe('true');
-    expect(estado().cover_mode).toBe('apa_pro');
-  });
-
-  it('la pista y la tira ofrecen las mismas cinco estrategias', () => {
-    portada();
-    render(<CoverCarouselStudio />);
-    const pista = screen.getByTestId('cover-model-track');
-    /* Una tarjeta por estrategia, con el rótulo que la nombra. Si la pista
-       tuviera una tarjeta que la tira no lista, ese modo no se podría elegir
-       desde la barra; y al revés, un chip sin tarjeta no tendría miniatura. */
-    /* `:scope > button` y no `> div`: la Task 5 de la fase de portada cambio las
-       tarjetas de `div role="button"` a `<button>` de verdad. El invariante que
-       este test protege —una tarjeta por estrategia, y las mismas cinco que la
-       tira— no cambia; lo que cambia es que ahora el control es nativo, con su
-       tabulacion y su Enter y Espacio del navegador. */
-    expect(pista.querySelectorAll(':scope > button')).toHaveLength(ESTRATEGIAS.length);
-    for (const titulo of ESTRATEGIAS) {
-      expect(within(pista).getByText(titulo, { selector: 'span' })).toBeTruthy();
-    }
-  });
-
-  it('la tarjeta del carrusel se alcanza y se elige con el teclado', () => {
-    /* Una tarjeta que solo responde al clic es un modo que no se puede elegir
-       sin ratón.
-
-       La fase de portada cambió las tarjetas de `div role="button"` con
-       `tabIndex={0}` y un manejador manual de Enter y Espacio, a `<button>` de
-       verdad. Eso NO es una relajación: un `<button>` es enfocable y responde a
-       Enter y Espacio por el navegador, en los cinco casos, y con la semántica
-       correcta para un lector de pantalla. Lo que este test sigue exigiendo es
-       lo mismo de antes: que las cinco se alcancen y que elegir una encienda su
-       chip. */
-    portada();
-    render(<CoverCarouselStudio />);
-    const pista = screen.getByTestId('cover-model-track');
-    const tarjetas = within(pista).getAllByRole('button');
-    expect(tarjetas).toHaveLength(ESTRATEGIAS.length);
+    const tarjetas = within(pista()).getAllByRole('button');
     for (const t of tarjetas) {
       expect(t.tagName).toBe('BUTTON');
-      // Un `<button>` no lleva `tabindex`: ya está en el orden de tabulación.
       expect(t.getAttribute('tabindex')).toBeNull();
     }
-
-    const uni = within(pista).getByRole('button', { name: /Institucional UNI/ });
+    const uni = within(pista()).getByRole('button', { name: /Institucional UNI/ });
     uni.focus();
     expect(document.activeElement).toBe(uni);
     fireEvent.click(uni);
-    expect(chip('Institucional UNI').getAttribute('aria-pressed')).toBe('true');
     expect(estado().cover_mode).toBe('generate_uni_cover');
-
-    const pro = within(pista).getByRole('button', { name: /Profesional APA/ });
-    fireEvent.click(pro);
-    expect(chip('Profesional APA').getAttribute('aria-pressed')).toBe('true');
-    expect(estado().cover_mode).toBe('apa_pro');
-  });
-
-  it('la tarjeta de plantilla es una acción y no se anuncia como interruptor', () => {
-    /* Igual que su chip: abrir un selector de archivos no es un estado, y con
-       `aria-pressed` el lector de pantalla dice "no presionado". Con teclado,
-       además, tiene que abrir el selector. */
-    portada();
-    const abierto = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
-    render(<CoverCarouselStudio />);
-    const tarjeta = within(screen.getByTestId('cover-model-track')).getByRole('button', {
-      name: /Subir plantilla/,
-    });
-    expect(tarjeta.hasAttribute('aria-pressed')).toBe(false);
-    /* `fireEvent.click` y no `keyDown`: la tarjeta paso a ser un `<button>` de
-       verdad, y en un boton nativo la activacion por teclado la resuelve el
-       navegador, no un manejador `onKeyDown` que `fireEvent.keyDown` no
-       dispara. El invariante que este test protege —abrir el selector y no
-       anunciarse como interruptor— es el mismo. */
-    fireEvent.click(tarjeta);
-    expect(abierto).toHaveBeenCalled();
-    abierto.mockRestore();
   });
 });
 
-/* ── Las tres zonas ───────────────────────────────────────────────────────── */
+/* ── Honestidad del modo de portada ───────────────────────────────────────── */
+
+describe('T18 — honestidad del modo de portada', () => {
+  it('la plantilla cargada se nombra en la vista previa del editor', () => {
+    /* Sin esto, quien sube un .docx ve la misma vista de siempre y no tiene cómo
+       saber que su archivo ya está en uso.
+
+       El rótulo vive en el encabezado de la vista previa (la columna del
+       carrusel), así que hay que entrar al editor —el CTA del carrusel— para
+       verlo. Se elige 'pro' a propósito: `selectMode('pro')` NO reescribe
+       `cover_template_id` (solo 'custom' lo hace), así que el rótulo conserva el
+       nombre que la plantilla ya tenía. */
+    portada({ use_original_cover: false, cover_mode: 'apa_pro', cover_template_id: 'custom-7' });
+    render(<CoverCarouselStudio />);
+    fireEvent.click(screen.getByTestId('btn-seleccionar-portada-cta'));
+    expect(within(screen.getByTestId('cover-carousel')).getByText(/custom-7/)).toBeTruthy();
+  });
+
+  it('un modo que la app no reconoce se dice, y no se disfraza de APA 7', () => {
+    /* El backend tiene su propio vocabulario (`keep_original`,
+       `keep_design_update_data`, `generate_apa7_template`), así que un valor
+       desconocido es real. Encender "APA 7" para ese documento sería una
+       afirmación falsa; lo honesto es decirlo. */
+    portada({ use_original_cover: false, cover_mode: 'cover_del_año_que_viene' });
+    render(<CoverCarouselStudio />);
+    const carrusel = within(screen.getByTestId('cover-carousel'));
+    const aviso = carrusel.getByRole('status');
+    expect(aviso.textContent).toMatch(/no reconoce/i);
+    expect(aviso.textContent).toMatch(/cover_del_año_que_viene/);
+  });
+
+  it('un cover_mode del backend que SÍ es APA 7 no se reporta como desconocido', () => {
+    // `generate_apa7_template` es la palabra del backend por el mismo estado que
+    // la app escribe como `cover_mode: ''`. Tratarlo como desconocido haría que un
+    // documento APA 7 real mostrara un aviso que no corresponde.
+    portada({ use_original_cover: false, cover_mode: 'generate_apa7_template' });
+    render(<CoverCarouselStudio />);
+    expect(within(screen.getByTestId('cover-carousel')).queryByRole('status')).toBeNull();
+  });
+});
+
+/* ── Las dos zonas ────────────────────────────────────────────────────────── */
 
 describe('T18 — el editor vive a la derecha, en 320px', () => {
   it('el panel de 320px es el editor de verdad y no una caja con el ancho bien', () => {
@@ -359,11 +235,12 @@ describe('T18 — el editor vive a la derecha, en 320px', () => {
     expect(within(panel).getByText('Editor de portada')).toBeTruthy();
   });
 
-  it('el editor es la última zona y el carrusel la primera de la fila', () => {
+  it('el carrusel es la primera zona de la fila y el editor la última', () => {
     portada();
     const { container } = render(<CoverCarouselStudio />);
     const raiz = container.firstElementChild as HTMLElement;
-    const fila = raiz.children[1] as HTMLElement;
+    // Sin la tira, la fila del cuerpo es la PRIMERA hija de la raíz.
+    const fila = raiz.children[0] as HTMLElement;
     expect(fila.children[0]).toBe(screen.getByTestId('cover-carousel'));
     expect(fila.children[fila.children.length - 1]).toBe(
       container.querySelector('[data-testid="cover-editor"]')
@@ -383,19 +260,19 @@ describe('T18 — el editor vive a la derecha, en 320px', () => {
 
 describe('T18 — la cadena de alto llega hasta el panel de 320px', () => {
   it('la raíz y la fila del cuerpo tienen alto DEFINIDO', () => {
-    /* Esto son DECLARACIONES, no layout: jsdom no calcula cajas. Pero el
-       defecto que cubren es literal —una declaración que faltaba—, y sin ella
-       el `flex: 1` de la raíz no hace nada, porque `Step1PortadaWizard` es una
-       caja de BLOQUE (`position: relative; height: 100%`) y un hijo de bloque no
-       es ítem flexible. El tamaño real se verificó en un navegador. */
+    /* Esto son DECLARACIONES, no layout: jsdom no calcula cajas. Pero el defecto
+       que cubren es literal —una declaración que faltaba—, y sin ella el `flex: 1`
+       de la raíz no hace nada, porque `Step1PortadaWizard` es una caja de BLOQUE
+       (`position: relative; height: 100%`) y un hijo de bloque no es ítem
+       flexible. El tamaño real se verificó en un navegador. */
     portada();
     const { container } = render(<CoverCarouselStudio />);
     const raiz = container.firstElementChild as HTMLElement;
-    const fila = raiz.children[1] as HTMLElement;
+    const fila = raiz.children[0] as HTMLElement;
     expect(raiz.style.height).toBe('100%');
     expect(fila.style.height).toBe('100%');
-    // Y las dos cajas se pueden encoger: sin `minHeight: 0` el `flex: 1` de
-    // abajo no llega a mandar y el contenido manda en el alto.
+    // Y las dos cajas se pueden encoger: sin `minHeight: 0` el `flex: 1` de abajo
+    // no llega a mandar y el contenido manda en el alto.
     expect(raiz.style.minHeight).toBe('0px');
     expect(fila.style.minHeight).toBe('0px');
   });
@@ -421,13 +298,11 @@ describe('T18 — la portada sigue siendo un bloque que no se parte', () => {
   it('este componente no pagina el documento: eso es de `PaperCanvas`', () => {
     /* La invariante real. La paginación sale de `computeRenderedPages`, de la
        geometría del documento (`geom.pageH`) y del alto de cada elemento
-       (`offsetHeight`), y un `overflow` de un ancestro no entra en esa cuenta:
-       `offsetHeight` es alto de contenido y `PaperCanvas` no lee `clientHeight`
-       en ningún lado. Lo que sí partiría la portada en dos es un SEGUNDO
-       paginador aquí, o algo que vuelva a medir la hoja. Se comprueba sobre el
-       archivo, que es donde podría aparecer. */
+       (`offsetHeight`), y un `overflow` de un ancestro no entra en esa cuenta.
+       Lo que sí partiría la portada en dos es un SEGUNDO paginador aquí, o algo
+       que vuelva a medir la hoja. Se comprueba sobre el archivo. */
     expect(SRC).toMatch(/import \{ PaperCanvas \}/);
-    for (const modulo of ['computePages', 'computeRenderedPages', 'applyPageFlow', 'applyLayout', 'usePageIndex', 'computeRenderedPages']) {
+    for (const modulo of ['computePages', 'computeRenderedPages', 'applyPageFlow', 'applyLayout', 'usePageIndex']) {
       expect(SRC, `este archivo importa ${modulo}`).not.toMatch(new RegExp(`import[^;]*\\b${modulo}\\b`));
     }
   });
@@ -436,22 +311,18 @@ describe('T18 — la portada sigue siendo un bloque que no se parte', () => {
     // Una re-medición es la otra forma de partir la portada: si este archivo
     // buscara los nodos de la hoja para medirlos, tendría su propia cuenta de
     // páginas, y dos cuentas no pueden coincidir. Se mira el CÓDIGO, no los
-    // comentarios: este archivo explica la regla y nombra `offsetHeight` al
-    // hablar de ella.
+    // comentarios: este archivo explica la regla y nombra `offsetHeight` al hablar
+    // de ella.
     for (const llamada of ['querySelectorAll', 'getBoundingClientRect', 'offsetHeight', 'clientHeight', 'scrollHeight', 'paper-elem']) {
       expect(codigo(SRC), `este archivo usa ${llamada}`).not.toMatch(new RegExp(`[^\\w.]${llamada}\\b`));
     }
   });
 });
 
-/* ── Tokens y copy del chrome que escribió esta task ──────────────────────── */
+/* ── Tokens y copy ────────────────────────────────────────────────────────── */
 
-describe('T18 — el chrome nuevo usa tokens declarados', () => {
-  it('el chrome nuevo no lleva colores literales ni radios fuera de token', () => {
-    /* Cubre `COVER_CARDS`..fin de archivo: la lista, el chip, la tira Y el
-       cuerpo del componente (raíz, flechas, `aside`), que es donde están la
-       mayoría de las declaraciones nuevas. */
-    expect(CHROME).toContain('Estrategias de portada');
+describe('T18 — el chrome usa tokens declarados', () => {
+  it('no lleva colores literales ni radios fuera de token', () => {
     expect(codigo(CHROME)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(codigo(CHROME)).not.toMatch(/rgba?\(/);
     const radios = [...codigo(CHROME).matchAll(/borderRadius:\s*'([^']+)'/g)].map((m) => m[1]);
@@ -460,27 +331,9 @@ describe('T18 — el chrome nuevo usa tokens declarados', () => {
     for (const radio of radios) expect(radio).toMatch(/^var\(--radius-/);
   });
 
-  it('la deuda literal de los bloques re-indentados está saldada', () => {
-    /* Los dos bloques que T18 congeló —las tarjetas del carrusel y los
-       envoltorios de la vista previa— eran de antes de ese commit, que solo los
-       reindentó, y su cuenta exacta quedó FIJADA para que la deuda no creciera
-       en silencio. T20 la saldó: los `rgba` de las sombras son tokens
-       (`--shadow-sm`, `--shadow-accent`, `--shadow-card`, `--shadow-inset`), el
-       fallback de `--paper-white` desapareció, el `borderRadius: '4px'` es
-       `--radius-sm` y los seis `<svg>` a mano son iconos de lucide-react.
-       Los cuatro contadores quedan en CERO, y `noHardcodedColors.test.ts` los
-       vigila sobre el archivo entero ahora, así que esta cuenta ya no es la
-       única red: si vuelve un literal, salta allá con el nombre de la línea. */
-    const cuenta = (re: RegExp) => (codigo(TARJETAS).match(re) || []).length;
-    expect(cuenta(/rgba?\(/g)).toBe(0);
-    expect(cuenta(/#[0-9a-fA-F]{3,8}\b/g)).toBe(0);
-    expect(cuenta(/var\(\s*--[a-z0-9-]+\s*,/gi)).toBe(0);
-    expect(cuenta(/borderRadius:\s*'(?!\s*var\()/g)).toBe(0);
-  });
-
-  it('cada token que usa el chrome nuevo está declarado en design-system.css', () => {
+  it('cada token que usa está declarado en design-system.css', () => {
     const usados = new Set<string>();
-    for (const m of codigo(TIRA).matchAll(/var\(\s*(--[a-z0-9-]+)/g)) usados.add(m[1]);
+    for (const m of codigo(CHROME).matchAll(/var\(\s*(--[a-z0-9-]+)/g)) usados.add(m[1]);
     expect(usados.size).toBeGreaterThan(0);
     for (const token of usados) {
       expect(declarados.has(token), `${token} no esta declarado`).toBe(true);
@@ -493,13 +346,16 @@ describe('T18 — el chrome nuevo usa tokens declarados', () => {
     expect(container.textContent || '').not.toMatch(/\p{Extended_Pictographic}/u);
   });
 
-  it('el texto de la pantalla sigue siendo el que el paso necesita', () => {
-    // La salida del paso no es chrome decorativo: si desaparece al rearmar la
-    // barra, el paso 1 deja de avanzar. Se busca DENTRO de la tira porque el
-    // editor de la derecha tiene su propio "Continuar a Estructura".
+  it('la salida del paso vive en el editor, que es donde se termina de editar', () => {
+    /* La tira tenía su propio "Usar este diseño y Continuar"; al quitarla, la
+       única salida es la del editor. Hay que ENTRAR al editor (el CTA del
+       carrusel) porque con el editor oculto (`display: none`) la consulta por
+       `role` lo excluye por accesibilidad, que es justamente lo que se quiere:
+       un botón que no se alcanza no es una salida. */
     portada();
     render(<CoverCarouselStudio />);
-    expect(within(tira()).getByRole('button', { name: /Continuar/ })).toBeTruthy();
+    fireEvent.click(screen.getByTestId('btn-seleccionar-portada-cta'));
+    const editor = screen.getByTestId('cover-editor');
+    expect(within(editor).getByRole('button', { name: /Continuar a Estructura/ })).toBeTruthy();
   });
 });
-
