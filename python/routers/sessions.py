@@ -152,6 +152,17 @@ class UpdateElementRequest(BaseModel):
     table_info: Optional[dict] = None
 
 
+class InsertElementRequest(BaseModel):
+    """FASE 3 — dividir un párrafo: inserta un párrafo físico en el docx
+    y un elemento en el modelo, tras `after_element_id`."""
+    session_id: str
+    after_element_id: str
+    new_element_id: str
+    text: str
+    type: str = "paragraph"
+    heading_level: int = 1
+
+
 class DetectSimilarRequest(BaseModel):
     session_id: str
     element_id: str
@@ -784,6 +795,88 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
             detail=f"Elemento con ID '{req.element_id}' no encontrado. IDs validos: {valid_ids[:20]}",
         )
 
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
+@router.post("/api/elements/insert")
+async def insert_element(req: InsertElementRequest) -> DocumentModel:
+    """FASE 3 — Inserta un párrafo físico en original.docx y un elemento en
+    el modelo. La inserción física es obligatoria: apply_inplace mapea
+    modelo↔docx por índice y un elemento nuevo sin párrafo desfasaría todos
+    los siguientes. Nunca inserta en la zona de portada (is_cover_section).
+    """
+    from persistence.session_manager import save_session_snapshot
+    from docx import Document
+    from docx.oxml import OxmlElement
+    from docx.text.paragraph import Paragraph
+
+    doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada.")
+
+    idx = next(
+        (i for i, e in enumerate(doc.elements)
+         if (e.id if hasattr(e, "id") else e.get("id", "")) == req.after_element_id),
+        None,
+    )
+    if idx is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Elemento con ID '{req.after_element_id}' no encontrado.",
+        )
+
+    target = doc.elements[idx]
+    if getattr(target, "is_cover_section", False):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede dividir un párrafo de portada.",
+        )
+
+    original = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
+    d = Document(str(original))
+    paragraphs = d.paragraphs
+
+    # Índice del párrafo físico: misma convención que apply_inplace
+    # (solo paragraph/heading/bullet/numbered_list/portada_block avanzan).
+    phys = 0
+    for i, elem in enumerate(doc.elements):
+        if i == idx:
+            break
+        et = getattr(elem, "type", None)
+        ets = et.value if hasattr(et, "value") else str(et)
+        if ets in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
+            phys += 1
+    if phys >= len(paragraphs):
+        raise HTTPException(status_code=500, detail="Posición de párrafo fuera de rango.")
+
+    src = paragraphs[phys]
+    new_p = OxmlElement("w:p")
+    src._p.addnext(new_p)
+    new_para = Paragraph(new_p, src._parent)
+    new_para.style = src.style
+    run = new_para.add_run(req.text)
+    # Heredar tipografía del párrafo fuente (bold/italic del primer run)
+    if src.runs:
+        s0 = src.runs[0]
+        run.bold = s0.bold
+        run.italic = s0.italic
+    d.save(str(original))
+
+    try:
+        etype = ElementType(req.type)
+    except ValueError:
+        etype = ElementType.PARAGRAPH
+    new_elem = ElementModel(
+        id=req.new_element_id,
+        type=etype,
+        heading_level=req.heading_level,
+        text=req.text,
+        is_user_modified=True,
+        confidence=1.0,
+    )
+    doc.elements.insert(idx + 1, new_elem)
+    save_session_snapshot(doc, STORAGE_DIR)
     save_session_state(doc, STORAGE_DIR)
     return doc
 
