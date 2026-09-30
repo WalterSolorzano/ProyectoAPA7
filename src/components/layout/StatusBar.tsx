@@ -42,7 +42,6 @@ export const StatusBar: React.FC = () => {
 
   if (!doc) return null;
 
-  const totalElements = elements.length;
   const totalWords = elements.reduce((acc, elem) => {
     if (elem.text) return acc + elem.text.trim().split(/\s+/).filter(Boolean).length;
     return acc;

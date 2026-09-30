@@ -15,7 +15,7 @@ import { paginateLayout } from '../api/layout';
 import { createLayoutCoalescer } from './layoutCoalescer';
 
 async function sendPaginate(): Promise<void> {
-  const { doc, applyLayoutPagination } = useDocStore.getState();
+  const { doc } = useDocStore.getState();
   if (!doc || !doc.session_id || doc.elements.length === 0) return;
   try {
     const resp = await paginateLayout(doc.session_id);
