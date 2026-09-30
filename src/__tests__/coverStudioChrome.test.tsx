@@ -252,7 +252,11 @@ describe('T18 — el editor vive a la derecha, en 320px', () => {
     render(<CoverCarouselStudio />);
     const centro = screen.getByTestId('cover-carousel');
     expect(centro.contains(screen.getByTestId('cover-model-track'))).toBe(true);
-    expect(centro.contains(screen.getByTestId('canvas'))).toBe(true);
+    // El paginador es el `PaperCanvas` oculto del carrusel. Se lo nombra por su
+    // caja y no por `canvas` porque el carrusel monta una miniatura real por
+    // tarjeta: hay más de un lienzo en el árbol, y el paginador es este.
+    expect(centro.contains(screen.getByTestId('paginador-de-portada'))).toBe(true);
+    expect(within(screen.getByTestId('paginador-de-portada')).getByTestId('canvas')).toBeTruthy();
   });
 });
 
@@ -281,7 +285,7 @@ describe('T18 — la cadena de alto llega hasta el panel de 320px', () => {
     portada();
     render(<CoverCarouselStudio />);
     const centro = screen.getByTestId('cover-carousel');
-    const vista = screen.getByTestId('canvas').parentElement as HTMLElement;
+    const vista = screen.getByTestId('paginador-de-portada');
     expect(centro.style.display).toBe('flex');
     expect(centro.style.flexDirection).toBe('column');
     expect(centro.style.minHeight).toBe('0px');

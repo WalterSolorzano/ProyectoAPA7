@@ -34,8 +34,9 @@ const sinComentarios = (src: string): string =>
 /** Los componentes de portada que esta fase toca. */
 const COMPONENTES_DE_PORTADA = [
   '../components/layout/UNICoverPreview.tsx?raw',
+  '../components/layout/APACoverEditor.tsx?raw',
   '../components/wizard/portada/CarruselPortada.tsx?raw',
-  '../components/wizard/portada/MiniaturasDeDiseno.tsx?raw',
+  '../components/wizard/portada/MiniaturaRealDePortada.tsx?raw',
   '../components/wizard/portada/HojaDatosPortada.tsx?raw',
   '../components/wizard/CoverEditorPanel.tsx?raw',
   '../lib/portada/geometria.ts?raw',

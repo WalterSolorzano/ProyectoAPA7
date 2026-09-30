@@ -1,20 +1,21 @@
 /**
- * El carrusel es el carrusel, y la hoja de datos entra al elegir.
+ * El carrusel: la activa SIEMPRE al centro, y la miniatura es el diseño REAL.
  *
- * Lo que hay hoy: las cinco `COVER_CARDS` son MINIATURAS DIBUJADAS CON `div` (líneas
- * grises que fingen ser un texto), y dos de ellas —`original` y `custom`— no tienen
- * ningún componente que las dibuje: caen a `PaperCanvas onlyCover`. O sea que
- * "Conservar original", que es la recomendada, no tenía miniatura propia. Ninguna
- * miniatura se parecía a lo que la app genera, y ninguna se actualizaba con los datos
- * que el usuario escribía.
+ * Lo que había y por qué estaba mal:
+ * - La tarjeta activa no estaba al centro: las cinco tarjetas se pintaban en una
+ *   fila con `justify-content: center`, así que el centro lo ocupaba la tercera,
+ *   no la elegida.
+ * - Y encima, una tarjeta a más de dos puestos de la activa recibía
+ *   `transform: undefined` (o sea, tamaño completo) junto con
+ *   `filter: brightness(0.48)`. El papel blanco se multiplica a un gris plano y
+ *   la tarjeta se lee como una losa vacía: ni diseño ni miniatura.
+ * - La miniatura era un dibujo paralelo (`MiniaturasDeDiseno`) con `Times New
+ *   Roman` y tamaños escritos a mano, así que no se parecía a lo que el `.docx`
+ *   escribe ni a lo que la propia app muestra en el editor.
  *
- * Y el carrusel no era un carrusel: dos botones que hacían `scrollBy`, sin estado, sin
- * teclado, sin `aria`, y sin `prefers-reduced-motion` (con `transform` y `scale` en cada
- * tarjeta, que es exactamente lo que la preferencia pide no hacer).
- *
- * Ahora cada miniatura renderiza el DISEÑO REAL a la escala de la Task 2, el carrusel
- * tiene índice y controles con teclado, y con movimiento reducido se convierte en un
- * strip con scroll.
+ * Ahora la miniatura ES el componente del editor a la escala de la hoja
+ * (`lib/portada/geometria`), y la fila se corre un paso por cada paso de índice
+ * para que la elegida quede en el centro.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -33,7 +34,7 @@ vi.mock('../components/layout/PaperCanvas', () => ({
 
 import { useDocStore } from '../store/useDocStore';
 import { defaultActa, defaultPortada } from '../store/slices/coverSlice';
-import { CarruselPortada, HOJA_DE_DATOS_TESTID } from '../components/wizard/portada/CarruselPortada';
+import { CarruselPortada, HOJA_DE_DATOS_TESTID, pasoDeArrastre, UMBRAL_DE_ARRASTRE_PX } from '../components/wizard/portada/CarruselPortada';
 import { HojaDatosPortada } from '../components/wizard/portada/HojaDatosPortada';
 import { CATALOGO_DE_UNIVERSIDADES } from '../lib/portada/catalogo';
 
@@ -52,8 +53,18 @@ const montarCarrusel = (portada = {}) => {
 };
 
 const miniatura = (id: string) => screen.getByTestId(`miniatura-${id}`);
+/** La tarjeta entera: la hoja real vive acá, hermana del botón que elige. */
+const tarjeta = (id: string) => screen.getByTestId(`tarjeta-${id}`);
 const todasLasMiniaturas = () =>
   Array.from(document.querySelectorAll('[data-testid^="miniatura-"]')) as HTMLElement[];
+const todasLasTarjetas = () =>
+  Array.from(document.querySelectorAll('[data-testid^="tarjeta-"]')) as HTMLElement[];
+/** La fila que se corre: la posición de cada tarjeta sale de acá. */
+const fila = () => screen.getByTestId('cover-carousel-row');
+const desplazamientoDeLaFila = (): number => {
+  const m = /translateX\((-?[\d.]+)px\)/.exec(fila().style.transform);
+  return m ? Number(m[1]) : NaN;
+};
 
 describe('carrusel de portada', () => {
   beforeEach(() => {
@@ -63,38 +74,130 @@ describe('carrusel de portada', () => {
     document.body.style.overflow = '';
   });
 
-  it('la miniatura es el diseno renderizado, no un esqueleto de divs', () => {
-    // El defecto: las cinco tarjetas eran lineas grises dibujadas con `div`, y dos
-    // no tenian componente que las dibujara. "Conservar original" no tenia
-    // miniatura.
-    montarCarrusel();
-    const uni = miniatura('uni');
-    // El diseño real trae el titulo y el area, con los datos de la portada.
-    expect(uni.textContent).toContain('UNAN-Managua');
-    expect(uni.querySelector('[data-campo="title"]')).toBeTruthy();
+  it('la miniatura del diseño UNI es el render real de la hoja, no un dibujo aparte', () => {
+    // El defecto: las cinco tarjetas eran líneas dibujadas con `div` y dos no
+    // tenían componente. Lo que decide el usuario es lo que va a salir.
+    montarCarrusel({ title: 'Titulo de la tesis' });
+    const uni = tarjeta('uni');
+    expect(within(uni).getByTestId('portada-uni-preview')).toBeTruthy();
+    expect(uni.textContent).toContain('Titulo de la tesis');
+    // El rótulo de autores es de la hoja real.
+    expect(uni.textContent).toContain('Elaborado por');
   });
 
-  it('la miniatura de "conservar original" tambien es un diseno, no un hueco', () => {
-    // `original` y `custom` caian a `PaperCanvas onlyCover`, o sea que no tenian
-    // miniatura propia. Y `original` es la recomendada.
+  it('la miniatura de APA 7 es el render real y no se puede editar desde el carrusel', () => {
+    /* El render de APA es el mismo componente del editor (`APACoverEditor`), en
+       modo lectura. Si trajera sus campos, la tarjeta tendría botones y campos
+       dentro de otro control: el carrusel se elige, no se edita. */
     montarCarrusel();
-    const original = miniatura('original');
-    expect(original.textContent).toContain('UNAN-Managua');
-    expect(original.querySelector('[data-campo="title"]')).toBeTruthy();
+    const apa7 = tarjeta('apa7');
+    const hoja = within(apa7).getByTestId('portada-apa-sheet');
+    /* La HOJA es la que no puede traer controles: el botón del rótulo es de la
+       tarjeta, no del diseño. */
+    expect(within(hoja).queryAllByRole('button')).toHaveLength(0);
+    expect(within(hoja).queryAllByRole('textbox')).toHaveLength(0);
+  });
+
+  it('la miniatura de "conservar original" es la hoja real del documento', () => {
+    // `original` es la recomendada y la única que no se puede generar: se
+    // conserva. Su miniatura tiene que ser esa hoja, no una reconstrucción.
+    montarCarrusel();
+    expect(within(tarjeta('original')).getByTestId('canvas')).toBeTruthy();
+  });
+
+  it('la última tarjeta es una acción, no una hoja de diseño', () => {
+    // Abrir el selector de archivos no es un diseño: no hay nada que dibujar.
+    montarCarrusel();
+    const custom = tarjeta('custom');
+    expect(within(custom).queryByTestId('portada-uni-preview')).toBeNull();
+    expect(within(custom).queryByTestId('canvas')).toBeNull();
+    expect(custom.textContent).toContain('.docx');
   });
 
   it('la miniatura se actualiza con los datos de la portada', () => {
     // Si la miniatura no se actualiza, no sirve para decidir nada: el usuario
     // elige un diseño sin ver lo que va a salir con lo que escribió.
     const { unmount } = montarCarrusel({ title: 'Titulo viejo' });
-    expect(miniatura('uni').textContent).toContain('Titulo viejo');
+    expect(tarjeta('uni').textContent).toContain('Titulo viejo');
     unmount();
 
     useDocStore.setState({
       portada: { ...useDocStore.getState().portada, title: 'Titulo nuevo' },
     } as never);
     render(<CarruselPortada />);
-    expect(miniatura('uni').textContent).toContain('Titulo nuevo');
+    expect(tarjeta('uni').textContent).toContain('Titulo nuevo');
+  });
+
+  it('la fila se corre un paso por cada paso de índice, y con el índice central el corrimiento es cero', () => {
+    /* La activa al centro: el corrimiento de la fila es la distancia al centro,
+       así que el centro lo ocupa siempre la elegida y las demás pasan por ahí al
+       navegar. Con cinco tarjetas el centro es la tercera. */
+    montarCarrusel();
+    const corrimientos = [desplazamientoDeLaFila()];
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(screen.getByLabelText(/siguiente diseño/i));
+      corrimientos.push(desplazamientoDeLaFila());
+    }
+
+    // Los cinco corrimientos tienen el mismo tamaño de paso...
+    const pasos = corrimientos.slice(1).map((v, i) => v - corrimientos[i]);
+    const paso = Math.abs(pasos[0]);
+    expect(paso).toBeGreaterThan(0);
+    for (const p of pasos) expect(Math.abs(p)).toBeCloseTo(paso, 5);
+    // ...y van hacia el mismo lado (el índice solo avanza).
+    for (const p of pasos) expect(p).toBeLessThan(0);
+
+    // Con el tercero activo (índice 2) el corrimiento es cero: está en el centro.
+    expect(corrimientos[2]).toBeCloseTo(0, 5);
+    // El índice volvió al final; se retrocede dos pasos para pararse en el 2.
+    fireEvent.click(screen.getByLabelText(/diseño anterior/i));
+    fireEvent.click(screen.getByLabelText(/diseño anterior/i));
+    expect(desplazamientoDeLaFila()).toBeCloseTo(0, 5);
+    expect(miniatura('uni').getAttribute('aria-current')).toBe('true');
+    expect(fila().style.justifyContent).toBe('center');
+  });
+
+  it('ninguna tarjeta apaga el papel: el receso no usa filtro de brillo', () => {
+    /* `filter: brightness(0.48)` sobre la hoja blanca la vuelve gris. La regla de
+       `AGENTS.md` §1 dice que el papel es blanco puro con tinta nítida, así que el
+       receso se hace con escala y opacidad, nunca apagando la hoja. */
+    montarCarrusel();
+    for (const t of todasLasTarjetas()) {
+      expect(t.style.filter).not.toContain('brightness');
+    }
+    // Y la hoja que se dibuja dentro es la del papel, no un gris de interfaz.
+    for (const id of ['original', 'apa7', 'uni', 'pro', 'custom']) {
+      const papel = tarjeta(id).querySelector('[data-papel]') as HTMLElement;
+      expect(papel).toBeTruthy();
+      expect(papel.style.backgroundColor).toBe('var(--paper-white)');
+    }
+  });
+
+  it('el arrastre mueve un paso, y por debajo del umbral no mueve', () => {
+    /* El carrusel no tiene que depender del ratón: en táctil el gesto es
+       arrastrar. Un temblor del pulgar no puede cambiar la portada elegida, así
+       que hay un umbral. */
+    expect(pasoDeArrastre(-120)).toBe(1); // dedo a la izquierda: avanza
+    expect(pasoDeArrastre(120)).toBe(-1); // dedo a la derecha: retrocede
+    expect(pasoDeArrastre(10)).toBe(0);
+    expect(pasoDeArrastre(-UMBRAL_DE_ARRASTRE_PX + 1)).toBe(0);
+    expect(pasoDeArrastre(-UMBRAL_DE_ARRASTRE_PX)).toBe(1);
+  });
+
+  it('arrastrar la pista cambia la tarjeta elegida', () => {
+    montarCarrusel();
+    const pista = screen.getByTestId('cover-model-track');
+    fireEvent.pointerDown(pista, { clientX: 300 });
+    fireEvent.pointerUp(pista, { clientX: 180 });
+    expect(miniatura('apa7').getAttribute('aria-current')).toBe('true');
+  });
+
+  it('el arrastre corto no cambia nada', () => {
+    montarCarrusel();
+    const pista = screen.getByTestId('cover-model-track');
+    fireEvent.pointerDown(pista, { clientX: 300 });
+    fireEvent.pointerUp(pista, { clientX: 290 });
+    expect(miniatura('original').getAttribute('aria-current')).toBe('true');
   });
 
   it('tiene controles para ir a izquierda y a derecha, con teclado', () => {
@@ -110,9 +213,9 @@ describe('carrusel de portada', () => {
   });
 
   it('la flecha izquierda en la primera no se sale del rango', () => {
-    // Un carrusel que al llegar al primero te tira al ultimo no es un carrusel,
-    // es un portal. Y uno que al llegar al ultimo no hace nada deja al usuario
-    // preguntandose si se rompió.
+    // Un carrusel que al llegar al primero te tira al último no es un carrusel,
+    // es un portal. Y uno que al llegar al último no hace nada deja al usuario
+    // preguntándose si se rompió.
     montarCarrusel();
     fireEvent.keyDown(screen.getByTestId('carrusel'), { key: 'ArrowLeft' });
     expect(miniatura('original').getAttribute('aria-current')).toBe('true');
@@ -146,10 +249,12 @@ describe('carrusel de portada', () => {
     })) as never;
     try {
       montarCarrusel();
-      for (const t of todasLasMiniaturas()) {
+      for (const t of todasLasTarjetas()) {
         expect(t.style.transform).toBe('');
         expect(t.style.transition).toBe('');
       }
+      // Sin transform tambien en la fila: no hay corrimiento animado.
+      expect(fila().style.transform).toBe('');
       // Sin transform no hay carrusel, asi que tiene que quedar navegable de
       // otra manera: el strip con scroll y los mismos controles.
       // La pista, no el grupo: el `overflow` que se abre es el del STRIP.
@@ -161,25 +266,10 @@ describe('carrusel de portada', () => {
     }
   });
 
-  it('el numero de vecinas visibles sale de una constante, no de un numero en el JSX', () => {
-    // "dos o tres por lado segun el ancho" es una DECISION, y una decision
-    // escrita en el JSX es una decision que no se puede cambiar sin leer el
-    // markup entero.
-    montarCarrusel();
-    // La rotacion se aplica a las vecinas, no a la activa.
-    const vecinas = todasLasMiniaturas().filter(
-      (t) => t.getAttribute('aria-current') !== 'true',
-    );
-    expect(vecinas.length).toBeGreaterThan(0);
-    const conTransform = vecinas.filter((t) => t.style.transform !== '');
-    // No todas las vecinas giran: las que estan lejos del centro, no.
-    expect(conTransform.length).toBeLessThan(vecinas.length);
-  });
-
   it('el logo que se pide es el de la institucion elegida, no el de UNI siempre', () => {
     montarCarrusel();
     const catalogo = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === 'UNAN')!;
-    const imagenes = within(miniatura('uni')).queryAllByRole('img');
+    const imagenes = within(tarjeta('uni')).queryAllByRole('img');
     expect(imagenes.some((i) => i.getAttribute('src')?.includes(catalogo.logoUrl!))).toBe(true);
   });
 });

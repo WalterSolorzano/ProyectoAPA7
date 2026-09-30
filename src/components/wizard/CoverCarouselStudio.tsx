@@ -254,7 +254,7 @@ export const CoverCarouselStudio: React.FC = () => {
 
               {/* El paginador de la portada vive en `PaperCanvas` y en ningún otro
                   lado: acá se monta oculto para que exista en el árbol. */}
-              <div style={{ flex: 1, minHeight: 0, display: 'none' }}>
+              <div data-testid="paginador-de-portada" style={{ flex: 1, minHeight: 0, display: 'none' }}>
                 <PaperCanvas onlyCover />
               </div>
             </div>

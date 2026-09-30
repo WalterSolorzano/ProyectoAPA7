@@ -1,31 +1,35 @@
 /**
- * WordAPA7 — el carrusel de portada.
+ * WordAPA7 — el carrusel de portada: la activa SIEMPRE al centro.
  *
- * Lo que hay en `CoverCarouselStudio.tsx` NO es un carrusel: son cinco tarjetas con
- * miniaturas dibujadas a mano con `div` (líneas grises que fingen ser un texto), dos
- * botones que hacen `scrollBy`, sin índice, sin teclado, sin `aria`, y con `transform`
- * y `scale` en cada tarjeta sin mirar `prefers-reduced-motion`.
+ * Cómo funciona: las cinco tarjetas se dibujan en una fila centrada y la fila
+ * se corre un paso por cada paso de índice (`paso * (centro - indice)`). Así la
+ * que está elegida ocupa el centro por construcción —no por casualidad de que
+ * sean cinco— y las demás pasan por ahí al navegar. El índice es una sola fuente
+ * de verdad: la tira no tiene su propio estado de "cuál está activa", y la
+ * tarjeta, la flecha, el teclado y el arrastre escriben el mismo índice.
  *
- * Y dos de las cinco no tenían ni componente que las dibujara: `original` y `custom`
- * caían a `PaperCanvas onlyCover`. O sea que "Conservar original", que es la
- * recomendada, no tenía miniatura propia.
+ * LO QUE ESTABA MAL Y NO VUELVE:
+ * - `transform: undefined` para una tarjeta a más de `VECINAS_POR_LADO` puestos
+ *   de la activa, junto con `filter: brightness(0.48)`. La hoja blanca
+ *   multiplicada por 0.48 es un gris plano: la tarjeta lejana se veía como una
+ *   losa vacía, sin diseño. Ahora el receso es SOLO escala: el papel se queda
+ *   blanco puro (`AGENTS.md` §1) y la miniatura se lee en las cinco.
+ * - El corrimiento no existía: el centro lo ocupaba la tercera tarjeta, no la
+ *   elegida.
  *
- * Acá:
- *   - Cada miniatura renderiza el DISEÑO REAL, a la escala de `lib/portada/geometria`,
- *     con los datos de la portada. Si una miniatura no se parece a lo que sale, es
- *     porque el diseño está mal, y ahora se ve antes de exportar.
- *   - El carrusel tiene ÍNDICE, así que hay una sola fuente de verdad de "cuál está
- *     activa" y la tira de estrategias puede leerla.
- *   - Controles con botón, con flechas y con `aria`. Sin los tres no es un carrusel.
- *   - `prefers-reduced-motion: reduce` → sin `transform`, sin `transition`, y el
- *     carrusel se vuelve un strip con scroll. Un carrusel que no se puede usar sin
- *     movimiento no es un carrusel.
+ * La elección de la miniatura NO vive acá: cada tarjeta monta
+ * `MiniaturaRealDePortada`, que es el mismo componente del editor a escala real.
+ *
+ * Accesibilidad: cada tarjeta es un `<button>` de verdad (foco, Enter y Espacio
+ * del navegador, sin `tabindex` manual), el grupo se maneja con el teclado
+ * (`←` `→` `Inicio` `Fin`) y con `prefers-reduced-motion` no hay `transform` ni
+ * `transition`: el carrusel se vuelve una tira con scroll y los mismos controles.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDocStore } from '../../../store/useDocStore';
-import { medidaDeLaHoja, type Hoja } from '../../../lib/portada/geometria';
-import { MiniaturasDeDiseno, type DisenoDePortada } from './MiniaturasDeDiseno';
+import type { Hoja } from '../../../lib/portada/geometria';
+import { MiniaturaRealDePortada } from './MiniaturaRealDePortada';
 import { HojaDatosPortada, HOJA_DE_DATOS_TESTID } from './HojaDatosPortada';
 import { EditorialMascot, type MascotKind, type MascotExpression } from '../../layout/EditorialMascot';
 
@@ -74,13 +78,18 @@ function obtenerMascotaDePortada(disenoId: string): {
   }
 }
 
-/** Los cinco modos, con el componente que los dibuja de verdad.
+export type DisenoDePortada = {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  /** La última tarjeta es una ACCIÓN (abrir el selector), no un estado. */
+  esAccion?: boolean;
+};
+
+/** Los cinco modos, con el diseño que los dibuja de verdad.
  *
- *  Antes la lista vivía en `CoverCarouselStudio.tsx` como un `icon` y un par de
- *  textos, sin ningún render. Ahora el `render` es parte del dato: si un modo no tiene
- *  componente, no puede entrar en la lista, y no puede pasar lo de `original`, que se
- *  caía a un placeholder.
- */
+ *  Si un modo no tiene componente, no puede entrar en la lista: no puede pasar
+ *  lo de `original`, que se caía a un placeholder sin miniatura propia. */
 export const DISENOS_DE_PORTADA: DisenoDePortada[] = [
   { id: 'original', titulo: 'Conservar original', subtitulo: 'Mantiene logos y diseño · recomendado' },
   { id: 'apa7', titulo: 'APA 7 Estándar', subtitulo: 'Formato oficial 7ª edición' },
@@ -91,21 +100,41 @@ export const DISENOS_DE_PORTADA: DisenoDePortada[] = [
 
 /** Cuántas tarjetas se ven a cada lado de la activa.
  *
- *  Sale de AQUÍ y no de un número escrito en el JSX. Con la tarjeta de 224px y un
- *  ancho de pantalla cualquiera, dos por lado es lo que entra sin que la activa
- *  quede pegada al borde. */
+ *  Sale de AQUÍ y no de un número escrito en el JSX: define la escala de las
+ *  vecinas y la de las que quedan lejos. Con la tarjeta de 224px, dos por lado
+ *  es lo que entra sin que la activa quede pegada al borde. */
 export const VECINAS_POR_LADO = 2;
 
 export { HOJA_DE_DATOS_TESTID };
 
-/** Ancho de la miniatura. Sale de la medida, no de un número: la miniatura es la
- *  hoja real a menos escala. */
+/** Ancho de la miniatura. La miniatura es la hoja real a menos escala. */
 const ANCHO_DE_MINIATURA_PX = 224;
+
+/** La separación entre tarjetas, en píxeles y no en un token de espacio.
+ *
+ *  Tiene que ser el MISMO número que el paso del corrimiento: el centro se
+ *  calcula con él. Si la separación saliera de un `var(--space-*)` y el paso de
+ *  un literal, las dos cuentas dirían cosas distintas en la primera pantalla
+ *  con otro ancho. */
+const SEPARACION_PX = 28;
+
+/** Cuánto hay que arrastrar para que el arrastre cuente como paso. */
+export const UMBRAL_DE_ARRASTRE_PX = 48;
+
+/** Qué paso pide un arrastre, dado su desplazamiento horizontal.
+ *
+ *  Arrastrar la fila hacia la izquierda (dedo hacia la izquierda, `deltaX`
+ *  negativo) avanza a la siguiente. Por debajo del umbral no mueve: un temblor
+ *  del pulgar no puede cambiar la portada elegida. */
+export function pasoDeArrastre(deltaX: number, umbral: number = UMBRAL_DE_ARRASTRE_PX): -1 | 0 | 1 {
+  if (Math.abs(deltaX) < umbral) return 0;
+  return deltaX < 0 ? 1 : -1;
+}
 
 /** Lee `prefers-reduced-motion` y se suscribe a sus cambios.
  *
- *  `matchMedia` no es una API con garantía: no existe en los WebViews viejos y el
- *  propio repo ya tiene un test de eso. Por eso la guarda de existencia. */
+ *  `matchMedia` no es una API con garantía: no existe en los WebViews viejos y
+ *  el propio repo ya tiene un test de eso. Por eso la guarda de existencia. */
 function useMovimientoReducido(): boolean {
   const [reducido, setReducido] = useState(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -124,8 +153,8 @@ function useMovimientoReducido(): boolean {
       return;
     }
     /* El listener no recibe el evento a propósito: se lee `mq.matches` en el
-       momento del cambio. Safari viejo llama al callback con CERO argumentos, así
-       que un `(e) => setReducido(e.matches)` revienta ahí con "cannot read
+       momento del cambio. Safari viejo llama al callback con CERO argumentos,
+       así que un `(e) => setReducido(e.matches)` revienta ahí con "cannot read
        property matches of undefined". */
     const alCambiar = () => setReducido(mq.matches);
     if (typeof mq.addEventListener === 'function') {
@@ -140,7 +169,11 @@ function useMovimientoReducido(): boolean {
   return reducido;
 }
 
-const ANGULOS_POR_DISTANCIA = [0, 34, 56];
+/** La escala de una tarjeta según su distancia a la activa. */
+function escalaDeLaTarjeta(distancia: number): number {
+  if (distancia === 0) return 1;
+  return distancia <= VECINAS_POR_LADO ? 0.86 : 0.72;
+}
 
 export interface CarruselPortadaProps {
   /** Qué hacer con el modo que se elige. La lista de estrategias lo provee. */
@@ -169,19 +202,20 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
 }) => {
   const portada = useDocStore((s) => s.portada);
   const acta = useDocStore((s) => s.acta);
-  const reglas = useDocStore((s) => s.rules);
   const reducido = useMovimientoReducido();
   const pistaRef = useRef<HTMLDivElement>(null);
-  /* La hoja de datos aparece AL ELEGIR un diseno, y se cierra sola al cambiar
-     de fase (esta en `HojaDatosPortada`). */
+  /* Dónde empezó el arrastre. `null` es "no hay arrastre en curso". */
+  const arrastreRef = useRef<number | null>(null);
+  /* La hoja de datos aparece AL ELEGIR un diseño, y se cierra sola al cambiar
+     de fase (está en `HojaDatosPortada`). */
   const [datosAbiertos, setDatosAbiertos] = useState(false);
 
   const modo: string = modoActivo ?? '';
   const [indice, setIndice] = useState(0);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // El índice sigue al modo activo: si la tira de estrategias cambia el modo, el
-  // carrusel tiene que estar en la misma tarjeta. Sin esto, dos controles
-  // distintos dicen dos cosas distintas de la misma elección.
+  // El índice sigue al modo activo: si el documento ya trae un modo, el carrusel
+  // tiene que estar en esa tarjeta. Sin esto, dos controles distintos dicen dos
+  // cosas distintas de la misma elección.
   useEffect(() => {
     const i = DISENOS_DE_PORTADA.findIndex((d) => d.id === modo);
     if (i >= 0) setIndice(i);
@@ -221,8 +255,21 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
     onElegirDiseno?.(id);
   };
 
+  /* ── Arrastre (dedo y ratón) ── */
+  const alSoltar = (clientX: number) => {
+    const x0 = arrastreRef.current;
+    arrastreRef.current = null;
+    if (x0 === null) return;
+    const paso = pasoDeArrastre(clientX - x0);
+    if (paso !== 0) irA(indice + paso);
+  };
+
   const anchoEfectivo = anchoMiniatura || ANCHO_DE_MINIATURA_PX;
-  const m = medidaDeLaHoja(hoja, anchoEfectivo);
+  const paso = anchoEfectivo + SEPARACION_PX;
+  /* El centro de la fila. Con cinco tarjetas es la tercera, y con cualquier otro
+     número sigue siendo el medio: la activa no depende de que sean cinco. */
+  const centro = (DISENOS_DE_PORTADA.length - 1) / 2;
+  const corrimiento = (centro - indice) * paso;
   const disenoActual = DISENOS_DE_PORTADA[indice] || DISENOS_DE_PORTADA[0];
   const mascotaActual = obtenerMascotaDePortada(disenoActual.id);
 
@@ -262,172 +309,190 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
           </div>
         </div>
 
-        {/* Controles de navegación */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <button
-            type="button"
-            aria-label="Ir al diseño anterior"
-            onClick={() => irA(indice - 1)}
-            disabled={indice === 0}
-            style={{
-              background: 'var(--color-bg-surface)',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              width: '36px', height: '36px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: indice === 0 ? 'not-allowed' : 'pointer',
-              color: 'var(--color-text-primary)',
-              opacity: indice === 0 ? 0.4 : 1,
-              transition: 'all 0.15s ease',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <ChevronLeft size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
-          </button>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-            {indice + 1} de {DISENOS_DE_PORTADA.length}
-          </span>
-          <button
-            type="button"
-            aria-label="Ir al siguiente diseño"
-            onClick={() => irA(indice + 1)}
-            disabled={indice === DISENOS_DE_PORTADA.length - 1}
-            style={{
-              background: 'var(--color-bg-surface)',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              width: '36px', height: '36px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: indice === DISENOS_DE_PORTADA.length - 1 ? 'not-allowed' : 'pointer',
-              color: 'var(--color-text-primary)',
-              opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.4 : 1,
-              transition: 'all 0.15s ease',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <ChevronRight size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
-          </button>
-        </div>
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+          {indice + 1} de {DISENOS_DE_PORTADA.length}
+        </span>
       </div>
 
-      {/* La pista 3D: portada activa destacada al frente y vecinas al fondo oscurecidas */}
-      <div
-        ref={pistaRef}
-        data-testid="cover-model-track"
-        style={{
-          display: 'flex',
-          gap: 'var(--space-6)',
-          overflowX: reducido ? 'auto' : 'visible',
-          justifyContent: 'center',
-          alignItems: 'center',
-          perspective: reducido ? 'none' : '1400px',
-          perspectiveOrigin: '50% 50%',
-          padding: 'var(--space-6) var(--space-6)',
-          scrollbarWidth: 'thin',
-          width: '100%',
-          minHeight: '440px',
-        }}
-      >
-        {DISENOS_DE_PORTADA.map((d, i) => {
-          const activa = i === indice;
-          const distancia = Math.abs(i - indice);
-          if (reducido && !activa) return null;
-          const esVecina = distancia <= VECINAS_POR_LADO;
-          const isHovered = hoveredId === d.id && !activa;
+      {/* ── Flechas a los lados de la hoja, y la pista en el medio ──
+          Las flechas van FUERA de la pista a propósito: la pista contiene las
+          cinco tarjetas y nada más, así que "cinco botones" sigue queriendo
+          decir "cinco estrategias". */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', width: '100%' }}>
+        <button
+          type="button"
+          aria-label="Ir al diseño anterior"
+          onClick={() => irA(indice - 1)}
+          disabled={indice === 0}
+          style={{
+            flex: '0 0 auto',
+            width: 48, height: 64,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: indice === 0 ? 'not-allowed' : 'pointer',
+            background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            color: 'var(--color-text-primary)',
+            opacity: indice === 0 ? 0.4 : 1,
+            transition: 'opacity 0.15s ease, background 0.15s ease',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <ChevronLeft size={26} strokeWidth="var(--icon-stroke)" aria-hidden />
+        </button>
 
-          // La portada activa es super grande al frente; las del fondo van sin rotación,
-          // escaladas menores en el eje Z y oscurecidas progresivamente.
-          // El hover sobre las de fondo las acerca y aclara ligeramente con sutileza.
-          const transformEstilo = reducido || !esVecina
-            ? undefined
-            : activa
-              ? 'scale(1.22) translateZ(0px)'
-              : isHovered
-                ? `scale(${Math.max(0.78, 0.90 - (distancia - 1) * 0.08)}) translateZ(${-distancia * 80}px)`
-                : `scale(${Math.max(0.74, 0.86 - (distancia - 1) * 0.08)}) translateZ(${-distancia * 130}px)`;
+        <div
+          ref={pistaRef}
+          data-testid="cover-model-track"
+          onPointerDown={(e) => { arrastreRef.current = e.clientX; }}
+          onPointerUp={(e) => alSoltar(e.clientX)}
+          onPointerLeave={() => { arrastreRef.current = null; }}
+          onPointerCancel={() => { arrastreRef.current = null; }}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            position: 'relative',
+            overflowX: reducido ? 'auto' : 'hidden',
+            overflowY: 'hidden',
+            padding: 'var(--space-4) 0',
+            scrollbarWidth: 'thin',
+            /* El arrastre es horizontal; el scroll vertical de la pantalla
+               sigue siendo del navegador. */
+            touchAction: 'pan-y',
+          }}
+        >
+          <div
+            data-testid="cover-carousel-row"
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: SEPARACION_PX,
+              /* El corrimiento que pone a la activa en el centro. Sin transform
+                 cuando el movimiento está reducido: la tira se desplaza con el
+                 scroll y el mismo índice manda. */
+              transform: reducido ? undefined : `translateX(${corrimiento}px)`,
+              transition: reducido ? undefined : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          >
+            {DISENOS_DE_PORTADA.map((d, i) => {
+              const activa = i === indice;
+              const distancia = Math.abs(i - indice);
+              const isHovered = hoveredId === d.id && !activa;
 
-          const filtroEstilo = reducido || activa
-            ? 'none'
-            : isHovered
-              ? 'brightness(0.85) contrast(0.98)'
-              : `brightness(${Math.max(0.48, 0.68 - (distancia - 1) * 0.16)}) contrast(0.96)`;
-
-          const opacidadEstilo = reducido || activa
-            ? 1
-            : isHovered
-              ? 0.92
-              : Math.max(0.5, 0.74 - (distancia - 1) * 0.18);
-
-          return (
-            <button
-              key={d.id}
-              type="button"
-              data-testid={`miniatura-${d.id}`}
-              aria-pressed={d.esAccion ? undefined : activa}
-              aria-current={activa ? 'true' : undefined}
-              onMouseEnter={() => setHoveredId(d.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              onClick={() => {
-                irA(i);
-                elegir(d.id);
-              }}
-              style={{
-                flex: '0 0 auto',
-                width: anchoEfectivo,
-                borderRadius: 'var(--radius-lg)',
-                cursor: 'pointer',
-                background: activa ? 'var(--color-bg-surface)' : 'var(--surface-elevated)',
-                border: activa
-                  ? '2px solid var(--accent-primary)'
-                  : isHovered
-                    ? '1px solid var(--accent-primary)'
-                    : '1px solid var(--border-subtle)',
-                boxShadow: activa
-                  ? '0 24px 48px var(--shadow-card), 0 0 0 1px var(--accent-primary), 0 0 24px var(--color-accent-soft)'
-                  : isHovered
-                    ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
-                    : 'var(--shadow-sm)',
-                transform: transformEstilo,
-                transformStyle: reducido ? undefined : 'preserve-3d',
-                filter: filtroEstilo,
-                opacity: opacidadEstilo,
-                transition: reducido
-                  ? undefined
-                  : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1), filter 240ms ease, opacity 240ms ease, box-shadow 250ms ease, border-color 200ms ease',
-                display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
-                textAlign: 'left', fontFamily: 'inherit',
-                zIndex: activa ? 30 : isHovered ? 25 : Math.max(1, 20 - distancia * 5),
-                position: 'relative',
-              }}
-            >
-              <MiniaturasDeDiseno diseno={d.id} medida={m} portada={portada} acta={acta} reglas={reglas} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', marginTop: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                  <span
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {d.titulo}
-                  </span>
-                  {activa && (
-                    <EditorialMascot size={20} kind={mascotaActual.kind} expression={mascotaActual.expression} />
-                  )}
-                </div>
-                <span
+              return (
+                <div
+                  key={d.id}
+                  data-testid={`tarjeta-${d.id}`}
+                  onMouseEnter={() => setHoveredId(d.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onClick={() => {
+                    irA(i);
+                    elegir(d.id);
+                  }}
                   style={{
-                    fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
-                    lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    flex: '0 0 auto',
+                    width: anchoEfectivo,
+                    borderRadius: 'var(--radius-lg)',
+                    cursor: 'pointer',
+                    background: activa ? 'var(--color-bg-surface)' : 'var(--surface-elevated)',
+                    border: activa
+                      ? '2px solid var(--accent-primary)'
+                      : isHovered
+                        ? '1px solid var(--accent-primary)'
+                        : '1px solid var(--border-subtle)',
+                    boxShadow: activa
+                      ? '0 24px 48px var(--shadow-card), 0 0 0 1px var(--accent-primary), 0 0 24px var(--color-accent-soft)'
+                      : isHovered
+                        ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
+                        : 'var(--shadow-sm)',
+                    /* SOLO escala: ni filtro ni opacidad. El papel tiene que
+                       seguir siendo blanco puro, y una hoja atenuada deja de
+                       parecerse a lo que sale. */
+                    transform: reducido ? undefined : `scale(${escalaDeLaTarjeta(distancia)})`,
+                    transition: reducido
+                      ? undefined
+                      : 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease',
+                    display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
+                    zIndex: activa ? 30 : Math.max(1, 20 - distancia * 5),
+                    position: 'relative',
+                    boxSizing: 'border-box',
                   }}
                 >
-                  {d.subtitulo}
-                </span>
-              </div>
-            </button>
-          );
-        })}
+                  {/* La HOJA va FUERA del botón a propósito. Adentro sería un
+                      botón dentro de un botón: el diseño real trae sus propios
+                      controles (el lienzo de la portada original), y anidarlos
+                      es HTML inválido además de mentirle al lector de pantalla.
+                      El botón de abajo es el control; la hoja es la imagen. */}
+                  <MiniaturaRealDePortada diseno={d.id} anchoPx={anchoEfectivo} hoja={hoja} />
+                  <button
+                    type="button"
+                    data-testid={`miniatura-${d.id}`}
+                    aria-pressed={d.esAccion ? undefined : activa}
+                    aria-current={activa ? 'true' : undefined}
+                    onClick={(e) => {
+                      /* El envoltorio ya escucha el clic: sin esto, elegir con
+                         el botón elegiría dos veces. */
+                      e.stopPropagation();
+                      irA(i);
+                      elegir(d.id);
+                    }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', marginTop: '4px',
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      textAlign: 'left', fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <span
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {d.titulo}
+                      </span>
+                      {activa && (
+                        <EditorialMascot size={20} kind={mascotaActual.kind} expression={mascotaActual.expression} />
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
+                        lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {d.subtitulo}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          aria-label="Ir al siguiente diseño"
+          onClick={() => irA(indice + 1)}
+          disabled={indice === DISENOS_DE_PORTADA.length - 1}
+          style={{
+            flex: '0 0 auto',
+            width: 48, height: 64,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: indice === DISENOS_DE_PORTADA.length - 1 ? 'not-allowed' : 'pointer',
+            background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            color: 'var(--color-text-primary)',
+            opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.4 : 1,
+            transition: 'opacity 0.15s ease, background 0.15s ease',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <ChevronRight size={26} strokeWidth="var(--icon-stroke)" aria-hidden />
+        </button>
       </div>
 
       {/* Botón de Confirmación Principal / CTA en la vista del Carrusel */}
@@ -469,4 +534,6 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
     {datosAbiertos && <HojaDatosPortada pasoActual={1} pasoDePortada={1} />}
     </>
   );
-}
+};
+
+export default CarruselPortada;
