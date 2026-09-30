@@ -459,7 +459,7 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                     icon: (
                       <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
                         <rect x="2" y="2" width="32" height="3" rx="1" fill="var(--color-text-secondary)" />
-                        <rect x="8" y="7" width="20" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="8" y="7" width="20" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
                         <rect x="2" y="19" width="32" height="3" rx="1" fill="var(--color-text-secondary)" />
                       </svg>
                     ),
@@ -470,7 +470,7 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                     desc: 'Texto fluye por el costado derecho.',
                     icon: (
                       <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
-                        <rect x="2" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="2" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
                         <rect x="19" y="5" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
                         <rect x="19" y="10" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
                         <rect x="19" y="15" width="11" height="2.5" rx="1" fill="var(--color-text-secondary)" />
@@ -486,7 +486,7 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                         <rect x="2" y="5" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
                         <rect x="2" y="10" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
                         <rect x="2" y="15" width="11" height="2.5" rx="1" fill="var(--color-text-secondary)" />
-                        <rect x="20" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="20" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
                       </svg>
                     ),
                   },
@@ -497,7 +497,7 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                     icon: (
                       <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
                         <rect x="2" y="2" width="32" height="2" rx="1" fill="var(--color-text-secondary)" />
-                        <rect x="2" y="6" width="32" height="12" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="2" y="6" width="32" height="12" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
                         <rect x="2" y="20" width="32" height="2" rx="1" fill="var(--color-text-secondary)" />
                       </svg>
                     ),

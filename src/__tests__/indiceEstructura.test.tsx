@@ -257,7 +257,7 @@ describe('el documento entero no es el centro', () => {
      * excluyentes y no dos banderas. */
     expect(container.querySelector('[data-testid="documento-completo"]')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: /ver el indice/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ver el índice/i }));
     expect(container.querySelector('[data-testid="mapa-estructura"]')).toBeNull();
     expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0);
   });

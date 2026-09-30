@@ -322,7 +322,7 @@ export function EscenarioFigura({
                 backgroundColor: 'var(--paper-white)',
                 color: 'var(--paper-ink)',
                 borderRadius: 'var(--radius-sm)',
-                boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.15))',
+                boxShadow: 'var(--shadow-md)',
                 padding: 'var(--space-8) var(--space-6)',
                 border: '1px solid var(--border-subtle)',
                 fontFamily: 'serif',

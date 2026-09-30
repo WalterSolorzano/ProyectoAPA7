@@ -51,12 +51,6 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
       ? 'var(--color-navy-header)'
       : 'transparent';
 
-  const colorTexto = seleccionado
-    ? 'var(--color-text-primary)'
-    : esH1
-      ? 'var(--color-navy-header-text)'
-      : 'var(--color-text-primary)';
-
   return (
     <div
       role="listitem"
@@ -68,7 +62,7 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
         padding: esH1 ? 'var(--space-3) var(--space-4)' : 'var(--space-2) var(--space-3)',
         marginTop: esH1 && profundidad === 0 ? 'var(--space-3)' : '0',
         paddingLeft: `calc(var(--space-3) + ${profundidad} * var(--space-4))`,
-        borderBottom: esH1 ? '1px solid rgba(0,0,0,0.1)' : '1px solid var(--color-border-subtle)',
+        borderBottom: '1px solid var(--color-border-subtle)',
         borderRadius: 'var(--radius-md)',
         backgroundColor: bgFila,
         borderLeft: seleccionado
@@ -76,7 +70,7 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           : esH1
             ? '4px solid var(--color-accent)'
             : '4px solid transparent',
-        transition: 'all var(--transition-fast, 150ms ease)',
+        transition: 'all var(--transition-fast)',
         cursor: onSelect ? 'pointer' : 'default',
         boxShadow: esH1 ? 'var(--shadow-sm)' : 'none',
       }}
@@ -90,11 +84,11 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           fontWeight: 700,
           color: esH1 && !seleccionado ? 'var(--color-navy-header-text)' : nodo.nivel === 1 ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
           border: '1px solid',
-          borderColor: esH1 && !seleccionado ? 'rgba(255,255,255,0.3)' : nodo.nivel === 1 ? 'var(--color-accent)' : 'var(--color-border-subtle)',
+          borderColor: esH1 && !seleccionado ? 'var(--color-on-media-a30)' : nodo.nivel === 1 ? 'var(--color-accent)' : 'var(--color-border-subtle)',
           borderRadius: 'var(--radius-sm)',
           padding: '1px 6px',
           fontVariantNumeric: 'tabular-nums',
-          backgroundColor: esH1 && !seleccionado ? 'rgba(255, 255, 255, 0.15)' : nodo.nivel === 1 ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+          backgroundColor: esH1 && !seleccionado ? 'var(--color-on-media-a08)' : nodo.nivel === 1 ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
         }}
       >
         H{nodo.nivel}
@@ -106,7 +100,7 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           minWidth: 0,
           fontSize: 'var(--text-sm)',
           fontWeight: esH1 ? 700 : 400,
-          color: colorTexto,
+          color: esH1 && !seleccionado ? 'var(--color-navy-header-text)' : 'var(--color-text-primary)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -122,10 +116,10 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           flex: '0 0 auto',
           fontSize: 'var(--text-sm)',
           fontVariantNumeric: 'tabular-nums',
-          color: esH1 && !seleccionado ? 'rgba(255,255,255,0.85)' : 'var(--color-text-secondary)',
+          color: esH1 && !seleccionado ? 'var(--color-on-media-a90)' : 'var(--color-text-secondary)',
         }}
       >
-        {miles(nodo.palabras)} <span style={{ color: esH1 && !seleccionado ? 'rgba(255,255,255,0.6)' : 'var(--color-text-tertiary)' }}>pal.</span>
+        {miles(nodo.palabras)} <span style={{ color: esH1 && !seleccionado ? 'var(--color-on-media-a70)' : 'var(--color-text-tertiary)' }}>pal.</span>
       </span>
 
       {/* El balance, con la escala de la hermana más larga. Sin hermanas no hay
@@ -140,7 +134,7 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           />
         </span>
       ) : (
-        <span style={{ flex: '0 0 88px', fontSize: 'var(--text-xs)', color: esH1 && !seleccionado ? 'rgba(255,255,255,0.6)' : 'var(--color-text-tertiary)' }}>
+        <span style={{ flex: '0 0 88px', fontSize: 'var(--text-xs)', color: esH1 && !seleccionado ? 'var(--color-on-media-a70)' : 'var(--color-text-tertiary)' }}>
           sin comparar
         </span>
       )}
@@ -154,8 +148,8 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
           fontSize: 'var(--text-xs)',
           padding: '2px 8px',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: esAlerta ? 'var(--severity-warning-soft, rgba(217, 119, 6, 0.1))' : 'transparent',
-          color: esAlerta ? 'var(--color-warning)' : esH1 && !seleccionado ? 'rgba(255,255,255,0.7)' : 'var(--color-text-tertiary)',
+          backgroundColor: esAlerta ? 'var(--severity-warning-soft)' : 'transparent',
+          color: esAlerta ? 'var(--color-warning)' : esH1 && !seleccionado ? 'var(--color-on-media-a70)' : 'var(--color-text-tertiary)',
         }}
       >
         {esAlerta && (
@@ -177,9 +171,9 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
         style={{
           flex: '0 0 auto',
           fontSize: 'var(--text-xs)',
-          color: esH1 && !seleccionado ? 'rgba(255,255,255,0.8)' : 'var(--color-text-tertiary)',
+          color: esH1 && !seleccionado ? 'var(--color-on-media-a90)' : 'var(--color-text-tertiary)',
           fontVariantNumeric: 'tabular-nums',
-          backgroundColor: esH1 && !seleccionado ? 'rgba(255,255,255,0.12)' : 'var(--color-bg-surface-alt)',
+          backgroundColor: esH1 && !seleccionado ? 'var(--color-on-media-a08)' : 'var(--color-bg-surface-alt)',
           padding: '1px 6px',
           borderRadius: 'var(--radius-sm)',
         }}

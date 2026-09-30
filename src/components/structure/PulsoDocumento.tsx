@@ -176,8 +176,8 @@ export const PulsoDocumento: React.FC<PulsoDocumentoProps> = ({
               border: '1px solid var(--color-border-subtle)',
               borderTop: c.nombre === 'Palabras' ? '3px solid var(--color-accent)' : c.nombre === 'Balance' ? '3px solid var(--color-success)' : '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.03))',
-              transition: 'transform var(--transition-fast, 150ms ease)',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'transform var(--transition-fast)',
             }}
           >
             {/* EL VALOR ARRIBA Y EL NOMBRE ABAJO */}

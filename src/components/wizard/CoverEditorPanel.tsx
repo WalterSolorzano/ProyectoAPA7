@@ -568,12 +568,12 @@ export const CoverEditorPanel: React.FC = () => {
                             width: '20px',
                             height: '20px',
                             borderRadius: 'var(--radius-xs)',
-                            backgroundColor: '#ffffff',
+                            backgroundColor: 'var(--paper-white)',
                             padding: '2px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: '0 0 1px rgba(0,0,0,0.15)',
+                            boxShadow: '0 0 1px var(--color-ink-a20)',
                             flexShrink: 0,
                           }}
                         >
@@ -593,12 +593,12 @@ export const CoverEditorPanel: React.FC = () => {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {u.codigo}: sin logo
+                          {u.codigo}: el logo no se pudo cargar
                         </span>
                       )}
                       <span>{u.codigo}</span>
                       {isSelected && (
-                        <Check size={12} strokeWidth={2.5} style={{ color: 'var(--accent-primary)' }} />
+                        <Check size={12} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)' }} />
                       )}
                     </button>
                   );

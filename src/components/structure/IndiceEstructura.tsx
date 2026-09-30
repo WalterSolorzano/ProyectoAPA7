@@ -122,7 +122,7 @@ const BotonToggle: React.FC<{ activo: boolean; onClick: () => void; children: Re
       borderRadius: 'var(--radius-md)',
       padding: '5px 12px',
       cursor: 'pointer',
-      transition: 'all var(--transition-fast, 150ms ease)',
+      transition: 'all var(--transition-fast)',
     }}
   >
     {children}
@@ -245,7 +245,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--color-border-subtle)',
             padding: 'var(--space-4)',
-            boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
           {preambulo.elementos > 0 && (

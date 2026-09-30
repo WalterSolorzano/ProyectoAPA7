@@ -16,99 +16,11 @@ import { useRailFlyout } from '../../hooks/useRailFlyout';
 import { HOME_RAIL_ITEMS } from '../shell/railItems';
 import type { RailDestination } from '../shell/railItems';
 import { EditorialMascot } from '../layout/EditorialMascot';
+import { AppBrandLogo } from '../shared/AppBrandLogo';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const dragRegion = { WebkitAppRegion: 'drag' } as ChromeStyle;
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
-
-/** Logo profesional WordAPA7: monograma editorial limpio con hoja y acento APA 7. */
-const BrandLogo: React.FC<{ size?: number }> = ({ size = 22 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ flexShrink: 0 }}
-    aria-label="Logo WordAPA7"
-  >
-    <rect width="24" height="24" rx="5" fill="var(--color-accent)" />
-    <path
-      d="M6 6.5C6 5.67 6.67 5 7.5 5H14.5L18 8.5V17.5C18 18.33 17.33 19 16.5 19H7.5C6.67 19 6 18.33 6 17.5V6.5Z"
-      fill="var(--paper-white)"
-      fillOpacity="0.95"
-    />
-    <path
-      d="M14 5V9H18"
-      stroke="var(--color-accent)"
-      strokeWidth="var(--icon-stroke)"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M8.5 11.5H12M8.5 14H14.5M8.5 16.5H13"
-      stroke="var(--color-accent)"
-      strokeWidth="var(--icon-stroke)"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-// ── ICONOGRAFÍA EDITORIAL EXCLUSIVA WORDAPA7 (SVG nativos con tokens de diseño) ──────
-export const APAFileIcon: React.FC<{ size?: number; color?: string }> = ({ size = 20, color = 'var(--accent-primary)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <path
-      d="M5 4C5 2.89543 5.89543 2 7 2H14.5L19 6.5V20C19 21.1046 18.1046 22 17 22H7C5.89543 22 5 21.1046 5 20V4Z"
-      fill="var(--surface-subtle)"
-      stroke={color}
-      strokeWidth="var(--icon-stroke)"
-      strokeLinejoin="round"
-    />
-    <path d="M14 2V7H19" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
-    <path d="M8.5 11H15.5M8.5 14.5H15.5M8.5 18H12" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-  </svg>
-);
-
-export const APATypeIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <path d="M4 6V4H20V6" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 4V20" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M9 20H15" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <circle cx="18" cy="17" r="2.5" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
-    <path d="M18 15.5V18.5" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-  </svg>
-);
-
-export const APACoverStudentIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <path d="M2 9.5L12 4L22 9.5L12 15L2 9.5Z" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
-    <path d="M6 11.7V17C6 17 8.5 19.5 12 19.5C15.5 19.5 18 17 18 17V11.7" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M22 9.5V16" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-  </svg>
-);
-
-export const APACoverProIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <rect x="4" y="3" width="16" height="18" rx="2.5" fill="var(--surface-subtle)" stroke={color} strokeWidth="var(--icon-stroke)" />
-    <line x1="7" y1="6.5" x2="17" y2="6.5" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeDasharray="1.5 2" />
-    <circle cx="12" cy="11.5" r="2.5" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
-    <path d="M8 17H16" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-  </svg>
-);
-
-export const APARecentsClockIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="var(--icon-stroke)" />
-    <path d="M12 6.5V12L15.5 14" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="12" cy="12" r="1.5" fill={color} />
-  </svg>
-);
-
-export const APACheckIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = 'currentColor' }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
-    <circle cx="8" cy="8" r="7" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
-    <path d="M5 8.2L7 10.2L11.5 5.7" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 
 // Fallback mientras /api/profiles aún no respondió (el campo rules nunca se usa acá)
 const FALLBACK_PROFILES: FormatProfile[] = [{
@@ -402,7 +314,7 @@ export const Step0QuickStart: React.FC = () => {
       }}>
         {/* Branding: logo formal WordAPA7 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <BrandLogo size={22} />
+          <AppBrandLogo size={22} />
         </div>
 
         <div style={{ flex: 1 }} />
@@ -684,7 +596,7 @@ export const Step0QuickStart: React.FC = () => {
                     onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
                     title="Crear un nuevo documento .docx limpio estructurado bajo APA 7"
                   >
-                    <APAFileIcon size={16} color="var(--accent-primary)" />
+                    <FileText size={16} color="var(--accent-primary)" />
                     <span>Nuevo documento en blanco</span>
                   </button>
 
@@ -742,7 +654,7 @@ export const Step0QuickStart: React.FC = () => {
               <div style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <APARecentsClockIcon size={18} color="var(--accent-primary)" />
+                    <Clock size={18} color="var(--accent-primary)" />
                     <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                       Continuar documento reciente
                     </h2>
@@ -810,7 +722,7 @@ export const Step0QuickStart: React.FC = () => {
                     border: '1px solid var(--border-subtle)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <APATypeIcon size={18} color="var(--accent-primary)" />
+                      <Type size={18} color="var(--accent-primary)" />
                       <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
                         Tipografía y Perfil de Reglas
                       </span>
@@ -851,7 +763,7 @@ export const Step0QuickStart: React.FC = () => {
                     border: '1px solid var(--border-subtle)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <APACoverStudentIcon size={18} color="var(--accent-primary)" />
+                      <GraduationCap size={18} color="var(--accent-primary)" />
                       <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
                         Tipo de Portada por Defecto
                       </span>
@@ -880,7 +792,7 @@ export const Step0QuickStart: React.FC = () => {
                           gap: '6px',
                         }}
                       >
-                        {portada.apa_format === 'student' ? <APACheckIcon size={14} color="var(--accent-primary)" /> : <APACoverStudentIcon size={14} color="var(--text-secondary)" />}
+                        {portada.apa_format === 'student' ? <BadgeCheck size={14} color="var(--accent-primary)" /> : <GraduationCap size={14} color="var(--text-secondary)" />}
                         Estudiante
                       </button>
                       <button
@@ -903,7 +815,7 @@ export const Step0QuickStart: React.FC = () => {
                           gap: '6px',
                         }}
                       >
-                        {portada.apa_format === 'professional' ? <APACheckIcon size={14} color="var(--accent-primary)" /> : <APACoverProIcon size={14} color="var(--text-secondary)" />}
+                        {portada.apa_format === 'professional' ? <BadgeCheck size={14} color="var(--accent-primary)" /> : <BookOpen size={14} color="var(--text-secondary)" />}
                         Profesional
                       </button>
                     </div>
@@ -919,25 +831,25 @@ export const Step0QuickStart: React.FC = () => {
                   borderTop: '1px solid var(--border-subtle)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <BadgeCheck size={15} color="var(--accent-primary)" />
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                       Márgenes: <strong style={{ color: 'var(--text-main)' }}>2.54 cm</strong> (4 lados)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <BadgeCheck size={15} color="var(--accent-primary)" />
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                       Interlineado: <strong style={{ color: 'var(--text-main)' }}>Doble (2.0)</strong> sin espacio extra
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <BadgeCheck size={15} color="var(--accent-primary)" />
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                       Sangría párrafo: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> (1ª línea)
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <BadgeCheck size={15} color="var(--accent-primary)" />
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                       Sangría francesa: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> en referencias
                     </span>
@@ -997,7 +909,7 @@ const RecentsList: React.FC<{
     return (
       <Card style={{ textAlign: 'center', padding: '36px 24px', color: 'var(--text-secondary)' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', opacity: 0.5 }}>
-          <APARecentsClockIcon size={48} color="var(--accent-primary)" />
+          <Clock size={48} color="var(--accent-primary)" />
         </div>
         <p style={{ fontSize: 'var(--text-lg)', margin: '0 0 8px', fontWeight: 600 }}>Sin documentos recientes</p>
         <p style={{ fontSize: 'var(--text-sm)', margin: 0 }}>Los documentos que abras o proceses aparecerán aquí.</p>
@@ -1033,7 +945,7 @@ const RecentsList: React.FC<{
             <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '12px' }}>
               {isRecovering
                 ? <Loader2 size={20} color="var(--accent-primary)" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                : <APAFileIcon size={20} color="var(--accent-primary)" />
+                : <FileText size={20} color="var(--accent-primary)" />
               }
               <div>
                 <div style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-main)' }}>

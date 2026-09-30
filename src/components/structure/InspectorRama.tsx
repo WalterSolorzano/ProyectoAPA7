@@ -424,7 +424,7 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
             role="status"
             style={{
               padding: 'var(--space-3)',
-              backgroundColor: 'var(--severity-warning-soft, rgba(217,119,6,0.08))',
+              backgroundColor: 'var(--severity-warning-soft)',
               borderRadius: 'var(--radius-md)',
               border: '1px dashed var(--color-warning)',
               fontSize: 'var(--text-xs)',
@@ -503,7 +503,7 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
               background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-sm)', padding: '5px 10px',
               cursor: puedeSubir ? 'pointer' : 'not-allowed', opacity: puedeSubir ? 1 : 0.5,
-              transition: 'background var(--transition-fast, 150ms)',
+              transition: 'background var(--transition-fast)',
             }}
           >
             <ArrowUp size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
@@ -520,7 +520,7 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
               background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-sm)', padding: '5px 10px',
               cursor: puedeBajar ? 'pointer' : 'not-allowed', opacity: puedeBajar ? 1 : 0.5,
-              transition: 'background var(--transition-fast, 150ms)',
+              transition: 'background var(--transition-fast)',
             }}
           >
             <ArrowDown size={13} strokeWidth="var(--icon-stroke)" aria-hidden />

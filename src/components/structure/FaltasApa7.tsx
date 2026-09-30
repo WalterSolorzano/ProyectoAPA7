@@ -199,7 +199,7 @@ export const FaltasApa7: React.FC<FaltasApa7Props> = ({
                     alignItems: 'center',
                     gap: 'var(--space-2)',
                     padding: 'var(--space-2) var(--space-3)',
-                    backgroundColor: 'var(--severity-warning-soft, rgba(217, 119, 6, 0.08))',
+                    backgroundColor: 'var(--severity-warning-soft)',
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--color-warning)',
                     fontSize: 'var(--text-xs)',
@@ -229,7 +229,7 @@ export const FaltasApa7: React.FC<FaltasApa7Props> = ({
                         borderRadius: 'var(--radius-sm)',
                         padding: '4px 10px',
                         cursor: 'pointer',
-                        transition: 'background var(--transition-fast, 150ms)',
+                        transition: 'background var(--transition-fast)',
                       }}
                     >
                       Promover a H1

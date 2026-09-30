@@ -194,13 +194,19 @@ def test_resuelve_un_doi_y_lo_devuelve_en_la_forma_del_store(monkeypatch):
     assert data["apa_formatted"].startswith("Perez, A. (2024).")
 
 
-def test_un_link_que_no_es_doi_dice_que_no_es_doi(monkeypatch):
+def test_lo_que_no_es_doi_ni_url_se_rechaza_antes_de_la_red(monkeypatch):
     # Nada de red: se rechaza antes. Un 404 de CrossRef seria un error de red
     # cuando lo que paso es que el usuario pego otra cosa.
+    #
+    # Este test afirmaba `no_es_doi` con un link de Google Scholar como entrada.
+    # Desde que el endpoint tambien resuelve ENLACES WEB (commit f9f360f), un
+    # link es una entrada VALIDA —no un rechazo—, asi que la guarda se re-apunta
+    # a lo que de verdad no es ni DOI ni URL. De paso deja de hacer red real, que
+    # era la razon de que fuera inestable.
     r = client.post("/api/resolve-doi",
-                    json={"doi": "https://scholar.google.com/citations?user=abc"})
+                    json={"doi": "Perez, A. (2020). Titulo de revista."})
     assert r.status_code == 400
-    assert r.json()["detail"]["codigo"] == "no_es_doi"
+    assert r.json()["detail"]["codigo"] == "no_es_doi_ni_url"
 
 
 def test_un_doi_que_crossref_no_conoce_dice_que_no_se_encontro(monkeypatch):
@@ -358,7 +364,7 @@ def test_una_linea_que_no_es_doi_se_reporta_sin_matar_el_resto(monkeypatch):
         "text": "Perez, A. (2020). Titulo de revista.\n10.1000/a"})
     d = r.json()
     assert len(d["resueltas"]) == 1
-    assert d["fallidas"][0]["codigo"] == "no_es_doi"
+    assert d["fallidas"][0]["codigo"] == "no_es_doi_ni_url"
 
 
 def test_lote_vacio_no_es_error(monkeypatch):
