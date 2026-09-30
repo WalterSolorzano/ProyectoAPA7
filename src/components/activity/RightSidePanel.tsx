@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ImageEditPanel } from '../inspector/ImageEditPanel';
+import { EquationEditor } from '../inspector/EquationEditor';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { OutlineTree } from '../wizard/OutlineTree';
@@ -91,6 +92,16 @@ export const RightSidePanel: React.FC = () => {
     if (imagePanelOpen && selectedElementId && doc) setForceRightPanelOpen(true);
   }, [imagePanelOpen, selectedElementId, doc, setForceRightPanelOpen]);
 
+  /* Una ecuación seleccionada TAMBIÉN es una selección con destino: su editor de
+     presentación (número, formato, alineación, tipografía). Mismo patrón que la
+     figura. Va como efecto y no como rama del render porque seleccionar la
+     ecuación tiene que ABRIR el panel, no solo llenarlo si ya estaba abierto. */
+  useEffect(() => {
+    if (!doc || !selectedElementId) return;
+    const el = doc.elements.find((e) => e.id === selectedElementId);
+    if (el?.type === 'equation') setForceRightPanelOpen(true);
+  }, [selectedElementId, doc, setForceRightPanelOpen]);
+
   /* El efecto que abría el panel al entrar en el paso 4 SE FUE con la rama de
      paso 4, y por el mismo motivo: `App.tsx` EXCLUYE el panel derecho del paso
      4, así que este componente no se monta ahí y su condición nunca era cierta.
@@ -167,6 +178,12 @@ export const RightSidePanel: React.FC = () => {
       )
     : undefined;
 
+  /* Una ecuación seleccionada es una SELECCIÓN CON DESTINO, como la figura: su
+     editor de presentación. El tipo se lee del documento, no se adivina. */
+  const selectedEquation = doc && selectedElementId
+    ? doc.elements.find((e) => e.id === selectedElementId && e.type === 'equation')
+    : undefined;
+
   /* Cuántas figuras hay en el documento, para el alcance de "aplicar a todas". Se
      cuenta UNA vez acá, con los logotipos de la portada afuera, que es la misma
      regla que aplica `contextosDeFiguras`. El panel no lo cuenta: lo recibe. */
@@ -216,7 +233,7 @@ export const RightSidePanel: React.FC = () => {
           <FileText size={14} color="var(--accent-primary)" />
         )}
         <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-          {selectedImage ? 'Imagen' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
+          {selectedImage ? 'Imagen' : selectedEquation ? 'Ecuación' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
         </span>
         <div style={{ flex: 1 }} />
         {/* D1: Toggle del Asistente IA integrado en el header */}
@@ -280,6 +297,8 @@ export const RightSidePanel: React.FC = () => {
               <ImageEditPanel elem={selectedImage} totalFiguras={totalFiguras} />
             </div>
           </>
+        ) : selectedEquation ? (
+          <EquationEditor elemento={selectedEquation} />
         ) : hasReference ? (
           <ReferenceForm key={selectedReferenceId} />
         ) : (

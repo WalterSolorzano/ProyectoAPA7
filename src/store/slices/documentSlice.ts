@@ -875,6 +875,35 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
   },
   /**
+   * La presentación de una ecuación: número, formato, alineación y tipografía de
+   * apoyo. El XML (OMML) viaja intacto —`api.updateElement` lo recibe aparte— y
+   * entra en el deshacer como cualquier otro PATCH del elemento.
+   *
+   * Existe como action propia en vez de reusar `updateElementType` porque esto
+   * es un cambio de un CAMPO (la ecuación), no del tipo ni del texto: una action
+   * que miente sobre lo que cambia es la próxima que alguien reusa mal.
+   */
+  updateElementEquation: async (elementId, equation) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    const elem = doc.elements.find((e) => e.id === elementId);
+    if (!elem || elem.type !== 'equation') return;
+    try {
+      const updated = await api.updateElement(
+        doc.session_id,
+        elementId,
+        elem.type,
+        elem.heading_level ?? 1,
+        elem.text,
+        equation,
+      );
+      pushHistory(updated);
+      set({ doc: updated });
+    } catch (err: any) {
+      get().showToast(err?.message || 'Error al actualizar la ecuación', 'error');
+    }
+  },
+  /**
    * El mismo `patch` sobre varias figuras, de a una.
    *
    * POR QUÉ UN `for` Y NO UN ENDPOINT EN LOTE. El endpoint es `/api/update-element`

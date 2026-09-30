@@ -447,6 +447,12 @@ export interface DocState {
   updateElementText: (elementId: string, text: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
+  /** La presentación de una ecuación: número, formato, alineación y tipografía de
+   *  apoyo. El XML de la ecuación (OMML) viaja intacto; esto no lo toca. */
+  updateElementEquation: (
+    elementId: string,
+    equation: import('../types').EquationConfig,
+  ) => Promise<void>;
   /** El mismo parche sobre varias figuras, de a una. El alcance lo DECLARA quien
    *  llama pasando los ids: esta action no sabe qué es "todas" ni lo deduce. */
   aplicarImagenAMuchas: (
