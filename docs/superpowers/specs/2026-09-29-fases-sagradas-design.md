@@ -223,3 +223,73 @@ Ninguna de estas decisiones se ejecuta borrando un test. El protocolo:
    nuevo cubre el defecto original por otro camino.
 
 Este documento decide **qué** cambia. El **cómo** va en el plan de cada fase.
+
+---
+
+## 6. Inventario de controles por fase (leído del código, 2026-09-29)
+
+Esto es lo que hay HOY en pantalla, control por control, y la decisión de cada
+uno. Sale de leer el código, no de recordarlo. La decisión de **forma** de cada
+superficie se toma con la skill `impeccable` al ejecutar su fase.
+
+### Estructura
+| Control de hoy | Decisión |
+|---|---|
+| Pestañas `Esquema Jerárquico` / `Revisor de Títulos APA 7` / `Editor de Prosa` (`App.tsx:152`) | **Se van.** Un trabajo, no tres (ver §2.3); el «Revisor» es el diagnóstico por nodo y el «Editor de Prosa» es Word |
+| `Promover`, `Subir`, `Bajar`, `Renombrar`, `Preguntarle a la IA` (`InspectorRama`) | **Se quedan como acciones del nodo**, con su alcance «(esta rama)» pintado |
+| Toggles `ver el mapa` / `ver el documento` (dentro del índice) | **Se quedan**: son la vista del mismo trabajo, no otro trabajo |
+| `Faltas de APA 7` (columna derecha) | **Se queda**: es el diagnóstico de la forma, y ya dice que no tiene la lista de fases obligatorias |
+| ~Pulso de 5 celdas~ | **Borrado** (esta sesión): cada dato duplicaba algo que vive donde se acciona; palabras y balance no tienen acción |
+
+### Portada
+| Control de hoy | Decisión |
+|---|---|
+| ~Tira de estrategias + «Usar este diseño y Continuar»~ | **Borrada**; el carrusel es la única superficie |
+| 8 campos sueltos del editor | **Agrupados** en 3 secciones plegables (`Identificación` e `Institución y carrera` abiertas; `Docente y entrega` cerrada) |
+| `Actualizar portada` + `Continuar a Estructura` | **Se quedan** al pie, pegados |
+
+### Figuras, tablas y ecuaciones
+| Control de hoy | Decisión |
+|---|---|
+| `Leyendas IA para todo`, `Colapsar lista`, `Buscar figura`, `Limpiar búsqueda`, `Solo pendientes` | **Se quedan**, agrupados en una sola fila de trabajo (no 5 controles sueltos) |
+| Selector de estilo académico de tabla | **Se queda** |
+| `Abrir el inspector de la figura` | **Se queda**: nombrar la acción es lo que evita que tocar una figura te saque de la pantalla |
+| `Figura anterior` / `Figura siguiente` | **Se quedan** |
+| (no existe) **Ecuaciones** | **Se agrega** acá: la fase pasa a «Figuras, tablas y ecuaciones». Mientras tanto el editor vive como destino de selección en el panel derecho |
+
+### Revisión
+| Control de hoy | Decisión |
+|---|---|
+| `Filtros por motor` (chips) + `Hallazgos por motor` | **Se quedan**: son el eje de la fase, y el conteo sale de una sola derivación |
+| `Filtrar por fase del documento` + `Todas las fases` | **Se queda** como línea de contexto, no como eje de navegación |
+| `Página anterior` / `Página siguiente` / `Siguiente hallazgo` | **Se quedan**: es el «un párrafo a la vez» |
+| `Modo de vista` | **A revisar**: si es un modo que solo cambia el ancho, se va |
+| `Aparición anterior` / `Siguiente aparición` | **Se quedan** |
+| `Minimap de páginas` | **No volver** a la lectura secuencial con tres columnas (`AGENTS.md` §1) |
+
+### Referencias
+| Control de hoy | Decisión |
+|---|---|
+| `Nueva referencia` **(tres veces: líneas 360, 411 y 610)** | **Queda una.** Tres entradas al mismo formulario es el caso de manual de «mil botones» |
+| `Auditar citas` | **Se queda**: es la acción de la fase |
+| `Buscar y extraer metadatos` (DOI/URL) | **Se queda**, dentro de un desplegable de «Agregar» |
+| `Completar`, `Guardar cambios`, `Guardar en la bibliografía` | **Un solo guardado.** Tres verbos para lo mismo se leen como tres cosas |
+| `Copiar cita en texto`, `Ver en la hoja` | **Se quedan** como acciones de una referencia |
+| `Continuar a Auditoría` | **Se queda** como salida del paso |
+| `Detalles de referencia` (panel derecho) | **Se queda** — es una selección con destino |
+
+### Exportar
+| Control de hoy | Decisión |
+|---|---|
+| `MESA DE ENTREGA` + `Ajustes de exportación` + `Previsualización en Vivo` (tres bloques) | **Se rehace** a la forma de `AGENTS.md` §1: columna única a la izquierda, formato/opciones/vista previa bajo toggle |
+| `Selector de formato`, `PDF Compilado`, `Formato Oficial Editable` | **Se quedan** bajo el toggle de formato, con una línea ≤50 ch cada uno |
+| Resumen de hallazgos / estadísticas | **No se repiten acá** (ya se vieron en su fase) |
+
+### Carga / Inicio
+| Control de hoy | Decisión |
+|---|---|
+| `Seleccionar o arrastrar documento .docx` | **Se queda**: es la acción del comodín |
+| `Nuevo documento en blanco` | **Se queda**, secundaria |
+| Tabla de recientes (`Nombre` / `Modificado`) | **Pasa a lista plegable**: no compite con la acción |
+| `Cerrar error` | Se queda (es el estado de error) |
+

@@ -4,7 +4,8 @@ Planes de referencia:
 - `docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md` — plan
   por fases (F0–F10) + §8-bis con tus directivas.
 - `docs/superpowers/specs/2026-09-29-fases-sagradas-design.md` — **qué vive en
-  cada pantalla** y la decisión 3-vs-1.
+  cada pantalla**, la decisión 3-vs-1 y el **inventario de controles por fase**
+  (§6: control por control, qué hay hoy y qué se decide con cada uno).
 
 ## Lo que quedó hecho
 
@@ -14,61 +15,62 @@ Planes de referencia:
 | `f8cccc8` | **F4** el índice sin banda navy ni borde azul | vitest · tsc |
 | `80c28a9` | **F3** la tira de portada se borra; el carrusel es la única superficie | vitest · tsc |
 | `2b8bec5` | **F3** el editor de portada en secciones plegables | vitest · tsc |
-| `efbd194` | **plan** las fases sagradas + la decisión 3-vs-1 | — |
+| `efbd194` | **plan** fases sagradas + decisión 3-vs-1 | — |
 | `f80d645` | **F4** el general de objetivos sale del documento, no de la posición | vitest · tsc |
 | `7d61902` | **test** viñetas del H2 son del H2 y el H1 las suma (motor clavado) | vitest · tsc |
-| `987e7ac` | **F4** el inspector general se va; el panel no se abre solo | vitest 1564 · tsc · build |
+| `987e7ac` | **F4** el inspector general se va; el panel no se abre solo | vitest · tsc · build |
+| `2c2b636` | **ecuaciones** el editor vuelve como destino propio | vitest · tsc · build |
+| `6a3e9ec` | **F4** el pulso de 5 números se va de Estructura | vitest · tsc · build |
 
-Todo verde: vitest **1564**, tsc limpio, build OK.
+Todo verde: vitest **1561**, tsc limpio, build OK.
 
-## Tus tres respuestas, resueltas
+## Tus preguntas, respondidas
 
-**1. El motor de jerarquía: revisado y clavado.**
-El motor YA hacía lo que pediste —`ES_PROSA` incluye `bullet` y
-`numbered_list`; el contenido cuelga del último encabezado abierto, así que las
-viñetas de un H2 son del H2; y `subirConteos` empuja las palabras del H2 al H1—
-pero **no había un test que lo fijara** para una rama con dos H2 hermanos. Ya
-está (`7d61902`), con tu caso exacto (Objetivos → general + específicos, con
-párrafo y lista). Si algo lo rompe, la rama Objetivos volverá a mostrar todo en
-el H1 y los H2 en cero, y la guarda lo dirá. **No había un segundo defecto que
-corregir**: el motor está bien.
+**«¿Razonaste las interfaces, fases y botones? ¿Está en el plan?»**
+Sí, y quedó por escrito en `fases-sagradas-design.md`. Ese documento tiene las
+nueve fases (comodín / entra / no entra / agrupación), la decisión 3-vs-1 de
+Estructura (§2), el caso Objetivos (§2.4) y ahora, además, el **inventario de
+controles por fase** (§6) que es lo que faltaba: control por control, lo que hay
+HOY en pantalla y la decisión de cada uno. Salió de leer el código, no de
+recordarlo.
 
-**2. El Inspector: se fue.**
-Borrado `ElementInspector` entero y su rama. Y lo que hacía el estorbo no era
-solo el componente sino **el efecto que abría el panel cada vez que
-seleccionabas un elemento**: eso también se fue. Ahora el panel solo abre ante
-una **selección con destino** —una referencia o una figura con
-`imagePanelOpen`—; seleccionar para leer no abre nada. Comprobado antes de
-borrar que no se pierde nada real: el editor de tabla vive en el lienzo, el chat
-y la fase de figuras; el tipo de elemento se edita en el lienzo. Ver
-`panelDerecho.test.tsx`.
+Lo que salió de ese razonamiento, en corto:
+- **Estructura = una sola superficie.** Las tres pestañas no son tres trabajos;
+  dos violan la prueba de pertenencia. Promover/renombrar/diagnosticar pasan a
+  ser acciones del nodo. La guarda `focoNoBarraElSelector` se reescribe, no se
+  borra.
+- **Objetivos**: la vista se adapta a lo que hay —general y específicos sacados
+  del documento, con nivel de Bloom, calidad y variantes—, no texto plano.
+- **Referencias**: `Nueva referencia` está **tres veces** (líneas 360, 411 y 610
+  de `Step5ReferencesWizard.tsx`) y hay tres verbos de guardado para lo mismo.
+  Queda uno de cada.
+- **Exportar**: sigue con `MESA DE ENTREGA` + ajustes + vista previa en tres
+  bloques, contra la regla de columna única de `AGENTS.md`. Se rehace en F9.
+- **Figuras y tablas** pasa a ser **Figuras, tablas y ecuaciones**.
 
-**3. El pulso de 5 celdas — a qué me refería.**
-Es la tira que está arriba de Estructura (`PulsoDocumento.tsx`) y muestra
-exactamente cinco números:
+**«El pulso»**
+Borrado (`6a3e9ec`), como pediste: no se ve utilidad ahí. Cada dato duplicaba
+algo que ya vive donde se acciona —figuras sin leyenda en su fase, referencias
+sin citar en el rail, fases que faltan en `FaltasApa7`—, y palabras y balance
+son métricas sin acción. La guarda ahora exige que la tira NO esté, para que
+nadie la reintroduzca muda. Si querés métricas con iconos y color de la paleta,
+van como **superficie propia**, no como tira arriba del trabajo.
 
-1. **Palabras** del documento,
-2. **Balance** (la rama más corta contra la más larga, en %; dice «no hay con qué
-   comparar» cuando hay un solo capítulo),
-3. **Fases que faltan** (secciones APA 7 ausentes),
-4. **Figuras sin leyenda**,
-5. **Referencias sin citar**.
+**«Las ecuaciones son prioridad»**
+Restauradas (`2c2b636`). Al borrar el inspector se había ido con él la ÚNICA UI
+de numeración de ecuación; ahora es un editor propio, con el mismo patrón que el
+editor de figura: aparece al seleccionar una ecuación. Tiene numeración (mostrar
+número, formato, número fijo), alineación con `aria-pressed` y tipografía de
+apoyo; el XML (OMML) no se toca. La persistencia es una action propia
+(`updateElementEquation`) que entra en el deshacer, no un reuso de
+`updateElementType`. El control responde al instante y el guardado va detrás.
 
-Mi pregunta era si esa tira se queda tal cual, se recorta a lo accionable, o se
-rehace. Todavía no tengo tu respuesta.
+## Próximo paso
 
-## Lo que necesito de vos (lista corta)
-
-1. **El pulso de 5 celdas**: ¿se queda, se recorta a lo accionable, o se rehace?
-2. **Ecuaciones**: la numeración de ecuación existía **solo** en el inspector
-   borrado. ¿Usás ecuaciones? Si no, queda muerta y no se reubica; si sí, se
-   reubica en la fase que corresponda.
-
-## Próximo paso, en orden
-
-1. **F4**: ejecutar la superficie única de Estructura (reescribiendo la guarda
-   `focoNoBarraElSelector` con vos) + la vista de Objetivos de §2.4 del doc de
-   fases sagradas.
-2. **F3**: miniatura = render real a escala; geometría de un solo módulo.
-3. F2 (carga/mascotas), F6 (referencias), F7 (revisión), F8 (proyectos), F9
-   (exportar), F5 (figuras), F10 (LLM).
+1. **F4**: ejecutar la superficie única de Estructura —reescribiendo la guarda
+   `focoNoBarraElSelector`— + la vista de Objetivos de §2.4. Para la reescritura
+   de la guarda te voy a mostrar la propuesta antes de tocarla.
+2. **F5**: plegar el editor de ecuación dentro de la fase de figuras (que pasa a
+   ser «Figuras, tablas y ecuaciones»).
+3. F3 (miniatura real a escala), F6 (referencias: dedupe), F7 (revisión), F8
+   (proyectos), F9 (exportar), F2 (carga), F10 (IA).
