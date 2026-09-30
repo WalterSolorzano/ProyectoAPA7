@@ -689,6 +689,71 @@ Cada una se resuelve en vivo al arrancar su fase, antes de escribir código.
 
 ---
 
+## 8-bis. Directivas del 2026-09-29 (segunda pasada del usuario)
+
+Estas respuestas del usuario AMPLÍAN el alcance de las fases. Se registran acá
+para que ninguna quede a interpretación.
+
+### 8-bis.1 La tira de portada se BORRA
+
+Confirmado: es la barra superior que lista las estrategias en texto
+(`Conservar original / APA 7 Estándar / Institucional UNI / Profesional APA /
++ Subir plantilla`), `CoverStrategyStrip` en `CoverCarouselStudio.tsx`. **Se
+borra**, y se reescriben las pruebas de `coverStudioChrome.test.tsx` que la
+guardan por nombre. El estado se sigue eligiendo en el carrusel; el editor ya
+tiene `Cambiar plantilla` en su encabezado.
+
+### 8-bis.2 El principio de la FASE SAGRADA
+
+> Cada fase es un comodín: un área dedicada a UNA cosa, con sus propios
+> controles, y ningún control de otra fase se mezcla con los suyos.
+
+- **Cero contaminación cruzada.** Un control de Estructura no aparece en
+  Portada, ni uno de Figuras en Revisión. Antes de dejar un control en una
+  pantalla, la pregunta es "¿esto es de esta fase?". Si no, se va o se reubica.
+- **El Inspector se revisa fase por fase.** El usuario no le encontró uso y lo
+  percibe como ruido visual en cada fase (`RightSidePanel` / `ElementInspector`,
+  montado hoy en los pasos 1 a 3). Se decide por fase: donde no aporte, **no se
+  monta**; donde aporte, se reescribe para ESA fase. No es un panel global.
+- **Pocos controles, categorizados.** Si una UI tiene mil botones sueltos, se
+  agrupan en desplegables / secciones colapsables. Se aplica primero a **Portada**
+  (hoy tiene demasiados controles sueltos) y después a cada fase.
+- **La información no se vomita.** Un panel no vuelca el documento: muestra lo
+  que esa fase necesita, formateado para lo que ese contenido ES (ver 8-bis.3).
+
+### 8-bis.3 El contenido se presenta según lo que es, no en texto plano
+
+El caso concreto que reportó el usuario, en **Objetivos**:
+
+- El H1 "Objetivos" tenía TODO el contenido y sus H2 ("Objetivo general",
+  "Objetivos específicos") aparecían vacíos. Es el bug del H2 heredando, con la
+  pantalla exacta ya identificada. Repro: un H1 con párrafos numerados abajo y
+  H2 debajo de esos párrafos.
+- Y más allá del bug: si la rama son OBJETIVOS, la vista no puede ser texto
+  plano con la fuente de la interfaz. Tiene que:
+  - presentarlos organizados (general / específicos, por nivel),
+  - decir la CALIDAD de cada uno (¿es medible? ¿empieza con verbo en infinitivo?),
+  - ofrecer VARIANTES/Sugerencias de la IA cuando un objetivo suena flojo.
+
+Esto es un principio, no un caso: cada fase presenta su contenido adaptado a lo
+que ese contenido es (objetivos, figuras, citas, hallazgos), con la fuente de la
+casa y no un `<pre>` crudo.
+
+### 8-bis.4 Se consulta la skill de diseño
+
+Antes de cada rediseño de superficie se invoca la skill `impeccable` y se aplica
+su checklist. No es opcional: el usuario la pidió explícitamente.
+
+### 8-bis.5 Decidir 3 vs 1 modos: por razonamiento, no por guarda
+
+Antes de fusionar o conservar los tres modos de Estructura, hay que razonar como
+el usuario pidió: **si yo fuera un estudiante y esta fase fuera mi comodín, ¿qué
+debería poder hacer SOLO acá?** Ese análisis decide el 3 o el 1, y el mismo
+análisis se hace para las otras fases. La guarda `focoNoBarraElSelector` se
+reescribe DESPUÉS de la decisión, no antes.
+
+---
+
 ## 9. Cómo se sabe que terminó
 
 Un solo criterio:
