@@ -1,0 +1,225 @@
+# Fases sagradas — qué vive en cada pantalla
+
+Fecha: 2026-09-29. Autor: sesión de corrección por fases.
+Padre: `2026-09-29-plan-correccion-por-fases-design.md` (§8-bis).
+
+Este documento responde una pregunta del usuario, textual:
+
+> «Si yo fuera un estudiante universitario y pudiera resolver muchos problemas en
+> automático, y cada fase es un super comodín, un área sagrada que se dedica solo
+> a eso… ¿qué cosas deberían estar ahí? ¿qué controles deberían poder verse?…
+> analiza y de ahí decides si 3 o 1».
+
+No es un plan de implementación: es el **reparto** del que salen los planes. Cada
+decisión de acá se ejecuta en la fase correspondiente (F3–F9).
+
+---
+
+## 1. El principio, en una frase
+
+**Cada fase es un comodín: un área dedicada a UNA cosa, con sus propios
+controles, y ningún control de otra fase se mezcla con los suyos.**
+
+De ahí sale la prueba de pertenencia. Antes de dejar un control en una pantalla,
+tres preguntas; si las tres no dan «sí», el control no va ahí:
+
+1. **¿Un estudiante lo buscaría en ESTA pantalla?** (No «¿es útil?». Todo es
+   útil. «¿Lo buscaría acá?».)
+2. **¿Es de esta fase, o es de otra que ya existe?**
+3. **¿Se puede resolver en automático en vez de pedirlo?** Si sí, no se pide: se
+   resuelve y, si acaso, se muestra el resultado con su deshacer.
+
+La consecuencia incómoda, y la que hay que aceptar: **una pantalla con pocos
+controles es el éxito, no una pantalla a la que le falta algo.**
+
+---
+
+## 2. Estructura — la decisión 3 vs 1
+
+### 2.1 Qué es el comodín
+
+El trabajo de esta fase, en las palabras del estudiante: *«ordenar mi documento
+como APA 7 sin abrir Word, y que me diga qué le falta».*
+
+### 2.2 La prueba, aplicada
+
+Con ese mandato, lo que un estudiante buscaría EN Estructura es:
+
+| SÍ pertenece | Por qué |
+|---|---|
+| El **esqueleto**: los títulos, su nivel y lo que cuelga de cada uno | Es el eje: sin ver la forma, no hay nada que ordenar |
+| **Corregir niveles** (promover / degradar) | Es LA acción de la fase |
+| **Renombrar** un título | Es el mismo trabajo, un renglón más abajo |
+| **Diagnóstico de la forma**: secciones obligatorias que faltan, títulos mal nivelados, capítulos desbalanceados o vacíos | Es lo que «me diga qué le falta» significa |
+| **Insertar lo que falta** desde una plantilla APA 7 (una sección, un esqueleto entero) | Resuelve en automático lo que el diagnóstico detectó |
+| **Ver el documento** (toggle), para leer el contexto de un título | Mirar la forma sin poder mirar el texto es adivinar |
+
+| NO pertenece | A dónde va |
+|---|---|
+| El editor de prosa completo | Es Word. Acá solo se renombra. |
+| Ortografía, frases de IA, tono | Revisión (F7) |
+| Citas y referencias | Referencias (F6) |
+| Leyendas de figuras y tablas | Figuras (F5) |
+| Formato (interlineado, sangría, fuentes) | Es del lienzo / ajustes, no de la forma |
+
+### 2.3 La decisión: **una sola superficie**
+
+Los tres modos actuales (`Esquema Jerárquico` / `Revisor de Títulos APA 7` /
+`Editor de Prosa`) no son tres trabajos: son **un trabajo con tres vistas de la
+misma cosa**. Y dos de las tres violan la prueba de pertenencia —el «Revisor de
+Títulos» repite el diagnóstico que el índice ya hace por nodo, y el «Editor de
+Prosa» es Word.
+
+Entonces: **1 superficie**, con el índice como eje y el documento como toggle, y
+lo que hacían las otras dos pestañas convertido en **acciones del nodo**:
+
+- promover / degradar → acción de la fila (ya existe en `FaltasApa7`/`InspectorRama`);
+- renombrar → edición en línea del título;
+- el «Revisor de Títulos» → el **diagnóstico por nodo** que ya se pinta en la fila
+  y en el inspector de rama.
+
+**La guarda `focoNoBarraElSelector.test.tsx` se reescribe, no se borra.** Esa
+guarda existe por un defecto real: con el modo foco prendido, el índice quedaba
+como callejón sin salida porque los otros destinos desaparecían. Con una sola
+superficie no hay selector que perder, así que la guarda cambia de sujeto: pasa a
+exigir que **toda acción siga alcanzable** (promover, renombrar, el toggle del
+documento) en cualquier modo, incluido foco. Se reescribe CON el usuario cuando
+esta fase se ejecute.
+
+### 2.4 El caso Objetivos: la vista se adapta a lo que hay
+
+Pedido textual: *«si son objetivos, que los presente bonito, no texto plano feo
+con fuente fea; bien organizados, con su análisis de qué nivel es cada uno, qué
+calidad le das, variantes… sugerencias de la IA»*.
+
+Regla general: **cuando la rama seleccionada tiene un tipo reconocible, su vista
+presenta ESE tipo**, no un volcado de párrafos. Para Objetivos:
+
+- **general** y **específicos** separados — y la separación sale del documento
+  (los H2 «Objetivo general» / «Objetivos específicos»), **no** de asumir que el
+  primer párrafo es el general (que es lo que hace el código viejo, ver §4);
+- cada objetivo con su **nivel de Bloom** (el verbo) y su **calidad**: ¿es
+  medible?, ¿empieza en infinitivo?, ¿tiene relación con el general?;
+- **variantes** por objetivo flojo, para que el estudiante elija en vez de
+  redactar de cero;
+- nada de esto es texto plano: es estructura con la tipografía de la casa.
+
+---
+
+## 3. Las otras fases
+
+Mismo formato: el comodín, lo que entra, lo que no, y cómo se agrupa.
+
+### F2 — Carga / Inicio
+- **Comodín:** *«empezar mi trabajo»*.
+- **Entra:** subir o elegir un `.docx`; recuperar una sesión; la identidad de la
+  app. Nada más.
+- **No entra:** ninguna configuración editorial (eso es Ajustes), ninguna
+  estadística del documento (eso es Estructura/Revisión).
+- **Agrupación:** un solo bloque de acción y, debajo, lo reciente en una lista
+  plegable.
+- **Pendiente:** el reinicio de la pantalla (F2) y la unificación de mascotas.
+
+### F3 — Portada
+- **Comodín:** *«que mi portada quede bien sin que se rompa la que ya tengo»*.
+- **Entra:** elegir el diseño (carrusel) y editar los datos que van impresos.
+  **Hecho:** la tira duplicada se borró y los campos se agruparon en secciones
+  plegables (`Identificación`, `Institución y carrera` abiertas; `Docente y
+  entrega` cerrada).
+- **No entra:** el diseño de las otras fases ni el formato del cuerpo.
+- **Pendiente:** que la miniatura sea el render real a escala (F3) y que la
+  geometría salga de un solo módulo.
+
+### F4 — Estructura
+- Ver §2. Es la fase donde se toma la decisión.
+
+### F5 — Figuras y tablas
+- **Comodín:** *«que mis figuras y tablas cumplan APA 7»*.
+- **Entra:** la lista de figuras/tablas (numeración, orden), la leyenda APA 7
+  (Figura N / Tabla N / Nota), y el aviso de las que no tienen leyenda.
+- **No entra:** el editor de imagen (recorte, distribución) — eso es una acción
+  de la figura, no la fase; ni el texto que la referencia.
+- **Dependencia:** necesita la geometría de F3 (misma hoja, misma escala).
+- **Pendiente:** `ListaContextual` repite el párrafo anterior como «contexto».
+
+### F6 — Referencias
+- **Comodín:** *«que mis citas y mi lista estén completas y en APA 7»*.
+- **Entra:** la lista con su contraste real contra el cuerpo (citadas / sin
+  citar / huérfanas), resolver un DOI o una URL, y el estilo de cita.
+- **No entra:** el formato del párrafo donde va la cita.
+- **Pendiente:** el rediseño tipo Notion con contraste real (F6).
+
+### F7 — Revisión
+- **Comodín:** *«que me diga qué está mal en mi redacción y me deje arreglarlo»*.
+- **Entra:** **un párrafo a la vez**, con el hallazgo y su acción. El rail y los
+  chips de filtro por motor. Nada más.
+- **No entra:** la estructura del documento (es F4) ni las referencias (F6); sus
+  hallazgos llegan acá como hallazgos, no como pantallas.
+- **Regla de botones (ya escrita en `AGENTS.md`):** motores objetivos →
+  «Aceptar / Aceptar todas»; el detector de IA, que es probabilístico → SOLO
+  «Marcar para revisar», nunca «Aceptar».
+- **Pendiente:** los cuadrados de color sin leyenda; el «ya no está en el
+  documento»; el contraste.
+
+### F8 — Proyectos
+- **Comodín:** *«trabajar varios archivos sin perder nada»*.
+- **Entra:** la carpeta de trabajo, los `.docx` del proyecto, las figuras
+  asociadas. Abrir, agregar, quitar.
+- **No entra:** nada del documento abierto.
+- **Pendiente:** el error al abrir (reproducir en vivo) y migrar
+  `projectImages` a `asset_id` antes de tocar el modelo `Proyecto`.
+
+### F9 — Exportar
+- **Comodín:** *«sacarlo y mandarlo»*.
+- **Entra:** **columna única alineada a la izquierda**, icono → título → una
+  línea ≤50 ch → dos botones pegados (sólida + fantasma). Formato, opciones y
+  vista previa bajo toggle.
+- **No entra:** ningún resumen de hallazgos ni estadística (eso ya se vio).
+- **Pendiente:** que no rompa en pantallas chicas.
+
+### F10 — IA
+- **Comodín:** *«que me ayude sin mentirme»*.
+- **Entra:** el copiloto conversacional y las auditorías de fondo, con su estado
+  visible («corriendo / terminó / falló»).
+- **No entra:** decisiones de formato o estructura sin que el usuario las vea.
+- **Pendiente:** la rampa de nivel de IA con cuatro rojos que no se distinguen.
+
+---
+
+## 4. Hallazgos de esta sesión (para el plan, no para el código todavía)
+
+1. **`src/lib/contentReview.ts` no lo usa ninguna UI.** `reviewContent` solo se
+   importa desde su test. Es una de las pantallas viejas que el usuario quiere
+   reemplazar por algo útil; sirve como **base** del análisis de Objetivos de
+   §2.4, pero no como pantalla tal cual.
+2. **Bug real en `contentReview.ts:85-99` (`collectSections`).** El recorrido
+   **descarta los encabezados** (`continue`) y vuelca todo lo que cuelga de
+   «objetiv*» en un solo saco. Después `reviewObjectives` **asume que el primer
+   elemento es el general** (`items.length - 1`, línea 182). Con H2 explícitos
+   («Objetivo general» / «Objetivos específicos») la estructura se pierde y la
+   cuenta de específicos puede mentir. La separación general/específicos tiene que
+   salir del documento, no de una suposición.
+3. **El bug que reportaste («H1 con todo, H2 vacíos») no lo pude reproducir sin
+   tu documento.** `construirJerarquia` asigna la prosa al último encabezado
+   abierto, así que un H2 solo queda vacío si su contenido **va antes** o si el
+   contenido no es prosa para el modelo. Dos causas candidatas, en orden:
+   - los párrafos de los objetivos vienen **antes** de los H2 en el documento;
+   - el backend los marca con un `type` que no está en `ES_PROSA`
+     (`paragraph|bullet|numbered_list|block_quote`).
+   **Lo que necesito:** el `.docx` (o la captura de la rama «Objetivos» con el
+   árbol abierto). Con eso lo cazo en una pasada.
+
+---
+
+## 5. Consecuencia: cómo se cambia una guarda
+
+Ninguna de estas decisiones se ejecuta borrando un test. El protocolo:
+
+1. el test que se va a cambiar **consignaba la conducta vieja** (no un defecto
+   escondido): se dice cuál y por qué en el mensaje del commit;
+2. el test nuevo **protege la conducta que reemplaza**, no solo comprueba que el
+   viejo desapareció;
+3. si la guarda nació de un defecto real (como `focoNoBarraElSelector`), el test
+   nuevo cubre el defecto original por otro camino.
+
+Este documento decide **qué** cambia. El **cómo** va en el plan de cada fase.
