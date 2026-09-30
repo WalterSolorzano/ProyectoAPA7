@@ -14,6 +14,7 @@ import {
   TableModel,
 } from '../types';
 import { useDocStore } from '../store/useDocStore';
+import { PROVEEDORES_IA } from '../lib/proveedoresIA';
 import { getApiBase, getApiBaseAsync, fetchWithTrace, resolveAssetUrl } from './http';
 
 export { getApiBase, getApiBaseAsync, resolveAssetUrl } from './http';
@@ -351,44 +352,56 @@ export interface SpellingFinding {
   ai_is_error?: boolean;
 }
 
-const PROVIDER_KEY_ENV_MAP: Record<string, string> = {
-  'NVIDIA_API_KEY': 'NVIDIA_API_KEY',
-  'GROQ_API_KEY': 'GROQ_API_KEY',
-  'OPENROUTER_API_KEY': 'OPENROUTER_API_KEY',
-  'CEREBRAS_API_KEY': 'CEREBRAS_API_KEY',
-  'MISTRAL_API_KEY': 'MISTRAL_API_KEY',
-  'OPENCODEZEN_API_KEY': 'OPENCODEZEN_API_KEY',
-  'ZENMUX_API_KEY': 'ZENMUX_API_KEY',
-  'GEMINI_API_KEY': 'GEMINI_API_KEY',
-  'CLOUDFLARE_API_TOKEN': 'CLOUDFLARE_API_TOKEN',
-  'CLOUDFLARE_ACCOUNT_ID': 'CLOUDFLARE_ACCOUNT_ID',
-  'AION_API_KEY': 'AION_API_KEY',
-  'KILOCODE_API_KEY': 'KILOCODE_API_KEY',
-  'OLLAMA_API_KEY': 'OLLAMA_API_KEY',
-};
+/** Lo que el renderer manda a `/api/sync-provider-keys`.
+ *
+ *  Antes esto era un `dict` escrito a mano con trece entradas, y
+ *  `HUGGINGFACE_API_KEY` no estaba: la UI mostraba el campo, aceptaba la clave
+ *  y la clave se perdia acá, en el renderer, antes de salir. Tres listas
+ *  seguidas —esta, el `dict` del endpoint y `PROVIDER_ENV_VARS`— y las tres la
+ *  omitian.
+ *
+ *  AHORA se deriva del catalogo. El endpoint acepta exactamente el catalogo, y
+ *  un nombre inventado no lo acepta: la lista de este mapa no tiene que
+ *  coincidir con nada, tiene que ser el catalogo. Si mañana se agrega un
+ *  proveedor, sale solo; si no, se ve. */
+const VARIABLES_DEL_CATALOGO: readonly string[] = [
+  ...PROVEEDORES_IA.flatMap((p) => p.variablesClave),
+  ...PROVEEDORES_IA.flatMap((p) => (p.variableModelo ? [p.variableModelo] : [])),
+];
 
-/** Sincroniza las claves guardadas en localStorage con el backend (os.environ). */
+/** Sincroniza las claves y los modelos guardados en localStorage con el
+ *  backend (`os.environ`).
+ *
+ *  Los modelos tambien viajan. Antes no: un modelo se guardaba en este equipo
+ *  y no pasaba, y el campo decia "el motor todavia no los recibe". Era verdad y
+ *  era la misma clase de mentira que un control decorativo con la etiqueta de
+ *  uno funcional. */
 export async function syncAllProviderKeys(): Promise<{ ok: boolean; applied: string[]; error?: string }> {
-  const keys: Record<string, string> = {};
+  const claves: Record<string, string> = {};
+  const modelos: Record<string, string> = {};
   try {
-    for (const envVar of Object.keys(PROVIDER_KEY_ENV_MAP)) {
-      const stored = localStorage.getItem(`wordapa7-provider-key:${envVar}`) || '';
-      if (stored.trim()) keys[envVar] = stored.trim();
+    for (const envVar of VARIABLES_DEL_CATALOGO) {
+      const stored = (localStorage.getItem(`wordapa7-provider-key:${envVar}`) || '').trim();
+      if (!stored) continue;
+      if (envVar.endsWith('_MODEL') || envVar.endsWith('_AI_MODEL')) modelos[envVar] = stored;
+      else claves[envVar] = stored;
     }
   } catch { /* noop */ }
-  if (Object.keys(keys).length === 0) return { ok: true, applied: [] };
+  if (Object.keys(claves).length === 0 && Object.keys(modelos).length === 0) {
+    return { ok: true, applied: [] };
+  }
   try {
     const res = await fetchWithTrace(`${getApiBase()}/sync-provider-keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys }),
+      body: JSON.stringify({ keys: claves, modelos }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => null);
       return { ok: false, applied: [], error: err?.detail || `HTTP ${res.status}` };
     }
     const data = await res.json();
-    return { ok: true, applied: data?.applied || Object.keys(keys) };
+    return { ok: true, applied: data?.applied || Object.keys(claves) };
   } catch (e: any) {
     return { ok: false, applied: [], error: e?.message || String(e) };
   }

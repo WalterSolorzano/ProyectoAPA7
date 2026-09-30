@@ -75,10 +75,35 @@ def test_el_proveedor_vivo_usa_un_modelo_free():
     ZenMux y todos los demas dan 402 sin credito. El default tiene que ser uno
     que responda SIN pagar: para corregir prosa y registrar conectores, un
     flash chico alcanza y uno caro se come el presupuesto de una vez.
+
+    ESTA PRUEBA ESTABA ROTA EN LIMPIO, Y NO POR EL MODELO. Leia el `ZENMUX_MODEL`
+    DEL ENTORNO sin decir nada, asi que en una maquina con la variable puesta
+   probaba el modelo de quien la puso, no el default del repositorio. En una
+    instalacion limpia no tenia key y fallaba antes de llegar al modelo. Las dos
+    cosas son el mismo defecto: la prueba no aislaba lo que decia medir.
+
+    Ahora mide el default DEL REPOSITORIO: borra la variable, deja la key que
+    haya, y mira lo que sale de la entrada del proveedor. Y saltea si no hay
+    ninguna key en el entorno, porque sin key no hay nada que afirmar.
     """
+    import os
+
+    if not os.getenv("ZENMUX_API_KEY", "").strip():
+        import pytest
+        pytest.skip(
+            "sin ZENMUX_API_KEY: no hay cuenta querazine. El modelo por defecto "
+            "del repositorio es 'z-ai/glm-4.6v-flash-free' y lo fija "
+            "`python/classification/llm_classifier.py`."
+        )
+
     from classification.llm_classifier import _get_active_providers
 
-    zens = [p for p in _get_active_providers(None, None, False) if p["id"] == "zenmux"]
+    previo = os.environ.pop("ZENMUX_MODEL", None)
+    try:
+        zens = [p for p in _get_active_providers(None, None, False) if p["id"] == "zenmux"]
+    finally:
+        if previo is not None:
+            os.environ["ZENMUX_MODEL"] = previo
     assert zens, "zenmux no tiene key: la sonda y el catalogo estan desfasados"
     modelo = zens[0]["model"]
     assert "free" in modelo.lower() or "flash" in modelo.lower() or "mini" in modelo.lower(), (
@@ -86,3 +111,22 @@ def test_el_proveedor_vivo_usa_un_modelo_free():
         f"free porque te quedaste sin cuota, cambia ZENMUX_MODEL y actualiza "
         f"esta lista; no subas a un modelo de frontera en una key gratuita."
     )
+
+
+def test_el_default_de_zenmux_no_lo_cambia_el_entorno_de_quien_desarrolla(monkeypatch):
+    """La otra mitad, y la que hace que la de arriba sirva.
+
+    Con la variable puesta, el motor usa lo que puso el usuario: eso es lo
+    correcto y no se toca. Con la variable ausente, el motor usa el default del
+    repositorio, y ESO es lo que tiene que ser un modelo free. Son dos
+    afirmaciones distintas, y confundirlas es lo que hacia que la prueba
+    anterior no midiera nada.
+    """
+    from classification.llm_classifier import _get_active_providers
+
+    monkeypatch.setenv("ZENMUX_API_KEY", "clave-de-prueba")
+    monkeypatch.delenv("ZENMUX_MODEL", raising=False)
+
+    zenmux = [p for p in _get_active_providers() if p["id"] == "zenmux"][0]
+
+    assert zenmux["model"] == "z-ai/glm-4.6v-flash-free"

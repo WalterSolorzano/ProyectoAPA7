@@ -170,18 +170,21 @@ describe('Conexión — la pestaña no está muda', () => {
     /* Catorce claves: trece proveedores y el id de cuenta de Cloudflare, que sin
        él su endpoint no se puede construir. */
     expect(camposDeClave()).toHaveLength(14);
-    expect(camposDeModelo()).toHaveLength(9);
+    expect(camposDeModelo()).toHaveLength(13);
     expect(document.querySelector('.editorial-mascot-expression-worried')).toBeNull();
   });
 
-  it('las variables de modelo del backend tienen campo: las nueve', async () => {
+  it('las variables de modelo del backend tienen campo: las trece', async () => {
     ponerClave('NVIDIA_API_KEY', CLAVE_NVIDIA);
     await montar();
     const conModelo = PROVEEDORES_IA.filter((p) => p.variableModelo);
-    /* Siete en el plan, más `CLOUDFLARE_AI_MODEL` y `HUGGINGFACE_MODEL`, que se
-       leían en `llm_classifier.py` y tampoco tenían campo. */
+    /* Trece, una por proveedor. Nueve ya las leía el backend; las otras cuatro
+       —OpenRouter, Cerebras, Mistral y OpenCodeZen— las tenía quemadas en el
+       `.py` y salen a leerlas con default. Un `variableModelo: null` hoy
+       significaría "esto no se puede cambiar", y eso ya es falso para nadie. */
     expect(conModelo.map((p) => p.variableModelo)).toEqual([
-      'NVIDIA_NIM_MODEL', 'GROQ_MODEL', 'ZENMUX_MODEL', 'GEMINI_MODEL',
+      'NVIDIA_NIM_MODEL', 'GROQ_MODEL', 'OPENROUTER_MODEL', 'CEREBRAS_MODEL',
+      'MISTRAL_MODEL', 'OPENCODEZEN_MODEL', 'ZENMUX_MODEL', 'GEMINI_MODEL',
       'CLOUDFLARE_AI_MODEL', 'AION_MODEL', 'KILOCODE_MODEL', 'OLLAMA_MODEL',
       'HUGGINGFACE_MODEL',
     ]);
@@ -236,9 +239,12 @@ describe('Conexión — autoguardado que mira, y ningún botón de guardar', () 
     expect(screen.queryByText('Guardado en este equipo')).toBeNull();
   });
 
-  it('un modelo se guarda en este equipo y NO se manda como clave', async () => {
-    /* El endpoint `/api/sync-provider-keys` solo acepta variables de clave. Que
-       el campo lo diga y no llame al backend es mejor que fingir que viaja. */
+  it('un modelo se guarda Y se manda: ya no es un control mudo', async () => {
+    /* Este test consagtaba la deuda como contrato: afirmaba que el modelo NO se
+       mandaba y que la UI decía que no se mandaba. Las dos cosas eran verdad
+       y las dos eran el defecto. Ahora el endpoint acepta modelos, así que el
+       modelo sale. Si alguien vuelve a poner la rama que lo guarda sin mandarlo,
+       esto se cae. */
     ponerClave('NVIDIA_API_KEY', CLAVE_NVIDIA);
     await montar();
     syncAllProviderKeys.mockClear();
@@ -247,9 +253,11 @@ describe('Conexión — autoguardado que mira, y ningún botón de guardar', () 
     await act(async () => { fireEvent.change(campo, { target: { value: 'mi-modelo' } }); });
     await esperar(900);
     expect(localStorage.getItem(claveDeLocalStorage('NVIDIA_NIM_MODEL'))).toBe('mi-modelo');
+    expect(syncAllProviderKeys).toHaveBeenCalled();
     expect(screen.getByText('Guardado en este equipo')).toBeTruthy();
-    expect(syncAllProviderKeys).not.toHaveBeenCalled();
-    expect(screen.getByText(/El motor todavía no los recibe/)).toBeTruthy();
+    /* Y la UI ya no lo niega: la frase era verdad cuando el campo no llegaba. */
+    expect(screen.queryByText(/todavía no los recibe/)).toBeNull();
+    expect(screen.queryByText(/El motor todavía no los recibe/)).toBeNull();
   });
 });
 

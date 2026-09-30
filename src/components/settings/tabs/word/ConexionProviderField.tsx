@@ -15,10 +15,11 @@
  *   que se guardó sin mirar. Acá el texto se deriva de comparar lo que se
  *   ESCRIBIÓ contra lo que se LEE de vuelta del almacenamiento. Si el
  *   almacenamiento falla, dice que no se pudo guardar.
- * - El campo de modelo NO se manda al backend, y el indicador lo dice: el
- *   endpoint `/api/sync-provider-keys` solo acepta variables de clave
- *   (`python/main.py`, lista `allowed`). El modelo queda en este equipo hasta
- *   que esa lista incluya las variables de modelo.
+ * - El campo de modelo TAMBIÉN va al backend. Antes no iba: el autoguardado
+ *   escribía en localStorage y la llamada al sync quedaba detrás de un
+ *   `if (tipo === 'clave' && limpio)`, así que un modelo se guardaba en este
+ *   equipo y no salía nunca. El endpoint `/api/sync-provider-keys` ahora acepta
+ *   variables de clave y de modelo, derivadas del mismo catálogo.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check } from 'lucide-react';
@@ -31,8 +32,8 @@ export interface ConexionProviderFieldProps {
   /** El nombre de la variable de entorno. Es también la clave del campo. */
   envVar: string;
   label: string;
-  /** `clave` se enmascara y se sincroniza con el motor; `modelo` se muestra y
-   *  se guarda en este equipo. */
+  /** `clave` se enmascara; `modelo` se muestra. Los dos se sincronizan con el
+   *  motor: no hay un camino que guarde y otro que mande. */
   tipo?: TipoDeCampo;
   /** El valor por defecto que usa el backend si la variable está vacía. */
   defecto?: string | null;
@@ -88,15 +89,20 @@ export const ConexionProviderField: React.FC<ConexionProviderFieldProps> = ({
       return;
     }
     alPersistir?.(envVar, leido);
-    if (tipo === 'clave' && limpio) {
+    /* UN solo camino para las dos cosas. Antes habia `if (tipo === 'clave' &&
+       limpio)`, con lo cual el modelo se guardaba en este equipo y NUNCA se
+       mandaba al backend: el campo decia "el motor todavia no los recibe" y el
+       campo de al lado no decia nada, asi que el mismo control tenia dos
+       verdades. Ahora las dos van al sync, y el endpoint acepta clave y modelo. */
+    if (limpio) {
       const r = await syncAllProviderKeys().catch(() => ({ ok: false as const, applied: [] }));
       /* El backend puede rechazar la sincronización y eso NO es un fallo de
-         guardado: la clave está escrita. Se distingue el mensaje en vez de
+         guardado: el valor está escrito. Se distingue el mensaje en vez de
          pintar todo de rojo. */
       setIndicador(r.ok ? 'guardado' : 'fallo');
       return;
     }
-    setIndicador(limpio ? 'guardado' : 'reposo');
+    setIndicador('reposo');
   };
 
   const alCambiar = (e: React.ChangeEvent<HTMLInputElement>) => {

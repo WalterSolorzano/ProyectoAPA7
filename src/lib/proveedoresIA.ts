@@ -32,9 +32,11 @@ export interface ProveedorIA {
    *  backend. Cloudflare necesita dos: sin el id de cuenta su endpoint no se
    *  puede construir, así que saying "tiene clave" con una sola sería mentira. */
   variablesClave: string[];
-  /** La variable de modelo, si el backend la lee del entorno. Los proveedores
-   *  cuyo modelo está fijo en el código la tienen en `null`: no hay nada que
-   *  editar y un campo para eso sería un control mudo. */
+  /** La variable de modelo, si el backend la lee del entorno. TODOS la leen:
+   *  los cuatro que la tenian quemada en el codigo —OpenRouter, Cerebras, Mistral
+   *  y OpenCodeZen— salen a leerla con default, asi que `null` ya no describe a
+   *  nadie y un campo para eso no tendria a quien escribir. Un `null` aqui
+   *  significaria "el modelo no se puede cambiar", y eso es falso. */
   variableModelo: string | null;
   /** El modelo que usa el backend si la variable está vacía. Va acá para que
    *  el campo pueda decir cuál es el de partida, que es lo que hace falta para
@@ -56,22 +58,22 @@ export const PROVEEDORES_IA: ProveedorIA[] = [
   {
     id: 'openrouter', etiqueta: 'OpenRouter',
     variablesClave: ['OPENROUTER_API_KEY'],
-    variableModelo: null, modeloPorDefecto: null,
+    variableModelo: 'OPENROUTER_MODEL', modeloPorDefecto: 'meta-llama/llama-3.3-70b-instruct',
   },
   {
     id: 'cerebras', etiqueta: 'Cerebras',
     variablesClave: ['CEREBRAS_API_KEY'],
-    variableModelo: null, modeloPorDefecto: null,
+    variableModelo: 'CEREBRAS_MODEL', modeloPorDefecto: 'llama3.1-70b',
   },
   {
     id: 'mistral', etiqueta: 'Mistral AI',
     variablesClave: ['MISTRAL_API_KEY'],
-    variableModelo: null, modeloPorDefecto: null,
+    variableModelo: 'MISTRAL_MODEL', modeloPorDefecto: 'mistral-small-latest',
   },
   {
     id: 'opencodezen', etiqueta: 'OpenCodeZen',
     variablesClave: ['OPENCODEZEN_API_KEY'],
-    variableModelo: null, modeloPorDefecto: null,
+    variableModelo: 'OPENCODEZEN_MODEL', modeloPorDefecto: 'meta-llama/llama-3.3-70b-instruct',
   },
   {
     id: 'zenmux', etiqueta: 'ZenMux',

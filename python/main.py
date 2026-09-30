@@ -1014,48 +1014,59 @@ async def api_citation_fix(req: CitationFixRequest) -> dict:
 @app.post("/api/sync-provider-keys")
 async def sync_provider_keys_endpoint(request: Request) -> dict:
     """
-    Recibe las claves de API guardadas por el usuario en la UI (localStorage)
-    y las inyecta en os.environ para que _get_active_providers() las use
-    sin necesidad de reiniciar el backend ni editar .env.
-    Solo inyecta si el valor no está vacío; nunca sobrescribe una existente
-    salvo que se envíe un valor nuevo.
+    Recibe lo que el usuario escribio en la pestana Conexion y lo inyecta en
+    os.environ, para que `_get_active_providers()` lo use sin reiniciar el
+    backend ni editar .env a mano.
+
+    Acepta CLAVES y MODELOS. Antes `allowed` era un `dict` de variables de
+    clave, con lo cual los nueve campos de modelo de la UI se guardaban en
+    localStorage y no llegaban: un control decorativo con la etiqueta de uno
+    funcional, y la propia UI lo admitia por escrito.
+
+    Lo que se acepta sale del catalogo de `persistence.ai_keys`, que es la misma
+    lista que se persiste. Derivar de ahi y no de una copia escrita acá es lo que
+    evita la tercera omision: cuando se agrego HuggingFace, esta lista, el mapa
+    del renderer y `PROVIDER_ENV_VARS` quedaron con trece y el catalogo con
+    catorce.
+
+    Solo inyecta si el valor no esta vacio; nunca sobrescribe una existente salvo
+    que se mande un valor nuevo.
     """
+    from persistence.ai_keys import PROVIDER_ENV_VARS
+
     try:
         body = await request.json()
     except Exception:
         body = {}
-    keys = body.get("keys", {}) or {}
-    if not isinstance(keys, dict):
-        keys = {}
+    permitidas = set(PROVIDER_ENV_VARS)
 
-    # Mapa de variable de entorno -> clave del cuerpo
-    allowed = {
-        "NVIDIA_API_KEY": "NVIDIA_API_KEY",
-        "GROQ_API_KEY": "GROQ_API_KEY",
-        "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
-        "CEREBRAS_API_KEY": "CEREBRAS_API_KEY",
-        "MISTRAL_API_KEY": "MISTRAL_API_KEY",
-        "OPENCODEZEN_API_KEY": "OPENCODEZEN_API_KEY",
-        "ZENMUX_API_KEY": "ZENMUX_API_KEY",
-        "GEMINI_API_KEY": "GEMINI_API_KEY",
-        "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN",
-        "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
-        "AION_API_KEY": "AION_API_KEY",
-        "KILOCODE_API_KEY": "KILOCODE_API_KEY",
-        "OLLAMA_API_KEY": "OLLAMA_API_KEY",
-    }
+    # Las claves y los modelos llegan en dos cuerpos distintos porque en la UI
+    # son dos campos de formulario distintos. Se juntan en un solo diccionario
+    # para que el camino de aplicacion y el de persistencia sean uno: aplicarlas
+    # por un lado y guardarlas por otro es como una clave llega a `os.environ` y
+    # no sobrevive al reinicio.
+    recibido: dict = {}
+    for campo in ("keys", "modelos", "models"):
+        parte = body.get(campo, {}) or {}
+        if isinstance(parte, dict):
+            recibido.update(parte)
+    # Y tambien sueltas en la raiz, que es como las mando el primer cliente.
+    for nombre, valor in body.items():
+        if nombre in permitidas:
+            recibido[nombre] = valor
 
     applied = []
-    for env_var, key_name in allowed.items():
-        val = str(keys.get(key_name, "") or "").strip()
+    for env_var in PROVIDER_ENV_VARS:
+        val = str(recibido.get(env_var, "") or "").strip()
         if val:
             os.environ[env_var] = val
             applied.append(env_var)
 
-    # Persistir en disco para que las claves sobrevivan a un reinicio del backend
+    # Lo que se aplico, se persiste. Y se persiste SOLO lo que se aplico: lo
+    # demas no salio de acá y no tiene por que quedar en un archivo.
     try:
         from persistence.ai_keys import save_provider_keys
-        save_provider_keys(keys)
+        save_provider_keys({k: recibido.get(k) for k in applied})
     except Exception as e:
         print(f"[WARN] No se pudo persistir claves de IA: {e}")
 

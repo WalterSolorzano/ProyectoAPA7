@@ -270,12 +270,11 @@ export const ConexionTab: React.FC = () => {
       {hayClave && (
         <Seccion
           titulo="Modelos"
-          descripcion="Qué modelo consulta cada proveedor. Los que no aparecen acá tienen el modelo fijo en el motor y no son una preferencia."
+          descripcion="Qué modelo consulta cada proveedor. Todos los que aparecen acá los lee el motor del entorno; los que no, no se pueden cambiar."
         >
           <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-            Se guardan en este equipo. El motor todavía no los recibe: hasta que
-            esta variable llegue al backend, cada proveedor consulta su modelo
-            por defecto.
+            Se guardan en este equipo y llegan al motor. Si lo dejás vacío, el
+            proveedor consulta el modelo por defecto que dice el campo.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)' }}>
             {/* `flatMap` y no `filter` con un cast: el filtro de TypeScript no

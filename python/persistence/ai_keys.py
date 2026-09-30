@@ -14,8 +14,21 @@ from pathlib import Path
 
 from config import STORAGE_DIR
 
-# Variables de entorno de proveedores soportados (orden estable)
-PROVIDER_ENV_VARS = [
+# Variables de entorno de proveedores soportados (orden estable).
+#
+# ANTES: trece, todas de clave, y `HUGGINGFACE_API_KEY` no estaba. La UI
+# mostraba el campo de HuggingFace, aceptaba la clave y la clave se perdia en
+# el renderer; y aunque llegara, no se persistia, asi que desaparecia en cada
+# reinicio del backend. Tres listas seguidas y las tres la omitian.
+#
+# AHORA: el catalogo completo, claves y modelos. Los modelos tambien se
+# guardan, porque uno que la UI ofrece y el backend lee, pero que no sobrevive
+# al reinicio, funciona en la sesion en que lo escribiste y no en la siguiente.
+#
+# Esta lista es la que lee el endpoint `/api/sync-provider-keys` para decidir
+# que acepta, asi que agregar un proveedor es agregar UNA entrada y no
+# acordarse de tres lugares.
+VARIABLES_DE_CLAVE: list[str] = [
     "NVIDIA_API_KEY",
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
@@ -29,7 +42,34 @@ PROVIDER_ENV_VARS = [
     "AION_API_KEY",
     "KILOCODE_API_KEY",
     "OLLAMA_API_KEY",
+    "HUGGINGFACE_API_KEY",
 ]
+
+VARIABLES_DE_MODELO: list[str] = [
+    "NVIDIA_NIM_MODEL",
+    "GROQ_MODEL",
+    "OPENROUTER_MODEL",
+    "CEREBRAS_MODEL",
+    "MISTRAL_MODEL",
+    "OPENCODEZEN_MODEL",
+    "ZENMUX_MODEL",
+    "GEMINI_MODEL",
+    "CLOUDFLARE_AI_MODEL",
+    "AION_MODEL",
+    "KILOCODE_MODEL",
+    "OLLAMA_MODEL",
+    "HUGGINGFACE_MODEL",
+]
+
+# Lo que el endpoint acepta y lo que se persiste. El mismo conjunto, derivado
+# de una sola vez: dos listas que "se parecen" son dos listas que un dia no se
+# parecen.
+PROVIDER_ENV_VARS: list[str] = VARIABLES_DE_CLAVE + VARIABLES_DE_MODELO
+
+# De todo lo permitido, lo que es una clave. Lo usa el endpoint para no
+# distinguir: los dos se escriben igual, se guardan igual y llegan al entorno
+# igual.
+VARIABLES_QUE_SON_CLAVE = set(VARIABLES_DE_CLAVE)
 
 
 def _keys_path() -> Path:
@@ -37,9 +77,21 @@ def _keys_path() -> Path:
 
 
 def save_provider_keys(keys: dict) -> None:
-    """Persiste las claves no vacias en el archivo de almacenamiento."""
+    """Persiste en el archivo las variables del catalogo que tengan valor.
+
+    Se filtra por `PROVIDER_ENV_VARS` y no solo por "no vacio": un endpoint que
+    acepta cualquier nombre escribiria en disco un `GROQ_MODLEL` — el typo— y
+    devolveria que lo aplico. Al filtrar, lo que no es del catalogo no llega a
+    ningun lado, que es la unica respuesta honesta a un nombre que no existe.
+
+    Los modelos tambien se guardan. Son variables de entorno como las claves y
+    se leen igual, asi que su persistencia es la misma y va en el mismo archivo.
+    """
     try:
-        clean = {k: v for k, v in (keys or {}).items() if v and str(v).strip()}
+        clean = {
+            k: v for k, v in (keys or {}).items()
+            if k in set(PROVIDER_ENV_VARS) and v and str(v).strip()
+        }
         if not clean:
             return
         _keys_path().write_text(

@@ -177,7 +177,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "openrouter",
             "url": "https://openrouter.ai/api/v1/chat/completions",
             "key": or_key,
-            "model": "meta-llama/llama-3.3-70b-instruct",
+            "model": os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -189,7 +189,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "cerebras",
             "url": "https://api.cerebras.ai/v1/chat/completions",
             "key": cer_key,
-            "model": "llama3.1-70b",
+            "model": os.getenv("CEREBRAS_MODEL", "llama3.1-70b"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -201,7 +201,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "mistral",
             "url": "https://api.mistral.ai/v1/chat/completions",
             "key": mis_key,
-            "model": "mistral-small-latest",
+            "model": os.getenv("MISTRAL_MODEL", "mistral-small-latest"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
@@ -213,7 +213,7 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "id": "opencodezen",
             "url": "https://opencodezen.com/v1/chat/completions",
             "key": ocz_key,
-            "model": "meta-llama/llama-3.3-70b-instruct",
+            "model": os.getenv("OPENCODEZEN_MODEL", "meta-llama/llama-3.3-70b-instruct"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
