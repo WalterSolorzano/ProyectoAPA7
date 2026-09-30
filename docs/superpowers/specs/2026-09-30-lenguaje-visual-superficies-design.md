@@ -130,6 +130,11 @@ Viven en `.superpowers/brainstorm/wordapa7-ui/content/` (gitignoreado, persiste 
 | `objetivos-bloom.html` | primer intento de Objetivos (descartado: el gráfico) |
 | `objetivos-v2.html` | Objetivos leyendo primero (aprobado) |
 | `mapa-navegacion.html` | el Mapa + pulido editorial de Objetivos |
+| `propuestas-estructura.html` | T1/T2 + las 8 propuestas de Estructura (P1–P8) |
+| `figuras-propuesta.html` | Figuras v1 (lista por sección + detalle) |
+| `figuras-v2-tres-pestanas.html` | **Figuras v2 — el aprobado**: tres pestañas, párrafo anterior arriba y editorial, previews legibles, H1 con scroll, procedencia del H2 |
+| `editor-estilos-donde-vive.html` | primer intento del editor de estilos (formulario de inputs, **descartado**) |
+| `editor-estilos-presets.html` | **el editor de estilos v2**: galería de presets reales + listas desplazables + multi-selección |
 
 ---
 
@@ -225,33 +230,36 @@ La fase pasa a llamarse **Figuras, tablas y ecuaciones**: la ecuación vive acá
 
 **Se mantiene del diseño previo**: la leyenda visible en cada fila, las dos acciones con nombre (`Ver en el documento`, `Tamaño y alineación`), `Criterio general…` para aplicar el mismo criterio a todas, y `Sugerir con IA` para la leyenda.
 
-### 9.1 El editor de estilos: dónde vive
+### 9.1 El editor de estilos: dónde vive, y con qué
 
-**Hechos verificados en el código (nada inventado):**
+**Dónde (no es una pantalla nueva): la misma columna derecha en dos alcances.**
 
-- `python/modules/apa_rules.py` **es la fuente única** de reglas APA 7. Su `RULES` tiene `font`, `size`, `line_spacing`, `first_line_indent_in`, `hanging_indent_in`, `headings` (align/bold/italic/size por nivel) y `table_borders` (top / bottom / header_row_bold). La consumen `inplace_editor` (export), `scoped_apply` y el add-in (format-plan). Cambiar ahí = cambia en todas partes.
-- **Ya existe el patrón de "editor de presentación".** `src/components/inspector/EquationEditor.tsx` edita *número, formato, alineación y tipografía* de una ecuación, y vive en la **columna derecha** (`RightSidePanel`), que se abre al seleccionar el elemento. La figura tiene su equivalente. Es el mismo patrón que la figura, dicho por el propio código.
+- Alcance **Este elemento** → el inspector del elemento seleccionado.
+- Alcance **Todos** → `Criterio general…` abre ese mismo editor con el alcance ancho, dice **cuántos cambian y cuántos ya cumplen**, y aplica por el camino que ya existe (`scoped_apply` / format-plan), con deshacer.
 
-**Decisión: el editor de estilos no es una superficie nueva. Es la MISMA columna derecha en dos alcances.**
+**Con qué: los materiales que YA construimos y no se pueden desperdiciar.**
 
-- Alcance **Este elemento** → el inspector del elemento seleccionado, con información real y los mismos controles.
-- Alcance **Todos** → `Criterio general…` abre ese mismo editor con el alcance en “Todas las figuras (4)”, lee los valores vigentes de `RULES`, dice **cuántos cambian y cuántos ya cumplen**, y aplica por el camino que ya existe (`scoped_apply` / format-plan), con deshacer.
+| Material que existe | Qué aporta |
+|---|---|
+| **`ImageEditPanel.tsx` → `DESIGN_STYLES`**: **7 presets** con `label`, `desc`, `badge` y **miniatura SVG dibujada con tokens** | Es la galería visual del editor. No hay que inventar ninguna |
+| **`ImageEditPanel` → 4 pestañas** `Formato · Texto · Estilo · Revisión` (`Sliders`, `Type`, `Palette`, `ShieldCheck`) | El juego de pestañas del inspector, ya existente |
+| **`table_engine.py`**: `set_table_borders("apa")`, `set_table_apa7_borders`, `format_apa_table`, `fit_table_to_page`, `validate_table_widths` | La aplicación real sobre tablas |
+| **`style_engine.py`** | Normaliza `styles.xml` |
+| **`apa_rules.py` (`RULES`)** | El contrato de reglas APA 7, consumido por export y add-in |
 
-**Por qué NO una cuarta pestaña junto a Figuras/Tablas/Ecuaciones:** esa fila es el **tipo**; el estilo es el **formato**. Son dos ejes distintos; meterlos en la misma fila los confunde y duplica el inspector que ya existe.
+Los 7 presets reales, tal como están hoy en el código: `APA Estándar` (badge “Oficial”) · `Científico` (“Técnico”) · `Ancho Completo` · `Compacto / Flotante` · `Doble Horizontal (a, b)` (“Doble”) · `Cuadrícula 2×2 (a, b, c, d)` (“Malla”) · `Vertical Apilado (a, b)` (“Serie”).
 
-**Por qué NO un modal:** contradice la regla de la casa —nada por hover, el chrome ocupa espacio real— y esconde el efecto de lo que se aplica.
+> **Deslinde honesto**: `python/generation/templates.py` (TESINA, INFORME, IMRYD, ENSAYO) son plantillas de **estructura**, no de estilo. Su lugar natural es Estructura —es la propuesta **P2** (“insertar lo que falta”) que quedó sin elegir—, no este editor. Mezclarlas acá sería usar la herramienta equivocada.
 
-**Los controles, y de dónde sale cada uno:**
+**Decisión de forma (reemplaza el primer intento, que era un formulario de inputs):**
 
-| Grupo | Control | Respaldo |
-|---|---|---|
-| **Lo que APA 7 fija** (no editable) | Número y título **arriba** de la figura/tabla; nota **debajo**, empezando con “Nota.” en cursiva | APA 7 figura y tabla |
-| Tipografía de la leyenda | fuente y tamaño | `RULES.font`, `RULES.size` |
-| Líneas (solo tablas) | superior / bajo encabezado / inferior | `RULES.table_borders` |
-| Tamaño (solo figuras) | ancho y alto en cm | el dato del elemento |
-| Alineación | izquierda / centrada | APA 7 |
+El editor de estilos **no es una caja de campos**. Es **la galería de presets que ya existe, montada sobre listas desplazables**:
 
-Lo importante: **el editor no ofrece elegir lo que APA 7 ya fija** (la posición de la leyenda). Lo declara y lo aplica. Ofrecer un toggle ahí sería inventar un criterio que la norma no da.
+1. **Columna izquierda: la lista desplazable de elementos**, agrupada por H1, cada fila con su H2, su miniatura y su estado. Con checkbox por fila (**multi-selección, P7**).
+2. **La galería de presets** (`DESIGN_STYLES`) es el control central: se elige por miniatura, no escribiendo valores.
+3. **La lista es la vista previa**: al elegir un preset, cada fila elegida muestra cómo va a quedar. El botón dice `Aplicar a N figuras`.
+4. **Se conservan las 4 pestañas** del inspector (`Formato · Texto · Estilo · Revisión`). No se inventa otro juego.
+5. **Lo que APA 7 fija se declara, no se ofrece**: número y título arriba, nota debajo con “Nota.” en cursiva, sin líneas verticales en tablas. El preset `APA Estándar` es el que cumple; los demás son desvíos deliberados y se muestran como tales.
 
 ---
 
