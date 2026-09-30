@@ -1011,6 +1011,184 @@ async def api_citation_fix(req: CitationFixRequest) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class ProbarProveedorRequest(BaseModel):
+    """Que proveedor quiere el usuario probar, y con que clave."""
+
+    provider_id: str
+    # La clave es opcional: si no se manda, se usa la que este en el entorno, que
+    # es lo que ya habria escrito en la pestana. Mandarla es lo que permite
+    # probar una clave recien escrita sin esperar al autoguardado.
+    api_key: Optional[str] = None
+
+
+def _entrada_de_proveedor(provider_id: str, clave: str) -> Optional[dict]:
+    """La entrada de UN proveedor, exista o no su clave en el entorno.
+
+    Es la unica forma de probar una clave recien escrita: `_get_active_providers`
+    solo arma entradas de los proveedores que ya tienen clave puesta, asi que
+    para un proveedor sin clave levanta `ValueError` y no hay nada que probar.
+
+    **No se escribe una URL mas aca.** La entrada se arma poniendo la clave en el
+    entorno y dejando que `_get_active_providers` la construya, que es el mismo
+    camino que usa el router. Escribir aqui la URL seria la decimocuarta
+    direccion de un proveedor: la unica que nadie actualiza cuando el proveedor
+    muda de endpoint, y la unica que nadie puede probar con los tests por
+    proveedor.
+
+    Se usa un entorno temporal, no el de verdad: si el nombre de la variable ya
+    esta puesto, se respeta el valor que habia, que es el camino normal.
+    """
+    from classification.llm_classifier import _get_active_providers
+    from persistence.ai_keys import VARIABLES_DE_CLAVE_POR_ID
+
+    variables = VARIABLES_DE_CLAVE_POR_ID.get(provider_id)
+    if not variables:
+        return None
+
+    posted: dict = {}
+    try:
+        for variable in variables:
+            posted[variable] = os.environ.get(variable, "")
+            if not posted[variable] and clave:
+                os.environ[variable] = clave
+        entradas = _get_active_providers(None, None, False, provider_id)
+    except ValueError:
+        # Habia clave en el request pero el proveedor no se pudo construir.
+        # Pasa con Cloudflare y una sola de sus dos variables: sin el id de
+        # cuenta su endpoint no existe. No es una excepcion del ping, es "no se
+        # puede probar", y el ping lo tiene que decir en vez de romperse.
+        entradas = []
+    finally:
+        for variable, valor in posted.items():
+            if valor:
+                os.environ[variable] = valor
+            else:
+                os.environ.pop(variable, None)
+
+    return entradas[0] if entradas else None
+
+
+@app.post("/api/ai/probar-proveedor")
+async def probar_proveedor(req: ProbarProveedorRequest) -> dict:
+    """Le pregunta al proveedor UNA cosa minima, y dice cuanto costo y cuanto tardo.
+
+    Existia un problema concreto que esto resuelve: `get_ai_system_health()` dice
+    como esta el token bucket de cada especialidad, no si tu clave funciona. Un
+    usuario que escribe una clave no tiene forma de saber si sirve sin gastar
+    una tarea completa del documento, y un 401 no se distingue de "no tengo
+    credito" sin mirar.
+
+    El prompt es el mas corto posible y `max_tokens` es 1: el objetivo no es la
+    respuesta, es la linea de estado. Se manda `provider_id` para que no vaya a
+    preguntar por el primero de la lista.
+
+    Nunca lanza: un proveedor caido es un resultado con `ok: false` y un motivo,
+    no un 500. Un boton "Probar" que tira una excepcion en pantalla no es un
+    boton Probar.
+    """
+    import time
+
+    from modules.ai_client import _try_provider
+    from classification.llm_classifier import _get_active_providers
+
+    inicio = time.perf_counter()
+    resultado: dict = {
+        "provider_id": req.provider_id,
+        "ok": False,
+        "status": None,
+        "ms": 0,
+        "model": None,
+        "motivo": "",
+    }
+
+    # El proveedor se busca SIN la clave del request: la lista se arma con las
+    # variables del entorno, y el ping tiene que poder probar una clave recien
+    # escrita que todavia no llego a ninguna variable. Se busca por id entre las
+    # que se pueden construir, y si el id no existe se dice.
+    # El proveedor se busca por su id, SIN exigir que tenga clave. Es lo que
+    # permite probar una clave recien escrita que todavia no llego a ninguna
+    # variable de entorno, que es el caso que el boton existe para cubrir: el
+    # campo tiene un debounce de 800 ms y sin esto habria una ventana en la que
+    # el boton dice "no hay clave" y el usuario piensa que escribio mal.
+    #
+    # `_get_active_providers` arma la lista solo con los que TIENEN clave, asi
+    # que para un proveedor sin clave devuelve `ValueError`. Eso no es "no
+    # existe": puede existir y no tener clave, y son dos mensajes distintos para
+    # el usuario. Uno es "no lo conozco"; el otro es "falta la clave".
+    from persistence.ai_keys import VARIABLES_DE_CLAVE_POR_ID
+    conocido = req.provider_id in VARIABLES_DE_CLAVE_POR_ID
+
+    entrada = None
+    try:
+        entradas = _get_active_providers(None, None, False, req.provider_id)
+        entrada = entradas[0] if entradas else None
+    except ValueError:
+        if conocido:
+            entrada = _entrada_de_proveedor(req.provider_id, (req.api_key or "").strip())
+
+    if entrada is None:
+        resultado["motivo"] = (
+            f"A {req.provider_id} no le diste una clave todavia."
+            if conocido
+            else f"Proveedor desconocido: {req.provider_id}."
+        )
+        resultado["ms"] = int((time.perf_counter() - inicio) * 1000)
+        return resultado
+
+    resultado["model"] = entrada["model"]
+
+    # La clave del request se usa SOLO si el proveedor no tiene la suya en el
+    # entorno. Y se la pone a ESE y solo a ese: inyectarla en la entrada de NIM
+    # como hacia antes con `custom_key` fue el defecto que esta fase corrigio, y
+    # repetirlo aca seria el mismo defecto con otro nombre.
+    clave = (req.api_key or "").strip()
+    if clave and not entrada.get("key"):
+        entrada = dict(entrada, key=clave)
+    from classification.llm_classifier import PROVIDER_CAPACITY
+    timeout = PROVIDER_CAPACITY.get(req.provider_id, {}).get("timeout", 25)
+
+    try:
+        # `retries=1` es un intento, no cero: `_try_provider` recorre
+        # `range(retries)`, asi que cero intentos devuelve `None` sin hacer la
+        # llamada y el ping dice "no contesto" sin haber preguntado nada.
+        crudo = await _try_provider(entrada, {
+            "model": entrada["model"],
+            "messages": [{"role": "user", "content": "di hola"}],
+            "max_tokens": 1,
+        }, timeout, retries=1)
+    except Exception as e:
+        crudo = None
+        resultado["motivo"] = f"No se pudo completar la consulta: {e}"
+
+    resultado["ms"] = int((time.perf_counter() - inicio) * 1000)
+    if crudo is not None:
+        resultado["ok"] = True
+        resultado["status"] = 200
+    elif not resultado["motivo"]:
+        from modules.ai_client import _provider_health
+
+        observado = _provider_health.get(req.provider_id, {})
+        estado = observado.get("status", "sin respuesta")
+        http = observado.get("http_status")
+        resultado["status"] = http
+        if estado == "healthy":
+            resultado["ok"] = True
+        else:
+            resultado["motivo"] = _MOTIVO_DE_ESTADO.get(estado, estado)
+    return resultado
+
+
+# Por que un proveedor no contesto, en palabras que un usuario entienda. Sin
+# esto la UI muestra "rate_limited", que es un nombre interno que no dice si hay
+# que esperar, cambiar el modelo o cambiar la clave.
+_MOTIVO_DE_ESTADO: dict = {
+    "rate_limited": "El proveedor esta limitando por cuota. Espera un momento.",
+    "unavailable": "El proveedor rechazo la consulta. Revisa la clave y el modelo.",
+    "offline": "No se pudo conectar con el proveedor.",
+    "sin respuesta": "El proveedor no contesto.",
+}
+
+
 @app.post("/api/sync-provider-keys")
 async def sync_provider_keys_endpoint(request: Request) -> dict:
     """

@@ -66,6 +66,31 @@ VARIABLES_DE_MODELO: list[str] = [
 # parecen.
 PROVIDER_ENV_VARS: list[str] = VARIABLES_DE_CLAVE + VARIABLES_DE_MODELO
 
+# Que variables de entorno necesita cada proveedor, y en que orden. Vive aca y
+# no en `llm_classifier` porque `llm_classifier` la lee para armar sus entradas y
+# esta la necesita para lo mismo: una tabla de "que clave necesita cada uno" en
+# dos lugares es una tabla que un dia no coincide.
+#
+# Cloudflare tiene DOS porque sin el id de cuenta su endpoint no se puede
+# construir. Y el modelo de cada uno va junto, porque el modelo es parte de la
+# identidad del proveedor: un ping que dice "esto anda" sin decir con que modelo
+# no deja al usuario saber que va a pasar despues.
+VARIABLES_DE_CLAVE_POR_ID: dict[str, list[str]] = {
+    "nvidia_nim": ["NVIDIA_API_KEY"],
+    "groq": ["GROQ_API_KEY"],
+    "openrouter": ["OPENROUTER_API_KEY"],
+    "cerebras": ["CEREBRAS_API_KEY"],
+    "mistral": ["MISTRAL_API_KEY"],
+    "opencodezen": ["OPENCODEZEN_API_KEY"],
+    "zenmux": ["ZENMUX_API_KEY"],
+    "gemini": ["GEMINI_API_KEY"],
+    "cloudflare": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+    "aion": ["AION_API_KEY"],
+    "kilocode": ["KILOCODE_API_KEY"],
+    "ollama_cloud": ["OLLAMA_API_KEY"],
+    "huggingface": ["HUGGINGFACE_API_KEY"],
+}
+
 # De todo lo permitido, lo que es una clave. Lo usa el endpoint para no
 # distinguir: los dos se escriben igual, se guardan igual y llegan al entorno
 # igual.

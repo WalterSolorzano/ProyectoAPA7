@@ -37,6 +37,7 @@ import {
 } from '../../../lib/proveedoresIA';
 import { getSideloadStatus, repairSideload, type SideloadStatus } from '../../../api/backend';
 import { ConexionProviderField } from './word/ConexionProviderField';
+import { ProbarProveedor } from './word/ProbarProveedor';
 import { Seccion } from './word/Seccion';
 
 const PESTANA = pestanaPorId('conexion');
@@ -356,8 +357,12 @@ export const ConexionTab: React.FC = () => {
   );
 };
 
-/** Las claves de un proveedor. Cloudflare tiene dos, y son las dos
- *  necesarias: sin el id de cuenta su endpoint no se puede construir. */
+/** Las claves de un proveedor, y su botón Probar.
+ *
+ *  El botón va en la fila del proveedor y su resultado SE QUEDA ahí. No es un
+ *  toast: un toast se borra a los tres segundos, y lo que el usuario necesita
+ *  ver mientras escribe su clave es si esa clave sirve, no un aviso que ya se
+ *  fue. */
 const GroupDeClave: React.FC<{ proveedor: ProveedorIA; alPersistir: () => void; extra?: string }> = ({
   proveedor, alPersistir, extra,
 }) => (
@@ -373,6 +378,7 @@ const GroupDeClave: React.FC<{ proveedor: ProveedorIA; alPersistir: () => void; 
         alPersistir={alPersistir}
       />
     ))}
+    <ProbarProveedor proveedor={proveedor} />
   </div>
 );
 

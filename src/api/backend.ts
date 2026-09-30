@@ -369,6 +369,50 @@ const VARIABLES_DEL_CATALOGO: readonly string[] = [
   ...PROVEEDORES_IA.flatMap((p) => (p.variableModelo ? [p.variableModelo] : [])),
 ];
 
+/** Lo que contesto un ping de proveedor. */
+export interface ResultadoDeProbarProveedor {
+  provider_id: string;
+  ok: boolean;
+  status: number | null;
+  ms: number;
+  model: string | null;
+  motivo: string;
+}
+
+/** Le pregunta a UN proveedor si su clave funciona, y dice cuanto costo.
+ *
+ *  Existia un problema concreto: `getAiHealth` dice como esta el token bucket
+ *  de cada especialidad, no si la clave del usuario sirve. Un 401, una cuota
+ *  agotada y un proveedor que responde rapido se veian igual, y la unica forma
+ *  de averiguarlo era gastar una tarea completa del documento.
+ *
+ *  El resultado NO se tira en un toast: un toast se borra, y esto es lo que el
+ *  usuario necesita tener a la vista mientras decide si su clave sirve. Lo
+ *  muestra la fila del proveedor. */
+export async function probarProveedor(
+  providerId: string,
+  apiKey?: string,
+): Promise<ResultadoDeProbarProveedor> {
+  try {
+    const res = await fetchWithTrace(`${getApiBase()}/ai/probar-proveedor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider_id: providerId, api_key: apiKey || '' }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e: any) {
+    return {
+      provider_id: providerId,
+      ok: false,
+      status: null,
+      ms: 0,
+      model: null,
+      motivo: e?.message ? `No se pudo consultar: ${e.message}` : 'No se pudo consultar.',
+    };
+  }
+}
+
 /** Sincroniza las claves y los modelos guardados en localStorage con el
  *  backend (`os.environ`).
  *

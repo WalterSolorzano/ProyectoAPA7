@@ -30,6 +30,10 @@ function espiarFetch(): SyncSpy {
     llamadas.push(JSON.parse(init.body));
     return Promise.resolve({
       ok: true,
+      /* Sin `headers`, `fetchWithTrace` revienta antes de que el cliente vea la
+         respuesta. Un doble que no cumple el contrato de `Response` produce
+         fallos que no dicen nada de lo que se esta probando. */
+      headers: new Headers(),
       json: () => Promise.resolve({ applied: [], count: 0 }),
     } as Response);
   });
@@ -102,6 +106,102 @@ describe('la sincronización manda lo que está escrito, y nada más', () => {
       if (p.variableModelo && !(p.variableModelo in cuerpo.modelos)) sinModelo.push(p.variableModelo);
     }
     expect({ sinClave, sinModelo }).toEqual({ sinClave: [], sinModelo: [] });
+  });
+
+  it('el ping sale con el proveedor que se le pidió, y no con otro', async () => {
+    /* Este archivo prueba el cliente de la API de verdad, no un doble. Con un
+       doble, mandar `provider_id: ''` pasaria: el doble responde lo que le
+       digan y el cuerpo ni se mira. */
+    const { probarProveedor } = await import('../api/backend');
+    const espia = espiarFetch();
+
+    await probarProveedor('huggingface', 'hf_123');
+
+    expect(espia.llamado()).toBe(true);
+    expect(espia.cuerpo().provider_id).toBe('huggingface');
+    expect(espia.cuerpo().api_key).toBe('hf_123');
+  });
+
+  it('un ping sin clave manda la cadena vacía, no "undefined"', async () => {
+    const { probarProveedor } = await import('../api/backend');
+    const espia = espiarFetch();
+
+    await probarProveedor('groq');
+
+    expect(espia.cuerpo().api_key).toBe('');
+  });
+
+  it('el ping devuelve el cuerpo tal cual, sin inventar un ok', async () => {
+    /* La respuesta del ping es un contrato: la UI desarma `ok`, `status`,
+       `ms`, `model` y `motivo`. Un cliente que devolviera otra cosa —o que
+       rellenara un `ok: true` por su cuenta— haria que un 401 se viera como un
+       "anduvo". */
+    const { probarProveedor } = await import('../api/backend');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true,
+      /* `fetchWithTrace` lee `res.headers.get('X-Request-ID')`. Una respuesta
+         sin `headers` no es una respuesta: es un doble incompleto, y el fallo
+         que produce —"no se pudo properties of undefined"— no dice nada del
+         ping. */
+      headers: new Headers(),
+      json: () => Promise.resolve({
+        provider_id: 'groq', ok: false, status: 401, ms: 120,
+        model: 'openai/gpt-oss-120b', motivo: 'Revisa la clave',
+      }),
+    } as Response)));
+
+    const r = await probarProveedor('groq', 'k');
+
+    expect(r).toEqual({
+      provider_id: 'groq', ok: false, status: 401, ms: 120,
+      model: 'openai/gpt-oss-120b', motivo: 'Revisa la clave',
+    });
+  });
+
+  it('un error del backend NO se reporta como que el proveedor anduvo', async () => {
+    /* El peor defecto posible de este botón. Un 500 del backend —el Python no
+       arrancó, el puerto cambió— tiene que ser un fallo, no un "Anduvo": si
+       devuelve `ok: true` con un motivo vacío, la UI le dice al usuario que su
+       clave funciona cuando lo que no funciona es la app. */
+    const { probarProveedor } = await import('../api/backend');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+    } as Response)));
+
+    const r = await probarProveedor('groq', 'k');
+
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toContain('500');
+  });
+
+  it('si la base no esta disponible, el motivo lo dice y no hay `undefined`', async () => {
+    /* El camino de un backend que todavia no arranco. Sin esto, la UI recibe un
+       objeto con `model: undefined` y `status: undefined`, que es peor que un
+       motivo: no hay nada que mostrarle al usuario. */
+    const { probarProveedor } = await import('../api/backend');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no hay base'))));
+
+    const r = await probarProveedor('groq', 'k');
+
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toBeTruthy();
+    expect(r.model).toBeNull();
+    expect(r.status).toBeNull();
+    expect(r.ms).toBe(0);
+  });
+
+  it('el backend caido devuelve un motivo, no lanza', async () => {
+    /* La UI lo necesita: el boton tiene un `finally` que rehabilita el boton,
+       y sin esto se quedaria en "Probando" para siempre con la fila muerta. */
+    const { probarProveedor } = await import('../api/backend');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('sin red'))));
+
+    const r = await probarProveedor('groq', 'k');
+
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toContain('sin red');
   });
 
   it('sin nada escrito no se llama a la red', async () => {
