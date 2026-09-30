@@ -13,6 +13,8 @@ import { anchoUtilMm } from '../../lib/portada/geometria';
 import { leerMarcas, borrarMarca } from '../../lib/marcasMap';
 import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
+import { expandByLineCuts } from '../../lib/lineCuts';
+import { useLayoutRepaginate } from '../../lib/useLayoutRepaginate';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
@@ -797,6 +799,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // MISMA función: leer el `localStorage` a mano aquí significaba leer la forma
   // vieja y mostrar `undefined` en cada marca sin que nada dijera nada.
   const marcasVisibles = useDocStore((s) => s.marcasVisibles);
+  const layoutCuts = useDocStore((s) => s.layoutCuts);
   const [marcasMap, setMarcasMap] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!marcasVisibles) { setMarcasMap({}); return; }
@@ -806,6 +809,24 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     return () => window.removeEventListener('storage', load);
   }, [marcasVisibles, doc]);
 
+  // ── Fase 2: repaginación en vivo con Word COM ──
+  useLayoutRepaginate(doc);
+
+  // Al llegar cortes Word, los ids se fragmentan (mismo id, >1 nodos →
+  // querySelectorAll no re-mide) y conservarían la altura STALE del elemento
+  // COMPLETO. Se borra: el flow usa estimación por trozo o deja la página
+  // intacta (= verdad Word agrupada por page_number).
+  const cutsKey = Object.keys(layoutCuts || {}).join(',');
+  useEffect(() => {
+    const map = measuredRef.current;
+    let changed = false;
+    for (const id of Object.keys(layoutCuts || {})) {
+      if (map.delete(id)) changed = true;
+    }
+    if (changed) setMeasureTick((t) => t + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cutsKey]);
+
   if (!doc) return null;
 
   const fontFamily = rules.font_family || 'Times New Roman';
@@ -813,8 +834,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // Geometría REAL + paginación REAL en una sola llamada compartida con el
   // índice de findings (computeRenderedPages): densidad por altura de hoja y
   // reflow por alturas medidas, sin una segunda cuenta en ningún lado.
+  // ── Verdad Word: fragmenta por cortes reales ANTES de agrupar páginas ──
+  const flowElems = expandByLineCuts(doc.elements, layoutCuts);
   const { geom, pages } = computeRenderedPages({
-    elements: doc.elements,
+    elements: flowElems,
     rules,
     apaFormat: doc.apa_format,
     heights: measuredRef.current,

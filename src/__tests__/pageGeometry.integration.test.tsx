@@ -17,6 +17,7 @@ vi.mock('../api/backend', () => ({
   explainElement: vi.fn(),
   suggestCaption: vi.fn(),
 }));
+vi.mock('../api/layout', () => ({ paginateLayout: vi.fn() }));
 
 describe('PaperCanvas con geometría real', () => {
   beforeEach(() => {
