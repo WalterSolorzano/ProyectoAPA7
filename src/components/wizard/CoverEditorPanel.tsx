@@ -545,33 +545,45 @@ export const CoverEditorPanel: React.FC = () => {
                         requestCoverFieldHighlight('institution');
                       }}
                       style={{
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '10px',
-                        fontWeight: 800,
+                        padding: '5px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '11px',
+                        fontWeight: 700,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '5px',
-                        background: isSelected ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
-                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                        border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                        transition: 'all var(--transition-fast)',
+                        gap: '6px',
+                        background: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
+                        border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        boxShadow: isSelected ? '0 1px 4px var(--shadow-sm)' : 'none',
+                        transition: 'all 0.15s ease',
                       }}
                       title={u.nombre}
                     >
-                      {/* La miniatura de 14 px es un CHIP, no el logo del
-                          documento: ese tamaño está bien acá.
-                          Y si el logo no carga, se DICE. Con `display: none` la
-                          miniatura desaparecía y no había forma de saber que el
-                          asset faltaba. */}
+                      {/* Logo nítido con fondo blanco contenido para máxima visibilidad */}
                       {u.logoUrl && !logosQueNoCargan.has(u.codigo) ? (
-                        <img
-                          src={resolveAssetUrl(u.logoUrl)}
-                          alt={u.codigo}
-                          style={{ width: '14px', height: '14px', objectFit: 'contain' }}
-                          onError={() => setLogosQueNoCargan((v) => new Set(v).add(u.codigo))}
-                        />
+                        <div
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: 'var(--radius-xs)',
+                            backgroundColor: '#ffffff',
+                            padding: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 0 1px rgba(0,0,0,0.15)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <img
+                            src={resolveAssetUrl(u.logoUrl)}
+                            alt={u.codigo}
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                            onError={() => setLogosQueNoCargan((v) => new Set(v).add(u.codigo))}
+                          />
+                        </div>
                       ) : null}
                       {u.logoUrl && logosQueNoCargan.has(u.codigo) && (
                         <span
@@ -581,10 +593,13 @@ export const CoverEditorPanel: React.FC = () => {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {u.codigo}: el logo no se pudo cargar
+                          {u.codigo}: sin logo
                         </span>
                       )}
                       <span>{u.codigo}</span>
+                      {isSelected && (
+                        <Check size={12} strokeWidth={2.5} style={{ color: 'var(--accent-primary)' }} />
+                      )}
                     </button>
                   );
                 })}

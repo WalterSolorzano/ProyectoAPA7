@@ -24,7 +24,7 @@ interface FaceProps {
 }
 
 const Face: React.FC<FaceProps> = ({ expression, x, y, scale = 1 }) => (
-  <g transform={`translate(${x} ${y}) scale(${scale})`} className={`editorial-mascot-face editorial-mascot-face-${expression}`}>
+  <g key={expression} transform={`translate(${x} ${y}) scale(${scale})`} className={`editorial-mascot-face editorial-mascot-face-${expression}`}>
     <path className="editorial-mascot-brow" d="M-8 -5 C-5 -7 -3 -7 -1 -5" />
     <path className="editorial-mascot-brow" d="M5 -5 C7 -7 9 -7 12 -5" />
     <circle className="editorial-mascot-eye" cx="-5" cy="1" r="2.5" />

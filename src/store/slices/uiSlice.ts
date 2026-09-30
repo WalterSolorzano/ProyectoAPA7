@@ -507,7 +507,7 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   actionToast: null,
   triggerActionToast: (message) => set({ actionToast: { message, timestamp: Date.now() } }),
   clearActionToast: () => set({ actionToast: null }),
-  liveChatOpen: true,
+  liveChatOpen: false,
   setLiveChatOpen: (open) => set({ liveChatOpen: open }),
   /* Se fueron con la Fase 7, cada uno por su razón:
        - `aiStudioOpen` / `setAiStudioOpen`: el estudio de IA que abría se

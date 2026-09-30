@@ -61,7 +61,14 @@ _HEADING_NOISE = re.compile(r"[^a-zàáâãäåæçèéêëìíîïðñòóôõ�
 
 _YEAR_GROUP = re.compile(r"\((19[0-9]\d|20\d{2})\)")
 _YEAR_LOOSE = re.compile(r"\b(19[0-9]\d|20\d{2})\b")
-_URL_DOI = re.compile(r"(https?://\S+|doi:\s*\S+|10\.\d{4,9}/\S+)", re.IGNORECASE)
+_URL_DOI = re.compile(
+    r"(https?://\S+|www\.[a-z0-9\-]+(?:\.[a-z0-9\-]+)+\S*|doi:\s*\S+|10\.\d{4,9}/\S+)",
+    re.IGNORECASE,
+)
+_RETRIEVAL_PREFIX = re.compile(
+    r"(?:recuperado|obtenido|disponible|consultado|extraído|retrieved|available)\s+(?:el\s+\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+\d{4},?\s+)?(?:de|en|from|at)?\s*:?\s*$",
+    re.IGNORECASE,
+)
 
 # Prefijo de lista numerada manual al inicio de una entrada de bibliografia:
 # "6. Hirano, H. (1995)..." / "10. Juran, J. M. (1999)...". El numeral NO es
@@ -184,6 +191,12 @@ def _parse_single_reference(raw: str) -> dict:
         source = source.strip(" .")
     elif rest:
         title = rest.strip(" .")
+
+    # Limpiar frases de recuperacion residuales tipo "Recuperado de:", "Retrieved from"
+    if source:
+        source = _RETRIEVAL_PREFIX.sub("", source).strip(" .,;")
+    elif title:
+        title = _RETRIEVAL_PREFIX.sub("", title).strip(" .,;")
 
     return {
         "authors": authors_list,

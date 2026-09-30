@@ -382,11 +382,11 @@ export const Step5ReferencesWizard: React.FC = () => {
       {/* ── Layout de 2 Columnas (Progressive Disclosure) ── */}
       <div style={{ display: 'flex', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' }}>
 
-        {/* ══ COLUMNA 1: Lista Agrupada por Estado (420px) ══ */}
+        {/* ══ COLUMNA 1: Lista Agrupada por Estado (responsive min 420px, max 460px) ══ */}
         <div style={{
-          width: '420px', flexShrink: 0, height: '100%', overflowY: 'auto',
+          width: 'clamp(420px, 32vw, 480px)', flexShrink: 0, height: '100%', overflowY: 'auto',
           backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--border-subtle)',
-          display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px',
+          display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)',
         }}>
 
           {/* GRUPO 1: VERIFICADAS. El rótulo dice lo que el grupo ES —verificadas
@@ -425,11 +425,11 @@ export const Step5ReferencesWizard: React.FC = () => {
                     key={refItem.id}
                     onClick={() => setSelectedReferenceId(refItem.id)}
                     style={{
-                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
                       backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
                       border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
                       transition: 'all 0.15s ease',
-                      display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -444,8 +444,8 @@ export const Step5ReferencesWizard: React.FC = () => {
                           style={iconBtnStyle}
                         >
                           {copiedId === refItem.id
-                            ? <Check size={11} strokeWidth="var(--icon-stroke)" color="var(--color-success)" />
-                            : <Copy size={11} strokeWidth="var(--icon-stroke)" />}
+                            ? <Check size={13} strokeWidth="var(--icon-stroke)" color="var(--color-success)" />
+                            : <Copy size={13} strokeWidth="var(--icon-stroke)" />}
                         </button>
                         <button
                           type="button"
@@ -453,25 +453,25 @@ export const Step5ReferencesWizard: React.FC = () => {
                           title="Eliminar"
                           style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
                         >
-                          <Trash2 size={11} strokeWidth="var(--icon-stroke)" />
+                          <Trash2 size={13} strokeWidth="var(--icon-stroke)" />
                         </button>
                       </div>
                     </div>
 
-                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {refItem.title || refItem.raw_text || 'Sin título'}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: '2px' }}>
                       {refItem.doi_or_url && (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                          <Link2 size={10} strokeWidth="var(--icon-stroke)" /> DOI
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', fontWeight: 600 }}>
+                          <Link2 size={11} strokeWidth="var(--icon-stroke)" /> DOI
                         </span>
                       )}
                       {sinCitar && (
                         <span
                           title="Esta referencia no está citada en el texto. Haz clic para opciones."
-                          style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
+                          style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
                         >
                           Sin citar en texto
                         </span>
@@ -498,7 +498,7 @@ export const Step5ReferencesWizard: React.FC = () => {
             {unverifiedReferences.length === 0 ? (
               <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
             ) : (
-                  unverifiedReferences.map((refItem) => {
+              unverifiedReferences.map((refItem) => {
                 const isSelected = selectedRef?.id === refItem.id;
                 const falta = diagnosticoDeReferencia(refItem).faltantes;
                 return (
@@ -506,19 +506,20 @@ export const Step5ReferencesWizard: React.FC = () => {
                     key={refItem.id}
                     onClick={() => setSelectedReferenceId(refItem.id)}
                     style={{
-                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
                       backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
                       border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
                       transition: 'all 0.15s ease',
-                      display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
+                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-warning)' }}>
-                        {/* El motivo sale del diagnóstico, y el rótulo viejo ponía
-                            "metadatos incompletos" a una referencia que lo que
-                            tiene es los metadatos completos y ninguna
-                            verificación. */}
+                      <span style={{
+                        fontSize: 'var(--text-xs)', fontWeight: 700,
+                        color: falta.length > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)',
+                        backgroundColor: falta.length > 0 ? 'var(--severity-warning-soft)' : 'var(--color-bg-surface)',
+                        padding: '1px 6px', borderRadius: 'var(--radius-xs)'
+                      }}>
                         {falta.length > 0 ? `Faltan ${falta.join(' y ')}` : 'Sin contrastar contra una fuente'}
                       </span>
                       <button
@@ -527,15 +528,12 @@ export const Step5ReferencesWizard: React.FC = () => {
                         title="Eliminar"
                         style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
                       >
-                        <Trash2 size={11} strokeWidth="var(--icon-stroke)" />
+                        <Trash2 size={13} strokeWidth="var(--icon-stroke)" />
                       </button>
                     </div>
-                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 600, lineHeight: 1.4 }}>
                       {refItem.title || refItem.raw_text || 'Entrada sin título'}
                     </div>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', fontWeight: 700 }}>
-                      Elegila para revisar su ficha
-                    </span>
                   </div>
                 );
               })
@@ -561,25 +559,27 @@ export const Step5ReferencesWizard: React.FC = () => {
                   <div
                     key={i}
                     style={{
-                      padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
                       backgroundColor: 'var(--color-bg-surface-hover)', border: '1px solid var(--color-border-subtle)',
                       display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
                     }}
                   >
-                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                      {txt}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleResolveGhost(i)}
-                      disabled={resolvingGhostIdx === i}
-                      style={botonInline(true, { alignSelf: 'flex-start' })}
-                    >
-                      {resolvingGhostIdx === i
-                        ? <Loader2 size={11} className="animate-spin" strokeWidth="var(--icon-stroke)" />
-                        : <Plus size={11} strokeWidth="var(--icon-stroke)" />}
-                      <span>Completar referencia</span>
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                        {txt}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveGhost(i)}
+                        disabled={resolvingGhostIdx === i}
+                        style={botonInline(true, { padding: '4px 10px', fontSize: 'var(--text-xs)', flexShrink: 0 })}
+                      >
+                        {resolvingGhostIdx === i
+                          ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" />
+                          : <Plus size={12} strokeWidth="var(--icon-stroke)" />}
+                        <span>Completar</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -875,7 +875,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                     color: addMode === 'doi' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   }}
                 >
-                  Buscador DOI / CrossRef
+                  DOI o Enlace Web
                 </button>
                 <button
                   type="button"
@@ -893,20 +893,20 @@ export const Step5ReferencesWizard: React.FC = () => {
 
               {addMode === 'doi' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <label style={labelFullStyle}>Ingrese un DOI, o varios, uno por línea</label>
-                  {/* Un `textarea` y no un `input`: pegar veinte DOI del navegador
+                  <label style={labelFullStyle}>Ingrese un DOI o enlace web (o varios, uno por línea)</label>
+                  {/* Un `textarea` y no un `input`: pegar veinte DOI o URLs del navegador
                       es el caso de la literatura completa, y con un input de una
                       línea no hay forma de pegar más de uno. Enter resuelve y
                       Shift+Enter parte línea; al revés no habría bloque. */}
                   <textarea
-                    aria-label="DOI o título de la publicación"
+                    aria-label="DOI o enlace web de la publicación"
                     value={doiQuery}
                     onChange={(e) => setDoiQuery(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResolveDoi(); }
                     }}
                     rows={3}
-                    placeholder={'10.1037/arc0000014...\n10.1037/arc0000015...'}
+                    placeholder={'10.1037/arc0000014...\nhttps://elpais.com/noticia.html...'}
                     style={{ ...inputFullStyle, resize: 'vertical', lineHeight: 1.5 }}
                   />
                   <button
@@ -1002,7 +1002,15 @@ const Grupo: React.FC<{
   alAlternar: () => void;
   children: React.ReactNode;
 }> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, children }) => (
-  <Seccion titulo={`${titulo} (${conteo})`} descripcion={detalle}>
+  <section
+    style={{
+      display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+      padding: 'var(--space-3) var(--space-4)',
+      border: '1px solid var(--border-subtle)',
+      borderRadius: 'var(--radius-md)',
+      background: 'var(--color-bg-surface)',
+    }}
+  >
     <button
       type="button"
       onClick={alAlternar}
@@ -1010,24 +1018,31 @@ const Grupo: React.FC<{
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)',
         width: '100%', padding: 'var(--space-1) 0', cursor: 'pointer', fontFamily: 'inherit',
-        background: 'transparent', border: 'none',
+        background: 'transparent', border: 'none', textAlign: 'left',
       }}
     >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        <Icon size={15} strokeWidth="var(--icon-stroke)" color={tono} />
-        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-          {titulo} ({conteo})
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <Icon size={16} strokeWidth="var(--icon-stroke)" color={tono} />
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+            {titulo} ({conteo})
+          </span>
         </span>
-      </span>
+        {detalle && (
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', paddingLeft: '24px' }}>
+            {detalle}
+          </span>
+        )}
+      </div>
       <ChevronDown
-        size={14}
+        size={15}
         strokeWidth="var(--icon-stroke)"
         color="var(--color-text-secondary)"
-        style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+        style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
       />
     </button>
     {abierto && <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>{children}</div>}
-  </Seccion>
+  </section>
 );
 
 /**

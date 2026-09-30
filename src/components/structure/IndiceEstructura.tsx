@@ -95,6 +95,7 @@ export interface IndiceEstructuraProps {
   /** El documento entero, que es un toggle y no el centro. */
   documento?: React.ReactNode;
   onSelect?: (nodo: NodoJerarquia) => void;
+  nodoSeleccionadoId?: string | null;
 }
 
 /** Un toggle: dice qué muestra, y por eso `aria-pressed` alcanza con su texto. */
@@ -113,12 +114,15 @@ const BotonToggle: React.FC<{ activo: boolean; onClick: () => void; children: Re
       gap: '6px',
       font: 'inherit',
       fontSize: 'var(--text-xs)',
-      color: 'var(--color-text-secondary)',
-      background: 'var(--color-bg-surface)',
-      border: '1px solid var(--color-border-subtle)',
-      borderRadius: 'var(--radius-sm)',
-      padding: '4px 8px',
+      fontWeight: 500,
+      color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+      background: activo ? 'var(--color-accent-soft)' : 'var(--color-bg-surface)',
+      border: '1px solid',
+      borderColor: activo ? 'var(--color-accent)' : 'var(--color-border-subtle)',
+      borderRadius: 'var(--radius-md)',
+      padding: '5px 12px',
       cursor: 'pointer',
+      transition: 'all var(--transition-fast, 150ms ease)',
     }}
   >
     {children}
@@ -131,6 +135,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   vocabulario,
   documento,
   onSelect,
+  nodoSeleccionadoId,
 }) => {
   const [vista, setVista] = useState<VistaEstructura>(VISTA_POR_DEFECTO);
   const raices = useMemo(
@@ -159,34 +164,60 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
 
   return (
     <div
-      /* El nombre de la vista, para el guardián que vigila que siga montada. Un
-         componente terminado que nadie importa no existe, y el cheapest jeito
-         de saber que existe es preguntárselo a la pantalla. */
+      /* El nombre de la vista, para el guardián que vigila que siga montada. */
       data-testid="indice-estructura"
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-3)',
+        gap: 'var(--space-4)',
         padding: 'var(--space-5) var(--space-6)',
         overflowY: 'auto',
         minHeight: 0,
+        height: '100%',
       }}
     >
-      {/* Los toggles. UNA línea, arriba, y arrancando en el índice.
-       *
-       * El mapa entra AQUÍ, dentro de la vista de índice y en el flujo, nunca
-       * como una capa encima: una capa que tapa el contenido se lee como un
-       * estorbo, y además un mapa superpuesto deja de poder compararse con la
-       * lista de al lado. Por eso son tres estados y no dos banderas. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-        <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>Estructura</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
+      {/* Barra de control con selector de vista */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+          paddingBottom: 'var(--space-3)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-accent-soft)',
+              color: 'var(--color-accent)',
+            }}
+          >
+            <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              Esquema y Jerarquía de Secciones
+            </h1>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+              {filas.length} secciones detectadas · Nivel 1 a 3
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           <BotonToggle
             activo={vista === 'mapa'}
             onClick={() => setVista(vista === 'mapa' ? 'indice' : 'mapa')}
           >
-            {vista === 'mapa' ? 'Ver el indice' : 'Ver el mapa'}
+            {vista === 'mapa' ? 'Ver el índice' : 'Ver el mapa'}
           </BotonToggle>
           <BotonToggle
             activo={vista === 'documento'}
@@ -201,18 +232,38 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
       {vista === 'documento' ? (
         <div data-testid="documento-completo">{documento ?? null}</div>
       ) : vista === 'mapa' ? (
-        /* El mapa reemplaza la lista en el flujo, y el toggle lo devuelve. */
         <div data-testid="mapa-estructura" style={{ overflow: 'auto' }}>
           <MapaEstructura raices={raices} />
         </div>
       ) : (
-        <>
-          {/* El preámbulo existe y no es un capítulo. Decirlo evita que la
-              pantalla prometa menos texto del que hay. */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+            backgroundColor: 'var(--color-bg-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-subtle)',
+            padding: 'var(--space-4)',
+            boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.04))',
+          }}
+        >
           {preambulo.elementos > 0 && (
-            <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              {miles(preambulo.palabras)} palabras antes del primer capítulo ({preambulo.elementos} elementos).
-            </p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                border: '1px dashed var(--color-border-subtle)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
+              <span>{miles(preambulo.palabras)} palabras antes del primer capítulo ({preambulo.elementos} elementos iniciales).</span>
+            </div>
           )}
 
           {filas.length === 0 ? (
@@ -220,7 +271,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
               Este documento no tiene encabezados: no hay estructura que medir.
             </p>
           ) : (
-            <div role="list" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div role="list" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               {filas.map((f) => (
                 <NodoIndice
                   key={f.nodo.id}
@@ -228,15 +279,27 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
                   diagnostico={f.diagnostico}
                   profundidad={f.profundidad}
                   onSelect={onSelect}
+                  seleccionado={nodoSeleccionadoId === f.nodo.id}
                 />
               ))}
             </div>
           )}
 
-          <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-            El índice no lleva a ningún lado: mide. La comparación es entre capítulos hermanos.
-          </p>
-        </>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: 'var(--space-2)',
+              borderTop: '1px solid var(--color-border-subtle)',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-tertiary)',
+            }}
+          >
+            <span>Haz clic en cualquier sección para inspeccionar su contenido o reorganizarla.</span>
+            <span>Comparación entre capítulos hermanos</span>
+          </div>
+        </div>
       )}
     </div>
   );

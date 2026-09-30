@@ -1191,7 +1191,8 @@ const PanelDeAjustes: React.FC = () => {
   );
 };
 
-const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements = (doc?.elements || []).filter((e: any) => e.type !== 'empty' && e.type !== 'page_break');
+const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {
+  const elements = (doc?.elements || []).filter((e: any) => e.type !== 'empty' && e.type !== 'page_break');
   const leftScrollRef = React.useRef<HTMLDivElement>(null);
   const rightScrollRef = React.useRef<HTMLDivElement>(null);
   const syncingRef = React.useRef(false);
@@ -1216,16 +1217,16 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
     if (elem.type === 'table') {
       const rows = elem.table_info?.rows || elem.rows || [];
       return (
-        <div key={idx} style={{ padding: '8px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
-          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div key={idx} style={{ padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', overflowX: 'auto', marginBottom: '8px' }}>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
             Tabla original (sin formato)
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-xs)', border: '1px solid var(--border-subtle)' }}>
             <tbody>
-              {rows.slice(0, 4).map((r: any, rIdx: number) => (
+              {rows.map((r: any, rIdx: number) => (
                 <tr key={rIdx}>
                   {(r.cells || r || []).map((c: any, cIdx: number) => (
-                    <td key={cIdx} style={{ border: '1px solid var(--border-subtle)', padding: '3px 6px', color: 'var(--text-main)' }}>
+                    <td key={cIdx} style={{ border: '1px solid var(--border-subtle)', padding: '4px 6px', color: 'var(--text-main)' }}>
                       {typeof c === 'string' ? c : c.text || ''}
                     </td>
                   ))}
@@ -1233,30 +1234,34 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
               ))}
             </tbody>
           </table>
-          {rows.length > 4 && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>+{rows.length - 4} filas adicionales</div>}
         </div>
       );
     }
     if (elem.type === 'image') {
       return (
-        <div key={idx} style={{ padding: '8px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div key={idx} style={{ padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
           <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)' }}>Figura original</div>
           {elem.image_info?.relative_url && (
-            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt="Figura" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
+            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt="Figura" style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
           )}
           {elem.text && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{elem.text}</div>}
         </div>
       );
     }
+    const isHeading = elem.type === 'heading';
     return (
       <div key={idx} style={{
         fontFamily: 'var(--font-sans)',
-        fontSize: elem.type === 'heading' ? 'var(--text-sm)' : 'var(--text-xs)',
-        fontWeight: elem.type === 'heading' ? 'bold' : 'normal',
-        color: 'var(--text-main)', opacity: 0.85, lineHeight: 1.4,
-        padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+        fontSize: isHeading ? 'var(--text-sm)' : 'var(--text-xs)',
+        fontWeight: isHeading ? 700 : 400,
+        color: 'var(--text-main)',
+        opacity: 0.9,
+        lineHeight: 1.5,
+        padding: '8px 12px',
+        borderRadius: 'var(--radius-sm)',
         backgroundColor: 'var(--surface-subtle)',
         border: '1px solid var(--border-subtle)',
+        marginBottom: '6px',
       }}>
         {elem.text || ''}
       </div>
@@ -1268,15 +1273,16 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
       const rows = elem.table_info?.rows || elem.rows || [];
       const tableNum = elem.table_info?.table_number || (idx + 1);
       const title = elem.table_info?.caption || elem.table_info?.title || 'Título formal de la tabla';
+      const note = elem.table_info?.note;
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-sm)', margin: '12px 0' }}>
+        <div key={idx} style={{ padding: '12px 0', margin: '14px 0', borderBottom: '1px dashed var(--border-subtle)' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Tabla {tableNum}
           </div>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontStyle: 'italic', color: 'var(--paper-ink)', marginBottom: '8px' }}>
             {title}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Times New Roman", Times, serif', fontSize: '11pt', borderTop: '2px solid var(--paper-ink)', borderBottom: '2px solid var(--paper-ink)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', borderTop: '2px solid var(--paper-ink)', borderBottom: '2px solid var(--paper-ink)' }}>
             {rows.length > 0 && (
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--paper-ink)' }}>
@@ -1289,7 +1295,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
               </thead>
             )}
             <tbody>
-              {rows.slice(1, 6).map((r: any, rIdx: number) => (
+              {rows.slice(1).map((r: any, rIdx: number) => (
                 <tr key={rIdx}>
                   {(r.cells || r || []).map((c: any, cIdx: number) => (
                     <td key={cIdx} style={{ padding: '5px 10px', color: 'var(--paper-ink)' }}>
@@ -1300,8 +1306,8 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
               ))}
             </tbody>
           </table>
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: 'var(--text-secondary)', marginTop: '6px' }}>
-            <strong>Nota.</strong> Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', color: 'var(--paper-ink)', marginTop: '6px' }}>
+            <strong>Nota.</strong> {note || 'Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.'}
           </div>
         </div>
       );
@@ -1309,8 +1315,9 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
     if (elem.type === 'image') {
       const figNum = elem.image_info?.figure_number || 1;
       const caption = elem.image_info?.caption || 'Ilustración del proceso';
+      const note = elem.image_info?.note;
       return (
-        <div key={idx} style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-sm)', margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div key={idx} style={{ padding: '12px 0', margin: '14px 0', display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px dashed var(--border-subtle)' }}>
           <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '12pt', fontWeight: 'bold', color: 'var(--paper-ink)' }}>
             Figura {figNum}
           </div>
@@ -1318,30 +1325,63 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
             {caption}
           </div>
           {elem.image_info?.relative_url && (
-            <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '180px', maxWidth: '100%', objectFit: 'contain', margin: '6px 0' }} />
+            <div style={{ textAlign: 'center', margin: '8px 0' }}>
+              <img src={resolveAssetUrl(elem.image_info.relative_url)} alt={`Figura ${figNum}`} style={{ maxHeight: '220px', maxWidth: '100%', objectFit: 'contain' }} />
+            </div>
           )}
-          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', fontStyle: 'italic', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            <strong>Nota.</strong> Presentación gráfica formal APA 7 con alineación y resolución óptima.
+          <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '10pt', color: 'var(--paper-ink)', marginTop: '4px' }}>
+            <strong>Nota.</strong> {note || 'Presentación gráfica formal APA 7 con alineación y resolución óptima.'}
           </div>
         </div>
       );
     }
     const isHeading = elem.type === 'heading';
     const isRef = elem.type === 'reference';
-    const textIndent = (!isHeading && !isRef) ? '1.27cm' : undefined;
-    const paddingLeft = isRef ? '1.27cm' : '0px';
+    const isBullet = elem.type === 'bullet' || elem.type === 'numbered_list';
+    const isCover = elem.is_cover_section || elem.type === 'portada_block';
+
+    let textAlign: 'center' | 'left' = 'left';
+    let fontWeight: 'bold' | 'normal' = 'normal';
+    let fontStyle: 'italic' | 'normal' = 'normal';
+    let textIndent: string | undefined = undefined;
+    let paddingLeft: string = '0px';
+
+    if (isCover) {
+      textAlign = 'center';
+      fontWeight = 'bold';
+    } else if (isHeading) {
+      fontWeight = 'bold';
+      if (elem.heading_level === 1 || !elem.heading_level) {
+        textAlign = 'center';
+      } else if (elem.heading_level === 3) {
+        fontStyle = 'italic';
+      } else if (elem.heading_level === 4) {
+        textIndent = '1.27cm';
+      } else if (elem.heading_level === 5) {
+        textIndent = '1.27cm';
+        fontStyle = 'italic';
+      }
+    } else if (isRef) {
+      paddingLeft = '1.27cm';
+      textIndent = '-1.27cm';
+    } else if (isBullet) {
+      paddingLeft = '1.27cm';
+    } else {
+      textIndent = '1.27cm';
+    }
+
     return (
       <div key={idx} style={{
         fontFamily: '"Times New Roman", Times, serif',
         fontSize: '12pt',
         lineHeight: 2.0,
         color: 'var(--paper-ink)',
-        textAlign: isHeading && (elem.heading_level === 1 || !elem.heading_level) ? 'center' : 'left',
-        fontWeight: isHeading ? 'bold' : 'normal',
-        fontStyle: isHeading && elem.heading_level === 3 ? 'italic' : 'normal',
+        textAlign,
+        fontWeight,
+        fontStyle,
         textIndent,
         paddingLeft,
-        margin: '6px 0',
+        margin: '4px 0',
       }}>
         {elem.text || ''}
       </div>
@@ -1361,7 +1401,7 @@ const SplitDiffPreview: React.FC<{ doc: any }> = ({ doc }) => {  const elements 
         <div
           ref={leftScrollRef}
           onScroll={onScrollLeft}
-          style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--canvas-bg)' }}
+          style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: 'var(--canvas-bg)' }}
         >
           {elements.map((elem: any, idx: number) => renderOriginalElem(elem, idx))}
         </div>

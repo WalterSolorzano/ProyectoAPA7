@@ -341,7 +341,7 @@ describe('la jerarquía de acciones', () => {
  * esa guarda evita.
  */
 describe('el campo de DOI acepta un bloque', () => {
-  const campoDOI = () => screen.getByRole('textbox', { name: /doi o título/i });
+  const campoDOI = () => screen.getByRole('textbox', { name: /doi o (?:título|enlace)/i });
 
   const abrirModoDoi = () => {
     montar([REF]);

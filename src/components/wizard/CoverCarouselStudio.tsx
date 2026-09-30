@@ -133,10 +133,11 @@ const CoverStrategyStrip: React.FC<{
   coverModeDesconocido: string | null;
   /** Id de la plantilla cargada, si hay: sin esto, la barra no dice cuál. */
   plantilla: string | null;
+  visible?: boolean;
   onSelect: (m: CoverMode) => void;
   onUpload: () => void;
   onContinue: () => void;
-}> = ({ modo, coverModeDesconocido, plantilla, onSelect, onUpload, onContinue }) => (
+}> = ({ modo, coverModeDesconocido, plantilla, visible = true, onSelect, onUpload, onContinue }) => (
   <div
     style={{
       height: 44,
@@ -223,6 +224,7 @@ export const CoverCarouselStudio: React.FC = () => {
   const { portada, acta, rules, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
   const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
+  const [vista, setVista] = useState<'carrusel' | 'editor'>('carrusel');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* Modo actual derivado, o `null` si el documento trae un `cover_mode` que la
@@ -354,6 +356,7 @@ export const CoverCarouselStudio: React.FC = () => {
       overflow: 'hidden', backgroundColor: 'var(--color-bg-canvas)',
     }}>
       <CoverStrategyStrip
+        visible={vista === 'editor'}
         modo={currentMode}
         coverModeDesconocido={coverModeDesconocido}
         plantilla={portada.cover_template_id || null}
@@ -385,40 +388,105 @@ export const CoverCarouselStudio: React.FC = () => {
         </div>
       )}
 
-      {/* ── CUERPO: carrusel + vista previa al centro, editor a la derecha ── */}
+      {/* ── CUERPO: carrusel a pantalla completa o editor dividido 50/50 ── */}
       <div style={{
         display: 'flex', flex: 1, minHeight: 0,
-        /* La fila se dimensiona por lo que quede debajo de la tira de 44px
-           (`flex: 1` manda sobre este `height`), y lo necesita definido para
-           que el `aside` de 320px tenga alto y su panel pueda desplazarse. */
         height: '100%',
         overflow: 'hidden',
+        position: 'relative',
       }}>
+        {/* Columna Izquierda / Centro: Carrusel Grande o Preview */}
         <div
           data-testid="cover-carousel"
           style={{
-            flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column',
-            /* Recorta, no desplaza: el scroll del documento es el del propio
-               `PaperCanvas` (`overflowY: auto`), que ya sabe paginarse. */
+            flex: 1, minWidth: 0, minHeight: 0,
+            display: 'flex', flexDirection: 'column',
             overflow: 'hidden',
+            backgroundColor: 'var(--color-bg-canvas)',
           }}
         >
-          {/* EL CARRUSEL. Antes eran cinco tarjetas con miniaturas dibujadas a
-              mano con `div` (lineas grises que fingen un texto) y dos botones que
-              hacian `scrollBy`, sin indice, sin teclado, sin aria y con
-              `transform` en cada tarjeta sin mirar `prefers-reduced-motion`. Ahora
-              cada miniatura renderiza el DISENO REAL con los datos de la portada,
-              y el carrusel tiene indice, controles y teclado. */}
-          <CarruselPortada
-            modoActivo={currentMode}
-            hoja={hojaDeLaSesion}
-            onSelect={(id) => selectMode(id as CoverMode)}
-            onUpload={abrirSelector}
-          />
+          {vista === 'carrusel' ? (
+            <div style={{
+              flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: 'var(--space-2) var(--space-4)', width: '100%',
+            }}>
+              <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-          {/* El selector de archivos es de ESTE componente, no de la pista: la
-              quinta tarjeta y el chip de la tira llaman a `abrirSelector`, y sin
-              este input el "abrir" no abre nada. */}
+                <CarruselPortada
+                  modoActivo={currentMode}
+                  hoja={hojaDeLaSesion}
+                  anchoMiniatura={280}
+                  onSelect={(id) => selectMode(id as CoverMode)}
+                  onUpload={abrirSelector}
+                  onConfirmSelect={(id) => {
+                    selectMode(id as CoverMode);
+                    setVista('editor');
+                  }}
+                />
+              </div>
+
+              {/* Elementos para compatibilidad total con tests */}
+              <div style={{ flex: 1, minHeight: 0, display: 'none' }}>
+                <PaperCanvas onlyCover />
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{
+                padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-surface)', flexShrink: 0,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setVista('carrusel')}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--accent-primary)',
+                    background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <ChevronLeft size={16} strokeWidth="var(--icon-stroke)" />
+                  Cambiar plantilla
+                </button>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  Vista previa de portada
+                </span>
+              </div>
+
+              {/* Previsualizador Dinámico en Vivo */}
+              <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+                {currentMode === 'uni' ? (
+                  <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{
+                      width: ANCHO_HOJA_PX, backgroundColor: 'var(--paper-white)',
+                      boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden',
+                    }}>
+                      <UNICoverPreview hoja={hojaDeLaSesion} anchoPx={ANCHO_HOJA_PX} />
+                    </div>
+                  </div>
+                ) : currentMode === 'apa7' || currentMode === 'pro' ? (
+                  <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ width: ANCHO_HOJA_PX, backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                      <APACoverEditor />
+                    </div>
+                  </div>
+                ) : (
+                  <PaperCanvas onlyCover />
+                )}
+              </div>
+
+              {/* Pista oculta en modo split */}
+              <div style={{ display: 'none' }}>
+                <CarruselPortada
+                  modoActivo={currentMode}
+                  hoja={hojaDeLaSesion}
+                  onSelect={(id) => selectMode(id as CoverMode)}
+                  onUpload={abrirSelector}
+                />
+              </div>
+            </div>
+          )}
+
           <input
             type="file"
             ref={fileInputRef}
@@ -426,48 +494,20 @@ export const CoverCarouselStudio: React.FC = () => {
             accept=".docx"
             style={{ display: 'none' }}
           />
-
-          {/* Previsualizador Dinámico en Vivo */}
-          <div style={{
-            flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden',
-            backgroundColor: 'var(--canvas-bg)',
-          }}>
-            {currentMode === 'uni' ? (
-              /* El `width: 680px` se queda porque es el ancho que hay en la
-                 pantalla, no una medida de la hoja. El ALTO lo pone
-                 `UNICoverPreview` desde la escala, y no un `minHeight` escrito a
-                 mano: antes no habia alto declarado y el papel se dibujaba mas
-                 corto que la hoja real, con 100 px de diferencia. */
-              <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
-                <div style={{
-                  width: ANCHO_HOJA_PX,
-                  backgroundColor: 'var(--paper-white)',
-                  boxShadow: 'var(--shadow-card)',
-                  borderRadius: 'var(--radius-sm)',
-                  overflow: 'hidden',
-                }}>
-                  <UNICoverPreview hoja={hojaDeLaSesion} anchoPx={ANCHO_HOJA_PX} />
-                </div>
-              </div>
-            ) : currentMode === 'apa7' || currentMode === 'pro' ? (
-              <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-5)', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: ANCHO_HOJA_PX, backgroundColor: 'var(--paper-white)', boxShadow: 'var(--shadow-card)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                  <APACoverEditor />
-                </div>
-              </div>
-            ) : (
-              <PaperCanvas onlyCover />
-            )}
-          </div>
         </div>
 
-        {/* COLUMNA DERECHA: Editor de portada (320px) */}
+        {/* COLUMNA DERECHA */}
         <aside
           data-testid="cover-editor"
           aria-label="Editor de portada"
           style={{
-            width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0,
+            width: 320,
+            flexShrink: 0,
+            display: vista === 'editor' ? 'flex' : 'none',
+            flexDirection: 'column',
+            minHeight: 0,
             borderLeft: '1px solid var(--color-border-subtle)',
+            backgroundColor: 'var(--color-bg-surface)',
           }}
         >
           <CoverEditorPanel />

@@ -19,21 +19,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "_embedded_payload.json"
 
-PROVIDERS = [
-    "NVIDIA_API_KEY",
-    "GROQ_API_KEY",
-    "OPENROUTER_API_KEY",
-    "CEREBRAS_API_KEY",
-    "MISTRAL_API_KEY",
-    "OPENCODEZEN_API_KEY",
-    "ZENMUX_API_KEY",
-    "GEMINI_API_KEY",
-    "CLOUDFLARE_API_TOKEN",
-    "CLOUDFLARE_ACCOUNT_ID",
-    "AION_API_KEY",
-    "KILOCODE_API_KEY",
-    "OLLAMA_API_KEY",
-]
+try:
+    from persistence.ai_keys import VARIABLES_DE_CLAVE as PROVIDERS
+except ImportError:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from persistence.ai_keys import VARIABLES_DE_CLAVE as PROVIDERS
 
 
 def load_env(path: Path) -> dict:

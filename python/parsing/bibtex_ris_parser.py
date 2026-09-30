@@ -42,7 +42,14 @@ def parse_bibtex_text(content: str) -> List[ReferenciaModel]:
                 if source:
                     formatted += f" {source}."
                 if doi:
-                    formatted += f" https://doi.org/{doi.replace('https://doi.org/', '')}"
+                    doi_str = str(doi).strip()
+                    if doi_str.startswith("http://") or doi_str.startswith("https://"):
+                        formatted += f" {doi_str}"
+                    elif doi_str.lower().startswith("www."):
+                        formatted += f" https://{doi_str}"
+                    else:
+                        clean_doi = doi_str.replace("doi:", "").strip()
+                        formatted += f" https://doi.org/{clean_doi}"
 
                 refs.append(ReferenciaModel(
                     id=f"ref-bib-{uuid.uuid4().hex[:8]}",

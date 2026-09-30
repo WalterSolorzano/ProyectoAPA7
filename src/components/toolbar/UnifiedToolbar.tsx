@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Check, Loader2, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
+import { AppBrandLogo } from '../shared/AppBrandLogo';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const noDragRegion = { WebkitAppRegion: 'no-drag' } as ChromeStyle;
@@ -137,67 +138,59 @@ export function UnifiedToolbar() {
             ...noDragRegion,
           }}
         >
-          <BookOpen size={16} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-accent)' }} />
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-            WordAPA7
-          </span>
+          <AppBrandLogo size={20} />
         </button>
-
-        {doc && (
-          <>
-            {/* El nombre viene del .docx que subio el usuario: no hay setter ni
-                endpoint para renombrarlo, asi que se muestra, no se edita. */}
-            <span
-              title="Nombre del documento activo"
-              style={{
-                maxWidth: 420,
-                fontSize: 'var(--text-sm)',
-                fontWeight: 600,
-                color: 'var(--color-text-primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {doc.file_name || 'Documento sin título'}
-            </span>
-            {/* EL CHIP DE GUARDADO. Muestra cuándo quedó guardado el documento,
-                no cuándo YOU decidiste guardarlo: el backend ya persiste en
-                cada mutación (`save_session_state` en diez endpoints), así que
-                la pregunta que responde es "¿el servidor tiene mi última
-                versión?" y la hora viene de `lastSavedAt`.
-
-                Y NO usa `hasUnsavedChanges` para el aviso, que era el defecto:
-                ese flag significa "hay trabajo sin confirmar en esta sesión" y
-                lo levanta `pushHistory`, que se llama DESPUÉS de que el
-                servidor ya guardó. Con él, la app decía "Sin guardar" con el
-                documento guardado — un aviso falso en la barra de arriba, que
-                es el lugar donde nadie perdona una mentira. La señal honesta de
-                "falta guardar" es `isSaving`: hay una mutación en vuelo y el
-                servidor todavía no confirmó. */}
-            <span
-              title={esGuardando
-                ? 'Guardando en el servidor…'
-                : 'Este documento se guarda automáticamente en el servidor. Para bajar el .docx, usá Exportar.'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                fontSize: 'var(--text-xs)',
-                color: esGuardando ? 'var(--color-warning)' : 'var(--color-text-tertiary)',
-                /* La hora sola NO es un anuncio cambiante: sin esta marca se
-                   muta el texto del medio y eso se lee como alerta, no como un
-                   reloj. Con la línea de fondo no. */
-                WebkitLineClamp: 1,
-              }}
-            >
-              {esGuardando
-                ? <Loader2 size={11} strokeWidth={1.75} aria-hidden />
-                : <Check size={11} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-success)' }} />}
-              {esGuardando ? 'Guardando…' : 'Guardado'}
-              {!esGuardando && haceCuanto && <span>{` · hace ${haceCuanto}`}</span>}
-            </span>
-          </>
-        )}
       </div>
+
+      {doc && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            maxWidth: '50%',
+            pointerEvents: 'none',
+          }}
+        >
+          <span
+            title="Nombre del documento activo"
+            style={{
+              maxWidth: 380,
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              color: 'var(--color-text-primary)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              pointerEvents: 'auto',
+            }}
+          >
+            {doc.file_name || 'Documento sin título'}
+          </span>
+          <span
+            title={esGuardando
+              ? 'Guardando en el servidor…'
+              : 'Este documento se guarda automáticamente en el servidor. Para bajar el .docx, usá Exportar.'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 'var(--text-xs)',
+              color: esGuardando ? 'var(--color-warning)' : 'var(--color-text-tertiary)',
+              WebkitLineClamp: 1,
+              pointerEvents: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            {esGuardando
+              ? <Loader2 size={11} strokeWidth={1.75} aria-hidden />
+              : <Check size={11} strokeWidth={1.75} aria-hidden style={{ color: 'var(--color-success)' }} />}
+            {esGuardando ? 'Guardando…' : 'Guardado'}
+            {!esGuardando && haceCuanto && <span>{` · hace ${haceCuanto}`}</span>}
+          </span>
+        </div>
+      )}
 
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
         <button

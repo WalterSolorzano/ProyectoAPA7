@@ -80,9 +80,9 @@ const DESIGN_STYLES: DesignStyleOption[] = [
   },
   {
     value: 'multipanel',
-    label: 'Multipanel APA',
-    desc: 'Conjunto de subfiguras rotuladas como (a), (b), (c) bajo una misma figura.',
-    badge: 'Múltiple',
+    label: 'Doble Horizontal (a, b)',
+    desc: 'Dos subfiguras en paralelo rotuladas como (a) y (b) lado a lado.',
+    badge: 'Doble',
     renderThumbnail: () => (
       <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
         <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
@@ -90,6 +90,34 @@ const DESIGN_STYLES: DesignStyleOption[] = [
         <rect x="26" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
         <rect x="12" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
         <rect x="32" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
+      </svg>
+    ),
+  },
+  {
+    value: 'grid_2x2',
+    label: 'Cuadrícula 2×2 (a, b, c, d)',
+    desc: 'Malla simétrica de 4 subfiguras para estudios comparativos complejos.',
+    badge: 'Malla',
+    renderThumbnail: () => (
+      <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="7" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+        <rect x="26" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+        <rect x="7" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+        <rect x="26" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+      </svg>
+    ),
+  },
+  {
+    value: 'vertical_stack',
+    label: 'Vertical Apilado (a, b)',
+    desc: 'Secuencia longitudinal una sobre otra con rótulo independiente.',
+    badge: 'Serie',
+    renderThumbnail: () => (
+      <svg width="48" height="34" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
+        <rect x="2" y="2" width="44" height="30" rx="3" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
+        <rect x="8" y="5" width="32" height="10" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
+        <rect x="8" y="18" width="32" height="10" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
       </svg>
     ),
   },
@@ -421,17 +449,94 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
             </div>
 
             <div>
-              <FieldLabel>Flujo de texto</FieldLabel>
-              <select
-                style={inputStyle}
-                value={img.wrap_style || 'inline'}
-                onChange={(e) => setProp('wrap_style', e.target.value)}
-              >
-                <option value="inline">En línea con el texto (Recomendado APA 7)</option>
-                <option value="square">Cuadrado (Texto alrededor)</option>
-                <option value="top_and_bottom">Arriba y abajo (Sin texto a los lados)</option>
-                <option value="tight">Estrecho</option>
-              </select>
+              <FieldLabel>Distribución Imagen - Texto</FieldLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {[
+                  {
+                    value: 'inline',
+                    label: 'En línea (Oficial)',
+                    desc: 'Bloque continuo, texto arriba y abajo.',
+                    icon: (
+                      <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
+                        <rect x="2" y="2" width="32" height="3" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="8" y="7" width="20" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="2" y="19" width="32" height="3" rx="1" fill="var(--color-text-secondary)" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    value: 'square_left',
+                    label: 'Flotante Izquierda',
+                    desc: 'Texto fluye por el costado derecho.',
+                    icon: (
+                      <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
+                        <rect x="2" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="19" y="5" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="19" y="10" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="19" y="15" width="11" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    value: 'square',
+                    label: 'Flotante Derecha',
+                    desc: 'Texto fluye por el costado izquierdo.',
+                    icon: (
+                      <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
+                        <rect x="2" y="5" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="2" y="10" width="15" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="2" y="15" width="11" height="2.5" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="20" y="4" width="14" height="16" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    value: 'banner',
+                    label: 'Margen Completo',
+                    desc: 'Ocupa 100% de caja sin texto lateral.',
+                    icon: (
+                      <svg width="36" height="24" viewBox="0 0 36 24" fill="none">
+                        <rect x="2" y="2" width="32" height="2" rx="1" fill="var(--color-text-secondary)" />
+                        <rect x="2" y="6" width="32" height="12" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+                        <rect x="2" y="20" width="32" height="2" rx="1" fill="var(--color-text-secondary)" />
+                      </svg>
+                    ),
+                  },
+                ].map((wrapOpt) => {
+                  const active = (img.wrap_style || 'inline') === wrapOpt.value || (wrapOpt.value === 'square_left' && img.wrap_style === 'square' && img.alignment === 'left');
+                  return (
+                    <div
+                      key={wrapOpt.value}
+                      onClick={() => {
+                        if (wrapOpt.value === 'square_left') {
+                          setProp('wrap_style', 'square');
+                          setProp('alignment', 'left');
+                        } else if (wrapOpt.value === 'banner') {
+                          setProp('wrap_style', 'top_and_bottom');
+                          setProp('design_style', 'full_width');
+                        } else {
+                          setProp('wrap_style', wrapOpt.value);
+                        }
+                      }}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                        padding: '6px 4px', borderRadius: 'var(--radius-sm)',
+                        backgroundColor: active ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+                        border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        cursor: 'pointer', textAlign: 'center',
+                      }}
+                    >
+                      {wrapOpt.icon}
+                      <span style={{ fontSize: '10px', fontWeight: active ? 700 : 600, color: active ? 'var(--accent-primary)' : 'var(--text-main)' }}>
+                        {wrapOpt.label}
+                      </span>
+                      <span style={{ fontSize: '8px', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
+                        {wrapOpt.desc}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -569,13 +674,58 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                   display: 'inline-flex', alignItems: 'center', gap: '4px',
                   background: 'var(--color-accent-soft)', color: 'var(--accent-primary)',
                   border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
-                  padding: '2px 7px', fontSize: '10px', fontWeight: 700, cursor: 'pointer',
+                  padding: '3px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer',
                 }}
                 title="Generar leyenda APA 7 con base en el texto cercano"
               >
                 {suggestingIA ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={11} />}
                 <span>Sugerir con IA</span>
               </button>
+            </div>
+
+            {/* Tarjetas rápidas de sugerencia IA de 1 clic */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Estilos Rápidos sugeridos por IA
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '4px' }}>
+                {[
+                  { estilo: 'Técnico/Formal', texto: borrador ? `Análisis estructural de ${borrador.toLowerCase().replace(/^(figura \d+:?|diagrama de)/i, '').trim()}` : 'Diagrama metodológico del proceso experimental' },
+                  { estilo: 'Descriptivo corto', texto: borrador ? borrador.split('.')[0] : 'Vista general de variables del estudio' },
+                  { estilo: 'Analítico detallado', texto: borrador ? `Comparativa y distribución de ${borrador.toLowerCase()}` : 'Distribución y correlación de resultados observados' },
+                ].map((sug, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
+                      padding: '4px 6px', borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'var(--color-bg-surface-alt)', border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--accent-primary)' }}>{sug.estilo}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {sug.texto}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBorrador(sug.texto);
+                        confirmar('caption', sug.texto);
+                        showToast(`Leyenda aplicada (${sug.estilo})`, 'success');
+                      }}
+                      style={{
+                        padding: '2px 6px', fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                        borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--surface-subtle)',
+                        border: '1px solid var(--border-subtle)', color: 'var(--color-text-primary)',
+                      }}
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <textarea
@@ -713,22 +863,22 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                   onClick={() => {
                     if (style.value === 'multipanel' && (!img.subfigures || img.subfigures.length === 0)) {
                       const initialSubs: SubfigureItem[] = [
-                        {
-                          id: `sub_${Date.now()}_a`,
-                          label: '(a)',
-                          title: img.caption || 'Vista principal',
-                          relative_url: img.relative_url || '',
-                          file_path: img.file_path || '',
-                          filename: img.filename || '',
-                        },
-                        {
-                          id: `sub_${Date.now()}_b`,
-                          label: '(b)',
-                          title: 'Detalle ampliado',
-                          relative_url: img.relative_url || '',
-                          file_path: img.file_path || '',
-                          filename: img.filename || '',
-                        },
+                        { id: `sub_${Date.now()}_a`, label: '(a)', title: img.caption || 'Vista principal', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                        { id: `sub_${Date.now()}_b`, label: '(b)', title: 'Detalle o grupo experimental', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                      ];
+                      updateElementImage(elem.id, { design_style: 'multipanel', subfigures: initialSubs });
+                    } else if (style.value === 'grid_2x2' && (!img.subfigures || img.subfigures.length < 4)) {
+                      const initialSubs: SubfigureItem[] = [
+                        { id: `sub_${Date.now()}_a`, label: '(a)', title: 'Control', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                        { id: `sub_${Date.now()}_b`, label: '(b)', title: 'Tratamiento A', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                        { id: `sub_${Date.now()}_c`, label: '(c)', title: 'Tratamiento B', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                        { id: `sub_${Date.now()}_d`, label: '(d)', title: 'Resultados comparados', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                      ];
+                      updateElementImage(elem.id, { design_style: 'multipanel', subfigures: initialSubs });
+                    } else if (style.value === 'vertical_stack' && (!img.subfigures || img.subfigures.length === 0)) {
+                      const initialSubs: SubfigureItem[] = [
+                        { id: `sub_${Date.now()}_a`, label: '(a)', title: 'Fase inicial', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
+                        { id: `sub_${Date.now()}_b`, label: '(b)', title: 'Fase final', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
                       ];
                       updateElementImage(elem.id, { design_style: 'multipanel', subfigures: initialSubs });
                     } else {

@@ -123,3 +123,154 @@ def crossref_to_reference(work: Dict[str, Any]) -> Dict[str, Any]:
 
 def crossref_url(doi: str) -> str:
     return f"https://api.crossref.org/works/{doi}"
+
+
+_WEB_URL_PATTERN = re.compile(r"^(?:https?://|www\.)\S+$", re.IGNORECASE)
+
+
+def normalize_web_url(entrada: str) -> Optional[str]:
+    """Valida y normaliza una URL web ordinaria."""
+    if not entrada:
+        return None
+    url = entrada.strip().rstrip(".,;)")
+    if normalize_doi(url):
+        return None
+    if _WEB_URL_PATTERN.match(url):
+        if url.lower().startswith("www."):
+            url = f"https://{url}"
+        return url
+    return None
+
+
+async def resolve_web_metadata(url: str) -> Dict[str, Any]:
+    """Extrae metadatos APA 7 desde HTML (OpenGraph, meta tags, schema.org, Dublin Core)."""
+    from bs4 import BeautifulSoup
+    from modules.addin_references_store import _format_apa_reference
+    from urllib.parse import urlparse
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 WordAPA7/1.0"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    timeout = 12.0
+    import httpx
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code >= 400:
+            raise ValueError(f"La página respondió con estado HTTP {resp.status_code}")
+        html = resp.text
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    def get_meta(*names: str) -> Optional[str]:
+        for n in names:
+            tag = (
+                soup.find("meta", attrs={"property": n})
+                or soup.find("meta", attrs={"name": n})
+                or soup.find("meta", attrs={"itemprop": n})
+            )
+            if tag and tag.get("content"):
+                return tag["content"].strip()
+        return None
+
+    # Título
+    title = (
+        get_meta(
+            "og:title",
+            "twitter:title",
+            "citation_title",
+            "dc.title",
+            "dc.Title",
+        )
+        or (soup.title.string.strip() if soup.title and soup.title.string else "")
+    )
+    # Limpiar títulos con nombre del sitio al final (ej: "Mi Noticia - El País")
+    if " - " in title:
+        parts = title.split(" - ")
+        if len(parts[-1].split()) <= 4:
+            title = " - ".join(parts[:-1]).strip()
+    elif " | " in title:
+        parts = title.split(" | ")
+        if len(parts[-1].split()) <= 4:
+            title = " | ".join(parts[:-1]).strip()
+
+    # Fuente / Sitio
+    source = get_meta(
+        "og:site_name",
+        "citation_journal_title",
+        "citation_publisher",
+        "dc.publisher",
+    )
+    if not source:
+        netloc = urlparse(url).netloc
+        source = netloc.replace("www.", "").capitalize()
+
+    # Autores
+    authors: List[str] = []
+    author_meta = get_meta(
+        "author",
+        "article:author",
+        "citation_author",
+        "dc.creator",
+        "dc.contributor",
+        "byl",
+    )
+    if author_meta:
+        # Si contiene coma entre palabras ("García, Juan"), separar por coma solo si hay múltiples autores
+        # o procesar autor individual con apellido, nombre
+        raw_authors = [author_meta] if "," in author_meta and len(author_meta.split(",")) == 2 else re.split(r";| and | y ", author_meta)
+        for raw_a in raw_authors:
+            clean_a = raw_a.strip()
+            if not clean_a or len(clean_a) < 2:
+                continue
+            if "," in clean_a:
+                parts = [p.strip() for p in clean_a.split(",") if p.strip()]
+                if len(parts) >= 2:
+                    surname, given = parts[0], parts[1]
+                    authors.append(f"{surname}, {given[0]}.")
+                else:
+                    authors.append(clean_a)
+            else:
+                words = clean_a.split()
+                if len(words) >= 2 and not any(p in clean_a.lower() for p in ["redacción", "editorial", "staff", "news"]):
+                    authors.append(f"{words[-1]}, {words[0][0]}.")
+                else:
+                    authors.append(clean_a)
+
+    # Año / Fecha
+    date_meta = get_meta(
+        "article:published_time",
+        "citation_publication_date",
+        "citation_date",
+        "dc.date",
+        "pubdate",
+        "date",
+        "og:updated_time",
+    )
+    year = "s.f."
+    if date_meta:
+        m_y = re.search(r"\b(19\d\d|20\d\d)\b", date_meta)
+        if m_y:
+            year = m_y.group(1)
+
+    # Validar campos esenciales: una página web sin título es inusable como referencia
+    if not title:
+        raise ValueError(
+            "La página web no contiene título identificable. "
+            "Por favor completa los datos manualmente."
+        )
+
+    ref: Dict[str, Any] = {
+        "authors": authors,
+        "year": year,
+        "title": title.strip(),
+        "source": source.strip() if source else "",
+        "doi_or_url": url,
+        "raw_text": "",
+        "is_draft": False,
+    }
+    ref["formatted_apa"] = _format_apa_reference(ref)
+    return ref

@@ -27,6 +27,52 @@ import { useDocStore } from '../../../store/useDocStore';
 import { medidaDeLaHoja, type Hoja } from '../../../lib/portada/geometria';
 import { MiniaturasDeDiseno, type DisenoDePortada } from './MiniaturasDeDiseno';
 import { HojaDatosPortada, HOJA_DE_DATOS_TESTID } from './HojaDatosPortada';
+import { EditorialMascot, type MascotKind, type MascotExpression } from '../../layout/EditorialMascot';
+
+function obtenerMascotaDePortada(disenoId: string): {
+  kind: MascotKind;
+  expression: MascotExpression;
+  mensaje: string;
+} {
+  switch (disenoId) {
+    case 'original':
+      return {
+        kind: 'reference',
+        expression: 'happy',
+        mensaje: 'Protegiendo logos y formato original del documento',
+      };
+    case 'apa7':
+      return {
+        kind: 'highlighter',
+        expression: 'excited',
+        mensaje: 'Formato oficial APA 7 para entregas académicas',
+      };
+    case 'uni':
+      return {
+        kind: 'ruler',
+        expression: 'curious',
+        mensaje: 'Estructura universitaria institucional oficial',
+      };
+    case 'pro':
+      return {
+        kind: 'gear',
+        expression: 'happy',
+        mensaje: 'Portada profesional con titulación corrida y numeración',
+      };
+    case 'custom':
+      return {
+        kind: 'highlighter',
+        expression: 'curious',
+        mensaje: 'Importa tu propia plantilla Word (.docx)',
+      };
+    default:
+      return {
+        kind: 'reference',
+        expression: 'neutral',
+        mensaje: 'Selecciona un estilo de portada',
+      };
+  }
+}
 
 /** Los cinco modos, con el componente que los dibuja de verdad.
  *
@@ -106,6 +152,10 @@ export interface CarruselPortadaProps {
   onUpload?: () => void;
   /** Si se elige un diseño, se muestra la hoja de datos. */
   onElegirDiseno?: (id: string) => void;
+  /** Ancho personalizado para modo carrusel principal grande */
+  anchoMiniatura?: number;
+  /** Callback para confirmar y entrar al editor dividido */
+  onConfirmSelect?: (id: string) => void;
 }
 
 export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
@@ -114,6 +164,8 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
   hoja = 'carta',
   onUpload,
   onElegirDiseno,
+  anchoMiniatura,
+  onConfirmSelect,
 }) => {
   const portada = useDocStore((s) => s.portada);
   const acta = useDocStore((s) => s.acta);
@@ -126,6 +178,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
 
   const modo: string = modoActivo ?? '';
   const [indice, setIndice] = useState(0);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   // El índice sigue al modo activo: si la tira de estrategias cambia el modo, el
   // carrusel tiene que estar en la misma tarjeta. Sin esto, dos controles
   // distintos dicen dos cosas distintas de la misma elección.
@@ -168,7 +221,10 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
     onElegirDiseno?.(id);
   };
 
-  const m = medidaDeLaHoja(hoja, ANCHO_DE_MINIATURA_PX);
+  const anchoEfectivo = anchoMiniatura || ANCHO_DE_MINIATURA_PX;
+  const m = medidaDeLaHoja(hoja, anchoEfectivo);
+  const disenoActual = DISENOS_DE_PORTADA[indice] || DISENOS_DE_PORTADA[0];
+  const mascotaActual = obtenerMascotaDePortada(disenoActual.id);
 
   return (
     <>
@@ -178,142 +234,237 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
       aria-label="Diseños de portada"
       tabIndex={0}
       onKeyDown={alTeclado}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: '100%', alignItems: 'center' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--space-1)' }}>
-        <button
-          type="button"
-          aria-label="Ir al diseño anterior"
-          onClick={() => irA(indice - 1)}
-          disabled={indice === 0}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', width: '100%', flexWrap: 'wrap' }}>
+        {/* Mascota editorial con mensaje contextual */}
+        <div
+          data-testid="portada-mascota-badge"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-2) var(--space-4)',
+            borderRadius: 'var(--radius-full)',
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            width: '24px', height: '24px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: indice === 0 ? 'not-allowed' : 'pointer',
-            color: 'var(--color-text-primary)',
-            opacity: indice === 0 ? 0.5 : 1,
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
-          <ChevronLeft size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
-        </button>
-        <button
-          type="button"
-          aria-label="Ir al siguiente diseño"
-          onClick={() => irA(indice + 1)}
-          disabled={indice === DISENOS_DE_PORTADA.length - 1}
-          style={{
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            width: '24px', height: '24px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: indice === DISENOS_DE_PORTADA.length - 1 ? 'not-allowed' : 'pointer',
-            color: 'var(--color-text-primary)',
-            opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.5 : 1,
-          }}
-        >
-          <ChevronRight size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
-        </button>
+          <EditorialMascot size={32} kind={mascotaActual.kind} expression={mascotaActual.expression} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
+              {disenoActual.titulo}
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.2 }}>
+              {mascotaActual.mensaje}
+            </span>
+          </div>
+        </div>
+
+        {/* Controles de navegación */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <button
+            type="button"
+            aria-label="Ir al diseño anterior"
+            onClick={() => irA(indice - 1)}
+            disabled={indice === 0}
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              width: '36px', height: '36px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: indice === 0 ? 'not-allowed' : 'pointer',
+              color: 'var(--color-text-primary)',
+              opacity: indice === 0 ? 0.4 : 1,
+              transition: 'all 0.15s ease',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <ChevronLeft size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
+          </button>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+            {indice + 1} de {DISENOS_DE_PORTADA.length}
+          </span>
+          <button
+            type="button"
+            aria-label="Ir al siguiente diseño"
+            onClick={() => irA(indice + 1)}
+            disabled={indice === DISENOS_DE_PORTADA.length - 1}
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              width: '36px', height: '36px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: indice === DISENOS_DE_PORTADA.length - 1 ? 'not-allowed' : 'pointer',
+              color: 'var(--color-text-primary)',
+              opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.4 : 1,
+              transition: 'all 0.15s ease',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <ChevronRight size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
+          </button>
+        </div>
       </div>
 
-      {/* La pista. Con movimiento reducido NO es un carrusel con perspectiva: es un
-          strip con scroll, que es la alternativa que el spec pide y la única que
-          funciona sin animacion. */}
+      {/* La pista 3D: portada activa destacada al frente y vecinas al fondo oscurecidas */}
       <div
         ref={pistaRef}
-        /* El `testid` no es decorativo: `coverStudioChrome.test.tsx` lo usa
-           para leer la pista. Cambiarlo sin tocar ese test deja la guarda
-           mirando un elemento que ya no existe, que es "pasar sin mirar". */
         data-testid="cover-model-track"
         style={{
           display: 'flex',
-          gap: 'var(--space-3)',
-          overflowX: reducido ? 'auto' : 'hidden',
-          /* La perspectiva vive en el CONTENEDOR y el `rotateY` en las vecinas, que
-             es como se hace un carrusel 3D de verdad: si el `rotateY` va en el
-             contenedor, todas las tarjetas giran con el contenedor. */
+          gap: 'var(--space-6)',
+          overflowX: reducido ? 'auto' : 'visible',
+          justifyContent: 'center',
+          alignItems: 'center',
           perspective: reducido ? 'none' : '1400px',
           perspectiveOrigin: '50% 50%',
-          padding: 'var(--space-3) var(--space-4)',
+          padding: 'var(--space-6) var(--space-6)',
           scrollbarWidth: 'thin',
+          width: '100%',
+          minHeight: '440px',
         }}
       >
         {DISENOS_DE_PORTADA.map((d, i) => {
           const activa = i === indice;
           const distancia = Math.abs(i - indice);
           if (reducido && !activa) return null;
-          /* El ángulo sale de una constante indexada por la distancia, y no de un
-             número en el JSX: "dos o tres por lado" es una decisión, y una decisión
-             escrita en el markup es una decisión que no se puede cambiar sin leer
-             el componente entero.
-             Y una tarjeta MÁS LEJOS de `VECINAS_POR_LADO` no lleva `transform`
-             ninguno: girarla 0 grados y empujarla 120 px es un `transform` vacío
-             disfrazado, y lo que el spec pide es que las vecinas son dos o tres
-             por lado. Lejos de ese radio, la tarjeta no está en el carrusel. */
           const esVecina = distancia <= VECINAS_POR_LADO;
-          const angulo = esVecina
-            ? ANGULOS_POR_DISTANCIA[distancia - 1] * (i < indice ? -1 : 1)
-            : 0;
+          const isHovered = hoveredId === d.id && !activa;
+
+          // La portada activa es super grande al frente; las del fondo van sin rotación,
+          // escaladas menores en el eje Z y oscurecidas progresivamente.
+          // El hover sobre las de fondo las acerca y aclara ligeramente con sutileza.
+          const transformEstilo = reducido || !esVecina
+            ? undefined
+            : activa
+              ? 'scale(1.22) translateZ(0px)'
+              : isHovered
+                ? `scale(${Math.max(0.78, 0.90 - (distancia - 1) * 0.08)}) translateZ(${-distancia * 80}px)`
+                : `scale(${Math.max(0.74, 0.86 - (distancia - 1) * 0.08)}) translateZ(${-distancia * 130}px)`;
+
+          const filtroEstilo = reducido || activa
+            ? 'none'
+            : isHovered
+              ? 'brightness(0.85) contrast(0.98)'
+              : `brightness(${Math.max(0.48, 0.68 - (distancia - 1) * 0.16)}) contrast(0.96)`;
+
+          const opacidadEstilo = reducido || activa
+            ? 1
+            : isHovered
+              ? 0.92
+              : Math.max(0.5, 0.74 - (distancia - 1) * 0.18);
+
           return (
             <button
               key={d.id}
               type="button"
               data-testid={`miniatura-${d.id}`}
-              /* Sin `aria-pressed` en la de plantilla: abrir un selector de
-                 archivos no es un estado, y con `aria-pressed` el lector de
-                 pantalla anuncia "no presionado" sobre algo que no es un
-                 interruptor. Es el mismo criterio que aplica a su chip. */
               aria-pressed={d.esAccion ? undefined : activa}
               aria-current={activa ? 'true' : undefined}
-              onClick={() => elegir(d.id)}
+              onMouseEnter={() => setHoveredId(d.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              onClick={() => {
+                irA(i);
+                elegir(d.id);
+              }}
               style={{
                 flex: '0 0 auto',
-                width: ANCHO_DE_MINIATURA_PX,
-                borderRadius: 'var(--radius-md)',
+                width: anchoEfectivo,
+                borderRadius: 'var(--radius-lg)',
                 cursor: 'pointer',
-                background: activa ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                border: activa ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                boxShadow: activa ? 'var(--shadow-card)' : 'var(--shadow-sm)',
-                /* SIN `transform` cuando el movimiento está reducido. La preferencia
-                   pide eso y el test lo mide. */
-                transform:
-                  reducido || !esVecina
-                    ? undefined
-                    : `rotateY(${angulo}deg) translateZ(${-distancia * 40}px)`,
+                background: activa ? 'var(--color-bg-surface)' : 'var(--surface-elevated)',
+                border: activa
+                  ? '2px solid var(--accent-primary)'
+                  : isHovered
+                    ? '1px solid var(--accent-primary)'
+                    : '1px solid var(--border-subtle)',
+                boxShadow: activa
+                  ? '0 24px 48px var(--shadow-card), 0 0 0 1px var(--accent-primary), 0 0 24px var(--color-accent-soft)'
+                  : isHovered
+                    ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
+                    : 'var(--shadow-sm)',
+                transform: transformEstilo,
                 transformStyle: reducido ? undefined : 'preserve-3d',
-                opacity: reducido || activa ? 1 : 0.75,
+                filter: filtroEstilo,
+                opacity: opacidadEstilo,
                 transition: reducido
                   ? undefined
-                  : 'transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--transition-fast)',
-                display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px 10px',
+                  : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1), filter 240ms ease, opacity 240ms ease, box-shadow 250ms ease, border-color 200ms ease',
+                display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
                 textAlign: 'left', fontFamily: 'inherit',
+                zIndex: activa ? 30 : isHovered ? 25 : Math.max(1, 20 - distancia * 5),
+                position: 'relative',
               }}
             >
               <MiniaturasDeDiseno diseno={d.id} medida={m} portada={portada} acta={acta} reglas={reglas} />
-              <span
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--text-main)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}
-              >
-                {d.titulo}
-              </span>
-              <span
-                style={{
-                  fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
-                  lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}
-              >
-                {d.subtitulo}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', marginTop: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {d.titulo}
+                  </span>
+                  {activa && (
+                    <EditorialMascot size={20} kind={mascotaActual.kind} expression={mascotaActual.expression} />
+                  )}
+                </div>
+                <span
+                  style={{
+                    fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
+                    lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {d.subtitulo}
+                </span>
+              </div>
             </button>
           );
         })}
       </div>
+
+      {/* Botón de Confirmación Principal / CTA en la vista del Carrusel */}
+      {onConfirmSelect && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-2)' }}>
+          <button
+            type="button"
+            data-testid="btn-seleccionar-portada-cta"
+            onClick={() => {
+              const actual = DISENOS_DE_PORTADA[indice];
+              if (actual?.esAccion) {
+                onUpload?.();
+              } else {
+                onConfirmSelect(actual?.id || 'original');
+              }
+            }}
+            style={{
+              padding: '12px 28px',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--accent-primary)',
+              color: 'var(--color-text-on-accent)',
+              border: 'none',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 16px var(--shadow-card)',
+              transition: 'transform 0.15s ease, background 0.15s ease',
+            }}
+          >
+            <span>{DISENOS_DE_PORTADA[indice]?.esAccion ? 'Subir plantilla .docx' : 'Seleccionar esta portada'}</span>
+            <ChevronRight size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
+          </button>
+        </div>
+      )}
     </div>
     {datosAbiertos && <HojaDatosPortada pasoActual={1} pasoDePortada={1} />}
     </>

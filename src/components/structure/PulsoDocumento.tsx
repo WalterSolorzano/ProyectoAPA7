@@ -150,45 +150,68 @@ export const PulsoDocumento: React.FC<PulsoDocumentoProps> = ({
   const celdas = celdasDelPulso(pulso);
 
   return (
-    <ul
-      aria-label="Pulso del documento"
-      style={{
-        display: 'flex',
-        gap: 'var(--space-5)',
-        listStyle: 'none',
-        margin: 0,
-        padding: 'var(--space-2) 0',
-        flexWrap: 'wrap',
-      }}
-    >
-      {celdas.map((c) => (
-        <li key={c.nombre} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {/* EL VALOR ARRIBA Y EL NOMBRE ABAJO. Al revés, un panel de cinco
-              números sin nombre es una lista de métricas anónimas, y el lector
-              tiene que adivinar cuál es cuál antes de poder usar cualquiera. */}
-          <span
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+      <ul
+        aria-label="Pulso del documento"
+        style={{
+          display: 'flex',
+          gap: 'var(--space-3)',
+          listStyle: 'none',
+          margin: 0,
+          padding: 0,
+          flex: '1 1 auto',
+          flexWrap: 'wrap',
+        }}
+      >
+        {celdas.map((c) => (
+          <li
+            key={c.nombre}
             style={{
-              fontSize: 'var(--text-lg)',
-              fontWeight: 700,
-              lineHeight: 1,
-              color: 'var(--color-text-primary)',
-              fontVariantNumeric: 'tabular-nums',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              flex: '1 1 140px',
+              padding: 'var(--space-2) var(--space-4)',
+              backgroundColor: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderTop: c.nombre === 'Palabras' ? '3px solid var(--color-accent)' : c.nombre === 'Balance' ? '3px solid var(--color-success)' : '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.03))',
+              transition: 'transform var(--transition-fast, 150ms ease)',
             }}
           >
-            {c.valor}
-          </span>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{c.nombre}</span>
-          {c.detalle && (
+            {/* EL VALOR ARRIBA Y EL NOMBRE ABAJO */}
             <span
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
-              title={c.detalle}
+              style={{
+                fontSize: 'var(--text-lg)',
+                fontWeight: 700,
+                lineHeight: 1.1,
+                color: c.nombre === 'Palabras' ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
             >
-              {c.detalle}
+              {c.valor}
             </span>
-          )}
-        </li>
-      ))}
-    </ul>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)' }}>{c.nombre}</span>
+            {c.detalle && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--color-text-tertiary)',
+                  maxWidth: '24ch',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={c.detalle}
+              >
+                {c.detalle}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 };
 

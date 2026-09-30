@@ -112,6 +112,13 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
     [elementos, faseConocida],
   );
 
+  /* Auto-seleccionar el primer capítulo si no hay ninguno seleccionado */
+  const nodoActivo = useMemo(() => {
+    if (elegido) return elegido;
+    if (raices.length > 0) return raices[0];
+    return null;
+  }, [elegido, raices]);
+
   const buscar = useCallback(
     (id: string): NodoJerarquia | null => {
       for (const r of raices) {
@@ -163,13 +170,14 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
             faseConocida={faseConocida}
             documento={documento}
             onSelect={setElegido}
+            nodoSeleccionadoId={nodoActivo?.id}
           />
         </div>
 
         <aside
           aria-label="Rama elegida y faltas de APA 7"
           style={{
-            flex: '0 0 320px',
+            flex: '0 0 360px',
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
@@ -183,45 +191,63 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
           {elegido ? (
             <InspectorRama nodo={elegido} elementos={elementos ?? []} />
           ) : (
-            /* Sin nodo elegido NO hay un panel vacío con un borde: se dice qué
-               hay que hacer. Un panel en blanco al lado del índice se lee como
-               una carga que no terminó de llegar. */
-            <p
-              role="status"
+            <div
               style={{
-                margin: 0,
                 display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-2)',
-                fontSize: 'var(--text-sm)',
-                color: 'var(--color-text-tertiary)',
+                flexDirection: 'column',
+                gap: 'var(--space-3)',
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                border: '1px dashed var(--color-border-subtle)',
               }}
             >
-              <ListTree size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
-              Elegí un capítulo del índice para ver su contenido y lo que se puede hacer ahí.
-            </p>
+              <p
+                role="status"
+                style={{
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 500,
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
+                Elegí un capítulo del índice para ver su contenido y lo que se puede hacer ahí.
+              </p>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                Podrás revisar el balance de palabras, editar el título directamente, promover su nivel o reordenarlo.
+              </span>
+            </div>
           )}
 
-          {/* 4. QUÉ LE FALTA A APA 7. Sin lista de fases obligatorias, esta
-              pantalla lo dice en vez de suponerla. */}
+          {/* 4. REVISIÓN DE JERARQUÍA APA 7 */}
           <section
-            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-2)',
+              marginTop: 'auto',
+              paddingTop: 'var(--space-4)',
+              borderTop: '1px solid var(--color-border-subtle)',
+            }}
             aria-label="Qué le falta a APA 7"
           >
-            <h2
-              style={{
-                margin: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-2)',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 700,
-                color: 'var(--color-text-primary)',
-              }}
-            >
-              <ScrollText size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
-              Qué le falta a APA 7
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <ScrollText size={15} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 700,
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                Qué le falta a APA 7
+              </h2>
+            </div>
             <p
               style={{
                 margin: 0,
@@ -229,9 +255,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
                 color: 'var(--color-text-tertiary)',
               }}
             >
-              El backend no expone qué secciones exige APA 7 en una tesis, así que esta lista
-              solo puede señalar los encabezados mal nivelados. No inventa los capítulos que
-              faltarían.
+              El backend no expone qué secciones exige APA 7 en una tesis, así que esta lista solo puede señalar los encabezados mal nivelados. No inventa los capítulos que faltarían.
             </p>
             <FaltasApa7 raices={raices} onSelect={abrirPorId} />
           </section>

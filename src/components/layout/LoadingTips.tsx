@@ -58,6 +58,23 @@ export const PROCESS_VERBS: string[] = [
   'archivando el drama de las tablas anidadas…',
   'recordándole a Word que existe la sangría francesa…',
   'calibrando el interlineado al milímetro…',
+  // Lote expandido
+  'desarmando listas numeradas a mano…',
+  'revisando que no hayas usado barra espaciadora en vez de tabulador…',
+  'buscando puntos finales escondidos en títulos…',
+  'sincronizando los niveles de encabezado con la realidad…',
+  'convirtiendo hipervínculos azules y subrayados en texto sobrio…',
+  'desinfectando saltos de sección innecesarios…',
+  'reconciliando las fuentes huérfanas con la tipografía oficial…',
+  'limpiando dobles espacios después de cada punto…',
+  'enseñándole modales a las tablas desbordadas…',
+  'alineando las notas al pie sin perder la cordura…',
+  // Lote reactivo ultra
+  'recalibrando márgenes de 2.54 cm en cada esquina…',
+  'cazando párrafos con alineación justificada rebelde…',
+  'sincronizando el índice con la verdad del documento…',
+  'reparando tabulaciones que decidieron emigrar…',
+  'transformando números en palabras según la norma…',
 ];
 
 export const JOKES: string[] = [
@@ -97,6 +114,20 @@ export const JOKES: string[] = [
   'si esto tarda, no es la app, es que tu profe pidió demasiadas fuentes.',
   'la app también está dudando de cuánto "final" tiene tu archivo.',
   'esto no lo escribió un robot… o sí. Nadie sabe.',
+  // Lote expandido
+  'revisando si el objetivo general promete curar enfermedades incurables…',
+  'midiendo el nivel de inspiración que bajó de golpe en la página 8.',
+  'rezándole al santo patrono de los documentos recuperados…',
+  'comprobando si esa referencia de 1984 sigue vigente en este siglo.',
+  'contando cuántas veces cambiaste "determinar" por "analizar" en los objetivos.',
+  'buscando el archivo de respaldo que juraste haber guardado.',
+  'intentando descifrar qué quisiste decir a las cuatro de la mañana.',
+  'prometemos no juzgar la cantidad de fuentes secundarias…',
+  // Lote reactivo ultra
+  'buscando el autor misterioso que sólo aparece citado una vez…',
+  'esa introducción parece prólogo de enciclopedia medieval…',
+  'la conclusión promete investigaciones futuras que nadie va a hacer jamás…',
+  'midiendo el pánico previo a presionar "Enviar trabajo"…',
 ];
 
 export const APA_FACTS: string[] = [
@@ -129,6 +160,20 @@ export const APA_FACTS: string[] = [
   'el DOI empieza con "https://doi.org/", no con el número pelado.',
   'en APA 7 el año va justo después del autor, no al final.',
   'máximo 20 palabras para citar textual sin sangría de bloque.',
+  // Lote expandido
+  'en APA 7 se admiten fuentes como Calibri 11, Arial 11, Georgia 11 y Times New Roman 12.',
+  'las notas de tabla van con "Nota." en cursiva seguida de punto.',
+  'en citas en paréntesis se usa "&" antes del último autor; en narrativa se escribe "y".',
+  'los títulos de nivel 3 van alineados a la izquierda, en negrita y en cursiva.',
+  'la portada profesional sí lleva encabezado abreviado (running head), la de estudiante no.',
+  'las referencias web ya no llevan la frase "Recuperado de", salvo que la fuente cambie en el tiempo.',
+  'hasta 20 autores se listan completos en la referencia antes de recurrir a puntos suspensivos.',
+  'las comunicaciones personales solo se citan en el texto, no van en la lista de referencias.',
+  // Lote reactivo ultra
+  'en APA 7 los números del 0 al 9 se escriben con palabras, de 10 en adelante con cifras.',
+  'los títulos de tablas van en cursiva justo debajo del número de tabla en negrita.',
+  'las citas directas sin número de página requieren señalar el número de párrafo.',
+  'el espaciado doble se mantiene en todo el texto, incluyendo la lista de referencias.',
 ];
 
 // ── MODO: "Te atrapé usando IA" (las delatoras) ─────────────────────────────
@@ -138,6 +183,17 @@ export const AI_JOKES: string[] = [
   "reescribiendo la frase 'sumérgete en el fascinante mundo' para que suenes como un ser humano...",
   "calculando cuántas veces usaste 'crucial' y 'fundamental' en el mismo párrafo...",
   'revisando que tu marco teórico no alucine autores que no existen...',
+  // Lote expandido
+  "rastreando palabras como 'innegable', 'intrincado' y 'vibrante'...",
+  "comprobando que el ensayo no empiece con 'A lo largo de la historia de la humanidad'...",
+  "buscando disculpas de la IA en medio del marco conceptual...",
+  "asegurando que las citas no pertenezcan a papers del año 2045...",
+  "des-robotizando la redacción para que tu asesor no sospeche...",
+  // Lote reactivo ultra
+  "detectando el clásico 'en el tapiz de la sociedad moderna'...",
+  "neutralizando la frase 'es de suma importancia recalcar que'...",
+  "buscando explicaciones redundantes que ChatGPT puso para alargar la entrega...",
+  "revisando que la IA no haya citado una tesis que nunca existió...",
 ];
 
 // ── MODO: El infierno de Word y APA 7 ───────────────────────────────────────
@@ -148,6 +204,17 @@ export const WORD_HELL_JOKES: string[] = [
   'buscando líneas viudas y huérfanas para devolverlas con su familia...',
   'aplicando sangría francesa (tranquilo, es la de APA, no la bebida)...',
   'eliminando los 45 espacios en blanco que usaste para centrar el título...',
+  // Lote expandido
+  'evitando que mover una imagen 1 milímetro mande tres párrafos al abismo...',
+  'domando la numeración automática de Word que decidió empezar de nuevo en 1...',
+  'borrando esa página en blanco fantasma que Word se niega a eliminar...',
+  'rogándole a Word que no cambie el interlineado a su antojo...',
+  'deshaciendo saltos de página que aparecieron de la nada...',
+  // Lote reactivo ultra
+  'impidiendo que Word convierta tu guion en una lista no deseada…',
+  'rescatando la última fila de la tabla que quedó cortada al final de la hoja…',
+  'luchando contra el salto de sección continuo que rompió la numeración…',
+  'exorcizando estilos automáticos que Word inventó sin tu permiso…',
 ];
 
 // ── MODO: Agotamiento estudiantil y optimización ────────────────────────────
@@ -158,6 +225,17 @@ export const STUDENT_JOKES: string[] = [
   'calculando la ruta más corta entre este borrador y tu título universitario...',
   'cargando... más rápido de lo que tardaste en decidir entre Arial o Times New Roman.',
   'procesando... porque tu salud mental vale más que pelear con las referencias cruzadas.',
+  // Lote expandido
+  'formateando mientras te preguntás por qué no empezaste esto hace dos semanas…',
+  'calculando cuánto café queda en tu sistema circulatorio…',
+  'haciendo que el trabajo parezca de 20 páginas con márgenes limpios y sin trucos…',
+  'ayudándote a cruzar la línea de meta antes de que cierre la plataforma…',
+  'un documento formateado a tiempo es un paso más hacia la graduación…',
+  // Lote reactivo ultra
+  'contando cuántas horas faltan para que cierre el aula virtual…',
+  'prometemos que esta noche sí vas a dormir más de cuatro horas…',
+  'convirtiendo el pánico de entrega en satisfacción académica…',
+  'tu esfuerzo vale la pena: el documento va a quedar impecable…',
 ];
 
 const HONEST_MESSAGES: string[] = [
@@ -174,6 +252,14 @@ const HONEST_MESSAGES: string[] = [
   'tu doc tiene bastantes figuras, dale un toque más.',
   'esto no se colgó, solo es más grande de lo normal.',
   'ya casi, prometido.',
+  // Lote expandido
+  'revisando la estructura a fondo, tu texto lo vale.',
+  'un documento extenso toma su tiempo, pero queda impecable.',
+  'estamos aplicando las normas página por página, paciencia.',
+  'procesando cada sección con cuidado milimétrico…',
+  // Lote reactivo ultra
+  'analizando referencias complejas y consistencia de citas…',
+  'documento de gran calibre: garantizando precisión en cada párrafo…',
 ];
 
 interface Tip {
@@ -181,41 +267,94 @@ interface Tip {
   text: string;
 }
 
-// Expresión de la mascota según la categoría de la frase: cada tipo de mensaje
-// tiene su propia cara, así la mascota "reacciona" a lo que está contando.
-const EXPRESSION_BY_CATEGORY: Record<Tip['category'], MascotExpression> = {
-  process: 'happy',
-  jokes: 'excited',
-  apa: 'curious',
-  honest: 'neutral',
-  llm: 'excited',
-  ai: 'curious',
-  wordhell: 'excited',
-  student: 'happy',
-};
+// Reacción dinámica e inteligente de la mascota para CADA frase:
+// Evalúa el contenido semántico del texto para seleccionar el kind (herramienta),
+// expresión facial ('happy' | 'excited' | 'curious' | 'worried' | 'neutral')
+// y animación ('mascot-anim-*').
+export function getTipReaction(tip: Tip): {
+  kind: MascotKind;
+  expression: MascotExpression;
+  animation: string;
+} {
+  const t = tip.text.toLowerCase();
 
-const MASCOT_BY_CATEGORY: Record<Tip['category'], MascotKind> = {
-  process: 'highlighter',
-  jokes: 'strike',
-  apa: 'ruler',
-  honest: 'ruler',
-  llm: 'reference',
-  ai: 'reference',
-  wordhell: 'strike',
-  student: 'highlighter',
-};
+  // Casos de pánico / estrés / horas límite / Word rebelde -> worried o excited
+  if (t.includes('chatgpt') || t.includes('alucine') || t.includes('delator') || t.includes('tapiz') || t.includes('innegable')) {
+    return { kind: 'reference', expression: 'worried', animation: 'mascot-anim-ai' };
+  }
+  if (t.includes('peleando') || t.includes('abismo') || t.includes('rompió') || t.includes('fantasma') || t.includes('exorcizando')) {
+    return { kind: 'strike', expression: 'worried', animation: 'mascot-anim-wordhell' };
+  }
+  if (t.includes('aula virtual') || t.includes('pánico') || t.includes('sudando') || t.includes('rincón del vago')) {
+    return { kind: 'highlighter', expression: 'worried', animation: 'mascot-anim-student' };
+  }
 
-// Animación de la mascota según la categoría (ver CSS: mascot-anim-*).
-const ANIMATION_BY_CATEGORY: Record<Tip['category'], string> = {
-  process: 'mascot-anim-process',
-  jokes: 'mascot-anim-jokes',
-  apa: 'mascot-anim-apa',
-  honest: 'mascot-anim-honest',
-  llm: 'mascot-anim-llm',
-  ai: 'mascot-anim-ai',
-  wordhell: 'mascot-anim-wordhell',
-  student: 'mascot-anim-student',
-};
+  // Casos de rigor métrico APA 7 / márgenes / tablas / sangrías -> ruler curioso o neutral
+  if (t.includes('2.54') || t.includes('sangría') || t.includes('milímetro') || t.includes('et al') || t.includes('doi') || t.includes('nivel 3')) {
+    return { kind: 'ruler', expression: 'curious', animation: 'mascot-anim-apa' };
+  }
+  if (t.includes('tabla') || t.includes('figura') || t.includes('interlineado') || t.includes('número')) {
+    return { kind: 'ruler', expression: 'happy', animation: 'mascot-anim-apa' };
+  }
+
+  // Casos de citas, referencias, bibliografía y libros -> reference
+  if (t.includes('referencia') || t.includes('bibliografía') || t.includes('citar') || t.includes('fuente') || t.includes('autor')) {
+    return { kind: 'reference', expression: 'curious', animation: 'mascot-anim-llm' };
+  }
+
+  // Casos de tachado, corrección de errores, comas y estilo -> strike
+  if (t.includes('coma') || t.includes('punto') || t.includes('ortograf') || t.includes('mayúscula') || t.includes('estilo') || t.includes('título')) {
+    return { kind: 'strike', expression: 'excited', animation: 'mascot-anim-jokes' };
+  }
+
+  // Casos de estudiante, café, trasnoche y motivación -> highlighter o gear
+  if (t.includes('café') || t.includes('dormir') || t.includes('título universitario') || t.includes('graduación') || t.includes('meta')) {
+    return { kind: 'highlighter', expression: 'excited', animation: 'mascot-anim-student' };
+  }
+  if (t.includes('engranaje') || t.includes('motor') || t.includes('calibrando') || t.includes('quirúrgica')) {
+    return { kind: 'gear', expression: 'happy', animation: 'mascot-anim-process' };
+  }
+
+  // Fallback categorial coherente
+  const fallbackExpr: Record<Tip['category'], MascotExpression> = {
+    process: 'happy',
+    jokes: 'excited',
+    apa: 'curious',
+    honest: 'neutral',
+    llm: 'excited',
+    ai: 'curious',
+    wordhell: 'worried',
+    student: 'happy',
+  };
+
+  const fallbackKind: Record<Tip['category'], MascotKind> = {
+    process: 'highlighter',
+    jokes: 'strike',
+    apa: 'ruler',
+    honest: 'ruler',
+    llm: 'reference',
+    ai: 'reference',
+    wordhell: 'strike',
+    student: 'highlighter',
+  };
+
+  const fallbackAnim: Record<Tip['category'], string> = {
+    process: 'mascot-anim-process',
+    jokes: 'mascot-anim-jokes',
+    apa: 'mascot-anim-apa',
+    honest: 'mascot-anim-honest',
+    llm: 'mascot-anim-llm',
+    ai: 'mascot-anim-ai',
+    wordhell: 'mascot-anim-wordhell',
+    student: 'mascot-anim-student',
+  };
+
+  return {
+    kind: fallbackKind[tip.category],
+    expression: fallbackExpr[tip.category],
+    animation: fallbackAnim[tip.category],
+  };
+}
 
 // Etiqueta de "modo" para los sets temáticos (chiste -> comentario con badge).
 const MODE_LABEL: Partial<Record<Tip['category'], string>> = {
@@ -696,10 +835,11 @@ export const LoadingTips: React.FC<LoadingTipsProps> = ({ activo, que }) => {
       ? 'Clasificando con IA…'
       : 'Procesando documento…');
 
-  // La mascota reacciona a la frase actual: cara + animación por categoría
-  const mascotExpr = EXPRESSION_BY_CATEGORY[tip.category];
-  const mascotKind = MASCOT_BY_CATEGORY[tip.category];
-  const mascotAnim = ANIMATION_BY_CATEGORY[tip.category];
+  // La mascota reacciona reactiva y temáticamente a la frase exacta actual:
+  const reaction = getTipReaction(tip);
+  const mascotExpr = reaction.expression;
+  const mascotKind = reaction.kind;
+  const mascotAnim = reaction.animation;
 
   // Comentario en burbuja (sin comillas): badge de modo + frase en cursiva.
   const renderTipComment = (size: 'sm' | 'lg') => {

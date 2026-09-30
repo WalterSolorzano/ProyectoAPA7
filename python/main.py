@@ -1633,15 +1633,31 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     preserve_cover = portada.use_original_cover and doc.portada.get("detected", False)
 
-    # Remove cover paragraphs only if we have COM active, because LO doesn't do transplant yet
-    is_com = doc_converter.get_active_engine() == "COM"
-
-    generate_apa7_docx(
-        doc, docx_path, rules=rules, portada=portada, references=references,
-        remove_cover_paragraphs=preserve_cover and is_com
-    )
-
+    # Si el modo de exportación es inplace y se preserva portada original, generar vía apply_inplace para paridad 100%
+    export_mode = getattr(rules, "export_mode", "inplace")
+    use_orig_cover = getattr(portada, "use_original_cover", True)
     original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
+    used_inplace = False
+
+    if export_mode == "inplace" and use_orig_cover and original_path.exists():
+        try:
+            from generation.inplace_editor import apply_inplace
+            apply_inplace(
+                original_path, docx_path, doc, rules, scopes=None,
+                language=getattr(portada, "language", None),
+                acta=meta,
+            )
+            used_inplace = True
+        except Exception as e_ip:
+            print(f"[WARN] Error en apply_inplace para PDF: {e_ip}, recurriendo a generador general")
+
+    if not used_inplace:
+        # Remove cover paragraphs only if we have COM active, because LO doesn't do transplant yet
+        is_com = doc_converter.get_active_engine() == "COM"
+        generate_apa7_docx(
+            doc, docx_path, rules=rules, portada=portada, references=references,
+            remove_cover_paragraphs=preserve_cover and is_com
+        )
 
     # Inyectar Post-Processor Dual Engine para PDF.
     # El archivo intermedio DEBE tener extensión .docx: Word COM decide el

@@ -61,6 +61,44 @@ function FiguraAColumnaDeLaHoja({ c }: { c: ContextoFigura }) {
       ? { width_cm: c.anchoCm, height_cm: c.altoCm }
       : null,
   );
+
+  /* Si tiene subfiguras (multipanel), se renderiza la composición (a, b, etc.) */
+  if (c.designStyle === 'multipanel' && c.subfigures && c.subfigures.length > 0) {
+    return (
+      <div data-testid="escenario-figura-imagen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0, width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: c.subfigures.length === 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)', width: '100%', maxWidth: `${medida.anchoPx}px` }}>
+          {c.subfigures.map((sub, i) => {
+            const subUrl = sub.relative_url ? resolveAssetUrl(sub.relative_url) : url;
+            return (
+              <div key={sub.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                {subUrl ? (
+                  <img
+                    src={subUrl}
+                    alt={sub.label}
+                    style={{
+                      width: '100%',
+                      maxHeight: '220px',
+                      objectFit: 'contain',
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--paper-white)',
+                    }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--surface-subtle)', border: '1px dashed var(--border-subtle)' }}>
+                    <ImageIcon size={20} strokeWidth="var(--icon-stroke)" />
+                  </div>
+                )}
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--paper-ink)' }}>
+                  {sub.label} {sub.title}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div data-testid="escenario-figura-imagen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
       {url ? (
@@ -275,8 +313,56 @@ export function EscenarioFigura({
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', alignItems: 'center', minWidth: 0 }}>
-            {contexto.tipo === 'image' ? <FiguraAColumnaDeLaHoja c={contexto} /> : <TablaDelEscenario c={contexto} />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', alignItems: 'center', minWidth: 0, width: '100%' }}>
+            {/* Hoja de papel APA 7 con contexto vivo */}
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '680px',
+                backgroundColor: 'var(--paper-white)',
+                color: 'var(--paper-ink)',
+                borderRadius: 'var(--radius-sm)',
+                boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.15))',
+                padding: 'var(--space-8) var(--space-6)',
+                border: '1px solid var(--border-subtle)',
+                fontFamily: 'serif',
+                minWidth: 0,
+              }}
+            >
+              {/* Contexto: Párrafo Previo */}
+              <div style={{ marginBottom: 'var(--space-4)', opacity: 0.85, fontSize: 'var(--text-sm)', lineHeight: 1.6, textAlign: 'justify' }}>
+                <p style={{ margin: 0, textIndent: '1.27cm' }}>
+                  {contexto.parrafoAnterior ?? '... (Párrafo anterior del documento donde se introduce la figura según lineamientos APA 7) ...'}
+                </p>
+              </div>
+
+              {/* Rótulo y Título de la Figura según APA 7 */}
+              <div style={{ margin: 'var(--space-4) 0 var(--space-2)', fontFamily: 'inherit' }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--paper-ink)' }}>
+                  {contexto.rotulo}
+                </div>
+                <div style={{ fontStyle: 'italic', fontSize: 'var(--text-sm)', color: 'var(--paper-ink)', marginTop: 2 }}>
+                  {contexto.leyenda ? contexto.leyenda : 'Título descriptivo de la figura'}
+                </div>
+              </div>
+
+              {/* Render de la Figura o Tabla */}
+              <div style={{ margin: 'var(--space-2) 0', display: 'flex', justifyContent: 'center' }}>
+                {contexto.tipo === 'image' ? <FiguraAColumnaDeLaHoja c={contexto} /> : <TablaDelEscenario c={contexto} />}
+              </div>
+
+              {/* Nota de la Figura APA 7 */}
+              <div style={{ marginTop: 'var(--space-2)', marginBottom: 'var(--space-4)', fontSize: 'var(--text-xs)', lineHeight: 1.4, color: 'var(--paper-ink)' }}>
+                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> Elaboración propia basada en los datos del estudio.
+              </div>
+
+              {/* Contexto: Párrafo Posterior */}
+              <div style={{ marginTop: 'var(--space-4)', opacity: 0.85, fontSize: 'var(--text-sm)', lineHeight: 1.6, textAlign: 'justify' }}>
+                <p style={{ margin: 0, textIndent: '1.27cm' }}>
+                  {contexto.parrafoSiguiente ?? '... (Párrafo subsiguiente donde continúa el análisis e interpretación de los resultados en el documento) ...'}
+                </p>
+              </div>
+            </div>
 
             <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
               <CampoDeLeyenda c={contexto} onLegendChange={onLegendChange} />
@@ -284,7 +370,7 @@ export function EscenarioFigura({
 
             <div style={{ width: '100%', maxWidth: '680px', minWidth: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
               <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Párrafo anterior
+                Párrafo anterior detectado
               </span>
               <p style={{ margin: '2px 0 0', lineHeight: 1.45 }}>
                 {contexto.parrafoAnterior ?? 'Es la primera figura de la sección: no hay párrafo que la presente'}

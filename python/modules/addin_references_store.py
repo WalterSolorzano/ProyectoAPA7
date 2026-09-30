@@ -311,9 +311,18 @@ def _format_apa_reference(ref: Dict[str, Any]) -> str:
     if source:
         parts.append(f" {source}.")
     if doi:
-        if not doi.startswith("http"):
-            doi = f"https://doi.org/{doi}"
-        parts.append(f" {doi}")
+        doi_clean = doi.strip()
+        if doi_clean.startswith("http://") or doi_clean.startswith("https://"):
+            parts.append(f" {doi_clean}")
+        elif doi_clean.lower().startswith("doi:"):
+            raw_doi = re.sub(r"^doi:\s*", "", doi_clean, flags=re.IGNORECASE).strip()
+            parts.append(f" https://doi.org/{raw_doi}")
+        elif re.match(r"^10\.\d{4,9}/\S+", doi_clean):
+            parts.append(f" https://doi.org/{doi_clean}")
+        elif doi_clean.lower().startswith("www."):
+            parts.append(f" https://{doi_clean}")
+        else:
+            parts.append(f" https://doi.org/{doi_clean}")
 
     return "".join(parts).strip()
 

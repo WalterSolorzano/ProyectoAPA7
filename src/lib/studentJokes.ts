@@ -19,6 +19,9 @@ const FILENAME_JOKES: string[] = [
   '"definitivo"... por ahora.',
   'esa nomenclatura de archivo ya es parte del folklore universitario.',
   'entre "final" y "FINAL_v3" seguro hubo varias noches sin dormir.',
+  'el archivo "final_final_ahora_si_listo.docx" es patrimonio académico.',
+  'si le agregás otro "final" al nombre, va a necesitar su propia portada.',
+  'tranquilo: nadie entrega la versión 1 de nada.',
 ];
 
 /** Detector del nombre: devuelve un chiste si parece "versión final eterna". */
@@ -34,6 +37,8 @@ const REPEAT_JOKES: string[] = [
   'otra vez por acá... ¿cuántos trabajos tenés pendientes?',
   'segundo documento en la sesión. La productividad te respeta.',
   'ya van varios por hoy... ¿estamos armando una tesis o un expediente?',
+  'modo maratón activado: documento que entra, documento que sale con APA impecable.',
+  'otro doc más a la cuenta... el título universitario está cada vez más cerca.',
 ];
 
 /** Incrementa el contador de la sesión y devuelve un chiste si es reincidencia. */

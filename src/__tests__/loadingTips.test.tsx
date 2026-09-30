@@ -54,4 +54,28 @@ describe('LoadingTips — la capa de carga', () => {
     rerender(<LoadingTips activo={false} que="Subiendo" />);
     await waitFor(() => expect(screen.queryByTestId('carga-capa')).toBeNull(), { timeout: 1200 });
   });
+
+  it('la mascota reacciona con expresion y herramienta adecuada segun la frase', async () => {
+    const { getTipReaction } = await import('../components/layout/LoadingTips');
+
+    // Detección IA -> worried, reference
+    const r1 = getTipReaction({ category: 'ai', text: 'contando cuántos en conclusión te dejó ChatGPT...' });
+    expect(r1.kind).toBe('reference');
+    expect(r1.expression).toBe('worried');
+
+    // APA regla de margen -> curious, ruler
+    const r2 = getTipReaction({ category: 'apa', text: 'recalibrando márgenes de 2.54 cm en cada esquina…' });
+    expect(r2.kind).toBe('ruler');
+    expect(r2.expression).toBe('curious');
+
+    // Estudiante / café / graduación -> excited, highlighter
+    const r3 = getTipReaction({ category: 'student', text: 'calculando cuánto café queda en tu sistema circulatorio…' });
+    expect(r3.kind).toBe('highlighter');
+    expect(r3.expression).toBe('excited');
+
+    // Word hell -> worried, strike
+    const r4 = getTipReaction({ category: 'wordhell', text: 'evitando que mover una imagen mande tres párrafos al abismo...' });
+    expect(r4.kind).toBe('strike');
+    expect(r4.expression).toBe('worried');
+  });
 });

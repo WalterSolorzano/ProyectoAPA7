@@ -202,8 +202,61 @@ export const ReactPDFPreview: React.FC = () => {
             return <Text key={elem.id} style={styles.bullet}>{elem.text}</Text>;
           }
 
-          if (elem.type === 'table' && elem.table_info) {
-            return <Text key={elem.id} style={styles.paragraph}>[Tabla {elem.table_info.table_number}: {elem.table_info.caption}]</Text>;
+          if (elem.type === 'table') {
+            const tInfo: any = elem.table_info;
+            const tNum = tInfo?.table_number || '1';
+            const tCap = tInfo?.caption || tInfo?.title || 'Tabla formal';
+            const tNote = tInfo?.note;
+            const rows = tInfo?.rows || (elem as any).rows || [];
+            return (
+              <View key={elem.id} style={{ marginVertical: 12 }} wrap={false}>
+                <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>
+                  Tabla {tNum}
+                </Text>
+                <Text style={{ fontSize: 11, fontStyle: 'italic', marginBottom: 6 }}>
+                  {tCap}
+                </Text>
+                <View style={{ borderTopWidth: 1.5, borderTopColor: TINTA_PAPEL, borderBottomWidth: 1.5, borderBottomColor: TINTA_PAPEL, width: '100%' }}>
+                  {rows.slice(0, 10).map((r: any, rIdx: number) => {
+                    const cells = r.cells || r || [];
+                    const isHeader = rIdx === 0;
+                    return (
+                      <View key={rIdx} style={{ flexDirection: 'row', borderBottomWidth: isHeader ? 1 : 0, borderBottomColor: TINTA_PAPEL, paddingVertical: 4 }}>
+                        {cells.map((c: any, cIdx: number) => (
+                          <Text key={cIdx} style={{ flex: 1, fontSize: 10, fontWeight: isHeader ? 'bold' : 'normal', paddingHorizontal: 4 }}>
+                            {typeof c === 'string' ? c : c.text || ''}
+                          </Text>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+                <Text style={{ fontSize: 9, fontStyle: 'italic', marginTop: 4 }}>
+                  Nota. {tNote || 'Adaptado conforme a los estándares de formato y presentación APA 7.ª edición.'}
+                </Text>
+              </View>
+            );
+          }
+
+          if (elem.type === 'image') {
+            const fInfo = elem.image_info;
+            const fNum = fInfo?.figure_number || 1;
+            const fCap = fInfo?.caption || 'Ilustración del proceso';
+            const fNote = fInfo?.note;
+            return (
+              <View key={elem.id} style={{ marginVertical: 12 }} wrap={false}>
+                <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 2 }}>
+                  Figura {fNum}
+                </Text>
+                <Text style={{ fontSize: 11, fontStyle: 'italic', marginBottom: 6 }}>
+                  {fCap}
+                </Text>
+                {elem.text ? <Text style={styles.paragraph}>{elem.text}</Text> : null}
+                <Text style={{ fontSize: 9, fontStyle: 'italic', marginTop: 4 }}>
+                  Nota. {fNote || 'Presentación gráfica formal APA 7 con alineación y resolución óptima.'}
+                </Text>
+              </View>
+            );
           }
 
           if (elem.type === 'page_break') {
@@ -220,7 +273,7 @@ export const ReactPDFPreview: React.FC = () => {
           <PageNumber startAt={1} />
           <Text style={styles.heading1}>Referencias</Text>
           {debouncedDoc.referencias.map((ref: any) => (
-            <Text key={ref.id} style={styles.referenceItem}>{ref.text || ref.raw_text}</Text>
+            <Text key={ref.id} style={styles.referenceItem}>{ref.text || ref.raw_text || ref.formatted_apa}</Text>
           ))}
         </Page>
       )}

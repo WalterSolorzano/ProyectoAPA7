@@ -192,79 +192,81 @@ export const FaltasApa7: React.FC<FaltasApa7Props> = ({
              * nada ocupa el lugar del que sí. */
             const puedePromover = f.accion === 'promover' && nodo !== null;
             return (
-              <li
-                key={`${f.clase}-${f.nodoId ?? f.detalle}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 'var(--space-2)',
-                  padding: 'var(--space-2) 0',
-                  borderBottom: '1px solid var(--color-border-subtle)',
-                  fontSize: 'var(--text-sm)',
-                }}
-              >
-                <TriangleAlert
-                  size={14}
-                  strokeWidth="var(--icon-stroke)"
-                  aria-hidden
-                  style={{ marginTop: '2px', flex: '0 0 auto', color: 'var(--color-warning)' }}
-                />
-                <span style={{ flex: '1 1 auto', minWidth: 0 }}>{f.detalle}</span>
-                {puedePromover && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void promover(nodo);
-                    }}
-                    style={{
-                      flex: '0 0 auto',
-                      font: 'inherit',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--color-text-on-accent)',
-                      background: 'var(--color-accent)',
-                      border: '1px solid transparent',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '3px 8px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Promover a H1
-                  </button>
-                )}
-                {!puedePromover && f.clase === 'fase-requerida' && (
-                  /* Se dice POR QUÉ no hay botón. Un hueco sin explicación se
-                   * lee como un botón que no cargó. */
-                  <span
-                    style={{
-                      flex: '0 0 auto',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--color-text-tertiary)',
-                      maxWidth: '30ch',
-                    }}
-                  >
-                    Agregar la sección es del autor: la app no inserta capítulos.
-                  </span>
-                )}
-                {nodo && onSelect && (
-                  <button
-                    type="button"
-                    onClick={() => onSelect(nodo.id)}
-                    style={{
-                      flex: '0 0 auto',
-                      font: 'inherit',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--color-text-secondary)',
-                      background: 'transparent',
-                      border: '1px solid var(--color-border-subtle)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '3px 8px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Ver la rama
-                  </button>
-                )}
-              </li>
+                <li
+                  key={`${f.clase}-${f.nodoId ?? f.detalle}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-3)',
+                    backgroundColor: 'var(--severity-warning-soft, rgba(217, 119, 6, 0.08))',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-warning)',
+                    fontSize: 'var(--text-xs)',
+                  }}
+                >
+                  <TriangleAlert
+                    size={14}
+                    strokeWidth="var(--icon-stroke)"
+                    aria-hidden
+                    style={{ flex: '0 0 auto', color: 'var(--color-warning)' }}
+                  />
+                  <span style={{ flex: '1 1 auto', minWidth: 0, color: 'var(--color-text-primary)' }}>{f.detalle}</span>
+                  {puedePromover && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void promover(nodo);
+                      }}
+                      style={{
+                        flex: '0 0 auto',
+                        font: 'inherit',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 600,
+                        color: 'var(--color-text-on-accent)',
+                        background: 'var(--color-accent)',
+                        border: 'none',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                        transition: 'background var(--transition-fast, 150ms)',
+                      }}
+                    >
+                      Promover a H1
+                    </button>
+                  )}
+                  {!puedePromover && f.clase === 'fase-requerida' && (
+                    <span
+                      style={{
+                        flex: '0 0 auto',
+                        fontSize: '11px',
+                        color: 'var(--color-text-tertiary)',
+                        maxWidth: '26ch',
+                      }}
+                    >
+                      Agregar la sección es del autor: la app no inserta capítulos.
+                    </span>
+                  )}
+                  {nodo && onSelect && (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(nodo.id)}
+                      style={{
+                        flex: '0 0 auto',
+                        font: 'inherit',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--color-text-secondary)',
+                        background: 'var(--color-bg-surface)',
+                        border: '1px solid var(--color-border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Ver la rama
+                    </button>
+                  )}
+                </li>
             );
           })}
         </ul>

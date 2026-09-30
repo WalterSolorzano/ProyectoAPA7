@@ -1,4 +1,4 @@
-﻿"""WordAPA7 â€” Motor de ediciÃ³n IN-PLACE.
+"""WordAPA7 â€” Motor de ediciÃ³n IN-PLACE.
 
 Abre el .docx ORIGINAL y modifica SOLO los pÃ¡rrafos del cuerpo.
 La portada original (todo pÃ¡rrafo con Ã­ndice < body_start_paragraph_idx),
@@ -39,7 +39,12 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from generation.style_engine import aplicar_idioma_documento, aplicar_tamano_pagina
+from generation.document_structure import refresh_or_flag_existing_toc
+from generation.style_engine import (
+    aplicar_idioma_documento,
+    aplicar_tamano_pagina,
+    update_docx_styles_xml,
+)
 
 try:
     from wordapa7_logger import log_event
@@ -169,6 +174,31 @@ def apply_inplace(
     font_size = Pt(getattr(rules, "font_size_pt", 12) or 12)
     line_sp = float(getattr(rules, "line_spacing", 2.0) or 2.0)
 
+    # Asegurar campo TOC dinámico si el documento tiene índice previo o manual
+    try:
+        refresh_or_flag_existing_toc(doc)
+    except Exception:
+        pass
+
+    # Construir mapa de texto y heading level editado por el usuario en el editor
+    modified_text_map: dict[int, str] = {}
+    heading_level_map: dict[int, int] = {}
+    if hasattr(doc_model, "elements") and doc_model.elements:
+        elem_p_idx = 0
+        for elem in doc_model.elements:
+            etype = getattr(elem, "type", None)
+            etype_str = etype.value if hasattr(etype, "value") else str(etype)
+            # Solo elementos que corresponden a párrafos en doc.paragraphs
+            if etype_str in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
+                if elem_p_idx < len(paragraphs):
+                    t = getattr(elem, "text", None)
+                    if t:
+                        modified_text_map[elem_p_idx] = t
+                    if etype_str == "heading":
+                        lvl = getattr(elem, "heading_level", 1) or 1
+                        heading_level_map[elem_p_idx] = lvl
+                elem_p_idx += 1
+
     changed = 0
     # Capa de defensa (no raiz): la causa del duplicado es la extraccion;
     # test raiz: tests/test_references_dedup.py. Este dedup in-place cubre
@@ -196,10 +226,59 @@ def apply_inplace(
                 para._element.getparent().remove(para._element)
             continue
         style_name = (para.style.name or "").lower() if para.style is not None else ""
-        if "heading" in style_name or "tÃ­tulo" in style_name or "titulo" in style_name:
+        is_heading_style = "heading" in style_name or "tÃ­tulo" in style_name or "titulo" in style_name
+        is_heading_model = i in heading_level_map
+
+        if is_heading_style or is_heading_model:
             para.paragraph_format.keep_with_next = True
             para.paragraph_format.widow_control = True
-            continue  # headings: los maneja la ruta rebuild si el usuario lo pide
+            lvl = heading_level_map.get(i, 1)
+            # Asignar estilo nativo Heading correspondiente si no lo tiene
+            try:
+                style_candidates = [f"Heading {lvl}", f"Título {lvl}"]
+                doc_styles = doc.styles
+                for sc in style_candidates:
+                    if sc in doc_styles:
+                        para.style = doc_styles[sc]
+                        break
+            except Exception:
+                pass
+
+            # Si el texto del título fue modificado en el editor, sincronizarlo
+            if i in modified_text_map:
+                new_title = modified_text_map[i]
+                if new_title and new_title.strip() != text:
+                    if len(para.runs) >= 1:
+                        para.runs[0].text = new_title
+                        for r in para.runs[1:]:
+                            r.text = ""
+                    else:
+                        para.text = new_title
+
+            # Aplicar formato APA 7 al título
+            if lvl == 1:
+                para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                para.paragraph_format.first_line_indent = Inches(0)
+                for r in para.runs:
+                    r.bold = True
+                    r.font.name = font_name
+                    r.font.size = font_size
+            elif lvl == 2:
+                para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                para.paragraph_format.first_line_indent = Inches(0)
+                for r in para.runs:
+                    r.bold = True
+                    r.font.name = font_name
+                    r.font.size = font_size
+            elif lvl == 3:
+                para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                para.paragraph_format.first_line_indent = Inches(0)
+                for r in para.runs:
+                    r.bold = True
+                    r.italic = True
+                    r.font.name = font_name
+                    r.font.size = font_size
+            continue
 
         # Linea de indice / TOC -> NO aplicar sangria de primera linea
         if _is_toc_line(text) or text.strip().lower() in ("indice", "Ã­ndice", "tabla de contenido", "tabla de contenidos"):
@@ -246,6 +325,20 @@ def apply_inplace(
             pf.space_before = Pt(0)
             first_vis = bool(getattr(rules, "indent_first_line", True))
             pf.first_line_indent = Inches(0.5) if first_vis else Inches(0)
+            
+            # Si el elemento fue modificado en el editor, sincronizar su texto
+            if modified_text_map and i in modified_text_map:
+                new_text = modified_text_map[i]
+                if new_text and new_text.strip() != text:
+                    if len(para.runs) == 1:
+                        para.runs[0].text = new_text
+                    elif len(para.runs) > 1:
+                        para.runs[0].text = new_text
+                        for r in para.runs[1:]:
+                            r.text = ""
+                    else:
+                        para.text = new_text
+
             for run in para.runs:
                 run.font.name = font_name
                 run.font.size = font_size

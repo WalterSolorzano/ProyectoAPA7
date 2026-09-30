@@ -1,4 +1,4 @@
-﻿"""Referencias: resolver un DOI a una referencia APA 7.
+"""Referencias: resolver un DOI a una referencia APA 7.
 
 Vive en su propio router, y sin prefijo del `/api`, por una razon concreta:
 `documentSlice.resolveDoiReference` llama a `${getApiBase()}/resolve-doi`, o sea
@@ -87,24 +87,57 @@ async def resolve_dois(req: ResolveDoisRequest) -> Dict[str, Any]:
 
 @router.post("/api/resolve-doi")
 async def resolve_doi(req: ResolveDoiRequest) -> Dict[str, Any]:
-    """Resuelve un DOI contra CrossRef y devuelve la referencia APA 7."""
+    """Resuelve un DOI contra CrossRef o una URL web contra sus metadatos y devuelve la referencia APA 7."""
     from modules.doi_resolver import (
         crossref_to_reference,
         crossref_url,
         normalize_doi,
+        normalize_web_url,
+        resolve_web_metadata,
     )
 
     doi = normalize_doi(req.doi)
-    if not doi:
-        # Distinto de un 404 de CrossRef: aca el usuario pego otra cosa (un link
-        # de Google Scholar o de la editorial) y hay que decirle eso, no
-        # mostrarle un error de red.
+    web_url = normalize_web_url(req.doi) if not doi else None
+
+    if not doi and not web_url:
         raise HTTPException(status_code=400, detail={
-            "codigo": "no_es_doi",
-            "mensaje": "Eso no parece un DOI. Se aceptan 10.xxxx/yyy, "
-                       "doi:10.xxxx/yyy o https://doi.org/10.xxxx/yyy.",
+            "codigo": "no_es_doi_ni_url",
+            "mensaje": "Eso no parece un DOI ni un enlace web válido. Se aceptan 10.xxxx/yyy, "
+                       "doi:10.xxxx/yyy, https://doi.org/... o URLs tipo https://sitio.com/articulo.",
         })
 
+    # Caso 1: Enlace web ordinario (no DOI)
+    if web_url:
+        try:
+            ref = await resolve_web_metadata(web_url)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail={
+                "codigo": "error_pagina_web",
+                "mensaje": f"No se pudieron extraer metadatos de {web_url}: {e}",
+            })
+
+        guardada = False
+        if req.guardar and (ref.get("title") or ref.get("authors")):
+            from modules.addin_references_store import save_reference
+            try:
+                save_reference(ref)
+                guardada = True
+            except Exception:
+                guardada = False
+
+        return {
+            "doi": None,
+            "authors": ref["authors"],
+            "year": ref["year"],
+            "title": ref["title"],
+            "source": ref["source"],
+            "doi_or_url": ref["doi_or_url"],
+            "apa_formatted": ref["formatted_apa"],
+            "guardada": guardada,
+            "tipo": "web",
+        }
+
+    # Caso 2: DOI (vía CrossRef)
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
             r = await c.get(
@@ -166,4 +199,5 @@ async def resolve_doi(req: ResolveDoiRequest) -> Dict[str, Any]:
         "doi_or_url": ref["doi_or_url"],
         "apa_formatted": ref["formatted_apa"],
         "guardada": guardada,
+        "tipo": "doi",
     }

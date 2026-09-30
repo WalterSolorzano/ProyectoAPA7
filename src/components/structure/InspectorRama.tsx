@@ -194,6 +194,13 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
   const [borrador, setBorrador] = useState(nodo.titulo);
   const [respuesta, setRespuesta] = useState<string | null>(null);
 
+  // Sincronizar borrador cuando el nodo seleccionado cambia
+  React.useEffect(() => {
+    setBorrador(nodo.titulo);
+    setEditando(false);
+    setRespuesta(null);
+  }, [nodo.id, nodo.titulo]);
+
   const textos = useMemo(() => textosDeRama(nodo, elementos), [nodo, elementos]);
   const puedeSubir = moverRama(nodo, elementos, 'arriba') !== null;
   const puedeBajar = moverRama(nodo, elementos, 'abajo') !== null;
@@ -255,11 +262,58 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
   return (
     <section
       aria-label={`Rama ${nodo.titulo}`}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
     >
-      <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+      {/* Header con nivel y título editable */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-2)',
+          paddingBottom: 'var(--space-3)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+          <span
+            style={{
+              fontSize: 'var(--text-xs)',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: esH1 ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+              color: esH1 ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+              border: '1px solid',
+              borderColor: esH1 ? 'var(--color-accent)' : 'var(--color-border-subtle)',
+            }}
+          >
+            Encabezado Nivel {nodo.nivel}
+          </span>
+          {!editando && (
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-accent)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '2px 6px',
+              }}
+            >
+              <PenLine size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              Editar
+            </button>
+          )}
+        </div>
+
         {editando ? (
-          <>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
             <input
               value={borrador}
               onChange={(e) => setBorrador(e.target.value)}
@@ -271,8 +325,18 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
                 color: 'var(--color-text-primary)',
                 background: 'var(--color-bg-surface)',
                 border: '1px solid var(--color-border-focus)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '3px 6px',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 10px',
+              }}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  void renombrar(nodo, borrador.trim() || nodo.titulo);
+                  setEditando(false);
+                } else if (e.key === 'Escape') {
+                  setBorrador(nodo.titulo);
+                  setEditando(false);
+                }
               }}
             />
             <button
@@ -282,112 +346,209 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
                 setEditando(false);
               }}
               style={{
-                font: 'inherit', fontSize: 'var(--text-xs)', cursor: 'pointer',
-                color: 'var(--color-text-on-accent)', background: 'var(--color-accent)',
-                border: '1px solid transparent', borderRadius: 'var(--radius-sm)', padding: '3px 8px',
+                font: 'inherit',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                color: 'var(--color-text-on-accent)',
+                background: 'var(--color-accent)',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 12px',
               }}
             >
               Guardar
             </button>
-          </>
+          </div>
         ) : (
-          <span
+          <h2
             style={{
-              flex: '1 1 auto',
-              minWidth: 0,
-              fontSize: 'var(--text-sm)',
-              fontWeight: 600,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              margin: 0,
+              fontSize: 'var(--text-base)',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              lineHeight: 1.3,
             }}
             title={nodo.titulo}
           >
             {nodo.titulo}
-          </span>
-        )}
-      </header>
-
-      {/* La rama: sus párrafos, sus figuras y sus citas. */}
-      {nodo.palabras === 0 ? (
-        <p role="status" style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-          <TriangleAlert
-            size={13}
-            strokeWidth="var(--icon-stroke)"
-            aria-hidden
-            style={{ marginRight: '6px', verticalAlign: '-2px', color: 'var(--color-warning)' }}
-          />
-          Esta rama está sin contenido: existe el encabezado y no hay nada debajo.
-        </p>
-      ) : (
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {textos.map((t, i) => (
-            <li
-              key={i}
-              style={{
-                fontSize: 'var(--text-sm)',
-                color: 'var(--color-text-secondary)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}
-              title={t}
-            >
-              {t}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-        {miles(nodo.palabras)} palabras
-        {nodo.figuras > 0 ? ` · ${nodo.figuras} figuras` : ''}
-        {nodo.tablas > 0 ? ` · ${nodo.tablas} tablas` : ''}
-        {nodo.citas > 0 ? ` · ${nodo.citas} citas` : ''}
-      </p>
-
-      {/* Las cuatro acciones, con su alcance a la vista. */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        {!esH1 && boton('promover', <>Promover a H1</>)}
-        <button
-          type="button"
-          disabled={!puedeSubir}
-          title={ACCIONES[1].porQue}
-          onClick={() => void reordenar(nodo, 'arriba')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '4px', font: 'inherit',
-            fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
-            background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)', padding: '3px 8px',
-            cursor: puedeSubir ? 'pointer' : 'not-allowed', opacity: puedeSubir ? 1 : 0.5,
-          }}
-        >
-          <ArrowUp size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
-          Subir <span style={{ color: 'var(--color-text-tertiary)' }}>({ACCIONES[1].etiquetaAlcance})</span>
-        </button>
-        <button
-          type="button"
-          disabled={!puedeBajar}
-          title={ACCIONES[1].porQue}
-          onClick={() => void reordenar(nodo, 'abajo')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '4px', font: 'inherit',
-            fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
-            background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)', padding: '3px 8px',
-            cursor: puedeBajar ? 'pointer' : 'not-allowed', opacity: puedeBajar ? 1 : 0.5,
-          }}
-        >
-          <ArrowDown size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
-          Bajar <span style={{ color: 'var(--color-text-tertiary)' }}>({ACCIONES[1].etiquetaAlcance})</span>
-        </button>
-        {boton('renombrar', <><PenLine size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Renombrar</>)}
-        {boton(
-          'consultar-ia',
-          <><MessageSquare size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Preguntarle a la IA</>,
+          </h2>
         )}
       </div>
 
-      {respuesta && (
-        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-          {respuesta}
+      {/* Grid de Métricas de la Sección */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 'var(--space-2)',
+        }}
+      >
+        <div
+          style={{
+            padding: 'var(--space-2) var(--space-3)',
+            backgroundColor: 'var(--color-bg-surface-alt)',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            {miles(nodo.palabras)}
+          </span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>Palabras totales</span>
+        </div>
+        <div
+          style={{
+            padding: 'var(--space-2) var(--space-3)',
+            backgroundColor: 'var(--color-bg-surface-alt)',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            {textos.length}
+          </span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>Párrafos en rama</span>
+        </div>
+      </div>
+
+      {/* Contenido / Vista previa */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Vista previa del contenido
+        </span>
+        {nodo.palabras === 0 ? (
+          <p
+            role="status"
+            style={{
+              padding: 'var(--space-3)',
+              backgroundColor: 'var(--severity-warning-soft, rgba(217,119,6,0.08))',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--color-warning)',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              margin: 0,
+            }}
+          >
+            <TriangleAlert size={14} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-warning)' }} />
+            <span>Esta rama está sin contenido: existe el encabezado y no hay nada debajo.</span>
+          </p>
+        ) : (
+          <div
+            style={{
+              maxHeight: '180px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-2)',
+              padding: 'var(--space-2)',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)',
+            }}
+          >
+            {textos.slice(0, 5).map((t, i) => (
+              <p
+                key={i}
+                style={{
+                  margin: 0,
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+                title={t}
+              >
+                {t}
+              </p>
+            ))}
+            {textos.length > 5 && (
+              <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontStyle: 'italic', textAlign: 'center' }}>
+                +{textos.length - 5} párrafos adicionales en esta sección
+              </span>
+            )}
+          </div>
+        )}
+        <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+          {miles(nodo.palabras)} palabras
+          {nodo.figuras > 0 ? ` · ${nodo.figuras} figuras` : ''}
+          {nodo.tablas > 0 ? ` · ${nodo.tablas} tablas` : ''}
+          {nodo.citas > 0 ? ` · ${nodo.citas} citas` : ''}
         </p>
+      </div>
+
+      {/* Acciones de Edición Estructural */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Operaciones de rama
+        </span>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          {!esH1 && boton('promover', <>Promover a H1</>)}
+          <button
+            type="button"
+            disabled={!puedeSubir}
+            title={ACCIONES[1].porQue}
+            onClick={() => void reordenar(nodo, 'arriba')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px', font: 'inherit',
+              fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+              background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-sm)', padding: '5px 10px',
+              cursor: puedeSubir ? 'pointer' : 'not-allowed', opacity: puedeSubir ? 1 : 0.5,
+              transition: 'background var(--transition-fast, 150ms)',
+            }}
+          >
+            <ArrowUp size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
+            Subir <span style={{ color: 'var(--color-text-tertiary)' }}>({ACCIONES[1].etiquetaAlcance})</span>
+          </button>
+          <button
+            type="button"
+            disabled={!puedeBajar}
+            title={ACCIONES[1].porQue}
+            onClick={() => void reordenar(nodo, 'abajo')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px', font: 'inherit',
+              fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+              background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-sm)', padding: '5px 10px',
+              cursor: puedeBajar ? 'pointer' : 'not-allowed', opacity: puedeBajar ? 1 : 0.5,
+              transition: 'background var(--transition-fast, 150ms)',
+            }}
+          >
+            <ArrowDown size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
+            Bajar <span style={{ color: 'var(--color-text-tertiary)' }}>({ACCIONES[1].etiquetaAlcance})</span>
+          </button>
+          {boton('renombrar', <><PenLine size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Renombrar</>)}
+          {boton(
+            'consultar-ia',
+            <><MessageSquare size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Preguntarle a la IA</>,
+          )}
+        </div>
+      </div>
+
+      {respuesta && (
+        <div
+          style={{
+            padding: 'var(--space-3)',
+            backgroundColor: 'var(--color-accent-soft)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-accent)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--color-text-primary)',
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>Respuesta de la IA:</span>
+          {respuesta}
+        </div>
       )}
     </section>
   );

@@ -53,7 +53,14 @@ npm run build
 powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
 
-## 5. Estructura y Módulos Principales
+## 5. Navegación Arquitectónica con Graphify y Ahorro de Tokens
+- **Consulta Obligatoria al Grafo Antes de Leer Código**: PROHIBIDO leer archivos completos para ubicar componentes, funciones o callers. Antes de inspeccionar cualquier flujo, consultar Graphify vía MCP (`query_graph`, `get_node`, `shortest_path`) o CLI (`graphify query "<concepto>"`).
+- **Lectura Quirúrgica y Ahorro de Tokens**:
+  - Jamás escanear carpetas o parsear documentos enteros para deducir relaciones.
+  - Con el subgrafo devuelto por Graphify, leer únicamente el rango de líneas exacto (`StartLine`-`EndLine`) del símbolo involucrado.
+  - Tras modificar código en la sesión, ejecutar `graphify update .` (extracción local AST gratis, 0 tokens) para mantener el grafo sincronizado.
+
+## 6. Estructura y Módulos Principales
 | Módulo | Ruta | Función |
 |---|---|---|
 | **FastAPI Server** | `python/main.py` | Hub de integración y endpoints REST (Lazy COM) |

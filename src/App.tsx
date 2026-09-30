@@ -134,26 +134,40 @@ const StructureTabBar: React.FC<{
   setTab: (t: 'indice' | 'headings' | 'body') => void;
 }> = ({ tab, setTab }) => (
   <div style={{
-    display: 'flex', gap: '2px', padding: '6px 10px',
-    borderBottom: '1px solid var(--border-subtle)',
-    backgroundColor: 'var(--sidebar-bg)', flexShrink: 0,
+    display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px',
+    backgroundColor: 'var(--color-navy-header)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+    flexShrink: 0,
+    boxShadow: 'var(--shadow-sm)',
   }}>
-    {([['indice', 'Índice'], ['headings', 'Títulos'], ['body', 'Cuerpo']] as const).map(([key, label]) => (
-      <button
-        key={key}
-        type="button"
-        onClick={() => setTab(key)}
-        style={{
-          padding: '4px 14px', borderRadius: 'var(--radius-sm)', fontSize: '12px',
-          fontWeight: 700, cursor: 'pointer', border: 'none', fontFamily: 'inherit',
-          background: tab === key ? 'var(--color-accent-soft)' : 'transparent',
-          color: tab === key ? 'var(--accent-primary)' : 'var(--text-secondary)',
-          transition: 'background 0.15s, color 0.15s',
-        }}
-      >
-        {label}
-      </button>
-    ))}
+    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.7)', marginRight: '6px' }}>
+      Modo de trabajo:
+    </span>
+    {([['indice', 'Esquema Jerárquico'], ['headings', 'Revisor de Títulos APA 7'], ['body', 'Editor de Prosa']] as const).map(([key, label]) => {
+      const active = tab === key;
+      return (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setTab(key)}
+          style={{
+            padding: '6px 18px',
+            borderRadius: 'var(--radius-full, 9999px)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: active ? 700 : 500,
+            cursor: 'pointer',
+            border: active ? '1px solid var(--color-accent)' : '1px solid rgba(255, 255, 255, 0.15)',
+            fontFamily: 'inherit',
+            background: active ? 'var(--color-accent)' : 'rgba(255, 255, 255, 0.08)',
+            color: 'var(--color-text-on-accent)',
+            boxShadow: active ? '0 2px 8px rgba(79, 124, 255, 0.35)' : 'none',
+            transition: 'all var(--transition-fast, 150ms ease)',
+          }}
+        >
+          {label}
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -700,7 +714,22 @@ export const App: React.FC = () => {
         /* D1: la navegación por fases vive en el rail de 56px de AppShell */
         <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
           <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            {wizardStep === 2 && !focusMode && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
+            {/* La barra se monta en el paso 2 SIEMPRE, y sin `!focusMode`.
+                El modo foco escondía el selector mientras el contenido seguía
+                eligiéndose por `structureTab`: con el foco prendido, `Índice`
+                quedaba sin selector visible, no se podía volver a `Títulos`, y
+                el diseño viejo se volvía inalcanzable. El usuario pidió
+                explícitamente que no se pierda.
+
+                La alternativa era apagar el foco al cambiar de fase, y no se
+                eligió por una razón concreta: el modo foco es una decisión de
+                lectura de la persona —"quiero ver el documento entero"—, y una
+                navegación de fase es exactamente lo que no debería apagarlo. La
+                barra es de 44px y vive arriba de la fase; el modo foco se
+                reserva para el lienzo y el panel, que son las dos cosas que se
+                apagan. Que el foco no barra la barra no es una excepción: es
+                que la barra nunca fue del foco. */}
+            {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
             <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
               {wizardStep === 2 && (structureTab === 'indice' ? <EscritorioEstructura documento={<Step2HeadingsWizard />} /> : structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
               {wizardStep === 3 && <Step3FiguresTablesWizard />}
@@ -714,8 +743,8 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Copiloto Editorial IA */}
-      {doc && <LiveChatFloatingCard />}
+      {/* Copiloto Editorial IA (oculto en Portada para mantener foco total) */}
+      {doc && wizardStep !== 1 && <LiveChatFloatingCard />}
 
       <TemplateDialog />
       <OnboardingTour />

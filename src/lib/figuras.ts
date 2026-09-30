@@ -69,6 +69,8 @@ export interface ContextoFigura {
    *  son cosas distintas: `''` es "hay un párrafo vacío", `null` es "no hay
    *  párrafo que presente a esta figura". */
   parrafoAnterior: string | null;
+  /** Párrafo subsiguiente que sigue a la figura, o null si no hay. */
+  parrafoSiguiente: string | null;
   /** 1-based, dentro de la sección y del mismo tipo. */
   posicionEnSeccion: number;
   totalEnSeccion: number;
@@ -87,6 +89,10 @@ export interface ContextoFigura {
   /** Los datos de una tabla, o `null` si esto es una figura. `TableModel` tiene
    *  `headers: string[]` y `rows: string[][]` (`src/types/index.ts:88-95`). */
   tabla: { headers: string[]; rows: string[][] } | null;
+  /** Estilo de diseño ('standard', 'scientific', 'full_width', 'multipanel', etc.) */
+  designStyle?: string;
+  /** Subfiguras si la figura es compuesta / multipanel */
+  subfigures?: { id: string; label: string; title: string; relative_url?: string }[];
 }
 
 export interface MedidaFigura {
@@ -189,6 +195,15 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       anterior = anterior ? anterior.slice(0, MAX_CARACTERES_PARRAFO_ANTERIOR) : null;
     }
 
+    let siguiente: string | null = null;
+    for (let j = i + 1; j < elementos.length; j++) {
+      const nextEl = elementos[j];
+      if (PROSA.has(nextEl.type) && (nextEl.text || '').trim() && !nextEl.is_cover_section) {
+        siguiente = (nextEl.text || '').trim().slice(0, MAX_CARACTERES_PARRAFO_ANTERIOR);
+        break;
+      }
+    }
+
     salida.push({
       indice: i,
       id: el.id,
@@ -201,6 +216,7 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       h1: sec.h1,
       h2: sec.h2,
       parrafoAnterior: anterior,
+      parrafoSiguiente: siguiente,
       posicionEnSeccion: 0,
       totalEnSeccion: 0,
       posicionEnTipo: 0,
@@ -211,6 +227,8 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       tabla: esImagen
         ? null
         : { headers: el.table_info?.headers ?? [], rows: el.table_info?.rows ?? [] },
+      designStyle: esImagen ? el.image_info?.design_style : undefined,
+      subfigures: esImagen ? (el.image_info?.subfigures as any) : undefined,
     });
   }
 

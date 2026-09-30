@@ -145,6 +145,4 @@ python/test_estudio_diag.py
 # Capturas de tests de Electron: son artefactos, no codigo
 electron_test_screen*.png
 
-# Salida del grafo de code-review-graph: andamiaje de herramienta
 graphify-out/
-.graphifyignore

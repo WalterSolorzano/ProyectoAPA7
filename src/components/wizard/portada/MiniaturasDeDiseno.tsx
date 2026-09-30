@@ -154,12 +154,15 @@ export const MiniaturasDeDiseno: React.FC<Props> = ({ diseno, medida, portada, a
   }
 
   if (diseno === 'uni') {
+    const logos = portada.logos?.length
+      ? portada.logos
+      : [{ asset: 'logo_uni.png', ancho_fraccion: FRACCION_DE_ANCHO_DEL_LOGO, institucion: 'UNI' }];
     return (
       <div style={{ ...hojaStyle, alignItems: 'center' }}>
         {/* El logo de la institución ELEGIDA, con la misma fracción del ancho
             útil que usa `portada_uni.py`. Con el de UNI hardcodeado, elegir UNAN
             no se notaba ni en la miniatura. */}
-        {portada.logos?.map((lg) => (
+        {logos.map((lg) => (
           <img
             key={lg.asset}
             alt={lg.institucion ? `Logo de ${lg.institucion}` : `Logo ${lg.asset}`}
