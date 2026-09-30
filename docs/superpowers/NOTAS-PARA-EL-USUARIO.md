@@ -1,49 +1,56 @@
 # Estado de la corrección — WordAPA7
 
-El plan completo vive en
-`docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md`
-(ver §8-bis para las directivas del 2026-09-29).
+Planes de referencia:
+- `docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md` — plan
+  por fases (F0–F10) + §8-bis con tus directivas.
+- `docs/superpowers/specs/2026-09-29-fases-sagradas-design.md` — **qué vive en
+  cada pantalla** y la decisión 3-vs-1 (leelo: es la respuesta a tu pedido de
+  razonar cada fase como un comodín).
 
-## Decisiones ya tomadas por el usuario
-
-1. **La tira de portada se borra** (la barra superior que lista las estrategias
-   en texto). Implica reescribir `coverStudioChrome.test.tsx`.
-2. **El Inspector no es un panel global.** Hoy se monta en los pasos 1 a 3 y el
-   usuario lo percibe como ruido. Se revisa fase por fase: donde no aporte, no se
-   monta; donde aporte, se reescribe para esa fase.
-3. **Principio de FASE SAGRADA.** Cada fase es un comodín dedicado a una sola
-   cosa; ningún control de otra fase se mezcla. Los controles se agrupan en
-   desplegables / colapsables (empezando por Portada). La información se presenta
-   según lo que es, no como texto plano.
-4. **3 vs 1 modos de Estructura: decidir por razonamiento**, no por la guarda.
-   Antes: analizar qué debería poder hacer un estudiante SOLO en esa fase. Lo
-   mismo para cada fase.
-5. **Consultar la skill `impeccable`** antes de cada rediseño de superficie.
-
-## El bug de Objetivos (repro exacto)
-
-H1 "Objetivos" tenía todo el contenido; sus H2 "Objetivo general" y
-"Objetivos específicos" aparecían **vacíos**. Es el H2 heredando mal, ya con la
-pantalla identificada. Además, la vista de esa rama tiene que presentar objetivos
-como objetivos: organizados por nivel, con su calidad y con variantes de la IA.
-
-## Hecho y verificado
+## Lo que quedó hecho
 
 | Commit | Qué | Verificación |
 |---|---|---|
-| `e6510b4` | Spec por fases (F0–F10) | — |
-| `25182ff` | **F0** base verde | vitest 1563 · tsc · pytest 1025/15 |
-| `f8cccc8` | **F4** el índice sin banda navy ni borde azul | vitest 1564 · tsc |
-| `48eebd2` | Notas | — |
+| `25182ff` | **F0** base verde (las 7 guardas + `beautifulsoup4`) | vitest · tsc · pytest 1025/15 |
+| `f8cccc8` | **F4** el índice sin banda navy ni borde azul | vitest · tsc |
+| `80c28a9` | **F3** la tira de portada se borra; el carrusel es la única superficie | vitest 1558 · tsc |
+| `2b8bec5` | **F3** el editor de portada en secciones plegables | vitest 1560 · tsc |
+| `efbd194` | **plan** las fases sagradas + la decisión 3-vs-1 | — |
+| `f80d645` | **F4** el general de objetivos sale del documento, no de la posición | vitest 1562 · tsc |
 
-F0 (todas las suites + build) en verde. F4 (vitest + tsc) en verde.
+Todo en verde. Build verificado en `25182ff`; los commits siguientes solo tocan
+TS/TSX con tsc limpio.
+
+## Decisiones que ya tomé (con tu mandato de "analiza y decide")
+
+1. **Estructura = UNA sola superficie.** Los tres modos no son tres trabajos;
+   dos violan la prueba de pertenencia. Promover/renombrar/diagnosticar pasan a
+   ser **acciones del nodo**. La guarda `focoNoBarraElSelector` **se reescribe**
+   (cambia de sujeto), no se borra. Detalle en el doc de fases sagradas §2.
+2. **Objetivos: la vista se adapta a lo que hay.** General/específicos salen del
+   documento; cada uno con nivel de Bloom, calidad y variantes. Primer paso ya
+   hecho (el agrupamiento); falta la vista.
+
+## Lo que necesito de vos (corta lista)
+
+1. **El bug que reportaste sigue sin reproducirse.** «H1 Objetivos con todo el
+   contenido; sus H2 vacíos». `construirJerarquia` asigna la prosa al último
+   encabezado abierto, así que un H2 solo queda vacío si su contenido va **antes**
+   o si el backend lo tipifica con un `type` que no es prosa. **Mandame el
+   `.docx`** (o una captura de la rama «Objetivos» con el árbol abierto) y lo cazo
+   en una pasada.
+2. **¿El Inspector (`RightSidePanel`) se va del todo en las fases donde no
+   aporta?** Dijiste que no le ves uso y que es ruido. En el doc de fases sagradas
+   queda como «se revisa fase por fase»; decime si querés que directamente no se
+   monte en Portada/Estructura y listo.
+3. **El pulso de Estructura** (5 celdas: palabras, balance, fases que faltan,
+   figuras sin leyenda, referencias sin citar): sigue guardado por test. ¿Se
+   queda, se recorta a lo accionable, o se rehace?
 
 ## Próximo paso, en orden
 
-1. **F3 · borrar la tira de portada** y agrupar sus controles en desplegables.
-2. **F4 · Objetivos**: cazar el H2 que hereda mal con el repro de arriba, y
-   presentar la rama según su tipo.
-3. **Análisis de fase sagrada** por fase (incluye decidir 3 vs 1 en Estructura),
-   con `impeccable`.
-4. F2 (carga/mascotas), F7 (revisión), F8 (proyectos), F9 (exportar), F5
-   (figuras), F6 (referencias), F10 (LLM).
+1. **F4**: ejecutar la superficie única de Estructura (reescribiendo la guarda
+   con vos) + la vista de Objetivos de §2.4.
+2. **F3**: miniatura = render real a escala; geometría de un solo módulo.
+3. F2 (carga/mascotas), F6 (referencias), F7 (revisión), F8 (proyectos), F9
+   (exportar), F5 (figuras), F10 (LLM).
