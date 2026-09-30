@@ -61,11 +61,23 @@ from typing import Optional
 BACKEND_PORT = 8742
 POLL_INTERVAL = 5          # segundos entre chequeos de Word
 SHUTDOWN_GRACE = 60        # segundos tras cerrar Word antes de detener backend
-BACKEND_STARTUP_WAIT = 3   # segundos de espera inicial tras lanzar el backend
+BACKEND_STARTUP_WAIT = 3   # sonda rapida: no bloquear si el nucleo ya viene listo
 HEALTH_TIMEOUT = 2         # timeout para health check del backend
+# Techo real de espera al arranque en frio. Medido: ~45 s hasta que el nucleo
+# escucha (imports + SSL + montaje del add-in). Un `sleep` fijo de 3 s
+# convertia "lento" en "cayo"; este techo existe para seguir sondeando hasta
+# que responda, y los 60 s de margen son para una maquina lenta, no para
+# quedarse esperando un proceso que ya sabemos muerto.
+BACKEND_READY_TIMEOUT = 90
+BACKEND_READY_INTERVAL = 1  # segundos entre sondas de wait_for_backend
 AUTO_SETUP_DELAY = 3       # delay antes de llamar auto-setup (dar tiempo al manifest)
 AUTO_SETUP_RETRIES = 3     # reintentos de auto-setup
 AUTO_SETUP_RETRY_DELAY = 3  # segundos entre reintentos
+
+# Cada cuantos ticks (de POLL_INTERVAL) se barre Word huerfano. El barrido
+# cuesta un PowerShell, y solo corre cuando no hay nucleo: no hace falta
+# repetirlo cada 5 segundos.
+REAP_COOLDOWN_TICKS = 6
 
 # Backoff del supervisor del nucleo: si el backend no levanta, NO reintentar
 # cada 10s eternamente (crash-loop visto en produccion). Escalar 10/30/60s.
@@ -259,6 +271,67 @@ def is_electron_running() -> bool:
     return _is_process_running("WordAPA7.exe")
 
 
+# ── WORD DE AUTOMATIZACION HUERFANO ──────────────────────────────────────────
+
+
+def automation_word_pids() -> list:
+    """PIDs de WINWORD.EXE lanzados por COM (``/Automation -Embedding``).
+
+    El filtro por linea de comandos es lo que hace segura la limpieza: Word lo
+    abre asi SOLO la automatizacion. El Word del usuario, abierto a mano o
+    desde un .docx, no lleva ``/Automation`` nunca, asi que no entra en la
+    lista ni por error.
+
+    Se usa PowerShell/CIM y no ``wmic`` porque wmic esta deprecado y ya falta
+    en algunas instalaciones de Windows 11.
+    """
+    if sys.platform != "win32":
+        return []
+    try:
+        res = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                "(Get-CimInstance Win32_Process -Filter \"Name='WINWORD.EXE'\" | "
+                "Where-Object { $_.CommandLine -like '*Automation*' }).ProcessId",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+        return [int(x) for x in res.stdout.split() if x.strip().isdigit()]
+    except Exception:
+        return []
+
+
+def reap_orphan_word() -> None:
+    """Termina los Word de automatizacion que quedaron sin nucleo.
+
+    POR QUE ESTO NO ES SOLO LIMPIEZA DE RAM
+
+    ``is_word_running()`` mira WINWORD.EXE y no distingue quien lo abrio. Un
+    Word de COM huerfano —de un backend que murio sin llamar a ``Quit``—
+    deja ``word_open`` en True para siempre. Con eso el CASO 3 del bucle se
+    cumple siempre y el CASO 2 nunca corre: el watcher NO recicla el nucleo,
+    la app se queda pegada a un backend viejo y cada sesion suma un Word mas.
+
+    Solo se llama cuando NO hay nucleo: si algo responde en :8742, ese Word
+    puede ser legitimo (paginacion u ortografia en curso) y no se toca.
+    """
+    for pid in automation_word_pids():
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/F"],
+                capture_output=True,
+                timeout=5,
+                creationflags=0x08000000,
+            )
+            log.info(f"Word de automatizacion huerfano terminado (PID {pid})")
+        except Exception as e:
+            log.warning(f"No se pudo terminar el Word huerfano {pid}: {e}")
+
+
+
 # ── HEALTH CHECK DEL BACKEND ──────────────────────────────────────────────────
 
 
@@ -290,6 +363,34 @@ def is_backend_running() -> bool:
         except Exception:
             continue
     return False
+
+
+def wait_for_backend(
+    timeout: float = BACKEND_READY_TIMEOUT,
+    interval: float = BACKEND_READY_INTERVAL,
+) -> bool:
+    """Espera ACTIVA a que el nucleo responda, con techo. `True` si respondio.
+
+    Reemplaza al `time.sleep(BACKEND_STARTUP_WAIT)`. Dormir una constante fija
+    no puede ser correcto: si es corta convierte la lentitud en fracaso (era el
+    caso, 3 s contra ~45 medidos, y `watcher.log` lo registraba como "El backend
+    no respondio tras el startup inicial"), y si es larga paga el peor caso en
+    cada arranque aunque el nucleo ya estuviera listo.
+
+    Sondea y corta en cuanto responde: un arranque de 2 s no espera 90, y uno
+    de 50 no se declara muerto a los 3. Devuelve `False` solo cuando se agoto el
+    techo, que es informacion distinta a "no responde todavia" — el llamador
+    necesita saber cual de las dos para decidir si reintenta.
+    """
+    import time as _time
+
+    deadline = _time.monotonic() + max(timeout, 0.0)
+    while True:
+        if is_backend_running():
+            return True
+        if _time.monotonic() >= deadline:
+            return False
+        _time.sleep(interval)
 
 
 # ── GESTION DEL BACKEND ───────────────────────────────────────────────────────
@@ -540,6 +641,7 @@ def run_watcher() -> None:
     backend_state = SupervisorState()
     shutdown_timer = 0.0
     auto_setup_done = False
+    reap_cooldown = 0
 
     # ── PRE-CARGA: adoptar o iniciar el backend inmediatamente ─────────────
     # Si algo ya responde en :8742 (core_server del Run key, Electron, una
@@ -554,8 +656,7 @@ def run_watcher() -> None:
     else:
         backend_state.our_proc = start_backend()
         if backend_state.our_proc:
-            time.sleep(BACKEND_STARTUP_WAIT)
-            if is_backend_running():
+            if wait_for_backend():
                 log.info("Backend pre-cargado y listo antes de que Word abra")
                 time.sleep(AUTO_SETUP_DELAY)
                 call_auto_setup()
@@ -581,6 +682,19 @@ def run_watcher() -> None:
             electron_open = is_electron_running()
             backend_up = is_backend_running()
 
+            # ── CASO 0: sin nucleo, barrer Word de automatizacion huerfano ──
+            # Un Word de COM sin dueño mantiene `word_open` en True para
+            # siempre, y con eso el CASO 3 siempre se cumple: el nucleo no se
+            # recicla nunca y la app queda pegada a un backend viejo. Barrer
+            # aqui es lo que rompe ese circulo. El cooldown evita un PowerShell
+            # cada 5 segundos.
+            if not backend_up and word_open:
+                if reap_cooldown <= 0:
+                    reap_orphan_word()
+                    reap_cooldown = REAP_COOLDOWN_TICKS
+                else:
+                    reap_cooldown -= 1
+
             # ── CASO 1: Word abierto y backend no corriendo ──────────────
             # RUTA DE RECUPERACION: el backend debio haberse pre-cargado al
             # inicio del watcher, asi que si no esta corriendo cuando Word
@@ -598,10 +712,8 @@ def run_watcher() -> None:
                     if backend_state.live_proc() is None:
                         backend_state.our_proc = start_backend()
                 if backend_state.live_proc() is not None:
-                    # Esperar a que arranque
-                    time.sleep(BACKEND_STARTUP_WAIT)
-                    # Verificar que realmente arranco
-                    if is_backend_running():
+                    # Verificar que realmente arranco (sondeo con techo, no sleep)
+                    if wait_for_backend():
                         log.info("Backend recuperado correctamente tras crash")
                         backend_state.note_healthy()
                         # Llamar auto-setup tras un delay
@@ -721,8 +833,7 @@ def _core_supervisor(state: SupervisorState):
                 state.note_spawn_failed()
                 continue
 
-            time.sleep(BACKEND_STARTUP_WAIT)
-            if is_backend_running():
+            if wait_for_backend():
                 log.info("[WATCHER] Backend recuperado tras reinicio")
                 state.note_healthy()
             else:

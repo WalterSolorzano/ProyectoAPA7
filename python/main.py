@@ -3076,6 +3076,55 @@ async def open_in_word_endpoint(req: OpenInWordReq) -> dict:
     return {"ok": True}
 
 
+class ConnectWordReq(BaseModel):
+    path: str
+
+
+@app.post("/api/connect-word")
+async def connect_word_endpoint(req: ConnectWordReq) -> dict:
+    """Trae a primer plano el Word DEL USUARIO con su `.docx` abierto.
+
+    El panel del complemento NO se puede abrir desde afuera: Office.js lo abre
+    con un gesto dentro de Word o con `setStartupBehavior(load)`. Lo unico que
+    esta app puede hacer es abrir el archivo donde el panel vive, y eso es todo
+    lo que hace este endpoint. `os.startfile` es deliberado y no COM: abre el
+    documento en el Word que la persona YA tiene abierto, en vez de crear la
+    instancia invisible propia de `word_com_service`.
+
+    La respuesta NO declara estado de conexion a proposito. Que un archivo se
+    haya abierto no prueba que el add-in este vivo: eso lo prueba su latido
+    (`/api/addin/sideload-status-v2.active_in_word`). Devolver un
+    `connected: true` aca dejaria al chip pintandose conectado sin haberlo
+    comprobado, que es la mentira que este producto no se permite.
+
+    El guard es el mismo criterio que el write-back (`/api/send-to-word`):
+    extension `.docx` y archivo real en disco. Se agrega `is_file()` porque un
+    directorio llamado `carpeta.docx` pasa el filtro de extension y no es un
+    documento que se pueda abrir.
+    """
+    raw = (req.path or "").strip()
+    if not raw:
+        raise HTTPException(400, "Falta la ruta del documento a abrir en Word")
+
+    dest = Path(raw)
+    if dest.suffix.lower() != ".docx":
+        raise HTTPException(400, "Solo se puede conectar con un archivo .docx")
+    if not dest.is_file():
+        raise HTTPException(400, f"Archivo no encontrado: {dest}")
+
+    opener = getattr(os, "startfile", None)
+    if opener is None:
+        raise HTTPException(500, "Abrir en Word solo esta disponible en Windows")
+    try:
+        opener(str(dest))
+    except OSError as exc:
+        logger.warning("connect_word: no se pudo abrir '%s': %s", dest, exc)
+        raise HTTPException(500, "No se pudo abrir el documento en Word") from exc
+
+    logger.info("connect_word: '%s' enviado al Word del usuario", dest)
+    return {"ok": True}
+
+
 class SendToWordReq(BaseModel):
     dest_path: str
     """Descartar lo que la persona tiene SIN GUARDAR en Word.

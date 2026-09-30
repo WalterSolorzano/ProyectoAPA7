@@ -89,22 +89,27 @@ export function startWatcherNow(): void {
   const { spawn, execSync } = require('child_process')
 
   // No arrancar si ya está corriendo.
-  // Con el Python embebido, el watcher corre como python.exe main.py --watcher.
-  // Usamos wmic para buscar procesos python.exe con --watcher en la línea de
-  // comandos (wmic está deprecado pero sigue funcionando en Win10/11).
-  // Si wmic falla, aceptamos el riesgo de un watcher duplicado (es inofensivo:
-  // el propio watcher detecta si el backend ya está corriendo y no lo duplica).
+  //
+  // El chequeo busca el SCRIPT, no solo el nombre del proceso: en desarrollo
+  // el watcher corre como `pythonw.exe` y el chequeo anterior preguntaba por
+  // `name='python.exe'`, así que NUNCA lo veía y cada `npm run dev` sumaba un
+  // watcher más. Varios watchers = varios dueños del puerto 8742 y churn de
+  // backends; justo lo que este comentario de arriba dice querer evitar.
+  //
+  // Se usa PowerShell/CIM en vez de wmic (deprecado y ausente en algunos
+  // Windows 11). Si falla, se acepta el riesgo de un duplicado: el propio
+  // watcher adopta el núcleo existente y no spawnea otro backend.
   try {
     const result = execSync(
-      `wmic process where "name='python.exe'" get CommandLine /FORMAT:CSV 2>nul`,
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }
-    )
-    if (result.includes('--watcher')) {
-      log('info', 'watcher', 'Watcher ya está corriendo (python.exe --watcher detectado)')
+      `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter \\"Name='python.exe' OR Name='pythonw.exe'\\").CommandLine"`,
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 10000 }
+    ).toLowerCase()
+    if (result.includes('word_watcher.py') || result.includes('--watcher')) {
+      log('info', 'watcher', 'Watcher ya está corriendo (word_watcher.py / --watcher detectado)')
       return
     }
   } catch {
-    // wmic no disponible o falló — continuar y arrancar el watcher
+    // PowerShell no disponible o falló — continuar y arrancar el watcher
   }
 
   try {

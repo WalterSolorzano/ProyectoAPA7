@@ -1,3 +1,4 @@
+import atexit
 import logging
 import sys
 import threading
@@ -272,6 +273,30 @@ class WordCOMService:
 
 # Singleton
 _word_com_service = WordCOMService()
+
+
+def _quit_word_al_salir() -> None:
+    """Cierra nuestra instancia de Word cuando este proceso termina.
+
+    Por que hace falta: `DispatchEx("Word.Application")` crea un PROCESO DE
+    WORD INDEPENDIENTE. No es un hijo: si este backend muere sin llamar a
+    `Quit`, el WINWORD sigue vivo, sin ventana y sin dueño. El usuario lo ve
+    como "se abrio Word solo", y hay un dano peor: ``is_word_running()`` del
+    watcher mira WINWORD.EXE sin distinguir quien lo abrio, asi que un huerfano
+    deja `word_open` en True PARA SIEMPRE y el watcher nunca recicla el nucleo
+    (la app reusa un backend viejo indefinidamente). Hoy habia 10 acumulados.
+
+    El `join(timeout=5)` es deliberado: si COM esta trabado no queremos que el
+    proceso se cuelgue en el apagado. Si no alcanza a cerrar, el reap del
+    watcher lo levanta igual.
+    """
+    hilo = threading.Thread(target=_word_com_service.stop, daemon=True)
+    hilo.start()
+    hilo.join(timeout=5)
+
+
+atexit.register(_quit_word_al_salir)
+
 
 def get_word_com_service() -> WordCOMService:
     return _word_com_service

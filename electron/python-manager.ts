@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, ChildProcess, execSync } from 'child_process'
 import { app, BrowserWindow } from 'electron'
 import http from 'http'
 import https from 'https'
@@ -29,14 +29,80 @@ export class PythonManager {
         const r = await fetch(`${proto}://127.0.0.1:8742/api/version`, { signal: ctl.signal });
         if (r.ok) {
           const j = await r.json().catch(() => null);
-          if (j && j.mode === 'core') { PythonManager.port = 8743; return }
-          // monolito viejo en 8742: respetarlo y salir (ya hay backend)
-          PythonManager.port = 8742; return
+          if (j && j.mode === 'core') {
+            PythonManager.port = 8743;
+            log('info', 'python-manager', '8742 lo ocupa el nucleo (mode=core): la app usa 8743 y levanta su backend', { version: j.version })
+            return
+          }
+          // Backend completo ya corriendo en 8742 (nuestro main.py o el watcher).
+          PythonManager.port = 8742;
+          log('info', 'python-manager', '8742 lo ocupa un backend completo (mode=main): se reutiliza', { version: j?.version })
+          return
         }
       } catch { /* siguiente proto */ }
     }
     PythonManager.port = 8742
   }
+  /** mtime más reciente de los `.py` bajo `python/`, en ms. 0 si no se pudo leer. */
+  private static newestPythonMtimeMs(): number {
+    const root = path.join(app.getAppPath(), 'python')
+    const fs = require('fs')
+    let newest = 0
+    const walk = (dir: string, depth: number): void => {
+      if (depth > 5) return
+      let entries: Array<{ name: string; isDirectory: () => boolean }>
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+      for (const e of entries) {
+        const full = path.join(dir, e.name)
+        if (e.isDirectory()) { if (e.name !== '__pycache__') walk(full, depth + 1); continue }
+        if (!e.name.endsWith('.py')) continue
+        try {
+          const s = fs.statSync(full)
+          if (s.mtimeMs > newest) newest = s.mtimeMs
+        } catch { /* archivo borrado en el medio: ignorar */ }
+      }
+    }
+    walk(root, 0)
+    return newest
+  }
+
+  /**
+   * Hora de arranque del PID, en ms epoch. `null` si no se pudo leer.
+   *
+   * Se pide `StartTime.ToFileTimeUtc()` (entero de 100ns desde 1601) y se
+   * convierte: así no hay que parsear formatos de fecha localizados, que
+   * cambiarían con el idioma de Windows.
+   */
+  private static processStartMs(pid: number): number | null {
+    try {
+      const out = execSync(
+        `powershell -NoProfile -Command "(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToFileTimeUtc()"`,
+        { encoding: 'utf-8', timeout: 8000 }
+      ).trim()
+      const ft = BigInt(out)
+      return Number((ft - 116444736000000000n) / 10000n)
+    } catch { return null }
+  }
+
+  /**
+   * PID que escucha en ese puerto, o `null`.
+   *
+   * Se usa `netstat` (viene con Windows, no necesita permisos) y se ancla el
+   * patrón a `:PUERTO` seguido de espacios: sin el anclaje, buscar 8742 dentro
+   * de la salida también matchea 87420 y se mataría el proceso equivocado.
+   */
+  private static listenerPid(port: number): number | null {
+    try {
+      const out = execSync('netstat -ano -p TCP', { encoding: 'utf-8', timeout: 8000 })
+      const re = new RegExp(`[:.]${port}\\s+\\S+\\s+LISTENING\\s+(\\d+)`)
+      for (const line of out.split(/\r?\n/)) {
+        const m = line.match(re)
+        if (m) return Number(m[1])
+      }
+    } catch { /* netstat no disponible */ }
+    return null
+  }
+
   private static restartCount: number = 0
   private static readonly MAX_RESTARTS = 5
   private static stopped = false
@@ -236,20 +302,69 @@ export class PythonManager {
   }
 
   private static async spawnAndPoll(): Promise<void> {
-    // Pre-check: Is the backend already running (started by the watcher)?
-    // If it responds, we connect to it instead of spawning a new one.
+    // PRIMERO se elige el puerto, DESPUÉS se decide si se adopta. El orden
+    // anterior —adoptar y luego `_pickPort()`— hacía INALCANZABLE la rama
+    // "núcleo en 8742 → la app completa usa 8743": si algo respondía en 8742,
+    // `pingBackend()` daba true, se adoptaba como "backend externo" y el
+    // `_pickPort()` de más abajo nunca corría.
+    //
+    // Eso importa porque en 8742 puede estar el `core_server.py` de la app
+    // INSTALADA (Run key `WordAPA7Core`): reporta `mode: 'core'` y es código
+    // viejo. Adoptarlo deja el frontend nuevo hablando con python viejo, que
+    // es exactamente lo que se ve como "otra vez la versión vieja". Nuestro
+    // backend reporta `mode: 'main'`; el núcleo, `mode: 'core'`.
+    await PythonManager._pickPort()
+
     const alreadyUp = await this.pingBackend()
     if (alreadyUp) {
-      this.externalBackend = true
-      log('info', 'python-manager', 'Backend ya estaba corriendo (arrancado por watcher externo)')
-      BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('python-ready')
-      })
-      this.autoSetupAddin()
-      return
-    }
+      if (!app.isPackaged) {
+        // ── Desarrollo: sólo se reutiliza un backend que traiga el código de AHORA
+        //
+        // Un `main.py` que ya responde carga sus módulos AL ARRANCAR y no los
+        // refresca: si arrancó antes del último cambio en `python/`, sirve
+        // código viejo para siempre, sin importar que el frontend sea el de
+        // ahora. Eso es lo que se ve como "otra vez la versión vieja".
+        //
+        // La regla es verificable y no pisa a nadie: si el backend arrancó
+        // después del último `.py` tocado, se adopta (puede ser el que levantó
+        // el watcher, o el de otra sesión que acaba de reiniciar). Si es más
+        // viejo, se le deja su puerto y la app levanta el suyo en uno libre. En
+        // producción se adopta siempre, porque ahí el watcher y la app son el
+        // mismo build.
+        const pid = PythonManager.listenerPid(this.port)
+        const arranco = pid ? PythonManager.processStartMs(pid) : null
+        const ultimoCambio = PythonManager.newestPythonMtimeMs()
+        const traeCodigoDeAhora = arranco !== null && ultimoCambio > 0 && arranco >= ultimoCambio - 2000
 
-    await PythonManager._pickPort()
+        if (traeCodigoDeAhora) {
+          this.externalBackend = true
+          log('info', 'python-manager', 'Backend del puerto elegido arrancó DESPUÉS del último cambio en python/: se reutiliza', { port: this.port, pid })
+          BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('python-ready')
+          })
+          this.autoSetupAddin()
+          return
+        }
+
+        log('warn', 'python-manager', 'En desarrollo se evita el backend levantado: arrancó ANTES del último cambio en python/, así que sirve código viejo', {
+          port: this.port, pid, arranco, ultimoCambioEnPython: ultimoCambio,
+        })
+        // NO se mata: matar y volver a levantar en el MISMO puerto hace que la
+        // app y el watcher compitan por el bind — se vio [Errno 10048] en la
+        // práctica. Se elige un puerto libre y la app levanta el suyo; el otro
+        // queda para el add-in, que es lo único que lo necesita.
+        this.port = await getFreePort()
+        log('info', 'python-manager', 'La app usa un puerto libre para su backend propio', { port: this.port })
+      } else {
+        this.externalBackend = true
+        log('info', 'python-manager', 'Backend ya estaba corriendo en el puerto elegido (arrancado por watcher externo)', { port: this.port })
+        BrowserWindow.getAllWindows().forEach(win => {
+          win.webContents.send('python-ready')
+        })
+        this.autoSetupAddin()
+        return
+      }
+    }
     return new Promise((resolve, reject) => {
       let command = 'python'
     let args: string[] = []
