@@ -232,8 +232,9 @@ export interface DocState {
   proyecto: Proyecto | null;
   /** Fija el proyecto abierto. */
   setProyecto: (proyecto: Proyecto) => void;
-  /** Cierra el proyecto: `null` es la respuesta, no un nombre de relleno. */
-  cerrarProyecto: () => void;
+  /** Cierra el proyecto: borra en el backend y, si eso sale bien, en el store.
+   *  Si el borrado falla, conserva el proyecto y avisa. `async` por eso. */
+  cerrarProyecto: () => Promise<void>;
   /** El Explorador de Proyecto abierto. Vive en el store porque lo abre el rail
    *  y lo cierra el propio modal: dos pantallas, un estado. */
   exploradorAbierto: boolean;

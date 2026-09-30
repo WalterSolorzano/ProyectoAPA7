@@ -266,7 +266,31 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
      * sugerencia — nunca se recalcula sobre cada render. */
   proyecto: null,
   setProyecto: (proyecto: Proyecto) => set({ proyecto }),
-  cerrarProyecto: () => set({ proyecto: null }),
+  /* F7 Task 2. `cerrarProyecto` borra ADEMAS en el backend, y por eso es async.
+
+     Antes (y ahora todavia en el `partialize`) el proyecto vivia solo en
+     indexedDB, que es la memoria de ESTA maquina: sobrevive a cerrar la
+     pestana y no a reinstalar la app o abrirla en otra. Con la entidad del
+     backend, borrar solo la copia local deja el proyecto de verdad, y la
+     proxima lectura lo trae de vuelta sin que la persona entienda por que.
+
+     Y SI EL BORRADO FALLA, NO SE BORRA EN LOCAL. Se conserva el estado y se
+     avisa. La alternativa —dejar la pantalla sin proyecto mientras el backend
+     lo tiene— hace que la siguiente lectura lo reaprezca como si fuera nuevo, y
+     eso es peor que un aviso de error: es un proyecto que reaparece solo. */
+  cerrarProyecto: async () => {
+    const actual = get().proyecto;
+    if (actual) {
+      try {
+        await api.borrarProyectoEnDisco(actual.id);
+      } catch (e) {
+        const detalle = e instanceof Error ? e.message : 'No se pudo borrar el proyecto';
+        get().showToast(`No se pudo borrar "${actual.nombre}": ${detalle}`, 'error');
+        return;
+      }
+    }
+    set({ proyecto: null });
+  },
 
   /* EL EXPLORADOR ABIERTO. F7 Task 5.
      *

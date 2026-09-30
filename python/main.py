@@ -300,6 +300,13 @@ from routers import assets as assets_router
 
 app.include_router(assets_router.router)
 
+# F7 Task 2: los proyectos. Antes "proyecto" era el prefijo del nombre del
+# archivo: renombrar el archivo renombraba el proyecto y reiniciar el servicio se
+# lo llevaba. Ahora es una entidad, y vive en la MISMA base que las sesiones.
+from routers import proyectos as proyectos_router
+
+app.include_router(proyectos_router.router)
+
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
 def api_error(status_code: int, detail: str, error_type: str = "validation_error") -> JSONResponse:

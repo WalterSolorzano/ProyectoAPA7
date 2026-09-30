@@ -6,7 +6,9 @@ import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { MergeDocumentsModal } from '../project/MergeDocumentsModal';
 import { ProjectImagesDrawer } from '../project/ProjectImagesDrawer';
-import { ProjectFolderModal } from '../project/ProjectFolderModal';
+/* `ProjectFolderModal` ya NO se importa aca (F7 Task 5): se monta en `AppShell`,
+   que vive siempre. Un import que no se usa no es una defensa: es el rastro de
+   un montaje que ya no existe, y el proximo que lo lea lo asumira vigente. */
 
 export const ProjectTabs: React.FC = () => {
   const {

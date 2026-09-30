@@ -21,10 +21,19 @@ import { crearProyecto } from '../lib/proyecto';
 // La subida pega al backend. Lo que se mide en esta tarea es la RUTA, y la ruta
 // se lee del archivo antes de hablar con el backend: espiar la API deja que el
 // resto de `uploadFile` corra sin red y sin romper el store.
+const borrarProyectoEnDisco = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../api/backend', async () => {
   const real = await vi.importActual<typeof import('../api/backend')>('../api/backend');
-  return { ...real, uploadDocxFile: vi.fn().mockResolvedValue({ session_id: 's1', file_name: 'x.docx', elements: [] }) };
+  return {
+    ...real,
+    uploadDocxFile: vi.fn().mockResolvedValue({ session_id: 's1', file_name: 'x.docx', elements: [] }),
+    borrarProyectoEnDisco: (...a: unknown[]) => borrarProyectoEnDisco(...a),
+  };
 });
+
+/** Los avisos que ve la persona. */
+const usarToast = vi.fn();
 
 /**
  * Simula cerrar y reabrir la app con la MISMA lógica que la app usa: el
@@ -47,6 +56,8 @@ const proyectoDePrueba = () =>
   crearProyecto({ nombre: 'Mi tesis', raiz: 'C:\\tesis' });
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  borrarProyectoEnDisco.mockResolvedValue(undefined);
   useDocStore.setState({
     proyecto: null,
     projectImages: [],
@@ -55,6 +66,11 @@ beforeEach(() => {
     activeFilePath: null,
   });
 });
+
+/** Espia los avisos del store sin reemplazarlo. */
+function espiarToasts() {
+  useDocStore.setState({ showToast: usarToast });
+}
 
 describe('el proyecto sobrevive al reinicio', () => {
   it('el nombre y la carpeta vuelven', () => {
@@ -74,9 +90,13 @@ describe('el proyecto sobrevive al reinicio', () => {
     expect(rehidratar().proyecto).toBeNull();
   });
 
-  it('cerrar el proyecto lo borra de verdad, no lo deja a medias', () => {
+  it('cerrar el proyecto lo borra de verdad, no lo deja a medias', async () => {
+    // `await` porque desde la F7 Task 2 `cerrarProyecto` es async: primero
+    // borra en el backend y despues en el store. Sin esperarlo, la afirmacion
+    // mide el store antes de que la accion haya corrido — que es como se
+    // escriben las pruebas que pasan por el motivo equivocado.
     useDocStore.getState().setProyecto(proyectoDePrueba());
-    useDocStore.getState().cerrarProyecto();
+    await useDocStore.getState().cerrarProyecto();
     expect(useDocStore.getState().proyecto).toBeNull();
     expect(rehidratar().proyecto).toBeNull();
   });
@@ -91,6 +111,33 @@ describe('el proyecto sobrevive al reinicio', () => {
       documentos: [...useDocStore.getState().proyecto!.documentos, 'abc123'],
     });
     expect(rehidratar().proyecto?.documentos).toEqual(['abc123']);
+  });
+
+  it('cerrar el proyecto tambien lo borra del backend', async () => {
+    // F7 Task 2. El store persistia el proyecto en indexedDB, que es la memoria
+    // de ESTA maquina: sobrevive al reinicio de la pestana y no al de la app en
+    // otra maquina. Con la entidad del backend, cerrar el proyecto tiene que
+    // llamar al backend. Si no lo hace, "borrar el proyecto" borra una copia
+    // local y deja el proyecto de verdad, que es la clase de borrado que hace
+    // que la persona lo borre dos veces.
+    useDocStore.getState().setProyecto({ ...proyectoDePrueba(), id: 'p1' });
+    espiarToasts();
+    await useDocStore.getState().cerrarProyecto();
+    expect(borrarProyectoEnDisco).toHaveBeenCalledWith('p1');
+  });
+
+  it('borrar el proyecto que falla se avisa y NO se finge que se borro', async () => {
+    // Un borrado que falla y no dice nada deja al usuario creyendo que se borro
+    // un proyecto que sigue ahi. Y el store tampoco lo borra en local: si la
+    // pantalla queda sin proyecto mientras el backend lo tiene, la proxima
+    // lectura lo trae de vuelta sin que la persona entienda por que. Conservar
+    // el estado local y avisar el fallo es lo unico que no cuenta dos veces.
+    borrarProyectoEnDisco.mockRejectedValueOnce(new Error('sin red'));
+    useDocStore.getState().setProyecto(proyectoDePrueba());
+    espiarToasts();
+    await useDocStore.getState().cerrarProyecto();
+    expect(useDocStore.getState().proyecto?.nombre).toBe('Mi tesis');
+    expect(usarToast).toHaveBeenCalledWith(expect.stringContaining('sin red'), 'error');
   });
 });
 

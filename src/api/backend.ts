@@ -984,6 +984,84 @@ export function urlDeAsset(assetId: string): string {
   return resolveAssetUrl(`/api/assets/archivo/${encodeURIComponent(assetId)}`);
 }
 
+/* ── Proyectos (F7 Task 2) ───────────────────────────────────────────────────
+   El tipo vive en `lib/proyecto`, no aca: este archivo es el transporte y no
+   debe ser donde se decide que es un proyecto. Se importa el tipo, no se
+   redeclara — dos declaraciones de la misma forma son dos verdades que un dia
+   no coinciden. */
+
+import type { Proyecto } from '../lib/proyecto';
+
+export async function listarProyectos(): Promise<Proyecto[]> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/proyectos`);
+  if (!res.ok) throw new Error('No se pudieron leer los proyectos');
+  const data = await res.json();
+  return data.proyectos || [];
+}
+
+export async function crearProyectoEnDisco(params: {
+  nombre: string;
+  raiz?: string | null;
+}): Promise<Proyecto> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/proyectos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: params.nombre, raiz: params.raiz ?? null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    /* El mensaje del backend se propaga tal cual. Un 400 de "necesita un
+       nombre" reescrito aca seria una segunda version de la regla, y la que
+       llegaria a la pantalla es la que nadie va a actualizar. */
+    throw new Error(err?.detail || 'No se pudo crear el proyecto');
+  }
+  return res.json();
+}
+
+/**
+ * Borra un proyecto.
+ *
+ * NO borra las sesiones que contenia. Un proyecto es el agrupador, no el
+ * contenido: borrar sus documentos seria borrar el trabajo de alguien sin que
+ * lo pidiera, y no hay forma de deshacer un `.docx`.
+ */
+export async function borrarProyectoEnDisco(id: string): Promise<void> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/proyectos/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'No se pudo borrar el proyecto');
+  }
+}
+
+/**
+ * Relee la carpeta del proyecto.
+ *
+ * `error` NO es un fallo de la llamada: el endpoint contesta 200 con la lista que
+ * conservo y un texto de por que no pudo releer. Por eso esta funcion NO tira
+ * cuando `error` viene: quien llama necesita los dos datos, y tirar el `error`
+ * perderia la lista.
+ */
+export async function sincronizarProyecto(id: string): Promise<{
+  proyecto: Proyecto;
+  documentos: string[];
+  error: string | null;
+}> {
+  const apiBase = await getApiBaseAsync();
+  const res = await fetchWithTrace(`${apiBase}/proyectos/${encodeURIComponent(id)}/sync`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.detail || 'No se pudo sincronizar el proyecto');
+  }
+  return res.json();
+}
+
 export async function resolveReferencesBatch(
   references: any[],
 ): Promise<{ resolved?: any[]; results?: any[] }> {
