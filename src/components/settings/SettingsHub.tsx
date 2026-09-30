@@ -5,6 +5,11 @@
  * (`Modal` de `components/ui/wordapa7.tsx`), el mismo que usa el resto: nadie
  * escribe un velo nuevo con un `rgba()` a mano.
  *
+ * Va a PANTALLA COMPLETA (`full`): `App.tsx` lo monta EN LUGAR de la app, así
+ * que la tarjeta centrada de 880px era una ventana flotante sin nada detrás que
+ * justificara el vuelo. El cuerpo se centra con `maxWidth: 1100px` para que las
+ * rejillas `auto-fit` de las pestañas usen el ancho sin estirar líneas largas.
+ *
  * La barra de pestañas es HORIZONTAL, arriba. `DESIGN.md:167` prohíbe los
  * side-tabs gruesos de 3-4px de color en un solo lado, y el inventario los
  * encontró ya en dos lugares: repetirlos acá sería el tercero.
@@ -79,7 +84,8 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
       open
       onClose={cerrar}
       zIndex="var(--z-modal)"
-      style={{ width: 'min(880px, 100%)', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}
+      full
+      style={{ display: 'flex', flexDirection: 'column', background: 'var(--app-bg)' }}
     >
       <div
         ref={shellRef}
@@ -87,7 +93,7 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
         aria-modal="true"
         aria-label="Ajustes"
         tabIndex={-1}
-        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, fontFamily: 'var(--font-family)' }}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, fontFamily: 'var(--font-family)' }}
       >
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -167,7 +173,13 @@ export const SettingsHub: React.FC<{ onClose?: () => void }> = ({ onClose }) => 
           data-testid="settings-hub-cuerpo"
           style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--space-5)' }}
         >
-          {CUERPOS[activa.id]}
+          {/* El ancho de lectura, UNA sola vez, acá. Las pestañas son rejillas
+              `auto-fit`: con el shell a 100% del viewport, el límite evita que
+              un control solitario se estire de borde a borde en un monitor
+              ancho, y las que sí tienen varias columnas lo aprovechan solas. */}
+          <div style={{ width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
+            {CUERPOS[activa.id]}
+          </div>
         </div>
       </div>
     </Modal>

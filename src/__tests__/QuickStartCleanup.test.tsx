@@ -25,6 +25,21 @@ describe('Step0QuickStart cleanup', () => {
     expect(screen.queryByText(/sesiones recientes disponibles/i)).toBeNull();
   });
 
+  it('no repite la configuración de formato: la edición vive en Ajustes', async () => {
+    /* Inicio tenía "Configuración de Formato APA Activo": un segundo selector de
+       perfil (además del de la barra) y el tipo de portada. Es el mismo dato en
+       dos pantallas, y el perfil ya está en Ajustes → Documento mientras la
+       portada está en Ajustes → Formato. Se va el bloque y se queda el atajo. */
+    useDocStore.setState({ isBackendReady: true, error: null });
+    await act(async () => {
+      render(<Step0QuickStart />);
+    });
+    expect(screen.queryByText('Configuración de Formato APA Activo')).toBeNull();
+    expect(screen.queryByText('Tipo de Portada por Defecto')).toBeNull();
+    // El atajo de perfil del primer paso sí se queda: es cómo se elige antes de subir.
+    expect(document.querySelector('#apa-profile-select')).not.toBeNull();
+  });
+
   it('no longer has the redundant "Ajustes y vista previa" button (settings live in the rail)', async () => {
     useDocStore.setState({ isBackendReady: true, error: null });
     await act(async () => {

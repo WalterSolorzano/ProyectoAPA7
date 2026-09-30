@@ -14,8 +14,27 @@ import { useUpdateStore } from '../../store/useUpdateStore';
 import { APAScoreCard } from './APAScoreCard';
 import { APAModuleToggles } from './APAModuleToggles';
 
-const Separador = () => (
-  <div aria-hidden style={{ height: 1, backgroundColor: 'var(--color-border-subtle)', margin: '4px 0' }} />
+/* Un grupo con nombre: el menú tenía ocho entradas separadas por tres líneas
+   anónimas, así que nada decía qué era "documento" y qué era "app". El rótulo va
+   en un `role="group"` con `aria-label` para que el teclado lo anuncie antes de
+   sus entradas; el texto visible queda `aria-hidden` para no leerlo dos veces. */
+const Grupo = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
+  <div role="group" aria-label={titulo} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div
+      aria-hidden
+      style={{
+        padding: '2px 10px 4px',
+        fontSize: 10,
+        fontWeight: 800,
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        color: 'var(--color-text-tertiary)',
+      }}
+    >
+      {titulo}
+    </div>
+    {children}
+  </div>
 );
 
 const itemStyle: React.CSSProperties = {
@@ -122,47 +141,48 @@ export function ToolbarOverflowMenu({ onClose }: { onClose: () => void }) {
         zIndex: 'var(--z-dropdown)',
       }}
     >
-      {/* Navegacion, no edicion: por eso abre el menu y no vive en la barra,
-          que se queda con los tres elementos del mockup. */}
-      <Item label="Inicio" onClick={run(() => goHome())} disabled={atHome} itemRef={firstItemRef}>
-        <Home size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
-      <Item label="Deshacer" onClick={run(() => undo())} disabled={!canUndo}>
-        <Undo2 size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
-      <Item label="Rehacer" onClick={run(() => redo())} disabled={!canRedo}>
-        <Redo2 size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
-
-      <Separador />
-      <Panel label="Puntuación APA"><APAScoreCard /></Panel>
-      <Panel label="Módulos APA"><APAModuleToggles /></Panel>
-      <Item label="Copiar PDF para WhatsApp" onClick={run(() => void copyPdfToClipboard())}>
-        <Copy size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
-
-      <Separador />
-      {/* El complemento vive en la pestaña Conexión, que es donde están el
-          registro de Office, el certificado y la instalación. Antes apuntaba a
-          una pestaña 'addin' de un estudio que ya no existe. */}
-      <Item label="Complemento de Word" onClick={run(() => setSettingsHubOpen(true, 'conexion'))}>
-        <Puzzle size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
-      {updateState === 'downloaded' && (
-        <Item label="Instalar actualización" onClick={run(() => installUpdate())}>
-          <Download size={14} strokeWidth={1.75} aria-hidden />
+      {/* Dos mitades con nombre: lo que es del documento y lo que es del
+          sistema. "Inicio" y el historial no editan nada, y los paneles de la
+          app (Puntuación, Módulos) no son comandos, así que van agrupados y no
+          sueltos entre líneas. */}
+      <Grupo titulo="Documento">
+        <Item label="Inicio" onClick={run(() => goHome())} disabled={atHome} itemRef={firstItemRef}>
+          <Home size={14} strokeWidth={1.75} aria-hidden />
         </Item>
-      )}
+        <Item label="Deshacer" onClick={run(() => undo())} disabled={!canUndo}>
+          <Undo2 size={14} strokeWidth={1.75} aria-hidden />
+        </Item>
+        <Item label="Rehacer" onClick={run(() => redo())} disabled={!canRedo}>
+          <Redo2 size={14} strokeWidth={1.75} aria-hidden />
+        </Item>
+        <Item label="Copiar PDF para WhatsApp" onClick={run(() => void copyPdfToClipboard())}>
+          <Copy size={14} strokeWidth={1.75} aria-hidden />
+        </Item>
+      </Grupo>
 
-      <Separador />
-      <Item label="Tema" onClick={run(() => setTheme(theme === 'light' ? 'dark' : 'light'))}>
-        {theme === 'light'
-          ? <Moon size={14} strokeWidth={1.75} aria-hidden />
-          : <Sun size={14} strokeWidth={1.75} aria-hidden />}
-      </Item>
-      <Item label="Ajustes" onClick={run(() => setSettingsHubOpen(true))}>
-        <Settings size={14} strokeWidth={1.75} aria-hidden />
-      </Item>
+      <Grupo titulo="Sistema">
+        <Panel label="Puntuación APA"><APAScoreCard /></Panel>
+        <Panel label="Módulos APA"><APAModuleToggles /></Panel>
+        {/* El complemento vive en la pestaña Conexión, que es donde están el
+            registro de Office, el certificado y la instalación. Antes apuntaba a
+            una pestaña 'addin' de un estudio que ya no existe. */}
+        <Item label="Complemento de Word" onClick={run(() => setSettingsHubOpen(true, 'conexion'))}>
+          <Puzzle size={14} strokeWidth={1.75} aria-hidden />
+        </Item>
+        {updateState === 'downloaded' && (
+          <Item label="Instalar actualización" onClick={run(() => installUpdate())}>
+            <Download size={14} strokeWidth={1.75} aria-hidden />
+          </Item>
+        )}
+        <Item label="Tema" onClick={run(() => setTheme(theme === 'light' ? 'dark' : 'light'))}>
+          {theme === 'light'
+            ? <Moon size={14} strokeWidth={1.75} aria-hidden />
+            : <Sun size={14} strokeWidth={1.75} aria-hidden />}
+        </Item>
+        <Item label="Ajustes" onClick={run(() => setSettingsHubOpen(true))}>
+          <Settings size={14} strokeWidth={1.75} aria-hidden />
+        </Item>
+      </Grupo>
     </div>
   );
 }

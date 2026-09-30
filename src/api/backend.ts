@@ -195,6 +195,43 @@ export async function repairSideload(): Promise<{ status: string }> {
   return res.json();
 }
 
+/**
+ * Estado REAL del complemento dentro de Word.
+ *
+ * Se usa `sideload-status-v2` y no la v1 a propósito: la v1 solo mira la carpeta
+ * del System Feed, o sea que responde "instalado" aunque Word esté cerrado.
+ * `active_in_word` sale del latido que el taskpane manda cada 60 s, con techo de
+ * 120 s en el backend. Es el único antecedente que habilita decir "en vivo".
+ */
+export interface WordConnection {
+  installed: boolean;
+  heartbeat_age_s: number | null;
+  active_in_word: boolean;
+}
+
+export async function getWordConnection(): Promise<WordConnection> {
+  const res = await fetch(`${getApiBase()}/addin/sideload-status-v2`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Trae al frente el Word del usuario con su documento abierto.
+ *
+ * No abre el panel del complemento: eso no se puede desde afuera de Word. Abre
+ * el archivo donde el panel vive. Por eso la respuesta es `{ ok: true }` y nada
+ * más — el estado de conexión lo decide el latido, no esta llamada.
+ */
+export async function connectWord(path: string): Promise<{ ok: boolean }> {
+  const res = await fetchWithTrace(`${getApiBase()}/connect-word`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export interface ScopedApplyResult {
   scopes: string[];
   download_url: string;

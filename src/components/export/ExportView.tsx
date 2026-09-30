@@ -14,7 +14,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { QuickReferenceSearch } from './QuickReferenceSearch';
-import { resolveAssetUrl } from '../../api/backend';
+import { resolveAssetUrl, connectWord } from '../../api/backend';
 import { getApiBase } from '../../api/http';
 import {
   FileText, FileType, FileCode, CheckCircle2,
@@ -147,6 +147,27 @@ export const ExportView: React.FC = () => {
       setIsSending(false);
     }
   }, [doc?.session_id, activeFilePath, showToast]);
+
+  /* ABRIR EN WORD (EN VIVO). No reemplaza nada: abre el `.docx` del usuario en
+     su Word con `os.startfile` para que el panel del complemento trabaje sobre
+     el documento real. Es un verbo distinto del de "Enviar a Word", que pisa el
+     archivo con la versión generada, y por eso son dos botones y no uno. */
+  const [conectando, setConectando] = useState(false);
+  const abrirEnWord = useCallback(async () => {
+    if (!activeFilePath) return;
+    setConectando(true);
+    try {
+      await connectWord(activeFilePath);
+      showToast(
+        'Documento abierto en tu Word. Si el panel no aparece: pestaña WordAPA7, botón Panel.',
+        'success',
+      );
+    } catch {
+      showToast('No se pudo abrir el documento en Word', 'error');
+    } finally {
+      setConectando(false);
+    }
+  }, [activeFilePath, showToast]);
 
   useEffect(() => {
     sayMascot('Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.', 'success');
@@ -311,27 +332,50 @@ export const ExportView: React.FC = () => {
             reemplazar el archivo original con la versión APA formateada.
             Antes de pisar, el motor deja una copia de seguridad al lado. */}
         {activeFilePath && format === 'docx' && (
-          <button
-            type="button"
-            onClick={() => enviarAWord()}
-            disabled={isSending || isLoading}
-            title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '7px',
-              padding: '8px 14px',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              background: 'transparent',
-              color: isSending ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
-              fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
-              cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
-              opacity: isSending || isLoading ? 0.6 : 1,
-              transition: 'color 0.15s, opacity 0.15s',
-            }}
-          >
-            <Upload size={14} strokeWidth={1.75} aria-hidden />
-            {isSending ? 'Enviando...' : 'Enviar a Word'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={abrirEnWord}
+              disabled={conectando || isLoading}
+              title={`Abrir ${activeFilePath.split(/[\\/]/).pop()} en tu Word para editar en vivo con el panel.`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '7px',
+                padding: '8px 14px',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
+                fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+                cursor: conectando || isLoading ? 'not-allowed' : 'pointer',
+                opacity: conectando || isLoading ? 0.6 : 1,
+                transition: 'color 0.15s, opacity 0.15s',
+              }}
+            >
+              <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+              {conectando ? 'Abriendo…' : 'Abrir en Word'}
+            </button>
+            <button
+              type="button"
+              onClick={() => enviarAWord()}
+              disabled={isSending || isLoading}
+              title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '7px',
+                padding: '8px 14px',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                background: 'transparent',
+                color: isSending ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
+                fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+                cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
+                opacity: isSending || isLoading ? 0.6 : 1,
+                transition: 'color 0.15s, opacity 0.15s',
+              }}
+            >
+              <Upload size={14} strokeWidth={1.75} aria-hidden />
+              {isSending ? 'Enviando...' : 'Enviar a Word'}
+            </button>
+          </div>
         )}
 
         {/* Dónde quedó la copia de seguridad, escrita y no sólo dicha. */}

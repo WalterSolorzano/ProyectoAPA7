@@ -154,6 +154,15 @@ describe('T7 — menú de desbordamiento', () => {
     expect(installUpdate).toHaveBeenCalled();
   });
 
+  it('las entradas se agrupan por nombre, no por líneas anónimas', () => {
+    /* Ocho entradas y dos paneles separados por tres <hr> sin nombre: nada
+       decía qué era "documento" y qué era "app". Ahora cada mitad va en un
+       grupo con nombre, y el teclado lo anuncia. */
+    render(<ToolbarOverflowMenu onClose={vi.fn()} />);
+    expect(screen.getByRole('group', { name: 'Documento' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Sistema' })).toBeTruthy();
+  });
+
   it('los módulos APA se montan dentro del menú, no en la barra', () => {
     render(<ToolbarOverflowMenu onClose={vi.fn()} />);
     expect(screen.getByTestId('score')).toBeTruthy();

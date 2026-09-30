@@ -3,9 +3,9 @@ import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
-  FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, ArrowLeft,
+  FileText, Loader2, Clock, FolderOpen, ArrowLeft,
   FileUp, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers,
-  Sliders, Type, AlignLeft, Check
+  Sliders, AlignLeft, Check
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -120,7 +120,7 @@ function timeAgo(dateStr: string): string {
 export const Step0QuickStart: React.FC = () => {
   const {
     uploadFile, setActiveProfile, isLoading, isBackendReady, error, openSession,
-    profiles, activeProfileId, portada, setPortada, startBlankDocument,
+    profiles, activeProfileId, startBlankDocument,
   } = useDocStore();
   const [activeTab, setActiveTab] = useState<'inicio' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
@@ -688,175 +688,6 @@ export const Step0QuickStart: React.FC = () => {
               </div>
             )}
 
-            {/* ── ACCIÓN SECUNDARIA: Configuración de Formato APA Activo ── */}
-            <div style={{ marginBottom: '36px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
-                <div>
-                  <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px' }}>
-                    Configuración de Formato APA Activo
-                  </h2>
-                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
-                    Parámetros normativos aplicados automáticamente a tus documentos y exportaciones.
-                  </p>
-                </div>
-              </div>
-
-              <div style={{
-                background: 'var(--surface-elevated)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-xl)',
-                padding: '20px 24px',
-                boxShadow: 'var(--shadow-card)',
-              }}>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                  gap: '20px',
-                  marginBottom: '20px',
-                }}>
-                  {/* Selector de Perfil y Tipografía */}
-                  <div style={{
-                    padding: '16px',
-                    borderRadius: 'var(--radius-lg)',
-                    background: 'var(--surface-subtle)',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <Type size={18} color="var(--accent-primary)" />
-                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
-                        Tipografía y Perfil de Reglas
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-                      Elegí la fuente principal normalizada según las directrices APA 7:
-                    </p>
-                    <select
-                      value={activeProfileId}
-                      onChange={(e) => setActiveProfile(e.target.value)}
-                      disabled={isLoading}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border-subtle)',
-                        backgroundColor: 'var(--surface-elevated)',
-                        color: 'var(--text-main)',
-                        fontFamily: 'inherit',
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                        cursor: isLoading ? 'wait' : 'pointer',
-                      }}
-                    >
-                      {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
-                        <option key={p.profile_id} value={p.profile_id}>
-                          {p.display_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Selector de Formato de Portada */}
-                  <div style={{
-                    padding: '16px',
-                    borderRadius: 'var(--radius-lg)',
-                    background: 'var(--surface-subtle)',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <GraduationCap size={18} color="var(--accent-primary)" />
-                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
-                        Tipo de Portada por Defecto
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-                      Define los metadatos exigidos (carrera, docente o encabezado):
-                    </p>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => setPortada({ apa_format: 'student' })}
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 'var(--radius-md)',
-                          border: `1px solid ${portada.apa_format === 'student' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                          background: portada.apa_format === 'student' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                          color: portada.apa_format === 'student' ? 'var(--accent-primary)' : 'var(--text-main)',
-                          fontFamily: 'inherit',
-                          fontSize: 'var(--text-xs)',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {portada.apa_format === 'student' ? <BadgeCheck size={14} color="var(--accent-primary)" /> : <GraduationCap size={14} color="var(--text-secondary)" />}
-                        Estudiante
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPortada({ apa_format: 'professional' })}
-                        style={{
-                          flex: 1,
-                          padding: '8px 12px',
-                          borderRadius: 'var(--radius-md)',
-                          border: `1px solid ${portada.apa_format === 'professional' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                          background: portada.apa_format === 'professional' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
-                          color: portada.apa_format === 'professional' ? 'var(--accent-primary)' : 'var(--text-main)',
-                          fontFamily: 'inherit',
-                          fontSize: 'var(--text-xs)',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {portada.apa_format === 'professional' ? <BadgeCheck size={14} color="var(--accent-primary)" /> : <BookOpen size={14} color="var(--text-secondary)" />}
-                        Profesional
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Micro-especificaciones fijas del estándar */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '10px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid var(--border-subtle)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BadgeCheck size={15} color="var(--accent-primary)" />
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                      Márgenes: <strong style={{ color: 'var(--text-main)' }}>2.54 cm</strong> (4 lados)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BadgeCheck size={15} color="var(--accent-primary)" />
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                      Interlineado: <strong style={{ color: 'var(--text-main)' }}>Doble (2.0)</strong> sin espacio extra
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BadgeCheck size={15} color="var(--accent-primary)" />
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                      Sangría párrafo: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> (1ª línea)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BadgeCheck size={15} color="var(--accent-primary)" />
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                      Sangría francesa: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> en referencias
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

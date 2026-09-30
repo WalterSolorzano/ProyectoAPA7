@@ -3,6 +3,7 @@ import { DocState } from '../types';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../../types';
 import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
+import { alcancesDe } from '../../lib/modulosApa';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { syncCoverFieldToElements, defaultPortada, defaultActa, migrarActaDesdePortada } from './coverSlice';
 import {
@@ -1298,9 +1299,15 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     set({ isLoading: true });
     try {
       const base = getApiBase();
-      if (!tracked && sessionScopes && sessionScopes.length > 0) {
+      /* Los alcances se normalizan acá, en el borde, con la fuente única
+         (`modulosApa.ts`): un estado guardado con los ids finos viejos
+         (`titulos`, `tablas`, `imagenes`) hacía que `apply_scopes` levantara
+         `ValueError`, la exportación cayera al formato completo con un aviso y
+         el usuario recibiera todo formateado cuando había pedido una parte. */
+      const alcances = alcancesDe(sessionScopes);
+      if (!tracked && alcances.length > 0) {
         try {
-          await api.scopedApply(doc.session_id, sessionScopes);
+          await api.scopedApply(doc.session_id, alcances);
           triggerDownload(`${base}/download-scoped/${doc.session_id}`, `Scoped_${doc.file_name}`);
           set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
           get().showToast('¡Documento DOCX descargado con éxito!', 'success');

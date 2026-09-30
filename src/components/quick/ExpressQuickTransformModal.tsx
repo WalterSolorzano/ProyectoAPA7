@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import * as api from '../../api/backend';
+/* La lista de "qué adaptar" sale de `modulosApa.ts`: el menú de la barra y este
+   modal ofrecen EXACTAMENTE lo mismo, y el motor solo entiende tres alcances. */
+import { ALCANCES_DEL_MOTOR, GRUPOS_DE_MODULOS, modulosDe } from '../../lib/modulosApa';
 
 interface ExpressQuickTransformModalProps {
   fileName: string;
@@ -30,7 +33,7 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
   onOpenFullEditor,
 }) => {
   const [isFullQuality, setIsFullQuality] = useState(true);
-  const [scopes, setScopes] = useState<string[]>(['texto', 'tablas_imagenes', 'bibliografia']);
+  const [scopes, setScopes] = useState<string[]>([...ALCANCES_DEL_MOTOR]);
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle');
   const [currentStep, setCurrentStep] = useState<string>('');
   const [resultFileUrl, setResultFileUrl] = useState<string | null>(null);
@@ -296,7 +299,7 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
               type="button"
               onClick={() => {
                 setIsFullQuality(true);
-                setScopes(['texto', 'tablas_imagenes', 'bibliografia']);
+                setScopes([...ALCANCES_DEL_MOTOR]);
               }}
               style={{
                 display: 'flex',
@@ -340,7 +343,8 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
               </div>
             </button>
 
-            {/* Opciones individuales */}
+            {/* Opciones individuales, en las mismas dos categorías que el menú
+                de la barra. El rótulo del grupo va antes de sus módulos. */}
             <div
               style={{
                 backgroundColor: 'var(--surface-elevated, #ffffff)',
@@ -349,41 +353,57 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
                 padding: '8px 12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '6px',
+                gap: '8px',
               }}
             >
-              {[
-                { id: 'texto', label: 'Texto y Párrafos', desc: 'Márgenes, tipografía, sangría e interlineado 2.0' },
-                { id: 'tablas_imagenes', label: 'Tablas y Figuras', desc: 'Bordes limpios APA y numeración Tabla N / Figura N' },
-                { id: 'bibliografia', label: 'Bibliografía y Citas', desc: 'Sangría francesa 1.27 cm y orden alfabético' },
-              ].map((s) => {
-                const checked = isFullQuality || scopes.includes(s.id);
-                return (
-                  <label
-                    key={s.id}
-                    onClick={() => toggleScope(s.id)}
+              {GRUPOS_DE_MODULOS.map((grupo) => (
+                <div
+                  key={grupo.id}
+                  role="group"
+                  aria-label={grupo.titulo}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+                >
+                  <span
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '6px 4px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      color: 'var(--text-secondary, #6b7280)',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {}}
-                      style={{ cursor: 'pointer', accentColor: 'var(--accent-primary, #4f7cff)' }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>{s.label}</span>
-                      <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary, #6b7280)' }}>{s.desc}</span>
-                    </div>
-                  </label>
-                );
-              })}
+                    {grupo.titulo}
+                  </span>
+                  {modulosDe(grupo.id).map((s) => {
+                    const checked = isFullQuality || scopes.includes(s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        onClick={() => toggleScope(s.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '6px 4px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', accentColor: 'var(--accent-primary, #4f7cff)' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text-main, #1a1a2e)' }}>{s.etiqueta}</span>
+                          <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary, #6b7280)' }}>{s.descripcion}</span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}

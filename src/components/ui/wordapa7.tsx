@@ -58,8 +58,14 @@ export const Panel: React.FC<React.PropsWithChildren<{ style?: React.CSSProperti
 /* El backdrop es UNO en toda la app: lo trae este componente, con su velo y su
    animación de entrada en la hoja, y nadie escribe el suyo con un `rgba()` a
    mano. `zIndex` existe para el hub de Ajustes, que por DESIGN.md:123 tiene que
-   ir en `var(--z-modal)`; el default deja los overlays viejos donde estaban. */
-export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: () => void; style?: React.CSSProperties; zIndex?: number | string }>> = ({ open, onClose, style, zIndex = 20000, children }) => {
+   ir en `var(--z-modal)`; el default deja los overlays viejos donde estaban.
+
+   `full` es la pantalla completa: sin velo, sin padding y sin el marco de
+   tarjeta flotante (borde, radio y sombra son el look de "ventana", no del
+   fondo). El diálogo llena el viewport, así que ya no hay un "afuera" que
+   clicar y el click-en-backdrop deja de cerrar. Lo usa el hub de Ajustes, que
+   `App.tsx` monta EN LUGAR de la app: la hoja tapa lo mismo que la app tapaba. */
+export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: () => void; style?: React.CSSProperties; zIndex?: number | string; full?: boolean }>> = ({ open, onClose, style, zIndex = 20000, full = false, children }) => {
   if (!open) return null;
   return (
     <div
@@ -68,17 +74,22 @@ export const Modal: React.FC<React.PropsWithChildren<{ open: boolean; onClose?: 
         position: 'fixed',
         inset: 0,
         zIndex,
-        background: 'rgba(0, 0, 0, 0.40)',
+        background: full ? 'transparent' : 'rgba(0, 0, 0, 0.40)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
+        padding: full ? 0 : '24px',
       }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && onClose) onClose();
+        if (event.target === event.currentTarget && onClose && !full) onClose();
       }}
     >
-      <div className="modal-shell" style={{ width: 'min(960px, 100%)', ...style }}>
+      <div
+        className="modal-shell"
+        style={full
+          ? { width: '100%', height: '100%', border: 'none', borderRadius: 0, boxShadow: 'none', ...style }
+          : { width: 'min(960px, 100%)', ...style }}
+      >
         {children}
       </div>
     </div>
