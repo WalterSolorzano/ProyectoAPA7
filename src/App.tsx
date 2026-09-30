@@ -44,6 +44,7 @@ import { RightSidePanel } from './components/activity/RightSidePanel';
 import { MascotBubble } from './components/activity/MascotBubble';
 import { ValidatorView } from './components/validator/ValidatorView';
 import { DocumentAIChat } from './components/chat/DocumentAIChat';
+import { ProyectoNotificacion } from './components/project/ProyectoNotificacion';
 
 import { X } from 'lucide-react';
 
@@ -763,6 +764,7 @@ export const App: React.FC = () => {
       {doc && <MascotBubble />}
       {/* F4: Drawer del validador a nivel raíz — abrible desde cualquier paso */}
       {doc && <ValidatorDrawer />}
+      <ProyectoNotificacion />
     </AppShell>
   );
 };
