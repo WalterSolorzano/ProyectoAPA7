@@ -1,5 +1,11 @@
 # Rediseño de superficies de WordAPA7 — documento maestro
 
+> **SUPERADO el 2026-09-29.** Este documento queda como historial. El plan vigente es
+> `docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md`, que agrega una
+> fase de base verde y una de sistema de diseño y shell, y reordena el resto. Las decisiones
+> del usuario registradas acá (protección de la portada original, tamaño de página como
+> propiedad de la sección, revisión de un párrafo a la vez) siguen vigentes.
+
 - **Fecha**: 2026-09-27
 - **Rama**: `feat/motor-render-fase1`
 - **Estado**: esperando revisión
