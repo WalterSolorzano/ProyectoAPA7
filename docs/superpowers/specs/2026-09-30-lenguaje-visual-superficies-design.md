@@ -208,7 +208,26 @@ Cada propuesta se suma al diseño de Estructura o se descarta con el usuario.
 
 ---
 
-## 9. Cómo sigue
+## 9. Figuras, tablas y ecuaciones (decidido el 2026-09-30)
+
+La fase pasa a llamarse **Figuras, tablas y ecuaciones**: la ecuación vive acá, no en Revisión.
+
+**G2 elegido — tres pestañas** (`Figuras · Tablas · Ecuaciones`). Razón: en APA 7 cada tipo tiene su propia numeración (Figura N / Tabla N), así que mantenerlos en listas separadas **preserva el orden real** del documento. Una sola lista mezclada los desordenaría.
+
+**Refinamientos que pidió el usuario:**
+
+1. **El párrafo anterior va ARRIBA de la previsualización y grande.** El contexto se lee *antes* de la imagen, no después. Hoy está abajo, en `--text-xs` y recortado a 3 líneas.
+2. **Previsualizaciones grandes, con la letra legible.** La miniatura no sirve: hay que ver la figura o la tabla al tamaño en que se lee.
+3. **Cada elemento dice de qué H2 viene**, además del H1 de su sección (`3. Marco teórico → 3.2 Medición de la carga`).
+4. **Los H1 son listas desplazables**: cada grupo es un bloque colapsable con su propio scroll.
+5. **Fuente editorial (T1)**: Inter con jerarquía de lectura. El contexto y las leyendas a tamaño de lectura (14–15 px, interlínea 1.7), nunca `--text-xs`.
+6. **Encaje en el sistema**: cero emojis, íconos `lucide-react`, solo tokens existentes, cero hex.
+
+**Se mantiene del diseño previo**: la leyenda visible en cada fila, las dos acciones con nombre (`Ver en el documento`, `Tamaño y alineación`), `Criterio general…` para aplicar el mismo criterio a todas, y `Sugerir con IA` para la leyenda.
+
+---
+
+## 10. Cómo sigue
 
 1. Cerrar los pendientes de §4 (E1/E2/E3, C1/C2/C3), la §7.1 (tipografía editorial) y elegir de §8.
 2. Diseñar las superficies restantes con el mismo método (Figuras, Referencias, Revisión, Exportar).
