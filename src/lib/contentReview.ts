@@ -100,9 +100,56 @@ function collectSections(elements: ElementLike[]): Record<string, ElementLike[]>
 
 // ── Objetivos (taxonomía de Bloom) ───────────────────────────────────────────
 
-function reviewObjectives(sections: ElementLike[]): ContentFinding[] {
+/**
+ * Los objetivos, separados en general y específicos.
+ *
+ * LA SEPARACIÓN SALE DEL DOCUMENTO, NO DE LA POSICIÓN. Antes se asumía «el
+ * primero es el general» (`items.length - 1`), que es falso en cuanto el autor
+ * escribe el H2 «Objetivos específicos» antes del general o pone el general en
+ * su propio H2: la cuenta mentía y el general podía caer entre los específicos.
+ * Se agrupa por el H2 que los abre —«general» vs «específic»— y, si el documento
+ * no trae H2 que los separe, se conserva la convención (el primero es el
+ * general), que es lo que hace un estudiante cuando escribe una lista sola.
+ */
+function separarGeneralDeEspecificos(
+  elements: ElementLike[],
+  planos: ElementLike[],
+): { general: ElementLike[]; especificos: ElementLike[] } {
+  const general: ElementLike[] = [];
+  const especificos: ElementLike[] = [];
+  let dentro = false;
+  let destino: ElementLike[] | null = null;
+
+  for (const e of elements) {
+    const t = normalize(e.text || '');
+    if (isHeading(e)) {
+      if (!t) continue;
+      if (!/objetiv/.test(t)) {
+        dentro = false;
+        destino = null;
+        continue;
+      }
+      dentro = true;
+      if (/general/.test(t)) destino = general;
+      else if (/espec/.test(t)) destino = especificos;
+      else destino = null; // el H1 «Objetivos» abre la sección, no asigna bando
+      continue;
+    }
+    if (!dentro || !destino) continue;
+    if (e.type === 'bullet' || e.type === 'numbered_list' || e.type === 'paragraph') {
+      destino.push(e);
+    }
+  }
+
+  if (general.length === 0 && especificos.length === 0) {
+    return { general: planos.slice(0, 1), especificos: planos.slice(1) };
+  }
+  return { general, especificos };
+}
+
+function reviewObjectives(general: ElementLike[], especificos: ElementLike[]): ContentFinding[] {
   const out: ContentFinding[] = [];
-  const items = sections.filter((e) => e.type === 'bullet' || e.type === 'numbered_list' || e.type === 'paragraph');
+  const items = [...general, ...especificos];
 
   // Separar general vs específicos por el primer verbo de cada objetivo
   const verbs: { verb: string; elem: ElementLike }[] = [];
@@ -178,17 +225,18 @@ function reviewObjectives(sections: ElementLike[]): ContentFinding[] {
     }
   }
 
-  // Cantidad de específicos fuera de rango (3-5 típico)
-  const especificos = items.length - 1; // asume el primero = general
-  if (items.length >= 2 && (especificos < 3 || especificos > 5)) {
+  // Cantidad de específicos fuera de rango (3-5 típico). El número sale de los
+  // específicos REALES, no de `items.length - 1`.
+  const nEspecificos = especificos.length;
+  if (items.length >= 2 && (nEspecificos < 3 || nEspecificos > 5)) {
     out.push({
       id: 'obj-count',
       section: 'objetivos',
       rule: 'objetivos_cantidad',
       severity: 'info',
-      message: `Tenés ${especificos} objetivos específicos (lo típico es entre 3 y 5).`,
-      suggestion: especificos < 3 ? 'Sumá uno o dos específicos que cubran el general.' : 'Considerá agrupar o recortar específicos redundantes.',
-      elementIds: items.slice(1).map((e) => e.id),
+      message: `Tenés ${nEspecificos} objetivos específicos (lo típico es entre 3 y 5).`,
+      suggestion: nEspecificos < 3 ? 'Sumá uno o dos específicos que cubran el general.' : 'Considerá agrupar o recortar específicos redundantes.',
+      elementIds: especificos.map((e) => e.id),
     });
   }
 
@@ -461,8 +509,11 @@ export function reviewContent(elements: ElementLike[], title = ''): ContentFindi
   const sections = collectSections(elements);
   const allText = elements.map((e) => e.text || '').join(' ');
 
+  const objetivos = sections['objetivos'] || [];
+  const { general, especificos } = separarGeneralDeEspecificos(elements, objetivos);
+
   const out: ContentFinding[] = [];
-  out.push(...reviewObjectives(sections['objetivos'] || []));
+  out.push(...reviewObjectives(general, especificos));
   out.push(...reviewIntroduction(sections['introduccion'] || [], allText));
   out.push(...reviewJustificacion(sections['justificacion'] || []));
   out.push(...reviewHipotesis(sections['hipotesis'] || []));

@@ -113,3 +113,31 @@ describe('reviewContent — resumen y conclusiones', () => {
     expect(f.some((x) => x.rule === 'conclusiones_recomendacion_vaga')).toBe(true);
   });
 });
+
+describe('reviewContent — general y específicos salen del documento, no de la posición', () => {
+  /* Orden raro a propósito: el H2 de específicos ANTES del general. El código
+     viejo aplanaba todo y asumía que el primero era el general, así que tomaba
+     "Identificar" (nivel 1 de Bloom) como general y marcaba "Analizar" (nivel 4)
+     como un específico de nivel más alto. Falso: el general real es
+     "Desarrollar" (nivel 6). */
+  const ordenRaro = [
+    el('h1', 'Objetivos', 'heading'),
+    el('he', 'Objetivos específicos', 'heading'),
+    el('e1', 'Identificar los tiempos muertos.'),
+    el('e2', 'Analizar las causas.'),
+    el('hg', 'Objetivo general', 'heading'),
+    el('g', 'Desarrollar un sistema de gestión.'),
+  ];
+
+  it('el general se reconoce por su H2, no por ser el primero de la lista', () => {
+    const f = reviewContent(ordenRaro as any);
+    expect(f.some((x) => x.rule === 'objetivo_nivel_mayor_que_general')).toBe(false);
+  });
+
+  it('la cuenta de específicos usa los específicos reales', () => {
+    const f = reviewContent(ordenRaro as any);
+    const hit = f.find((x) => x.rule === 'objetivos_cantidad');
+    expect(hit?.message).toContain('2 objetivos específicos');
+    expect(hit?.elementIds).toEqual(['e1', 'e2']);
+  });
+});
