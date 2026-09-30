@@ -243,6 +243,25 @@ export const ConexionTab: React.FC = () => {
         titulo="Claves de proveedor"
         descripcion="Se guardan solas en este equipo: ochocientas milésimas después de la última tecla. No hay botón de guardar."
       >
+        {/* La nota de seguridad, ACÁ y no en un documento que nadie abre.
+            El instalador trae unas claves de proveedor embebidas, y no están
+            cifradas: se ofuscan con una operación reversible cuya semilla está
+            en el código. Quienda tenga el programa puede leerlas. Por eso la
+            advertencia tiene que estar donde alguien va a escribir SU clave y
+            se va a preguntar dónde se guarda la del otro.
+
+            Escribirla acá no cambia nada del comportamiento: el aviso ya estaba
+            en el módulo del backend, que es exactamente donde no lo lee nadie. */}
+        <p
+          data-testid="nota-de-seguridad"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
+        >
+          Las claves que escribas se guardan en este equipo, en texto plano, sin
+          cifrar. El instalador además trae unas claves de proveedor embebidas
+          que están ofuscadas, no cifradas: se pueden leer. No pongas claves de
+          producción ni de las que cobren: se comparten entre todos los que
+          tengan el programa.
+        </p>
         {/* Sin ninguna clave no se muestran los catorce campos: se dice que no
             hay ninguna y se deja la del proveedor principal, que es el camino
             de entrada. Catorce casillas vacías no informa nada.
