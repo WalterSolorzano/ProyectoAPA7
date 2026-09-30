@@ -215,6 +215,36 @@ describe('construirJerarquia', () => {
     expect(arbol[0].hijos[0].palabras).toBe(8);
   });
 
+  it('las viñetas de un H2 son del H2, y el H1 las cuenta a través de él', () => {
+    /* El caso reportado: una rama «Objetivos» con dos H2, y el contenido de cada
+     * uno (un párrafo y una lista). El contenido cuelga del ÚLTIMO encabezado
+     * abierto, así que un H2 no queda vacío por tener prosa de otro nivel: queda
+     * vacío SOLO si su prosa va antes. Y el H1 no tiene texto propio: su número
+     * es la suma de sus H2, que es lo que un índice tiene que mostrar. Si esto se
+     * rompe —un `bullet` que no cuenta, o un H2 que no se reconoce como padre—,
+     * la rama Objetivos vuelve a mostrar todo en el H1 y los H2 en cero. */
+    const arbol = construirJerarquia([
+      h1('Objetivos'),
+      h2('Objetivo general'),
+      parrafo('Analizar el proceso productivo'),
+      h2('Objetivos específicos'),
+      el({ type: 'bullet', text: 'Identificar los tiempos muertos' }),
+      el({ type: 'numbered_list', text: 'Proponer mejoras con el metodo SCEM' }),
+    ]);
+
+    expect(arbol).toHaveLength(1);
+    const objetivos = arbol[0];
+    expect(objetivos.hijos.map((h) => h.titulo)).toEqual([
+      'Objetivo general',
+      'Objetivos específicos',
+    ]);
+
+    const [general, especificos] = objetivos.hijos;
+    expect(general.palabras).toBe(4);       // «Analizar el proceso productivo»
+    expect(especificos.palabras).toBe(10);  // la viñeta (4) + la numerada (6)
+    expect(objetivos.palabras).toBe(14);    // el H1 suma a sus H2
+  });
+
   it('el texto del encabezado NO cuenta como contenido de su rama', () => {
     /* El título es el rótulo de la rama, no lo que hay adentro: contarlo
      * infla el balance de los capítulos de títulos largos y deja sin poder decir
