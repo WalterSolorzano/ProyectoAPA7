@@ -101,11 +101,32 @@ def test_headings_excluded():
     assert audit_elements([h]) == []
 
 
-def test_llm_no_key_passthrough():
+def test_llm_no_key_passthrough(monkeypatch):
+    """Sin NINGUNA clave, el motor devuelve los hallazgos como entraron.
+
+    `refine_with_llm` es `async` desde que paso por el router: antes era
+    sincrona y pegaba a NIM con `requests.post`, que era justo lo que detenia el
+    event loop.
+
+    El "sin ninguna" es la parte importante. La maquina de desarrollo tiene
+    claves reales de proveedores en `.env`, y con el router el motor las
+    encuentra sola: sin este `monkeypatch`, la prueba saldia a la red de verdad y
+    dependia de la cuota de quien la escribiera. Un test que llama a la red es un
+    test que falla un martes.
+    """
+    import asyncio
+
+    for var in ("NVIDIA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
+                "CEREBRAS_API_KEY", "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY",
+                "ZENMUX_API_KEY", "GEMINI_API_KEY", "CLOUDFLARE_API_TOKEN",
+                "CLOUDFLARE_ACCOUNT_ID", "AION_API_KEY", "KILOCODE_API_KEY",
+                "OLLAMA_API_KEY", "HUGGINGFACE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
     findings = [{"element_id": "e", "start": 0, "end": 4, "excerpt": "x",
                  "kind": "ortografia", "severity": "error", "message": "m",
                  "source": "local"}]
-    out, used = refine_with_llm(findings, [], "")
+    out, used = asyncio.run(refine_with_llm(findings, [], ""))
     assert out == findings and used is False
 
 

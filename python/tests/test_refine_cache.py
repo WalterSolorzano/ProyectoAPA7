@@ -7,11 +7,17 @@ optimizacion de rate limit que destruye la granularidad de la cache. Con el
 lote entero como clave, doce guardados de Word con un solo parrafo con una tilde
 perdida se pagan doce veces completas.
 
-Estas pruebas meten el `requests.post` por parametro (`_post`) para no tocar la
-red, y vacian `audit_registry._EN_MEMORIA` entre caso y caso porque el registro
-es de modulo y vive entre pruebas.
+Estas pruebas meten el cliente del router por parametro (`_router`) para no tocar
+la red, y vacian `audit_registry._EN_MEMORIA` entre caso y caso porque el
+registro es de modulo y vive entre pruebas.
+
+El doble devuelve el CONTENIDO, no una respuesta HTTP: antes el motor pegaba
+directo a NIM con `requests.post` y habia que fabricar un objeto con
+`raise_for_status` y `json()`. Ahora pasa por `execute_with_specialty`, que ya
+desenreda el sobre, asi que el doble solo tiene que devolver la cadena.
 """
 
+import asyncio
 import json as _json
 import sys
 from pathlib import Path
@@ -33,27 +39,20 @@ def _cache_limpia() -> None:
     audit_registry._EN_MEMORIA.clear()
 
 
-class _FakeResp:
-    """Lo unico que el codigo le pide a la respuesta: `raise_for_status` y `json`."""
-
-    def __init__(self, contenido):
-        self._contenido = contenido
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return {"choices": [{"message": {"content": self._contenido}}]}
-
-
 def _post_que_responde(llamadas, contenido):
-    """Un `post` falso que cuenta cuantas veces lo llamaron."""
+    """Un cliente del router falso que cuenta cuantas veces lo llamaron.
 
-    def post(url, **kw):
-        llamadas.append(kw.get("json"))
-        return _FakeResp(contenido)
+    Registra el PROMPT, que es lo que viaja: antes se registraba el `json` de la
+    peticion y habia que abrir `messages[0]["content"]` para ver los items. El
+    motor ya no arma el sobre — eso es del router — asi que el prompt es el
+    item.
+    """
 
-    return post
+    async def router(prompt, **kw):
+        llamadas.append(prompt)
+        return contenido
+
+    return router
 
 
 class _Eco:
@@ -66,12 +65,12 @@ class _Eco:
     def __init__(self, llamadas):
         self.llamadas = llamadas
 
-    def __call__(self, url, **kw):
-        self.llamadas.append(kw["json"])
-        items = _items_del_prompt(kw["json"])
-        return _FakeResp(_json.dumps(
+    async def __call__(self, prompt, **kw):
+        self.llamadas.append(prompt)
+        items = _items_del_prompt(prompt)
+        return _json.dumps(
             [{"i": it["i"], "keep": True, "suggestion": None} for it in items]
-        ))
+        )
 
 
 def _elementos():
@@ -98,8 +97,14 @@ def _hallazgos(n=1, phase="global"):
     return out
 
 
-def _items_del_prompt(llamada):
-    return _json.loads(llamada["messages"][0]["content"].split("Items: ", 1)[1])
+def _items_del_prompt(prompt):
+    return _json.loads(prompt.split("Items: ", 1)[1])
+
+
+def _refinar(*args, **kw):
+    """`refine_with_llm` es `async` desde que paso por el router, y estas
+    pruebas son sincronas. El envoltorio es el unico lugar donde se nota."""
+    return asyncio.run(pa.refine_with_llm(*args, **kw))
 
 
 # ------------------------------------------------------------------ el dinero
@@ -113,8 +118,8 @@ def test_una_consulta_ya_respondida_no_se_vuelve_a_preguntar():
     post = _post_que_responde(llamadas, '[{"i":0,"keep":true,"suggestion":"tilde"}]')
 
     _cache_limpia()
-    pa.refine_with_llm(_hallazgos(1), _elementos(), "k", session_id="s1", _post=post)
-    pa.refine_with_llm(_hallazgos(1), _elementos(), "k", session_id="s1", _post=post)
+    _refinar(_hallazgos(1), _elementos(), "k", session_id="s1", _router=post)
+    _refinar(_hallazgos(1), _elementos(), "k", session_id="s1", _router=post)
 
     assert len(llamadas) == 1
 
@@ -128,10 +133,10 @@ def test_una_tilde_igual_en_otra_fase_si_se_pregunta():
     post = _post_que_responde(llamadas, '[{"i":0,"keep":true,"suggestion":"tilde"}]')
 
     _cache_limpia()
-    pa.refine_with_llm(_hallazgos(1, phase="metodo"), _elementos(), "k",
-                       session_id="s1", _post=post)
-    pa.refine_with_llm(_hallazgos(1, phase="resultados"), _elementos(), "k",
-                       session_id="s1", _post=post)
+    _refinar(_hallazgos(1, phase="metodo"), _elementos(), "k",
+       session_id="s1", _router=post)
+    _refinar(_hallazgos(1, phase="resultados"), _elementos(), "k",
+       session_id="s1", _router=post)
 
     assert len(llamadas) == 2
 
@@ -147,11 +152,11 @@ def test_un_guardado_que_agrega_un_hallazgo_no_repaga_los_anteriores():
     post = _Eco(llamadas)
 
     _cache_limpia()
-    pa.refine_with_llm(_hallazgos(3), _elementos(), "k", session_id="s1", _post=post)
+    _refinar(_hallazgos(3), _elementos(), "k", session_id="s1", _router=post)
     assert len(llamadas) == 1
     assert len(audit_registry._EN_MEMORIA) == 3
 
-    pa.refine_with_llm(_hallazgos(4), _elementos(), "k", session_id="s1", _post=post)
+    _refinar(_hallazgos(4), _elementos(), "k", session_id="s1", _router=post)
 
     assert len(llamadas) == 2
     # La segunda llamada viaja SOLO con el hallazgo nuevo: el `i` del sobre es la
@@ -170,8 +175,8 @@ def test_sin_sesion_no_hay_cache():
     post = _post_que_responde(llamadas, '[{"i":0,"keep":true,"suggestion":null}]')
 
     _cache_limpia()
-    pa.refine_with_llm(_hallazgos(1), _elementos(), "k", _post=post)
-    pa.refine_with_llm(_hallazgos(1), _elementos(), "k", _post=post)
+    _refinar(_hallazgos(1), _elementos(), "k", _router=post)
+    _refinar(_hallazgos(1), _elementos(), "k", _router=post)
 
     assert len(llamadas) == 2
     assert audit_registry._EN_MEMORIA == {}
@@ -183,7 +188,7 @@ def test_sin_sesion_todo_se_pregunta_en_un_solo_lote():
     post = _Eco(llamadas)
 
     _cache_limpia()
-    out, usado = pa.refine_with_llm(_hallazgos(4), _elementos(), "k", _post=post)
+    out, usado = _refinar(_hallazgos(4), _elementos(), "k", _router=post)
 
     assert len(llamadas) == 1
     assert len(_items_del_prompt(llamadas[0])) == 4
@@ -201,8 +206,8 @@ def test_un_veredicto_ausente_no_es_un_veredicto_negativo():
     post = _post_que_responde(llamadas, "[]")
 
     _cache_limpia()
-    out, usado = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                    session_id="s1", _post=post)
+    out, usado = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
 
     assert len(out) == 1
     assert out[0]["kind"] == "ortografia"
@@ -217,10 +222,10 @@ def test_un_veredicto_cacheado_tambien_aplica_la_sugerencia():
     post = _post_que_responde(llamadas, '[{"i":0,"keep":false,"suggestion":"debería"}]')
 
     _cache_limpia()
-    primera, _ = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                    session_id="s1", _post=post)
-    segunda, _ = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                    session_id="s1", _post=post)
+    primera, _ = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
+    segunda, _ = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
 
     assert len(llamadas) == 1
     assert primera[0]["suggestion"] == "debería"
@@ -236,10 +241,10 @@ def test_un_falso_positivo_descartado_tambien_se_descarta_desde_la_cache():
     post = _post_que_responde(llamadas, '[{"i":0,"keep":false,"suggestion":null}]')
 
     _cache_limpia()
-    primera, _ = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                    session_id="s1", _post=post)
-    segunda, _ = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                    session_id="s1", _post=post)
+    primera, _ = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
+    segunda, _ = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
 
     assert len(llamadas) == 1
     assert primera == []
@@ -257,13 +262,13 @@ def test_un_llm_que_se_corta_a_la_mitad_no_borra_lo_ya_respondido():
     llamadas = []
     bueno = _post_que_responde(llamadas, '[{"i":0,"keep":true,"suggestion":null}]')
     _cache_limpia()
-    pa.refine_with_llm(_hallazgos(2), _elementos(), "k", session_id="s1", _post=bueno)
+    _refinar(_hallazgos(2), _elementos(), "k", session_id="s1", _router=bueno)
     assert len(llamadas) == 1
 
     # Un sobre que cierra el corchete pero no es JSON: el parseo falla.
     cortado = _post_que_responde(llamadas, '[{"i": 0, "keep": tru}]')
-    out, usado = pa.refine_with_llm(_hallazgos(2), _elementos(), "k",
-                                    session_id="s1", _post=cortado)
+    out, usado = _refinar(_hallazgos(2), _elementos(), "k",
+       session_id="s1", _router=cortado)
 
     assert usado is False
     assert out == _hallazgos(2)
@@ -271,7 +276,7 @@ def test_un_llm_que_se_corta_a_la_mitad_no_borra_lo_ya_respondido():
     assert len(audit_registry._EN_MEMORIA) == 1    # y el viejo sigue en su lugar
 
     # Y la tercera vez, el item viejo sigue sin preguntar.
-    pa.refine_with_llm(_hallazgos(2), _elementos(), "k", session_id="s1", _post=cortado)
+    _refinar(_hallazgos(2), _elementos(), "k", session_id="s1", _router=cortado)
     assert len(llamadas) == 3
 
 
@@ -281,8 +286,8 @@ def test_un_llm_que_no_devuelve_json_no_toca_el_registro():
     post = _post_que_responde(llamadas, "Perdon, hoy no puedo verificar eso.")
 
     _cache_limpia()
-    out, _ = pa.refine_with_llm(_hallazgos(1), _elementos(), "k",
-                                session_id="s1", _post=post)
+    out, _ = _refinar(_hallazgos(1), _elementos(), "k",
+       session_id="s1", _router=post)
 
     assert out == _hallazgos(1)
     assert audit_registry._EN_MEMORIA == {}
@@ -305,7 +310,7 @@ def test_el_tope_de_lote_sigue_siendo_de_60():
     llamadas = []
     post = _Eco(llamadas)
     _cache_limpia()
-    out, _ = pa.refine_with_llm(muchos, _elementos(), "k", session_id="s1", _post=post)
+    out, _ = _refinar(muchos, _elementos(), "k", session_id="s1", _router=post)
 
     assert len(_items_del_prompt(llamadas[0])) == 60
     assert len(out) == 61                       # el que no viajo se queda, como siempre

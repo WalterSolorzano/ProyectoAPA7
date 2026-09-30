@@ -150,11 +150,24 @@ export interface ProofreadBatchResponse {
   ai_indices?: AIIndicesSummary | null;
 }
 
-/** Revisor por lotes: ortografía + frases IA + texto pegado (local+LLM). */
-export async function proofreadBatch(sessionId: string): Promise<ProofreadBatchResponse> {
+/** Revisor por lotes: ortografía + frases IA + texto pegado (local+LLM).
+ *
+ *  `apiKey` y `providerId` viajan en el body porque son la elección de la
+ *  pestaña Conexión. Antes el endpoint leía `os.getenv("NVIDIA_API_KEY")` en el
+ *  backend: con la clave de Groq, ZenMux, Cerebras, Ollama o HuggingFace puesta
+ *  acá y no en el entorno, el refinamiento de ortografía no ocurría nunca, y esa
+ *  es la auditoría que dispara al abrir el documento. */
+export async function proofreadBatch(
+  sessionId: string,
+  opts: { apiKey?: string; providerId?: string } = {},
+): Promise<ProofreadBatchResponse> {
   const res = await fetchWithTrace(`${getApiBase()}/proofread-batch`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
+    body: JSON.stringify({
+      session_id: sessionId,
+      api_key: opts.apiKey || '',
+      provider_id: opts.providerId || '',
+    }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

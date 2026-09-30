@@ -126,10 +126,16 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
   proofreadFindings: [],
   aiIndices: null,
   runProofreadBatch: async () => {
-    const { doc, sugerenciasProactivas } = get();
+    const { doc, sugerenciasProactivas, apiKey, aiProviderConfig } = get();
     if (!doc || doc.elements.length === 0) return;
     try {
-      const res = await api.proofreadBatch(doc.session_id);
+      /* La clave y el proveedor viajan con la peticion. Sin esto, el backend
+         resolvia el refinamiento contra su propio entorno y un usuario de
+         cualquier proveedor que no sea NVIDIA se quedaba sin ortografia
+         revisada. */
+      const res = await api.proofreadBatch(doc.session_id, {
+        apiKey, providerId: aiProviderConfig?.providerId,
+      });
       set({ aiIndices: res.ai_indices || null });
       if (sugerenciasProactivas) {
         set({ proofreadFindings: res.findings || [] });

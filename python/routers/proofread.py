@@ -13,7 +13,6 @@ espera el frontend (``ProofreadFinding`` en ``src/types/index.ts``):
 """
 from __future__ import annotations
 
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -28,6 +27,13 @@ class ProofreadRequest(BaseModel):
     session_id: Optional[str] = None
     texts: List[str] = []
     element_ids: List[str] = []
+    # La clave y el proveedor los elige el usuario en la pestaña Conexión y
+    # llegan en el request. Antes este endpoint no los aceptaba y leia
+    # `os.getenv("NVIDIA_API_KEY")`, con lo cual un usuario de Groq, ZenMux,
+    # Cerebras, Ollama o HuggingFace se quedaba sin refinamiento de
+    # ortografia: la unica auditoria que dispara al abrir el documento.
+    api_key: Optional[str] = None
+    provider_id: Optional[str] = None
 
 
 class _ProofElement:
@@ -87,8 +93,9 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
       - ``{ texts, element_ids }``: audita textos sueltos (tests, add-in).
       - ``{ session_id }``: carga la sesión y audita sus párrafos (frontend).
 
-    Devuelve ``{ findings, used_llm, ai_indices }`` — el shape que
-    espera el frontend (``ProofreadBatchResponse`` en ``backend.ts``).
+    ``api_key`` y ``provider_id`` son los que la pestaña Conexión eligió, y
+    llegan en el body. Devuelve ``{ findings, used_llm, ai_indices }`` — el
+    shape que espera el frontend (``ProofreadBatchResponse`` en ``backend.ts``).
 
     Cada hallazgo de ``findings`` trae ``phase`` y ``read_only``: la fase es lo
     único que la vista necesita para nombrar el hallazgo, y mandarla por
@@ -125,13 +132,19 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
 
 
 
-    # 3) Refinamiento LLM opcional (solo si hay API key configurada).
-    #    refine_with_llm nunca lanza: ante cualquier error devuelve (findings, False).
+    # 3) Refinamiento LLM opcional.
+    #    Lo que decide si se intenta es el router, no una variable de entorno:
+    #    `refine_with_llm` no lanza, y sin clave ni proveedor devuelve los
+    #    hallazgos intactos. La condicion es "hay hallazgos que dudar", que es
+    #    la unica que no puede mentir.
     used_llm = False
-    api_key = os.getenv("NVIDIA_API_KEY", "")
-    if api_key and findings:
+    if findings:
         try:
-            findings, used_llm = refine_with_llm(findings, elements, api_key)
+            findings, used_llm = await refine_with_llm(
+                findings, elements,
+                api_key=req.api_key or "",
+                provider_id=req.provider_id or None,
+            )
         except Exception:
             used_llm = False
 

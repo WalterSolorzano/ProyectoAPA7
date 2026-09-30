@@ -623,10 +623,35 @@ def _aplicar_veredicto(f: Dict[str, Any],
     return g
 
 
-def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
-                    api_key: str, timeout: float = 12.0, session_id: str = "",
-                    _post: Optional[Any] = None) -> tuple[List[Dict[str, Any]], bool]:
+# El prompt del corrector. Vive aca, y no dentro de la llamada, porque es la
+# mitad del sistema y tiene que poder compararse con el prompt que mando
+# `test_refine_cache` cuando afirma que la clave de cache y el prompt no pueden
+# separarse.
+SISTEMA_CORRECTOR: str = (
+    "Eres corrector experto de español académico. Para cada item decide si es "
+    "un error REAL que conviene corregir en un trabajo universitario formal. "
+    'Responde SOLO JSON: [{"i":int,"keep":bool,"suggestion":str|null}].'
+)
+
+
+async def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
+                          api_key: str = "", session_id: str = "",
+                          provider_id: Optional[str] = None,
+                          _router: Optional[Any] = None) -> tuple[List[Dict[str, Any]], bool]:
     """Filtra falsos positivos de ortografía/muletillas con el LLM.
+
+    Pasa por `execute_with_specialty`, como los demas motores del producto. Antes
+    no pasaba: pegaba directo a `integrate.api.nvidia.com` con `requests.post`,
+    con el modelo QUEMADO en el codigo e ignorando `NVIDIA_NIM_MODEL`, y su
+    consumidor leia `os.getenv("NVIDIA_API_KEY")` en vez del request. Era el unico
+    motor de ortografia del producto y el unico que ignoraba el router, con dos
+    consecuencias: un usuario de ZenMux, Aion, Kilo, Ollama Cloud o HuggingFace
+    —los cinco que el repo declara vivos— obtenia CERO refinamiento, y el
+    `requests.post` sincrono, llamado desde un `async def`, detenia el backend
+    entero mientras la red contestaba.
+
+    `api_key` y `provider_id` vienen del REQUEST. La clave es la del proveedor
+    que el usuario eligio, no la primera que este en el entorno.
 
     Nunca lanza: ante cualquier error devuelve (findings intactos, False).
     Solo revisa hallazgos dudosos; first_person/ai_phrase/pegado pasan tal cual.
@@ -636,18 +661,16 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
     el de siempre, un lote, porque un registro global le devolveria a un
     documento los hallazgos de otro.
 
-    `_post` existe para que las pruebas no toquen la red; por defecto es
-    `requests.post`.
+    `_router` existe para que las pruebas no toquen la red. Su firma es la de
+    `execute_with_specialty`. El `timeout` desaparecio con `requests.post`: los
+    tiempos de espera son del router, uno por proveedor, y un numero que
+    sobrescribia al de todos era una promise que no podia cumplirse.
     """
-    if not api_key:
-        return findings, False
     try:
         import json as _json
 
-        import requests  # type: ignore
-
-        if _post is None:
-            _post = requests.post
+        if _router is None:
+            from modules.ai_client import execute_with_specialty as _router
 
         text_by_id = {str(getattr(e, "id", "")): (getattr(e, "text", "") or "")
                       for e in elements}
@@ -684,27 +707,28 @@ def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
                 "match": _match_de(f, text_by_id),
                 "context": f["excerpt"][:_CONTEXT_MAX],
             })
-        prompt = (
-            "Eres corrector experto de español académico. Para cada item decide "
-            "si es un error REAL que conviene corregir en un trabajo universitario "
-            "formal. Responde SOLO JSON: [{\"i\":int,\"keep\":bool,"
-            "\"suggestion\":str|null}]. Items: " + _json.dumps(payload_items, ensure_ascii=False)
+        # El prompt del corrector va partido como lo espera el router: la
+        # instruccion en el `system_prompt` y los items en el prompt del
+        # usuario. El "Items: " es el separador que `test_refine_cache` usa
+        # para leer lo que viajo, y no se toco.
+        prompt = "Items: " + _json.dumps(payload_items, ensure_ascii=False)
+        content = await _router(
+            prompt=prompt,
+            system_prompt=SISTEMA_CORRECTOR,
+            specialty="FAST",
+            api_key=api_key,
+            provider_id=provider_id,
+            temperature=0.1,
+            max_tokens=1500,
+            json_mode=True,
+            # La cache de este motor es la de `audit_registry`, por ITEM. La del
+            # router es del LOTE ENTERO, y dejarla activa pagaria el mismo lote
+            # dos veces: una por el acierto por item y otra por el acierto del
+            # lote. Ademas su clave no lleva la fase, que es justo lo que hace
+            # distintas dos preguntas sobre la misma palabra.
+            use_cache=False,
         )
-        resp = _post(
-            "https://integrate.api.nvidia.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}",
-                     "Content-Type": "application/json"},
-            json={
-                "model": "nvidia/nemotron-3-super-120b-a12b",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1,
-                "max_tokens": 1500,
-            },
-            timeout=timeout,
-        )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
-        m = re.search(r"\[.*\]", content, re.DOTALL)
+        m = re.search(r"\[.*\]", content or "", re.DOTALL)
         if not m:
             return findings, True
         # Si el sobre no es JSON, `_json.loads` revienta y el `except` de abajo
