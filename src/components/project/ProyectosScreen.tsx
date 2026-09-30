@@ -31,17 +31,17 @@ export const ProyectosScreen: React.FC = () => {
         }}
       >
         <FolderOpen size={48} strokeWidth="var(--icon-stroke)" color="var(--text-muted)" />
-        <h2 style={{ fontSize: 'var(--font-xl)', color: 'var(--text-main)', margin: 0 }}>
+        <h2 style={{ fontSize: 'var(--text-xl)', color: 'var(--text-main)', margin: 0 }}>
           Organizar mis documentos
         </h2>
-        <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', textAlign: 'center', maxWidth: 400 }}>
           Configurá una carpeta para organizar tus proyectos y versiones.
           WordAPA7 va a crear subcarpetas automáticamente.
         </p>
         <button
           style={{
             padding: 'var(--space-3) var(--space-6)',
-            fontSize: 'var(--font-sm)',
+            fontSize: 'var(--text-sm)',
             background: 'var(--accent-primary)',
             color: 'var(--paper-white)',
             border: 'none',
@@ -74,7 +74,7 @@ export const ProyectosScreen: React.FC = () => {
           overflowY: 'auto',
         }}
       >
-        <h3 style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)', margin: 0, padding: 'var(--space-2)' }}>
+        <h3 style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0, padding: 'var(--space-2)' }}>
           Proyectos
         </h3>
         {proyectos.map((p: Proyecto) => (
@@ -89,11 +89,11 @@ export const ProyectosScreen: React.FC = () => {
               border: 'none',
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
-              fontSize: 'var(--font-sm)',
+              fontSize: 'var(--text-sm)',
             }}
           >
             <div style={{ fontWeight: 600 }}>{p.nombre}</div>
-            <div style={{ fontSize: 'var(--font-xs)', opacity: 0.7 }}>
+            <div style={{ fontSize: 'var(--text-xs)', opacity: 0.7 }}>
               {p.versiones.length} versión(es)
               {p.cerrado && ' • Cerrado'}
             </div>
@@ -106,13 +106,13 @@ export const ProyectosScreen: React.FC = () => {
         {seleccionado && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-              <h2 style={{ fontSize: 'var(--font-lg)', color: 'var(--text-main)', margin: 0 }}>
+              <h2 style={{ fontSize: 'var(--text-lg)', color: 'var(--text-main)', margin: 0 }}>
                 {seleccionado.nombre}
                 {seleccionado.cerrado && (
                   <span
                     style={{
                       marginLeft: 'var(--space-2)',
-                      fontSize: 'var(--font-xs)',
+                      fontSize: 'var(--text-xs)',
                       padding: '2px 8px',
                       borderRadius: 'var(--radius-sm)',
                       background: 'var(--border-subtle)',
@@ -128,7 +128,7 @@ export const ProyectosScreen: React.FC = () => {
                   onClick={() => cerrarProyecto(seleccionado.id)}
                   style={{
                     padding: 'var(--space-2) var(--space-3)',
-                    fontSize: 'var(--font-xs)',
+                    fontSize: 'var(--text-xs)',
                     background: 'transparent',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 'var(--radius-md)',

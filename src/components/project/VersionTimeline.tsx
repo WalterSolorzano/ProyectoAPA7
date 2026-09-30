@@ -15,7 +15,7 @@ const MAX_VISIBLES = 3;
 export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onMarcarActiva }) => {
   if (versiones.length === 0) {
     return (
-      <div style={{ padding: 'var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--font-sm)' }}>
+      <div style={{ padding: 'var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
         Sin versiones todavía.
       </div>
     );
@@ -48,13 +48,13 @@ export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onM
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 'var(--font-sm)', color: 'var(--text-main)' }}>
+              <strong style={{ fontSize: 'var(--text-sm)', color: 'var(--text-main)' }}>
                 {v.filename}
               </strong>
               {v.esActiva && (
                 <span
                   style={{
-                    fontSize: 'var(--font-xs)',
+                    fontSize: 'var(--text-xs)',
                     padding: '2px 8px',
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--accent-primary)',
@@ -65,7 +65,7 @@ export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onM
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-1)' }}>
               {v.palabras} palabras {diffStr && `• ${diffStr} vs activa`}
               {v.autor && `• ${v.autor}`}
             </div>
@@ -75,7 +75,7 @@ export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onM
                 style={{
                   marginTop: 'var(--space-2)',
                   padding: 'var(--space-1) var(--space-2)',
-                  fontSize: 'var(--font-xs)',
+                  fontSize: 'var(--text-xs)',
                   background: 'transparent',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: 'var(--radius-sm)',
@@ -94,7 +94,7 @@ export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onM
           style={{
             padding: 'var(--space-2)',
             textAlign: 'center',
-            fontSize: 'var(--font-xs)',
+            fontSize: 'var(--text-xs)',
             color: 'var(--text-muted)',
           }}
         >
