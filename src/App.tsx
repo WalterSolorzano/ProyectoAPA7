@@ -9,7 +9,6 @@ import type { RefrescoResultado } from './store/types';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
 import { TemplateDialog } from './components/shared/TemplateDialog';
-import { ElementInspector } from './components/inspector/ElementInspector';
 import { PDFPreview } from './components/layout/PDFPreview';
 import { ReactPDFPreview } from './components/layout/ReactPDFPreview';
 import { StatusBar } from './components/layout/StatusBar';

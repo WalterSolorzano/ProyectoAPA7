@@ -10,12 +10,11 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { ElementInspector } from '../inspector/ElementInspector';
 import { ImageEditPanel } from '../inspector/ImageEditPanel';
 import { ReferenceForm } from '../referencias/ReferenceForm';
 import { ActionBar } from './ActionBar';
 import { OutlineTree } from '../wizard/OutlineTree';
-import { Activity, X, FileText, ListChecks, BookOpen, Map, Sparkles } from 'lucide-react';
+import { Activity, X, FileText, BookOpen, Map, Sparkles } from 'lucide-react';
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
   success: <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2714;</span>,
@@ -78,18 +77,19 @@ export const RightSidePanel: React.FC = () => {
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  /* Se abre automáticamente al seleccionar un elemento.
-     ESTO SE QUEDA, Y POR QUÉ. El Inspector general (tipo, nivel, contenido) es útil
-     en cualquier paso, así que abrir el panel ante una selección es lo correcto. Lo
-     que NO se hace es abrir el INSPECTOR DE FIGURA: ese solo se monta si
-     `imagePanelOpen` (`:159-163`), y desde la fase de figuras el clic ya no lo
-     activa por sorpresa (`Step3FiguresTablesWizard` ya no llama a
-     `setImagePanelOpen`). "Optimizar" este efecto para que también abra el panel de
-     imagen devuelve el defecto de §8.3: tocar una figura te saca del inspector sin
-     pedirlo. */
+  /* El panel ya NO se abre solo al seleccionar un elemento cualquiera.
+     El Inspector general (tipo, nivel, contenido) se fue: era una UI sobre la UI
+     de cada fase y abría un cajón cada vez que tocabas un párrafo — sea para
+     leerlo o para mirarlo. Lo que sí abre el panel es una SELECCIÓN CON
+     DESTINO: una referencia (`ReferenceForm`) o una figura con
+     `imagePanelOpen` (`ImageEditPanel`). Seleccionar para leer no abre nada. */
   useEffect(() => {
-    if ((selectedElementId || selectedReferenceId) && doc) setForceRightPanelOpen(true);
-  }, [selectedElementId, selectedReferenceId, doc, setForceRightPanelOpen]);
+    if (selectedReferenceId && doc) setForceRightPanelOpen(true);
+  }, [selectedReferenceId, doc, setForceRightPanelOpen]);
+
+  useEffect(() => {
+    if (imagePanelOpen && selectedElementId && doc) setForceRightPanelOpen(true);
+  }, [imagePanelOpen, selectedElementId, doc, setForceRightPanelOpen]);
 
   /* El efecto que abría el panel al entrar en el paso 4 SE FUE con la rama de
      paso 4, y por el mismo motivo: `App.tsx` EXCLUYE el panel derecho del paso
@@ -158,8 +158,7 @@ export const RightSidePanel: React.FC = () => {
     );
   }
 
-  const hasSelection = !!selectedElementId && !!doc;
-  const hasReference = !hasSelection && !!selectedReferenceId;
+  const hasReference = !!selectedReferenceId && !!doc;
   // ── Imagen seleccionada: el editor de imagen vive DENTRO de este panel
   //    (antes era una cuarta columna propia que aplastaba el documento). ──
   const selectedImage = doc && imagePanelOpen && selectedElementId
@@ -211,15 +210,13 @@ export const RightSidePanel: React.FC = () => {
         padding: '10px 12px', borderBottom: '1px solid var(--border-subtle)',
         background: 'var(--sidebar-bg)',
       }}>
-        {hasSelection ? (
-          <ListChecks size={14} color="var(--accent-primary)" />
-        ) : hasReference ? (
+        {hasReference ? (
           <BookOpen size={14} color="var(--accent-primary)" />
         ) : (
           <FileText size={14} color="var(--accent-primary)" />
         )}
         <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)' }}>
-          {selectedImage ? 'Imagen' : hasSelection ? 'Inspector' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
+          {selectedImage ? 'Imagen' : hasReference ? 'Referencia' : `Documento${currentSection ? ` / ${currentSection}` : ''}`}
         </span>
         <div style={{ flex: 1 }} />
         {/* D1: Toggle del Asistente IA integrado en el header */}
@@ -283,8 +280,6 @@ export const RightSidePanel: React.FC = () => {
               <ImageEditPanel elem={selectedImage} totalFiguras={totalFiguras} />
             </div>
           </>
-        ) : hasSelection ? (
-          <ElementInspector />
         ) : hasReference ? (
           <ReferenceForm key={selectedReferenceId} />
         ) : (
