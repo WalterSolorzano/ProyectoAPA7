@@ -4,8 +4,7 @@ Planes de referencia:
 - `docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md` — plan
   por fases (F0–F10) + §8-bis con tus directivas.
 - `docs/superpowers/specs/2026-09-29-fases-sagradas-design.md` — **qué vive en
-  cada pantalla** y la decisión 3-vs-1 (leelo: es la respuesta a tu pedido de
-  razonar cada fase como un comodín).
+  cada pantalla** y la decisión 3-vs-1.
 
 ## Lo que quedó hecho
 
@@ -13,44 +12,63 @@ Planes de referencia:
 |---|---|---|
 | `25182ff` | **F0** base verde (las 7 guardas + `beautifulsoup4`) | vitest · tsc · pytest 1025/15 |
 | `f8cccc8` | **F4** el índice sin banda navy ni borde azul | vitest · tsc |
-| `80c28a9` | **F3** la tira de portada se borra; el carrusel es la única superficie | vitest 1558 · tsc |
-| `2b8bec5` | **F3** el editor de portada en secciones plegables | vitest 1560 · tsc |
+| `80c28a9` | **F3** la tira de portada se borra; el carrusel es la única superficie | vitest · tsc |
+| `2b8bec5` | **F3** el editor de portada en secciones plegables | vitest · tsc |
 | `efbd194` | **plan** las fases sagradas + la decisión 3-vs-1 | — |
-| `f80d645` | **F4** el general de objetivos sale del documento, no de la posición | vitest 1562 · tsc |
+| `f80d645` | **F4** el general de objetivos sale del documento, no de la posición | vitest · tsc |
+| `7d61902` | **test** viñetas del H2 son del H2 y el H1 las suma (motor clavado) | vitest · tsc |
+| `987e7ac` | **F4** el inspector general se va; el panel no se abre solo | vitest 1564 · tsc · build |
 
-Todo en verde. Build verificado en `25182ff`; los commits siguientes solo tocan
-TS/TSX con tsc limpio.
+Todo verde: vitest **1564**, tsc limpio, build OK.
 
-## Decisiones que ya tomé (con tu mandato de "analiza y decide")
+## Tus tres respuestas, resueltas
 
-1. **Estructura = UNA sola superficie.** Los tres modos no son tres trabajos;
-   dos violan la prueba de pertenencia. Promover/renombrar/diagnosticar pasan a
-   ser **acciones del nodo**. La guarda `focoNoBarraElSelector` **se reescribe**
-   (cambia de sujeto), no se borra. Detalle en el doc de fases sagradas §2.
-2. **Objetivos: la vista se adapta a lo que hay.** General/específicos salen del
-   documento; cada uno con nivel de Bloom, calidad y variantes. Primer paso ya
-   hecho (el agrupamiento); falta la vista.
+**1. El motor de jerarquía: revisado y clavado.**
+El motor YA hacía lo que pediste —`ES_PROSA` incluye `bullet` y
+`numbered_list`; el contenido cuelga del último encabezado abierto, así que las
+viñetas de un H2 son del H2; y `subirConteos` empuja las palabras del H2 al H1—
+pero **no había un test que lo fijara** para una rama con dos H2 hermanos. Ya
+está (`7d61902`), con tu caso exacto (Objetivos → general + específicos, con
+párrafo y lista). Si algo lo rompe, la rama Objetivos volverá a mostrar todo en
+el H1 y los H2 en cero, y la guarda lo dirá. **No había un segundo defecto que
+corregir**: el motor está bien.
 
-## Lo que necesito de vos (corta lista)
+**2. El Inspector: se fue.**
+Borrado `ElementInspector` entero y su rama. Y lo que hacía el estorbo no era
+solo el componente sino **el efecto que abría el panel cada vez que
+seleccionabas un elemento**: eso también se fue. Ahora el panel solo abre ante
+una **selección con destino** —una referencia o una figura con
+`imagePanelOpen`—; seleccionar para leer no abre nada. Comprobado antes de
+borrar que no se pierde nada real: el editor de tabla vive en el lienzo, el chat
+y la fase de figuras; el tipo de elemento se edita en el lienzo. Ver
+`panelDerecho.test.tsx`.
 
-1. **El bug que reportaste sigue sin reproducirse.** «H1 Objetivos con todo el
-   contenido; sus H2 vacíos». `construirJerarquia` asigna la prosa al último
-   encabezado abierto, así que un H2 solo queda vacío si su contenido va **antes**
-   o si el backend lo tipifica con un `type` que no es prosa. **Mandame el
-   `.docx`** (o una captura de la rama «Objetivos» con el árbol abierto) y lo cazo
-   en una pasada.
-2. **¿El Inspector (`RightSidePanel`) se va del todo en las fases donde no
-   aporta?** Dijiste que no le ves uso y que es ruido. En el doc de fases sagradas
-   queda como «se revisa fase por fase»; decime si querés que directamente no se
-   monte en Portada/Estructura y listo.
-3. **El pulso de Estructura** (5 celdas: palabras, balance, fases que faltan,
-   figuras sin leyenda, referencias sin citar): sigue guardado por test. ¿Se
-   queda, se recorta a lo accionable, o se rehace?
+**3. El pulso de 5 celdas — a qué me refería.**
+Es la tira que está arriba de Estructura (`PulsoDocumento.tsx`) y muestra
+exactamente cinco números:
+
+1. **Palabras** del documento,
+2. **Balance** (la rama más corta contra la más larga, en %; dice «no hay con qué
+   comparar» cuando hay un solo capítulo),
+3. **Fases que faltan** (secciones APA 7 ausentes),
+4. **Figuras sin leyenda**,
+5. **Referencias sin citar**.
+
+Mi pregunta era si esa tira se queda tal cual, se recorta a lo accionable, o se
+rehace. Todavía no tengo tu respuesta.
+
+## Lo que necesito de vos (lista corta)
+
+1. **El pulso de 5 celdas**: ¿se queda, se recorta a lo accionable, o se rehace?
+2. **Ecuaciones**: la numeración de ecuación existía **solo** en el inspector
+   borrado. ¿Usás ecuaciones? Si no, queda muerta y no se reubica; si sí, se
+   reubica en la fase que corresponda.
 
 ## Próximo paso, en orden
 
 1. **F4**: ejecutar la superficie única de Estructura (reescribiendo la guarda
-   con vos) + la vista de Objetivos de §2.4.
+   `focoNoBarraElSelector` con vos) + la vista de Objetivos de §2.4 del doc de
+   fases sagradas.
 2. **F3**: miniatura = render real a escala; geometría de un solo módulo.
 3. F2 (carga/mascotas), F6 (referencias), F7 (revisión), F8 (proyectos), F9
    (exportar), F5 (figuras), F10 (LLM).
