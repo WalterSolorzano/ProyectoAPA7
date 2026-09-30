@@ -128,20 +128,27 @@ export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoRes
  *  el documento es un toggle— y antes esta fase abría en el lienzo, que es
  *  exactamente el defecto reportado. "Títulos" y "Cuerpo" no se quitan: hacen
  *  cosas que el índice no hace, y sacarlas sería tapar una pantalla viva para
- *  dejar ver otra. */
+ *  dejar ver otra. Su alcance está además guardado por `focoNoBarraElSelector`:
+ *  con el modo foco prendido el selector tiene que seguir available, o el índice
+ *  es un callejón sin salida.
+ *
+ *  LO QUE SÍ CAMBIÓ. Antes la barra era una banda azul marino con texto blanco
+ *  y píldoras de acento, y el efecto era el de un tablero ajeno pegado arriba de
+ *  la pantalla. Ahora es un segmentado quieto sobre el papel: sin banda navy, sin
+ *  colores literales, sin sombra, con el activo en `--color-accent-soft`. La
+ *  misma información, sin gritar. */
 const StructureTabBar: React.FC<{
   tab: 'indice' | 'headings' | 'body';
   setTab: (t: 'indice' | 'headings' | 'body') => void;
 }> = ({ tab, setTab }) => (
   <div style={{
-    display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 24px',
-    backgroundColor: 'var(--color-navy-header)',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+    display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '8px var(--space-6)',
+    backgroundColor: 'var(--color-bg-surface)',
+    borderBottom: '1px solid var(--color-border-subtle)',
     flexShrink: 0,
-    boxShadow: 'var(--shadow-sm)',
   }}>
-    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.7)', marginRight: '6px' }}>
-      Modo de trabajo:
+    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)', marginRight: 'var(--space-2)' }}>
+      Modo de trabajo
     </span>
     {([['indice', 'Esquema Jerárquico'], ['headings', 'Revisor de Títulos APA 7'], ['body', 'Editor de Prosa']] as const).map(([key, label]) => {
       const active = tab === key;
@@ -151,17 +158,17 @@ const StructureTabBar: React.FC<{
           type="button"
           onClick={() => setTab(key)}
           style={{
-            padding: '6px 18px',
-            borderRadius: 'var(--radius-full, 9999px)',
+            padding: '5px 14px',
+            borderRadius: 'var(--radius-md)',
             fontSize: 'var(--text-xs)',
             fontWeight: active ? 700 : 500,
             cursor: 'pointer',
-            border: active ? '1px solid var(--color-accent)' : '1px solid rgba(255, 255, 255, 0.15)',
+            border: '1px solid',
+            borderColor: active ? 'var(--color-accent)' : 'var(--color-border-subtle)',
             fontFamily: 'inherit',
-            background: active ? 'var(--color-accent)' : 'rgba(255, 255, 255, 0.08)',
-            color: 'var(--color-text-on-accent)',
-            boxShadow: active ? '0 2px 8px rgba(79, 124, 255, 0.35)' : 'none',
-            transition: 'all var(--transition-fast, 150ms ease)',
+            background: active ? 'var(--color-accent-soft)' : 'transparent',
+            color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+            transition: 'background var(--transition-fast), color var(--transition-fast)',
           }}
         >
           {label}

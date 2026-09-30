@@ -262,6 +262,22 @@ describe('el documento entero no es el centro', () => {
     expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0);
   });
 
+  it('la fila no usa la banda navy ni un borde de acento por nivel', () => {
+    /* El defecto reportado: cada H1 salía como una banda azul marino con texto
+     * blanco y un borde azul a la izquierda, y el conjunto se leía como un
+     * tablero de alarmas. La jerarquía tiene que leerse por tipografía, no por
+     * un color que la app reserva para lo que hay que mirar. */
+    const { container } = render(
+      <IndiceEstructura elementos={[h1('1. Introducción'), h2('1.1 Antecedentes'), parrafo(200)]} />,
+    );
+    const filas = Array.from(container.querySelectorAll('.nodo-indice-row')) as HTMLElement[];
+    expect(filas.length).toBeGreaterThan(0);
+    for (const fila of filas) {
+      expect(fila.style.backgroundColor).not.toBe('var(--color-navy-header)');
+      expect(fila.style.borderLeft).not.toContain('var(--color-accent)');
+    }
+  });
+
   it('montado, el documento NO está en el árbol hasta que se lo prende', () => {
     const documento = (
       <>
