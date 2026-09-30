@@ -344,6 +344,18 @@ CLASSIFICATION_SYSTEM_PROMPT: str = (
 
 
 def _classification_cache_key(elem: ElementModel) -> str:
+    # El import va ACÁ, no arriba: `modules.ai_client` importa ESTE módulo
+    # (`ai_client.py:13`, `PROVIDER_CAPACITY` y `_get_active_providers`), así que
+    # un import a nivel de módulo sería un ciclo.
+    #
+    # Y va acá y no en `classify_document_with_llm`, que es donde estaba: un
+    # import dentro de esa función deja el nombre en el LOCAL de esa función, y
+    # esta es OTRA función. Sus globales no lo ven, y cada elemento se comía un
+    # `NameError: name '_compute_text_hash' is not defined`. La clasificación
+    # entera devolvía 500 y el documento se quedaba con los tipos con los que
+    # entró: se veía como si la app fuera vieja, y la app estaba rota.
+    from modules.ai_client import _compute_text_hash
+
     payload = {
         "prompt_version": 2,
         "text": elem.text or "",
@@ -446,8 +458,12 @@ async def classify_document_with_llm(
     _classify_progress[session_id]["estimated_time_remaining_seconds"] = est_time
 
     # Load cache (now imported from ai_client to share state)
+    #
+    # `_compute_text_hash` NO está en esta lista a propósito: quien lo necesita
+    # (`_classification_cache_key`) lo resuelve adentro, que es el único lugar
+    # donde el nombre funciona sin ciclo. Acá adentro quedaría en el local de
+    # esta función, que es justo el bug que se está arreglando.
     from modules.ai_client import (
-        _compute_text_hash,
         _load_cache,
         _save_cache,
         execute_with_specialty,
