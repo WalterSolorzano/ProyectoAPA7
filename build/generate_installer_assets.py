@@ -1,227 +1,295 @@
 """WordAPA7 — Generador de recursos de marca del instalador NSIS.
 
-Assets visuales con la identidad de la app (mascota + Baloo 2 + azul #4f7cff):
- - build/icon.ico                -> icono del instalador / app / desinstalador
- - build/installerHeader.bmp     -> MUI_HEADERIMAGE_BITMAP (150x57)
- - build/installerSidebar.bmp    -> MUI_WELCOMEFINISHPAGE_BITMAP (164x314)
- - build/uninstallerSidebar.bmp  -> MUI_UNWELCOMEFINISHPAGE_BITMAP (164x314)
+Identidad visual plana Fluent/Word 365, la misma del logo que la app ya
+muestra en su rail (src/components/shared/AppBrandLogo.tsx): cuadrado de
+acento, hoja blanca, esquina plegada. Cero gradientes, cero mascota
+cartoon y cero decoración.
 
-Diseño: alto contraste, bordes redondeados y fuente cartoon Baloo 2
-(la misma que usa la app), con la cinta "docx -> APA 7" bien alineada.
+ - build/icon.ico                -> icono de app / instalador / desinstalador
+ - build/installerHeader.bmp     -> MUI header             (150x57)
+ - build/installerSidebar.bmp    -> welcome / finish page  (164x314)
+ - build/uninstallerSidebar.bmp  -> welcome / finish page  (164x314)
+
+Los tres tamaños de BMP son los que MUI2 exige: si cambian, la compilación
+del instalador falla. Los tokens de color salen de src/styles/design-tokens.md.
+
+El .ico es adaptativo: de 48px hacia arriba dibuja las tres líneas de texto
+del logo; de 32px hacia abajo las omite, porque a ese tamaño se convierten
+en una mancha. El contenedor ICO se escribe a mano (frames BMP con alfa
+hasta 128px y PNG para 256) en lugar de dejar que PIL reescale un único
+dibujo, que es justo lo que el icono adaptativo necesita.
 """
 
 from __future__ import annotations
 
+import io
+import struct
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent
-BALOO = ROOT.parent / "node_modules/@fontsource/baloo-2/files"
 
-# ── Paleta de marca (design-tokens.md) ──────────────────────────────────────
-BRAND = (79, 124, 255)          # #4f7cff
-BRAND_HOVER = (123, 160, 255)   # #7ba0ff
-GRAD_TOP = (96, 135, 255)       # #6087ff
-GRAD_MID = (79, 124, 255)       # #4f7cff
-GRAD_BOTTOM = (34, 70, 196)     # #2246c4
-FRAME = (188, 208, 255)         # #bcd0ff (borde del marco redondeado)
-NAVY = (20, 33, 61)             # #14213d (texto oscuro de contraste)
-SOFT = (222, 231, 255)          # #dee7ff
-YELLOW = (255, 201, 77)         # #ffc94d (cinta "docx -> APA 7")
-YELLOW_DEEP = (226, 160, 30)    # #e2a01e (sombra de la cinta)
-WHITE = (255, 255, 255)
+# ── Tokens de marca (src/styles/design-tokens.md) ──────────────────────────
+ACCENT = (79, 124, 255)         # #4f7cff  --color-accent
+PAPER = (255, 255, 255)         # #ffffff  --color-bg-surface
+SURFACE_ALT = (241, 245, 249)   # #f1f5f9  --color-bg-surface-alt
+BORDER = (226, 232, 240)        # #e2e8f0  --color-border-subtle
+TEXT_MAIN = (26, 26, 46)        # #1a1a2e  --color-text-primary
+TEXT_MUTED = (107, 107, 128)    # #6b6b80  --color-text-tertiary
+SLATE = (96, 94, 92)            # #605e5c  versión sobria para el desinstalador
 
-PAGE_FILL = (255, 204, 128)     # #FFCC80
-PAGE_STROKE = (230, 81, 0)      # #E65100
-FOLD_FILL = (255, 224, 178)     # #FFE0B2
-FACE = (78, 52, 46)             # #4E342E
+# Geometría del logo en la grid de 24 unidades de AppBrandLogo.
+DOC_BOX = (6.5, 5.0, 18.0, 19.0)
+FOLD = (14.5, 5.0, 8.5)
+TEXT_BARS = ((9.0, 11.5, 12.0), (9.0, 14.0, 15.0), (9.0, 16.5, 13.5))
+CORNER_RATIO = 5.5 / 24  # rx="5.5" sobre viewBox 24
+
+# ── Escala de render ──────────────────────────────────────────────────────
+# Todo se dibuja 8x más grande y se reduce con LANCZOS: es lo que da bordes
+# suaves sin depender de un motor de antialiasing externo.
+SS = 8
+
+# ── Tipografía: chrome nativo del instalador (Segoe UI) ───────────────────
+FONT_DIR = Path(r"C:\Windows\Fonts")
+FONT_FILES = {
+    "regular": ("segoeui.ttf", "DejaVuSans.ttf"),
+    "semibold": ("seguisb.ttf", "segoeuib.ttf", "DejaVuSans-Bold.ttf"),
+    "bold": ("segoeuib.ttf", "seguisb.ttf", "DejaVuSans-Bold.ttf"),
+}
+_FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
 
-def baloo(weight: str, size: int) -> ImageFont.FreeTypeFont:
-    path = BALOO / f"baloo-2-latin-{weight}-normal.woff"
-    if not path.exists():
-        raise FileNotFoundError(f"Fuente Baloo 2 no encontrada: {path}")
-    return ImageFont.truetype(str(path), size)
-
-
-def v3_gradient(w: int, h: int, top, mid, bottom) -> Image.Image:
-    img = Image.new("RGB", (w, h))
-    draw = ImageDraw.Draw(img)
-    mid_y = int(h * 0.45)
-    for y in range(h):
-        if y < mid_y:
-            t = y / max(1, mid_y)
-            c0, c1 = top, mid
+def font(weight: str, size: int) -> ImageFont.FreeTypeFont:
+    key = (weight, size)
+    if key not in _FONT_CACHE:
+        for name in FONT_FILES[weight]:
+            path = FONT_DIR / name
+            if path.exists():
+                _FONT_CACHE[key] = ImageFont.truetype(str(path), size)
+                break
         else:
-            t = (y - mid_y) / max(1, h - 1 - mid_y)
-            c0, c1 = mid, bottom
-        color = tuple(int(c0[i] + (c1[i] - c0[i]) * t) for i in range(3))
-        draw.line([(0, y), (w, y)], fill=color)
+            raise FileNotFoundError(
+                f"Ninguna fuente disponible para '{weight}': {FONT_FILES[weight]}"
+            )
+    return _FONT_CACHE[key]
+
+
+def draw_logo(
+    draw: ImageDraw.ImageDraw,
+    ox: float,
+    oy: float,
+    size: float,
+    *,
+    accent=ACCENT,
+    lines: bool = True,
+) -> None:
+    """Marca plana idéntica al SVG del rail, escalada a `size` píxeles."""
+    k = size / 24.0
+
+    # Cuadrado de acento
+    draw.rounded_rectangle(
+        [ox, oy, ox + size, oy + size], radius=CORNER_RATIO * size, fill=accent
+    )
+
+    # Hoja blanca
+    dx0, dy0, dx1, dy1 = DOC_BOX
+    draw.rounded_rectangle(
+        [ox + dx0 * k, oy + dy0 * k, ox + dx1 * k, oy + dy1 * k],
+        radius=0.8 * k,
+        fill=PAPER,
+    )
+
+    # Esquina plegada: el SVG deja el triángulo superior derecho fuera de la
+    # hoja; aquí se repinta en acento, con 0.4k de holgura para tapar el
+    # redondeo de la esquina del rectángulo blanco.
+    fx, fy0, fy1 = FOLD
+    draw.polygon(
+        [
+            (ox + (fx - 0.1) * k, oy + (fy0 - 0.4) * k),
+            (ox + (dx1 + 0.4) * k, oy + (fy0 - 0.4) * k),
+            (ox + (dx1 + 0.4) * k, oy + (fy1 + 0.5) * k),
+        ],
+        fill=accent,
+    )
+
+    if lines:
+        width = max(1.0, 1.5 * k)
+        for x0, y, x1 in TEXT_BARS:
+            draw.rounded_rectangle(
+                [ox + x0 * k, oy + y * k, ox + x1 * k, oy + y * k + width],
+                radius=width / 2,
+                fill=accent,
+            )
+
+
+def render_logo(size: int, *, lines: bool, accent=ACCENT) -> Image.Image:
+    img = Image.new("RGBA", (size * SS, size * SS), (0, 0, 0, 0))
+    draw_logo(ImageDraw.Draw(img), 0, 0, size * SS, accent=accent, lines=lines)
+    img = img.resize((size, size), Image.LANCZOS)
+    # LANCZOS deja alfa residual (1..8/255) fuera del cuadrado redondeado.
+    # A tamaño de barra de tareas eso se lee como suciedad, así que se recorta.
+    img.putalpha(img.getchannel("A").point(lambda v: 0 if v < 8 else v))
     return img
 
 
-def draw_mascot(draw: ImageDraw.Draw, s: float, ox: float, oy: float, mouth: str = "happy") -> None:
-    stroke = max(1, round(2 * s))
-    draw.rounded_rectangle(
-        [6 * s + ox, 6 * s + oy, 52 * s + ox, 58 * s + oy],
-        radius=4 * s, fill=PAGE_FILL, outline=PAGE_STROKE, width=stroke,
+# ── Contenedor ICO escrito a mano ─────────────────────────────────────────
+ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
+LINES_MIN_SIZE = 48  # por debajo, las tres líneas se vuelven mancha
+
+
+def _bmp_frame(img: Image.Image) -> bytes:
+    """Frame ICO en BMP 32-bit: BITMAPINFOHEADER + BGRA de abajo hacia arriba
+    + máscara AND (vacía, el canal alfa manda)."""
+    img = img.convert("RGBA")
+    w, h = img.size
+    px = img.load()
+    data = bytearray()
+    for y in range(h - 1, -1, -1):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            data += bytes((b, g, r, a))
+    header = struct.pack(
+        "<IiiHHIIiiII", 40, w, h * 2, 1, 32, 0, len(data), 0, 0, 0, 0
     )
-    draw.polygon(
-        [(52 * s + ox, 6 * s + oy), (52 * s + ox, 16 * s + oy), (42 * s + ox, 6 * s + oy)],
-        fill=FOLD_FILL, outline=PAGE_STROKE,
-    )
-    for x0, y0, x1, y1 in [(14, 16, 44, 18.5), (14, 22, 39, 24.5), (14, 28, 42, 30.5), (14, 34, 32, 36.5)]:
-        draw.rounded_rectangle(
-            [x0 * s + ox, y0 * s + oy, x1 * s + ox, y1 * s + oy],
-            radius=1.2 * s, fill=PAGE_STROKE,
-        )
-    for cx in (22, 42):
-        draw.ellipse([cx * s - 4 * s + ox, 46 * s - 2.4 * s + oy, cx * s + 4 * s + ox, 46 * s + 2.4 * s + oy], fill=FOLD_FILL)
-    for cx in (26, 38):
-        draw.ellipse([cx * s - 2.6 * s + ox, 44 * s - 2.6 * s + oy, cx * s + 2.6 * s + ox, 44 * s + 2.6 * s + oy], fill=FACE)
-    draw.ellipse([27 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 27 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=WHITE)
-    draw.ellipse([39 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 39 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=WHITE)
-    if mouth == "happy":
-        draw.arc([27 * s + ox, 49 * s + oy, 37 * s + ox, 55 * s + oy], 200, 340, fill=FACE, width=max(1, round(2.5 * s)))
-    elif mouth == "excited":
-        draw.pieslice([26 * s + ox, 48 * s + oy, 38 * s + ox, 57 * s + oy], 200, 340, fill=FACE)
+    mask_stride = ((w + 31) // 32) * 4
+    return header + bytes(data) + b"\x00" * (mask_stride * h)
 
 
-def draw_arrow(draw: ImageDraw.Draw, x1: float, y: float, x2: float, color, width: int = 3) -> None:
-    draw.line([(x1, y), (x2, y)], fill=color, width=width)
-    h = max(6, width * 2)
-    draw.polygon([(x2, y), (x2 - h, y - h / 1.6), (x2 - h, y + h / 1.6)], fill=color)
+def save_ico(path: Path, frames: list[tuple[int, Image.Image]]) -> None:
+    blobs: list[bytes] = []
+    for size, img in frames:
+        if size >= 256:
+            buf = io.BytesIO()
+            img.save(buf, "PNG")
+            blobs.append(buf.getvalue())
+        else:
+            blobs.append(_bmp_frame(img))
 
+    entries = []
+    offset = 6 + 16 * len(frames)
+    for (size, _), blob in zip(frames, blobs):
+        entries.append((0 if size >= 256 else size, len(blob), offset))
+        offset += len(blob)
 
-def shadow_text(draw, xy, text, font, fill, shadow=(22, 33, 77), offset=(0, 3)):
-    draw.text((xy[0] + offset[0], xy[1] + offset[1]), text, font=font, fill=shadow)
-    draw.text(xy, text, font=font, fill=fill)
+    with open(path, "wb") as fh:
+        fh.write(struct.pack("<HHH", 0, 1, len(entries)))
+        for size, length, off in entries:
+            fh.write(struct.pack("<BBBBHHII", size, size, 0, 0, 1, 32, length, off))
+        for blob in blobs:
+            fh.write(blob)
 
 
 def build_icon() -> None:
-    size = 256
-    radius = 56
-    img = v3_gradient(size, size, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
-    mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=255)
-    img = img.resize((size, size))
-    bg = Image.new("RGB", (size, size), (0, 0, 0))
-    bg.paste(img, (0, 0), mask)
-    img = bg
-
-    draw = ImageDraw.Draw(img)
-    # Disco de marca que eleva la mascota
-    draw.ellipse([74, 82, 182, 190], fill=BRAND_HOVER)
-    draw.ellipse([82, 90, 174, 182], fill=BRAND)
-
-    s = 2.9
-    draw_mascot(draw, s, 128 - 29 * s, 130 - 32 * s, mouth="excited")
-
-    img.save(ROOT / "icon.ico", format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    print("[assets] icon.ico generado")
+    frames = [
+        (size, render_logo(size, lines=size >= LINES_MIN_SIZE))
+        for size in ICON_SIZES
+    ]
+    save_ico(ROOT / "icon.ico", frames)
+    print(
+        "[assets] icon.ico generado "
+        f"({', '.join(f'{s}px' for s, _ in frames)}; "
+        f"líneas desde {LINES_MIN_SIZE}px)"
+    )
 
 
 def build_header() -> None:
+    """MUI_HEADERIMAGE_BITMAP: 150x57, sin texto incrustado (lo pone MUI)."""
     w, h = 150, 57
-    img = v3_gradient(w, h, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
+    img = Image.new("RGB", (w * SS, h * SS), PAPER)
     draw = ImageDraw.Draw(img)
 
-    font = baloo("800", 22)
-    shadow_text(draw, (12, 12), "WordAPA7", font, WHITE, shadow=(23, 51, 148), offset=(0, 3))
+    draw_logo(draw, 12 * SS, (h - 32) / 2 * SS, 32 * SS, lines=True)
+    draw.text(
+        (54 * SS, h / 2 * SS),
+        "WordAPA7",
+        font=font("bold", 20 * SS),
+        fill=TEXT_MAIN,
+        anchor="lm",
+    )
 
-    # Filete redondeado de acento en el borde inferior
-    draw.rounded_rectangle([10, h - 7, w - 10, h - 3], radius=2, fill=BRAND_HOVER)
+    # Filete inferior de 1px: el borde que separa el header de la página
+    draw.rectangle([0, (h - 1) * SS, w * SS, h * SS], fill=BORDER)
 
-    img.convert("RGB").save(ROOT / "installerHeader.bmp", "BMP")
-    print("[assets] installerHeader.bmp generado")
+    img.resize((w, h), Image.LANCZOS).save(ROOT / "installerHeader.bmp", "BMP")
+    print("[assets] installerHeader.bmp generado (150x57)")
 
 
-def build_sidebar() -> None:
+def build_sidebar(*, uninstaller: bool = False) -> None:
+    """MUI_WELCOMEFINISHPAGE_BITMAP / MUI_UNWELCOMEFINISHPAGE_BITMAP: 164x314.
+
+    Misma retícula en ambos; el desinstalador solo cambia la marca y la
+    etiqueta a pizarra para leerse como una operación sobria, sin alarmismo.
+    """
     w, h = 164, 314
-    img = v3_gradient(w, h, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
+    accent = SLATE if uninstaller else ACCENT
+
+    img = Image.new("RGB", (w * SS, h * SS), PAPER)
     draw = ImageDraw.Draw(img)
 
-    # Círculos decorativos suaves en tonos de marca
-    draw.ellipse([-30, 220, 50, 310], fill=(30, 62, 172))
-    draw.ellipse([115, -25, 220, 85], fill=(63, 100, 214))
-    draw.ellipse([125, 260, 195, 330], fill=(28, 58, 158))
+    # Marca centrada
+    mark = 56
+    draw_logo(draw, (w - mark) / 2 * SS, 36 * SS, mark * SS, accent=accent, lines=True)
 
-    # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=FRAME, width=2)
+    # Wordmark + tagline
+    draw.text(
+        (w / 2 * SS, 112 * SS),
+        "WordAPA7",
+        font=font("bold", 21 * SS),
+        fill=TEXT_MAIN,
+        anchor="mm",
+    )
+    draw.text(
+        (w / 2 * SS, 135 * SS),
+        "Desinstalador" if uninstaller else "Edición Editorial",
+        font=font("regular", 12 * SS),
+        fill=TEXT_MUTED,
+        anchor="mm",
+    )
 
-    # Mascota grande
-    s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="excited")
+    # Separador de 1px
+    draw.rectangle([20 * SS, 154 * SS, (w - 20) * SS, 155 * SS], fill=BORDER)
 
-    # Título + tagline con Baloo 2
-    font_title = baloo("800", 30)
-    font_tag = baloo("600", 14)
-    title = "WordAPA7"
-    tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(23, 51, 148), offset=(0, 2))
-    tag = "Edición Editorial"
-    tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=SOFT)
+    # Dos líneas de contexto: sin ellas el centro de la columna queda vacío.
+    caption = (
+        ("Se remueve la app", "y el complemento de Word")
+        if uninstaller
+        else ("Diagnóstico APA 7", "en tu documento")
+    )
+    for i, line in enumerate(caption):
+        draw.text(
+            (w / 2 * SS, (182 + i * 18) * SS),
+            line,
+            font=font("regular", 11 * SS),
+            fill=TEXT_MUTED,
+            anchor="mm",
+        )
 
-    # Píldora de marca elegante y minimalista
-    font_badge = baloo("700", 12)
-    px0, py0, px1, py1 = 18, 256, 146, 288
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(45, 82, 205), outline=FRAME, width=1)
-    badge_txt = "Normas APA 7ma Ed."
-    tw_b = draw.textlength(badge_txt, font=font_badge)
-    draw.text(((w - tw_b) / 2, py0 + 6), badge_txt, font=font_badge, fill=WHITE)
+    # Píldora de estado, superficie sutil y borde de 1px
+    pill = "Limpieza segura" if uninstaller else "Normas APA 7ma Ed."
+    px0, py0, px1, py1 = 18, 258, 146, 290
+    draw.rounded_rectangle(
+        [px0 * SS, py0 * SS, px1 * SS, py1 * SS],
+        radius=8 * SS,
+        fill=SURFACE_ALT,
+        outline=BORDER,
+        width=SS,
+    )
+    draw.text(
+        ((px0 + px1) / 2 * SS, (py0 + py1) / 2 * SS),
+        pill,
+        font=font("semibold", 11 * SS),
+        fill=TEXT_MUTED,
+        anchor="mm",
+    )
 
-    img.convert("RGB").save(ROOT / "installerSidebar.bmp", "BMP")
-    print("[assets] installerSidebar.bmp generado")
-
-
-def build_uninstaller_sidebar() -> None:
-    """Genera un sidebar diferenciado para el desinstalador con paleta slate/navy y mensaje de limpieza."""
-    w, h = 164, 314
-    UN_TOP = (51, 65, 85)       # slate-700
-    UN_MID = (30, 41, 59)       # slate-800
-    UN_BOTTOM = (15, 23, 42)    # slate-900
-    UN_FRAME = (148, 163, 184)  # slate-400
-
-    img = v3_gradient(w, h, UN_TOP, UN_MID, UN_BOTTOM)
-    draw = ImageDraw.Draw(img)
-
-    # Círculos decorativos en tonos slate profundos
-    draw.ellipse([-30, 220, 50, 310], fill=(20, 30, 48))
-    draw.ellipse([115, -25, 220, 85], fill=(40, 53, 75))
-
-    # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=UN_FRAME, width=2)
-
-    # Mascota con expresión tranquila
-    s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="happy")
-
-    # Título + tagline de desinstalación con Baloo 2
-    font_title = baloo("800", 30)
-    font_tag = baloo("600", 14)
-    title = "WordAPA7"
-    tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(10, 15, 30), offset=(0, 2))
-    tag = "Desinstalador"
-    tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=(203, 213, 225))
-
-    # Píldora de estado sobria
-    font_badge = baloo("700", 12)
-    px0, py0, px1, py1 = 18, 256, 146, 288
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(20, 30, 48), outline=UN_FRAME, width=1)
-    pill_text = "Limpieza Segura"
-    tw_pill = draw.textlength(pill_text, font=font_badge)
-    draw.text(((w - tw_pill) / 2, py0 + 6), pill_text, font=font_badge, fill=(241, 245, 249))
-
-    img.convert("RGB").save(ROOT / "uninstallerSidebar.bmp", "BMP")
-    print("[assets] uninstallerSidebar.bmp diferenciado generado")
+    name = "uninstallerSidebar.bmp" if uninstaller else "installerSidebar.bmp"
+    img.resize((w, h), Image.LANCZOS).save(ROOT / name, "BMP")
+    print(f"[assets] {name} generado (164x314)")
 
 
 if __name__ == "__main__":
     build_icon()
     build_header()
     build_sidebar()
-    build_uninstaller_sidebar()
+    build_sidebar(uninstaller=True)

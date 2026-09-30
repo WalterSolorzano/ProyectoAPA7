@@ -18,6 +18,7 @@ import { type DocumentStats, formatDocumentAPA7, getDocumentText } from './offic
 import { LiveAssistantPanel } from './components/LiveAssistantPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { backend, OFFLINE_TOAST_MESSAGE, type AuditDocumentResult } from './api/backend'
+import { activarAperturaAutomaticaDelPanel } from './office/panelAutoOpen'
 import {
   ZapIcon,
   FileTextIcon,
@@ -73,8 +74,14 @@ export const App: React.FC = () => {
 
   // ── Heartbeat: avisa al backend que el add-in está vivo ──
   // Usa backend.heartbeat() (URL descubierta) en vez de fetch hardcodeado a :8742.
+  // El primer latido que sale bien es tambien el momento de pedirle a Word que
+  // abra este panel solo la proxima vez: no antes, porque si el motor no
+  // responde no hay razon para que el panel se aparezca en cada documento.
   useEffect(() => {
-    backend.heartbeat().catch(() => {})
+    backend
+      .heartbeat()
+      .then(() => activarAperturaAutomaticaDelPanel())
+      .catch(() => {})
     const hb = setInterval(() => backend.heartbeat().catch(() => {}), 60000)
     // Anti-stale: identificar el motor que responde y registrar en consola
     void backend.fetchBuildInfo().then((info) => {

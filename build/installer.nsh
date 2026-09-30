@@ -3,17 +3,15 @@
 ; ANTES del template principal, por lo que puede definir macros y defines
 ; de MUI2 (welcome/finish/colores) que el resto del script consume.
 
-; ── One-click: mínima fricción (oneClick: true en electron-builder.yml) ────
-; Con oneClick: true, electron-builder NO muestra página de bienvenida ni
-; de elección de carpeta. El instalador muestra una sola barra de progreso,
-; se instala en %LOCALAPPDATA%\Programs\WordAPA7\ (sin UAC) y al terminar
-; muestra la página de finalización (MUI_FINISHPAGE) con el checkbox de
-; "Abrir WordAPA7" (runAfterFinish: true).
+; ── Instalador asistido (oneClick: false en electron-builder.yml) ─────────
+; Con oneClick: false, electron-builder SÍ muestra la página de bienvenida
+; (vía customWelcomePage, más abajo) y la de finalización (MUI_FINISHPAGE,
+; con el checkbox de "Abrir WordAPA7" por runAfterFinish: true). No hay
+; página de elección de carpeta: allowToChangeInstallationDirectory es false,
+; así que se instala en %LOCALAPPDATA%\Programs\WordAPA7\ sin UAC.
 ;
-; La macro customWelcomePage se conserva por compatibilidad: si en el futuro
-; se vuelve a oneClick: false, las páginas de bienvenida con branding se
-; muestran automáticamente. Con oneClick: true, electron-builder no llama
-; a esta macro y las defines son simplemente ignoradas (inofensivas).
+; Por eso las defines de abajo NO son inertes: son el texto y los colores que
+; el usuario ve durante la instalación.
 
 ; ── Instalación por usuario (sin UAC) ──────────────────────────────────────
 ; perMachine: false en electron-builder.yml instala en
@@ -59,15 +57,19 @@
 !define MUI_UNTEXT_FINISH_INFO_TITLE "Desinstalación completada"
 !define MUI_UNTEXT_FINISH_INFO_TEXT "WordAPA7 y su integración con Microsoft Word fueron desinstalados correctamente."
 
-; ── Identidad visual (accent #4f7cff, tokens de design-tokens.md) ─────────
+; ── Identidad visual (Fluent/Word 365, tokens de design-tokens.md) ────────
+; Acento #4f7cff · superficies #ffffff/#f1f5f9 · borde #e2e8f0 · navy #1a1a2e.
+; Los bitmaps del instalador (build/*.bmp) ya vienen en esos tokens, así que
+; el fondo de página debe ser blanco puro: cualquier tinte haría un parche
+; visible al lado de la sidebar.
 BrandingText "WordAPA7 · Edición Editorial"
 
-; Fondo de las páginas en tono azul claro de marca con texto en azul marino
-!define MUI_BGCOLOR "DEE7FF"
-!define MUI_TEXTCOLOR "14213D"
+; Página blanca con texto navy (--color-bg-surface / --color-text-primary)
+!define MUI_BGCOLOR "FFFFFF"
+!define MUI_TEXTCOLOR "1A1A2E"
 
 ; Barra de progreso fluida y cabeceras limpias
-!define MUI_INSTFILESPAGE_COLORS "14213d 4f7cff"
+!define MUI_INSTFILESPAGE_COLORS "1a1a2e 4f7cff"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
 !define MUI_PAGE_HEADER_TEXT "Instalando componentes"
 !define MUI_PAGE_HEADER_SUBTEXT "Configuración automática en tu equipo"

@@ -295,6 +295,107 @@ superficie se toma con la skill `impeccable` al ejecutar su fase.
 
 ---
 
+## 6-bis. Fuera de las fases: dónde más aplica «pocos controles, categorizados» (revisado 2026-09-29)
+
+Superficies que **no** son una fase del editor: barra, menús, modales y ajustes.
+Mismo principio de §6 y de `plan-correccion-por-fases-design.md` §8-bis.2: si una
+UI tiene N controles sueltos, se agrupan en dos categorías declaradas, no en N
+botones.
+
+Revisado contra el código de hoy. Todo lo que ya estaba hecho o no aplicaba se
+borró de la lista (queda anotado en §6-bis.4 para que nadie lo re-descubra).
+Los tres puntos que seguían abiertos **se ejecutaron el 2026-09-29**.
+
+### 6-bis.1 Módulos APA — el caso exacto de «N controles, dos categorías» (HECHO)
+
+Lo que había:
+
+- `src/components/toolbar/APAModuleToggles.tsx` — cinco módulos en checklist
+  plano: Párrafos & Sangrías, Jerarquía de Títulos, Tablas APA 7, Figuras &
+  Ilustraciones, Referencias & Fuentes.
+- `src/components/quick/ExpressQuickTransformModal.tsx` — los mismos alcances
+  otra vez, con otra taxonomía (fusionaba todo el texto en un solo ítem).
+- Ninguna constante compartida.
+
+**Y un defecto que el inventario destapó:** el motor solo entiende tres alcances
+(`VALID_SCOPES = ("texto", "tablas_imagenes", "bibliografia")` en
+`python/modules/scoped_apply.py:29`) y **rechaza** cualquier otro con
+`ValueError`. Los cinco módulos finos no eran más control: apagar «Párrafos &
+Sangrías» mandaba `["titulos", …]`, el backend lo rechazaba y
+`documentSlice.exportDocx` caía al formato completo con un aviso. La pantalla
+prometía una parte y el `.docx` salía entero.
+
+Decisión ejecutada: **una** fuente declarada, `src/lib/modulosApa.ts`, con los
+**tres** módulos del motor en dos categorías.
+
+| Categoría | Módulo | Alcance del motor |
+|---|---|---|
+| Texto | Texto y títulos | `texto` |
+| Objetos y fuentes | Tablas y figuras | `tablas_imagenes` |
+| Objetos y fuentes | Referencias y fuentes | `bibliografia` |
+
+Se unificó del lado del motor, no de la pantalla: un control más fino que el
+alcance real es una mentira con forma de checkbox. La consumen
+`APAModuleToggles`, `ExpressQuickTransformModal` y —para no volver a mandar
+alcances crudos— `documentSlice.exportDocx`, que ahora traduce con `alcancesDe`
+antes de llamar a `scopedApply`. Misma regla que `RULE_SCOPES`
+(`python/modules/phase_scope.py`): el dato se declara una sola vez.
+
+### 6-bis.2 Menú de desborde de la barra (HECHO)
+
+`ToolbarOverflowMenu.tsx` tenía ocho entradas y dos paneles inline separados por
+tres `Separador` sin nombre: nada decía qué era «documento» y qué era «app».
+Ahora son dos grupos con nombre —**Documento** (Inicio · Deshacer · Rehacer ·
+Copiar PDF para WhatsApp) y **Sistema** (Puntuación APA · Módulos APA ·
+Complemento de Word · Actualización · Tema · Ajustes)—, cada uno con
+`role="group"` y `aria-label`. El panel de módulos se quedó inline y etiquetado:
+convertirlo en un popover dentro de un popover habría sido peor que el defecto.
+
+### 6-bis.3 Configuración de formato en Inicio (HECHO)
+
+`Step0QuickStart.tsx` repetía en la portada de Inicio la misma configuración de
+Ajustes: un **segundo** selector de perfil (además del atajo de la barra) y el
+tipo de portada, que ya viven en Ajustes → Documento y Ajustes → Formato. El
+bloque se borró; el atajo de perfil del primer paso se queda, que es lo que sirve
+antes de subir un documento. Mismos datos, un solo lugar de edición.
+
+### 6-bis.4 Ya hecho — no volver a inventariar
+
+Revisado contra el código de hoy; **borrado** de la lista de candidatos.
+
+| Superficie | Por qué no aplica |
+|---|---|
+| `inspector/ImageEditPanel.tsx` | Ya tiene cuatro pestañas (`:385-389`): Formato · Texto · Estilo · Revisión. Categorizado. |
+| `chat/DocumentAIChat.tsx` | Ya tiene dos pestañas y chips por categoría (Todas · Figuras · Tablas, `:660-709`). |
+| `project/ProjectFolderModal.tsx` | Ya está partido en «Sección de Documentos» y «Sección de Recursos e Imágenes», cada una con su propio agregar (`:250`, `:357`). |
+| `layout/FileMenu.tsx` | Sidebar de cinco páginas más secciones nombradas («Acciones rapidas», «Estructura del documento»). |
+| `settings/*` | Hub de cinco pestañas; ningún tab pasa de cuatro botones. Formato ya son siete secciones plegables. |
+| `validator/ValidatorView.tsx` | Los botones son acciones por fila (`Ir al documento`, sugerencia IA), no un volcado de controles. |
+| `canvas/InlineAILens.tsx` | Una barra contextual de cuatro acciones; es el patrón correcto. |
+| `wizard/CoverStrategyCard.tsx` | Es una tarjeta con sus acciones, no una barra de controles. |
+| `shared/NIMDiagnosticsModal.tsx` | Ya tiene tres pestañas. |
+| `wizard/CoverEditorPanel.tsx` | Ya son tres secciones plegables (F3). |
+
+Y las fases F5–F9 (Figuras, Referencias, Revisión, Exportar) ya están en §6; no se
+re-inventarían acá.
+
+### 6-bis.5 Invariante (ahora con guarda)
+
+Una categoría de controles se declara **una vez** y la consumen todas las
+pantallas que la muestran. `src/lib/modulosApa.ts` es la fuente, y
+`src/__tests__/modulosApa.test.ts` es la guarda, con dos mitades:
+
+- espeja `VALID_SCOPES` a mano: si el motor suma un alcance, el test y la fuente
+  tienen que moverse juntos o se cae;
+- prohíbe que `APAModuleToggles.tsx` o `ExpressQuickTransformModal.tsx` vuelvan
+  a escribir la lista: lee el fuente y rechaza el literal de un alcance.
+
+`src/__tests__/modulosApaMontados.test.tsx` cierra el círculo: agrega un módulo a
+`MODULOS_APA` y las dos pantallas tienen que dibujarlo. El tercer consumidor es
+`documentSlice.exportDocx`, cubierto por `exportAlcancesValidos.test.ts`.
+
+---
+
 ## 7. F4 — la superficie única de Estructura (diseño de ejecución)
 
 Decidido con el usuario el 2026-09-29: **la barra sigue a la selección**. Esto es
