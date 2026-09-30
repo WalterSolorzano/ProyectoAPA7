@@ -35,6 +35,7 @@ Reglas del lenguaje:
 7. **Pocos controles, categorizados.** Los controles de una superficie se agrupan en dos categorías declaradas, no en N botones sueltos.
 8. **El contenido se presenta según lo que ES, no en texto plano ni en volcado.** Cero `<pre>` con el documento entero. El contenido se formatea para lo que es (objetivos, figuras, citas, hallazgos).
 9. **Cero emojis. Solo tokens.** `lucide-react`, `strokeWidth="var(--icon-stroke)"`. Sin hex en TS/TSX/CSS.
+10. **Microcopy corto: el estado se dice en la fila, no en un párrafo.** El botón lleva el verbo y el número (`Aplicar a 3`), nunca la frase completa. El detalle de "quién ya cumple" vive en la fila, no en un recuadro de impacto.
 
 ---
 
