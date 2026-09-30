@@ -4,6 +4,24 @@ Mientras estabas fuera avancé con lo que no necesitaba tu palabra. Estas son la
 cosas donde tu reporte choca con una guarda o con una decisión ya tomada, y por
 eso NO las toqué. Están ordenadas por lo que más te va a importar.
 
+## 0. La tira de portada — la pediste explícitamente y es lo primero pendiente
+
+`Conservar original / APA 7 Estándar / Institucional UNI / Profesional APA /
++ Subir plantilla` es `CoverStrategyStrip`, dentro de `CoverCarouselStudio.tsx`.
+Hoy se monta con `visible={vista === 'editor'}`: aparece justo en la fase de
+edición, que es lo que reportaste.
+
+**Es redundante:** en la vista de edición ya hay un botón `Cambiar plantilla` en
+el encabezado (línea 439) que vuelve al carrusel, y el carrusel es el que elige
+el modo. La tira repite las cinco estrategias y su botón `Usar este diseño y
+Continuar`.
+
+**Por qué no la borré:** `src/__tests__/coverStudioChrome.test.tsx` tiene doce
+pruebas que la guardan por nombre (que la tira mida 44px, que el chip encendido
+sea el modo derivado, que no cuente una historia distinta del carrusel, que un
+modo desconocido no encienda ningún chip…). Borrarla es reescribir esas doce con
+vos, no tirarlas. Decímelo y lo hago en una sola pasada.
+
 ## 1. El pulso de Estructura: `Balance`, `Fases que faltan`, etc.
 
 Preguntaste "¿para qué me sirve acá? son datos x".
@@ -61,3 +79,22 @@ una fase propia, no un retoque. Quedó listada para hacerse con cuidado.
   `beautifulsoup4` en el venv y en los manifiestos.
 - **F4 — Estructura.** Se fue la banda navy y el borde azul de cada fila H1 (tu
   queja visual más fuerte), y la barra de modos dejó de ser una banda oscura.
+
+## 7. Roadmap restante, en el orden en que lo haría
+
+1. **F3 — Portada / carrusel.** Quitar la tira (punto 0), y **extraer los datos
+   de portada del `.docx` subido** para poblar el editor. El carrusel y la vista
+   `editor` ya existen; falta que la vista previa sea el render real a escala y
+   que la geometría salga de un solo módulo.
+2. **F2 — Carga y mascotas.** El reinicio de la pantalla de carga necesita
+   reproducirse en vivo (no se deduce del código); las mascotas se unifican en un
+   componente con estados y caras vectoriales.
+3. **F7 — Revisión.** Los cuadrados de color sin leyenda, el "texto ya no está en
+   el documento" y el contraste. También necesita reproducción en vivo.
+4. **F8 — Proyectos** (el error al abrir), **F9 — Exportar** (responsive),
+   **F5 — Figuras**, **F6 — Referencias**, **F10 — LLM**.
+5. **F1 — Shell** (colapsables / densidad): su parte de tokens ya está hecha por
+   la sesión anterior; queda la densidad del chrome.
+
+El detalle de cada fase, con archivo y línea, está en
+`docs/superpowers/specs/2026-09-29-plan-correccion-por-fases-design.md`.
