@@ -5,6 +5,10 @@ import { useDocStore } from '../../store/useDocStore';
 import { NIMDiagnosticsModal } from '../shared/NIMDiagnosticsModal';
 import { RotatingComment } from './RotatingComment';
 import { AlertTriangle, CheckCircle, ZoomIn, ZoomOut, Cpu } from 'lucide-react';
+import { computePages } from './PaperCanvas';
+import { ElementModel } from '../../types';
+
+const EMPTY_ELEMENTS: ElementModel[] = [];
 
 const LABEL: React.CSSProperties = {
   fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)',
@@ -26,11 +30,18 @@ export const StatusBar: React.FC = () => {
     nimLogs,
     isNIMDiagnosticsOpen,
     setIsNIMDiagnosticsOpen,
+    wordLayoutUnavailable,
   } = useDocStore();
+
+  // Hooks incondicionales (antes del early return): fallback = mismo computePages del lienzo.
+  const elements = doc?.elements ?? EMPTY_ELEMENTS;
+  const fallbackPages = React.useMemo(
+    () => Math.max(1, computePages(elements).length),
+    [elements],
+  );
 
   if (!doc) return null;
 
-  const elements = doc.elements;
   const totalElements = elements.length;
   const totalWords = elements.reduce((acc, elem) => {
     if (elem.text) return acc + elem.text.trim().split(/\s+/).filter(Boolean).length;
@@ -38,9 +49,11 @@ export const StatusBar: React.FC = () => {
   }, 0);
 
   const needsReviewCount = elements.filter((e) => e.needs_review).length;
-  const estimatedPages = Math.max(1, Math.ceil(totalElements / 14));
 
   const warnings: string[] = [];
+  if (wordLayoutUnavailable) {
+    warnings.push('Se requiere Microsoft Word: paginación real no disponible');
+  }
   if (needsReviewCount > 0) warnings.push(`${needsReviewCount} pendientes de revisión`);
   if (doc.has_landscape_sections) warnings.push('Sección horizontal detectada');
   if ((doc.meta as any)?.content_warning) warnings.push((doc.meta as any).content_warning);
@@ -64,7 +77,7 @@ export const StatusBar: React.FC = () => {
         }}
       >
         <div style={LABEL as React.CSSProperties}>
-          Pág. {estimatedPages}
+          Pág. {doc.meta?.page_count || fallbackPages}
         </div>
         <div style={LABEL}>{totalWords} pal.</div>
 
