@@ -293,3 +293,151 @@ superficie se toma con la skill `impeccable` al ejecutar su fase.
 | Tabla de recientes (`Nombre` / `Modificado`) | **Pasa a lista plegable**: no compite con la acción |
 | `Cerrar error` | Se queda (es el estado de error) |
 
+---
+
+## 7. F4 — la superficie única de Estructura (diseño de ejecución)
+
+Decidido con el usuario el 2026-09-29: **la barra sigue a la selección**. Esto es
+el diseño que se ejecuta. El código todavía no está tocado.
+
+### 7.1 Lo que hay hoy, y el defecto exacto
+
+Dos selectores apilados para la misma fase:
+
+| Selector | Dónde vive | Qué ofrece |
+|---|---|---|
+| `StructureTabBar` | `App.tsx:152` | `Esquema Jerárquico` / `Revisor de Títulos APA 7` / `Editor de Prosa` |
+| `VistaEstructura` | `IndiceEstructura.tsx:69` | `ver el índice` / `ver el documento` / `ver el mapa` |
+
+El defecto no es «hay muchos botones»: es que **de las tres pestañas, dos son el
+mismo lienzo con otra barra de herramientas**. `Step2HeadingsWizard` y
+`Step5BodyWizard` montan los dos `PaperCanvas`. Peor: la pestaña `Esquema
+Jerárquico` ya monta el lienzo adentro (`documento={<Step2HeadingsWizard />}`,
+`App.tsx:706`), así que el «Revisor de Títulos» está **dos veces**: como pestaña
+y como vista interna del índice.
+
+Segundo hallazgo, y es el que achica el trabajo: la pestaña «Editor de Prosa»
+**casi no tiene herramientas por selección**. Tiene un panel de solo lectura
+(`Reglas aplicadas`: sangría de primera línea, enumeración de listas, márgenes y
+tipografía), un selector documental (`Interlineado`) y los controles de revisión
+de escritura. No hay una sola acción «sobre el párrafo elegido». O sea: la barra
+contextual es mayoritariamente la de títulos, y el resto es documental.
+
+### 7.2 La superficie
+
+Una superficie, `EscritorioEstructura`, con UN selector arriba:
+
+    [ Índice ]   [ Documento ]   [ Mapa ]
+
+- **Índice** — las filas, el inspector de rama y `FaltasApa7`. Igual que hoy.
+- **Documento** — el lienzo con la barra de 7.3.
+- **Mapa** — el `MapaEstructura` de hoy.
+
+Muere `StructureTabBar`. Muere `structureTab`. La vista elegida pasa al store
+(7.6).
+
+### 7.3 La vista Documento: la barra sigue a la selección
+
+Una sola barra, con dos bloques. El primero cambia con lo que hay seleccionado:
+
+1. **Bloque de selección.**
+   - Encabezado elegido → `Nivel 1` / `Nivel 2` / `Nivel 3` / `No es título`,
+     con el conteo cuando hay selección múltiple (`Aplicar a los 4 títulos`).
+     Es el `MiniToolbar` de hoy, mudado, no reescrito.
+   - Párrafo elegido → no hay acción de párrafo hoy, y **no se inventa**. El
+     bloque dice qué sí se puede sobre un párrafo y lleva al Bloque 2.
+   - Nada elegido → dice qué hacer (`role="status"`), no un hueco.
+2. **Bloque documento**, plegable, siempre en el mismo lugar:
+   - `Interlineado` (Doble APA / 1.5 / Sencillo) — documental, se queda.
+   - `Auto-organizar títulos con IA`, `Insertar índice`, `Aprobar todos los
+     títulos` — documentales, hoy viven dentro del lienzo de títulos.
+   - `Reglas aplicadas` — **plegado y de solo lectura**. Es un informe: se ve si
+     se abre, no compite con el trabajo (misma lección que el pulso).
+   - Los controles de revisión de escritura (`Abrir Revisor`, `Revisar ahora`,
+     `Corregir todo lo seguro`) **se van de esta fase**. Son de Revisión (F7),
+     que ya tiene los mismos con su «un párrafo a la vez» y su «Aceptar todas»
+     por motor. Retenerlos acá es la duplicación del pulso, otra vez.
+
+### 7.4 Qué se muda
+
+| Pieza de hoy | Origen | Destino |
+|---|---|---|
+| `MiniToolbar` de niveles | `Step2HeadingsWizard:203-207` | Bloque 1, mudado |
+| `Revisor de títulos` (panel: anterior/siguiente dudoso, atajos `1`/`2`/`3`/`P`) | `Step2HeadingsWizard:460-544` | Bloque 1, panel del bloque de selección |
+| `Auto-organizar títulos con IA` | `Step2HeadingsWizard:256` | Bloque 2, plegable |
+| `Insertar índice` / `Índice detectado` | `Step2HeadingsWizard:278` | Bloque 2, plegable |
+| `Aprobar todos los títulos` | `Step2HeadingsWizard:283` | Bloque 2, plegable |
+| `Interlineado` | `Step5BodyWizard:152-156` | Bloque 2, plegable |
+| `Reglas aplicadas` | `Step5BodyWizard:134-145` | Bloque 2, plegado por omisión |
+| `Abrir Revisor` / `Revisar ahora` / `Corregir todo lo seguro` | `Step5BodyWizard:188-281` | **F7** — fuera de Estructura |
+
+`Step2HeadingsWizard` y `Step5BodyWizard` **no se borran de entrada**: quedan
+reducidos a lo que son —el lienzo y la lógica— mientras la barra se extrae. El
+archivo que muere es la barra de pestañas, no los wizards.
+
+### 7.5 La guarda reescrita
+
+`focoNoBarraElSelector.test.tsx` **no se borra: cambia de sujeto**, de «que el
+modo foco no se lleve el selector» a «que cada vista quede alcanzable, con foco y
+sin foco». El riesgo es el mismo —una vista inalcanzable es una vista perdida—
+pero el portador del selector ya no es una barra aparte, así que la guarda tiene
+que apuntar al selector nuevo y, además, **prohibir la barra vieja**:
+
+```
+vistasDeEstructura.test.tsx
+
+  1. la fase abre en Índice, y la vista activa se DECLARA (aria-pressed),
+     no solo se colorea
+
+  2. con el foco prendido, las TRES vistas siguen siendo alcanzables
+     (el caso que se perdía, ahora sobre el selector nuevo)
+
+  3. NO existe una segunda barra de pestañas en la fase
+     (negativa: impide reintroducir el defecto)
+
+  4. el foco sigue apagando lo que SÍ es suyo (el panel lateral), y sin foco
+     el panel está
+```
+
+La 3 es la que hace el trabajo: la guarda vieja **protegía** la barra; la nueva
+**la prohíbe**. Sin ella, mañana alguien la vuelve a agregar y las otras tres
+pasan igual.
+
+### 7.6 Dónde vive el estado
+
+`vistaEstructura: 'indice' | 'documento' | 'mapa'` en el store, no un `useState`
+local dentro del índice. Dos razones concretas: `ValidatorView.tsx:51` ya salta
+al editor de prosa con `setStructureTab('body')` y necesita un destino
+equivalente, y el rail tiene que poder volver a una vista.
+
+El `key` del contenedor de la fase se mantiene (`key={...vistaEstructura}`) para
+que cambiar de vista no deje las dos montadas.
+
+### 7.7 Qué se toca, y qué lo verifica
+
+| Archivo | Cambio |
+|---|---|
+| `src/App.tsx` | Fuera `StructureTabBar` (139-178) y sus dos mounts (703, 738); el paso 2 monta la superficie una sola vez |
+| `src/components/structure/EscritorioEstructura.tsx` | Es la superficie: recibe la vista, monta Índice / Documento / Mapa |
+| `src/components/structure/IndiceEstructura.tsx` | El selector local sube a la superficie; deja de tener su propio `useState` de vista |
+| `src/components/structure/BarraContextualDocumento.tsx` | **Nuevo**: los dos bloques de 7.3 |
+| `src/components/wizard/Step2HeadingsWizard.tsx` | Pierde barra y panel: cede la lógica |
+| `src/components/wizard/Step5BodyWizard.tsx` | Pierde panel e interlineado; pierde los controles de revisión (van a F7) |
+| `src/store/types.ts`, `src/store/slices/uiSlice.ts` | `structureTab` → `vistaEstructura` + `irAlDocumento()` |
+| `src/components/validator/ValidatorView.tsx:51` | `setStructureTab('body')` → `irAlDocumento()` |
+
+Guardas que cambian de sujeto, no de intención:
+
+| Guarda | Qué le pasa |
+|---|---|
+| `focoNoBarraElSelector.test.tsx` | Pasa a `vistasDeEstructura.test.tsx` (7.5) |
+| `estructuraEstaMontada.test.tsx:221` | Su assertion de fuente cruda (`structureTab === 'indice' ? ...`) apunta al mount viejo |
+| `flagsDeUiSinLector.test.ts:92` | La bandera cambia de nombre |
+| `wordapa7_features.test.ts:200` (`R3: Structural Revision Panel`) | Monta `Step2HeadingsWizard` para probar los controles de títulos: si los controles se mudan, la prueba se muda con ellos, no se borra |
+| `step5BodyOpcionesAvanzadas.test.tsx` | Monta `Step5BodyWizard` y además lee su fuente con `?raw`; hay que re-apuntar las dos cosas |
+
+Criterio de aceptación de F4: con foco prendido y apagado, las tres vistas se
+alcanzan; el índice conserva sus filas, su inspector y sus faltas; los controles
+de títulos siguen funcionando desde la barra nueva; ninguna prueba quedó borrada
+(las que cambian de sujeto se reescriben y se explica por qué).
+
