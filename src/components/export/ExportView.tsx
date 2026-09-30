@@ -29,6 +29,16 @@ import {
   CUATRO_GRUPOS, CONTROLES_DEL_PANEL, DERIVADOS_DEL_PANEL,
 } from './panelDeExportacion';
 import { PORTADA_IDIOMAS, type PortadaLanguage } from '../../types';
+import { calcularDestinoPDF } from '../../lib/exportDestino';
+
+function triggerDownload(url: string, filename?: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
 type Format = 'docx' | 'pdf' | 'latex';
 type PreviewMode = 'canvas' | 'diff' | 'pdf';
@@ -200,13 +210,52 @@ export const ExportView: React.FC = () => {
   // Ambos handlers van memoizados: el atajo de teclado depende de
   // `handleDownloadClick`, y sin `useCallback` esa dependencia cambia en cada
   // render, lo que devuelve el efecto a suscribirse en cada render.
-  const doExport = useCallback(() => {
+  const doExport = useCallback(async () => {
     clearQuickExport();
     setDownloadedFile(null);
-    if (format === 'pdf') exportPdf();
-    else if (format === 'latex') exportLatex();
+    if (format === 'pdf') {
+      const destino = calcularDestinoPDF();
+      if (destino) {
+        // Con proyecto activo: llamar a la API directamente con el destino
+        const { doc, rules, portada, acta, references } = useDocStore.getState();
+        if (!doc) return;
+        try {
+          const base = getApiBase();
+          const res = await fetch(`${base}/generate-pdf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: doc.session_id,
+              rules,
+              portada,
+              meta: acta,
+              references,
+              destino_en_disco: destino,
+            }),
+          });
+          if (!res.ok) throw new Error('Error al exportar PDF');
+          const data = await res.json();
+          if (data.download_url) {
+            let path = data.download_url;
+            if (!path.startsWith('http')) {
+              if (base.endsWith('/api') && path.startsWith('/api/')) {
+                path = path.slice(4);
+              }
+            }
+            const downloadUrl = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+            triggerDownload(downloadUrl, data.pdf_name || (doc.file_name?.replace(/\.[^.]+$/, '') + '.pdf'));
+          }
+          showToast('PDF guardado en Exportados/', 'success');
+        } catch (err: any) {
+          showToast(err.message || 'Error al exportar PDF', 'error');
+        }
+      } else {
+        // Sin proyecto: comportamiento actual
+        exportPdf();
+      }
+    } else if (format === 'latex') exportLatex();
     else exportDocx(tracked);
-  }, [clearQuickExport, format, tracked, exportPdf, exportLatex, exportDocx]);
+  }, [clearQuickExport, format, tracked, exportPdf, exportLatex, exportDocx, showToast]);
 
   const handleDownloadClick = useCallback(() => {
     /* Solo se pregunta UNA vez. `decidido` es la respuesta de la persona y no
