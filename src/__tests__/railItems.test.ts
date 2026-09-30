@@ -84,7 +84,16 @@ describe('T3 — destinos del rail', () => {
 
   it('el mapa del documento solo se ofrece en las fases de sección', () => {
     const conMapa = EDITOR_RAIL_ITEMS.filter((i) => i.showOutline).map((i) => i.step);
-    expect(conMapa).toEqual([2, 3, 4]);
+    /* SOLO la fase 2. Antes eran 2, 3 y 4, y el árbol de estructura se
+       superponía sobre Figuras y Referencias: un panel que describe otra fase
+       que la que el rail dice que está activa. El reporte literal del usuario
+       fue "al pasar el mouse por una fase que no salga la ventana flotante", y
+       la mitad de ese defecto era este `true` de más.
+
+       La lista se compara completa a propósito —y no con un `toContain(2)`—
+       porque lo que se afirma es que NO HAY más de uno. Un `toContain`
+       pasaría con los tres. */
+    expect(conMapa).toEqual([2]);
   });
 
   it('cada destino lleva id estable, icono y la misma gramática del catálogo', () => {

@@ -28,7 +28,13 @@ export interface RailFlyoutState {
   onEnterPanel: () => void;
   /** Reporta la salida del puntero hacia arriba: programa la gracia. */
   onLeavePanel: () => void;
-  hoverItem: (item: RailDestination | null) => void;
+  /** El puntero ENTRÓ al rail. Es lo que cancela el cierre cuando vuelve desde
+   *  el panel; sin esto el panel se iría con el puntero encima. El puntero
+   *  entrando a un BOTÓN ya no abre nada: el hover dejó de ser un disparador
+   *  del detalle, y el clic es el único que queda. */
+  onEnterRail: () => void;
+  /** El puntero SALIÓ del rail: programa la gracia de la unión. */
+  onLeaveRail: () => void;
   /** Clic en un destino: abre el detalle, navega y ancla. */
   selectItem: (item: RailDestination) => void;
   close: () => void;
@@ -79,24 +85,15 @@ export function useRailFlyout(onSelect?: (item: RailDestination) => void): RailF
     return soltar;
   }, []);
 
-  // El hover solo hace aparecer el detalle. Navegar desde el hover montaría y
-  // desmontaría la fase que el usuario está leyendo cada vez que el puntero
-  // cruza el borde izquierdo, y con el panel anclado el documento de detrás
-  // cambiaría solo.
-  const hoverItem = useCallback(
-    (next: RailDestination | null) => {
-      if (next) {
-        cancelClose();
-        setItem(next);
-        return;
-      }
-      scheduleClose();
-    },
-    [cancelClose, scheduleClose],
-  );
-
-  // El clic es la acción deliberada: lleva a la fase y ancla el panel. También
-  // lo abre, porque con teclado no hay hover que lo haya abierto.
+  // El clic es la acción deliberada: lleva a la fase, ancla el panel y lo abre.
+  //
+  // ANTES el hover también lo abría, y por eso el panel aparecía solo con
+  // pasar el puntero por encima: el reporte literal del usuario, "al pasar el
+  // mouse por una fase que no salga la ventana flotante". Navegar desde el hover
+  // ya estaba descartado por el motivo de siempre —montaría y desmontaría la
+  // fase que se está leyendo—, pero ABRIR sin navegar era un superconjunto
+  // inútil: 240px de panel encima del documento, ofrecidos sobre fases cuyo
+  // detalle no es el árbol de estructura. El clic ya hacía las tres cosas.
   const selectItem = useCallback(
     (next: RailDestination) => {
       cancelClose();
@@ -116,7 +113,8 @@ export function useRailFlyout(onSelect?: (item: RailDestination) => void): RailF
     railPinned,
     onEnterPanel: cancelClose,
     onLeavePanel: scheduleClose,
-    hoverItem,
+    onEnterRail: cancelClose,
+    onLeaveRail: scheduleClose,
     selectItem,
     close,
     togglePin,

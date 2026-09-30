@@ -89,7 +89,8 @@ describe('T19 — rail de Inicio', () => {
       <IconRail
         items={HOME_RAIL_ITEMS}
         ariaLabel="Navegación principal"
-        onHoverItem={() => {}}
+        onEnterRail={() => {}}
+        onLeaveRail={() => {}}
         onSelect={() => {}}
         onTogglePin={() => {}}
         pinned={false}
@@ -203,7 +204,7 @@ describe('T19 — rail de Inicio', () => {
   it('si el pin venía del editor, Inicio entra con el pin suelto', async () => {
     // Toda fase del editor se ancla al hacer clic (`AppShell.handleSelect`), así
     // que volver con `goHome` monta Inicio con `railPinned` en true. Sin soltar
-    // el flag al entrar, el rail dibujaba "Anclado" sin panel y el hover no
+    // el flag al entrar, el rail dibujaba "Anclado" sin panel y el puntero no
     // cerraba nunca: `scheduleClose` no programa nada mientras está anclado.
     act(() => useDocStore.setState({ railPinned: true } as never));
     await montarInicio();
@@ -211,7 +212,13 @@ describe('T19 — rail de Inicio', () => {
     expect(enRail().queryByRole('button', { name: 'Anclarado' })).toBeNull();
     expect(enRail().getByRole('button', { name: 'Anclar panel' })).toBeTruthy();
 
-    fireEvent.mouseEnter(destino('Recientes'));
+    // Con el pin suelto, un panel abierto se va con el puntero. Antes este
+    // tramo usaba un hover para abrir, y el hover ya no abre: el clic abre y
+    // ancla, así que hay que soltar el ancla del panel para poder observar el
+    // cierre por puntero, que es lo que el pin suelto prometía.
+    fireEvent.click(destino('Recientes'));
+    fireEvent.click(within(screen.getByTestId('rail-flyout')).getByRole('button', { name: 'Anclar panel' }));
+    expect(useDocStore.getState().railPinned).toBe(false);
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     await esperar(200);
     expect(screen.queryByTestId('rail-flyout')).toBeNull();
@@ -228,11 +235,28 @@ describe('T19 — rail de Inicio', () => {
     expect(useDocStore.getState().railPinned).toBe(false);
   });
 
-  it('el hover de un destino abre su detalle y salir del rail lo deja ir', async () => {
+  it('el hover de un destino de Inicio NO abre su detalle, y el clic sí', async () => {
+    // El cambio de comportamiento, en el SEGUNDO rail. Inicio usa el mismo
+    // componente que el editor, así que si el hover abría en el editor y no acá
+    // serían dos gramáticas de navegación en el mismo componente, que es
+    // exactamente lo que este rail existe para evitar.
+    await montarInicio();
+    fireEvent.mouseEnter(destino('Recientes'));
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+    fireEvent.click(destino('Recientes'));
+    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+  });
+
+  it('salir del rail deja ir un panel que NO está anclado, tras la gracia', async () => {
+    // La unión no cambió: entra y sale del rail, y hay 120ms para cruzar el
+    // hueco. Lo que cambió es cómo se abre el panel, así que la apertura de
+    // esta prueba es un clic más un clic en el botón del ancla.
     await montarInicio();
     expect(screen.queryByTestId('rail-flyout')).toBeNull();
-    fireEvent.mouseEnter(destino('Recientes'));
-    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+    fireEvent.click(destino('Recientes'));
+    fireEvent.click(within(screen.getByTestId('rail-flyout')).getByRole('button', { name: 'Anclar panel' }));
+    expect(useDocStore.getState().railPinned).toBe(false);
+
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     // Hay una gracia de 120ms: el puntero cruza el hueco entre rail y panel.
     expect(screen.queryByTestId('rail-flyout')).toBeTruthy();
@@ -245,7 +269,7 @@ describe('T19 — rail de Inicio', () => {
     // Con `status` obligatorio, el catálogo tenía que mentir con un `idle` y el
     // flyout imprimía "Sin pendientes" encima de un botón.
     await montarInicio();
-    fireEvent.mouseEnter(destino('Ajustes'));
+    fireEvent.click(destino('Ajustes'));
     const fly = within(screen.getByTestId('rail-flyout'));
     expect(fly.queryByText('Sin pendientes')).toBeNull();
     expect(fly.queryByText('Listo')).toBeNull();
@@ -258,7 +282,7 @@ describe('T19 — rail de Inicio', () => {
     // `top: 12` del panel se mide desde el borde de la ventana y la franja de
     // arriba se come su primera fila. Acá la franja son 44px.
     await montarInicio();
-    fireEvent.mouseEnter(destino('Ajustes'));
+    fireEvent.click(destino('Ajustes'));
     const padre = screen.getByTestId('rail-flyout').parentElement as HTMLElement;
     expect(getComputedStyle(padre).position).toBe('relative');
   });
@@ -268,7 +292,9 @@ describe('T19 — rail de Inicio', () => {
     const rail = screen.getByTestId('icon-rail');
     fireEvent.click(enRail().getByRole('button', { name: 'Anclar panel' }));
     expect(useDocStore.getState().railPinned).toBe(true);
-    fireEvent.mouseEnter(destino('Ajustes'));
+    // El clic ancla por diseño, así que acá el ancla es la del clic: este caso
+    // afirma que el puntero no la puede soltar, no que el botón la puso.
+    fireEvent.click(destino('Ajustes'));
     fireEvent.mouseLeave(rail);
     await esperar(200);
     // El pin del rail y el del panel comparten el flag del store: si el panel

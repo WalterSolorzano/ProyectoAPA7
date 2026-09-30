@@ -4,7 +4,8 @@ import * as api from '../../api/backend';
 import { SessionRecovery, FormatProfile, APARuleSet } from '../../types';
 import {
   FileText, BookOpen, GraduationCap, Loader2, Clock, FolderOpen, ArrowLeft,
-  FileUp, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers
+  FileUp, Menu, Lock, AlertTriangle, MousePointerClick, BadgeCheck, ShieldCheck, FileCheck, Plug, FlaskConical, Sparkles, Download, Layers,
+  Sliders, Type, AlignLeft, Check
 } from 'lucide-react';
 import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
@@ -52,100 +53,62 @@ const BrandLogo: React.FC<{ size?: number }> = ({ size = 22 }) => (
   </svg>
 );
 
-// ── MICRO-ILUSTRACIONES VECTORIALES EXCLUSIVAS PARA PLANTILLAS APA 7 ──────
-const ImrydArticleIllustration = () => (
-  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
-    <path d="M12 11H36" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M12 17H26" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    {/* Dual column */}
-    <path d="M12 23H22" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M12 27H22" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M12 31H20" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M26 23H36" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M26 27H36" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M26 31H32" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    {/* Micro badge DOI */}
-    <rect x="12" y="36" width="14" height="4" rx="2" fill="var(--color-accent-soft)" />
-    <path d="M14 38H24" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+// ── ICONOGRAFÍA EDITORIAL EXCLUSIVA WORDAPA7 (SVG nativos con tokens de diseño) ──────
+export const APAFileIcon: React.FC<{ size?: number; color?: string }> = ({ size = 20, color = 'var(--accent-primary)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <path
+      d="M5 4C5 2.89543 5.89543 2 7 2H14.5L19 6.5V20C19 21.1046 18.1046 22 17 22H7C5.89543 22 5 21.1046 5 20V4Z"
+      fill="var(--surface-subtle)"
+      stroke={color}
+      strokeWidth="var(--icon-stroke)"
+      strokeLinejoin="round"
+    />
+    <path d="M14 2V7H19" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
+    <path d="M8.5 11H15.5M8.5 14.5H15.5M8.5 18H12" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
-const ThesisBadgeIllustration = () => (
-  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="7" y="5" width="34" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
-    <circle cx="24" cy="18" r="7" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" />
-    {/* Insignia ribbon */}
-    <path d="M21 24L18 33L24 30L30 33L27 24" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
-    <path d="M14 37H34" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+export const APATypeIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <path d="M4 6V4H20V6" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 4V20" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M9 20H15" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <circle cx="18" cy="17" r="2.5" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
+    <path d="M18 15.5V18.5" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
-const EssayBadgeIllustration = () => (
-  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="5" width="36" height="38" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
-    <line x1="14" y1="5" x2="14" y2="43" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" strokeDasharray="2 2" />
-    <path d="M18 12H34" stroke="var(--text-main)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M18 18H32" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M18 24H36" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    <path d="M18 30H28" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    {/* Pen nib */}
-    <path d="M36 30L30 36L28 41L33 39L39 33L36 30Z" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
+export const APACoverStudentIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <path d="M2 9.5L12 4L22 9.5L12 15L2 9.5Z" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinejoin="round" />
+    <path d="M6 11.7V17C6 17 8.5 19.5 12 19.5C15.5 19.5 18 17 18 17V11.7" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+    <path d="M22 9.5V16" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
-const TechnicalReportIllustration = () => (
-  <svg width="42" height="42" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
-    <rect x="6" y="4" width="36" height="40" rx="6" fill="var(--surface-subtle)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
-    <path d="M12 10H24" stroke="var(--text-main)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
-    {/* Bars */}
-    <rect x="12" y="16" width="24" height="14" rx="2" fill="var(--surface-elevated)" stroke="var(--border-subtle)" strokeWidth="var(--icon-stroke)" />
-    <rect x="15" y="24" width="4" height="4" rx="1" fill="var(--accent-primary)" />
-    <rect x="22" y="20" width="4" height="8" rx="1" fill="var(--accent-primary)" />
-    <rect x="29" y="18" width="4" height="10" rx="1" fill="var(--accent-primary)" />
-    <path d="M12 35H36" stroke="var(--text-secondary)" strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
+export const APACoverProIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <rect x="4" y="3" width="16" height="18" rx="2.5" fill="var(--surface-subtle)" stroke={color} strokeWidth="var(--icon-stroke)" />
+    <line x1="7" y1="6.5" x2="17" y2="6.5" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeDasharray="1.5 2" />
+    <circle cx="12" cy="11.5" r="2.5" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
+    <path d="M8 17H16" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" />
   </svg>
 );
 
-// ── PLANTILLAS OFICIALES APA 7 (Estructuras académicas con micro-ilustración propia) ──────────
-const TEMPLATES = [
-  {
-    id: 'imryd',
-    name: 'Artículo Científico (IMRyD)',
-    badge: 'Revistas & Papers',
-    purpose: 'Para someter a revistas indexadas (Scopus / WoS)',
-    description: 'Estructura estándar de publicación: Introducción, Métodos, Resultados y Discusión.',
-    sections: ['Introducción', 'Métodos', 'Resultados', 'Discusión', 'Referencias'],
-    illustration: <ImrydArticleIllustration />,
-  },
-  {
-    id: 'thesis',
-    name: 'Tesis / Monografía',
-    badge: 'Grado & Posgrado',
-    purpose: 'Normas de titulación y comités de grado universitario',
-    description: 'Estructura académica de titulación: Marco Teórico, Metodología, Resultados y Conclusiones.',
-    sections: ['Portada Estudiante', 'Resumen', 'Marco Teórico', 'Metodología', 'Conclusiones'],
-    illustration: <ThesisBadgeIllustration />,
-  },
-  {
-    id: 'essay',
-    name: 'Ensayo Académico',
-    badge: 'Análisis & Crítica',
-    purpose: 'Ensayos de curso, argumentación y análisis crítico',
-    description: 'Desarrollo argumentativo: Introducción, Tesis central, Cuerpo analítico y Referencias.',
-    sections: ['Introducción', 'Desarrollo Temático', 'Conclusiones', 'Referencias'],
-    illustration: <EssayBadgeIllustration />,
-  },
-  {
-    id: 'report',
-    name: 'Informe Técnico',
-    badge: 'Reportes & Lab',
-    purpose: 'Reportes ejecutivos, prácticas profesionales y laboratorio',
-    description: 'Reporte formal: Resumen Ejecutivo, Metodología, Resultados y Recomendaciones.',
-    sections: ['Resumen Ejecutivo', 'Metodología', 'Resultados', 'Recomendaciones'],
-    illustration: <TechnicalReportIllustration />,
-  },
-];
+export const APARecentsClockIcon: React.FC<{ size?: number; color?: string }> = ({ size = 18, color = 'var(--accent-primary)' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="var(--icon-stroke)" />
+    <path d="M12 6.5V12L15.5 14" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="1.5" fill={color} />
+  </svg>
+);
+
+export const APACheckIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+    <circle cx="8" cy="8" r="7" fill="var(--color-accent-soft)" stroke={color} strokeWidth="var(--icon-stroke)" />
+    <path d="M5 8.2L7 10.2L11.5 5.7" stroke={color} strokeWidth="var(--icon-stroke)" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 // Fallback mientras /api/profiles aún no respondió (el campo rules nunca se usa acá)
 const FALLBACK_PROFILES: FormatProfile[] = [{
@@ -245,7 +208,7 @@ function timeAgo(dateStr: string): string {
 export const Step0QuickStart: React.FC = () => {
   const {
     uploadFile, setActiveProfile, isLoading, isBackendReady, error, openSession,
-    profiles, activeProfileId,
+    profiles, activeProfileId, portada, setPortada, startBlankDocument,
   } = useDocStore();
   const [activeTab, setActiveTab] = useState<'inicio' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
@@ -494,7 +457,8 @@ export const Step0QuickStart: React.FC = () => {
       <IconRail
         items={homeItems}
         ariaLabel="Navegación principal"
-        onHoverItem={flyout.hoverItem}
+        onEnterRail={flyout.onEnterRail}
+        onLeaveRail={flyout.onLeaveRail}
         onSelect={handleSelect}
         onTogglePin={flyout.togglePin}
         pinned={flyout.railPinned}
@@ -697,6 +661,37 @@ export const Step0QuickStart: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!busy) startBlankDocument();
+                    }}
+                    disabled={busy}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '11px 20px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: '1px solid var(--border-subtle)',
+                      cursor: busy ? 'wait' : 'pointer',
+                      backgroundColor: 'var(--surface-elevated)',
+                      color: 'var(--text-main)',
+                      fontFamily: 'inherit',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 600,
+                      boxShadow: '0 2px 6px var(--surface-subtle)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+                    title="Crear un nuevo documento .docx limpio estructurado bajo APA 7"
+                  >
+                    <APAFileIcon size={16} color="var(--accent-primary)" />
+                    <span>Nuevo documento en blanco</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (!busy) folderInputRef.current?.click();
                     }}
                     disabled={busy}
@@ -747,7 +742,7 @@ export const Step0QuickStart: React.FC = () => {
               <div style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Clock size={16} color="var(--accent-primary)" />
+                    <APARecentsClockIcon size={18} color="var(--accent-primary)" />
                     <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                       Continuar documento reciente
                     </h2>
@@ -781,155 +776,173 @@ export const Step0QuickStart: React.FC = () => {
               </div>
             )}
 
-            {/* ── ACCIÓN SECUNDARIA: Plantillas Oficiales APA 7 (Tarjetas Esbeltas y Claras) ── */}
+            {/* ── ACCIÓN SECUNDARIA: Configuración de Formato APA Activo ── */}
             <div style={{ marginBottom: '36px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
                 <div>
                   <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px' }}>
-                    Plantillas Oficiales APA 7
+                    Configuración de Formato APA Activo
                   </h2>
                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: 0 }}>
-                    Estructuras académicas listas para redactar con jerarquía y portada normalizada.
+                    Parámetros normativos aplicados automáticamente a tus documentos y exportaciones.
                   </p>
                 </div>
               </div>
 
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-                gap: '12px',
+                background: 'var(--surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-xl)',
+                padding: '20px 24px',
+                boxShadow: 'var(--shadow-card)',
               }}>
-                {TEMPLATES.map(tpl => {
-                  const activeDoc = useDocStore.getState().doc;
-                  const canApply = !!activeDoc;
-                  return (
-                    <div
-                      key={tpl.id}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '20px',
+                  marginBottom: '20px',
+                }}>
+                  {/* Selector de Perfil y Tipografía */}
+                  <div style={{
+                    padding: '16px',
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <APATypeIcon size={18} color="var(--accent-primary)" />
+                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Tipografía y Perfil de Reglas
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+                      Elegí la fuente principal normalizada según las directrices APA 7:
+                    </p>
+                    <select
+                      value={activeProfileId}
+                      onChange={(e) => setActiveProfile(e.target.value)}
+                      disabled={isLoading}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '14px',
-                        padding: '14px 16px',
-                        borderRadius: 'var(--radius-lg)',
-                        background: 'var(--surface-elevated)',
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: 'var(--radius-md)',
                         border: '1px solid var(--border-subtle)',
-                        boxShadow: '0 2px 8px var(--color-ink-a05)',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-strong)';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                        e.currentTarget.style.transform = 'none';
+                        backgroundColor: 'var(--surface-elevated)',
+                        color: 'var(--text-main)',
+                        fontFamily: 'inherit',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 600,
+                        cursor: isLoading ? 'wait' : 'pointer',
                       }}
                     >
-                      {/* Micro-ilustración */}
-                      <div style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: 'var(--radius-lg)',
-                        flexShrink: 0,
-                        background: 'var(--surface-subtle)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '1px solid var(--border-subtle)',
-                      }}>
-                        {tpl.illustration}
-                      </div>
+                      {(profiles.length > 0 ? profiles : FALLBACK_PROFILES).map((p) => (
+                        <option key={p.profile_id} value={p.profile_id}>
+                          {p.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                      {/* Información central */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {tpl.name}
-                          </span>
-                          <span style={{
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 700,
-                            color: 'var(--text-secondary)',
-                            background: 'var(--surface-subtle)',
-                            padding: '1px 6px',
-                            borderRadius: 'var(--radius-full)',
-                            border: '1px solid var(--border-subtle)',
-                            flexShrink: 0,
-                          }}>
-                            {tpl.badge}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {tpl.purpose}
-                        </div>
-                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {tpl.description}
-                        </div>
-                      </div>
-
-                      {/* Acciones compactas */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (canApply && activeDoc) {
-                              api.applyTemplate(activeDoc.session_id, tpl.id)
-                                .then(() => useDocStore.getState().showToast(`Estructura "${tpl.name}" aplicada al documento`, 'success'))
-                                .catch((e) => useDocStore.getState().showToast(`No se pudo aplicar: ${String(e)}`, 'error'));
-                            } else {
-                              useDocStore.getState().createFromTemplate(tpl.id);
-                            }
-                          }}
-                          title={canApply ? "Aplica esta jerarquía al documento actual" : "Crea un documento en blanco con esta estructura"}
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'var(--accent-primary)',
-                            color: 'var(--color-text-on-accent)',
-                            border: 'none',
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 700,
-                            fontFamily: 'inherit',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            boxShadow: '0 2px 6px var(--color-accent-a30)',
-                          }}
-                        >
-                          <FileCheck size={13} /> {canApply ? 'Aplicar' : 'Escribir'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const downloadUrl = `${api.getApiBase()}/template-docx?template_id=${encodeURIComponent(tpl.id)}&profile_id=${encodeURIComponent(activeProfileId)}`;
-                            window.open(downloadUrl, '_blank');
-                            useDocStore.getState().showToast(`Descargando plantilla .docx (${tpl.name})`, 'info');
-                          }}
-                          title="Descargar archivo editable para Microsoft Word (.docx)"
-                          aria-label={`Descargar plantilla Word ${tpl.name}`}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'var(--surface-subtle)',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-subtle)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.15s ease',
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-                        >
-                          <Download size={14} />
-                        </button>
-                      </div>
+                  {/* Selector de Formato de Portada */}
+                  <div style={{
+                    padding: '16px',
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <APACoverStudentIcon size={18} color="var(--accent-primary)" />
+                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Tipo de Portada por Defecto
+                      </span>
                     </div>
-                  );
-                })}
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+                      Define los metadatos exigidos (carrera, docente o encabezado):
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPortada({ apa_format: 'student' })}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          border: `1px solid ${portada.apa_format === 'student' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                          background: portada.apa_format === 'student' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                          color: portada.apa_format === 'student' ? 'var(--accent-primary)' : 'var(--text-main)',
+                          fontFamily: 'inherit',
+                          fontSize: 'var(--text-xs)',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {portada.apa_format === 'student' ? <APACheckIcon size={14} color="var(--accent-primary)" /> : <APACoverStudentIcon size={14} color="var(--text-secondary)" />}
+                        Estudiante
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPortada({ apa_format: 'professional' })}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          border: `1px solid ${portada.apa_format === 'professional' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                          background: portada.apa_format === 'professional' ? 'var(--color-accent-soft)' : 'var(--surface-elevated)',
+                          color: portada.apa_format === 'professional' ? 'var(--accent-primary)' : 'var(--text-main)',
+                          fontFamily: 'inherit',
+                          fontSize: 'var(--text-xs)',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {portada.apa_format === 'professional' ? <APACheckIcon size={14} color="var(--accent-primary)" /> : <APACoverProIcon size={14} color="var(--text-secondary)" />}
+                        Profesional
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Micro-especificaciones fijas del estándar */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: '10px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--border-subtle)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      Márgenes: <strong style={{ color: 'var(--text-main)' }}>2.54 cm</strong> (4 lados)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      Interlineado: <strong style={{ color: 'var(--text-main)' }}>Doble (2.0)</strong> sin espacio extra
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      Sangría párrafo: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> (1ª línea)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <APACheckIcon size={15} color="var(--accent-primary)" />
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      Sangría francesa: <strong style={{ color: 'var(--text-main)' }}>1.27 cm</strong> en referencias
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -983,7 +996,9 @@ const RecentsList: React.FC<{
     if (!showEmpty) return <Card style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-base)' }}>Sin documentos recientes.</Card>;
     return (
       <Card style={{ textAlign: 'center', padding: '36px 24px', color: 'var(--text-secondary)' }}>
-        <Clock size={48} style={{ marginBottom: '16px', opacity: 0.4 }} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', opacity: 0.5 }}>
+          <APARecentsClockIcon size={48} color="var(--accent-primary)" />
+        </div>
         <p style={{ fontSize: 'var(--text-lg)', margin: '0 0 8px', fontWeight: 600 }}>Sin documentos recientes</p>
         <p style={{ fontSize: 'var(--text-sm)', margin: 0 }}>Los documentos que abras o proceses aparecerán aquí.</p>
       </Card>
@@ -1018,7 +1033,7 @@ const RecentsList: React.FC<{
             <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '12px' }}>
               {isRecovering
                 ? <Loader2 size={20} color="var(--accent-primary)" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                : <FileText size={20} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
+                : <APAFileIcon size={20} color="var(--accent-primary)" />
               }
               <div>
                 <div style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-main)' }}>

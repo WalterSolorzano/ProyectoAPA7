@@ -410,6 +410,24 @@ export interface DocState {
   runProofreadBatch: () => Promise<void>;
   clearProofreadFindings: () => void;
   /**
+   * Hay ALGO corriendo ahora mismo: los globos que se disparan al abrir un
+   * documento, no el "Escanear" de la vista de Revisión.
+   *
+   * Vive en el store y no en la vista por una razón concreta: los globos se
+   * lanzan en `documentSlice.uploadFile` y sobreviven al desmontaje. Un flag de
+   * la vista no los ve, y por eso la pantalla afirmaba "todavía no corrió ningún
+   * motor" mientras tres motores corrían solos.
+   *
+   * Los NOMBRES de los que corren van aparte porque la pantalla vacía tiene que
+   * decir cuáles, no "pulsa Escanear": `motoresAuditando` es la lista y
+   * `isAuditing` es su "¿vacía?" derivado en el mismo `set`, de modo que no
+   * puedan separarse.
+   */
+  isAuditing: boolean;
+  motoresAuditando: string[];
+  notarAuditoria: (motor: string) => void;
+  olvidarAuditoria: (motor: string) => void;
+  /**
    * Tira TODOS los hallazgos, porque `element_id` es un indice posicional: insertar
    * un parrafo arriba en Word corre todos los ids de abajo y un hallazgo conservado
    * queda pegado al parrafo equivocado. No es "limpiar lo que quedo huerfano": es

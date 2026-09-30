@@ -92,6 +92,35 @@ describe('T5 — RailFlyout', () => {
     expect(screen.queryByText('Sin títulos detectados')).toBeNull();
   });
 
+  it('EN EL CATÁLOGO, el árbol es de UNA sola fase: la de Estructura', () => {
+    /* La mitad que no se puede probar desde el componente. `RailFlyout` monta el
+       árbol cuando el destino dice `showOutline`, así que el componente es
+       obediente y no puede decir nada del catálogo: el error estaba en el
+       catálogo, con el árbol declarado en Figuras y Referencias. Por eso la
+       afirmación es sobre el catálogo, y sobre la fase y no sobre el
+       identificador: la fase es la que el rail promete como activa, así que es
+       la que no puede contradecir. */
+    const conArbol = EDITOR_RAIL_ITEMS.filter((i) => i.showOutline);
+    expect(conArbol.map((i) => i.step)).toEqual([2]);
+    /* Y el nombre de esa fase se dice, para que un fallo diga cuál: un
+       `toEqual([2])` que falla con un número y un comentario dice poco. */
+    expect(EDITOR_RAIL_ITEMS.find((i) => i.showOutline)?.label).toBe('Estructura');
+  });
+
+  it('ningún otro destino del editor ofrece el árbol, y la fase lo confirma', () => {
+    /* El reporte literal del usuario: "al pasar el mouse por una fase que no
+       salga la ventana flotante". Figuras y Referencias lo recibían, y encima
+       con un hover que no era una decisión: el puntero solo pasa. Con el clic
+       el panel es un pedido —"decime de esta fase"—, y un árbol de títulos no
+       es la respuesta a "decime de las figuras". */
+    for (const i of EDITOR_RAIL_ITEMS) {
+      const { unmount } = render(<RailFlyout item={{ ...item, ...i, status: 'pending', pending: 1 }} onClose={vi.fn()} />);
+      const hayArbol = screen.queryByText('Sin títulos detectados') !== null;
+      expect(hayArbol, `la fase ${i.label} (${i.step}) ofrece el árbol de estructura`).toBe(i.step === 2);
+      unmount();
+    }
+  });
+
   it('flota sobre el workbench: absoluto, a 64px del rail y de 240px', () => {
     // El centro de Revisión no puede estrecharse porque el usuario lea una
     // etiqueta: por eso esto es `absolute` y no un hermano flex.

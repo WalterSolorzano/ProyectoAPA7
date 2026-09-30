@@ -14,9 +14,15 @@
  * el usuario busca el panel que no existe.
  */
 import type { ReactNode } from 'react';
-import { FileQuestion, Inbox, FilterX, MousePointerClick } from 'lucide-react';
+import { FileQuestion, Inbox, FilterX, MousePointerClick, Loader, BellOff } from 'lucide-react';
 
-export type MotivoVacio = 'sin-documento' | 'sin-motor' | 'sin-resultados' | 'sin-seleccion';
+export type MotivoVacio =
+  | 'sin-documento'
+  | 'sin-motor'
+  | 'sin-resultados'
+  | 'sin-seleccion'
+  | 'corriendo'
+  | 'sugerencias-apagadas';
 
 export interface EstadoVacioProps {
   motivo: MotivoVacio;
@@ -24,6 +30,8 @@ export interface EstadoVacioProps {
   filtroActivo?: string | null;
   /** La acción disponible, cuando hay una. Un estado vacío sin salida es un callejón. */
   accion?: ReactNode;
+  /** Los motores que están corriendo AHORA. Solo lo lee `corriendo`. */
+  motoresCorriendo?: string[];
 }
 
 interface Texto {
@@ -32,9 +40,9 @@ interface Texto {
   Icon: typeof FileQuestion;
 }
 
-/* `sin-resultados` es el único que NOMBRA algo externo, así que es el único que
-   arma su texto con un dato. Los otros tres son Literales porque no tienen nada
-   que leer: un texto que se arma con un valor que puede no existir tiene dos
+/* `sin-resultados` y `corriendo` NOMBRAN algo externo, así que son los únicos que
+   arman su texto con un dato. Los otros cuatro son literales porque no tienen
+   nada que leer: un texto que se arma con un valor que puede no existir tiene dos
    ramas, y la rama del valor ausente es la que dice "no hay resultados". */
 const TEXTOS: Record<MotivoVacio, Texto> = {
   'sin-documento': {
@@ -61,9 +69,33 @@ const TEXTOS: Record<MotivoVacio, Texto> = {
     detalle:
       'Hay hallazgos en el documento. Pulsa "Siguiente hallazgo" para recorrerlos de a uno, o elige cualquiera de la lista de motores.',
   },
+  /* Los dos motivos que corrigen las dos mentiras que esta pantalla se contaba.
+     Los globos se disparan solos al abrir un documento (`documentSlice.uploadFile`),
+     así que decir "todavía no corrió ningún motor" mientras tres motores corrían
+     era afirmar algo que el código no hacía. Y el interruptor de sugerencias
+     proactivas descarta el resultado en silencio: sin decir nada, la pantalla
+     vacía no tiene causa y parece un fallo. */
+  'corriendo': {
+    Icon: Loader,
+    titulo: 'Los motores estan corriendo',
+    detalle:
+      'Los motores de fondo se disparan solos al abrir el documento, sin esperar a que pulses nada. Los hallazgos aparecen en cuanto terminan.',
+  },
+  'sugerencias-apagadas': {
+    Icon: BellOff,
+    titulo: 'Las sugerencias proactivas estan apagadas',
+    detalle:
+      'Los motores siguen corriendo, pero sus hallazgos se descartan y por eso esta pantalla queda vacía. Enciende "Sugerencias proactivas" en Ajustes, pestaña Revisión, y vuelve a escanear.',
+  },
 };
 
-export function EstadoVacio({ motivo, filtroActivo, accion }: EstadoVacioProps) {
+/** "citas y estilo" | "citas y estilo, legends" — con y, como se habla. */
+const listaEnProsa = (motores: string[]): string =>
+  motores.length <= 1
+    ? motores[0] ?? ''
+    : `${motores.slice(0, -1).join(', ')} y ${motores[motores.length - 1]}`;
+
+export function EstadoVacio({ motivo, filtroActivo, accion, motoresCorriendo }: EstadoVacioProps) {
   const { Icon, titulo, detalle } = TEXTOS[motivo];
   /* El filtro se nombra acá y no en el texto fijo, porque es el único dato que
      cambia y es el único que el usuario puede tocar para arreglar la pantalla.
@@ -73,6 +105,13 @@ export function EstadoVacio({ motivo, filtroActivo, accion }: EstadoVacioProps) 
     motivo === 'sin-resultados' && filtroActivo
       ? `${detalle} El filtro activo es "${filtroActivo}".`
       : detalle;
+  /* Lo que corre se NOMBRA, y no como dato suelto sino como frase: la lista sin
+     conjunción ("citas, estilo, leyendas") se lee como un campo de texto, y el
+     motivo de este texto es justamente que la persona sepa qué esperar. */
+  const conMotores =
+    motivo === 'corriendo' && motoresCorriendo && motoresCorriendo.length > 0
+      ? ` Ahora mismo: ${listaEnProsa(motoresCorriendo)}.`
+      : '';
 
   return (
     <div
@@ -128,6 +167,7 @@ export function EstadoVacio({ motivo, filtroActivo, accion }: EstadoVacioProps) 
         }}
       >
         {conFiltro}
+        {conMotores}
       </p>
 
       {accion}

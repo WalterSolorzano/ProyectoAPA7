@@ -52,10 +52,21 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
   Icon: LucideIcon;
   showOutline: boolean;
 }> = [
+  /* `showOutline` SOLO en Estructura, y no por descuido: es la fase de la
+     jerarquía del documento, y el árbol de estructura es lo que esa fase
+     ofrece. En Figuras y Referencias el mismo árbol se superponía sobre una
+     pantalla que no es de estructura —el reporte literal del usuario: "al
+     pasar el mouse por una fase que no salga la ventana flotante"—, y un árbol
+     de títulos encima de la lista de figuras es un panel que contradice a la
+     fase que el rail dice que está activa.
+
+     Es la misma regla del §1: el rail no puede contradecir a la pantalla a la
+     que lleva. Un detalle que no pertenece a la fase es un detalle que
+     describe otra fase. */
   { id: 'step-1', step: 1, label: 'Portada', shortLabel: 'Portada', description: 'Edición y formato de portada estándar APA 7.', Icon: FileText, showOutline: false },
   { id: 'step-2', step: 2, label: 'Estructura', shortLabel: 'Estruct.', description: 'Niveles de títulos y organización de secciones.', Icon: ListTree, showOutline: true },
-  { id: 'step-3', step: 3, label: 'Figuras', shortLabel: 'Figuras', description: 'Tablas, figuras y numeración editorial.', Icon: ImageIcon, showOutline: true },
-  { id: 'step-4', step: 4, label: 'Referencias', shortLabel: 'Refer.', description: 'Bibliografía, sangría francesa y formato APA.', Icon: BookOpen, showOutline: true },
+  { id: 'step-3', step: 3, label: 'Figuras', shortLabel: 'Figuras', description: 'Tablas, figuras y numeración editorial.', Icon: ImageIcon, showOutline: false },
+  { id: 'step-4', step: 4, label: 'Referencias', shortLabel: 'Refer.', description: 'Bibliografía, sangría francesa y formato APA.', Icon: BookOpen, showOutline: false },
   { id: 'step-5', step: 5, label: 'Revisión & IA', shortLabel: 'Revisión', description: 'Auditoría de estilo, ortografía y citas cruzadas.', Icon: ShieldCheck, showOutline: false },
   { id: 'step-6', step: 6, label: 'Exportar', shortLabel: 'Exportar', description: 'Generación final de archivo .docx validado.', Icon: Download, showOutline: false },
   /* SIN `status` Y SIN `pending`, Y NO POR OLVIDO. Es un modulo, no una fase: no

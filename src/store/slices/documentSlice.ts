@@ -249,6 +249,12 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   runProactiveAudits: async () => {
     const { doc, sugerenciasProactivas, apiKey, aiProviderConfig } = get();
     if (!sugerenciasProactivas || !doc) return;
+    /* Este globo son DOS motores (citas y revisión de estilo) que se lanzan
+       juntos. Se anotan juntos y se apagan juntos: separarlos daría un estado
+       de corrida que dice "corre el de estilo" mientras el de citas ya terminó,
+       y la pantalla quedaría mintiendo en el detalle. */
+    get().notarAuditoria('citas y estilo');
+    get().notarAuditoria('revisión de estilo con IA');
     try {
       const result = await api.validateCitations(doc.session_id);
       set({ citationAuditResult: result });
@@ -271,10 +277,18 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     } catch { /* silencioso: estilo/IA esperarán la revisión manual */ }
     // Proactivo total: buscar referencias faltantes en Crossref sin molestar.
     try { await get().autoResolveGhosts(); } catch { /* noop */ }
+    /* Los dos `catch` de arriba se tragan su propio fallo, así que sin este
+       `finally` una caída dejaría dos motores prendidos en el store y la vista
+       de Revisión anunciando una corrida que ya terminó. */
+    finally {
+      get().olvidarAuditoria('citas y estilo');
+      get().olvidarAuditoria('revisión de estilo con IA');
+    }
   },
   runProactiveAutoCaptioning: async () => {
     const { doc } = get();
     if (!doc) return;
+    get().notarAuditoria('leyendas de figuras y tablas');
     try {
       const res = await api.fetchProactiveCaptions(doc.session_id);
       if (res.suggestions && res.suggestions.length > 0) {
@@ -292,6 +306,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         );
       }
     } catch { /* silencioso */ }
+    finally { get().olvidarAuditoria('leyendas de figuras y tablas'); }
   },
   setPdfPreviewCache: (cache) => set({ pdfPreviewCache: cache }),
   renumberHeadings: (style) => {
@@ -354,6 +369,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           history: [recovered],
           historyIndex: 0,
           wizardStep: 1,
+          liveChatOpen: false,
           selectedElementId: null,
           selectedReferenceId: null,
           scrollTargetId: null,
@@ -1121,14 +1137,9 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         const data = await res.json();
         /* Se guarda lo que devuelve el servidor, no lo que escribio la persona
            y no lo que este codigo inventa:
-           - `doi_or_url` es el DOI ya NORMALIZADO por el backend. Guardar el
-             input crudo daba `https://doi.org/doi:10.1038/...` —un link roto—
-             para "doi:10.1038/x" y "DOI: 10.1038/x", que son de las formas mas
-             comunes de pegar un DOI.
-           - `authors`, `title`, `source` y `year` NO llevan valor inventado. Este
-             codigo ponia ['Autor'], 'Titulo' y '2026' cuando faltaban, y en una
-             herramienta de citas inventar la autoria de una obra es peor que no
-             mostrarla. El backend ya devuelve "s.f." cuando no hay ano. */
+           - `doi_or_url` es el DOI o URL ya NORMALIZADO por el backend.
+           - `authors`, `title`, `source` y `year` NO llevan valor inventado. */
+        const fuenteVerif = data.tipo === 'web' ? 'web' : 'doi';
         get().addReference({
           id: Date.now().toString(),
           authors: data.authors ?? [],
@@ -1138,18 +1149,30 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           doi_or_url: data.doi_or_url ?? doi,
           raw_text: data.apa_formatted ?? '',
           formatted_apa: data.apa_formatted ?? '',
-          /* Vino de CrossRef con este DOI: eso SÍ es haberla contrastado
-             contra una fuente, y es lo que muestra la etiqueta del panel. */
           verificada: true,
-          fuente_verificacion: 'doi',
+          fuente_verificacion: fuenteVerif,
         });
-        get().showToast('Referencia agregada desde DOI', 'success');
+        get().showToast(
+          data.tipo === 'web' ? 'Referencia agregada desde enlace web' : 'Referencia agregada desde DOI',
+          'success',
+        );
       } else {
-        get().showToast(`No se pudo resolver el DOI (error ${res.status})`, 'error');
+        let msg = `No se pudo resolver (error ${res.status})`;
+        try {
+          const errData = await res.json();
+          if (errData?.detail?.mensaje) {
+            msg = errData.detail.mensaje;
+          } else if (typeof errData?.detail === 'string') {
+            msg = errData.detail;
+          }
+        } catch {
+          // Si no es JSON, conservar mensaje base
+        }
+        get().showToast(msg, 'error');
       }
     } catch (e) {
-      console.error('Error resolving DOI:', e);
-      get().showToast(e instanceof Error ? e.message : 'Error al resolver el DOI', 'error');
+      console.error('Error resolving DOI or URL:', e);
+      get().showToast(e instanceof Error ? e.message : 'Error al resolver la referencia', 'error');
     } finally {
       set({ isLoading: false });
     }

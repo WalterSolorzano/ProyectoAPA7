@@ -125,9 +125,46 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
   setSessionScopes: (s) => set({ sessionScopes: s }),
   proofreadFindings: [],
   aiIndices: null,
+
+  /* ── EL ESTADO DE CORRIDA DE LOS GLOBOS ──────────────────────────────────
+     El que estaba antes era un `useState` de la vista de Revisión, y por eso
+     la pantalla decía "Todavía no corrió ningún motor" mientras los motores
+     corrían solos: los globos se disparan al abrir un documento
+     (`documentSlice.uploadFile`), sobreviven al desmontaje de la vista, y un
+     flag que vive en la vista no sabe de ellos. Una UI que afirma algo que el
+     código no hace es la clase de mentira que este proyecto vino a matar.
+
+     NO ES UN BOOLEANO SINO UNA LISTA, y esa es la diferencia que importa: con
+     un booleano, dos globos que arrancan y uno que termina lo apagan, y la
+     pantalla vuelve a mentir en la dirección contraria. La lista se apaga
+     sola cuando queda vacía, así que los dos campos no pueden separarse: los
+     escriben las MISMAS dos acciones (`notarAuditoria` y `olvidarAuditoria`) y
+     no hay un tercer escritor. */
+  isAuditing: false,
+  motoresAuditando: [] as string[],
+  /* Anota un globo. Es idempotente por motor: dos llamadas del mismo nombre no
+     cuentan dos, porque el `finally` que la apaga tiene que poder casar con su
+     `try` aunque el motor se haya lanzado dos veces. */
+  notarAuditoria: (motor: string) => set((s) => {
+    if (s.motoresAuditando.includes(motor)) return {};
+    const motores = [...s.motoresAuditando, motor];
+    return { motoresAuditando: motores, isAuditing: true };
+  }),
+  /* La apaga SOLO si ese motor era el último. Por eso el `finally` va en cada
+     globo y no en el que llama: si uno falla, los otros dos siguen corriendo y
+     la pantalla tiene que seguir diciendo que algo corre. */
+  olvidarAuditoria: (motor: string) => set((s) => {
+    const motores = s.motoresAuditando.filter((m) => m !== motor);
+    return { motoresAuditando: motores, isAuditing: motores.length > 0 };
+  }),
+
   runProofreadBatch: async () => {
     const { doc, sugerenciasProactivas, apiKey, aiProviderConfig } = get();
     if (!doc || doc.elements.length === 0) return;
+    /* La anotación va DESPUÉS de la guarda, no antes: si no hay documento este
+       motor no arrancó, y anotarlo prendería una pantalla que dice "corriendo"
+       sobre algo que no corre. */
+    get().notarAuditoria('ortografía, texto pegado e IA');
     try {
       /* La clave y el proveedor viajan con la peticion. Sin esto, el backend
          resolvia el refinamiento contra su propio entorno y un usuario de
@@ -146,6 +183,11 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
         escribirMarcas(res.findings || []);
       }
     } catch { /* silencioso */ }
+    /* El `finally` y no el final del `try`: el `catch` de arriba se traga el
+       fallo, y sin esto un motor caído dejaría la pantalla diciendo "corriendo"
+       para siempre. El error se sigue tragando —es un globo en background— pero
+       la verdad del estado de corrida se escribe igual. */
+    finally { get().olvidarAuditoria('ortografía, texto pegado e IA'); }
   },
 
   // Auditorías silenciosas que activan los globos proactivos sin loading global.,

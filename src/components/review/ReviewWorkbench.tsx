@@ -38,6 +38,7 @@ import { FindingDetail } from './FindingDetail';
 import { AiMosaic } from './AiMosaic';
 import { EstadoVacio } from '../shared/EstadoVacio';
 import { useDocStore } from '../../store/useDocStore';
+import { ScanLine } from 'lucide-react';
 
 /** Por debajo de este ancho, el rack de 400px deja el centro inservible. */
 const RACK_BREAKPOINT = 1180;
@@ -66,6 +67,11 @@ function coberturaDeMotor(group: EngineGroup): string | undefined {
 export function ReviewWorkbench() {
   const wb = useReviewWorkbench();
   const doc = useDocStore((s) => s.doc);
+  /* El interruptor que descarta los hallazgos sin decir nada. La vista lo lee
+     para NOMBRARLO cuando la pantalla queda vacía: apagado, los motores corren,
+     sus resultados se tiran, y sin esta lectura el motivo sería "no corrió
+     ningún motor", que es exactamente lo contrario de lo que pasó. */
+  const sugerenciasProactivas = useDocStore((s) => s.sugerenciasProactivas);
   /* La calibración de la rampa la escribe la pestaña Revisión de Ajustes. El
      mosaico no lee el store: se la pasa quien lo monta, como los hallazgos. */
   const iaCortes = useDocStore((s) => s.iaCortes);
@@ -99,6 +105,14 @@ export function ReviewWorkbench() {
      manejar en la consola de la persona. */
   const correrAccion = (grupo: EngineGroup | SubtypeGroup) => {
     Promise.resolve(wb.runGroupAction(grupo)).catch(() => undefined);
+  };
+
+  /* El "Escanear" del estado vacío es el MISMO verbo que el de la tira, con el
+     mismo guardián de rechazo: el hook ya publica el resultado de cada motor
+     con su propio aviso, así que lo único que no debe quedar es una promesa sin
+     manejar en la consola. */
+  const escanear = () => {
+    Promise.resolve(wb.scanAll()).catch(() => undefined);
   };
 
   /* Desplazarse entre apariciones del MISMO subtipo, con envoltura: el delta
@@ -242,11 +256,66 @@ export function ReviewWorkbench() {
              explicación. La grilla principal se renderiza siempre. */
           wb.groups.length === 0 ? (
             <EstadoVacio
-              motivo={wb.hasFindings ? 'sin-resultados' : 'sin-motor'}
+              /* El motivo NO es un único campo: es una decisión, y su orden es el
+                 orden de urgencia. Si hay hallazgos, el culpable es el filtro; si
+                 no hay, primero se pregunta si algo está corriendo y después si
+                 el interruptor está apagado. Y hay una razón para ese orden que
+                 no es estética: apagado el interruptor, los motores que corren
+                 igual dejarían la pantalla vacía, así que "corriendo" sería
+                 cierto y el mensaje siguiente sería el mismo. La diferencia es
+                 que el de "corriendo" desaparece solo, y el otro hay que
+                 arreglarlo a mano.
+
+                 Y el botón dice SIEMPRE "Escanear", nunca "corriendo": el
+                 estado ya lo dice el título, y un botón que repite el estado
+                 hace que el texto de la pantalla no sirva para afirmar cuál de
+                 los dos motivos está —que es lo que se necesita comprobar—. */
+              motivo={
+                wb.hasFindings
+                  ? 'sin-resultados'
+                  : wb.isAuditing
+                    ? 'corriendo'
+                    : !sugerenciasProactivas
+                      ? 'sugerencias-apagadas'
+                      : 'sin-motor'
+              }
               /* El filtro se NOMBRA: "el filtro" a secas deja al usuario
                  adivinando cuál de los cinco hay que sacar, y lo único que la
                  pantalla vacía le ofrece al usuario es eso. */
               filtroActivo={wb.hasFindings ? wb.filterLabel : null}
+              /* Y lo que corre se nombra, porque un "cargando" sin decir qué
+                 carga no le dice a nadie cuándo va a terminar. */
+              motoresCorriendo={wb.motoresAuditando}
+              /* La acción DE VERDAD, no un texto que manda a otro lado: el
+                 botón de "Escanear" vive en la tira de arriba, y un estado
+                 vacío que dice "pulsa Escanear" mientras el que puede pulsar
+                 está a 44px de la grilla es un texto que hace trabajar al
+                 usuario de más. Es el mismo verbo con el mismo `scanAll`, así
+                 que no hay dos escaneos: hay uno. */
+              accion={
+                <button
+                  type="button"
+                  onClick={escanear}
+                  disabled={wb.isScanning || wb.isAuditing}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--color-border-subtle)',
+                    backgroundColor: 'var(--color-accent-soft)',
+                    color: 'var(--color-accent)',
+                    fontFamily: 'inherit',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ScanLine size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+                  Escanear
+                </button>
+              }
             />
           ) : (
             <FocusReadingCard item={wb.selected} totalFindings={enElBloque} />

@@ -99,7 +99,12 @@ const store = (extra: Record<string, unknown> = {}) => {
   useDocStore.setState({
     doc: null, reviewResult: null, proofreadFindings: [], citationAuditResult: null,
     aiIndices: null, validationIssues: [], sugerenciasProactivas: true,
-    dismissedCommentIds: [], ...extra,
+    dismissedCommentIds: [],
+    /* El estado de corrida se limpia con el resto. Sin esto, un test que deje
+       un globo prendido contaminaría todos los que vienen: el store es global
+       y estos tests comparten módulo. */
+    isAuditing: false, motoresAuditando: [],
+    ...extra,
   } as never);
 };
 
@@ -288,7 +293,11 @@ describe('T16 — ReviewWorkbench: honestidad de los estados vacíos', () => {
   it('sin hallazgos ofrece Escanear en vez de una lista vacia', () => {
     store({ doc: documento([elemento()]) as never });
     render(<ReviewWorkbench />);
-    expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
+    /* DOS "Escanear": el de la tira y el del estado vacío. Antes había uno solo
+       y estaba en la tira, y el estado vacío decía "pulsa Escanear" sin ofrecer
+       el botón: un texto que manda a 44px de la grilla. Ahora el estado vacío
+       trae la acción de verdad, y por eso el nombre no identifica uno. */
+    expect(screen.getAllByRole('button', { name: 'Escanear' }).length).toBe(2);
     /* El mensaje ya NO vive en el rack. Vivir en el rack era el defecto: el rack
        se retira bajo 1180 px, y con el se retiraba el mensaje, así que en
        ventana angosta la pantalla no tenía explicación. Ahora está en la grilla
@@ -553,8 +562,9 @@ describe('T16 — el filtro no deja botones encendidos que no hacen nada', () =>
 
     // Queda el hallazgo de IA. "Escanear" sigue disponible —con hallazgos,
     // editar el documento y re-escanear es justo lo que hace falta—, y lo que
-    // se apaga es el botón sin destino.
-    expect(screen.getByRole('button', { name: 'Escanear' })).toBeTruthy();
+    // se apaga es el botón sin destino. Que haya dos "Escanear" (el de la tira
+    // y el del estado vacío) es correcto: los dos ejecutan el mismo `scanAll`.
+    expect(screen.getAllByRole('button', { name: 'Escanear' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Siguiente hallazgo' }).hasAttribute('disabled')).toBe(true);
     // Y el estado vacío lo dice, en vez de quedarse mudo con el filtro puesto.
     expect(within(rack()).queryByText(/vuelve a "Todo"/i)).toBeNull();

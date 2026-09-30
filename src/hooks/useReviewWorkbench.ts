@@ -164,6 +164,13 @@ export interface ReviewWorkbenchApi {
   markedIds: string[];
   scanAll: () => Promise<void>;
   isScanning: boolean;
+  /** Hay GLOBOS corriendo: los que se disparan solos al abrir un documento, no
+   *  este escaneo. Sale del store y no de un `useState` de acá, que es lo que
+   *  hacía que la pantalla afirmara "todavía no corrió ningún motor" mientras
+   *  tres motores corrían. Los NOMBRES van aparte porque el estado vacío tiene
+   *  que decir cuáles, no un "cargando" mudo. */
+  isAuditing: boolean;
+  motoresAuditando: string[];
   /** Hay una escritura al documento en curso. La UI se apaga con esto: la
    *  acción en masa es SECUENCIAL y hace una llamada de red por hallazgo, así
    *  que sin cerrojo un segundo "Aceptar todas" duplica la tanda. */
@@ -482,6 +489,12 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isScanning, setIsScanning] = useState(false);
+  /* Los GLOBOS no se miden acá: se miden en el store, porque se disparan al
+     abrir un documento y sobreviven a que esta vista se desmonte. Un `useState`
+     local de "algo corre" es un flag que solo sabe de lo que él encendió, y por
+     eso decía que no había corrido nada mientras los tres globos andaban. */
+  const isAuditing = useDocStore((s) => s.isAuditing);
+  const motoresAuditando = useDocStore((s) => s.motoresAuditando);
   const seeded = useRef(false);
 
   /* La página actual SIEMPRE vive en el rango real del documento. Es un
@@ -858,6 +871,8 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     markedIds,
     scanAll,
     isScanning,
+    isAuditing,
+    motoresAuditando,
     isApplying,
     metrics: {
       total,

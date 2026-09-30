@@ -22,13 +22,21 @@ const mkItems = (over: Partial<RailDestination> = {}): RailDestination[] =>
   }));
 
 const setup = (items = mkItems()) => {
-  const onHoverItem = vi.fn();
+  const onEnterRail = vi.fn();
+  const onLeaveRail = vi.fn();
   const onTogglePin = vi.fn();
   const onSelect = vi.fn();
   const utils = render(
-    <IconRail items={items} onHoverItem={onHoverItem} onTogglePin={onTogglePin} onSelect={onSelect} pinned={false} />,
+    <IconRail
+      items={items}
+      onEnterRail={onEnterRail}
+      onLeaveRail={onLeaveRail}
+      onTogglePin={onTogglePin}
+      onSelect={onSelect}
+      pinned={false}
+    />,
   );
-  return { ...utils, onHoverItem, onTogglePin, onSelect };
+  return { ...utils, onEnterRail, onLeaveRail, onTogglePin, onSelect };
 };
 
 describe('T4 — IconRail', () => {
@@ -58,7 +66,7 @@ describe('T4 — IconRail', () => {
 
     const onTogglePin2 = vi.fn();
     render(
-      <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={onTogglePin2} onSelect={vi.fn()} pinned={true} />,
+      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={onTogglePin2} onSelect={vi.fn()} pinned={true} />,
     );
     const anclado = screen.getByRole('button', { name: 'Anclar panel' });
     expect(anclado.getAttribute('aria-pressed')).toBe('true');
@@ -73,7 +81,7 @@ describe('T4 — IconRail', () => {
     unmount();
 
     render(
-      <IconRail items={mkItems()} onHoverItem={vi.fn()} onTogglePin={vi.fn()} onSelect={vi.fn()} pinned={true} />,
+      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={vi.fn()} onSelect={vi.fn()} pinned={true} />,
     );
     const anclado = screen.getByRole('button', { name: 'Anclar panel' });
     expect(anclado.style.backgroundColor).not.toBe('var(--color-accent-soft)');
@@ -82,13 +90,51 @@ describe('T4 — IconRail', () => {
     expect(anclado.style.border).toBe('1px solid var(--color-accent)');
   });
 
-  it('avisa al hover y avisa al salir con null', () => {
-    const { onHoverItem } = setup();
+  it('el hover de un destino NO lo elige: solo el clic elige', () => {
+    /* El cambio de comportamiento, afirmado en la capa que lo produce. Antes el
+       `onMouseEnter` de cada botón REPORTABA el destino, y ese reporte era lo
+       que abría el flyout: el reporte literal del usuario, "al pasar el mouse
+       por una fase que no salga la ventana flotante". Un panel de 240px que
+       aparece sin que nadie lo pida, encima del documento.
+
+       Lo que se quitó es la ELECCIÓN por puntero, no el aviso de puntero:
+       entrar a un botón ES entrar al rail, y eso tiene que seguir avisando
+       porque es lo que cancela el cierre de la gracia.
+
+       LO QUE ESTA PRUEBA NO PUEDE VER, y conviene decirlo: `onSelect` es la
+       única salida con un destino adentro, así que afirmar que el hover no la
+       toca es afirmar que el hover no elige. Un gancho de apertura con otro
+       nombre —uno que solo abriera el panel sin navegar— no la tocaría y
+       esta prueba seguiría verde. Las otras dos capas sí lo cazan, porque ahí se
+       afirma el EFFECTO y no la llamada: el panel no aparece en pantalla
+       (`appShell.test.tsx` barre las seis fases) y no aparece en el segundo
+       rail (`homeRail.test.tsx`). Esta capa afirma el contrato, no el efecto. */
+    const { onSelect } = setup();
     const btn = screen.getByRole('button', { name: 'Revisión & IA' });
     fireEvent.mouseEnter(btn);
-    expect(onHoverItem).toHaveBeenCalledWith(expect.objectContaining({ step: 5 }));
-    fireEvent.mouseLeave(btn);
-    expect(onHoverItem).toHaveBeenLastCalledWith(null);
+    expect(onSelect).not.toHaveBeenCalled();
+    // Y el clic, que es el que abre, navega y ancla, sí lo elige.
+    fireEvent.click(btn);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ step: 5 }));
+  });
+
+  it('entrar y salir del RAIL sí se reporta: es lo que cancela el cierre de la gracia', () => {
+    /* Lo que se quitó es el hover de un BOTÓN abriendo el detalle, no la unión.
+       El puntero que vuelve del panel al rail tiene que cancelar el cierre en
+       vuelo, o el panel se iría con el puntero encima. Esa mitad de la máquina
+       sigue entera, y por eso este contrato existe.
+
+       Y entrar a un BOTÓN también cuenta como entrar al rail, porque el puntero
+       está dentro del rail: por eso el manejador vive en el `<nav>` y no en cada
+       botón. Un manejador por botón habría dejado un hueco entre dos botones
+       seguidos, que es justo el hueco que se cruza al bajar por el rail. */
+    const { onEnterRail, onLeaveRail } = setup();
+    fireEvent.mouseEnter(screen.getByTestId('icon-rail'));
+    expect(onEnterRail).toHaveBeenCalled();
+    expect(onLeaveRail).not.toHaveBeenCalled();
+
+    fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
+    expect(onLeaveRail).toHaveBeenCalled();
   });
 
   it('el clic de una fase navega, y no ancla: anclar es el pin de abajo', () => {
@@ -262,10 +308,9 @@ describe('T4 — IconRail', () => {
     // Un `aria-label` en un <span> dentro de un botón no suma nada al nombre
     // accesible: el nombre lo da el botón. El punto es decorativo; el número
     // tiene que estar en el `aria-label` del botón.
-    const onHoverItem = vi.fn();
     const onTogglePin = vi.fn();
     const { unmount } = render(
-      <IconRail items={mkItems()} onHoverItem={onHoverItem} onTogglePin={onTogglePin} onSelect={vi.fn()} pinned={false} />,
+      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={onTogglePin} onSelect={vi.fn()} pinned={false} />,
     );
     expect(screen.queryByRole('button', { name: /pendientes/ })).toBeNull();
     unmount();
@@ -273,7 +318,8 @@ describe('T4 — IconRail', () => {
     render(
       <IconRail
         items={mkItems().map((i) => (i.step === 5 ? { ...i, pending: 7, status: 'pending' as const } : i))}
-        onHoverItem={onHoverItem}
+        onEnterRail={vi.fn()}
+        onLeaveRail={vi.fn()}
         onTogglePin={onTogglePin}
         onSelect={vi.fn()}
         pinned={false}

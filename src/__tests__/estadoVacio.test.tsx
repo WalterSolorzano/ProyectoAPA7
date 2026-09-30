@@ -15,7 +15,10 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { EstadoVacio, type MotivoVacio } from '../components/shared/EstadoVacio';
 
-const MOTIVOS: MotivoVacio[] = ['sin-documento', 'sin-motor', 'sin-resultados', 'sin-seleccion'];
+const MOTIVOS: MotivoVacio[] = [
+  'sin-documento', 'sin-motor', 'sin-resultados', 'sin-seleccion',
+  'corriendo', 'sugerencias-apagadas',
+];
 
 describe('EstadoVacio', () => {
   it('cada motivo dice algo distinto, y ninguno es un texto generico', () => {
@@ -75,6 +78,71 @@ describe('EstadoVacio', () => {
     cleanup();
     const sinAccion = renderYTexto(<EstadoVacio motivo="sin-motor" />);
     expect(sinAccion).not.toContain('Correr la revision');
+  });
+});
+
+/* Las dos mentiras que este componente terminó contando, y que no se arreglan
+   escribiendo un texto más lindo: se arreglan no mintiendo. Los globos se
+   disparan solos al abrir un documento, así que "todavía no corrió ningún
+   motor" era falso mientras tres motores corrían; y el interruptor de
+   sugerencias proactivas descarta el resultado en silencio, así que la pantalla
+   vacía no tenía causa. */
+describe('EstadoVacio: los dos motivos que corrigen las dos mentiras', () => {
+  it('"corriendo" NO dice que no corrió nada, y dice que es automático', () => {
+    const texto = renderYTexto(
+      <EstadoVacio motivo="corriendo" motoresCorriendo={['citas y estilo']} />,
+    );
+    expect(texto).not.toMatch(/Todavia no corrio ningun motor/i);
+    expect(texto).not.toMatch(/Pulsa "Escanear"/);
+    /* Dice que se dispara solo: si no lo dice, el usuario espera un botón que
+       ya apretó, y el "Escanear" de la tira le parece la única forma de
+       empezarlo. */
+    expect(texto).toMatch(/solos al abrir el documento/i);
+  });
+
+  it('"corriendo" NOMBRA lo que corre', () => {
+    /* Un "cargando" sin decir qué carga no le dice a nadie cuándo termina. Y lo
+       nombra en prosa —con "y"— porque "a, b, c" se lee como un campo de texto
+       y no como una lista de motores que andan. */
+    const texto = renderYTexto(
+      <EstadoVacio
+        motivo="corriendo"
+        motoresCorriendo={['citas y estilo', 'revisión de estilo con IA']}
+      />,
+    );
+    expect(texto).toMatch(/citas y estilo/);
+    expect(texto).toMatch(/revisión de estilo con IA/);
+    expect(texto).toMatch(/ y /);
+  });
+
+  it('sin lista de motores, "corriendo" no inventa uno', () => {
+    /* El dato puede no llegar: la lista es opcional y este texto se arma con
+       ella. Un texto que se arma con un valor ausente necesita la rama del
+       valor ausente, y esa rama no puede ser la que nombra un motor que no
+       existe. */
+    const texto = renderYTexto(<EstadoVacio motivo="corriendo" />);
+    expect(texto.length).toBeGreaterThan(20);
+    expect(texto).not.toMatch(/Ahora mismo:/);
+  });
+
+  it('"sugerencias-apagadas" Nombra el interruptor y DÓNDE encenderlo', () => {
+    /* Un interruptor que descarta el resultado en silencio es un interruptor
+       mudo, y la pantalla vacía sin causa entretiene en vez de informar. Lo que
+       se nombra no es solo el interruptor: es el LUGAR, porque "las
+       sugerencias están apagadas" sin "¿dónde?" deja al usuario igual que
+       estaba. */
+    const texto = renderYTexto(<EstadoVacio motivo="sugerencias-apagadas" />);
+    expect(texto).toMatch(/Sugerencias proactivas/);
+    expect(texto).toMatch(/Ajustes/);
+  });
+
+  it('"sugerencias-apagadas" NO dice que no corrió ningún motor: los globos SÍ corrieron', () => {
+    /* Esta es la diferencia con el motivo de al lado, y es la que hace que el
+       texto sea útil: apagado lo que se apaga es la SALIDA de lo que
+       encontraron, no los motores. Decir lo otro manda al usuario a apretar
+       "Escanear" un documento que ya se escaneó. */
+    const texto = renderYTexto(<EstadoVacio motivo="sugerencias-apagadas" />);
+    expect(texto).not.toMatch(/Todavia no corrio ningun motor/i);
   });
 });
 

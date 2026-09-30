@@ -78,7 +78,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <IconRail
           items={items}
-          onHoverItem={flyout.hoverItem}
+          onEnterRail={flyout.onEnterRail}
+          onLeaveRail={flyout.onLeaveRail}
           onSelect={flyout.selectItem}
           onTogglePin={flyout.togglePin}
           pinned={flyout.railPinned}

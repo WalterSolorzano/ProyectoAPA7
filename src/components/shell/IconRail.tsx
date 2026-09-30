@@ -1,7 +1,9 @@
 /* WordAPA7 — shell: rail de iconos de 56px.
    Cada botón hace spring-zoom en hover (48×56) y muestra el nombre en un chip
-   compacto bajo el icono. El flyout de detalle se abre con clic, no con hover:
-   el hover solo debe costar atención visual mínima, no espacio del documento. */
+   compacto bajo el icono. El flyout de detalle se abre con CLIC, y el hover no
+   lo abre: el hover debe costar atención visual mínima, no un panel de 240px
+   sobre el documento. El clic ya abría, navegaba y anclaba, así que es un
+   superconjunto del hover y quitarle el hover no le deja sin disparador. */
 
 import React, { useState } from 'react';
 import { Pin } from 'lucide-react';
@@ -10,9 +12,25 @@ import type { RailDestination } from './railItems';
 
 export interface IconRailProps {
   items: RailDestination[];
-  onHoverItem: (item: RailDestination | null) => void;
-  /** Clic en un destino: navega a su fase. El hover solo muestra el zoom +
-   *  chip; el detalle completo (flyout) se abre con clic. */
+  /** La SALIDA del puntero. Antes de este cambio el rail también avisaba la
+   *  ENTRADA, y con ella abría el detalle; ya no: el hover no abre nada.
+   *
+   *  Por qué el clic alcanza y el hover no. El clic ya lo abría, y además
+   *  navegaba a la fase y anclaba el panel: es un superconjunto del hover.
+   *  Quitar el hover no deja al flyout sin disparador, le saca el disparador
+   *  que aparecía sin que nadie lo pidiera —el reporte literal del usuario:
+   *  "al pasar el mouse por una fase que no salga la ventana flotante"—. Un
+   *  panel de 240px que se abre porMoved el puntero se atraviesa en el camino
+   *  al contenido, y encima se ofrece sobre fases cuyo detalle no es el árbol.
+   *
+   *  La ENTRADA del puntero al RAIL se sigue reportando por `onEnterRail`, y
+   *  hace falta: es lo que cancela el cierre de la gracia cuando el puntero
+   *  vuelve desde el flyout. El que se deja de reportar es el hover de un
+   *  BOTÓN, que no debe abrir nada. */
+  onEnterRail: () => void;
+  onLeaveRail: () => void;
+  /** Clic en un destino: navega a su fase y abre su detalle. El hover solo
+   *  muestra el zoom y el chip. */
   onSelect: (item: RailDestination) => void;
   onTogglePin: () => void;
   pinned: boolean;
@@ -140,7 +158,7 @@ const pillStyle = (hovered: boolean, count: number): React.CSSProperties => ({
   ].join(', '),
 });
 
-export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
+export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
   const wizardStep = useDocStore((s) => s.wizardStep);
   const isActive = (item: RailDestination) =>
     item.current === true || (item.step !== null && wizardStep === item.step);
@@ -153,10 +171,16 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
     <nav
       aria-label={ariaLabel ?? 'Fases de la transformación'}
       data-testid="icon-rail"
+      /* La ENTRADA y la SALIDA del puntero se reportan al shell, que es quien
+         posee el timer de gracia de la unión rail + flyout. La entrada importa:
+         sin ella, el puntero que vuelve del panel al rail no cancelaría el
+         cierre y el panel se iría con el puntero encima. Lo que NO se reporta
+         es el hover de un botón: el detalle se abre con el clic. */
+      onMouseEnter={onEnterRail}
       onMouseLeave={() => {
         setHoveredId(null);
         setPinHovered(false);
-        onHoverItem(null);
+        onLeaveRail();
       }}
       style={{
         width: RAIL_WIDTH,
@@ -205,8 +229,11 @@ export function IconRail({ items, onHoverItem, onSelect, onTogglePin, pinned, ar
             aria-current={active ? (step === null ? 'page' : 'step') : undefined}
             data-active={active ? 'true' : 'false'}
             onMouseEnter={() => {
+              /* El hover solo hace el ZOOM y muestra el chip. No reporta nada hacia
+                 arriba y no abre el detalle: el zoom es atención visual
+                 mínima, y el detalle es un panel de 240px sobre el documento.
+                 El clic es el que abre, navega y ancla. */
               setHoveredId(id);
-              onHoverItem(item);
             }}
             onMouseLeave={release(id)}
             onClick={() => onSelect(item)}

@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
 import { AppShell } from '../components/shell/AppShell';
 
@@ -38,19 +38,55 @@ describe('T6 — AppShell', () => {
     render(<AppShell><div>x</div></AppShell>);
     const rail = screen.getByTestId('icon-rail');
     expect(rail.style.width).toBe('56px');
-    // El puntero sobre un destino no redimensiona nada: solo abre su detalle.
+    /* El puntero sobre un destino no redimensiona nada. Antes que esto se
+       afirmara sobre un hover que ADEMÁS abría el panel, así que la prueba
+       mezclaba dos cosas: que el rail no cambia de tamaño, y que el hover hace
+       algo. Ahora el hover solo hace el zoom, y lo que se afirma es lo primero
+       —una medida de caja no depende de qué dispare el puntero—. */
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Estructura' }));
     expect(rail.style.width).toBe('56px');
   });
 
-  it('el hover abre el flyout pero no cambia de fase', () => {
-    // Barrer el puntero por el rail no puede desmontar la fase que se está
-    // leyendo: el hover solo hace aparecer el detalle.
+  it('barrer el puntero por el rail NO abre el flyout, y no cambia de fase', () => {
+    /* El cambio de comportamiento, en el ensamblado y no en el componente. El
+       hover abría el detalle, y el detalle era un panel de 240px sobre el
+       documento que nadie había pedido: el reporte literal del usuario, "al
+       pasar el mouse por una fase que no salga la ventana flotante".
+
+       Y sigue sin cambiar de fase, que era lo único que el hover sí respetaba:
+       barrer el borde izquierdo no puede desmontar la fase que se está
+       leyendo. */
     useDocStore.setState({ wizardStep: 3 });
     render(<AppShell><div>x</div></AppShell>);
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
-    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
     expect(useDocStore.getState().wizardStep).toBe(3);
+  });
+
+  it('ninguna de las fases abre el flyout al pasarle el puntero, tampoco las que antes lo hacían', () => {
+    /* El árbol de estructura estaba declarado en Figuras y Referencias, así que
+       hover sobre ESAS fases era el peor caso: el panel del árbol de títulos
+       encima de la pantalla de figuras. Con `showOutline` solo en Estructura y
+       el hover sin efecto, no hay ninguna fase que abra el detalle al pasar el
+       puntero. Es el bug reportado, afirmado sobre TODAS las fases y no sobre
+       la que dio el nombres. */
+    render(<AppShell><div>x</div></AppShell>);
+    for (const nombre of ['Portada', 'Estructura', 'Figuras', 'Referencias', 'Revisión & IA', 'Exportar']) {
+      fireEvent.mouseEnter(screen.getByRole('button', { name: nombre }));
+      expect(screen.queryByTestId('rail-flyout'), `hover sobre ${nombre} abrió el panel`).toBeNull();
+    }
+  });
+
+  it('el flyout NO lo abre ningún hover, y lo abre el clic de la MISMA fase', () => {
+    /* La mitad de "quitar el hover no deja sin disparador": el clic de un
+       destino abre su detalle, navega y ancla. Es un superconjunto de lo que
+       hacía el hover, así que no se perdió ninguna capacidad — se perdió el
+       pedido implícito. */
+    render(<AppShell><div>x</div></AppShell>);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Estructura' }));
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Estructura' }));
+    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
   });
 
   it('el clic lleva a la fase y ancla el panel', () => {
@@ -73,8 +109,9 @@ describe('T6 — AppShell', () => {
     //
     // jsdom no hace layout, así que esto prueba la DECLARACIÓN que decide la
     // relación: sin ancestro posicionado, esos 12px no son los 12 del rail.
+    // Se abre por CLIC, que es el único disparador que queda.
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     const fly = screen.getByTestId('rail-flyout');
     const parent = fly.parentElement as HTMLElement;
     expect(parent.className).toContain('app-main');
@@ -87,8 +124,9 @@ describe('T6 — AppShell', () => {
     // No es que el panel tapara la barra: es que la barra lo tapaba a él. Por
     // eso el arreglo es de geometría, no de `z-index` —subir el panel lo
     // pondría por encima de la barra y taparía el título del documento.
+    // Sigue siendo una afirmación sobre el panel YA ABIERTO, y se abre por clic.
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     expect(screen.getByTestId('rail-flyout').style.zIndex).toBe('var(--z-dropdown)');
   });
 
@@ -126,12 +164,35 @@ describe('T6 — AppShell', () => {
     expect(useDocStore.getState().railPinned).toBe(true);
   });
 
+  /* TODAS LAS PRUEBAS DE LA GRACIA NECESITAN UN PANEL ABIERTO Y SUELTO.
+     El hover abría el panel sin anclarlo, y por eso la apertura de estas pruebas
+     era un `mouseEnter`. Como el hover ya no abre nada, el camino real es otro:
+     el clic abre Y ancla, y el ancla se suelta con el botón del panel. Es un
+     camino de usuario de verdad —"mira esto y déjame volver al documento"— y no
+     un atajo de prueba.
+
+     El clic ancla por diseño: navegaste a una fase, el detalle de esa fase
+     importa. Y esta es la mitad de la unión que NO cambió: la gracia sigue
+     siendo de 120ms y sigue cancelándose al volver. */
+  const abrirSinAnclar = (nombre = 'Portada') => {
+    fireEvent.click(screen.getByRole('button', { name: nombre }));
+    expect(useDocStore.getState().railPinned, 'el clic tiene que anclar').toBe(true);
+    /* El botón se busca DENTRO del panel: el rail tiene otro con el mismo
+       nombre y el mismo flag, y sin acotar la búsqueda la prueba no sabe cuál
+       de los dos apretó. Los dos sirven para el estado, pero solo el del panel
+       es "dejar este detalle abierto sin ancla". */
+    const delPanel = within(screen.getByTestId('rail-flyout')).getByRole('button', { name: 'Anclar panel' });
+    fireEvent.click(delPanel);
+    expect(useDocStore.getState().railPinned, 'el botón tiene que soltar el ancla').toBe(false);
+    expect(screen.getByTestId('rail-flyout'), 'soltar el ancla no puede cerrar el panel').toBeTruthy();
+  };
+
   it('salir del rail no cierra el flyout de golpe: espera la gracia', () => {
     // El rail y el panel están separados por un hueco. Si el shell cerrara en el
     // mouseleave del rail, el puntero no podría cruzar: el panel se iría con él
     // dentro. 119/120 en literal, no desde la constante.
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    abrirSinAnclar();
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     act(() => { vi.advanceTimersByTime(119); });
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
@@ -141,7 +202,7 @@ describe('T6 — AppShell', () => {
 
   it('entrar en el flyout cancela el cierre que había iniciado el rail', () => {
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    abrirSinAnclar();
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     act(() => { vi.advanceTimersByTime(80); });
     fireEvent.mouseEnter(screen.getByTestId('rail-flyout'));
@@ -154,12 +215,15 @@ describe('T6 — AppShell', () => {
     // que vuelve al rail vería desaparecer el panel 120ms después, con el
     // icono todavía resaltado y sin detalle que lo explique.
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    abrirSinAnclar();
     const fly = screen.getByTestId('rail-flyout');
     fireEvent.mouseEnter(fly);
     fireEvent.mouseLeave(fly);
     act(() => { vi.advanceTimersByTime(80); });
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Estructura' }));
+    // Volver al RAIL, no a un botón: con el hover sin efecto, entrar a un botón
+    // ya no cancela nada —y no debe, porque entrar a un botón no abre nada—.
+    // Lo que cancela es entrar en el rail, que es lo que el shell reporta.
+    fireEvent.mouseEnter(screen.getByTestId('icon-rail'));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
   });
@@ -167,7 +231,7 @@ describe('T6 — AppShell', () => {
   it('salir del flyout hacia el workbench sí cierra, tras la gracia', () => {
     // El otro sentido de la unión: si el puntero se va de verdad, el panel se va.
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    abrirSinAnclar();
     fireEvent.mouseLeave(screen.getByTestId('rail-flyout'));
     act(() => { vi.advanceTimersByTime(120); });
     expect(screen.queryByTestId('rail-flyout')).toBeNull();
@@ -175,8 +239,10 @@ describe('T6 — AppShell', () => {
 
   it('anclado, el flyout sobrevive a que el puntero se vaya al documento', () => {
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    // El clic abre y ancla, así que acá el ancla es la del clic, no la del botón.
+    // Es el estado en el que el panel se queda: el puntero se va y el detalle
+    // sigue, que es lo que un panel anclado promete.
+    fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
@@ -185,7 +251,7 @@ describe('T6 — AppShell', () => {
 
   it('el cierre en vuelo no sobrevive al desmontaje del shell', () => {
     const { unmount } = render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Portada' }));
+    abrirSinAnclar();
     fireEvent.mouseLeave(screen.getByTestId('icon-rail'));
     unmount();
     expect(() => act(() => { vi.advanceTimersByTime(5000); })).not.toThrow();
