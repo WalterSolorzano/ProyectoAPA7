@@ -118,7 +118,7 @@ export const ProjectImagesDrawer: React.FC<{ isOpen: boolean; onClose: () => voi
                 <img
                   src={img.previewUrl}
                   alt={img.name}
-                  style={{ width: '100%', height: '70px', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '70px', objectFit: 'contain' }}
                 />
                 <div style={{ padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span
