@@ -322,6 +322,32 @@ export async function updateElement(
   return res.json();
 }
 
+/**
+ * Fase 3 — inserta un párrafo físico en el docx y un elemento en el modelo,
+ * tras `afterElementId` (división de párrafo con Enter en el editor inline).
+ */
+export async function insertElement(
+  sessionId: string,
+  afterElementId: string,
+  newElementId: string,
+  text: string,
+): Promise<DocumentModel> {
+  const res = await fetchWithTrace(`${getApiBase()}/elements/insert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      after_element_id: afterElementId,
+      new_element_id: newElementId,
+      text,
+      type: 'paragraph',
+    }),
+  });
+
+  if (!res.ok) throw new Error('Error al insertar el párrafo');
+  return res.json();
+}
+
 export async function updateElementImage(
   sessionId: string,
   elementId: string,

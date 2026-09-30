@@ -445,6 +445,10 @@ export interface DocState {
   runLLMClassify: () => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
   updateElementText: (elementId: string, text: string) => Promise<void>;
+  /** Fase 3 — divide un párrafo en el cursor (Enter del editor inline):
+   *  commit de `before` al párrafo actual (updateElementType) + inserción
+   *  del párrafo `after` (insertElement). */
+  splitParagraphAt: (elementId: string, before: string, after: string) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
   /** La presentación de una ecuación: número, formato, alineación y tipografía de
@@ -521,6 +525,10 @@ export interface DocState {
   copyPdfToClipboard: () => Promise<boolean>;
   activeFilePath: string | null;
   setActiveFilePath: (path: string | null) => void;
+
+  // ── F8 — Proyectos: gestor de versiones ──
+  /** F8 — evaluar si este archivo pertenece a un proyecto (no bloquea, no pregunta dos veces) */
+  evaluarProyectoParaArchivo: (file: File) => Promise<void>;
 }
 
 export type UISlice = Partial<DocState>;

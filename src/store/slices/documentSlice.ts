@@ -576,6 +576,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       if (uncertainCount > 0) {
         get().runLLMClassify().catch(() => {});
       }
+      // F8: evaluar proyecto para este archivo (no bloquea, no pregunta dos veces)
+      setTimeout(() => get().evaluarProyectoParaArchivo(file), 800);
     } catch (err: any) {
       set({ error: err.message || 'Error al procesar archivo', isLoading: false });
       get().pushActivityEvent('error', 'Error al procesar el archivo', err.message || 'Intenta de nuevo.');
@@ -841,6 +843,28 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     const elem = doc.elements.find((e) => e.id === elementId);
     if (!elem) return;
     await get().updateElementType(elementId, elem.type, elem.heading_level, text);
+  },
+  splitParagraphAt: async (elementId, before, after) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    const idx = doc.elements.findIndex((e) => e.id === elementId);
+    if (idx < 0) return;
+    const elem = doc.elements[idx];
+    // 1) Commit del texto ANTES del cursor al párrafo actual (ruta existente).
+    await get().updateElementType(elementId, elem.type, elem.heading_level, before);
+    // 2) Párrafo nuevo con el texto DESPUÉS del cursor.
+    if (!after) return;   // split al final: no hay párrafo nuevo que insertar
+    const c = globalThis.crypto as Crypto | undefined;
+    const newId = c && typeof c.randomUUID === 'function'
+      ? c.randomUUID()
+      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+    try {
+      const updated = await api.insertElement(doc.session_id, elementId, newId, after);
+      pushHistory(updated);
+      set({ doc: updated });
+    } catch (err: any) {
+      get().showToast(err?.message || 'Error al insertar párrafo', 'error');
+    }
   },
   updateElementImage: async (elementId, imageInfo) => {
     const { doc, pushHistory } = get();
