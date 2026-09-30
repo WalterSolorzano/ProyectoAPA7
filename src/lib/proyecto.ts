@@ -78,3 +78,23 @@ export function crearProyecto(inicial: ProyectoInicial): Proyecto {
     creado: inicial.creado ?? new Date().toISOString(),
   };
 }
+
+/**
+ * Una clave de proyecto a partir del nombre del archivo y la carpeta.
+ *
+ * Se usa para agrupar pestañas por proyecto cuando no se tiene el `id` del
+ * proyecto (por ejemplo, en `groupTabsByProject`). La clave es estable: si
+ * el archivo se renombra pero la carpeta es la misma, la clave es la misma.
+ *
+ * Sin la raíz, la clave deriva del nombre del archivo: es lo mejor que se
+ * puede hacer, y es lo que se hacía antes. Con la raíz, la clave es la raíz
+ * misma: dos archivos en la misma carpeta pertenecen al mismo proyecto,
+ * aunque se llamen distinto.
+ */
+export function projectKeyDe(nombreArchivo: string, raiz: string | null): string {
+  if (raiz) {
+    return `raiz:${raiz}`;
+  }
+  const nombre = nombreArchivo.replace(/\.[^/.]+$/, '').trim();
+  return `archivo:${nombre}`;
+}
