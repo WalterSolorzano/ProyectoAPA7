@@ -40,3 +40,24 @@ export async function paginateLayout(sessionId: string): Promise<LayoutPaginateR
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export interface LayoutPdfExportResult {
+  session_id: string;
+  available: boolean;
+  provider?: string;
+  reason?: string | null;
+  pdf_url?: string | null;
+  page_count?: number | null;
+  elapsed_ms?: number;
+}
+
+/** Exporta el PDF de sesión con Word COM (ExportAsFixedFormat). */
+export async function exportLayoutPdf(sessionId: string): Promise<LayoutPdfExportResult> {
+  const res = await fetch(`${getApiBase()}/layout/pdf-export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
