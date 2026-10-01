@@ -824,10 +824,16 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // ── Fase 4: capa PDF en reposo ──
   const { restLayerState, notifyMutation } = usePdfRestLayer(doc?.session_id ?? null);
 
-  // Al detectar mutación (tecleo), pasar a hidden inmediatamente
+  // Al detectar mutación (tecleo), pasar a hidden inmediatamente.
+  // Usamos un ref para evitar loops: solo notificamos cuando hay un cambio
+  // real en doc?.elements, no en cada render.
+  const prevElementsRef = useRef(doc?.elements);
   useEffect(() => {
-    if (restLayerState.status === 'ready') {
-      notifyMutation();
+    if (prevElementsRef.current !== doc?.elements) {
+      prevElementsRef.current = doc?.elements;
+      if (restLayerState.status === 'ready') {
+        notifyMutation();
+      }
     }
   }, [doc?.elements, restLayerState.status, notifyMutation]);
 
