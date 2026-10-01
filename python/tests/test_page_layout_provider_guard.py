@@ -1,15 +1,14 @@
 # python/tests/test_page_layout_provider_guard.py
-"""Fase 5 — Guard D-a en page_layout_provider: sin COM → RuntimeError, sin fallback LO/heurístico."""
+"""Fase 5 — Guard D-a en page_layout_provider: sin COM → None, sin fallback LO/heurístico."""
 import sys
 import pathlib
-import pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 
-def test_get_page_layout_provider_no_com_raises():
-    """Sin COM disponible, get_page_layout_provider() debe lanzar RuntimeError."""
+def test_get_page_layout_provider_no_com_returns_none():
+    """Sin COM disponible, get_page_layout_provider() debe retornar None."""
     from parsing import page_layout_provider as plp
 
     # Reset cache
@@ -19,8 +18,9 @@ def test_get_page_layout_provider_no_com_raises():
     mock_com.is_available.return_value = False
 
     with patch.object(plp, "COMPageLayoutProvider", return_value=mock_com):
-        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
-            plp.get_page_layout_provider()
+        result = plp.get_page_layout_provider()
+
+    assert result is None, f"Esperado None sin COM, llegó {result}"
 
 
 def test_get_page_layout_provider_com_available():
@@ -53,8 +53,9 @@ def test_get_page_layout_provider_no_libreoffice_fallback():
 
     with patch.object(plp, "COMPageLayoutProvider", return_value=mock_com), \
          patch.object(plp, "LibreOfficePageLayoutProvider", return_value=mock_lo):
-        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
-            plp.get_page_layout_provider()
+        result = plp.get_page_layout_provider()
+
+    assert result is None, f"Esperado None (sin fallback LO), llegó {result}"
 
 
 def test_get_page_layout_provider_no_heuristic_fallback():
@@ -71,5 +72,6 @@ def test_get_page_layout_provider_no_heuristic_fallback():
 
     with patch.object(plp, "COMPageLayoutProvider", return_value=mock_com), \
          patch.object(plp, "HeuristicPageLayoutProvider", return_value=mock_heuristic):
-        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
-            plp.get_page_layout_provider()
+        result = plp.get_page_layout_provider()
+
+    assert result is None, f"Esperado None (sin fallback heurístico), llegó {result}"
