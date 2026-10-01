@@ -30,19 +30,18 @@ class DocConverterService:
         self._lock = threading.Lock()
 
     def get_active_engine(self) -> str:
-        """Determina que motor usar basado en disponibilidad y variables de entorno."""
+        """Determina que motor usar. D-a duro: solo COM, sin fallback LO.
+
+        FASE 5 — Guard D-a: sin Word disponible, retorna 'NONE' (sin excepción).
+        Elimina fallback a LibreOffice y heurístico en la ruta de export.
+        """
         force_engine = os.getenv("FORCE_ENGINE", "").upper()
 
-        if force_engine == "COM":
-            return "COM" if self._com_processor.is_available() else "NONE"
-        elif force_engine == "LO":
-            return "LO" if self._lo_service.is_available() else "NONE"
+        if force_engine == "LO":
+            return "NONE"
 
-        # Fallback automatico
         if self._com_processor.is_available():
             return "COM"
-        if self._lo_service.is_available():
-            return "LO"
 
         return "NONE"
 
@@ -65,6 +64,11 @@ class DocConverterService:
         with self._lock:
             engine = self.get_active_engine()
 
+            # FASE 5 — Guard D-a: sin motor, abortar antes de tocar archivos.
+            if engine == "NONE":
+                logger.warning("[DocConverter] Sin motor disponible (D-a: se requiere Microsoft Word).")
+                return False, None
+
             # ── Pre-paso: trasplante de portada via OpenXML (sin COM, sin LO) ──
             # Si preserve_cover=True, ensamblar portada + cuerpo en un DOCX
             # intermedio antes de pasar al motor. Esto reemplaza la logica
@@ -85,31 +89,13 @@ class DocConverterService:
                 shutil.copy(generated_path, final_path)
                 working_path = final_path
 
-            if engine == "COM":
-                logger.info("[DocConverter] Usando motor COM para estilos APA y exportacion PDF.")
-                # Pasar preserve_cover=False porque el trasplante ya se hizo arriba
-                return self._com_processor.process(
-                    original_path, working_path, working_path,
-                    preserve_cover=False, generate_pdf=generate_pdf,
-                    rules=rules
-                )
-
-            elif engine == "LO":
-                logger.info("[DocConverter] Usando motor LibreOffice para exportacion PDF.")
-                # El DOCX ya esta ensamblado en working_path; LO solo convierte a PDF
-                pdf_path = None
-                if generate_pdf:
-                    out_dir = working_path.parent
-                    success = self._lo_service.convert(working_path, "pdf", out_dir)
-                    if success:
-                        pdf_path = working_path.with_suffix(".pdf")
-                        return True, pdf_path
-                    return False, None
-                return True, None
-
-            else:
-                logger.warning("[DocConverter] Ningun motor disponible. Solo se entrega el DOCX ensamblado.")
-                return False, None
+            # engine == "COM" garantizado por el guard D-a arriba
+            logger.info("[DocConverter] Usando motor COM para estilos APA y exportacion PDF.")
+            return self._com_processor.process(
+                original_path, working_path, working_path,
+                preserve_cover=False, generate_pdf=generate_pdf,
+                rules=rules
+            )
 
 # Singleton
 _doc_converter = DocConverterService()
