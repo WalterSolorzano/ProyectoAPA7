@@ -1664,8 +1664,11 @@ async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
 
     # FASE 5 — Guard D-a: sin Word, error claro (sin fallback LO/heurístico)
     from services.doc_converter import get_doc_converter
-    if get_doc_converter().get_active_engine() != "COM":
-        raise HTTPException(status_code=503, detail="Se requiere Microsoft Word")
+    try:
+        if get_doc_converter().get_active_engine() != "COM":
+            raise HTTPException(status_code=503, detail="Se requiere Microsoft Word")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
     out_dir = STORAGE_DIR / "sessions" / req.session_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -2032,8 +2035,11 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
     # FASE 5 — Guard D-a: sin Word, error claro (sin fallback LO/heurístico)
     from services.doc_converter import get_doc_converter
-    if get_doc_converter().get_active_engine() != "COM":
-        raise HTTPException(status_code=503, detail="Se requiere Microsoft Word")
+    try:
+        if get_doc_converter().get_active_engine() != "COM":
+            raise HTTPException(status_code=503, detail="Se requiere Microsoft Word")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
     rules: APARuleSet = _session_rules(doc, req.rules)
     out_dir: Path = STORAGE_DIR / "sessions" / req.session_id

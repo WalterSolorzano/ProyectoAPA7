@@ -28,7 +28,7 @@ def test_generate_no_com_returns_503():
     with patch("main.load_session_state", return_value=_mock_session()), \
          patch("services.doc_converter.get_doc_converter") as mock_get:
         mock_converter = MagicMock()
-        mock_converter.get_active_engine.return_value = "NONE"
+        mock_converter.get_active_engine.side_effect = RuntimeError("Se requiere Microsoft Word")
         mock_get.return_value = mock_converter
 
         r = _client().post("/api/generate", json={
@@ -45,7 +45,7 @@ def test_export_pdf_no_com_returns_503():
     with patch("main.load_session_state", return_value=_mock_session()), \
          patch("services.doc_converter.get_doc_converter") as mock_get:
         mock_converter = MagicMock()
-        mock_converter.get_active_engine.return_value = "NONE"
+        mock_converter.get_active_engine.side_effect = RuntimeError("Se requiere Microsoft Word")
         mock_get.return_value = mock_converter
 
         r = _client().post("/api/generate-pdf", json={
