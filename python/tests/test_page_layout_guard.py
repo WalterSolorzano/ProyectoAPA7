@@ -1,10 +1,12 @@
 """FASE 5 — Guard D-a en get_page_layout_provider.
 
-Sin Word disponible, get_page_layout_provider retorna None (sin excepción).
-Elimina fallback a LibreOffice y heurístico en la ruta de layout.
+Sin Word disponible, get_page_layout_provider debe lanzar RuntimeError con
+mensaje "Se requiere Microsoft Word". Elimina fallback a LibreOffice y
+heurístico en la ruta de layout.
 """
 import sys
 import pathlib
+import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -21,8 +23,8 @@ def test_com_disponible_retorna_com_provider(monkeypatch):
     assert isinstance(provider, COMPageLayoutProvider)
 
 
-def test_com_no_disponible_retorna_none(monkeypatch):
-    """COM no disponible → retorna None (sin excepción)."""
+def test_com_no_disponible_lanza_runtime_error(monkeypatch):
+    """COM no disponible → RuntimeError con mensaje 'Se requiere Microsoft Word'."""
     from parsing import page_layout_provider as plp
 
     class FakeCOMProvider:
@@ -32,12 +34,12 @@ def test_com_no_disponible_retorna_none(monkeypatch):
     monkeypatch.setattr(plp, "COMPageLayoutProvider", FakeCOMProvider)
     monkeypatch.setattr(plp, "_cached_provider", None)
 
-    result = plp.get_page_layout_provider()
-    assert result is None, f"Esperado None sin COM, llegó {result}"
+    with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+        plp.get_page_layout_provider()
 
 
-def test_sin_com_con_lo_disponible_igual_none(monkeypatch):
-    """Aunque LO esté disponible, sin COM → None (D-a: sin degradación)."""
+def test_sin_com_con_lo_disponible_igual_lanza(monkeypatch):
+    """Aunque LO esté disponible, sin COM debe lanzar (D-a: sin degradación)."""
     from parsing import page_layout_provider as plp
 
     class FakeCOMProvider:
@@ -52,5 +54,5 @@ def test_sin_com_con_lo_disponible_igual_none(monkeypatch):
     monkeypatch.setattr(plp, "LibreOfficePageLayoutProvider", FakeLOProvider)
     monkeypatch.setattr(plp, "_cached_provider", None)
 
-    result = plp.get_page_layout_provider()
-    assert result is None, f"Esperado None (sin fallback LO), llegó {result}"
+    with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+        plp.get_page_layout_provider()

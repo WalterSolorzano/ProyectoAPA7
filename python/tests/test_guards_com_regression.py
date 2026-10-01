@@ -2,6 +2,7 @@
 """Fase 5 — Tests de regresión para guards D-a: sin fallback LO/heurístico."""
 import sys
 import pathlib
+import pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -46,9 +47,8 @@ def test_no_heuristic_fallback_in_page_layout():
 
     with patch.object(plp, "COMPageLayoutProvider", return_value=mock_com), \
          patch.object(plp, "HeuristicPageLayoutProvider", return_value=mock_heuristic):
-        result = plp.get_page_layout_provider()
-
-    assert result is None, f"Esperado None (sin fallback heurístico), llegó {result}"
+        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+            plp.get_page_layout_provider()
 
 
 def test_layout_service_no_com_returns_unavailable():
@@ -89,6 +89,5 @@ def test_no_libreoffice_fallback_in_page_layout():
 
     with patch.object(plp, "COMPageLayoutProvider", return_value=mock_com), \
          patch.object(plp, "LibreOfficePageLayoutProvider", return_value=mock_lo):
-        result = plp.get_page_layout_provider()
-
-    assert result is None, f"Esperado None (sin fallback LO), llegó {result}"
+        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+            plp.get_page_layout_provider()
