@@ -307,6 +307,51 @@ from routers import proyectos as proyectos_router
 
 app.include_router(proyectos_router.router)
 
+# ── F8: endpoints de archivo y carpetas (proyecto_manager) ────────────────────
+from modules.proyecto_manager import (
+    configurar_raiz,
+    crear_proyecto,
+    agregar_version,
+    archivar_version,
+    purgar_papelera,
+)
+
+@app.post("/api/proyectos-archivo/configurar-raiz")
+async def endpoint_configurar_raiz(body: dict):
+    ruta = body.get("ruta", "")
+    if not ruta:
+        raise HTTPException(422, "ruta requerida")
+    return configurar_raiz(ruta)
+
+@app.post("/api/proyectos-archivo/crear")
+async def endpoint_crear_proyecto(body: dict):
+    try:
+        return crear_proyecto(body["nombre"], body["archivo_origen"])
+    except FileExistsError as e:
+        raise HTTPException(409, str(e))
+    except (KeyError, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+@app.post("/api/proyectos-archivo/agregar-version")
+async def endpoint_agregar_version(body: dict):
+    try:
+        return agregar_version(body["proyecto_id"], body["archivo_origen"])
+    except FileExistsError as e:
+        raise HTTPException(409, str(e))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+@app.post("/api/proyectos-archivo/archivar-version")
+async def endpoint_archivar_version(body: dict):
+    try:
+        return archivar_version(body["proyecto_id"], body["archivo"])
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+@app.get("/api/proyectos-archivo/purgar-papelera")
+async def endpoint_purgar_papelera():
+    return purgar_papelera()
+
 # ── ERROR HANDLERS ESTANDARIZADOS ─────────────────────────────────────────────
 
 def api_error(status_code: int, detail: str, error_type: str = "validation_error") -> JSONResponse:
@@ -1606,6 +1651,9 @@ async def addin_setup_catalog() -> dict:
 async def generate_pdf_endpoint(req: GenerateRequest) -> dict:
     """
     Genera el archivo PDF final formateado con APA 7 a partir del DOCX.
+
+    F8: acepta `destino_en_disco` opcional. Si está presente, el PDF se copia
+    a esa ruta además de devolverse por HTTP (para Exportados/ de proyectos).
     """
     doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
     if not doc:
