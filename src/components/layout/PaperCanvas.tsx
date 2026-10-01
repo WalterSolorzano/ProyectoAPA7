@@ -15,6 +15,13 @@ import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { expandByLineCuts } from '../../lib/lineCuts';
 import { useLayoutRepaginate } from '../../lib/useLayoutRepaginate';
+import { InlineTextEditor } from './InlineTextEditor';
+
+/** Fase 3 — tipos editables inline (contentEditable). El resto conserva el
+ *  textarea overlay / panel (spec §3.1: headings, citas, tablas, imagen,
+ *  portada NO editables inline). bullet/numbered_list quedan fuera: su
+ *  prefijo estructural (• / n.) se dibuja fuera del texto editable. */
+const INLINE_EDITABLE_TYPES = new Set(['paragraph', 'block_quote']);
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
@@ -1898,6 +1905,35 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         )}
 
                         {editingId === elem.id && elem.type !== 'image' ? (
+                          INLINE_EDITABLE_TYPES.has(elem.type) ? (
+                            /* Fase 3 — edición inline sobre el párrafo real.
+                               El reflow es instantáneo: la medición DOM de Fase 1
+                               observa este div (paper-elem) y re-pagina al escribir. */
+                            <InlineTextEditor
+                              initialText={elem.text || ''}
+                              style={{
+                                fontFamily: fontFamily,
+                                fontSize: `${rules.font_size_pt - (elem.type === 'block_quote' ? 1 : 0)}pt`,
+                                lineHeight: rules.line_spacing,
+                                textAlign: elem.type === 'paragraph' ? 'justify' : 'left',
+                                textIndent: elem.type === 'paragraph' ? '0.5in' : undefined,
+                                marginLeft: elem.type === 'block_quote' ? '0.5in' : undefined,
+                                marginTop: elem.type === 'block_quote' ? '6px' : '0',
+                                marginBottom: '8px',
+                              }}
+                              onCommit={(text) => {
+                                if (text !== (elem.text || '')) {
+                                  updateElementType(elem.id, elem.type, elem.heading_level, text);
+                                }
+                                setEditingId(null);
+                              }}
+                              onCancel={() => setEditingId(null)}
+                              onSplit={(before, after) => {
+                                setEditingId(null);
+                                void useDocStore.getState().splitParagraphAt(elem.id, before, after);
+                              }}
+                            />
+                          ) : (
                           <div style={{ position: 'relative', margin: '4px 0' }}>
                             <textarea
                               value={editValue}
@@ -1960,6 +1996,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                               </button>
                             </div>
                           </div>
+                          )
                         ) : elem.type !== 'image' ? (
                           <>
                             {elem.type === 'heading' && (() => {
