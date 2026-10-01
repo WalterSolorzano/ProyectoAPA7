@@ -373,6 +373,11 @@ class LayoutPaginateRequest(BaseModel):
     session_id: str
 
 
+class LayoutPdfExportRequest(BaseModel):
+    """FASE 4 — exportación de PDF en reposo: Word COM ExportAsFixedFormat."""
+    session_id: str
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "1.0.0"

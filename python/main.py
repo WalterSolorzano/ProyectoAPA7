@@ -282,6 +282,9 @@ app.include_router(proofread.router)
 from routers import pagination as pagination_router
 
 app.include_router(pagination_router.router)
+from routers import pdf_export as pdf_export_router
+
+app.include_router(pdf_export_router.router)
 from routers import presets as presets_router
 
 app.include_router(presets_router.router)
@@ -1948,6 +1951,19 @@ async def get_preview_pdf(session_id: str) -> FileResponse:
             detail="PDF no encontrado. Genera el preview primero.",
         )
     return FileResponse(pdf_path, media_type="application/pdf")
+
+
+@app.get("/api/preview-pdf/{session_id}/rest.pdf")
+async def get_rest_pdf(session_id: str) -> FileResponse:
+    """Sirve el PDF de reposo generado por Fase 4 (POST /api/layout/pdf-export)."""
+    pdf_path: Path = STORAGE_DIR / "sessions" / session_id / "preview_pages" / "rest.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="PDF de reposo no encontrado. Genera el export primero.",
+        )
+    return FileResponse(pdf_path, media_type="application/pdf")
+
 
 def _safe_output_path(target_path: Path) -> Path:
     """Verifica si el archivo está bloqueado por Word en Windows y devuelve una ruta escribible."""

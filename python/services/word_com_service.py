@@ -3,6 +3,7 @@ import logging
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import psutil
@@ -269,6 +270,42 @@ class WordCOMService:
                 if self._word is None:
                     return None
                 return self._thread_handle()
+
+    def export_as_fixed_format(self, docx_path: Path, pdf_path: Path, timeout: int = 20) -> bool:
+        """Exporta un DOCX a PDF usando ExportAsFixedFormat (Word COM).
+
+        Returns True si el PDF se generó correctamente.
+        """
+        import pythoncom
+        pythoncom.CoInitialize()
+        try:
+            word = self.word
+            if word is None:
+                return False
+
+            doc = word.Documents.Open(str(docx_path.resolve()), ReadOnly=True)
+            try:
+                doc.ExportAsFixedFormat(
+                    OutputFileName=str(pdf_path.resolve()),
+                    ExportFormat=17,        # wdExportFormatPDF
+                    OpenAfterExport=False,
+                    OptimizeFor=0,          # wdExportOptimizeForPrint
+                    CreateBookmarks=1,      # wdExportCreateHeadingBookmarks
+                    DocStructureTags=True,
+                    BitmapMissingFonts=True,
+                    UseISO19005_1=False,
+                )
+                return True
+            finally:
+                doc.Close(SaveChanges=False)
+        except Exception as e:
+            logger.warning(f"[WordCOMService] ExportAsFixedFormat falló: {e}")
+            return False
+        finally:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
 
 # Singleton
