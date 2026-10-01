@@ -15,6 +15,8 @@ import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { expandByLineCuts } from '../../lib/lineCuts';
 import { useLayoutRepaginate } from '../../lib/useLayoutRepaginate';
+import { usePdfRestLayer } from '../../lib/usePdfRestLayer';
+import { PdfRestLayer } from './PdfRestLayer';
 import { InlineTextEditor } from './InlineTextEditor';
 
 /** Fase 3 — tipos editables inline (contentEditable). El resto conserva el
@@ -819,6 +821,16 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // ── Fase 2: repaginación en vivo con Word COM ──
   useLayoutRepaginate(doc);
 
+  // ── Fase 4: capa PDF en reposo ──
+  const { restLayerState, notifyMutation } = usePdfRestLayer(doc?.session_id ?? null);
+
+  // Al detectar mutación (tecleo), pasar a hidden inmediatamente
+  useEffect(() => {
+    if (restLayerState.status === 'ready') {
+      notifyMutation();
+    }
+  }, [doc?.elements, restLayerState.status, notifyMutation]);
+
   // Al llegar cortes Word, los ids se fragmentan (mismo id, >1 nodos →
   // querySelectorAll no re-mide) y conservarían la altura STALE del elemento
   // COMPLETO. Se borra: el flow usa estimación por trozo o deja la página
@@ -1262,6 +1274,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           </div>
         );
       })()}
+
+      {/* Fase 4: capa PDF en reposo (detrás del HTML) */}
+      <PdfRestLayer
+        pdfUrl={restLayerState.pdfUrl}
+        pageCount={restLayerState.pageCount}
+        status={restLayerState.status}
+      />
 
       {/* Renderizado de Páginas */}
       <div style={{
