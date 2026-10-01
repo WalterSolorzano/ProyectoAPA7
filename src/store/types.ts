@@ -46,6 +46,9 @@ export interface DocState {
   llmConsentPending: boolean;
   setLlmConsentPending: (v: boolean) => void;
   isLoading: boolean;
+  /** Qué está pasando durante la carga, para el overlay. `null` = sin texto
+   *  forzado: el overlay deriva del estado. F7 Task 4. */
+  loadingQue: string | null;
   /** Timestamp del último export con éxito (para la micro-animación de cierre) */
   exportSuccessAt: number | null;
   isBackendReady: boolean;  // true cuando el motor Python ha confirmado que está listo

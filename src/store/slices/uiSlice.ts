@@ -373,6 +373,17 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
   exploradorAbierto: false,
   abrirExplorador: () => set({ exploradorAbierto: true }),
   cerrarExplorador: () => set({ exploradorAbierto: false }),
+  /* EL PROGRESO DE CARGA, PARA EL OVERLAY. F7 Task 4.
+   *
+   * El overlay de carga (F1) ya tiene la prop `que` para decir "Subiendo
+   * capítulo 3 de 20", pero nadie la escribía: el store no tenía un campo de
+   * progreso y el overlay adivinaba con un "Procesando documento…" genérico.
+   *
+   * Vive acá y no en el componente que lo muestra porque más de una pantalla
+   * escribe progreso (la subida de documentos, la sincronización de carpeta) y
+   * el overlay se monta a nivel raíz, una sola vez. Un progreso local de cada
+   * componente sería un progreso que el overlay no puede ver. */
+  loadingQue: null,
   /* Un Clic es un interruptor, no un "abrir": el mismo destino del rail que
      abre el Explorador lo cierra. Sin esto, el unico camino para cerrarlo
      seria el boton X de adentro del propio modal. */

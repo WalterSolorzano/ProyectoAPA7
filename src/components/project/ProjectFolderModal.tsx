@@ -1,17 +1,26 @@
 import React, { useRef, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
+import { crearProyecto } from '../../lib/proyecto';
 import { Folder, FolderSearch, FileText, Image as ImageIcon, Plus, ExternalLink, X, Check, Layers } from 'lucide-react';
+
+/** La carpeta de un archivo, si el archivo la trae.
+ *
+ *  En Electron, `file.path` es la ruta completa y la carpeta es su directorio.
+ *  En el navegador no hay `.path`, y devolver `null` es lo honesto: el backend
+ *  no puede releer una carpeta que no conoce. */
+function directorioDeArchivo(file: File): string | null {
+  const ruta = (file as File & { path?: string }).path;
+  if (!ruta) return null;
+  const i = Math.max(ruta.lastIndexOf('\\'), ruta.lastIndexOf('/'));
+  return i > 0 ? ruta.slice(0, i) : null;
+}
 
 interface ProjectFolderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenMerge?: () => void;
 }
-
-/* Cuántas imágenes se muestran en la rejilla antes de avisar cuántas faltan.
-   El número estaba escrito en el `slice` y nada más. */
-const MAXIMO_DE_IMAGENES_VISIBLES = 8;
 
 export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
   isOpen,
@@ -31,6 +40,7 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     addProjectImage,
     activeFilePath,
     showToast,
+    sincronizarProyectoActual,
   } = useDocStore();
 
   const fileDocxRef = useRef<HTMLInputElement>(null);
@@ -83,14 +93,41 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
     }
 
     if (docxFiles.length > 0) {
-      showToast(`Cargando ${docxFiles.length} documento(s) de la carpeta...`, 'info');
-      // Subir el primer archivo como principal
-      await uploadFile(docxFiles[0]);
-      // Los demás se pueden agregar secuencialmente
-      for (let i = 1; i < docxFiles.length; i++) {
-        await uploadFile(docxFiles[i]);
+      /* F7 Task 4. UNA CARPETA ES UNA OPERACIÓN, NO VEINTE.
+       *
+       * Antes esto subía un `.docx` por archivo, en serie, cada uno con su
+       * auditoría completa y su `isLoading`: veinte capítulos eran veinte
+       * pantallas de carga seguidas. Con la entidad del backend, "vincular una
+       * carpeta" es UNA llamada a sync: el backend relee el disco y devuelve
+       * qué encontró.
+       *
+       * Y el progreso va por `loadingQue`, que el overlay de carga (F1) ya
+       * sabe mostrar a través de su prop `que`. Un spinner mudo obliga a
+       * adivinar, y adivinar mientras se espera es la peor manera de esperar.
+       *
+       * Si todavía no hay proyecto, se crea con el nombre del primer archivo y
+       * la carpeta si el archivo la trae (Electron sí, navegador no). Sin
+       * proyecto no hay contra qué sincronizar. */
+      let proyecto = useDocStore.getState().proyecto;
+      if (!proyecto) {
+        const raiz = directorioDeArchivo(docxFiles[0]);
+        await useDocStore.getState().setProyecto(
+          crearProyecto({
+            nombre: parseDocumentVersion(docxFiles[0].name).projectName,
+            raiz,
+          }),
+        );
+        proyecto = useDocStore.getState().proyecto;
       }
-      showToast(`Carpeta vinculada: ${docxFiles.length} docx y ${imgFiles.length} imágenes`, 'success');
+      if (proyecto) {
+        useDocStore.setState({ loadingQue: `Sincronizando carpeta: ${docxFiles.length} documentos...` });
+        const hallados = await sincronizarProyectoActual();
+        useDocStore.setState({ loadingQue: null });
+        showToast(
+          `Carpeta vinculada: ${hallados?.length ?? 0} docx y ${imgFiles.length} imágenes`,
+          'success',
+        );
+      }
     } else {
       showToast(`Carpeta escaneada: ${imgFiles.length} imágenes añadidas`, 'info');
     }
@@ -394,14 +431,13 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                 No hay imágenes registradas aún en este proyecto. Puedes subir figuras o vincular una carpeta completa.
               </div>
             ) : (
-              /* `slice(0, 8)` sin "ver mas" era un recorte invisible: las
-                 imagenes de la novena en adelante existian en el store, no se
-                 veian, y nadie decia cuantas faltaban. Ahora se las cuenta y se
-                 lo dice. El fragment es por el comentario: un comentario suelto
-                 no puede ser la primera cosa de una rama de un ternario. */
-              <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                {projectImages.slice(0, MAXIMO_DE_IMAGENES_VISIBLES).map((img) => (
+              /* F7 Task 4. `slice(0, 8)` sin "ver mas" era un recorte invisible:
+                 las imagenes de la novena en adelante existian en el store, no
+                 se veian, y nadie decia cuantas faltaban. Ahora se ven TODAS:
+                 una imagen en el store que no se ve es un recurso que la persona
+                 no sabe que tiene. */
+              <div data-testid="galeria-imagenes" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                {projectImages.map((img) => (
                   <div
                     key={img.id}
                     style={{
@@ -426,21 +462,6 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
                   </div>
                 ))}
               </div>
-              {projectImages.length > MAXIMO_DE_IMAGENES_VISIBLES && (
-                <div
-                  role="status"
-                  data-testid="imagenes-ocultas"
-                  style={{
-                    marginTop: '8px', fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-tertiary)',
-                  }}
-                >
-                  <span>
-                    {`${projectImages.length - MAXIMO_DE_IMAGENES_VISIBLES} imagen más en la carpeta, no se muestran en la rejilla.`}
-                  </span>
-                </div>
-              )}
-              </>
             )}
           </div>
         </div>

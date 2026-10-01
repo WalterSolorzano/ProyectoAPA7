@@ -660,6 +660,10 @@ export interface LoadingTipsProps {
 
 export const LoadingTips: React.FC<LoadingTipsProps> = ({ activo, que }) => {
   const isLoading = useDocStore((s) => s.isLoading);
+  /* F7 Task 4: el progreso que el store escribe. `que` (la prop) sigue ganando
+   * —es un forzado de prueba—, pero el store es quien sabe qué está pasando
+   *  cuando sincroniza una carpeta o sube documentos. */
+  const loadingQue = useDocStore((s) => s.loadingQue);
   const llmStatus = useDocStore((s) => s.llmProgress?.status);
   const apiKey = useDocStore((s) => s.apiKey);
   const aiProviderConfig = useDocStore((s) => s.aiProviderConfig);
@@ -826,9 +830,12 @@ export const LoadingTips: React.FC<LoadingTipsProps> = ({ activo, que }) => {
 
   /* `que` gana sobre el mensaje derivado del estado: quien llama sabe QUÉ está
      pasando y el componente solo sabe que algo pasa. Un spinner mudo obliga a
-     adivinar, y adivinar mientras se espera es la peor manera de esperar. */
+     adivinar, y adivinar mientras se espera es la peor manera de esperar.
+     `loadingQue` (el store) es el segundo en la cadena: lo escribe quien sabe
+     qué está pasando, y el overlay lo dice en vez de inventar un texto. */
   const message =
     que ??
+    loadingQue ??
     (!isBackendReady
       ? 'Iniciando motor de procesamiento...'
       : llmStatus === 'processing'
