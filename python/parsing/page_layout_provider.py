@@ -349,26 +349,21 @@ class HeuristicPageLayoutProvider(PageLayoutProvider):
 
 _cached_provider: Optional[PageLayoutProvider] = None
 
-def get_page_layout_provider() -> PageLayoutProvider:
+def get_page_layout_provider() -> Optional[PageLayoutProvider]:
     """
-    Retorna el mejor provider disponible, cacheado a nivel de proceso.
-    Orden de preferencia: COM > LibreOffice > Heurístico.
+    Retorna COMPageLayoutProvider si está disponible, o None.
+
+    FASE 5 — Guard D-a: sin Word, retorna None (sin fallback LO/heurístico).
     """
     global _cached_provider
     if _cached_provider is not None:
         return _cached_provider
 
-    providers = [
-        COMPageLayoutProvider(),
-        LibreOfficePageLayoutProvider(),
-        HeuristicPageLayoutProvider(),
-    ]
-    for p in providers:
-        if p.is_available():
-            _cached_provider = p
-            print(f"[PAGE-LAYOUT] Usando provider: {p.__class__.__name__}")
-            return p
+    provider = COMPageLayoutProvider()
+    if provider.is_available():
+        _cached_provider = provider
+        print(f"[PAGE-LAYOUT] Usando provider: {provider.__class__.__name__}")
+        return provider
 
-    # Imposible llegar aquí porque HeuristicPageLayoutProvider siempre está disponible
-    _cached_provider = HeuristicPageLayoutProvider()
-    return _cached_provider
+    print("[PAGE-LAYOUT] COM no disponible — se requiere Microsoft Word")
+    return None
