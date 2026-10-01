@@ -349,11 +349,11 @@ class HeuristicPageLayoutProvider(PageLayoutProvider):
 
 _cached_provider: Optional[PageLayoutProvider] = None
 
-def get_page_layout_provider() -> Optional[PageLayoutProvider]:
+def get_page_layout_provider() -> PageLayoutProvider:
     """
-    Retorna COMPageLayoutProvider si está disponible, o None.
+    Retorna COMPageLayoutProvider si está disponible.
 
-    FASE 5 — Guard D-a: sin Word, retorna None (sin excepción).
+    FASE 5 — Guard D-a: sin Word, lanza RuntimeError con mensaje claro.
     Elimina fallback a LibreOffice y heurístico en la ruta de layout.
     """
     global _cached_provider
@@ -366,5 +366,4 @@ def get_page_layout_provider() -> Optional[PageLayoutProvider]:
         print(f"[PAGE-LAYOUT] Usando provider: {provider.__class__.__name__}")
         return provider
 
-    print("[PAGE-LAYOUT] COM no disponible — se requiere Microsoft Word")
-    return None
+    raise RuntimeError("Se requiere Microsoft Word")

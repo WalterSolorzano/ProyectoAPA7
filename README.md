@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Electron](https://img.shields.io/badge/Electron-28.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org)
 [![Microsoft Word 365](https://img.shields.io/badge/Microsoft_Word-Add--in-2B579A?style=for-the-badge&logo=microsoftword&logoColor=white)](https://office.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-8B5CF6?style=for-the-badge)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-8B5CF6?style=for-the-badge)](LICENSE)
 
 <p align="center">
   <b>Suite académica de alta precisión y complemento nativo para Microsoft Word que transforma documentos universitarios (<code>.docx</code>) a las normas oficiales APA 7.ª Edición, preservando el 100% del contenido original, diagramando portadas de forma indivisible e integrando copilotos de IA proactivos.</b>
@@ -232,7 +232,19 @@ WordAPA7 utiliza tokens CSS con la paleta de diseño inspirada en Microsoft Word
 
 ## 📄 Licencia
 
-Este proyecto se distribuye bajo la Licencia [MIT](LICENSE). Siéntete libre de utilizarlo, modificarlo y distribuirlo para fines académicos o comerciales.
+Este proyecto se distribuye bajo la Licencia [Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](LICENSE).
+
+**Puedes:**
+- Compartir — copiar y redistribuir el material en cualquier medio o formato
+- Adaptar — remezclar, transformar y construir sobre el material
+
+**Bajo las siguientes condiciones:**
+- Atribución — Debes dar crédito apropiado, proporcionar un enlace a la licencia e indicar si se realizaron cambios. Puedes hacerlo de cualquier manera razonable, pero no de ninguna manera que sugiera que el licenciante te respalda a ti o a tu uso.
+- No Comercial — No puedes usar el material para fines comerciales.
+
+**Sin restricciones adicionales** — No puedes aplicar términos legales o medidas tecnológicas que restrinjan legalmente a otros de hacer cualquier cosa que la licencia permita.
+
+> ℹ️ *Esta licencia está diseñada para proteger el trabajo académico y garantizar que el crédito sea siempre atribuido a los autores originales, permitiendo el uso libre para fines educativos y de investigación sin permitir la explotación comercial sin autorización.*
 
 <p align="center">
   Hecho con ❤️ para estudiantes, docentes e investigadores universitarios.
