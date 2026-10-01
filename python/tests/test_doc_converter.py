@@ -1,7 +1,8 @@
 # python/tests/test_doc_converter.py
-"""Fase 5 — Guard D-a en doc_converter: sin COM → NONE, sin fallback LO."""
+"""Fase 5 — Guard D-a en doc_converter: sin COM → RuntimeError, sin fallback LO."""
 import sys
 import pathlib
+import pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -28,22 +29,22 @@ def _make_svc(*, com_available=False, lo_available=False):
     return svc
 
 
-def test_get_active_engine_no_com_returns_none():
-    """Sin COM disponible, get_active_engine() debe retornar 'NONE'."""
+def test_get_active_engine_no_com_raises():
+    """Sin COM disponible, get_active_engine() debe lanzar RuntimeError."""
     svc = _make_svc(com_available=False, lo_available=True)
 
     with patch.dict("os.environ", {"FORCE_ENGINE": ""}):
-        engine = svc.get_active_engine()
-    assert engine == "NONE", f"Esperado 'NONE' sin COM, llegó '{engine}'"
+        with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+            svc.get_active_engine()
 
 
-def test_get_active_engine_force_lo_returns_none():
-    """FORCE_ENGINE=LO debe retornar 'NONE' (D-a: sin fallback LO)."""
-    svc = _make_svc(com_available=False, lo_available=True)
+def test_get_active_engine_force_lo_raises():
+    """FORCE_ENGINE=LO sin LO → RuntimeError."""
+    svc = _make_svc(com_available=False, lo_available=False)
 
     with patch.dict("os.environ", {"FORCE_ENGINE": "LO"}):
-        engine = svc.get_active_engine()
-    assert engine == "NONE", f"FORCE_ENGINE=LO debe retornar 'NONE', llegó '{engine}'"
+        with pytest.raises(RuntimeError, match="Se requiere LibreOffice"):
+            svc.get_active_engine()
 
 
 def test_get_active_engine_com_available():

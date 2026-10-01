@@ -32,18 +32,25 @@ class DocConverterService:
     def get_active_engine(self) -> str:
         """Determina que motor usar. D-a duro: solo COM, sin fallback LO.
 
-        FASE 5 — Guard D-a: sin Word disponible, retorna 'NONE' (sin excepción).
-        Elimina fallback a LibreOffice y heurístico en la ruta de export.
+        FASE 5 — Guard D-a: sin Word disponible, lanza RuntimeError con mensaje
+        claro. Elimina fallback a LibreOffice y heurístico en la ruta de export.
         """
         force_engine = os.getenv("FORCE_ENGINE", "").upper()
 
-        if force_engine == "LO":
-            return "NONE"
+        if force_engine == "COM":
+            if self._com_processor.is_available():
+                return "COM"
+            raise RuntimeError("Se requiere Microsoft Word")
+        elif force_engine == "LO":
+            if self._lo_service.is_available():
+                return "LO"
+            raise RuntimeError("Se requiere LibreOffice")
 
+        # Default: COM es la única autoridad (D-a: sin degradación)
         if self._com_processor.is_available():
             return "COM"
 
-        return "NONE"
+        raise RuntimeError("Se requiere Microsoft Word")
 
     def process_and_convert(
         self, original_path: Path, generated_path: Path, final_path: Path,
@@ -62,7 +69,11 @@ class DocConverterService:
         """
 
         with self._lock:
-            engine = self.get_active_engine()
+            try:
+                engine = self.get_active_engine()
+            except RuntimeError as e:
+                logger.warning(f"[DocConverter] {e}")
+                return False, None
 
             # FASE 5 — Guard D-a: sin motor, abortar antes de tocar archivos.
             if engine == "NONE":

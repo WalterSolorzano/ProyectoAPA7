@@ -1,10 +1,12 @@
 """FASE 5 — Guard D-a en DocConverterService.get_active_engine.
 
-Sin Word disponible, get_active_engine retorna 'NONE' (sin excepción).
-Elimina fallback a LibreOffice y heurístico en la ruta de export.
+Sin Word disponible, get_active_engine debe lanzar RuntimeError con mensaje
+"Se requiere Microsoft Word". Elimina fallback a LibreOffice y heurístico
+en la ruta de export.
 """
 import sys
 import pathlib
+import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -35,27 +37,38 @@ def test_com_disponible_retorna_com(monkeypatch):
     assert svc.get_active_engine() == "COM"
 
 
-def test_com_no_disponible_retorna_none(monkeypatch):
-    """COM no disponible → retorna 'NONE' (sin excepción)."""
+def test_com_no_disponible_lanza_runtime_error(monkeypatch):
+    """COM no disponible → RuntimeError con mensaje 'Se requiere Microsoft Word'."""
     svc = _make_converter(monkeypatch, com_available=False, lo_available=False)
-    assert svc.get_active_engine() == "NONE"
+    with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+        svc.get_active_engine()
 
 
-def test_com_no_disponible_con_lo_disponible_igual_none(monkeypatch):
-    """Aunque LO esté disponible, sin COM → 'NONE' (D-a: sin degradación)."""
+def test_com_no_disponible_con_lo_disponible_igual_lanza(monkeypatch):
+    """Aunque LO esté disponible, sin COM debe lanzar (D-a: sin degradación)."""
     svc = _make_converter(monkeypatch, com_available=False, lo_available=True)
-    assert svc.get_active_engine() == "NONE"
+    with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+        svc.get_active_engine()
 
 
-def test_force_engine_com_sin_word_retorna_none(monkeypatch):
-    """FORCE_ENGINE=COM sin Word → 'NONE'."""
+def test_force_engine_com_sin_word_lanza(monkeypatch):
+    """FORCE_ENGINE=COM sin Word → RuntimeError."""
     monkeypatch.setenv("FORCE_ENGINE", "COM")
     svc = _make_converter(monkeypatch, com_available=False)
-    assert svc.get_active_engine() == "NONE"
+    with pytest.raises(RuntimeError, match="Se requiere Microsoft Word"):
+        svc.get_active_engine()
 
 
-def test_force_engine_lo_retorna_none(monkeypatch):
-    """FORCE_ENGINE=LO → 'NONE' (D-a: sin fallback LO)."""
+def test_force_engine_lo_sin_lo_lanza(monkeypatch):
+    """FORCE_ENGINE=LO sin LO → RuntimeError."""
+    monkeypatch.setenv("FORCE_ENGINE", "LO")
+    svc = _make_converter(monkeypatch, lo_available=False)
+    with pytest.raises(RuntimeError, match="Se requiere LibreOffice"):
+        svc.get_active_engine()
+
+
+def test_force_engine_lo_con_lo_retorna_lo(monkeypatch):
+    """FORCE_ENGINE=LO con LO disponible → retorna 'LO'."""
     monkeypatch.setenv("FORCE_ENGINE", "LO")
     svc = _make_converter(monkeypatch, lo_available=True)
-    assert svc.get_active_engine() == "NONE"
+    assert svc.get_active_engine() == "LO"
