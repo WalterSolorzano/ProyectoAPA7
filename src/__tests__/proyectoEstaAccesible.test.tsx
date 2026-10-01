@@ -29,6 +29,23 @@ import { EDITOR_RAIL_ITEMS } from '../components/shell/railItems';
 import { AppShell } from '../components/shell/AppShell';
 import { readPhaseStates } from '../lib/railPending';
 
+/* `AppShell` monta el lienzo, y el lienzo importa `pdfjs-dist`, que pide
+   `DOMMatrix` en el import y no existe en jsdom. No tiene nada que ver con el
+   destino del proyecto: se lo cambia por su lugar, como hacen
+   `pdfRestLayer.test.tsx` y `focoNoBarraElSelector.test.tsx`. */
+vi.mock('pdfjs-dist', () => ({
+  GlobalWorkerOptions: { workerSrc: '' },
+  getDocument: vi.fn(() => ({
+    promise: Promise.resolve({
+      numPages: 3,
+      getPage: vi.fn(() => Promise.resolve({
+        getViewport: () => ({ width: 612, height: 792 }),
+        render: () => ({ promise: Promise.resolve() }),
+      })),
+    }),
+  })),
+}));
+
 // El Explorador pesa: no hace falta el modal real para medir si se ALCANZA.
 vi.mock('../components/project/ProjectFolderModal', () => ({
   ProjectFolderModal: ({ isOpen }: { isOpen: boolean }) =>
