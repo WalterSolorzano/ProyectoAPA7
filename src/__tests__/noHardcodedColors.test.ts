@@ -744,7 +744,7 @@ describe('T20 — el lint de tokens del rediseño', () => {
     expect(
       conCanvas.map(nombreDe),
       'la excepcion de canvas se esta comiendo el alcance: un archivo que dibuja entra sin que nadie lo nombre',
-    ).toEqual(['HomeHero.tsx', 'LoadingTips.tsx', 'PDFPreview.tsx']);
+    ).toEqual(['HomeHero.tsx', 'LoadingTips.tsx', 'PDFPreview.tsx', 'PdfRestLayer.tsx']);
     /* Y que un color suelto FUERA de una paleta y de una línea de dibujo siga
        en rojo: es el agujero que la excepción abre. */
     expect(coloresLiterales("const s = { color: '#4f7cff' }")).toHaveLength(1);
