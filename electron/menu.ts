@@ -148,10 +148,10 @@ export function createMenu() {
         {
           label: 'Acerca de WordAPA7',
           click: async () => {
-            const { dialog } = require('electron')
+            const { dialog, app } = require('electron')
             dialog.showMessageBox({
               title: 'Acerca de WordAPA7',
-              message: 'WordAPA7 v1.0.0\n\nHerramienta de automatización y formateo de documentos según las normas APA 7ma Edición.',
+              message: `WordAPA7 v${app.getVersion()}\n\nHerramienta de automatización y formateo de documentos según las normas APA 7ma Edición.`,
               buttons: ['Aceptar'],
               type: 'info'
             })

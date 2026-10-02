@@ -184,14 +184,14 @@ export interface ReviewWorkbenchApi {
 
 /** Orden de motores para grupos, chips y minimapa. El motor probabilístico
  *  va al final: es el que menos se ofrece a resolver solo. */
-export const ENGINE_ORDER: EngineId[] = ['spelling', 'style', 'structure', 'citations', 'ai'];
+export const ENGINE_ORDER: EngineId[] = ['spelling', 'structure', 'citations', 'style', 'ai'];
 
 export const ENGINE_META: Record<EngineId, { title: string; chip: string; color: string }> = {
-  spelling: { title: 'Ortografía', chip: 'Ortografía', color: 'var(--color-accent)' },
-  style: { title: 'Redacción & Bloom', chip: 'Redacción & Bloom', color: 'var(--color-warning)' },
-  structure: { title: 'Estructura', chip: 'Estructura', color: 'var(--color-text-secondary)' },
+  spelling: { title: 'Ortografía', chip: 'Ortografía', color: 'var(--color-danger)' },
+  structure: { title: 'Estructura', chip: 'Estructura', color: 'var(--color-info)' },
   citations: { title: 'Citas', chip: 'Citas', color: 'var(--color-success)' },
-  ai: { title: 'Patrones IA', chip: 'Patrones IA', color: 'var(--color-danger)' },
+  style: { title: 'Redacción & Bloom', chip: 'Redacción & Bloom', color: 'var(--color-warning)' },
+  ai: { title: 'Patrones IA', chip: 'Patrones IA', color: 'var(--color-engine-ia)' },
 };
 
 /* Motores que corre el "Escanear" global, en el orden de Promise.allSettled.

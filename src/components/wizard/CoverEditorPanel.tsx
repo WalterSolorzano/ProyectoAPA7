@@ -18,7 +18,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   School, FileText, Check, ChevronRight, ChevronDown, Users, Calendar,
-  GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical,
+  GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical, Search,
 } from 'lucide-react';
 import {
   CATALOGO_DE_CARRERAS as CARRERAS_PRESETS,
@@ -259,6 +259,15 @@ export const CoverEditorPanel: React.FC = () => {
      la UI no decía nada. */
   const [logosQueNoCargan, setLogosQueNoCargan] = useState<Set<string>>(new Set());
   const { integrantes, profesores, grupos } = useRosterStore();
+  const [busquedaRoster, setBusquedaRoster] = useState('');
+
+  const integrantesFiltrados = useMemo(() => {
+    if (!busquedaRoster.trim()) return integrantes;
+    const q = busquedaRoster.toLowerCase();
+    return integrantes.filter(
+      (i) => i.nombre.toLowerCase().includes(q) || (i.carnet && i.carnet.toLowerCase().includes(q))
+    );
+  }, [integrantes, busquedaRoster]);
 
   // Determinar modo actual
   const currentMode: 'original' | 'apa7' | 'uni' = useMemo(() => {
@@ -326,11 +335,11 @@ export const CoverEditorPanel: React.FC = () => {
   const isAuthorSelected = (nombre: string): boolean =>
     currentAuthors.some((a) => a.toLowerCase() === nombre.toLowerCase());
 
-  const toggleIntegrante = (nombre: string) => {
+  const toggleIntegrante = (nombre: string, carnet: string = '') => {
     const exists = currentAuthors.some((a) => a.toLowerCase() === nombre.toLowerCase());
     const next = exists
       ? authorEntries.filter((a) => a.nombre.toLowerCase() !== nombre.toLowerCase())
-      : [...authorEntries, { nombre, carnet: '' }];
+      : [...authorEntries, { nombre, carnet }];
     const serialized = serializeAuthorEntries(next);
     updateActaField('autor', serialized);
     requestCoverFieldHighlight('author');
@@ -435,11 +444,15 @@ export const CoverEditorPanel: React.FC = () => {
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
                 padding: '3px 8px', borderRadius: 'var(--radius-full)',
-                backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-warning-a12)' : 'var(--color-success-a12)',
-                color: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-warning)' : 'var(--color-success)',
-                fontSize: '10.5px', fontWeight: 700,
+                backgroundColor: 'var(--surface-subtle)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '11px', fontWeight: 600, fontFamily: 'inherit',
               }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: 'var(--radius-full)', backgroundColor: 'currentColor' }} />
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: 'var(--radius-full)',
+                  backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--text-muted)' : 'var(--accent-primary)',
+                }} />
                 <span>
                   {(portada.title || '').length} caracteres · {(portada.title || '').trim().split(/\s+/).filter(Boolean).length} palabras (APA recomienda máx 12)
                 </span>
@@ -532,14 +545,43 @@ export const CoverEditorPanel: React.FC = () => {
               </div>
             )}
 
-            {/* Roster de integrantes como chips rápidos */}
+            {/* Roster de integrantes con buscador */}
             {integrantes.length > 0 && (
-              <div style={{ marginTop: '4px' }}>
-                <div style={sectionHeader}>
-                  <Users size={12} color="var(--accent-primary)" /> Integrantes del Roster
+              <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={sectionHeader}>
+                    <Users size={12} color="var(--accent-primary)" /> Integrantes del Roster ({integrantesFiltrados.length})
+                  </div>
                 </div>
-                <div style={chipWrap}>
-                  {integrantes.map((intg) => {
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={12} color="var(--text-muted)" style={{ position: 'absolute', left: '8px', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    value={busquedaRoster}
+                    onChange={(e) => setBusquedaRoster(e.target.value)}
+                    placeholder="Buscar estudiante o carnet..."
+                    style={{
+                      ...baseInput,
+                      padding: '4px 8px 4px 26px',
+                      fontSize: '11px',
+                      height: '26px',
+                    }}
+                  />
+                  {busquedaRoster && (
+                    <button
+                      type="button"
+                      onClick={() => setBusquedaRoster('')}
+                      style={{
+                        position: 'absolute', right: '6px', background: 'none', border: 'none',
+                        cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0,
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <div style={{ ...chipWrap, maxHeight: '140px', overflowY: 'auto' }}>
+                  {integrantesFiltrados.map((intg) => {
                     const selected = isAuthorSelected(intg.nombre);
                     return (
                       <Chip
@@ -556,11 +598,16 @@ export const CoverEditorPanel: React.FC = () => {
                         }
                         label={getShortName(intg.nombre)}
                         selected={selected}
-                        onClick={() => toggleIntegrante(intg.nombre)}
+                        onClick={() => toggleIntegrante(intg.nombre, intg.carnet)}
                         title={intg.carnet ? `${intg.nombre} (${intg.carnet})` : intg.nombre}
                       />
                     );
                   })}
+                  {integrantesFiltrados.length === 0 && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
+                      No se encontraron integrantes que coincidan con &quot;{busquedaRoster}&quot;
+                    </span>
+                  )}
                 </div>
               </div>
             )}

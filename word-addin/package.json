@@ -1,6 +1,6 @@
 {
   "name": "wordapa7-addin",
-  "version": "1.0.0",
+  "version": "1.0.67",
   "description": "WordAPA7 — Word Add-in (Task Pane) para formato APA 7 en tiempo real",
   "private": true,
   "scripts": {

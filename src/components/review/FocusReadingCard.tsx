@@ -14,6 +14,7 @@ import { useAutoFitText } from '../../hooks/useAutoFitText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText } from './ReadingText';
 import { ENGINE_META, type AuditItem } from '../../hooks/useReviewWorkbench';
+import { EditorialMascot, type MascotExpression, type MascotKind } from '../layout/EditorialMascot';
 
 export interface FocusReadingCardProps {
   item: AuditItem | null;
@@ -24,21 +25,8 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
   const doc = useDocStore((s) => s.doc);
   const markBase = useMarkSourceBase();
 
-  /* La clave del contenido es el id del hallazgo, NO el texto: el alto de la
-     caja no cambia al pasar de un párrafo al siguiente, así que el
-     ResizeObserver no dispara por eso. Sin esta clave, que es opcional, el
-     párrafo nuevo heredaría el cuerpo del anterior y ni el compilador ni un
-     test se enterarían. `undefined` es lo que el parámetro opcional acepta (el
-     hook compara por identidad en el array de dependencias, donde `undefined`
-     y `null` se comportan igual). */
   const { containerRef, fontSize, lineHeight } = useAutoFitText(item?.id);
 
-  /* El elemento que se está leyendo. Sin él, `ReadingText` no puede evaluar
-     los motores que se anclan en el elemento (corrector, comentario, citas) y
-     la tarjeta llegaría al usuario sin ninguno de sus resaltados: el párrafo
-     es el MISMO que pinta el lienzo, y los dos canales tienen que decir lo
-     mismo. Un hallazgo sin elemento (una referencia huérfana, por ejemplo)
-     sigue mostrándose: lo que no hay, no se inventa. */
   const elem = useMemo(
     () => (item?.element_id ? doc?.elements.find((e) => e.id === item.element_id) : undefined),
     [doc, item?.element_id],
@@ -46,11 +34,6 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
 
   const source = useMemo(() => buildMarkSource(markBase, elem), [markBase, elem]);
 
-  /* `null` es "no hay página", no "la página 0": un elemento fuera del índice
-     no tiene página y la tarjeta no estima una. El 0 tampoco es una página,
-     así que cae en el mismo rótulo. Y sin `item` NO hay línea de contexto: no
-     hay contexto que leer, y "Sin selección" escrito donde antes iba la página
-     es un rótulo inventado que ocupa el lugar de un dato. */
   const pagina = item
     ? item.pageNumber
       ? `Página ${item.pageNumber} de la revisión`
@@ -58,10 +41,25 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
     : null;
   const seccion = item ? `${ENGINE_META[item.category]?.title ?? item.category} · ` : '';
 
-  /* Un hallazgo puede quedarse sin texto: el elemento se editó o se borró
-     después de que el motor lo midiera. Un párrafo vacío no dice nada, así que
-     se dice en palabras qué pasó. */
   const texto = item?.originalText?.trim() ? item.originalText : null;
+
+  const mascotKind: MascotKind =
+    item?.category === 'spelling'
+      ? 'strike'
+      : item?.category === 'structure'
+        ? 'ruler'
+        : item?.category === 'citations'
+          ? 'reference'
+          : 'highlighter';
+
+  const mascotExpression: MascotExpression =
+    totalFindings === 0
+      ? 'happy'
+      : totalFindings > 3
+        ? 'worried'
+        : item?.category === 'ai'
+          ? 'curious'
+          : 'neutral';
 
   return (
     <section
@@ -83,18 +81,16 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 'var(--space-3)',
-          padding: 'var(--space-3) var(--space-10)',
-          marginBottom: 'var(--space-6)',
+          padding: 'var(--space-2) var(--space-6)',
           borderBottom: '1px solid var(--color-border-subtle)',
           fontSize: 'var(--text-xs)',
           color: 'var(--color-text-tertiary)',
         }}
       >
-        {/* La línea de contexto solo se renderiza si HAY contexto. Con `item`
-            en null, esta cabecera diría "Sin selección" en el lugar donde en
-            cualquier otro momento va la página, y eso es un dato falso en el
-            lugar exacto donde se leen los datos. */}
-        {pagina !== null && <span>{`${seccion}${pagina}`}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <EditorialMascot size={24} kind={mascotKind} expression={mascotExpression} />
+          {pagina !== null && <span style={{ fontWeight: 600 }}>{`${seccion}${pagina}`}</span>}
+        </div>
         <span>{totalFindings} {totalFindings === 1 ? 'hallazgo en este bloque' : 'hallazgos en este bloque'}</span>
       </header>
 

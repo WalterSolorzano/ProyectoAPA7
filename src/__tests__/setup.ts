@@ -122,5 +122,9 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function () {};
 }
 
+if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {};
+}
+
 
 

@@ -223,6 +223,22 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, busy, children
             ×{group.items.length}
           </span>
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', flexShrink: 0 }}>{group.label}</span>
+          {(group.key === 'verbo_bloom' || group.key === 'objetivo_generico') && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: '10px',
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                color: 'var(--color-accent)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              Fase: Objetivos
+            </span>
+          )}
           {primero?.originalText && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontSize: 'var(--text-xs)' }}>
               {/* Original y sugerencia se RECORTAN los dos: una leyenda de 56

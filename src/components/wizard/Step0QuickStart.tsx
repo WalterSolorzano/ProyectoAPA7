@@ -11,7 +11,6 @@ import { UploadDropzone } from '../upload/UploadDropzone';
 import { Card } from '../ui/wordapa7';
 import { HomeHero } from '../layout/HomeHero';
 import { IconRail } from '../shell/IconRail';
-import { RailFlyout } from '../shell/RailFlyout';
 import { useRailFlyout } from '../../hooks/useRailFlyout';
 import { HOME_RAIL_ITEMS } from '../shell/railItems';
 import type { RailDestination } from '../shell/railItems';
@@ -120,7 +119,7 @@ function timeAgo(dateStr: string): string {
 export const Step0QuickStart: React.FC = () => {
   const {
     uploadFile, setActiveProfile, isLoading, isBackendReady, error, openSession,
-    profiles, activeProfileId, startBlankDocument,
+    profiles, activeProfileId,
   } = useDocStore();
   const [activeTab, setActiveTab] = useState<'inicio' | 'recientes'>('inicio');
   const [greeting] = useState(getGreeting());
@@ -372,14 +371,6 @@ export const Step0QuickStart: React.FC = () => {
         onEnterRail={flyout.onEnterRail}
         onLeaveRail={flyout.onLeaveRail}
         onSelect={handleSelect}
-        onTogglePin={flyout.togglePin}
-        pinned={flyout.railPinned}
-      />
-      <RailFlyout
-        item={flyout.item}
-        onClose={flyout.close}
-        onEnter={flyout.onEnterPanel}
-        onLeave={flyout.onLeavePanel}
       />
 
       {/* El hub de Ajustes se abre desde `App.tsx`, no desde acá: es un flag del
@@ -564,40 +555,9 @@ export const Step0QuickStart: React.FC = () => {
                     ) : (
                       <>
                         <FileUp size={16} />
-                        Seleccionar archivo Word (.docx)
+                        Abrir documento de Word
                       </>
                     )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!busy) startBlankDocument();
-                    }}
-                    disabled={busy}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '11px 20px',
-                      borderRadius: 'var(--radius-lg)',
-                      border: '1px solid var(--border-subtle)',
-                      cursor: busy ? 'wait' : 'pointer',
-                      backgroundColor: 'var(--surface-elevated)',
-                      color: 'var(--text-main)',
-                      fontFamily: 'inherit',
-                      fontSize: 'var(--text-sm)',
-                      fontWeight: 600,
-                      boxShadow: '0 2px 6px var(--surface-subtle)',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => { if (!busy) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; } }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-                    title="Crear un nuevo documento .docx limpio estructurado bajo APA 7"
-                  >
-                    <FileText size={16} color="var(--accent-primary)" />
-                    <span>Nuevo documento en blanco</span>
                   </button>
 
                   <button

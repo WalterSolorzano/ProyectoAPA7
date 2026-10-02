@@ -76,8 +76,22 @@ def generate_build_manifest(dist_dir: str | Path | None = None) -> Path:
     build_hash = _compute_build_hash(dist)
     src_hash = _compute_src_content_hash(BASE_DIR / "src")
 
+    try:
+        from config import APP_VERSION
+        app_version = APP_VERSION
+    except Exception:
+        app_version = "1.0.67"
+
+    pkg_file = BASE_DIR / "package.json"
+    if pkg_file.exists():
+        try:
+            with open(pkg_file, "r", encoding="utf-8") as f:
+                app_version = json.load(f).get("version", app_version)
+        except Exception:
+            pass
+
     manifest = {
-        "version": "1.0.0",
+        "version": app_version,
         "build_hash": build_hash,
         "src_hash": src_hash,
         "build_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

@@ -356,13 +356,49 @@ export class PythonManager {
         this.port = await getFreePort()
         log('info', 'python-manager', 'La app usa un puerto libre para su backend propio', { port: this.port })
       } else {
-        this.externalBackend = true
-        log('info', 'python-manager', 'Backend ya estaba corriendo en el puerto elegido (arrancado por watcher externo)', { port: this.port })
-        BrowserWindow.getAllWindows().forEach(win => {
-          win.webContents.send('python-ready')
+        // En producción: verificar que el backend coincide con la versión de la app
+        let backendVersion: string | null = null;
+        for (const proto of ['https', 'http']) {
+          try {
+            const ctl = new AbortController();
+            setTimeout(() => ctl.abort(), 1500);
+            const r = await fetch(`${proto}://127.0.0.1:${this.port}/api/version`, { signal: ctl.signal });
+            if (r.ok) {
+              const j = await r.json().catch(() => null);
+              if (j?.version) { backendVersion = j.version; break; }
+            }
+          } catch { /* siguiente proto */ }
+        }
+
+        const appVer = app.getVersion();
+        const coincideVersion = !backendVersion || backendVersion === appVer;
+
+        if (coincideVersion) {
+          this.externalBackend = true
+          log('info', 'python-manager', 'Backend ya estaba corriendo en el puerto elegido y coincide la versión', { port: this.port, version: backendVersion })
+          BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('python-ready')
+          })
+          this.autoSetupAddin()
+          return
+        }
+
+        log('warn', 'python-manager', 'Backend corriendo es de versión vieja, no se adopta', {
+          port: this.port, backendVersion, appVersion: appVer
         })
-        this.autoSetupAddin()
-        return
+        const pid = PythonManager.listenerPid(this.port);
+        if (pid) {
+          try {
+            execSync(`taskkill /F /PID ${pid}`, { timeout: 4000 });
+            log('info', 'python-manager', `Terminado backend zombie versión vieja (PID ${pid})`);
+            await new Promise(r => setTimeout(r, 1200));
+          } catch (e) {
+            log('warn', 'python-manager', `No se pudo terminar PID ${pid}, usando puerto libre`, { error: String(e) });
+            this.port = await getFreePort();
+          }
+        } else {
+          this.port = await getFreePort();
+        }
       }
     }
     return new Promise((resolve, reject) => {

@@ -30,7 +30,7 @@ import type { ElementModel } from '../types';
 import { seccionesDeElementos } from './jerarquia';
 import { ANCHO_DE_LA_HOJA_PX, anchoUtilMm, mmAPx, type Hoja } from './portada/geometria';
 
-export type TipoFigura = 'image' | 'table';
+export type TipoFigura = 'image' | 'table' | 'equation';
 
 /** El nombre de la sección para lo que está antes del primer H1. Es un contexto
  *  real y se nombra, no se llama "Sin sección": hay una portada y está leída. */
@@ -178,15 +178,24 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
     }
 
     const esImagen = el.type === 'image';
-    if (!esImagen && el.type !== 'table') continue;
+    const esTabla = el.type === 'table';
+    const esEcuacion = el.type === 'equation' || Boolean(el.equation);
+    if (!esImagen && !esTabla && !esEcuacion) continue;
     /* Los logotipos de la portada no son figuras de esta fase: son parte del
        diseño de la portada, y `use_original_cover` no los puede tocar. */
     if (el.is_cover_section) continue;
 
     const numero = esImagen
       ? el.image_info?.figure_number ?? 0
-      : el.table_info?.table_number ?? 0;
-    const leyenda = ((esImagen ? el.image_info?.caption : el.table_info?.caption) ?? '').trim();
+      : esTabla
+      ? el.table_info?.table_number ?? 0
+      : typeof el.equation?.number === 'number'
+      ? el.equation.number
+      : parseInt(String(el.equation?.number ?? '0'), 10) || 0;
+    const leyenda = esEcuacion
+      ? (el.text || '').trim()
+      : ((esImagen ? el.image_info?.caption : el.table_info?.caption) ?? '').trim();
+
     const sec = secciones[i] ?? { h1: null, h2: null, enPreambulo: true };
 
     let anterior: string | null = null;
@@ -207,11 +216,16 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
     salida.push({
       indice: i,
       id: el.id,
-      tipo: esImagen ? 'image' : 'table',
+      tipo: esImagen ? 'image' : esTabla ? 'table' : 'equation',
       numero,
-      rotulo: `${esImagen ? 'Figura' : 'Tabla'} ${numero}`,
+      rotulo: esImagen
+        ? `Figura ${numero}`
+        : esTabla
+        ? `Tabla ${numero}`
+        : `Ecuación ${numero || ''}`.trim(),
       leyenda,
-      tieneLeyenda: leyenda.length > 0,
+      tieneLeyenda: esEcuacion ? true : leyenda.length > 0,
+
       seccion: sec.h2 ?? sec.h1 ?? ROTULO_DE_PREAMBULO,
       h1: sec.h1,
       h2: sec.h2,

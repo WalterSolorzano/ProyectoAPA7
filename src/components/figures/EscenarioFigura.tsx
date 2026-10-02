@@ -330,31 +330,64 @@ export function EscenarioFigura({
               }}
             >
               {/* Contexto: Párrafo Previo */}
-              <div style={{ marginBottom: 'var(--space-4)', opacity: 0.85, fontSize: 'var(--text-sm)', lineHeight: 1.6, textAlign: 'justify' }}>
+              <div style={{ marginBottom: 'var(--space-4)', opacity: 0.9, fontSize: 'var(--text-sm)', lineHeight: 1.6, textAlign: 'justify' }}>
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: '4px', fontFamily: 'sans-serif' }}>
+                  Párrafo anterior
+                </span>
                 <p style={{ margin: 0, textIndent: '1.27cm' }}>
-                  {contexto.parrafoAnterior ?? '... (Párrafo anterior del documento donde se introduce la figura según lineamientos APA 7) ...'}
+                  {contexto.parrafoAnterior ?? 'Es la primera figura de la sección: no hay párrafo que la presente'}
                 </p>
               </div>
 
-              {/* Rótulo y Título de la Figura según APA 7 */}
-              <div style={{ margin: 'var(--space-4) 0 var(--space-2)', fontFamily: 'inherit' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--paper-ink)' }}>
-                  {contexto.rotulo}
+
+              {/* Rótulo y Título según APA 7 (para figuras y tablas) */}
+              {contexto.tipo !== 'equation' ? (
+                <div style={{ margin: 'var(--space-4) 0 var(--space-2)', fontFamily: 'inherit' }}>
+                  <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--paper-ink)' }}>
+                    {contexto.rotulo}
+                  </div>
+                  <div style={{ fontStyle: 'italic', fontSize: 'var(--text-sm)', color: 'var(--paper-ink)', marginTop: 2 }}>
+                    {contexto.leyenda ? contexto.leyenda : 'Título descriptivo'}
+                  </div>
                 </div>
-                <div style={{ fontStyle: 'italic', fontSize: 'var(--text-sm)', color: 'var(--paper-ink)', marginTop: 2 }}>
-                  {contexto.leyenda ? contexto.leyenda : 'Título descriptivo de la figura'}
-                </div>
+              ) : null}
+
+              {/* Render de la Figura, Tabla o Ecuación */}
+              <div style={{ margin: 'var(--space-3) 0', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                {contexto.tipo === 'image' ? (
+                  <FiguraAColumnaDeLaHoja c={contexto} />
+                ) : contexto.tipo === 'table' ? (
+                  <TablaDelEscenario c={contexto} />
+                ) : (
+                  <div
+                    data-testid="escenario-ecuacion"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 'var(--space-3) var(--space-4)',
+                      backgroundColor: 'var(--surface-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <div style={{ flex: 1, textAlign: 'center', fontStyle: 'italic', fontFamily: 'Cambria Math, "Times New Roman", serif', fontSize: 'var(--text-base)', color: 'var(--paper-ink)' }}>
+                      {contexto.leyenda || 'f(x) = y'}
+                    </div>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', marginLeft: 'var(--space-4)' }}>
+                      ({contexto.numero || 1})
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Render de la Figura o Tabla */}
-              <div style={{ margin: 'var(--space-2) 0', display: 'flex', justifyContent: 'center' }}>
-                {contexto.tipo === 'image' ? <FiguraAColumnaDeLaHoja c={contexto} /> : <TablaDelEscenario c={contexto} />}
-              </div>
-
-              {/* Nota de la Figura APA 7 */}
-              <div style={{ marginTop: 'var(--space-2)', marginBottom: 'var(--space-4)', fontSize: 'var(--text-xs)', lineHeight: 1.4, color: 'var(--paper-ink)' }}>
-                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> Elaboración propia basada en los datos del estudio.
-              </div>
+              {/* Nota de la Figura APA 7 (solo figura o tabla) */}
+              {contexto.tipo !== 'equation' && (
+                <div style={{ marginTop: 'var(--space-2)', marginBottom: 'var(--space-4)', fontSize: 'var(--text-xs)', lineHeight: 1.4, color: 'var(--paper-ink)' }}>
+                  <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> Elaboración propia basada en los datos del estudio.
+                </div>
+              )}
 
               {/* Contexto: Párrafo Posterior */}
               <div style={{ marginTop: 'var(--space-4)', opacity: 0.85, fontSize: 'var(--text-sm)', lineHeight: 1.6, textAlign: 'justify' }}>
@@ -364,18 +397,12 @@ export function EscenarioFigura({
               </div>
             </div>
 
-            <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
-              <CampoDeLeyenda c={contexto} onLegendChange={onLegendChange} />
-            </div>
+            {contexto.tipo !== 'equation' && (
+              <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
+                <CampoDeLeyenda c={contexto} onLegendChange={onLegendChange} />
+              </div>
+            )}
 
-            <div style={{ width: '100%', maxWidth: '680px', minWidth: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Párrafo anterior detectado
-              </span>
-              <p style={{ margin: '2px 0 0', lineHeight: 1.45 }}>
-                {contexto.parrafoAnterior ?? 'Es la primera figura de la sección: no hay párrafo que la presente'}
-              </p>
-            </div>
           </div>
         )}
       </div>

@@ -66,7 +66,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 # ── CONFIGURACION Y RUTAS DE ALMACENAMIENTO ──────────────────────────────────
-from config import BASE_DIR, DIST_DIR, STORAGE_DIR, get_apa7_template_path
+from config import BASE_DIR, DIST_DIR, STORAGE_DIR, get_apa7_template_path, APP_VERSION, get_app_version
 from create_template import ensure_apa7_template
 from generation.generator import generate_apa7_docx
 from generation.track_changes_engine import create_tracked_changes_docx
@@ -145,7 +145,7 @@ async def lifespan_app(app: FastAPI):
     print("[INFO] Deteniendo Word COM service...")
     get_word_com_service().stop()
 
-app = FastAPI(title="WordAPA7 API", version="1.0.0", lifespan=lifespan_app)
+app = FastAPI(title="WordAPA7 API", version=APP_VERSION, lifespan=lifespan_app)
 
 from services.lo_service import get_libreoffice_service
 
@@ -602,13 +602,8 @@ class CitationFixRequest(BaseModel):
 @app.get("/api/health")
 async def health_check() -> HealthResponse:
     """Health check para Electron y monitoreo."""
-    return HealthResponse(status="ok", version="1.0.0")
+    return HealthResponse(status="ok", version=APP_VERSION)
 
-
-@app.get("/api/version")
-async def get_version_endpoint() -> dict:
-    """Retorna la versión del backend para detección de protocolo y readiness."""
-    return {"version": "1.0.0", "mode": "main", "status": "ok"}
 
 
 class DoiRequest(BaseModel):
@@ -3094,20 +3089,24 @@ async def add_no_cache_headers(request: Request, call_next):
 
 @app.get("/api/version")
 async def get_version():
-    """Retorna la versión y build_hash actual para que el frontend detecte cambios."""
+    """Retorna la versión y build_hash actual para que el frontend detecte cambios y readiness."""
     build_hash = _read_build_hash()
     version_file = DIST_DIR / "version.json"
     build_time = None
+    app_version = APP_VERSION
     if version_file.exists():
         try:
             with open(version_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
             build_time = data.get("build_time")
+            app_version = data.get("version", app_version)
         except Exception:
             pass
 
     return {
-        "version": "1.0.0",
+        "version": app_version,
+        "mode": "main",
+        "status": "ok",
         "build_hash": build_hash,
         "build_time": build_time,
         "stale": build_hash == "unknown",
@@ -3418,7 +3417,7 @@ async def addin_build_info() -> dict:
     """Anti-stale: el taskpane compara su build con este y avisa si difieren."""
     return {
         "mode": "app",
-        "version": "1.0.0",
+        "version": APP_VERSION,
         "build_hash": _read_build_hash(),
         "started_at": _BOOT_TS,
     }

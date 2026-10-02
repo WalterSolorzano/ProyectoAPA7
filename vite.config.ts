@@ -11,28 +11,32 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills(),
-    electron([
-      {
-        // Main process entry file of the Electron App.
-        entry: 'electron/main.ts',
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-          }
-        }
-      },
-      {
-        entry: 'electron/preload.ts',
-        onstart(options) {
-          options.reload()
-        },
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-          }
-        }
-      },
-    ]),
+    ...(process.env.WEB_ONLY === 'true'
+      ? []
+      : [
+          electron([
+            {
+              // Main process entry file of the Electron App.
+              entry: 'electron/main.ts',
+              vite: {
+                build: {
+                  outDir: 'dist-electron',
+                },
+              },
+            },
+            {
+              entry: 'electron/preload.ts',
+              onstart(options) {
+                options.reload();
+              },
+              vite: {
+                build: {
+                  outDir: 'dist-electron',
+                },
+              },
+            },
+          ]),
+        ]),
   ],
   resolve: {
     alias: {

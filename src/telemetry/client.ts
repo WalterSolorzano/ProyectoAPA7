@@ -5,6 +5,8 @@
  * to the Cloudflare Worker relay, which creates GitHub Issues.
  */
 
+import { version as APP_VERSION } from "../../package.json";
+
 const PIPELINE_VERSION = "2025.08.06";
 const WORKER_URL = "https://wordapa7-telemetry.workers.dev/report";
 const TELEMETRY_STORAGE_KEY = "wordapa7_telemetry_optin";
@@ -62,7 +64,7 @@ export async function sendErrorReport(report: ErrorReport): Promise<void> {
     stack_trace: report.stack_trace?.slice(0, 5000),
     doc_metadata: report.doc_metadata as Record<string, unknown> | undefined,
     install_id: getInstallId(),
-    app_version: "1.0.0",
+    app_version: APP_VERSION,
     os: navigator.platform || "unknown",
   };
 

@@ -32,7 +32,7 @@
  * - `use_original_cover: true` jamás muta la portada del documento: elegir
  *   "Conservar original" solo escribe banderas, nunca campos de texto. */
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { APACoverEditor } from '../layout/APACoverEditor';
@@ -53,6 +53,23 @@ export const CoverCarouselStudio: React.FC = () => {
   const [isImportingCover, setIsImportingCover] = useState<boolean>(false);
   const [vista, setVista] = useState<'carrusel' | 'editor'>('carrusel');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Responsive: ancho de miniatura calculado dinámicamente según viewport
+  const [anchoCalculado, setAnchoCalculado] = useState<number>(360);
+
+  useEffect(() => {
+    const calcular = () => {
+      if (typeof window === 'undefined') return;
+      const altoDisponible = window.innerHeight - 260;
+      const anchoPorAlto = Math.round(altoDisponible / 1.35);
+      const anchoPorAncho = Math.round(window.innerWidth * 0.28);
+      const optimo = Math.min(440, Math.max(260, Math.min(anchoPorAlto, anchoPorAncho)));
+      setAnchoCalculado(optimo);
+    };
+    calcular();
+    window.addEventListener('resize', calcular);
+    return () => window.removeEventListener('resize', calcular);
+  }, []);
 
   /* Modo actual derivado, o `null` si el documento trae un `cover_mode` que la
      app no reconoce.
@@ -238,11 +255,11 @@ export const CoverCarouselStudio: React.FC = () => {
                 </p>
               )}
 
-              <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ width: '100%', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <CarruselPortada
                   modoActivo={currentMode}
                   hoja={hojaDeLaSesion}
-                  anchoMiniatura={280}
+                  anchoMiniatura={anchoCalculado}
                   onSelect={(id) => selectMode(id as CoverMode)}
                   onUpload={abrirSelector}
                   onConfirmSelect={(id) => {

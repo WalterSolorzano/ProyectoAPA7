@@ -513,7 +513,7 @@ describe('T12 — useReviewWorkbench', () => {
     const { result } = renderHook(() => useReviewWorkbench());
     const marca = result.current.marks.get(1);
     expect(marca?.label).toBe('Ortografía');
-    expect(marca?.color).toBe('var(--color-accent)');
+    expect(marca?.color).toBe('var(--color-danger)');
     expect(marca?.count).toBe(2);
   });
 
@@ -606,9 +606,9 @@ describe('T12 — useReviewWorkbench', () => {
          motores cuya corrección es objetiva y por hallazgo. */
       expect(result.current.groups.map((g) => [g.engine, g.massLabel])).toEqual([
         ['spelling', 'Aceptar todas'],
-        ['style', 'Aceptar todas'],
         ['structure', 'Rotular todo el documento'],
         ['citations', 'Resolver citas del documento'],
+        ['style', 'Aceptar todas'],
         ['ai', 'Marcar todos'],
       ]);
     });

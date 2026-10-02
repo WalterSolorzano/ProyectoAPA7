@@ -77,7 +77,7 @@ export const EditorialMascot: React.FC<EditorialMascotProps> = ({
           <Arms />
           <rect className="editorial-mascot-body editorial-mascot-ruler-body" x="5" y="23" width="54" height="18" rx="8" />
           <path className="editorial-mascot-ruler-ticks" d="M13 37 V31 M20 37 V33 M27 37 V31 M34 37 V33 M41 37 V31 M48 37 V33" />
-          <Face expression={expression} x={32} y={29} scale={0.72} />
+          <Face expression={expression} x={32} y={28} scale={0.62} />
         </>
       )}
 
@@ -88,7 +88,7 @@ export const EditorialMascot: React.FC<EditorialMascotProps> = ({
           <rect className="editorial-mascot-body editorial-mascot-reference-body" x="9" y="15" width="46" height="34" rx="10" />
           <path className="editorial-mascot-quote" d="M17 25 C14 21 16 18 20 19 M22 25 C19 21 21 18 25 19" />
           <path className="editorial-mascot-reference-lines" d="M18 41 H45 M25 37 H45" />
-          <Face expression={expression} x={34} y={29} scale={0.68} />
+          <Face expression={expression} x={33} y={26} scale={0.62} />
         </>
       )}
 
@@ -98,7 +98,7 @@ export const EditorialMascot: React.FC<EditorialMascotProps> = ({
           <path className="editorial-mascot-strike-tip" d="M5 25 L16 20 V44 L5 39 Z" />
           <rect className="editorial-mascot-body editorial-mascot-strike-body" x="12" y="21" width="47" height="22" rx="9" />
           <path className="editorial-mascot-strike-line" d="M17 48 H53" />
-          <Face expression={expression} x={39} y={27} scale={0.72} />
+          <Face expression={expression} x={38} y={28} scale={0.68} />
         </>
       )}
 
@@ -120,7 +120,7 @@ export const EditorialMascot: React.FC<EditorialMascotProps> = ({
             ))}
           </g>
           <circle className="editorial-mascot-body editorial-mascot-gear-body" cx="32" cy="32" r="20" />
-          <Face expression={expression} x={32} y={37} scale={0.5} />
+          <Face expression={expression} x={32} y={32} scale={0.55} />
         </>
       )}
     </svg>

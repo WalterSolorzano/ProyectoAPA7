@@ -42,13 +42,16 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { ListTree, ScrollText } from 'lucide-react';
+import { Activity, ArrowUpDown, FileText, ListTree, ScrollText } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { collectAuditItems } from '../../lib/auditItems';
 import { construirJerarquia, type FasesConocidas, type NodoJerarquia } from '../../lib/jerarquia';
 import { IndiceEstructura } from './IndiceEstructura';
 import { InspectorRama } from './InspectorRama';
 import { FaltasApa7 } from './FaltasApa7';
+import { DistribucionVolumen } from './DistribucionVolumen';
+import { MatrizEvidencias } from './MatrizEvidencias';
+import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
 
 export interface EscritorioEstructuraProps {
   /**
@@ -94,6 +97,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
   const [elegido, setElegido] = useState<NodoJerarquia | null>(nodoInicial);
+  const [pestanaLateral, setPestanaLateral] = useState<'inspector' | 'analisis' | 'orden'>('inspector');
 
   const elementos = doc?.elements ?? null;
 
@@ -142,7 +146,10 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
      `FaltasApa7` pasa un id y quien decide qué abrir es esta pantalla, que es la
      que tiene el árbol. */
   const abrirPorId = useCallback(
-    (id: string) => setElegido(buscar(id)),
+    (id: string) => {
+      setElegido(buscar(id));
+      setPestanaLateral('inspector');
+    },
     [buscar],
   );
 
@@ -164,7 +171,10 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
             elementos={elementos}
             faseConocida={faseConocida}
             documento={documento}
-            onSelect={setElegido}
+            onSelect={(nodo) => {
+              setElegido(nodo);
+              setPestanaLateral('inspector');
+            }}
             nodoSeleccionadoId={nodoActivo?.id}
           />
         </div>
@@ -176,84 +186,208 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-4)',
-            padding: 'var(--space-5)',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-4)',
             overflowY: 'auto',
             borderLeft: '1px solid var(--color-border-subtle)',
             backgroundColor: 'var(--color-bg-surface)',
           }}
         >
-          {elegido ? (
-            <InspectorRama nodo={elegido} elementos={elementos ?? []} />
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-                padding: 'var(--space-4)',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg-surface-alt)',
-                border: '1px dashed var(--color-border-subtle)',
-              }}
-            >
-              <p
-                role="status"
-                style={{
-                  margin: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 500,
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
-                Elegí un capítulo del índice para ver su contenido y lo que se puede hacer ahí.
-              </p>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                Podrás revisar el balance de palabras, editar el título directamente, promover su nivel o reordenarlo.
-              </span>
-            </div>
-          )}
-
-          {/* 4. REVISIÓN DE JERARQUÍA APA 7 */}
-          <section
+          {/* Selector de Pestañas del Panel Lateral */}
+          <div
+            role="tablist"
+            aria-label="Secciones del panel lateral"
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-2)',
-              marginTop: 'auto',
-              paddingTop: 'var(--space-4)',
-              borderTop: '1px solid var(--color-border-subtle)',
+              gap: 'var(--space-1)',
+              padding: '2px',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)',
             }}
-            aria-label="Qué le falta a APA 7"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <ScrollText size={15} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 700,
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                Qué le falta a APA 7
-              </h2>
-            </div>
-            <p
+            <button
+              type="button"
+              role="tab"
+              aria-selected={pestanaLateral === 'inspector'}
+              onClick={() => setPestanaLateral('inspector')}
               style={{
-                margin: 0,
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '4px 6px',
                 fontSize: 'var(--text-xs)',
-                color: 'var(--color-text-tertiary)',
+                fontWeight: pestanaLateral === 'inspector' ? 700 : 500,
+                color: pestanaLateral === 'inspector' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                backgroundColor: pestanaLateral === 'inspector' ? 'var(--color-bg-surface)' : 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                transition: 'background var(--transition-fast)',
               }}
             >
-              El backend no expone qué secciones exige APA 7 en una tesis, así que esta lista solo puede señalar los encabezados mal nivelados. No inventa los capítulos que faltarían.
-            </p>
-            <FaltasApa7 raices={raices} onSelect={abrirPorId} />
-          </section>
+              <FileText size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              <span>Rama</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={pestanaLateral === 'analisis'}
+              onClick={() => setPestanaLateral('analisis')}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '4px 6px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: pestanaLateral === 'analisis' ? 700 : 500,
+                color: pestanaLateral === 'analisis' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                backgroundColor: pestanaLateral === 'analisis' ? 'var(--color-bg-surface)' : 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                transition: 'background var(--transition-fast)',
+              }}
+            >
+              <Activity size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              <span>Pacing</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={pestanaLateral === 'orden'}
+              onClick={() => setPestanaLateral('orden')}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '4px 6px',
+                fontSize: 'var(--text-xs)',
+                fontWeight: pestanaLateral === 'orden' ? 700 : 500,
+                color: pestanaLateral === 'orden' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                backgroundColor: pestanaLateral === 'orden' ? 'var(--color-bg-surface)' : 'transparent',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                transition: 'background var(--transition-fast)',
+              }}
+            >
+              <ArrowUpDown size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              <span>Reorganizar</span>
+            </button>
+          </div>
+
+          {pestanaLateral === 'inspector' && (
+            <>
+              {elegido ? (
+                <InspectorRama nodo={elegido} elementos={elementos ?? []} />
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--space-3)',
+                    padding: 'var(--space-4)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--color-bg-surface-alt)',
+                    border: '1px dashed var(--color-border-subtle)',
+                  }}
+                >
+                  <p
+                    role="status"
+                    style={{
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 500,
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    <ListTree size={16} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
+                    Elegí un capítulo del índice para ver su contenido y lo que se puede hacer ahí.
+                  </p>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                    Podrás revisar el balance de palabras, editar el título directamente, promover su nivel o reordenarlo.
+                  </span>
+                </div>
+              )}
+
+              {/* Módulo 4: Auditor de Títulos y Jerarquía (Faltas APA 7) */}
+              <section
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-2)',
+                  marginTop: 'auto',
+                  paddingTop: 'var(--space-4)',
+                  borderTop: '1px solid var(--color-border-subtle)',
+                }}
+                aria-label="Qué le falta a APA 7"
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <ScrollText size={15} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-accent)' }} />
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 700,
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    Qué le falta a APA 7
+                  </h2>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                >
+                  El backend no expone qué secciones exige APA 7 en una tesis, así que esta lista solo puede señalar los encabezados mal nivelados. No inventa los capítulos que faltarían.
+                </p>
+                <FaltasApa7 raices={raices} onSelect={abrirPorId} />
+              </section>
+            </>
+          )}
+
+          {pestanaLateral === 'analisis' && (
+            <>
+              {/* Módulo 1: Distribución de Volumen (Pacing) */}
+              <DistribucionVolumen
+                raices={raices}
+                nodoSeleccionadoId={nodoActivo?.id}
+                onSelect={abrirPorId}
+              />
+
+              {/* Módulo 2: Matriz de Evidencias y Rigor Académico */}
+              <MatrizEvidencias
+                raices={raices}
+                nodoSeleccionadoId={nodoActivo?.id}
+                onSelect={abrirPorId}
+              />
+            </>
+          )}
+
+          {pestanaLateral === 'orden' && (
+            <>
+              {/* Módulo 3: Reorganizador Quirúrgico en Caliente */}
+              <ReorganizadorCapitulos
+                raices={raices}
+                elementos={elementos ?? []}
+                nodoSeleccionadoId={nodoActivo?.id}
+                onSelect={abrirPorId}
+              />
+            </>
+          )}
         </aside>
       </div>
     </div>

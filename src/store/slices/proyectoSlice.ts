@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand';
 import { DocState } from '../types';
 import { sonVersionesSimilares } from '../../lib/versionDetector';
 import { cargarProyectos, guardarProyectos, Proyecto, VersionDocumento } from '../../lib/proyectoStore';
+import * as api from '../../api/backend';
 
 export type { Proyecto, VersionDocumento };
 
@@ -24,7 +25,7 @@ export interface ProyectoSlice {
   crearProyecto: (nombre: string, filename: string) => Promise<void>;
   agregarVersion: (proyectoId: string, filename: string) => Promise<void>;
   marcarVersionActiva: (proyectoId: string, versionId: string) => void;
-  cerrarProyecto: (proyectoId: string) => void;
+  cerrarProyecto: (proyectoId?: string) => Promise<void> | void;
   evaluarProyectoParaArchivo: (file: File) => Promise<void>;
   inicializarPapelera: () => Promise<void>;
   _marcarArchivoComoYaPreguntado: (filename: string) => void;
@@ -82,12 +83,26 @@ export const createProyectoSlice: StateCreator<any, [], [], ProyectoSlice> = (se
     guardarProyectos(proyectos);
   },
 
-  cerrarProyecto: (proyectoId: string) => {
-    const proyectos = get().proyectos.map((p: Proyecto) =>
-      p.id === proyectoId ? { ...p, cerrado: true } : p
-    );
-    set({ proyectos });
-    guardarProyectos(proyectos);
+  cerrarProyecto: async (proyectoId?: string) => {
+    if (typeof proyectoId === 'string') {
+      const proyectos = get().proyectos.map((p: Proyecto) =>
+        p.id === proyectoId ? { ...p, cerrado: true } : p
+      );
+      set({ proyectos });
+      guardarProyectos(proyectos);
+      return;
+    }
+    const actual = get().proyecto;
+    if (actual) {
+      try {
+        await api?.borrarProyectoEnDisco(actual.id);
+      } catch (e) {
+        const detalle = e instanceof Error ? e.message : 'No se pudo borrar el proyecto';
+        get().showToast(`No se pudo borrar "${actual.nombre}": ${detalle}`, 'error');
+        return;
+      }
+    }
+    set({ proyecto: null });
   },
 
   evaluarProyectoParaArchivo: async (file: File) => {

@@ -234,9 +234,11 @@ export const Step3FiguresTablesWizard: React.FC = () => {
         hayDocumento={!!doc}
         conteoFiguras={contextos.filter((c) => c.tipo === 'image').length}
         conteoTablas={contextos.filter((c) => c.tipo === 'table').length}
+        conteoEcuaciones={contextos.filter((c) => c.tipo === 'equation').length}
         filtroActivo={filtroActivo}
         necesitaRevision={necesitaRevision}
         onColapsar={() => setListCollapsed(true)}
+
       >
         {/* Los controles de tabla se conservan donde estaban, como `children`: esta
             pantalla no conoce `setTableStyle`, y el selector de estilo academico ya

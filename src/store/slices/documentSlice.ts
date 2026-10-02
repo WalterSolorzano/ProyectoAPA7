@@ -6,6 +6,9 @@ import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtil
 import { alcancesDe } from '../../lib/modulosApa';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { syncCoverFieldToElements, defaultPortada, defaultActa, migrarActaDesdePortada } from './coverSlice';
+import { CATALOGO_DE_UNIVERSIDADES } from '../../lib/portada/catalogo';
+import { FRACCION_DE_ANCHO_DEL_LOGO } from '../../lib/portada/geometria';
+import { ActaDocumento } from '../../types';
 import {
   leerVariableDeLocalStorage,
   eleccionGuardada,
@@ -507,8 +510,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         const newTabs = [...state.tabs, newTab];
         const newTabDocs = { ...state.tabDocs, [doc.session_id]: doc };
 
-        let updatedPortada = { ...state.portada };
-        let updatedActa = migrarActaDesdePortada(state.acta ? { ...state.acta, ...state.portada } : state.portada, state.acta);
+        let updatedPortada = { ...defaultPortada, ...state.portada };
+        let updatedActa: ActaDocumento = { ...defaultActa };
         if (doc.portada?.fields && typeof doc.portada.fields === 'object') {
           const f = doc.portada.fields as any;
           const toStr = (v: any) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : v != null ? String(v) : '');
@@ -517,14 +520,26 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
              porque el bloque no se toca. Ver el motivo en `python/models.py`. */
           const autor = toStr(f.author);
           const docente = toStr(f.instructor);
-          if (autor && !updatedActa.autor) updatedActa = { ...updatedActa, autor };
-          if (docente && !updatedActa.profesor_asesor.includes(docente)) {
-            updatedActa = { ...updatedActa, profesor_asesor: [...updatedActa.profesor_asesor, docente] };
+          if (autor) updatedActa.autor = autor;
+          if (docente) {
+            const docList = docente.split(/[,\n]/).map((d: string) => d.trim()).filter(Boolean);
+            updatedActa.profesor_asesor = docList.length > 0 ? docList : [docente];
           }
+          if (f.grupo) updatedActa.grupo = toStr(f.grupo);
+
+          const instStr = toStr(f.institution);
+          const esUni = /uni\b|universidad nacional de ingenier[ií]a/i.test(instStr);
+          const uniPreset = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === 'UNI');
+
           updatedPortada = {
             ...updatedPortada,
             title: toStr(f.title) || updatedPortada.title,
-            institution: toStr(f.institution) || updatedPortada.institution,
+            institution: (esUni && uniPreset) ? uniPreset.nombre : (toStr(f.institution) || updatedPortada.institution),
+            departamento: (esUni && uniPreset) ? uniPreset.areaDefault : updatedPortada.departamento,
+            institucionSeleccionada: (esUni && uniPreset) ? 'UNI' : updatedPortada.institucionSeleccionada,
+            logos: (esUni && uniPreset && uniPreset.logoUrl)
+              ? [{ asset: uniPreset.logoUrl.split('/').pop() as string, ancho_fraccion: FRACCION_DE_ANCHO_DEL_LOGO }]
+              : updatedPortada.logos,
             course: toStr(f.course) || updatedPortada.course || '',
             date: toStr(f.date) || updatedPortada.date || '',
           };
@@ -542,9 +557,8 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           tabDocs: newTabDocs,
           history: [doc],
           historyIndex: 0,
-          /* Un documento nuevo arranca con el acta vacia: sin esto los datos
-             del acta del documento anterior quedan pegados al nuevo. */
-          acta: { ...defaultActa },
+          /* Un documento nuevo arranca con los datos detectados de portada/acta */
+          acta: updatedActa,
           coverSetupDone: false,
           atHome: false,
           wizardStep: 1,
@@ -574,7 +588,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         (e: any) => e.needs_review || (e.confidence < 0.85 && e.type !== 'empty' && e.type !== 'image' && e.type !== 'table')
       ).length;
       if (uncertainCount > 0) {
-        get().runLLMClassify().catch(() => {});
+        get().runLLMClassify({ silent: true }).catch(() => {});
       }
       // F8: evaluar proyecto para este archivo (no bloquea, no pregunta dos veces)
       setTimeout(() => get().evaluarProyectoParaArchivo(file), 800);
@@ -690,7 +704,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     const newTabDocs = { ...state.tabDocs, [nextDoc.session_id]: nextDoc };
     return { doc: nextDoc, historyIndex: newIndex, tabDocs: newTabDocs };
   }),
-  runLLMClassify: async () => {
+  runLLMClassify: async (opts?: { silent?: boolean }) => {
     const { doc, apiKey, aiProviderConfig, llmCloudConsent } = get();
     if (!doc) return;
 
@@ -704,7 +718,12 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
     set({ llmConsentPending: false });
 
-    set({ isLoading: true, error: null, llmProgress: { ...defaultLLMProgress, status: 'processing' } });
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      set({ isLoading: true, error: null, llmProgress: { ...defaultLLMProgress, status: 'processing' } });
+    } else {
+      set({ llmProgress: { ...defaultLLMProgress, status: 'processing' } });
+    }
 
     const startTime = Date.now();
     let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -755,7 +774,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
 
       set((state) => ({
         doc: updated,
-        isLoading: false,
+        ...(silent ? {} : { isLoading: false }),
         llmProgress: finalProgress,
         nimLogs: [logItem, ...(state.nimLogs || [])],
         llmUsageStats: {
@@ -816,7 +835,7 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       };
       set((state) => ({
         error: err.message || 'Error en clasificación LLM',
-        isLoading: false,
+        ...(silent ? {} : { isLoading: false }),
         llmProgress: { ...defaultLLMProgress, status: 'error', last_error: err.message },
         nimLogs: [logItem, ...(state.nimLogs || [])],
       }));

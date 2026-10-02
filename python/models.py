@@ -12,6 +12,11 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+try:
+    from config import APP_VERSION
+except Exception:
+    APP_VERSION = "1.0.67"
+
 # ── ENUMERACIONES ────────────────────────────────────────────────────────────
 
 class ElementType(str, Enum):
@@ -241,7 +246,7 @@ class PortadaProfile(BaseModel):
 class DocumentMeta(BaseModel):
     source_file: str = ""
     source_hash: str = ""
-    wordapa7_version: str = "1.0.0"
+    wordapa7_version: str = APP_VERSION
     previously_processed: bool = False
     parsed_at: str = ""
     autosave_at: Optional[str] = None
@@ -380,7 +385,7 @@ class LayoutPdfExportRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
-    version: str = "1.0.0"
+    version: str = APP_VERSION
     app: str = "WordAPA7"
 
 

@@ -395,7 +395,8 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                     width: anchoEfectivo,
                     borderRadius: 'var(--radius-lg)',
                     cursor: 'pointer',
-                    background: activa ? 'var(--color-bg-surface)' : 'var(--surface-elevated)',
+                    background: activa ? 'var(--color-bg-surface)' : 'var(--color-bg-surface-alt)',
+                    opacity: activa ? 1 : isHovered ? 0.88 : 0.68,
                     border: activa
                       ? '2px solid var(--accent-primary)'
                       : isHovered
@@ -406,19 +407,31 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                       : isHovered
                         ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
                         : 'var(--shadow-sm)',
-                    /* SOLO escala: ni filtro ni opacidad. El papel tiene que
-                       seguir siendo blanco puro, y una hoja atenuada deja de
-                       parecerse a lo que sale. */
                     transform: reducido ? undefined : `scale(${escalaDeLaTarjeta(distancia)})`,
                     transition: reducido
                       ? undefined
-                      : 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease',
+                      : 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease, opacity 200ms ease',
                     display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
                     zIndex: activa ? 30 : Math.max(1, 20 - distancia * 5),
                     position: 'relative',
                     boxSizing: 'border-box',
                   }}
                 >
+                  {!activa && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: 'var(--radius-lg)',
+                        backgroundColor: 'var(--canvas-bg)',
+                        opacity: isHovered ? 0.12 : 0.3,
+                        pointerEvents: 'none',
+                        transition: 'opacity 200ms ease',
+                        zIndex: 5,
+                      }}
+                    />
+                  )}
                   {/* La HOJA va FUERA del botón a propósito. Adentro sería un
                       botón dentro de un botón: el diseño real trae sus propios
                       controles (el lienzo de la portada original), y anidarlos

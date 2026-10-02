@@ -53,3 +53,10 @@
 - [x] `npx vitest run` sobre las suites de estructura, foco, AppShell y el lint: verde.
 - [x] `npx tsc --noEmit`: limpio.
 - [x] Commit F4.
+
+---
+
+### Decisión de diseño para Panel Derecho de Estructura (Propuesta 2 Aprobada)
+- **Concepto**: **Editor de Prosa Enfocado (Focus Pad)**. Lectura continua y redacción limpia solo de los párrafos bajo la rama (H1/H2) activa, permitiendo pulir texto sin ruido del documento entero.
+- **Descarte de Bloom**: La taxonomía y corrección de verbos de Bloom pertenece al motor de auditoría proactiva de Revisión & IA, no a la superficie de redacción de Estructura.
+

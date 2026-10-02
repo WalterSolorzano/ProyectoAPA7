@@ -47,6 +47,17 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
+  /* F7 Task 2: al abrir el Explorador se leen los proyectos del backend, para
+     que la lista offerta sea la de verdad y no solo lo que esta pestana recuerda
+     de indexedDB. Sin esto, `api.listarProyectos` no la llamaria nadie: una
+     funcion escrita, probada en Python, y que el frontend no usa. Es la clase de
+     superficie que la fase declara terminada y que no lo esta. */
+  useEffect(() => {
+    if (isOpen) {
+      void cargarProyectos();
+    }
+  }, [isOpen, cargarProyectos]);
+
   if (!isOpen) return null;
 
   /* F7 Task 3. EL NOMBRE DEL PROYECTO.
@@ -67,15 +78,6 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({
      * archivo es correcto. Lo que no puede ser un dato del archivo es el nombre
      * del proyecto. */
   const nombreProyecto = proyecto?.nombre ?? null;
-
-  /* F7 Task 2: al abrir el Explorador se leen los proyectos del backend, para
-     que la lista offerta sea la de verdad y no solo lo que esta pestana recuerda
-     de indexedDB. Sin esto, `api.listarProyectos` no la llamaria nadie: una
-     funcion escrita, probada en Python, y que el frontend no usa. Es la clase de
-     superficie que la fase declara terminada y que no lo esta. */
-  useEffect(() => {
-    void cargarProyectos();
-  }, [cargarProyectos]);
 
   const handleSelectFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

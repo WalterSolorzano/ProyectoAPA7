@@ -206,8 +206,21 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             current = {}
             continue
 
-        # Detectar patrón "Ing. Nombre"
-        elif t_lower.startswith('ing.') or t_lower.startswith('m.sc.') or t_lower.startswith('dr.'):
+        # Detectar Docente / Tutor / Profesor explícito o por prefijo
+        m_tutor = re.match(r'^(?:docente|tutor(?:a)?|profesor(?:a)?|asesor(?:a)?)\b\s*:?\s*(.*)$', t, re.IGNORECASE)
+        if m_tutor:
+            tutor_val = m_tutor.group(1).strip()
+            # Si el label venía solo en una línea (e.g. "Docente:"), no guardarlo vacío
+            tutor_name = tutor_val if tutor_val else t
+            if current.get('name'):
+                members.append(current)
+                current = {}
+            members.append({'name': tutor_name, 'id': '', 'role': 'tutor', 'group': ''})
+            current = {}
+            continue
+
+        # Detectar patrón "Ing. Nombre", "Dr.", "M.Sc."
+        elif t_lower.startswith(('ing.', 'm.sc.', 'dr.', 'dra.', 'ph.d.', 'mgtr.')):
             if current.get('name'):
                 members.append(current)
                 current = {}

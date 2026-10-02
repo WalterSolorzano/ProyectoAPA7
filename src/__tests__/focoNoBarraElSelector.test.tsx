@@ -40,7 +40,10 @@ vi.mock('../components/layout/ReactPDFPreview', () => ({ ReactPDFPreview: () => 
 vi.mock('../components/activity/RightSidePanel', () => ({
   RightSidePanel: () => <div data-testid="panel-actividad" />,
 }));
-vi.mock('../components/layout/PaperCanvas', () => ({ PaperCanvas: () => <div data-testid="lienzo" /> }));
+vi.mock('../components/layout/PaperCanvas', () => ({
+  PaperCanvas: () => <div data-testid="lienzo" />,
+  computePages: () => [],
+}));
 vi.mock('../components/wizard/Step2HeadingsWizard', () => ({
   Step2HeadingsWizard: () => <div data-testid="fase-titulos" />,
 }));

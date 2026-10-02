@@ -445,7 +445,7 @@ export interface DocState {
   uploadFile: (file: File, opts?: { profileId?: string; mode?: 'quick' | 'review' }) => Promise<void>;
   startBlankDocument: () => Promise<void>;
   createFromTemplate: (templateId: string) => Promise<void>;
-  runLLMClassify: () => Promise<void>;
+  runLLMClassify: (opts?: { silent?: boolean }) => Promise<void>;
   updateElementType: (elementId: string, type: ElementType, headingLevel?: number, text?: string) => Promise<void>;
   updateElementText: (elementId: string, text: string) => Promise<void>;
   /** Fase 3 — divide un párrafo en el cursor (Enter del editor inline):

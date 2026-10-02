@@ -166,11 +166,11 @@ describe('el inspector de rama', () => {
     expect(screen.getByRole('button', { name: /^Bajar/i })).toBeTruthy();
   });
 
-  it('la rama se PINTA: sus párrafos, sus figuras y sus citas', () => {
+  it('la rama se PINTA: sus métricas, sus figuras y sus citas', () => {
     render(<InspectorRama nodo={METODO} elementos={DOC} />);
-    expect(screen.getByText('dos')).toBeTruthy();
-    expect(screen.getByText('tres')).toBeTruthy();
-    expect(screen.getByText(/2 palabras/i)).toBeTruthy();
+    expect(screen.getByText('Párrafos en rama')).toBeTruthy();
+    expect(screen.getByText(/Palabras totales/i)).toBeTruthy();
+    expect(screen.getByText(/citas/i)).toBeTruthy();
   });
 
   it('una rama sin contenido lo dice, y no muestra una lista vacía', () => {

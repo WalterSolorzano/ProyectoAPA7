@@ -109,7 +109,7 @@ BrandingText "WordAPA7 · Edición Editorial"
 !macro customInit
   nsExec::Exec 'cmd /c taskkill /IM WordAPA7.exe /T /F >nul 2>nul || exit 0'
   Pop $0
-  nsExec::Exec `wmic process where "name='python.exe' and CommandLine like '%python-runtime%'" call terminate`
+  nsExec::Exec /TIMEOUT=8000 `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter 'Name like \'python%.exe\'' | Where-Object CommandLine -match 'python-runtime' | Invoke-CimMethod -MethodName Terminate"`
   Pop $0
 !macroend
 
@@ -137,6 +137,19 @@ BrandingText "WordAPA7 · Edición Editorial"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "" "Convertir a APA 7 con WordAPA7"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "Icon" "$INSTDIR\WordAPA7.exe"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
+
+  ; ── Purgar caché de Electron (actualización) ────────────────────────────
+  ; Al actualizar desde una versión anterior, el caché de Electron en
+  ; %APPDATA%\wordapa7\ puede contener JS compilado de la versión vieja.
+  ; Electron lo sirve aunque el app.asar sea nuevo, haciendo que el usuario
+  ; vea la interfaz anterior (figuras, estructura, etc. sin los últimos cambios).
+  ; Se purga aquí de forma preventiva. Es best-effort: si falla no aborta.
+  RMDir /r "$APPDATA\wordapa7\Cache"
+  RMDir /r "$APPDATA\wordapa7\Code Cache"
+  RMDir /r "$APPDATA\wordapa7\GPUCache"
+  RMDir /r "$APPDATA\wordapa7\DawnGraphiteCache"
+  RMDir /r "$APPDATA\wordapa7\DawnWebGPUCache"
+  DetailPrint "Cache de Electron purgado (instalacion limpia garantizada)"
 
   ; Crear el directorio de almacenamiento si no existe
   CreateDirectory "$APPDATA\WordAPA7\storage"
@@ -188,16 +201,10 @@ DetailPrint "Complemento de Word: catálogo confiable registrado"
 
 !macro customUnInstall
   ; ── Detener el watcher y el backend antes de desinstalar ──────────────
-  ; Matar los procesos python.exe que pertenecen a WordAPA7 (watcher + backend).
-  ; No podemos usar taskkill /IM python.exe porque mataría otros procesos
-  ; Python del usuario que no tienen nada que ver con WordAPA7.
-  ; Usamos wmic para encontrar procesos por línea de comandos (más selectivo).
-  ; wmic está deprecado en Win11 pero sigue funcionando; el fallback con
-  ; PowerShell Get-CimMethod cubre versiones futuras.
-  nsExec::Exec /TIMEOUT=5000 `wmic process where "name='python.exe' and CommandLine like '%python-runtime%'" call terminate`
-  Pop $0
-  ; Fallback: PowerShell (para versiones futuras de Windows sin wmic)
-  nsExec::Exec /TIMEOUT=8000 `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter 'Name=python.exe' | Where-Object CommandLine -match 'python-runtime' | Invoke-CimMethod -MethodName Terminate"`
+  ; Matar los procesos python.exe/pythonw.exe que pertenecen a WordAPA7 (watcher + backend).
+  ; No podemos usar taskkill /IM python.exe porque mataría otros procesos Python del usuario.
+  ; Usamos PowerShell CIM para filtrar selectivamente por línea de comandos.
+  nsExec::Exec /TIMEOUT=8000 `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter 'Name like \'python%.exe\'' | Where-Object CommandLine -match 'python-runtime' | Invoke-CimMethod -MethodName Terminate"`
   Pop $0
 
   DeleteRegKey HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7"

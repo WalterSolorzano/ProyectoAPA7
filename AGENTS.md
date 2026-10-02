@@ -54,6 +54,7 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
 
 ## 5. Navegación Arquitectónica con Graphify y Ahorro de Tokens
+- **Activación Prioritaria de Skills**: Si se solicita ahorrar tokens o usar skills, consultar primero con `view_file` el `SKILL.md` pertinente (p. ej. `token-saver`, `systematic-debugging`) antes de cualquier comando o inspección.
 - **Consulta Obligatoria al Grafo Antes de Leer Código**: PROHIBIDO leer archivos completos para ubicar componentes, funciones o callers. Antes de inspeccionar cualquier flujo, consultar Graphify vía MCP (`query_graph`, `get_node`, `shortest_path`) o CLI (`graphify query "<concepto>"`).
 - **Lectura Quirúrgica y Ahorro de Tokens**:
   - Jamás escanear carpetas o parsear documentos enteros para deducir relaciones.

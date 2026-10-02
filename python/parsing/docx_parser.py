@@ -389,7 +389,11 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             elif m.get('name') and m['role'] == 'br.':
                 student_members.append(m)
             elif not m.get('role'):
-                student_members.append(m)
+                name_low = (m.get('name') or '').lower()
+                if any(kw in name_low for kw in ('docente', 'tutor', 'profesor', 'asesor', 'ing.', 'dr.', 'dra.', 'lic.', 'm.sc.')):
+                    tutor_members.append(m)
+                else:
+                    student_members.append(m)
 
         if student_members:
             # Construir author string: "Br. Nombre Apellido | Carnet: 2023-XXXX"
@@ -440,7 +444,8 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
         "departamento", "universidad de", "universidad del",
         "universidad autonoma", "universidad nacional",
         "politecnico", "politécnico",
-        "unan", "univ.", "university", "centro regional", "campus",
+        "unan", "uni", "univ.", "university", "centro regional", "campus",
+        "ingenieria", "ingeniería",
     ]
     # Etiquetas que NUNCA son titulo (van a su campo o se descartan).
     LABEL_KW = re.compile(
@@ -629,7 +634,11 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
                 elif m.get('name') and m['role'] == 'br.':
                     student_members.append(m)
                 elif m.get('name') and not m.get('role'):
-                    student_members.append(m)
+                    name_low = (m.get('name') or '').lower()
+                    if any(kw in name_low for kw in ('docente', 'tutor', 'profesor', 'asesor', 'ing.', 'dr.', 'dra.', 'lic.', 'm.sc.')):
+                        tutor_members.append(m)
+                    else:
+                        student_members.append(m)
 
             if student_members:
                 author_parts = []
@@ -717,9 +726,12 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
                 autores.append(member_text)
         elif "elaborado por" in txt_lower:
             pass  # No extraer como autor (es cabecera)
+        elif "tutor" in txt_lower or "docente" in txt_lower or "profesor" in txt_lower or "asesor" in txt_lower:
+            m_tut = re.sub(r'^\s*(?:docente|tutor(?:a)?|profesor(?:a)?|asesor(?:a)?)\b\s*:?\s*', '', txt, flags=re.IGNORECASE).strip()
+            tutor = m_tut or txt
         elif "br." in txt_lower or "carnet:" in txt_lower:
             autores.append(txt)
-        elif "tutor" in txt_lower or "docente" in txt_lower or "profesor" in txt_lower or "ing." in txt_lower or "dr." in txt_lower:
+        elif "ing." in txt_lower or "dr." in txt_lower or "lic." in txt_lower:
             tutor = txt
 
     if autores:

@@ -31,6 +31,23 @@ $installerPath = "dist-electron-builder\WordAPA7 Setup $appVersion.exe"
 Get-Process WordAPA7,electron,7za,python,pythonw,WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 2
 
+# ── Purgar caché de Electron del entorno de desarrollo ───────────────────────
+# El caché de Electron puede tener JS compilado de versiones anteriores aunque
+# el app.asar sea nuevo. Esto causaba que el instalador pareciera tener código
+# viejo: el binario era correcto pero el caché en %APPDATA% prevalecía.
+# Se purga aquí (antes del build) para garantizar que dev y usuario final
+# siempre ejecutan la versión recién compilada. Mismo mecanismo que customInstall.
+$electronCacheDir = "$env:APPDATA\wordapa7"
+$electronCacheDirs = @("Cache", "Code Cache", "GPUCache", "DawnGraphiteCache", "DawnWebGPUCache")
+foreach ($d in $electronCacheDirs) {
+    $target = Join-Path $electronCacheDir $d
+    if (Test-Path $target) {
+        Remove-Item -Recurse -Force $target -ErrorAction SilentlyContinue
+        Write-Output "Cache purgado: $target"
+    }
+}
+Write-Output "=== Cache de Electron limpiado ==="
+
 # Clean output directory with retry loop
 if (Test-Path dist-electron-builder) {
     for ($i = 0; $i -lt 5; $i++) {
@@ -44,9 +61,17 @@ if (Test-Path dist-electron-builder) {
 }
 New-Item -ItemType Directory -Path dist-electron-builder | Out-Null
 
-Write-Output "=== STEP 0: Packaging AI API keys and syncing Python runtime ==="
+Write-Output "=== STEP 0: Compiling frontend, electron and word-addin (npm run build) ==="
+$buildOut = & cmd /c "npm run build 2>&1"
+Write-Output $buildOut
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: npm run build failed with exit code $LASTEXITCODE. Aborting installer build."
+    exit 1
+}
+
+Write-Output "=== STEP 0.5: Packaging AI API keys and syncing Python runtime ==="
 & python "$projectDir\python\embed_payload.py"
-& python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; print('Payload and Python sources synchronized to dist-python.')"
+& python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; pkg = Path('$($projectDir -replace '\\', '/')') / 'package.json'; shutil.copy2(str(pkg), str(src_dest / 'package.json')) if pkg.exists() else None; vjson = Path('$($projectDir -replace '\\', '/')') / 'dist' / 'version.json'; shutil.copy2(str(vjson), str(src_dest / 'version.json')) if vjson.exists() else None; print('Payload, package.json, version.json and Python sources synchronized to dist-python.')"
 
 Write-Output "=== STEP 1: Building unpacked app (--dir) ==="
 

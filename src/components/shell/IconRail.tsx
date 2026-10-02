@@ -32,8 +32,8 @@ export interface IconRailProps {
   /** Clic en un destino: navega a su fase y abre su detalle. El hover solo
    *  muestra el zoom y el chip. */
   onSelect: (item: RailDestination) => void;
-  onTogglePin: () => void;
-  pinned: boolean;
+  onTogglePin?: () => void;
+  pinned?: boolean;
   /** Inicio pasa "Navegación principal": sus destinos no son fases. */
   ariaLabel?: string;
 }
@@ -289,39 +289,41 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
         }}
       />
 
-      {/* Pin — no es una fase: superficie alternativa, contorno de acento si anclado. */}
-      <button
-        type="button"
-        title="Anclar panel"
-        aria-label="Anclar panel"
-        aria-pressed={pinned}
-        onMouseEnter={() => setPinHovered(true)}
-        onMouseLeave={() => setPinHovered(false)}
-        onClick={onTogglePin}
-        style={{
-          width: 40,
-          height: 40,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 'var(--radius-md)',
-          border: pinned ? '1px solid var(--color-accent)' : '1px solid transparent',
-          backgroundColor: pinned
-            ? 'transparent'
-            : pinHovered
-              ? 'var(--color-bg-surface-alt)'
-              : 'transparent',
-          color: pinned
-            ? 'var(--color-accent)'
-            : pinHovered
-              ? 'var(--color-text-primary)'
-              : 'var(--color-text-secondary)',
-          cursor: 'pointer',
-          transition: PIN_TRANSITION,
-        }}
-      >
-        <PinIcon size={17} strokeWidth={1.75} aria-hidden />
-      </button>
+      {/* Pin — solo si se proporciona onTogglePin */}
+      {onTogglePin && (
+        <button
+          type="button"
+          title="Anclar panel"
+          aria-label="Anclar panel"
+          aria-pressed={pinned}
+          onMouseEnter={() => setPinHovered(true)}
+          onMouseLeave={() => setPinHovered(false)}
+          onClick={onTogglePin}
+          style={{
+            width: 40,
+            height: 40,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'var(--radius-md)',
+            border: pinned ? '1px solid var(--color-accent)' : '1px solid transparent',
+            backgroundColor: pinned
+              ? 'transparent'
+              : pinHovered
+                ? 'var(--color-bg-surface-alt)'
+                : 'transparent',
+            color: pinned
+              ? 'var(--color-accent)'
+              : pinHovered
+                ? 'var(--color-text-primary)'
+                : 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            transition: PIN_TRANSITION,
+          }}
+        >
+          <PinIcon size={17} strokeWidth={1.75} aria-hidden />
+        </button>
+      )}
     </nav>
   );
 }

@@ -283,7 +283,20 @@ class WordCOMService:
             if word is None:
                 return False
 
-            doc = word.Documents.Open(str(docx_path.resolve()), ReadOnly=True)
+            word.Visible = False
+            word.DisplayAlerts = 0
+            doc = word.Documents.Open(
+                str(docx_path.resolve()),
+                ConfirmConversions=False,
+                ReadOnly=True,
+                AddToRecentFiles=False,
+                Visible=False,
+            )
+            try:
+                if hasattr(doc, 'ActiveWindow') and doc.ActiveWindow:
+                    doc.ActiveWindow.Visible = False
+            except Exception:
+                pass
             try:
                 doc.ExportAsFixedFormat(
                     OutputFileName=str(pdf_path.resolve()),

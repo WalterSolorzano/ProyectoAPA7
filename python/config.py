@@ -97,3 +97,42 @@ def get_apa7_template_path() -> Path:
     if _is_packaged():
         return STORAGE_DIR / 'apa7_template.docx'
     return BASE_DIR / 'apa7_template.docx'
+
+
+def get_app_version() -> str:
+    """Obtiene la versión de la app desde package.json o version.json de forma unificada."""
+    import json
+    for p_path in [
+        BASE_DIR / "package.json",
+        Path(__file__).resolve().parent / "package.json",
+        Path(__file__).resolve().parent.parent / "package.json",
+        Path(__file__).resolve().parent.parent.parent / "package.json",
+    ]:
+        if p_path.exists():
+            try:
+                with open(p_path, "r", encoding="utf-8") as f:
+                    v = json.load(f).get("version")
+                    if v:
+                        return v
+            except Exception:
+                pass
+
+    for v_path in [
+        DIST_DIR / "version.json",
+        Path(__file__).resolve().parent / "version.json",
+        BASE_DIR / "dist" / "version.json",
+        Path(__file__).resolve().parent.parent / "dist" / "version.json",
+    ]:
+        if v_path.exists():
+            try:
+                with open(v_path, "r", encoding="utf-8") as f:
+                    v = json.load(f).get("version")
+                    if v:
+                        return v
+            except Exception:
+                pass
+
+    return "unknown"
+
+
+APP_VERSION = get_app_version()

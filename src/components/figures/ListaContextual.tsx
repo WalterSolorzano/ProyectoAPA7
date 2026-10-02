@@ -23,7 +23,7 @@
  * compone; por eso esta pantalla se puede probar sin montar `App`.
  */
 import React, { useState, type ReactNode } from 'react';
-import { Image as ImageIcon, Table as TableIcon, ImageOff, Search, Filter, Sparkles, Loader2, PanelRight, X } from 'lucide-react';
+import { Image as ImageIcon, Table as TableIcon, Binary, ImageOff, Search, Filter, Sparkles, Loader2, PanelRight, X } from 'lucide-react';
 import { EstadoVacio } from '../shared/EstadoVacio';
 import { resolveAssetUrl } from '../../api/backend';
 import {
@@ -54,9 +54,11 @@ export interface ListaContextualProps {
   onAutoCaption: () => void;
   autoCaptionCargando: boolean;
   hayDocumento: boolean;
-  /** Los dos conteos, para el toggle. Los cuenta quien compone, no esta pantalla. */
+  /** Los conteos, para el toggle. Los cuenta quien compone, no esta pantalla. */
   conteoFiguras: number;
   conteoTablas: number;
+  conteoEcuaciones?: number;
+
   /** El filtro que dejo la lista vacia, para que `EstadoVacio` lo nombre. */
   filtroActivo: string | null;
   /** Que se sabe de cada elemento, para el borde de "revisar". Se lo pasa el
@@ -68,7 +70,9 @@ export interface ListaContextualProps {
   onColapsar?: () => void;
 }
 
-const etiquetaDe = (c: ContextoFigura): string => (c.tipo === 'image' ? 'Figura' : 'Tabla');
+const etiquetaDe = (c: ContextoFigura): string =>
+  c.tipo === 'image' ? 'Figura' : c.tipo === 'table' ? 'Tabla' : 'Ecuación';
+
 
 /** El tamaño DECLARADO, o `null` si el documento no lo dice. */
 const declarado = (c: ContextoFigura): { w: number; h: number } | null =>
@@ -167,8 +171,9 @@ function LineaDeLeyenda({ c }: { c: ContextoFigura }) {
 
 /** El tamano declarado, o la ausencia de tamano declarado. Nunca un literal. */
 function LineaDeTamano({ c }: { c: ContextoFigura }) {
-  if (c.tipo === 'table') return null;
+  if (c.tipo === 'table' || c.tipo === 'equation') return null;
   const d = declarado(c);
+
   if (!d) {
     return (
       <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning)', marginTop: 2 }}>
@@ -299,7 +304,7 @@ function FilaFigura({
         minWidth: 0,
       }}
     >
-      {c.tipo === 'image' ? <MiniaturaFigura c={c} /> : (
+      {c.tipo === 'image' ? <MiniaturaFigura c={c} /> : c.tipo === 'table' ? (
         <div
           style={{
             width: '56px', height: '56px', borderRadius: 'var(--radius-xs)', flexShrink: 0,
@@ -309,6 +314,17 @@ function FilaFigura({
           }}
         >
           <TableIcon size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
+        </div>
+      ) : (
+        <div
+          style={{
+            width: '56px', height: '56px', borderRadius: 'var(--radius-xs)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)',
+            color: 'var(--accent-primary)',
+          }}
+        >
+          <Binary size={18} strokeWidth="var(--icon-stroke)" aria-hidden />
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -324,6 +340,7 @@ function FilaFigura({
         <LineaDeTamano c={c} />
         {c.tipo === 'table' ? <DatosDeTabla c={c} /> : <LineaDeParrafoAnterior c={c} />}
       </div>
+
     </button>
   );
 }
@@ -341,7 +358,7 @@ function revisorTexto(revisar: boolean) {
 export function ListaContextual({
   contextos, tipo, onTipoChange, query, onQueryChange, soloPendientes, onSoloPendientesChange,
   indiceActivo, onSelectIndice, onAutoCaption, autoCaptionCargando, hayDocumento,
-  conteoFiguras, conteoTablas, filtroActivo, necesitaRevision, children, onColapsar,
+  conteoFiguras, conteoTablas, conteoEcuaciones = 0, filtroActivo, necesitaRevision, children, onColapsar,
 }: ListaContextualProps) {
   const nuncaRevisa = () => false;
   const revisa = necesitaRevision ?? nuncaRevisa;
@@ -372,7 +389,9 @@ export function ListaContextual({
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           {tipo === 'image'
             ? <ImageIcon size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />
-            : <TableIcon size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />}
+            : tipo === 'table'
+            ? <TableIcon size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />
+            : <Binary size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />}
           <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', flex: 1, minWidth: 0 }}>
             Figuras y tablas ({contextos.length})
           </span>
@@ -442,7 +461,21 @@ export function ListaContextual({
           >
             Tablas ({conteoTablas})
           </button>
+          <button
+            type="button"
+            onClick={() => onTipoChange('equation')}
+            aria-pressed={tipo === 'equation'}
+            style={{
+              flex: 1, border: 'none', borderLeft: '1px solid var(--border-subtle)', cursor: 'pointer',
+              padding: '5px 0', fontSize: 'var(--text-xs)', fontWeight: 500,
+              backgroundColor: tipo === 'equation' ? 'var(--color-accent-soft)' : 'transparent',
+              color: tipo === 'equation' ? 'var(--accent-primary)' : 'var(--color-text-secondary)',
+            }}
+          >
+            Ecuaciones ({conteoEcuaciones})
+          </button>
         </div>
+
 
         <div style={{ display: 'flex', gap: 4, marginTop: 'var(--space-2)', alignItems: 'center' }}>
           <div

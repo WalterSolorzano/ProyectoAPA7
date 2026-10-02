@@ -15,8 +15,17 @@
    flechas (6) y el gutter del toggle (2), porque no existe token para 2, 6 ni 44. */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, ArrowRight, ScanLine, LayoutList, FileText, Sparkles } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
+  ScanLine,
+  Layers,
+  FileText,
+  FolderTree,
+} from 'lucide-react';
 import type { EngineGroup, EngineFilter } from '../../hooks/useReviewWorkbench';
+import { EditorialMascot, type MascotKind, type MascotExpression } from '../layout/EditorialMascot';
 
 export interface ReviewStripProps {
   /** Un grupo por motor SIN filtro (`allGroups` del hook). Alimentado con
@@ -74,6 +83,7 @@ const chipStyle = (active: boolean): React.CSSProperties => ({
 const countStyle: React.CSSProperties = {
   fontWeight: 700,
   opacity: 0.85,
+  fontVariantNumeric: 'tabular-nums',
 };
 
 export function ReviewStrip(p: ReviewStripProps) {
@@ -85,6 +95,23 @@ export function ReviewStrip(p: ReviewStripProps) {
     Promise.resolve(p.onScan()).catch(() => undefined);
   };
   const puedeAvanzar = p.canNextFinding ?? p.hasFindings;
+
+  const mascotKind: MascotKind =
+    p.filter === 'spelling'
+      ? 'strike'
+      : p.filter === 'structure'
+        ? 'ruler'
+        : p.filter === 'citations'
+          ? 'reference'
+          : 'highlighter';
+
+  const mascotExpression: MascotExpression = p.isScanning
+    ? 'curious'
+    : p.total === 0
+      ? 'happy'
+      : p.total > 20
+        ? 'worried'
+        : 'neutral';
 
   return (
     <div
@@ -109,6 +136,19 @@ export function ReviewStrip(p: ReviewStripProps) {
           overflow: 'hidden',
         }}
       >
+        <div
+          title="Mascota editorial"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'default',
+            marginRight: 'var(--space-1)',
+            flexShrink: 0,
+          }}
+        >
+          <EditorialMascot size={26} kind={mascotKind} expression={mascotExpression} />
+        </div>
         {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
             de pantalla no lo anuncie como parte del conjunto de filtros. Y no
             desaparece cuando hay hallazgos: un "Escanear" que solo existe en el
@@ -302,20 +342,29 @@ export function ReviewStrip(p: ReviewStripProps) {
           }}
         >
           {([
-            ['focus', 'Foco', LayoutList],
-            ['canvas', 'Hoja', FileText],
-            /* El mapa de IA es un TERCER modo, no una columna más. La revisión
-               es un párrafo a la vez y esa es su decisión de diseño; el mapa
-               contesta otra pregunta (dónde está el trabajo) y meterlo en la
-               misma pantalla la volvería lo que no es. */
-            ['ia', 'IA', Sparkles],
-          ] as const).map(
-            ([id, label, Icon]) => (
+            [
+              'focus',
+              'Foco',
+              'Mesa por Lotes',
+              Layers,
+              p.total - (p.engineGroups.find((g) => g.engine === 'ai')?.count ?? 0),
+            ],
+            [
+              'ia',
+              'IA',
+              'Mapa de IA',
+              FolderTree,
+              p.engineGroups.find((g) => g.engine === 'ai')?.count ?? 0,
+            ],
+            ['canvas', 'Hoja', 'Hoja', FileText, null],
+          ] as const).map(([id, label, visualTitle, Icon, count]) => {
+            const active = p.viewMode === id;
+            return (
               <button
                 key={id}
                 type="button"
                 aria-label={label}
-                aria-pressed={p.viewMode === id}
+                aria-pressed={active}
                 onClick={() => p.onViewMode(id)}
                 style={{
                   display: 'flex',
@@ -324,20 +373,35 @@ export function ReviewStrip(p: ReviewStripProps) {
                   padding: `var(--space-1) var(--space-2)`,
                   border: 'none',
                   borderRadius: 'var(--radius-sm)',
-                  background: p.viewMode === id ? 'var(--color-bg-surface)' : 'transparent',
-                  color:
-                    p.viewMode === id ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                  background: active ? 'var(--color-bg-surface)' : 'transparent',
+                  color: active ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
                   fontFamily: 'inherit',
                   fontSize: 'var(--text-xs)',
-                  fontWeight: 600,
+                  fontWeight: active ? 700 : 500,
                   cursor: 'pointer',
+                  boxShadow: active ? '0 1px 2px var(--color-on-media-a08)' : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 <Icon size={14} strokeWidth={1.75} aria-hidden />
-                {label}
+                <span>{visualTitle}</span>
+                {count !== null && count > 0 && (
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '0 5px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: active ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+                      color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
-            ),
-          )}
+            );
+          })}
         </div>
       </div>
     </div>

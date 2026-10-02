@@ -158,6 +158,7 @@ export const ReviewMinimap: React.FC<ReviewMinimapProps> = ({
               fontSize: '10px',
               fontWeight: isCurrent ? 700 : 500,
               lineHeight: 1,
+              fontVariantNumeric: 'tabular-nums',
               color: isCurrent ? 'var(--color-text-on-accent)' : 'var(--color-text-secondary)',
               /* Token, no literal: los cinco radios del sistema son
                  `--radius-sm|md|lg|xl|full`, y un `1px` escrito a mano es un

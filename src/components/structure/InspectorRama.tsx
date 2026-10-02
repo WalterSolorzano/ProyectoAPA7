@@ -27,8 +27,8 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, MessageSquare, PenLine, TriangleAlert } from 'lucide-react';
-import type { NodoJerarquia } from '../../lib/jerarquia';
+import { ArrowDown, ArrowUp, BookOpen, Image, MessageSquare, PenLine, Quote, Table, TriangleAlert } from 'lucide-react';
+import { tituloEnDuda, type NodoJerarquia } from '../../lib/jerarquia';
 import { sendLiveChat } from '../../api/backend';
 import { useDocStore } from '../../store/useDocStore';
 import { promoverPorDefecto } from './FaltasApa7';
@@ -205,6 +205,7 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
   const puedeSubir = moverRama(nodo, elementos, 'arriba') !== null;
   const puedeBajar = moverRama(nodo, elementos, 'abajo') !== null;
   const esH1 = nodo.nivel === 1;
+  const enDuda = !esH1 ? tituloEnDuda(nodo) : null;
 
   const promover = onPromover ?? promoverPorDefecto;
   const renombrar = onRenombrar ?? ((n: NodoJerarquia, titulo: string) => {
@@ -376,6 +377,54 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
         )}
       </div>
 
+      {enDuda && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-2)',
+            padding: 'var(--space-2) var(--space-3)',
+            backgroundColor: 'var(--severity-warning-soft)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-warning)',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <TriangleAlert
+              size={14}
+              strokeWidth="var(--icon-stroke)"
+              aria-hidden
+              style={{ flex: '0 0 auto', color: 'var(--color-warning)' }}
+            />
+            <span style={{ color: 'var(--color-text-primary)' }}>
+              &ldquo;{enDuda}&rdquo; coincide con una fase canónica de APA 7 mal nivelada.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void promover(nodo)}
+            style={{
+              flex: '0 0 auto',
+              font: 'inherit',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 600,
+              color: 'var(--color-text-on-accent)',
+              background: 'var(--color-accent)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              padding: '3px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Promover a H1
+          </button>
+        </div>
+      )}
+
       {/* Grid de Métricas de la Sección */}
       <div
         style={{
@@ -414,10 +463,10 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
         </div>
       </div>
 
-      {/* Contenido / Vista previa */}
+      {/* Inventario de Objetos y Evidencias en esta Rama */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Vista previa del contenido
+          Inventario de la rama
         </span>
         {nodo.palabras === 0 ? (
           <p
@@ -436,15 +485,13 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
             }}
           >
             <TriangleAlert size={14} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-warning)' }} />
-            <span>Esta rama está sin contenido: existe el encabezado y no hay nada debajo.</span>
+            <span>Esta rama está sin contenido: existe el encabezado y no hay texto debajo.</span>
           </p>
         ) : (
           <div
             style={{
-              maxHeight: '180px',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 'var(--space-2)',
               padding: 'var(--space-2)',
               backgroundColor: 'var(--color-bg-surface-alt)',
@@ -452,37 +499,20 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
               border: '1px solid var(--color-border-subtle)',
             }}
           >
-            {textos.slice(0, 5).map((t, i) => (
-              <p
-                key={i}
-                style={{
-                  margin: 0,
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--color-text-secondary)',
-                  lineHeight: 1.4,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-                title={t}
-              >
-                {t}
-              </p>
-            ))}
-            {textos.length > 5 && (
-              <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontStyle: 'italic', textAlign: 'center' }}>
-                +{textos.length - 5} párrafos adicionales en esta sección
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)' }}>
+              <Quote size={13} style={{ color: 'var(--color-accent)' }} />
+              <span><strong>{nodo.citas}</strong> citas</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)' }}>
+              <Image size={13} style={{ color: 'var(--color-accent)' }} />
+              <span><strong>{nodo.figuras}</strong> figuras</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)' }}>
+              <Table size={13} style={{ color: 'var(--color-accent)' }} />
+              <span><strong>{nodo.tablas}</strong> tablas</span>
+            </div>
           </div>
         )}
-        <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-          {miles(nodo.palabras)} palabras
-          {nodo.figuras > 0 ? ` · ${nodo.figuras} figuras` : ''}
-          {nodo.tablas > 0 ? ` · ${nodo.tablas} tablas` : ''}
-          {nodo.citas > 0 ? ` · ${nodo.citas} citas` : ''}
-        </p>
       </div>
 
       {/* Acciones de Edición Estructural */}
