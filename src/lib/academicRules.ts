@@ -32,7 +32,8 @@ export function auditarLlamadasFiguras(
   elementos: readonly ElementModel[]
 ): DiagnosticItem[] {
   const items: DiagnosticItem[] = [];
-  const idxInicio = elementos.findIndex((e) => e.id === capitulo.element_id);
+  const targetId = capitulo.element_id || capitulo.elementoId || capitulo.id;
+  const idxInicio = elementos.findIndex((e) => e.id === targetId);
   if (idxInicio === -1) return items;
 
   let textoCapitulo = '';
@@ -68,7 +69,8 @@ export function auditarEncuadre(
   capitulo: NodoJerarquia,
   elementos: readonly ElementModel[]
 ): boolean {
-  const idxInicio = elementos.findIndex((e) => e.id === capitulo.element_id);
+  const targetId = capitulo.element_id || capitulo.elementoId || capitulo.id;
+  const idxInicio = elementos.findIndex((e) => e.id === targetId);
   if (idxInicio === -1) return true;
 
   for (let i = idxInicio + 1; i < elementos.length; i++) {

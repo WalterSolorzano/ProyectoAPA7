@@ -51,6 +51,8 @@ export interface NodoJerarquia {
   nivel: number;
   /** A qué elemento hay que saltar para llegar acá. */
   elementoId: string | null;
+  /** Alias compatible con academicRules y diagramas. */
+  element_id?: string | null;
   /** Palabras de prosa que cuelgan de la rama, la propia y las de abajo. */
   palabras: number;
   figuras: number;
