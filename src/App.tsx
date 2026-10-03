@@ -21,14 +21,8 @@ import { CommandPalette } from './components/CommandPalette';
 
 // Guided Wizard Components
 import { Step1PortadaWizard } from './components/wizard/Step1PortadaWizard';
-import { Step2HeadingsWizard } from './components/wizard/Step2HeadingsWizard';
-/* F3: la fase 2 abre acá. `EscritorioEstructura` compone los siete
-   componentes de `components/structure` —pulso, índice con su diagnóstico,
-   mapa como toggle, inspector de rama y faltas de APA 7— y es la vista que el
-   rail promete cuando se pulsa "Estructura". */
-import { EscritorioEstructura } from './components/structure/EscritorioEstructura';
+import { EstudioEstructuraView } from './components/structure/EstudioEstructuraView';
 import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
-import { Step5BodyWizard } from './components/wizard/Step5BodyWizard';
 import { Step5ReferencesWizard } from './components/referencias/Step5ReferencesWizard';
 import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
 import { AppShell } from './components/shell/AppShell';
@@ -123,61 +117,7 @@ export async function reauditarTrasRefresco(diff: DiffWord): Promise<RefrescoRes
   return { ...res, hallazgos: useDocStore.getState().proofreadFindings.length };
 }
 
-/** Barra de pestañas de la fase 2 (Estructura): Índice | Títulos | Cuerpo.
- *
- *  El ÍNDICE abre la fase. Es lo que pide el spec §7 —el eje es la jerarquía y
- *  el documento es un toggle— y antes esta fase abría en el lienzo, que es
- *  exactamente el defecto reportado. "Títulos" y "Cuerpo" no se quitan: hacen
- *  cosas que el índice no hace, y sacarlas sería tapar una pantalla viva para
- *  dejar ver otra. Su alcance está además guardado por `focoNoBarraElSelector`:
- *  con el modo foco prendido el selector tiene que seguir available, o el índice
- *  es un callejón sin salida.
- *
- *  LO QUE SÍ CAMBIÓ. Antes la barra era una banda azul marino con texto blanco
- *  y píldoras de acento, y el efecto era el de un tablero ajeno pegado arriba de
- *  la pantalla. Ahora es un segmentado quieto sobre el papel: sin banda navy, sin
- *  colores literales, sin sombra, con el activo en `--color-accent-soft`. La
- *  misma información, sin gritar. */
-const StructureTabBar: React.FC<{
-  tab: 'indice' | 'headings' | 'body';
-  setTab: (t: 'indice' | 'headings' | 'body') => void;
-}> = ({ tab, setTab }) => (
-  <div style={{
-    display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: '8px var(--space-6)',
-    backgroundColor: 'var(--color-bg-surface)',
-    borderBottom: '1px solid var(--color-border-subtle)',
-    flexShrink: 0,
-  }}>
-    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-tertiary)', marginRight: 'var(--space-2)' }}>
-      Modo de trabajo
-    </span>
-    {([['indice', 'Esquema Jerárquico'], ['headings', 'Revisor de Títulos APA 7'], ['body', 'Editor de Prosa']] as const).map(([key, label]) => {
-      const active = tab === key;
-      return (
-        <button
-          key={key}
-          type="button"
-          onClick={() => setTab(key)}
-          style={{
-            padding: '5px 14px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--text-xs)',
-            fontWeight: active ? 700 : 500,
-            cursor: 'pointer',
-            border: '1px solid',
-            borderColor: active ? 'var(--color-accent)' : 'var(--color-border-subtle)',
-            fontFamily: 'inherit',
-            background: active ? 'var(--color-accent-soft)' : 'transparent',
-            color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-            transition: 'background var(--transition-fast), color var(--transition-fast)',
-          }}
-        >
-          {label}
-        </button>
-      );
-    })}
-  </div>
-);
+
 
 /** F4: Drawer del validador global — montado a nivel raíz para que se pueda
     abrir desde cualquier paso del wizard (antes solo existía en Step5). */
@@ -706,10 +646,9 @@ export const App: React.FC = () => {
       ) : viewMode === 'split' ? (
         <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>
           <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
-            {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
-            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}-${structureTab}`}>
+            <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}`}>
               {wizardStep === 1 && <Step1PortadaWizard />}
-              {wizardStep === 2 && (structureTab === 'indice' ? <EscritorioEstructura documento={<Step2HeadingsWizard />} /> : structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+              {wizardStep === 2 && <EstudioEstructuraView />}
               {wizardStep === 3 && <Step3FiguresTablesWizard />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
             </div>
@@ -726,32 +665,16 @@ export const App: React.FC = () => {
         /* D1: la navegación por fases vive en el rail de 56px de AppShell */
         <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
           <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            {/* La barra se monta en el paso 2 SIEMPRE, y sin `!focusMode`.
-                El modo foco escondía el selector mientras el contenido seguía
-                eligiéndose por `structureTab`: con el foco prendido, `Índice`
-                quedaba sin selector visible, no se podía volver a `Títulos`, y
-                el diseño viejo se volvía inalcanzable. El usuario pidió
-                explícitamente que no se pierda.
-
-                La alternativa era apagar el foco al cambiar de fase, y no se
-                eligió por una razón concreta: el modo foco es una decisión de
-                lectura de la persona —"quiero ver el documento entero"—, y una
-                navegación de fase es exactamente lo que no debería apagarlo. La
-                barra es de 44px y vive arriba de la fase; el modo foco se
-                reserva para el lienzo y el panel, que son las dos cosas que se
-                apagan. Que el foco no barra la barra no es una excepción: es
-                que la barra nunca fue del foco. */}
-            {wizardStep === 2 && <StructureTabBar tab={structureTab} setTab={setStructureTab} />}
-            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}-${structureTab}`}>
-              {wizardStep === 2 && (structureTab === 'indice' ? <EscritorioEstructura documento={<Step2HeadingsWizard />} /> : structureTab === 'headings' ? <Step2HeadingsWizard /> : <Step5BodyWizard />)}
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
+              {wizardStep === 2 && <EstudioEstructuraView />}
               {wizardStep === 3 && <Step3FiguresTablesWizard />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
               {wizardStep === 5 && <Step5AuditIAWizard />}
               {wizardStep === 6 && <ExportView />}
             </div>
           </div>
-          {/* Mapa del documento y panel contextual: activo en pasos 2 y 3 */}
-          {wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}
+          {/* Mapa del documento y panel contextual: activo únicamente en paso 3 */}
+          {wizardStep === 3 && !focusMode && <RightSidePanel />}
         </div>
       )}
 
