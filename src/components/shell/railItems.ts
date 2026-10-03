@@ -3,7 +3,7 @@
    compartan la misma gramática de navegación sin duplicar JSX. */
 
 import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download,
-  Home, History, PlusCircle, Settings, FolderOpen } from 'lucide-react';
+  Home, History, PlusCircle, Settings, FolderOpen, LayoutDashboard } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type RailStatus = 'done' | 'pending' | 'idle';
@@ -78,6 +78,10 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
      lleva. `railPending` sigue siendo la UNICA derivacion de trabajo pendiente,
      y este destino no participa porque no tiene trabajo. */
   { id: 'proyecto', step: null, label: 'Explorador de proyecto', shortLabel: 'Proyecto', description: 'Documentos, imágenes y carpeta de trabajo del proyecto.', Icon: FolderOpen, showOutline: false },
+  /* Pantalla de gestión de proyectos: lista de proyectos y línea de tiempo de versiones.
+     `step: null` igual que 'proyecto': es una pantalla, no una fase del asistente.
+     `viewMode: 'proyectos'` la monta en App.tsx. */
+  { id: 'mis-proyectos', step: null, label: 'Mis proyectos', shortLabel: 'Proyectos', description: 'Gestión de proyectos y versiones de documentos.', Icon: LayoutDashboard, showOutline: false },
 ];
 
 /* Inicio tiene su propio juego de destinos, pero el MISMO componente de rail.

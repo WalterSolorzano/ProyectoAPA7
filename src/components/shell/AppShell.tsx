@@ -40,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
          clic y no pasaba nada, que es peor que no dibujarlo. */
       if (item.step === null) {
         if (item.id === 'proyecto') alternarExplorador();
+        if (item.id === 'mis-proyectos') setViewMode('proyectos');
         return;
       }
       if (viewMode !== 'edit') setViewMode('edit');

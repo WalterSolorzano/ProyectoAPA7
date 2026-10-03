@@ -45,6 +45,7 @@ import { MascotBubble } from './components/activity/MascotBubble';
 import { ValidatorView } from './components/validator/ValidatorView';
 import { DocumentAIChat } from './components/chat/DocumentAIChat';
 import { ProyectoNotificacion } from './components/project/ProyectoNotificacion';
+import { ProyectosScreen } from './components/project/ProyectosScreen';
 
 import { X } from 'lucide-react';
 
@@ -697,6 +698,10 @@ export const App: React.FC = () => {
       ) : viewMode === 'native-pdf' ? (
         <div key="view-native-pdf" className="wizard-step-enter" style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--canvas-bg)' }}>
           <ReactPDFPreview />
+        </div>
+      ) : viewMode === 'proyectos' ? (
+        <div key="view-proyectos" className="wizard-step-enter" style={{ flex: 1, height: '100%', overflow: 'hidden', display: 'flex', minWidth: 0 }}>
+          <ProyectosScreen />
         </div>
       ) : viewMode === 'split' ? (
         <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }}>

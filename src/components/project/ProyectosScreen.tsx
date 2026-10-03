@@ -3,6 +3,14 @@ import { FolderOpen } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { VersionTimeline } from './VersionTimeline';
 import type { Proyecto } from '../../lib/proyectoStore';
+import type { ProyectoSlice } from '../../store/slices/proyectoSlice';
+import type { DocState } from '../../store/types';
+
+type Store = DocState & ProyectoSlice;
+// Cast de conveniencia: useDocStore está tipado con DocState solo; ProyectoSlice
+// se combina en runtime vía createProyectoSlice. El cast es seguro porque el
+// store se construye con ambos slices (useDocStore.ts línea ~73).
+const useStore = useDocStore as unknown as import('zustand').UseBoundStore<import('zustand').StoreApi<Store>>;
 
 /**
  * Pantalla de gestión de proyectos.
@@ -10,13 +18,14 @@ import type { Proyecto } from '../../lib/proyectoStore';
  * Diálogo de primera vez si no hay raíz configurada.
  */
 export const ProyectosScreen: React.FC = () => {
-  const proyectos = useDocStore(s => (s as any).proyectos);
-  const raizConfigurada = useDocStore(s => (s as any).raizConfigurada);
-  const cerrarProyecto = useDocStore(s => (s as any).cerrarProyecto);
-  const marcarVersionActiva = useDocStore(s => (s as any).marcarVersionActiva);
+  const proyectos = useStore(s => s.proyectos);
+  const raizConfigurada = useStore(s => s.raizConfigurada);
+  const cerrarProyecto = useStore(s => s.cerrarProyecto);
+  const marcarVersionActiva = useStore(s => s.marcarVersionActiva);
+  const abrirExplorador = useStore(s => s.alternarExplorador);
   const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
 
-  // Diálogo de primera vez
+  // Estado vacío: sin proyectos y sin raíz configurada
   if (proyectos.length === 0 && !raizConfigurada) {
     return (
       <div
@@ -30,7 +39,7 @@ export const ProyectosScreen: React.FC = () => {
           padding: 'var(--space-8)',
         }}
       >
-        <FolderOpen size={48} strokeWidth="var(--icon-stroke)" color="var(--text-muted)" />
+        <FolderOpen size={48} strokeWidth={1.5} color="var(--text-muted)" />
         <h2 style={{ fontSize: 'var(--text-xl)', color: 'var(--text-main)', margin: 0 }}>
           Organizar mis documentos
         </h2>
@@ -48,9 +57,7 @@ export const ProyectosScreen: React.FC = () => {
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
           }}
-          onClick={() => {
-            // TODO: abrir diálogo de configuración de carpeta
-          }}
+          onClick={abrirExplorador}
         >
           Configurar carpeta
         </button>
@@ -58,7 +65,8 @@ export const ProyectosScreen: React.FC = () => {
     );
   }
 
-  const seleccionado: Proyecto | undefined = proyectos.find((p: Proyecto) => p.id === seleccionadoId) ?? proyectos[0];
+  const seleccionado: Proyecto | undefined =
+    proyectos.find((p: Proyecto) => p.id === seleccionadoId) ?? proyectos[0];
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>

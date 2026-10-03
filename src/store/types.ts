@@ -161,7 +161,7 @@ export interface DocState {
   hasSeenTour: boolean;
   coverSetupDone: boolean;
   setCoverSetupDone: (done: boolean) => void;
-  viewMode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export';
+  viewMode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export' | 'proyectos';
   /** El formato de salida elegido. Vive en el store porque hay DOS superficies
    *  que lo ofrecen —la vista de Exportar y el menú de Archivo— y si cada una
    *  tuviera el suyo dirían cosas distintas. Ver el comentario en `uiSlice.ts`. */
@@ -368,7 +368,7 @@ export interface DocState {
   setZoomLevel: (zoom: number) => void;
   setShowFileMenu: (show: boolean) => void;
   setHasSeenTour: (seen: boolean) => void;
-  setViewMode: (mode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export') => void;
+  setViewMode: (mode: 'edit' | 'result' | 'native-pdf' | 'split' | 'export' | 'proyectos') => void;
   setPdfPreviewCache: (cache: { hash: string; url: string } | null) => void;
 
   switchToTab: (index: number) => void;
