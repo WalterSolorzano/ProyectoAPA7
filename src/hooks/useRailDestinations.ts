@@ -76,7 +76,11 @@ export function useRailDestinations(): RailDestination[] {
           shortLabel,
           Icon,
           showOutline,
-          current: exploradorAbierto ? true : undefined,
+          current: id === 'proyecto'
+            ? (exploradorAbierto ? true : undefined)
+            : id === 'mis-proyectos'
+              ? (viewMode === 'proyectos' ? true : undefined)
+              : undefined,
         };
       }
 

@@ -39,7 +39,7 @@ export const ProyectosScreen: React.FC = () => {
           padding: 'var(--space-8)',
         }}
       >
-        <FolderOpen size={48} strokeWidth={1.5} color="var(--text-muted)" />
+        <FolderOpen size={48} strokeWidth="var(--icon-stroke)" color="var(--text-muted)" />
         <h2 style={{ fontSize: 'var(--text-xl)', color: 'var(--text-main)', margin: 0 }}>
           Organizar mis documentos
         </h2>

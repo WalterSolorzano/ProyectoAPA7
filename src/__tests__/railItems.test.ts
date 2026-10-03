@@ -79,7 +79,8 @@ describe('T3 — destinos del rail', () => {
     // lista de fases, `byStep` dejaria de encontrarlo y estas pruebas empezarian
     // a medir un subconjunto sin decirlo.
     expect(fasesDelCatalogo().every((i) => typeof i.step === 'number')).toBe(true);
-    expect(EDITOR_RAIL_ITEMS.filter((i) => i.step === null).map((i) => i.id)).toEqual(['proyecto']);
+    // 'proyecto' (Explorador) y 'mis-proyectos' son módulos, no fases: step: null.
+    expect(EDITOR_RAIL_ITEMS.filter((i) => i.step === null).map((i) => i.id)).toEqual(['proyecto', 'mis-proyectos']);
   });
 
   it('el mapa del documento solo se ofrece en las fases de sección', () => {
