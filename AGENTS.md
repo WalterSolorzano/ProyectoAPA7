@@ -60,6 +60,14 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
   - Jamás escanear carpetas o parsear documentos enteros para deducir relaciones.
   - Con el subgrafo devuelto por Graphify, leer únicamente el rango de líneas exacto (`StartLine`-`EndLine`) del símbolo involucrado.
   - Tras modificar código en la sesión, ejecutar `graphify update .` (extracción local AST gratis, 0 tokens) para mantener el grafo sincronizado.
+- **Protocolo de Ahorro Masivo de Tokens**:
+  - `MEMORY.md`: Consultar solo líneas 1–45 (~800 tokens vs 5,000+ de git log) para saber estado de ramas y fases completadas.
+  - `AGENTS.md`: Leer exclusivamente la sección puntual necesaria (§1 Producto, §2 Copiloto, §4 Comandos) por rangos de líneas.
+  - `mega_set_deteccion_ia.md` (102 KB): Prohibido leer completo; buscar con `Select-String` o rangos específicos de Bloom/reglas.
+  - `graphify-out/GRAPH_REPORT.md` (57 KB): Prohibido volcarlo; usar MCP `query_graph(token_budget=1000)`.
+  - Investigaciones de >3 archivos: delegar obligatoriamente a subagente `research` (modelo `flash`).
+  - Terminal: filtros estrictos (`Select-Object -First 25`, `pytest -q --tb=short`, `npm test -- --reporter=dot`).
+  - Modo Caveman: comunicación técnica ultra-concisa (`[cosa] [acción] [razón]. [siguiente paso]`).
 
 ## 6. Estructura y Módulos Principales
 | Módulo | Ruta | Función |
