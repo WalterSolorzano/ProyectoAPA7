@@ -60,12 +60,18 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
   - Jamás escanear carpetas o parsear documentos enteros para deducir relaciones.
   - Con el subgrafo devuelto por Graphify, leer únicamente el rango de líneas exacto (`StartLine`-`EndLine`) del símbolo involucrado.
   - Tras modificar código en la sesión, ejecutar `graphify update .` (extracción local AST gratis, 0 tokens) para mantener el grafo sincronizado.
+- **Metodología de Ingeniería: Ciclo Quirúrgico 4-1**:
+  1. *Fase 1 (Ubicar)*: MCP Graphify (`query_graph`) antes de abrir archivos; cero volcados a ciegas.
+  2. *Fase 2 (Plan)*: Plan estricto de ≤5 líneas explicando cambios y esperando OK en tareas complejas.
+  3. *Fase 3 (Micro-Diffs)*: Cambios pequeños (≤40 líneas) con `replace_file_content`. Prohibido reescribir archivos enteros.
+  4. *Fase 4 (Verificación Aislada)*: Correr tests focalizados (`npm test -- -t "Nombre"`, `pytest -q python/tests/test_x.py`). La suite completa solo se ejecuta antes del commit final.
 - **Protocolo de Ahorro Masivo de Tokens**:
   - `MEMORY.md`: Consultar solo líneas 1–45 (~800 tokens vs 5,000+ de git log) para saber estado de ramas y fases completadas.
   - `AGENTS.md`: Leer exclusivamente la sección puntual necesaria (§1 Producto, §2 Copiloto, §4 Comandos) por rangos de líneas.
   - `mega_set_deteccion_ia.md` (102 KB): Prohibido leer completo; buscar con `Select-String` o rangos específicos de Bloom/reglas.
   - `graphify-out/GRAPH_REPORT.md` (57 KB): Prohibido volcarlo; usar MCP `query_graph(token_budget=1000)`.
   - Investigaciones de >3 archivos: delegar obligatoriamente a subagente `research` (modelo `flash`).
+  - Commits atómicos: tras cada micro-cambio con tests en verde, commit inmediato; si hay regresión persistente, `git restore` inmediato.
   - Terminal: filtros estrictos (`Select-Object -First 25`, `pytest -q --tb=short`, `npm test -- --reporter=dot`).
   - Modo Caveman: comunicación técnica ultra-concisa (`[cosa] [acción] [razón]. [siguiente paso]`).
 
