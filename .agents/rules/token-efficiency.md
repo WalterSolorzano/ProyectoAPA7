@@ -22,9 +22,15 @@ Toda tarea de desarrollo en este repositorio sigue obligatoriamente estas 4 fase
    - Usar tests específicos: `npm test -- -t "NombreDelComponente"` o `pytest -q python/tests/test_x.py`.
    - La suite completa se corre únicamente antes del commit final de la tarea.
 
-## 2. Aislamiento y Delegación a Subagentes
-- Si una tarea requiere investigar o consultar >3 archivos, delegar obligatoriamente a subagente `research` (modelo `flash`).
-- La carga pesada ocurre en el subagente; el hilo principal solo recibe la síntesis final estructurada (ahorro del 95% de tokens de contexto).
+## 2. Arquitectura de Orquestador & Subagentes (Hub & Spoke)
+El agente principal opera estrictamente como **Orquestador Central**:
+- **Rol del Orquestador**: Mantiene la ventana de contexto principal limpia y ligera (<15k tokens). Coordina estrategia, aprueba planes y aplica micro-diffs quirúrgicos.
+- **Prohibido ensuciar contexto**: El orquestador NUNCA lee logs extensos, ni inspecciona >2 archivos, ni realiza búsquedas masivas en el hilo principal.
+- **Delegación Obligatoria a Subagentes**:
+  - Toda investigación, rastreo de errores, lectura de documentación o auditoría de archivos se delega a un subagente `research` (modelo `flash` o `flash_lite`).
+  - El subagente asume los 30k–60k tokens de exploración en su propio hilo desechable.
+  - El orquestador recibe únicamente una síntesis estructurada final (ahorro del 95% de tokens en el hilo de trabajo).
+- **Control Reactivo**: Al invocar subagentes, el orquestador finaliza su turno sin bucles de polling; el sistema lo reactiva automáticamente con el reporte.
 
 ## 3. Commits Atómicos Inmediatos
 - Al terminar cada micro-cambio con tests en verde, registrar commit inmediatamente:

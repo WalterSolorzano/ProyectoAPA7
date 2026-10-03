@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
   - `AGENTS.md`: Leer exclusivamente la sección puntual necesaria (§1 Producto, §2 Copiloto, §4 Comandos) por rangos de líneas.
   - `mega_set_deteccion_ia.md` (102 KB): Prohibido leer completo; buscar con `Select-String` o rangos específicos de Bloom/reglas.
   - `graphify-out/GRAPH_REPORT.md` (57 KB): Prohibido volcarlo; usar MCP `query_graph(token_budget=1000)`.
-  - Investigaciones de >3 archivos: delegar obligatoriamente a subagente `research` (modelo `flash`).
+  - Rol de Orquestador: El agente principal opera como Orquestador Hub & Spoke. Toda investigación, lectura multi-archivo (>2 archivos) o análisis de errores se delega obligatoriamente a subagentes `research` (modelo `flash`), manteniendo la ventana de contexto principal limpia y rápida (<15k tokens).
   - Commits atómicos: tras cada micro-cambio con tests en verde, commit inmediato; si hay regresión persistente, `git restore` inmediato.
   - Terminal: filtros estrictos (`Select-Object -First 25`, `pytest -q --tb=short`, `npm test -- --reporter=dot`).
   - Modo Caveman: comunicación técnica ultra-concisa (`[cosa] [acción] [razón]. [siguiente paso]`).
