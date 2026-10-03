@@ -25,7 +25,6 @@ import {
   FolderTree,
 } from 'lucide-react';
 import type { EngineGroup, EngineFilter } from '../../hooks/useReviewWorkbench';
-import { EditorialMascot, type MascotKind, type MascotExpression } from '../layout/EditorialMascot';
 
 export interface ReviewStripProps {
   /** Un grupo por motor SIN filtro (`allGroups` del hook). Alimentado con
@@ -96,22 +95,19 @@ export function ReviewStrip(p: ReviewStripProps) {
   };
   const puedeAvanzar = p.canNextFinding ?? p.hasFindings;
 
-  const mascotKind: MascotKind =
-    p.filter === 'spelling'
-      ? 'strike'
-      : p.filter === 'structure'
-        ? 'ruler'
-        : p.filter === 'citations'
-          ? 'reference'
-          : 'highlighter';
+  const cambiarFiltro = (f: EngineFilter) => {
+    p.onFilter(f);
+    if (f !== 'ai' && p.viewMode === 'ia') {
+      p.onViewMode('focus');
+    }
+  };
 
-  const mascotExpression: MascotExpression = p.isScanning
-    ? 'curious'
-    : p.total === 0
-      ? 'happy'
-      : p.total > 20
-        ? 'worried'
-        : 'neutral';
+  const avanzarHallazgo = () => {
+    if (p.viewMode === 'ia') {
+      p.onViewMode('focus');
+    }
+    p.onNextFinding();
+  };
 
   return (
     <div
@@ -136,19 +132,6 @@ export function ReviewStrip(p: ReviewStripProps) {
           overflow: 'hidden',
         }}
       >
-        <div
-          title="Mascota editorial"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'default',
-            marginRight: 'var(--space-1)',
-            flexShrink: 0,
-          }}
-        >
-          <EditorialMascot size={26} kind={mascotKind} expression={mascotExpression} />
-        </div>
         {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
             de pantalla no lo anuncie como parte del conjunto de filtros. Y no
             desaparece cuando hay hallazgos: un "Escanear" que solo existe en el
@@ -173,7 +156,7 @@ export function ReviewStrip(p: ReviewStripProps) {
           <button
             type="button"
             aria-pressed={p.filter === 'all'}
-            onClick={() => p.onFilter('all')}
+            onClick={() => cambiarFiltro('all')}
             style={chipStyle(p.filter === 'all')}
           >
             <span>Todo</span>
@@ -187,7 +170,7 @@ export function ReviewStrip(p: ReviewStripProps) {
               key={g.engine}
               type="button"
               aria-pressed={p.filter === g.engine}
-              onClick={() => p.onFilter(g.engine)}
+              onClick={() => cambiarFiltro(g.engine)}
               style={chipStyle(p.filter === g.engine)}
             >
               <span>{g.title}</span>{' '}
@@ -312,7 +295,7 @@ export function ReviewStrip(p: ReviewStripProps) {
         <button
           type="button"
           disabled={!puedeAvanzar}
-          onClick={p.onNextFinding}
+          onClick={avanzarHallazgo}
           style={{
             ...chipStyle(false),
             background: 'var(--color-accent)',
@@ -365,7 +348,12 @@ export function ReviewStrip(p: ReviewStripProps) {
                 type="button"
                 aria-label={label}
                 aria-pressed={active}
-                onClick={() => p.onViewMode(id)}
+                onClick={() => {
+                  p.onViewMode(id);
+                  if (id === 'ia') {
+                    p.onFilter('ai');
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

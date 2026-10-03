@@ -1,0 +1,341 @@
+{
+  "version": "1.0.69",
+  "build_hash": "ca2ede4993aa",
+  "src_hash": "fe66b62fdaf4",
+  "build_time": "2026-10-02T02:17:34Z",
+  "total_files": 83,
+  "files": {
+    "assets/baloo-2-devanagari-700-normal-CEIF4sJg.woff": {
+      "hash": "0ba66dc54c5d",
+      "size": 97580
+    },
+    "assets/baloo-2-devanagari-700-normal-D37Te3iF.woff2": {
+      "hash": "7a777ebe1f5c",
+      "size": 65856
+    },
+    "assets/baloo-2-devanagari-800-normal-BURIY0wZ.woff2": {
+      "hash": "f997772fad84",
+      "size": 56996
+    },
+    "assets/baloo-2-devanagari-800-normal-YLp1oUqR.woff": {
+      "hash": "89398e73ada5",
+      "size": 89068
+    },
+    "assets/baloo-2-latin-700-normal-CqTg7A15.woff2": {
+      "hash": "8e7ffc9b993a",
+      "size": 19436
+    },
+    "assets/baloo-2-latin-700-normal-Ld3Zm3l2.woff": {
+      "hash": "f1fcdf0b18ee",
+      "size": 23408
+    },
+    "assets/baloo-2-latin-800-normal-B8BXfZF7.woff": {
+      "hash": "e0581d15d3d7",
+      "size": 22604
+    },
+    "assets/baloo-2-latin-800-normal-BbF3Etk1.woff2": {
+      "hash": "3e36c57e37bd",
+      "size": 18632
+    },
+    "assets/baloo-2-latin-ext-700-normal-D6LeXASg.woff": {
+      "hash": "4af7edf80057",
+      "size": 20424
+    },
+    "assets/baloo-2-latin-ext-700-normal-Mlh7kdab.woff2": {
+      "hash": "c813752d171f",
+      "size": 16036
+    },
+    "assets/baloo-2-latin-ext-800-normal-C_Iwmf1s.woff2": {
+      "hash": "d73eb61f07d8",
+      "size": 15068
+    },
+    "assets/baloo-2-latin-ext-800-normal-D-iCxxqE.woff": {
+      "hash": "ef6a26d8fc74",
+      "size": 19672
+    },
+    "assets/baloo-2-vietnamese-700-normal-DoF59Mjc.woff": {
+      "hash": "5fd0812abde4",
+      "size": 7276
+    },
+    "assets/baloo-2-vietnamese-700-normal-h4tlcePq.woff2": {
+      "hash": "57e2a479c5c3",
+      "size": 5412
+    },
+    "assets/baloo-2-vietnamese-800-normal-ConLnEgt.woff2": {
+      "hash": "0f2643dd6a34",
+      "size": 4796
+    },
+    "assets/baloo-2-vietnamese-800-normal-GQACmpuv.woff": {
+      "hash": "3ce5cb2f9465",
+      "size": 6736
+    },
+    "assets/index-D_5X4Kx2.js": {
+      "hash": "208de0f9a5f7",
+      "size": 4159174
+    },
+    "assets/index-mOg1Zpr0.css": {
+      "hash": "e866ad740530",
+      "size": 97869
+    },
+    "assets/inter-cyrillic-400-normal-HOLc17fK.woff": {
+      "hash": "6e441a6c9478",
+      "size": 9780
+    },
+    "assets/inter-cyrillic-400-normal-obahsSVq.woff2": {
+      "hash": "f0bb586459ce",
+      "size": 7712
+    },
+    "assets/inter-cyrillic-500-normal-BasfLYem.woff2": {
+      "hash": "b77a86ec16aa",
+      "size": 7900
+    },
+    "assets/inter-cyrillic-500-normal-CxZf_p3X.woff": {
+      "hash": "5be18e034578",
+      "size": 9940
+    },
+    "assets/inter-cyrillic-600-normal-4D_pXhcN.woff": {
+      "hash": "cc190ed1b64e",
+      "size": 9936
+    },
+    "assets/inter-cyrillic-600-normal-CWCymEST.woff2": {
+      "hash": "6c2a37f82a67",
+      "size": 7972
+    },
+    "assets/inter-cyrillic-700-normal-CjBOestx.woff2": {
+      "hash": "5917871d3cc9",
+      "size": 7904
+    },
+    "assets/inter-cyrillic-700-normal-DrXBdSj3.woff": {
+      "hash": "72b6daa49173",
+      "size": 9912
+    },
+    "assets/inter-cyrillic-ext-400-normal-BQZuk6qB.woff2": {
+      "hash": "ef572f9187a8",
+      "size": 10232
+    },
+    "assets/inter-cyrillic-ext-400-normal-DQukG94-.woff": {
+      "hash": "5cb2f1cc0936",
+      "size": 13336
+    },
+    "assets/inter-cyrillic-ext-500-normal-B0yAr1jD.woff2": {
+      "hash": "1c2db92d3cd9",
+      "size": 10432
+    },
+    "assets/inter-cyrillic-ext-500-normal-BmqWE9Dz.woff": {
+      "hash": "e250c05aebcf",
+      "size": 13452
+    },
+    "assets/inter-cyrillic-ext-600-normal-Bcila6Z-.woff": {
+      "hash": "a50732854094",
+      "size": 13464
+    },
+    "assets/inter-cyrillic-ext-600-normal-Dfes3d0z.woff2": {
+      "hash": "509fca9c5956",
+      "size": 10484
+    },
+    "assets/inter-cyrillic-ext-700-normal-BjwYoWNd.woff2": {
+      "hash": "a46b99781170",
+      "size": 10496
+    },
+    "assets/inter-cyrillic-ext-700-normal-LO58E6JB.woff": {
+      "hash": "0f3d4be2bd70",
+      "size": 13408
+    },
+    "assets/inter-greek-400-normal-B4URO6DV.woff2": {
+      "hash": "c15ddd00a992",
+      "size": 7776
+    },
+    "assets/inter-greek-400-normal-q2sYcFCs.woff": {
+      "hash": "bdae9d28729e",
+      "size": 9924
+    },
+    "assets/inter-greek-500-normal-BIZE56-Y.woff2": {
+      "hash": "cc197d79d33a",
+      "size": 7920
+    },
+    "assets/inter-greek-500-normal-Xzm54t5V.woff": {
+      "hash": "86d55a4b1b9c",
+      "size": 9980
+    },
+    "assets/inter-greek-600-normal-BZpKdvQh.woff": {
+      "hash": "090b24e22fc4",
+      "size": 10032
+    },
+    "assets/inter-greek-600-normal-plRanbMR.woff2": {
+      "hash": "9c5a897f9d9f",
+      "size": 7944
+    },
+    "assets/inter-greek-700-normal-BUv2fZ6O.woff": {
+      "hash": "53368f53d5fc",
+      "size": 9980
+    },
+    "assets/inter-greek-700-normal-C3JjAnD8.woff2": {
+      "hash": "737c6c91cd60",
+      "size": 7920
+    },
+    "assets/inter-greek-ext-400-normal-DGGRlc-M.woff2": {
+      "hash": "eadedd9e13c2",
+      "size": 5264
+    },
+    "assets/inter-greek-ext-400-normal-KugGGMne.woff": {
+      "hash": "4f2b6f92ddfe",
+      "size": 7064
+    },
+    "assets/inter-greek-ext-500-normal-2j5mBUwD.woff": {
+      "hash": "c85d11bde719",
+      "size": 7192
+    },
+    "assets/inter-greek-ext-500-normal-C4iEst2y.woff2": {
+      "hash": "75a9ec9383a3",
+      "size": 5428
+    },
+    "assets/inter-greek-ext-600-normal-B8X0CLgF.woff": {
+      "hash": "efc7aa9cce5c",
+      "size": 7212
+    },
+    "assets/inter-greek-ext-600-normal-DRtmH8MT.woff2": {
+      "hash": "399f94d75aa7",
+      "size": 5432
+    },
+    "assets/inter-greek-ext-700-normal-BoQ6DsYi.woff": {
+      "hash": "b26ed64c9135",
+      "size": 7216
+    },
+    "assets/inter-greek-ext-700-normal-qfdV9bQt.woff2": {
+      "hash": "b7b2732ebc98",
+      "size": 5444
+    },
+    "assets/inter-latin-400-normal-C38fXH4l.woff2": {
+      "hash": "8909904ab6c8",
+      "size": 23664
+    },
+    "assets/inter-latin-400-normal-CyCys3Eg.woff": {
+      "hash": "e20fa0b4fd2d",
+      "size": 30696
+    },
+    "assets/inter-latin-500-normal-BL9OpVg8.woff": {
+      "hash": "9b42c108da48",
+      "size": 31284
+    },
+    "assets/inter-latin-500-normal-Cerq10X2.woff2": {
+      "hash": "f3779f1efccc",
+      "size": 24272
+    },
+    "assets/inter-latin-600-normal-CiBQ2DWP.woff": {
+      "hash": "6a9cb3a509b4",
+      "size": 31260
+    },
+    "assets/inter-latin-600-normal-LgqL8muc.woff2": {
+      "hash": "f9a06e79cd3a",
+      "size": 24452
+    },
+    "assets/inter-latin-700-normal-BLAVimhd.woff": {
+      "hash": "7c5ed5655730",
+      "size": 31320
+    },
+    "assets/inter-latin-700-normal-Yt3aPRUw.woff2": {
+      "hash": "6f56409fd3d6",
+      "size": 24356
+    },
+    "assets/inter-latin-ext-400-normal-77YHD8bZ.woff": {
+      "hash": "22ae8360fbad",
+      "size": 47560
+    },
+    "assets/inter-latin-ext-400-normal-C1nco2VV.woff2": {
+      "hash": "6744a7f509eb",
+      "size": 35000
+    },
+    "assets/inter-latin-ext-500-normal-BxGbmqWO.woff": {
+      "hash": "30d2903ce97f",
+      "size": 48492
+    },
+    "assets/inter-latin-ext-500-normal-CV4jyFjo.woff2": {
+      "hash": "2c6fbc42d315",
+      "size": 36024
+    },
+    "assets/inter-latin-ext-600-normal-CIVaiw4L.woff": {
+      "hash": "22ff20a61706",
+      "size": 48668
+    },
+    "assets/inter-latin-ext-600-normal-D2bJ5OIk.woff2": {
+      "hash": "e4bdf67b0cd1",
+      "size": 36260
+    },
+    "assets/inter-latin-ext-700-normal-Ca8adRJv.woff2": {
+      "hash": "143f9504f137",
+      "size": 36244
+    },
+    "assets/inter-latin-ext-700-normal-TidjK2hL.woff": {
+      "hash": "1761edba3201",
+      "size": 48632
+    },
+    "assets/inter-vietnamese-400-normal-Bbgyi5SW.woff": {
+      "hash": "54aa42d325bc",
+      "size": 6500
+    },
+    "assets/inter-vietnamese-400-normal-DMkecbls.woff2": {
+      "hash": "547ad9fdaeb0",
+      "size": 4972
+    },
+    "assets/inter-vietnamese-500-normal-DOriooB6.woff2": {
+      "hash": "44e36aa5a8f1",
+      "size": 5112
+    },
+    "assets/inter-vietnamese-500-normal-mJboJaSs.woff": {
+      "hash": "18a4a09f7516",
+      "size": 6596
+    },
+    "assets/inter-vietnamese-600-normal-BuLX-rYi.woff": {
+      "hash": "24a01e7bd947",
+      "size": 6640
+    },
+    "assets/inter-vietnamese-600-normal-Cc8MFFhd.woff2": {
+      "hash": "1aeb94ae9db0",
+      "size": 5100
+    },
+    "assets/inter-vietnamese-700-normal-BZaoP0fm.woff": {
+      "hash": "412023ab2f41",
+      "size": 6632
+    },
+    "assets/inter-vietnamese-700-normal-DlLaEgI2.woff2": {
+      "hash": "5fafa3829a16",
+      "size": 5104
+    },
+    "assets/logo_unan.png": {
+      "hash": "53a7b3689556",
+      "size": 77125
+    },
+    "assets/logo_uni.png": {
+      "hash": "752beba8d4e8",
+      "size": 13836
+    },
+    "assets/math_book_thumbnail.jpg": {
+      "hash": "05745ab9196b",
+      "size": 727846
+    },
+    "assets/pdf.worker.min-CHFwMXne.mjs": {
+      "hash": "0613f41490dd",
+      "size": 1262398
+    },
+    "index.html": {
+      "hash": "c4d6c81e8b05",
+      "size": 514
+    },
+    "logo.jpg": {
+      "hash": "3737e5607999",
+      "size": 512747
+    },
+    "mascot-family-mockup.html": {
+      "hash": "8575afe465cd",
+      "size": 9448
+    },
+    "mascot-mockups-v2.html": {
+      "hash": "c4ecaf32cfa3",
+      "size": 9807
+    },
+    "mascot-mockups.html": {
+      "hash": "10664030c76b",
+      "size": 11817
+    }
+  }
+}

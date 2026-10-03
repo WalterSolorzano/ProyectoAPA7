@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, nativeTheme, dialog, shell, Tray, Menu, clipboard, session } from 'electron'
 import { exec } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -122,6 +122,8 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
   } else {
+    mainWindow.webContents.session.clearCache().catch(() => {})
+    mainWindow.webContents.session.clearCodeCaches({}).catch(() => {})
     mainWindow.loadURL('app://-/index.html')
   }
 

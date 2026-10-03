@@ -149,7 +149,8 @@ export const DistribucionVolumen: React.FC<DistribucionVolumenProps> = ({
                       minWidth: pct > 0 ? '2px' : 0,
                       borderRadius: 'var(--radius-sm)',
                       backgroundColor: esAlerta ? 'var(--color-warning)' : 'var(--color-accent)',
-                      transition: 'width var(--transition-fast)',
+                      transformOrigin: 'left',
+                      transition: 'transform var(--transition-fast)',
                     }}
                   />
                 </div>

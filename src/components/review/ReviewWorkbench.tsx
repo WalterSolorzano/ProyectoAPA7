@@ -134,14 +134,14 @@ export function ReviewWorkbench() {
     return wb.items.filter((i) => i.element_id === sel.element_id).length;
   }, [wb.selected, wb.items]);
 
-  /* La grilla reserva la columna del minimapa SOLO si él se va a pintar. Si se
-     reservara siempre, en ventana angosta quedaría una columna de 44 px vacía al
-     lado del texto, que es peor que no tener minimapa: se ve que falta algo y no
-     se sabe qué. */
+  const esFoco = wb.viewMode === 'focus';
+  const mostrarMinimap = minimapVisible && wb.viewMode !== 'ia';
+  const mostrarRack = rackVisible && esFoco;
+
   const columnas = [
-    ...(minimapVisible ? [`${MINIMAP_WIDTH}px`] : []),
+    ...(mostrarMinimap ? [`${MINIMAP_WIDTH}px`] : []),
     'minmax(0, 1fr)',
-    ...(rackVisible ? [`${RACK_WIDTH}px`] : []),
+    ...(mostrarRack ? [`${RACK_WIDTH}px`] : []),
   ].join(' ');
 
   return (
@@ -206,11 +206,8 @@ export function ReviewWorkbench() {
           minHeight: 0,
         }}
       >
-        {/* El minimapa se monta solo si la grilla reservó su columna. El componente
-            por su lado también se esconde con la MISMA regla, y por eso esto no es
-            una guarda redundante: es que las dos mitades de la decisión —el hueco
-            en la grilla y el componente— tienen que caer juntas. */}
-        {minimapVisible && (
+        {/* El minimapa se monta solo si la grilla reservó su columna y no estamos en modo IA. */}
+        {mostrarMinimap && (
           <ReviewMinimap
             totalPages={wb.totalPages}
             marks={wb.marks}
@@ -226,7 +223,9 @@ export function ReviewWorkbench() {
             activa={wb.phaseFilter}
             onSelectPhase={(key) => {
               wb.setPhaseFilter(key);
-              wb.setFilter('ai');
+            }}
+            onOpenInWorkbench={(item) => {
+              wb.elegirHallazgo(item.id);
               wb.setViewMode('focus');
             }}
             onApplyParaphrase={async (item, newText) => {
@@ -235,6 +234,9 @@ export function ReviewWorkbench() {
                 wb.dismiss(item);
               }
             }}
+            onMark={wb.markForReview}
+            onDismiss={wb.dismiss}
+            markedIds={wb.markedIds}
             busy={wb.isApplying}
           />
         ) : wb.viewMode === 'canvas' ? (
@@ -326,7 +328,7 @@ export function ReviewWorkbench() {
           <EstadoVacio motivo="sin-documento" />
         )}
 
-        {rackVisible && (
+        {mostrarRack && (
           <aside
             aria-label="Hallazgos por motor"
             style={{

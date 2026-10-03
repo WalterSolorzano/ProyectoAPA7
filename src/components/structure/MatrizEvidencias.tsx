@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { BookOpen, TableProperties, TriangleAlert } from 'lucide-react';
+import { TableProperties, TriangleAlert } from 'lucide-react';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 
 export interface MatrizEvidenciasProps {
@@ -146,12 +146,31 @@ export const MatrizEvidencias: React.FC<MatrizEvidenciasProps> = ({
                       style={{
                         padding: '6px 8px',
                         textAlign: 'right',
-                        color: cap.citas === 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)',
-                        fontWeight: cap.citas === 0 ? 600 : 400,
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {cap.citas}
+                      {cap.citas === 0 ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 5px',
+                            borderRadius: 'var(--radius-xs)',
+                            backgroundColor: 'var(--color-warning-a12)',
+                            color: 'var(--color-warning)',
+                            fontWeight: 700,
+                            border: '1px solid var(--color-warning-a40)',
+                          }}
+                        >
+                          <TriangleAlert size={10} strokeWidth="var(--icon-stroke)" aria-hidden />
+                          0
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                          {cap.citas}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
                       {cap.figuras}

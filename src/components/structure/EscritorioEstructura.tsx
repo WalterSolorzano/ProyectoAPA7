@@ -142,6 +142,14 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
     [raices],
   );
 
+  /* Seleccionar nodo sin forzar cambio de pestaña (para análisis y orden) */
+  const seleccionarNodo = useCallback(
+    (id: string) => {
+      setElegido(buscar(id));
+    },
+    [buscar],
+  );
+
   /* Elegir una falta trae su rama al inspector: el "ver la rama" de
      `FaltasApa7` pasa un id y quien decide qué abrir es esta pantalla, que es la
      que tiene el árbol. */
@@ -365,14 +373,14 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
               <DistribucionVolumen
                 raices={raices}
                 nodoSeleccionadoId={nodoActivo?.id}
-                onSelect={abrirPorId}
+                onSelect={seleccionarNodo}
               />
 
               {/* Módulo 2: Matriz de Evidencias y Rigor Académico */}
               <MatrizEvidencias
                 raices={raices}
                 nodoSeleccionadoId={nodoActivo?.id}
-                onSelect={abrirPorId}
+                onSelect={seleccionarNodo}
               />
             </>
           )}
@@ -384,7 +392,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({
                 raices={raices}
                 elementos={elementos ?? []}
                 nodoSeleccionadoId={nodoActivo?.id}
-                onSelect={abrirPorId}
+                onSelect={seleccionarNodo}
               />
             </>
           )}

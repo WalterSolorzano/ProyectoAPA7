@@ -224,7 +224,6 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
           <button
             key={id}
             type="button"
-            title={label}
             aria-label={nombre}
             aria-current={active ? (step === null ? 'page' : 'step') : undefined}
             data-active={active ? 'true' : 'false'}

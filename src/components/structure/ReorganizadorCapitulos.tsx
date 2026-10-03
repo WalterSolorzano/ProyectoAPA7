@@ -33,6 +33,7 @@ export const ReorganizadorCapitulos: React.FC<ReorganizadorCapitulosProps> = ({
     try {
       setProcesandoId(cap.id);
       await useDocStore.getState().reorderElements(nuevoOrden);
+      useDocStore.getState().showToast(`Capítulo "${cap.titulo}" movido hacia ${direccion}`, 'info');
     } finally {
       setProcesandoId(null);
     }
@@ -116,7 +117,7 @@ export const ReorganizadorCapitulos: React.FC<ReorganizadorCapitulosProps> = ({
                   H1 · {cap.titulo}
                 </span>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                   {estaProcesando ? (
                     <Loader2 size={13} strokeWidth="var(--icon-stroke)" aria-hidden style={{ animation: 'spin 1s linear infinite' }} />
                   ) : (
@@ -131,18 +132,19 @@ export const ReorganizadorCapitulos: React.FC<ReorganizadorCapitulosProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: '24px',
-                          height: '24px',
+                          width: '28px',
+                          height: '28px',
                           padding: 0,
                           background: 'var(--color-bg-surface)',
                           border: '1px solid var(--color-border-subtle)',
-                          borderRadius: 'var(--radius-xs)',
+                          borderRadius: 'var(--radius-sm)',
                           cursor: puedeSubir ? 'pointer' : 'not-allowed',
                           opacity: puedeSubir ? 1 : 0.4,
                           color: 'var(--color-text-secondary)',
+                          transition: 'background var(--transition-fast)',
                         }}
                       >
-                        <ArrowUp size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+                        <ArrowUp size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
                       </button>
                       <button
                         type="button"
@@ -154,18 +156,19 @@ export const ReorganizadorCapitulos: React.FC<ReorganizadorCapitulosProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: '24px',
-                          height: '24px',
+                          width: '28px',
+                          height: '28px',
                           padding: 0,
                           background: 'var(--color-bg-surface)',
                           border: '1px solid var(--color-border-subtle)',
-                          borderRadius: 'var(--radius-xs)',
+                          borderRadius: 'var(--radius-sm)',
                           cursor: puedeBajar ? 'pointer' : 'not-allowed',
                           opacity: puedeBajar ? 1 : 0.4,
                           color: 'var(--color-text-secondary)',
+                          transition: 'background var(--transition-fast)',
                         }}
                       >
-                        <ArrowDown size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+                        <ArrowDown size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
                       </button>
                     </>
                   )}

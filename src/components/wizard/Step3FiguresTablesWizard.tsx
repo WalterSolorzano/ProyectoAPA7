@@ -37,6 +37,7 @@ import { Image, AlignLeft, AlignCenter, AlignRight, RotateCcw, Trash2, ChevronRi
 import { ListaContextual } from '../figures/ListaContextual';
 import { EscenarioFigura } from '../figures/EscenarioFigura';
 import { buscarFiguras, contextosDeFiguras, figuraActiva, vecina, type ContextoFigura, type TipoFigura } from '../../lib/figuras';
+import { suggestCaption } from '../../api/backend';
 
 const controlSelectStyle: React.CSSProperties = {
   width: '100%',
@@ -163,9 +164,40 @@ export const Step3FiguresTablesWizard: React.FC = () => {
       updateElementImage(c.id, { caption: texto });
       return;
     }
+    if (c.tipo === 'equation') {
+      useDocStore.getState().updateElementText(c.id, texto);
+      return;
+    }
     const info = doc?.elements[c.indice]?.table_info;
     updateElementTable(c.id, { ...(info ?? {}), caption: texto } as never);
   }, [contextoActivo, updateElementImage, updateElementTable, doc?.elements]);
+
+  const handleSuggestSingleCaption = useCallback(async (c: ContextoFigura) => {
+    const docActual = useDocStore.getState().doc;
+    const apiKey = useDocStore.getState().apiKey;
+    if (!docActual) return undefined;
+    const idx = docActual.elements.findIndex((e) => e.id === c.id);
+    const ctx: string[] = [];
+    for (let i = Math.max(0, idx - 2); i < Math.min(docActual.elements.length, idx + 3); i++) {
+      const e = docActual.elements[i];
+      if (e.id === c.id) continue;
+      if (e.type === 'paragraph' || e.type === 'heading' || e.type === 'bullet' || e.type === 'numbered_list') {
+        const t = (e.text || '').trim();
+        if (t) ctx.push(t);
+      }
+    }
+    const contextText = ctx.join('\n') || (c.parrafoAnterior || '');
+    try {
+      const suggestion = await suggestCaption(docActual.session_id, c.id, contextText, apiKey);
+      if (suggestion) {
+        persistirLeyenda(suggestion);
+        return suggestion;
+      }
+    } catch {
+      // Ignorar error o mostrar toast
+    }
+    return undefined;
+  }, [persistirLeyenda]);
 
   const handleElementClick = useCallback((elementId: string, rect: DOMRect, element: any) => {
     if (tipo === 'image' && element.type === 'image') {
@@ -291,6 +323,7 @@ export const Step3FiguresTablesWizard: React.FC = () => {
         totalEnDocumento={contextos.length}
         onNavigate={handleNavigate}
         onLegendChange={persistirLeyenda}
+        onSuggestCaption={handleSuggestSingleCaption}
         documento={(
           <>
             <PaperCanvas onElementClick={handleElementClick} />

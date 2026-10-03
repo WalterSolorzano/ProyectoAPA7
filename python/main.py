@@ -2791,9 +2791,19 @@ def _read_build_hash() -> str:
     if _build_hash_cache and (now - _build_hash_cache_time) < 60:
         return _build_hash_cache
 
-    version_file = DIST_DIR / "version.json"
+    version_file = None
+    for cand in [
+        DIST_DIR / "version.json",
+        Path(__file__).resolve().parent / "version.json",
+        BASE_DIR / "dist" / "version.json",
+        Path(__file__).resolve().parent.parent / "dist" / "version.json",
+    ]:
+        if cand.exists():
+            version_file = cand
+            break
+
     try:
-        if version_file.exists():
+        if version_file and version_file.exists():
             with open(version_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
             _build_hash_cache = data.get("build_hash", "unknown")
@@ -3091,10 +3101,20 @@ async def add_no_cache_headers(request: Request, call_next):
 async def get_version():
     """Retorna la versión y build_hash actual para que el frontend detecte cambios y readiness."""
     build_hash = _read_build_hash()
-    version_file = DIST_DIR / "version.json"
+    version_file = None
+    for cand in [
+        DIST_DIR / "version.json",
+        Path(__file__).resolve().parent / "version.json",
+        BASE_DIR / "dist" / "version.json",
+        Path(__file__).resolve().parent.parent / "dist" / "version.json",
+    ]:
+        if cand.exists():
+            version_file = cand
+            break
+
     build_time = None
     app_version = APP_VERSION
-    if version_file.exists():
+    if version_file and version_file.exists():
         try:
             with open(version_file, "r", encoding="utf-8") as f:
                 data = json.load(f)

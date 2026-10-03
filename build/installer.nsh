@@ -111,6 +111,7 @@ BrandingText "WordAPA7 · Edición Editorial"
   Pop $0
   nsExec::Exec /TIMEOUT=8000 `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter 'Name like \'python%.exe\'' | Where-Object CommandLine -match 'python-runtime' | Invoke-CimMethod -MethodName Terminate"`
   Pop $0
+  Sleep 1000
 !macroend
 
 !macro customInstall
@@ -138,7 +139,7 @@ BrandingText "WordAPA7 · Edición Editorial"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7" "Icon" "$INSTDIR\WordAPA7.exe"
   WriteRegStr HKCU "Software\Classes\SystemFileAssociations\.docx\shell\WordAPA7\command" "" '"$INSTDIR\WordAPA7.exe" "%1"'
 
-  ; ── Purgar caché de Electron (actualización) ────────────────────────────
+  ; ── Purgar caché de Electron y Office Wef (actualización) ───────────────
   ; Al actualizar desde una versión anterior, el caché de Electron en
   ; %APPDATA%\wordapa7\ puede contener JS compilado de la versión vieja.
   ; Electron lo sirve aunque el app.asar sea nuevo, haciendo que el usuario
@@ -149,7 +150,8 @@ BrandingText "WordAPA7 · Edición Editorial"
   RMDir /r "$APPDATA\wordapa7\GPUCache"
   RMDir /r "$APPDATA\wordapa7\DawnGraphiteCache"
   RMDir /r "$APPDATA\wordapa7\DawnWebGPUCache"
-  DetailPrint "Cache de Electron purgado (instalacion limpia garantizada)"
+  RMDir /r "$LOCALAPPDATA\Microsoft\Office\16.0\Wef"
+  DetailPrint "Cache de Electron y Office Wef purgado (instalacion limpia garantizada)"
 
   ; Crear el directorio de almacenamiento si no existe
   CreateDirectory "$APPDATA\WordAPA7\storage"

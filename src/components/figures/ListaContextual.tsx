@@ -393,7 +393,7 @@ export function ListaContextual({
             ? <TableIcon size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />
             : <Binary size={16} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} aria-hidden />}
           <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', flex: 1, minWidth: 0 }}>
-            Figuras y tablas ({contextos.length})
+            {tipo === 'image' ? 'Figuras' : tipo === 'table' ? 'Tablas' : 'Ecuaciones'} ({contextos.length})
           </span>
           {contextos.length > 0 && (
             <button

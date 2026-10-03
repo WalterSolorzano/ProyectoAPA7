@@ -27,7 +27,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookOpen, Image, MessageSquare, PenLine, Quote, Table, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Image, Loader2, MessageSquare, PenLine, Quote, Table, TriangleAlert, X } from 'lucide-react';
 import { tituloEnDuda, type NodoJerarquia } from '../../lib/jerarquia';
 import { sendLiveChat } from '../../api/backend';
 import { useDocStore } from '../../store/useDocStore';
@@ -63,28 +63,28 @@ export const ACCIONES: AccionRama[] = [
     etiqueta: 'Promover a H1',
     etiquetaAlcance: 'esta rama',
     alcance: 'esta-rama',
-    porQue: 'Cambia el nivel del encabezado. Sale por /api/update-element y el documento se repone con la respuesta del servidor.',
+    porQue: 'Promueve esta subsección a capítulo principal de nivel 1.',
   },
   {
     clave: 'reordenar',
     etiqueta: 'Mover esta rama',
     etiquetaAlcance: 'esta rama',
     alcance: 'esta-rama',
-    porQue: 'Mueve el encabezado y todo lo que cuelga de él, entre sus hermanas. Sale por /api/reorder-elements.',
+    porQue: 'Reorganiza este capítulo y todo su contenido subordinado entre sus secciones hermanas.',
   },
   {
     clave: 'renombrar',
     etiqueta: 'Renombrar',
     etiquetaAlcance: 'esta rama',
     alcance: 'esta-rama',
-    porQue: 'Cambia el texto del encabezado. Sale por /api/update-element.',
+    porQue: 'Modifica el título de este capítulo o subsección.',
   },
   {
     clave: 'consultar-ia',
     etiqueta: 'Preguntarle a la IA',
     etiquetaAlcance: 'esta rama',
     alcance: 'esta-rama',
-    porQue: 'Pregunta qué debería ir en esta sección, con el contenido de la rama. Sale por /api/ai/live-chat.',
+    porQue: 'Consulta al copiloto editorial sobre la redacción y contenido sugerido para esta sección.',
   },
 ];
 
@@ -212,25 +212,33 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
     if (!n.elementoId) return;
     return useDocStore.getState().updateElementText(n.elementoId, titulo);
   });
-  const reordenar = onReordenar ?? ((n: NodoJerarquia, direccion: 'arriba' | 'abajo') => {
+  const reordenar = onReordenar ?? (async (n: NodoJerarquia, direccion: 'arriba' | 'abajo') => {
     const orden = moverRama(n, elementos, direccion);
     const doc = useDocStore.getState().doc;
     if (!orden || !doc) return;
-    return useDocStore.getState().reorderElements(orden);
+    await useDocStore.getState().reorderElements(orden);
+    useDocStore.getState().showToast(`Sección "${n.titulo}" movida hacia ${direccion}`, 'info');
   });
+  const [consultando, setConsultando] = useState(false);
   const consultar = onConsultarIa ?? (async (n: NodoJerarquia, pregunta: string) => {
     const doc = useDocStore.getState().doc;
     if (!doc) return;
-    const res = await sendLiveChat(doc.session_id, pregunta, n.elementoId);
-    setRespuesta(res?.reply ?? null);
+    try {
+      setConsultando(true);
+      const res = await sendLiveChat(doc.session_id, pregunta, n.elementoId);
+      setRespuesta(res?.reply ?? null);
+    } finally {
+      setConsultando(false);
+    }
   });
 
   const boton = (clave: ClaveAccion, children: React.ReactNode): React.ReactElement => {
     const accion = ACCIONES.find((a) => a.clave === clave)!;
+    const deshabilitado = clave === 'consultar-ia' ? consultando : false;
     return (
       <button
         type="button"
-        disabled={false}
+        disabled={deshabilitado}
         title={accion.porQue}
         onClick={() => {
           if (clave === 'promover') void promover(nodo);
@@ -559,14 +567,29 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
           {boton('renombrar', <><PenLine size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Renombrar</>)}
           {boton(
             'consultar-ia',
-            <><MessageSquare size={13} strokeWidth="var(--icon-stroke)" aria-hidden />Preguntarle a la IA</>,
+            consultando ? (
+              <>
+                <Loader2 size={13} strokeWidth="var(--icon-stroke)" style={{ animation: 'spin 1s linear infinite' }} aria-hidden />
+                Consultando a la IA…
+              </>
+            ) : (
+              <>
+                <MessageSquare size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
+                Preguntarle a la IA
+              </>
+            ),
           )}
         </div>
       </div>
 
       {respuesta && (
         <div
+          role="region"
+          aria-label="Respuesta de la IA"
           style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-2)',
             padding: 'var(--space-3)',
             backgroundColor: 'var(--color-accent-soft)',
             borderRadius: 'var(--radius-md)',
@@ -576,8 +599,28 @@ export const InspectorRama: React.FC<InspectorRamaProps> = ({
             lineHeight: 1.4,
           }}
         >
-          <span style={{ fontWeight: 600, display: 'block', marginBottom: '4px' }}>Respuesta de la IA:</span>
-          {respuesta}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+            <span style={{ fontWeight: 700, color: 'var(--color-accent)' }}>Respuesta del copiloto IA:</span>
+            <button
+              type="button"
+              onClick={() => setRespuesta(null)}
+              title="Cerrar respuesta"
+              aria-label="Cerrar respuesta"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+                borderRadius: 'var(--radius-xs)',
+              }}
+            >
+              <X size={12} strokeWidth="var(--icon-stroke)" />
+            </button>
+          </div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{respuesta}</div>
         </div>
       )}
     </section>

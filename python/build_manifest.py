@@ -80,7 +80,7 @@ def generate_build_manifest(dist_dir: str | Path | None = None) -> Path:
         from config import APP_VERSION
         app_version = APP_VERSION
     except Exception:
-        app_version = "1.0.67"
+        app_version = "1.0.69"
 
     pkg_file = BASE_DIR / "package.json"
     if pkg_file.exists():

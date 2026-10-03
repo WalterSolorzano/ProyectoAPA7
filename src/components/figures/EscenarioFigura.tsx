@@ -26,8 +26,9 @@
  * documento" en esta pantalla, y por eso esta prueba no monta el lienzo.
  */
 import React, { useEffect, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, FileText, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Image as ImageIcon, Loader2, Sliders, Sparkles } from 'lucide-react';
 import { resolveAssetUrl } from '../../api/backend';
+import { useDocStore } from '../../store/useDocStore';
 import { medidaDeFigura, type ContextoFigura } from '../../lib/figuras';
 
 export type VistaFiguras = 'figura' | 'documento';
@@ -49,6 +50,10 @@ export interface EscenarioFiguraProps {
   onNavigate: (paso: 1 | -1) => void;
   /** Se llama al perder el foco, nunca en cada tecla. */
   onLegendChange: (texto: string) => void;
+  /** Sugerir leyenda con IA para la figura activa. */
+  onSuggestCaption?: (c: ContextoFigura) => Promise<string | undefined>;
+  /** Abrir panel de edición y estilos académicos de la figura. */
+  onOpenImageEditor?: (id: string) => void;
   /** El documento entero, como contenido del toggle. */
   documento?: ReactNode;
 }
@@ -206,24 +211,92 @@ function TablaDelEscenario({ c }: { c: ContextoFigura }) {
 }
 
 /** El campo de leyenda: estado local, y commit al salir. Nunca por tecla. */
-function CampoDeLeyenda({ c, onLegendChange }: { c: ContextoFigura; onLegendChange: (t: string) => void }) {
+function CampoDeLeyenda({
+  c,
+  onLegendChange,
+  onSuggestCaption,
+}: {
+  c: ContextoFigura;
+  onLegendChange: (t: string) => void;
+  onSuggestCaption?: (c: ContextoFigura) => Promise<string | undefined>;
+}) {
   const [borrador, setBorrador] = useState(c.leyenda);
+  const [sugiriendo, setSugiriendo] = useState(false);
+
   /* Se resincroniza cuando cambia la figura, y NO mientras la persona escribe: sin
      esto el campo queda con el texto de la figura anterior, que es peor que un
      fetch por letra. */
   useEffect(() => { setBorrador(c.leyenda); }, [c.id, c.leyenda]);
+
+  const handleSugerir = async () => {
+    if (!onSuggestCaption) return;
+    try {
+      setSugiriendo(true);
+      const res = await onSuggestCaption(c);
+      if (res) {
+        setBorrador(res);
+        onLegendChange(res);
+      }
+    } finally {
+      setSugiriendo(false);
+    }
+  };
+
+  const etiqueta =
+    c.tipo === 'equation'
+      ? 'Fórmula matemática (APA 7)'
+      : c.tipo === 'table'
+      ? 'Título descriptivo de la tabla'
+      : 'Leyenda de la figura';
+
+  const placeholder =
+    c.tipo === 'equation'
+      ? 'ej. f(x) = y + c'
+      : `${c.rotulo}. Describa la figura según APA 7…`;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', minWidth: 0, width: '100%' }}>
-      <label htmlFor={`leyenda-${c.id}`} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-        Leyenda de la figura
-      </label>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+        <label htmlFor={`leyenda-${c.id}`} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          {etiqueta}
+        </label>
+        {onSuggestCaption && c.tipo !== 'equation' && (
+          <button
+            type="button"
+            onClick={handleSugerir}
+            disabled={sugiriendo}
+            title="Sugerir leyenda académica con IA basada en el contexto del documento"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              font: 'inherit',
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--accent-primary)',
+              backgroundColor: 'var(--color-accent-soft)',
+              color: 'var(--accent-primary)',
+              cursor: sugiriendo ? 'wait' : 'pointer',
+            }}
+          >
+            {sugiriendo ? (
+              <Loader2 size={11} strokeWidth="var(--icon-stroke)" style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <Sparkles size={11} strokeWidth="var(--icon-stroke)" />
+            )}
+            {sugiriendo ? 'Generando…' : 'Sugerir con IA'}
+          </button>
+        )}
+      </div>
       <textarea
         id={`leyenda-${c.id}`}
         value={borrador}
         onChange={(e) => setBorrador(e.target.value)}
         onBlur={() => { if (borrador !== c.leyenda) onLegendChange(borrador); }}
         rows={2}
-        placeholder={`${c.rotulo}. Describa la figura según APA 7…`}
+        placeholder={placeholder}
         style={{
           fontFamily: 'inherit', fontSize: 'var(--text-sm)', resize: 'vertical', minWidth: 0,
           padding: 'var(--space-2)', borderRadius: 'var(--radius-sm)',
@@ -231,7 +304,7 @@ function CampoDeLeyenda({ c, onLegendChange }: { c: ContextoFigura; onLegendChan
           border: `1px solid ${c.tieneLeyenda ? 'var(--border-subtle)' : 'var(--color-warning-a40)'}`,
         }}
       />
-      {!c.tieneLeyenda && (
+      {!c.tieneLeyenda && c.tipo !== 'equation' && (
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning)' }}>
           Sin leyenda - APA 7 la exige
         </span>
@@ -241,7 +314,7 @@ function CampoDeLeyenda({ c, onLegendChange }: { c: ContextoFigura; onLegendChan
 }
 
 export function EscenarioFigura({
-  contexto, totalEnDocumento, onNavigate, onLegendChange, documento,
+  contexto, totalEnDocumento, onNavigate, onLegendChange, onSuggestCaption, onOpenImageEditor, documento,
 }: EscenarioFiguraProps) {
   const [vista, setVista] = useState<VistaFiguras>(VISTA_POR_DEFECTO);
 
@@ -273,6 +346,26 @@ export function EscenarioFigura({
             {contexto.rotulo} · {contexto.posicionEnSeccion} de {contexto.totalEnSeccion} en esta sección ·{' '}
             {contexto.posicionEnTipo} de {totalEnTipo} de este tipo · {totalEnDocumento} en el documento
           </span>
+        )}
+        {contexto && contexto.tipo === 'image' && !verElDocumento && (
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenImageEditor) onOpenImageEditor(contexto.id);
+              else useDocStore.setState({ selectedElementId: contexto.id, imagePanelOpen: true, forceRightPanelOpen: true });
+            }}
+            title="Abrir panel de edición y estilos académicos de la figura"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', flexShrink: 0,
+              fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'transparent',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            <Sliders size={12} strokeWidth="var(--icon-stroke)" aria-hidden /> Ajustes de figura
+          </button>
         )}
         <button
           type="button"
@@ -397,17 +490,19 @@ export function EscenarioFigura({
               </div>
             </div>
 
-            {contexto.tipo !== 'equation' && (
-              <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
-                <CampoDeLeyenda c={contexto} onLegendChange={onLegendChange} />
-              </div>
-            )}
+            <div style={{ width: '100%', maxWidth: '680px', minWidth: 0 }}>
+              <CampoDeLeyenda
+                c={contexto}
+                onLegendChange={onLegendChange}
+                onSuggestCaption={onSuggestCaption}
+              />
+            </div>
 
           </div>
         )}
       </div>
 
-      {hayAnterior && !verElDocumento && contexto && (
+      {totalEnDocumento > 0 && !verElDocumento && contexto && (
         <div
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)',
@@ -421,9 +516,12 @@ export function EscenarioFigura({
             aria-label="Figura anterior"
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-              fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 'var(--text-xs)', fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
               borderRadius: 'var(--radius-sm)', backgroundColor: 'transparent',
-              border: '1px solid var(--border-subtle)', color: 'var(--color-text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--color-text-secondary)',
             }}
           >
             <ChevronLeft size={12} strokeWidth="var(--icon-stroke)" aria-hidden /> Figura anterior
@@ -431,7 +529,7 @@ export function EscenarioFigura({
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
             {contexto.posicionEnSeccion} de {contexto.totalEnSeccion} en esta sección
           </span>
-          {contexto.posicionEnTipo < totalEnTipo && (
+          {contexto.posicionEnTipo < totalEnTipo ? (
             <button
               type="button"
               onClick={() => onNavigate(1)}
@@ -444,6 +542,20 @@ export function EscenarioFigura({
               }}
             >
               Figura siguiente <ChevronRight size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => useDocStore.getState().setWizardStep(4)}
+              title="Continuar a la fase 4: Referencias y Citas"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px',
+                fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--accent-primary)',
+                border: '1px solid var(--accent-primary)', color: 'var(--color-text-on-accent)',
+              }}
+            >
+              Continuar a Referencias <ChevronRight size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
             </button>
           )}
         </div>

@@ -223,7 +223,7 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, busy, children
             ×{group.items.length}
           </span>
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', flexShrink: 0 }}>{group.label}</span>
-          {(group.key === 'verbo_bloom' || group.key === 'objetivo_generico') && (
+          {(group.key.endsWith(':verbo_bloom') || group.key.endsWith(':objetivo_generico') || group.key === 'verbo_bloom') && (
             <span
               style={{
                 flexShrink: 0,

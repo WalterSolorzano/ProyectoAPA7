@@ -14,9 +14,12 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Flag,
   FolderTree,
+  Layers,
   RotateCcw,
   Sparkles,
+  X,
 } from 'lucide-react';
 import type { ElementModel } from '../../types';
 import type { AuditItem } from '../../lib/auditItems';
@@ -28,7 +31,11 @@ export interface AiHierarchyProps {
   items: readonly AuditItem[];
   activa?: string | 'all';
   onSelectPhase?: (phaseKey: string) => void;
+  onOpenInWorkbench?: (item: AuditItem) => void;
   onApplyParaphrase?: (item: AuditItem, newText: string) => Promise<void>;
+  onMark?: (item: AuditItem) => void;
+  onDismiss?: (item: AuditItem) => void;
+  markedIds?: readonly string[];
   busy?: boolean;
 }
 
@@ -59,7 +66,11 @@ export function AiHierarchy({
   items,
   activa,
   onSelectPhase,
+  onOpenInWorkbench,
   onApplyParaphrase,
+  onMark,
+  onDismiss,
+  markedIds = [],
   busy = false,
 }: AiHierarchyProps) {
   const [selectedH1Id, setSelectedH1Id] = useState<string | null>(null);
@@ -67,6 +78,7 @@ export function AiHierarchy({
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editedProposals, setEditedProposals] = useState<Record<string, string>>({});
 
   // Filtrar hallazgos de categoría 'ai'
   const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
@@ -84,9 +96,29 @@ export function AiHierarchy({
     return map;
   }, [aiItems]);
 
-  // Construir jerarquía real del documento
+  // Construir jerarquía real del documento y mapear elementos a su sección
   const chapters = useMemo<ChapterViewData[]>(() => {
     if (!elements || elements.length === 0) return [];
+
+    // Mapeo secuencial de element_id a su H1 y H2/H3 activo
+    const elemToLocation = new Map<string, { h1Id: string; subId: string }>();
+    let curH1: string | null = null;
+    let curSub: string | null = null;
+
+    for (const el of elements) {
+      if (el.type === 'heading') {
+        const lvl = Math.max(1, el.heading_level ?? 1);
+        if (lvl === 1) {
+          curH1 = el.id;
+          curSub = `${el.id}-general`;
+        } else if (lvl >= 2 && curH1) {
+          curSub = el.id;
+        }
+      }
+      if (curH1) {
+        elemToLocation.set(el.id, { h1Id: curH1, subId: curSub ?? `${curH1}-general` });
+      }
+    }
 
     const arbol: NodoJerarquia[] = construirJerarquia(elements);
 
@@ -99,12 +131,33 @@ export function AiHierarchy({
 
       // Si el nodo H1 tiene hijos
       if (h1Node.hijos && h1Node.hijos.length > 0) {
+        // Párrafos antes del primer H2
+        const preH2Findings = aiItems.filter(
+          (it) => elemToLocation.get(it.element_id)?.subId === `${h1Node.id}-general`,
+        );
+        if (preH2Findings.length > 0) {
+          subs.push({
+            id: `${h1Node.id}-general`,
+            level: 'H2',
+            number: `${h1Idx + 1}.0`,
+            title: 'Introducción del Capítulo',
+            elementId: h1Node.elementoId,
+            iaScore: Math.min(95, preH2Findings.length * 25),
+            paragraphsCount: Math.max(1, preH2Findings.length),
+            flaggedCount: preH2Findings.length,
+            findings: preH2Findings,
+          });
+          chapterAiItems.push(...preH2Findings);
+          totalParas += Math.max(1, preH2Findings.length);
+        }
+
         h1Node.hijos.forEach((h2Node, h2Idx) => {
-          // Párrafos en H2
-          const h2Findings: AuditItem[] = [];
-          if (h2Node.elementoId && itemsByElemId.has(h2Node.elementoId)) {
-            h2Findings.push(...(itemsByElemId.get(h2Node.elementoId) ?? []));
-          }
+          // Párrafos bajo H2
+          const h2Findings = aiItems.filter(
+            (it) =>
+              elemToLocation.get(it.element_id)?.subId === h2Node.id ||
+              it.element_id === h2Node.elementoId,
+          );
 
           subs.push({
             id: h2Node.id,
@@ -124,10 +177,11 @@ export function AiHierarchy({
           // H3 bajo H2
           if (h2Node.hijos && h2Node.hijos.length > 0) {
             h2Node.hijos.forEach((h3Node, h3Idx) => {
-              const h3Findings: AuditItem[] = [];
-              if (h3Node.elementoId && itemsByElemId.has(h3Node.elementoId)) {
-                h3Findings.push(...(itemsByElemId.get(h3Node.elementoId) ?? []));
-              }
+              const h3Findings = aiItems.filter(
+                (it) =>
+                  elemToLocation.get(it.element_id)?.subId === h3Node.id ||
+                  it.element_id === h3Node.elementoId,
+              );
 
               subs.push({
                 id: h3Node.id,
@@ -147,8 +201,12 @@ export function AiHierarchy({
           }
         });
       } else {
-        // Capítulo sin subtítulos: crear una subsección general
-        const generalFindings = h1Node.elementoId ? (itemsByElemId.get(h1Node.elementoId) ?? []) : [];
+        // Capítulo sin subtítulos: todos los párrafos que cuelgan del H1
+        const generalFindings = aiItems.filter(
+          (it) =>
+            elemToLocation.get(it.element_id)?.h1Id === h1Node.id ||
+            it.element_id === h1Node.elementoId,
+        );
         subs.push({
           id: `${h1Node.id}-general`,
           level: 'H2',
@@ -199,6 +257,10 @@ export function AiHierarchy({
     currentSub?.findings.find((f) => f.id === selectedFindingId) ||
     currentSub?.findings[0] ||
     currentChapter?.subsections.flatMap((s) => s.findings)[0];
+
+  const activeProposal = currentFinding
+    ? editedProposals[currentFinding.id] ?? (currentFinding.suggestedText || currentFinding.originalText || '')
+    : '';
 
   // Métricas macro
   const totalParagraphsEstimated = useMemo(() => {
@@ -803,34 +865,52 @@ export function AiHierarchy({
                           style={{
                             padding: 'var(--space-4)',
                             backgroundColor: 'var(--color-success-a12)',
+                            display: 'flex',
+                            flexDirection: 'column',
                           }}
                         >
-                          <span
-                            style={{
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              color: 'var(--color-success)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                            }}
-                          >
-                            Propuesta con Voz de Autor Humano
-                          </span>
-                          <div
-                            style={{
-                              fontSize: '13.5px',
-                              lineHeight: 1.75,
-                              color: 'var(--color-text-primary)',
-                              marginTop: 'var(--space-2)',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {currentFinding.suggestedText || (
-                              <span style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>
-                                Sugerencia: reformular en voz activa con datos empíricos específicos del capítulo.
-                              </span>
-                            )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                color: 'var(--color-success)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              Propuesta con Voz de Autor Humano
+                            </span>
+                            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
+                              Editable
+                            </span>
                           </div>
+
+                          <textarea
+                            value={activeProposal}
+                            onChange={(e) =>
+                              setEditedProposals((prev) => ({
+                                ...prev,
+                                [currentFinding.id]: e.target.value,
+                              }))
+                            }
+                            rows={5}
+                            aria-label="Propuesta con Voz de Autor Humano"
+                            style={{
+                              marginTop: 'var(--space-2)',
+                              width: '100%',
+                              padding: 'var(--space-2) var(--space-3)',
+                              borderRadius: 'var(--radius-xs)',
+                              border: '1px solid var(--color-border-subtle)',
+                              backgroundColor: 'var(--color-bg-surface)',
+                              color: 'var(--color-text-primary)',
+                              fontFamily: 'inherit',
+                              fontSize: '13px',
+                              lineHeight: 1.6,
+                              resize: 'vertical',
+                              boxSizing: 'border-box',
+                            }}
+                          />
                         </div>
                       </div>
 
@@ -845,14 +925,34 @@ export function AiHierarchy({
                           gap: 'var(--space-2)',
                         }}
                       >
+                        {onOpenInWorkbench && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenInWorkbench(currentFinding)}
+                            title="Abrir este hallazgo en la Mesa de Revisión por Lotes"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 'var(--space-1)',
+                              padding: '6px var(--space-3)',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--color-border-subtle)',
+                              backgroundColor: 'var(--color-bg-surface)',
+                              color: 'var(--color-text-primary)',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              marginRight: 'auto',
+                            }}
+                          >
+                            <Layers size={13} strokeWidth={1.75} aria-hidden />
+                            Ver en Mesa
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() =>
-                            handleCopy(
-                              currentFinding.suggestedText || currentFinding.originalText,
-                              currentFinding.id,
-                            )
-                          }
+                          onClick={() => handleCopy(activeProposal, currentFinding.id)}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -867,17 +967,69 @@ export function AiHierarchy({
                             cursor: 'pointer',
                           }}
                         >
-                          <Copy size={13} />
+                          <Copy size={13} strokeWidth={1.75} aria-hidden />
                           {copiedId === currentFinding.id ? 'Copiado' : 'Copiar'}
                         </button>
 
-                        {currentFinding.suggestedText && onApplyParaphrase && (
+                        {onMark && (
                           <button
                             type="button"
-                            disabled={busy || appliedIds.includes(currentFinding.id)}
-                            onClick={() =>
-                              handleApply(currentFinding, currentFinding.suggestedText!)
-                            }
+                            disabled={busy || markedIds.includes(currentFinding.id)}
+                            onClick={() => onMark(currentFinding)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 'var(--space-1)',
+                              padding: '6px var(--space-3)',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--color-border-subtle)',
+                              backgroundColor: 'var(--color-bg-surface)',
+                              color: markedIds.includes(currentFinding.id)
+                                ? 'var(--color-text-secondary)'
+                                : 'var(--color-text-primary)',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 600,
+                              cursor: busy || markedIds.includes(currentFinding.id) ? 'default' : 'pointer',
+                              opacity: busy ? 0.6 : 1,
+                            }}
+                          >
+                            <Flag size={13} strokeWidth={1.75} aria-hidden />
+                            {markedIds.includes(currentFinding.id)
+                              ? 'Marcado para revisar'
+                              : 'Marcar para revisar'}
+                          </button>
+                        )}
+
+                        {onDismiss && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => onDismiss(currentFinding)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 'var(--space-1)',
+                              padding: '6px var(--space-3)',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--color-border-subtle)',
+                              backgroundColor: 'var(--color-bg-surface)',
+                              color: 'var(--color-text-primary)',
+                              fontSize: 'var(--text-xs)',
+                              fontWeight: 600,
+                              cursor: busy ? 'default' : 'pointer',
+                              opacity: busy ? 0.6 : 1,
+                            }}
+                          >
+                            <X size={13} strokeWidth={1.75} aria-hidden />
+                            Descartar
+                          </button>
+                        )}
+
+                        {onApplyParaphrase && (
+                          <button
+                            type="button"
+                            disabled={busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()}
+                            onClick={() => handleApply(currentFinding, activeProposal)}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -892,13 +1044,13 @@ export function AiHierarchy({
                               fontSize: 'var(--text-xs)',
                               fontWeight: 700,
                               cursor:
-                                busy || appliedIds.includes(currentFinding.id)
+                                busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()
                                   ? 'default'
                                   : 'pointer',
                               opacity: busy ? 0.6 : 1,
                             }}
                           >
-                            <Check size={13} />
+                            <Check size={13} strokeWidth={1.75} aria-hidden />
                             {appliedIds.includes(currentFinding.id)
                               ? 'Insertada en Manuscrito'
                               : 'Reemplazar en Manuscrito'}

@@ -136,6 +136,7 @@ export interface ReviewWorkbenchApi {
   goToPage: (p: number) => void;
   selected: AuditItem | null;
   select: (id: string | null) => void;
+  elegirHallazgo: (id: string) => void;
   nextFinding: () => void;
   openEngines: EngineId[];
   setOpenEngines: Dispatch<SetStateAction<EngineId[]>>;
@@ -858,6 +859,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     goToPage,
     selected,
     select,
+    elegirHallazgo,
     nextFinding,
     openEngines,
     setOpenEngines,
