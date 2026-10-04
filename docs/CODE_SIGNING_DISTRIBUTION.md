@@ -1,5 +1,19 @@
 # Code Signing para Distribucion Publica — Guia de Integracion
 
+> ⚠️ **PENDIENTE / DESACTUALIZADO — REVISAR ANTES DE USAR.**
+> Este documento asume que el proyecto usa una **licencia open source (MIT/OSI)**.
+> WordAPA7 ya **no** usa MIT: ahora usa la **WordAPA7 Personal Use License**
+> (uso personal/academico, **no comercial**), que **no es una licencia OSI**.
+> En consecuencia:
+> - Las Secciones 1-4 (**SignPath Foundation**) **NO son viables** mientras exista
+>   la restriccion no comercial, porque SignPath exige licencia OSI aprobada.
+> - La **Seccion 5 (Certum Open Source)** tambien requiere caracter open source;
+>   verificar elegibilidad antes de comprar.
+> - La **Seccion 6 (Azure Artifact Signing)** es la unica via de pago comercial
+>   compatible sin reabrir la licencia.
+> Todo este documento queda **pendiente de reescritura** acorde al nuevo licenciamiento.
+> No seguir los pasos de SignPath tal cual.
+
 **Proyecto:** WordAPA7  
 **Version:** 1.0.35  
 **Fecha:** 2026-08-22  

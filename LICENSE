@@ -1,21 +1,75 @@
-MIT License
+WordAPA7 Personal Use License
+Version 1.0
+Copyright (c) 2026 Walter Solorzano. All rights reserved.
 
-Copyright (c) 2026 Walter Solorzano
+--------------------------------------------------------------------------------
+GRANT
+--------------------------------------------------------------------------------
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Subject to the conditions below, you are granted a free, worldwide,
+non-exclusive, non-transferable, revocable license to view, use, copy, and
+modify this software (the "Software") solely for personal, educational, and
+academic, NON-COMMERCIAL purposes.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Academic and personal use includes, but is not limited to: students, teachers,
+and researchers using the Software to format their own documents, study its
+source code, and create private modifications for their own use.
+
+--------------------------------------------------------------------------------
+NON-COMMERCIAL RESTRICTION
+--------------------------------------------------------------------------------
+
+You may NOT use the Software, in whole or in part, for any commercial purpose.
+Commercial purposes include, without limitation:
+
+  a) selling, reselling, renting, leasing, or licensing the Software or any
+     derivative of it, or charging for access to it;
+  b) incorporating the Software into a product or service that is sold or
+     monetized, including paid apps, SaaS, hosted services, or paid add-ons;
+  c) using the Software primarily to provide a paid service to third parties.
+
+--------------------------------------------------------------------------------
+DISTRIBUTION
+--------------------------------------------------------------------------------
+
+You may NOT distribute, sublicense, publish, or otherwise make the Software or
+any modified version available to third parties without the prior written
+permission of the copyright holder. Redistribution of this Software or of
+derivatives, in source or binary form, requires explicit written authorization.
+
+You may NOT remove or alter this license, the copyright notice, or any
+attribution to the original author.
+
+--------------------------------------------------------------------------------
+ATTRIBUTION
+--------------------------------------------------------------------------------
+
+Any permitted copy or permitted derivative must retain this license file and
+the original copyright notice, and must clearly credit WordAPA7 and its author
+(Walter Solorzano) as the origin of the Software.
+
+--------------------------------------------------------------------------------
+NO WARRANTY
+--------------------------------------------------------------------------------
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+TERMINATION
+--------------------------------------------------------------------------------
+
+This license terminates automatically if you breach any of its terms. Upon
+termination you must stop all use and delete all copies of the Software.
+
+--------------------------------------------------------------------------------
+CONTACT
+--------------------------------------------------------------------------------
+
+For commercial licensing, redistribution permission, or any use not covered by
+this license, contact the copyright holder: Walter Solorzano
+(https://github.com/WalterSolorzano/ProyectoAPA7).

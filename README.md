@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Electron](https://img.shields.io/badge/Electron-28.0-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://electronjs.org)
 [![Microsoft Word 365](https://img.shields.io/badge/Microsoft_Word-Add--in-2B579A?style=for-the-badge&logo=microsoftword&logoColor=white)](https://office.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-8B5CF6?style=for-the-badge)](LICENSE)
+[![License: Personal Use (Non-Commercial)](https://img.shields.io/badge/License-Personal_Use_(No_Comercial)-8B5CF6?style=for-the-badge)](LICENSE)
 
 <p align="center">
   <b>Suite académica de alta precisión y complemento nativo para Microsoft Word que transforma documentos universitarios (<code>.docx</code>) a las normas oficiales APA 7.ª Edición, preservando el 100% del contenido original, diagramando portadas de forma indivisible e integrando un copiloto de IA proactivo con sala de revisión guiada por fases.</b>
@@ -122,7 +122,7 @@ Formatear un documento académico (tesis, monografía, ensayo o artículo) a las
 
 1. **Descarga el instalador** `WordAPA7 Setup X.X.X.exe` desde la sección de [Releases de GitHub](https://github.com/WalterSolorzano/ProyectoAPA7/releases).
 2. **Ejecuta el archivo** haciendo doble clic sobre el `.exe`.
-3. **Aviso SmartScreen de Windows**: Al ser una herramienta académica de código abierto que no utiliza un certificado comercial de pago de miles de dólares, Windows mostrará la ventana azul *"Windows protegió su equipo"*. **Esto es completamente normal e inocuo**:
+3. **Aviso SmartScreen de Windows**: Al ser una herramienta académica de distribución gratuita que no utiliza un certificado comercial de pago de miles de dólares, Windows mostrará la ventana azul *"Windows protegió su equipo"*. **Esto es completamente normal e inocuo**:
    - Haz clic en **"Más información"**.
    - Haz clic en **"Ejecutar de todas formas"**.
 4. **El instalador realiza el proceso automáticamente**:
@@ -298,7 +298,12 @@ WordAPA7 usa un sistema de **design tokens semánticos** (fuente única: `DESIGN
 
 ## 📄 Licencia
 
-Este proyecto se distribuye bajo la Licencia [MIT](LICENSE). Siéntete libre de utilizarlo, modificarlo y distribuirlo para fines académicos o comerciales.
+Este proyecto se distribuye bajo la **WordAPA7 Personal Use License** (ver [`LICENSE`](LICENSE)): es **gratis para uso personal, educativo y académico**, pero **prohibido su uso comercial** y su redistribución sin permiso escrito del autor. El copyright pertenece a **Walter Solorzano**.
+
+- ✅ Puedes: usarlo para tus propios documentos, estudiar el código y crear copias privadas para ti.
+- ❌ No puedes: venderlo, empaquetarlo en un producto o servicio de pago, ni redistribuirlo a terceros sin autorización.
+
+Para licencias comerciales o permiso de redistribución, contacta al autor.
 
 <p align="center">
   Hecho con ❤️ para estudiantes, docentes e investigadores universitarios.
