@@ -112,6 +112,7 @@ const Plegable: React.FC<{ titulo: string; children: React.ReactNode }> = ({ tit
 
 export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodoInicial }) => {
   const doc = useDocStore((s) => s.doc);
+  const reorderElements = useDocStore((s) => s.reorderElements);
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
@@ -160,6 +161,44 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
     setCerrado(false);
   }, []);
 
+  /**
+   * Reubicar una rama entera: se mueve TODO el bloque de elementos de la rama
+   * de origen —su encabezado y su cuerpo hasta la próxima sección— delante del
+   * destino, conservando el orden relativo. Mover solo el encabezado dejaría su
+   * prosa huérfana.
+   */
+  const manejarReubicar = useCallback(
+    (origenId: string, destinoId: string) => {
+      const elementos = doc?.elements ?? [];
+      const inicioDe = (id: string): number => elementos.findIndex((e) => e.id === id);
+      const ini = inicioDe(origenId);
+      const iniDestino = inicioDe(destinoId);
+      if (ini < 0 || iniDestino < 0) return;
+
+      const nivelOrigen = elementos[ini].heading_level ?? 1;
+      let fin = ini + 1;
+      while (fin < elementos.length) {
+        const e = elementos[fin];
+        if (e.type === 'heading' && (e.heading_level ?? 1) <= nivelOrigen) break;
+        fin += 1;
+      }
+      if (fin <= iniDestino && iniDestino < fin) return; // el destino ya está dentro de la rama
+
+      const bloque = elementos.slice(ini, fin).map((e) => e.id);
+      const resto = elementos.filter((_, i) => i < ini || i >= fin);
+      const iDestino = resto.findIndex((e) => e.id === destinoId);
+      if (iDestino < 0) return;
+
+      const orden = [
+        ...resto.slice(0, iDestino).map((e) => e.id),
+        ...bloque,
+        ...resto.slice(iDestino).map((e) => e.id),
+      ];
+      void reorderElements(orden);
+    },
+    [doc, reorderElements],
+  );
+
   const anchoPanel = ampliado ? 760 : 452;
 
   return (
@@ -197,7 +236,12 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
         }}
       >
         {destino === 'esquema' ? (
-          <MapaEstructura raices={raices} onSelect={abrir} nodoSeleccionadoId={elegido?.id ?? null} />
+          <MapaEstructura
+            raices={raices}
+            onSelect={abrir}
+            nodoSeleccionadoId={elegido?.id ?? null}
+            onReubicar={manejarReubicar}
+          />
         ) : (
           <IndicePrevisualizacion
             raices={raices}
