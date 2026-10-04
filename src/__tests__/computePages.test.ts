@@ -79,3 +79,43 @@ describe('computePages con paginación real de Word', () => {
     expect(pages[1][0].id).toBe('b');
   });
 });
+
+describe('computePages con firstPageOnly (miniatura onlyCover)', () => {
+  it('con portada, firstPageOnly devuelve SOLO la portada', () => {
+    const els = [
+      p('cover', { is_cover_section: true, page_number: 1 }),
+      ...Array.from({ length: 40 }, (_, i) => p(`b${i}`, { page_number: 2 + i })),
+    ];
+    const full = computePages(els, 14);
+    expect(full.length).toBeGreaterThan(1);
+
+    const only = computePages(els, 14, true);
+    expect(only).toHaveLength(1);
+    expect(only[0].map((e) => e.id)).toEqual(['cover']);
+  });
+
+  it('sin portada y con paginación Word, devuelve la primera página del cuerpo', () => {
+    const els = [
+      p('a', { page_number: 1 }),
+      p('b', { page_number: 2 }),
+      p('c', { page_number: 3 }),
+    ];
+    const only = computePages(els, 14, true);
+    expect(only).toHaveLength(1);
+    expect(only[0].map((e) => e.id)).toEqual(['a']);
+  });
+
+  it('sin portada y sin page_number, devuelve una sola página no vacía', () => {
+    const els = Array.from({ length: 60 }, (_, i) =>
+      p(`e${i}`, { text: 'una linea'.repeat(20) }));
+    const only = computePages(els, 14, true);
+    expect(only).toHaveLength(1);
+    expect(only[0].length).toBeGreaterThan(0);
+  });
+
+  it('sin firstPageOnly el resultado no cambia', () => {
+    const els = Array.from({ length: 60 }, (_, i) =>
+      p(`e${i}`, { text: 'una linea'.repeat(20) }));
+    expect(computePages(els, 14, false).length).toBe(computePages(els, 14).length);
+  });
+});

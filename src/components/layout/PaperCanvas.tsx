@@ -305,7 +305,7 @@ const ChangeMark: React.FC<{
   );
 };
 
-export const computePages = (elements: ElementModel[], maxUnits = 14): ElementModel[][] => {
+export const computePages = (elements: ElementModel[], maxUnits = 14, firstPageOnly = false): ElementModel[][] => {
   const pages: ElementModel[][] = [];
   const coverElements: ElementModel[] = [];
   const bodyElements: ElementModel[] = [];
@@ -320,6 +320,10 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
       bodyElements.push(elem);
     }
   });
+
+  // ── Primer corte: la miniatura `onlyCover` solo necesita la página 1.
+  //    Con portada, la 1 ES la portada y el cuerpo no se toca.
+  if (firstPageOnly && coverElements.length > 0) return [coverElements];
 
   if (coverElements.length > 0) {
     pages.push(coverElements);
@@ -347,8 +351,9 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
     const nonEmpty = wordPages.filter((pg) => pg.length > 0);
     if (coverElements.length > 0) {
       // Portada ya está en pages[0]; anexar cuerpo sin páginas vacías.
-      return [...pages, ...nonEmpty];
+      return firstPageOnly ? [pages[0]] : [...pages, ...nonEmpty];
     }
+    if (firstPageOnly) return [nonEmpty[0] ?? []];
     return nonEmpty.length > 0 ? nonEmpty : [[]];
   }
 
@@ -357,6 +362,7 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
   const MAX_PAGE_UNITS = Math.max(8, Math.round(maxUnits));
 
   bodyElements.forEach((elem) => {
+    if (firstPageOnly && pages.length > 0) return;
     let units = 1;
     if (elem.type === 'heading') units = 2.5;
     if (elem.type === 'toc') units = 12;
@@ -396,6 +402,8 @@ export const computePages = (elements: ElementModel[], maxUnits = 14): ElementMo
     }
   });
 
+  if (firstPageOnly && pages.length > 0) return [pages[0]];
+
   if (currentPage.length > 0) pages.push(currentPage);
   if (pages.length === 0) pages.push([]);
 
@@ -413,6 +421,8 @@ export interface RenderedPagesInput {
   apaFormat?: string;
   /** Alturas medidas en el DOM (id → px). Sin mediciones no hay reflow. */
   heights?: Map<string, number> | null;
+  /** `onlyCover`: devolver solo la página 1 (miniaturas de portada). */
+  firstPageOnly?: boolean;
 }
 
 /**
@@ -436,6 +446,7 @@ export const computeRenderedPages = ({
   rules,
   apaFormat,
   heights,
+  firstPageOnly,
 }: RenderedPagesInput): { geom: PageGeometry; pages: ElementModel[][] } => {
   // ── Geometría REAL del documento (Word como verdad): hoja en pt de Word a
   //    96 DPI + márgenes de rules. El zoom es CSS aparte, no aquí.
@@ -458,7 +469,7 @@ export const computeRenderedPages = ({
   // Reparto con alturas DOM reales: parte párrafos que exceden la hoja (sin recorte).
   return {
     geom,
-    pages: applyPageFlow(computePages(elements, maxUnits), heights ?? new Map(), geom),
+    pages: applyPageFlow(computePages(elements, maxUnits, firstPageOnly), heights ?? new Map(), geom),
   };
 };
 
@@ -497,7 +508,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   // Medición post-render: solo elementos con UN nodo completo (0 = virtualizados,
   // >1 = fragmentados → no re-medir para conservar la altura total).
   useEffect(() => {
-    if (!doc) return;
+    if (!doc || onlyCover) return;
     const map = measuredRef.current;
     const nextIds = new Set<string>();
     doc.elements.forEach((e) => nextIds.add(e.id));
@@ -729,7 +740,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
   // Scroll automático y resalte suave al seleccionar cualquier elemento desde el esquema o asistente
   useEffect(() => {
-    if (selectedElementId && doc) {
+    if (selectedElementId && doc && !onlyCover) {
       // Si el elemento está en una página virtualizada lejana, activar esa página de inmediato.
       // Mismas páginas que dibuja el lienzo (no una cuenta con otra densidad).
       const docPages = computeRenderedPages({
@@ -765,12 +776,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       requestAnimationFrame(tryScroll);
       return () => { if (timer) clearTimeout(timer); };
     }
-  }, [selectedElementId, doc, rules]);
+  }, [selectedElementId, doc, rules, onlyCover]);
 
   // Scroll del DocumentOutline / auto-scroll a Referencias o Figuras SIN abrir el inspector
   const scrollTargetId = useDocStore((s) => s.scrollTargetId);
   useEffect(() => {
-    if (scrollTargetId && doc) {
+    if (scrollTargetId && doc && !onlyCover) {
       const pages = computeRenderedPages({
         elements: doc.elements,
         rules,
@@ -801,7 +812,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
       requestAnimationFrame(tryScrollTarget);
       return () => { if (timer) clearTimeout(timer); };
     }
-  }, [scrollTargetId, doc, rules]);
+  }, [scrollTargetId, doc, rules, onlyCover]);
 
   // ── Marcas de transparencia: mapa elemento → etiqueta (SOLO LECTURA) ──
   // Lo escribe `store/slices/auditSlice` por `lib/marcasMap`, y se lee con la
@@ -819,10 +830,10 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   }, [marcasVisibles, doc]);
 
   // ── Fase 2: repaginación en vivo con Word COM ──
-  useLayoutRepaginate(doc);
+  useLayoutRepaginate(onlyCover ? null : doc);
 
   // ── Fase 4: capa PDF en reposo ──
-  const { restLayerState, notifyMutation } = usePdfRestLayer(doc?.session_id ?? null);
+  const { restLayerState, notifyMutation } = usePdfRestLayer(onlyCover ? null : (doc?.session_id ?? null));
 
   // Al detectar mutación (tecleo), pasar a hidden inmediatamente.
   // Usamos un ref para evitar loops: solo notificamos cuando hay un cambio
@@ -866,6 +877,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     rules,
     apaFormat: doc.apa_format,
     heights: measuredRef.current,
+    firstPageOnly: !!onlyCover,
   });
   const PAGE_W = Math.round(geom.pageW);   // Letter 816px · A4 793px
   const PAGE_H = Math.round(geom.pageH);   // Letter 1056px · A4 1123px
