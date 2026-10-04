@@ -26,15 +26,30 @@
 
 ## 🖼️ Vista del Producto
 
-<p align="center">
-  <img src="docs/images/00-step0-quickstart.png" alt="Asistente de inicio WordAPA7 con detección automática de documentos" width="820" />
-  <br />
-  <sub>Asistente de arranque: carga del <code>.docx</code>, detección de estructura y auditorías proactivas en segundo plano.</sub>
-</p>
+> Las capturas de `docs/images/` son de **agosto 2026** y no reflejan aún el rediseño de la sala de revisión IA. Se están regenerando; el listado de pantallas a capturar está abajo.
 
-| Portada Indivisible | Jerarquía de Títulos | Figuras y Tablas | Revisión y Referencias |
-|---|---|---|---|
-| ![Portada](docs/images/01-step1-portada.png) | ![Títulos](docs/images/02-step2-headings.png) | ![Figuras](docs/images/03-step3-figures.png) | ![Referencias](docs/images/06-step5-references.png) |
+<!--
+  PENDIENTE (re-captura): sustituir por capturas actuales tras levantar
+  backend + frontend. Objetivo de carpeta: docs/images/
+  Lista de pantallas (dejar en screenshots/ y copiar a docs/images/):
+    1. 00-quickstart.png    → Step0QuickStart (asistente de inicio)
+    2. 01-portada.png       → Step1PortadaWizard (portada indivisible)
+    3. 02-headings.png      → Step2HeadingsWizard (jerarquía H1-H5)
+    4. 03-figures.png       → Step3FiguresTablesWizard (figuras/tablas)
+    5. 04-review-gate.png   → ReviewGate (puerta de estado / matriz de calor)
+    6. 05-ai-room.png       → AiRoom (sala de IA con subrayado inline)
+    7. 06-references.png    → Step5ReferencesWizard (referencias)
+  Al integrarlas: actualizar este bloque con <img> y borrar el comentario.
+-->
+
+| Pantalla | Estado |
+|---|---|
+| Asistente de inicio (`Step0QuickStart`) | ⏳ pendiente de captura |
+| Portada indivisible (`Step1PortadaWizard`) | ⏳ pendiente de captura |
+| Jerarquía de títulos (`Step2HeadingsWizard`) | ⏳ pendiente de captura |
+| Figuras y tablas (`Step3FiguresTablesWizard`) | ⏳ pendiente de captura |
+| Sala de Revisión IA (`ReviewGate` + `AiRoom`) | ⏳ pendiente de captura |
+| Referencias y exportación (`Step5ReferencesWizard`) | ⏳ pendiente de captura |
 
 ---
 
@@ -238,17 +253,46 @@ El instalador generado se guardará en `dist-electron-builder/WordAPA7 Setup X.X
 
 ## 🎨 Paleta de Colores Oficial
 
-WordAPA7 utiliza tokens CSS con la paleta de diseño inspirada en Microsoft Word 365:
+WordAPA7 usa un sistema de **design tokens semánticos** (fuente única: `DESIGN.md` / `src/styles/design-tokens.md`) inspirado en Microsoft Word 365. En código está prohibido hardcodear hex: siempre `var(--token)`.
+
+### Tokens de Marca y Superficie (Modo Claro)
 
 | Variable CSS | Hexadecimal | Previsualización | Propósito |
 |---|---|---|---|
-| `--accent-primary` | `#4F7CFF` | `████████` | Color de marca, selección y acciones principales |
-| `--paper-white` | `#FFFFFF` | `████████` | Hoja de trabajo e inspección |
-| `--paper-ink` | `#111827` | `████████` | Tinta tipográfica nítida de alto contraste |
-| `--canvas-bg` | `#F8F9FA` | `████████` | Fondo exterior del espacio de trabajo |
-| `--success` | `#16A34A` | `████████` | Cumplimiento reglamentario APA 7 |
-| `--warning` | `#D97706` | `████████` | Advertencias de citas o formato |
-| `--danger` | `#DC2626` | `████████` | Inconsistencias o errores críticos |
+| `--accent-primary` / `--color-accent` | `#4F7CFF` | `████████` | Color de marca, selección y acciones principales |
+| `--accent-primary-hover` | `#3867F6` | `████████` | Hover de la acción primaria |
+| `--canvas-bg` / `--color-bg-canvas` | `#F5F6F8` | `████████` | Fondo exterior del espacio de trabajo |
+| `--sidebar-bg` / `--color-bg-surface` | `#FFFFFF` | `████████` | Paneles laterales, tarjetas, ribbon y modales |
+| `--surface-subtle` / `--color-bg-surface-alt` | `#EEF0F4` | `████████` | Chips y tarjetas secundarias |
+| `--text-main` / `--color-text-primary` | `#1A1A2E` | `████████` | Texto primario de alto contraste en la UI |
+| `--text-secondary` / `--color-text-secondary` | `#4A4A5E` | `████████` | Texto secundario y explicativo |
+| `--text-muted` / `--color-text-tertiary` | `#6B6B80` | `████████` | Texto atenuado y placeholders |
+| `--border-subtle` / `--color-border-subtle` | `rgba(0,0,0,0.09)` | `████████` | Bordes sutiles de paneles y tarjetas |
+| `--border-strong` / `--color-border-strong` | `rgba(0,0,0,0.15)` | `████████` | Bordes de inputs y separadores |
+
+### Fidelidad de Papel APA 7 (Innegociable)
+
+| Variable CSS | Hexadecimal | Previsualización | Propósito |
+|---|---|---|---|
+| `--paper-white` / `--color-paper` | `#FFFFFF` | `████████` | Hoja de trabajo: **siempre blanca pura, en claro y oscuro** |
+| `--paper-ink` | `#111827` | `████████` | Tinta tipográfica nítida de máximo contraste en la hoja |
+
+### Estados Semánticos
+
+| Variable CSS | Hexadecimal | Previsualización | Propósito |
+|---|---|---|---|
+| `--color-success` | `#38A017` | `████████` | Cumplimiento reglamentario APA 7 y áreas dominadas |
+| `--color-warning` | `#D48806` | `████████` | Advertencias de citas, leyendas o formato |
+| `--color-danger` | `#D4382E` | `████████` | Inconsistencias, citas huérfanas y errores críticos |
+
+### Modo Oscuro (Shell, nunca la hoja)
+
+| Superficie | Hexadecimal | Propósito |
+|---|---|---|
+| Fondo de aplicación | `#0F0F11` | Backdrop del shell en `theme: dark` |
+| Paneles | `#18181C` | Superficies elevadas en modo oscuro |
+
+> Regla dura: en modo oscuro **solo cambia el shell**; la hoja de papel permanece `--paper-white` (`#FFFFFF`) con tinta `--paper-ink` (`#111827`).
 
 ---
 
