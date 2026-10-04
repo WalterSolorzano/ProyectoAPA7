@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { RailTipoActivos } from './RailTipoActivos';
 import { GaleriaActivosColumna } from './GaleriaActivosColumna';
@@ -9,20 +9,24 @@ import {
   figuraActiva,
   type TipoFigura,
 } from '../../lib/figuras';
-import { resolveAssetUrl } from '../../api/backend';
+import { resolveAssetUrl, suggestCaption } from '../../api/backend';
 import type { ElementModel } from '../../types';
 
 export const TallerFigurasView: React.FC = () => {
   const doc = useDocStore((s) => s.doc);
   const apiKey = useDocStore((s) => s.apiKey);
   const updateElementImage = useDocStore((s) => s.updateElementImage);
+  const updateElementTable = useDocStore((s) => s.updateElementTable);
   const aplicarImagenAMuchas = useDocStore((s) => s.aplicarImagenAMuchas);
   const replaceImage = useDocStore((s) => s.replaceImage);
 
   const [tipoActivo, setTipoActivo] = useState<TipoFigura>('image');
   const [indiceActivo, setIndiceActivo] = useState<number | null>(null);
+  const [idActivo, setIdActivo] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, AISuggestionData>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Ids ya consultados a la IA: evita refetch al volver a un activo.
+  const solicitadas = useRef<Set<string>>(new Set());
 
   // Derivar contextos de figuras según elementos actuales
   const todosContextos = useMemo(
@@ -63,16 +67,64 @@ export const TallerFigurasView: React.FC = () => {
   const handleTipoChange = useCallback((nuevoTipo: TipoFigura) => {
     setTipoActivo(nuevoTipo);
     setIndiceActivo(null);
+    setIdActivo(null);
   }, []);
 
   const handleSelectIndice = useCallback((idx: number) => {
     setIndiceActivo(idx);
     const item = todosContextos.find((c) => c.indice === idx);
+    setIdActivo(item?.id ?? null);
     if (item) {
       useDocStore.getState().setSelectedElementId(item.id);
       useDocStore.getState().setScrollTargetId(item.id);
     }
   }, [todosContextos]);
+
+  // Re-anclar la selección por ID: si al guardar se elimina el párrafo "Figura N"
+  // anterior, los índices del documento corren y la posición deja de apuntar al
+  // activo elegido. El ID es la identidad estable; el índice solo se re-deriva.
+  useEffect(() => {
+    if (idActivo === null) return;
+    const pos = contextosDelTipo.findIndex((c) => c.id === idActivo);
+    if (pos === -1) {
+      setIdActivo(null);
+      setIndiceActivo(null);
+      return;
+    }
+    const indiceReal = contextosDelTipo[pos].indice;
+    setIndiceActivo((prev) => (prev === indiceReal ? prev : indiceReal));
+  }, [contextosDelTipo, idActivo]);
+
+  // Lectura unificada de caption/nota: imágenes y tablas guardan en sitios distintos.
+  const esTablaActual = elementoActual?.type === 'table';
+  const infoTextoActual = esTablaActual ? elementoActual?.table_info : elementoActual?.image_info;
+  const captionActual = infoTextoActual?.caption ?? '';
+  const parrafoActual = contextoActual?.parrafoAnterior ?? '';
+
+  // IA proactiva: sugiere leyenda para activos sin caption, una vez por id.
+  useEffect(() => {
+    if (!doc?.session_id || !elementoActual) return;
+    const tipo = elementoActual.type;
+    if (tipo !== 'image' && tipo !== 'table') return;
+    if (captionActual.trim()) return;
+    if (solicitadas.current.has(elementoActual.id)) return;
+    solicitadas.current.add(elementoActual.id);
+    let cancelado = false;
+    suggestCaption(doc.session_id, elementoActual.id, parrafoActual, apiKey ?? undefined)
+      .then((texto) => {
+        if (cancelado || !texto) return;
+        setAiSuggestions((prev) => ({
+          ...prev,
+          [elementoActual.id]: { suggestedTitle: texto, suggestedNote: '' },
+        }));
+      })
+      .catch(() => {
+        // La sugerencia es oportunista: un fallo de red no rompe el taller.
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [doc?.session_id, elementoActual, captionActual, parrafoActual, apiKey]);
 
   // Rotación de imagen (+90 grados)
   const handleRotate = useCallback(() => {
@@ -108,12 +160,16 @@ export const TallerFigurasView: React.FC = () => {
   const handleApplyCaption = useCallback(
     ({ title, note }: { title: string; note: string }) => {
       if (!elementoActual) return;
+      if (elementoActual.type === 'table') {
+        updateElementTable(elementoActual.id, { caption: title, note });
+        return;
+      }
       updateElementImage(elementoActual.id, {
         caption: title,
         note: note,
       });
     },
-    [elementoActual, updateElementImage]
+    [elementoActual, updateElementImage, updateElementTable]
   );
 
   // Aplicar estilo o configuración a todas las imágenes
@@ -210,17 +266,21 @@ export const TallerFigurasView: React.FC = () => {
           {contextoActual && elementoActual ? (
             <LienzoEditorialActivo
               figureNumber={contextoActual.posicionEnTipo}
-              figureTitle={elementoActual.image_info?.caption || contextoActual.leyenda || 'Sin título'}
-              figureNote={elementoActual.image_info?.note}
+              figureTitle={captionActual || contextoActual.leyenda || 'Sin título'}
+              figureNote={infoTextoActual?.note}
               imageUrl={(() => {
                 const cruda = elementoActual.image_info?.relative_url || contextoActual.url || '';
                 return cruda ? resolveAssetUrl(cruda) : undefined;
               })()}
+              tipo={contextoActual.tipo}
+              tabla={contextoActual.tabla}
+              anchoCm={contextoActual.anchoCm}
+              altoCm={contextoActual.altoCm}
               prevParagraph={contextoActual.parrafoAnterior ?? undefined}
               nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
               aiSuggestion={aiSuggestions[elementoActual.id]}
-              onRotate={handleRotate}
-              onReplaceImage={handleReplaceImageClick}
+              onRotate={esTablaActual ? undefined : handleRotate}
+              onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
               onApplyCaption={handleApplyCaption}
             />
           ) : (

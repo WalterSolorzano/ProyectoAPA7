@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { LienzoEditorialActivo } from '../LienzoEditorialActivo';
+import { medidaDeFigura } from '../../../lib/figuras';
 
 describe('LienzoEditorialActivo', () => {
   const defaultProps = {
@@ -100,5 +101,45 @@ describe('LienzoEditorialActivo', () => {
       title: defaultProps.aiSuggestion.suggestedTitle,
       note: defaultProps.aiSuggestion.suggestedNote,
     });
+  });
+
+  it('previsualiza una tabla APA 7 a partir de sus encabezados y filas', () => {
+    const { container } = render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        imageUrl={undefined}
+        tipo="table"
+        tabla={{
+          headers: ['Grupo', 'n'],
+          rows: [
+            ['A', '10'],
+            ['B', '20'],
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText('Tabla 1')).toBeInTheDocument();
+    const tabla = container.querySelector('table');
+    expect(tabla).toBeInTheDocument();
+    expect(screen.getByText('Grupo')).toBeInTheDocument();
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
+    // El marco de imagen no debe renderizarse cuando hay tabla
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('pinta la imagen al tamaño declarado del .docx cuando hay width/height', () => {
+    const { container } = render(
+      <LienzoEditorialActivo {...defaultProps} anchoCm={10} altoCm={5} />
+    );
+
+    const img = container.querySelector('img') as HTMLElement;
+    expect(img).toBeInTheDocument();
+
+    const esperado = medidaDeFigura({ width_cm: 10, height_cm: 5 });
+    expect(esperado.declarada).toBe(true);
+    expect(img.style.width).toBe(`${esperado.anchoPx}px`);
+    expect(img.style.height).toBe(`${esperado.altoPx}px`);
   });
 });

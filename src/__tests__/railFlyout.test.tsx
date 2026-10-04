@@ -107,16 +107,15 @@ describe('T5 — RailFlyout', () => {
     expect(EDITOR_RAIL_ITEMS.find((i) => i.showOutline)?.label).toBe('Estructura');
   });
 
-  it('ningún otro destino del editor ofrece el árbol, y la fase lo confirma', () => {
-    /* El reporte literal del usuario: "al pasar el mouse por una fase que no
-       salga la ventana flotante". Figuras y Referencias lo recibían, y encima
-       con un hover que no era una decisión: el puntero solo pasa. Con el clic
-       el panel es un pedido —"decime de esta fase"—, y un árbol de títulos no
-       es la respuesta a "decime de las figuras". */
+  it('ninguna fase del editor ofrece ya el árbol flotante, ni siquiera Estructura', () => {
+    /* El rediseño quitó el panel flotante del rail en Estructura y Figuras, así
+       que ya no hay ninguna fase que monte el árbol al abrir su detalle. El
+       catálogo conserva `showOutline` en Estructura (el mapa sigue disponible
+       en el panel derecho), pero el flyout ya no se abre en esa fase. */
     for (const i of EDITOR_RAIL_ITEMS) {
       const { unmount } = render(<RailFlyout item={{ ...item, ...i, status: 'pending', pending: 1 }} onClose={vi.fn()} />);
       const hayArbol = screen.queryByText('Sin títulos detectados') !== null;
-      expect(hayArbol, `la fase ${i.label} (${i.step}) ofrece el árbol de estructura`).toBe(i.step === 2);
+      expect(hayArbol, `la fase ${i.label} (${i.step}) ofrece el árbol de estructura`).toBe(false);
       unmount();
     }
   });

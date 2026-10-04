@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { TallerFigurasView } from '../TallerFigurasView';
 import { useDocStore } from '../../../store/useDocStore';
 import type { DocumentModel } from '../../../types';
@@ -109,5 +109,47 @@ describe('TallerFigurasView', () => {
     const tabEstilo = screen.getByRole('tab', { name: /Estilo/i });
     fireEvent.click(tabEstilo);
     expect(screen.getByText(/APA Estándar/i)).toBeInTheDocument();
+  });
+
+  it('mantiene la selección sobre el mismo activo cuando los índices del documento se corren', () => {
+    const conDosImagenes: DocumentModel = {
+      ...mockDoc,
+      elements: [
+        { id: 'h1_1', type: 'heading', heading_level: 1, text: 'Capítulo 1: Introducción' },
+        { id: 'p_1', type: 'paragraph', text: 'Párrafo que se eliminará para correr los índices.' },
+        {
+          id: 'img_1',
+          type: 'image',
+          image_info: { url: 'a.png', caption: 'Leyenda de la primera figura', width_cm: 10, height_cm: 5, alignment: 'center' },
+        },
+        {
+          id: 'img_2',
+          type: 'image',
+          image_info: { url: 'b.png', caption: 'Leyenda de la segunda figura', width_cm: 10, height_cm: 5, alignment: 'center' },
+        },
+      ],
+    };
+    useDocStore.setState({ doc: conDosImagenes, apiKey: 'test-key' });
+
+    render(<TallerFigurasView />);
+
+    // Seleccionar explícitamente la primera figura en la galería
+    const galeria = screen.getByRole('complementary', { name: /Galería de activos/i });
+    fireEvent.click(within(galeria).getByText('Leyenda de la primera figura'));
+
+    const lienzoAntes = screen.getByTestId('editorial-reading-canvas');
+    expect(within(lienzoAntes).getByText('Leyenda de la primera figura')).toBeInTheDocument();
+
+    // Eliminar un elemento previo corre los índices de los activos
+    act(() => {
+      useDocStore.setState({
+        doc: { ...conDosImagenes, elements: conDosImagenes.elements.filter((e) => e.id !== 'p_1') },
+      });
+    });
+
+    // La selección NO debe saltar a la segunda figura
+    const lienzoDespues = screen.getByTestId('editorial-reading-canvas');
+    expect(within(lienzoDespues).getByText('Leyenda de la primera figura')).toBeInTheDocument();
+    expect(within(lienzoDespues).queryByText('Leyenda de la segunda figura')).toBeNull();
   });
 });

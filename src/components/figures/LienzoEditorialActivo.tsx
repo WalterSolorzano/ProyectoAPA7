@@ -1,11 +1,14 @@
 import React from 'react';
 import { RotateCw, Image as ImageIcon, Sparkles, Check } from 'lucide-react';
 import { IconoLeyenda } from './IconosFiguras';
+import { medidaDeFigura, type TipoFigura } from '../../lib/figuras';
 
 export interface AISuggestionData {
   suggestedTitle: string;
   suggestedNote: string;
-  confidence: number;
+  /** Opcional: el endpoint de sugerencia devuelve solo el texto, y un número de
+   *  confianza inventado sería un dato falso. Cuando no viene, no se pinta. */
+  confidence?: number;
 }
 
 export interface LienzoEditorialActivoProps {
@@ -13,6 +16,13 @@ export interface LienzoEditorialActivoProps {
   figureTitle: string;
   figureNote?: string;
   imageUrl?: string;
+  /** El tipo de activo. Decide el rótulo (Figura/Tabla) y qué cuerpo se pinta. */
+  tipo?: TipoFigura;
+  /** Datos de la tabla cuando `tipo` es `'table'`. */
+  tabla?: { headers: string[]; rows: string[][] } | null;
+  /** Tamaño DECLARADO en el `.docx`, para pintar la imagen a escala real. */
+  anchoCm?: number | null;
+  altoCm?: number | null;
   prevParagraph?: string;
   nextParagraph?: string;
   aiSuggestion?: AISuggestionData;
@@ -26,6 +36,10 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   figureTitle,
   figureNote,
   imageUrl,
+  tipo = 'image',
+  tabla,
+  anchoCm,
+  altoCm,
   prevParagraph,
   nextParagraph,
   aiSuggestion,
@@ -33,6 +47,15 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   onReplaceImage,
   onApplyCaption,
 }) => {
+  const esTabla =
+    tipo === 'table' &&
+    Array.isArray(tabla?.headers) &&
+    Array.isArray(tabla?.rows) &&
+    (tabla!.headers.length > 0 || tabla!.rows.length > 0);
+  const encabezados = esTabla ? tabla!.headers : [];
+  const filas = esTabla ? tabla!.rows : [];
+  const rotulo = tipo === 'table' ? 'Tabla' : tipo === 'equation' ? 'Ecuación' : 'Figura';
+  const medida = medidaDeFigura({ width_cm: anchoCm ?? undefined, height_cm: altoCm ?? undefined });
   return (
     <div
       data-testid="editorial-reading-canvas"
@@ -66,7 +89,7 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           className="font-bold"
           style={{ fontSize: '14px', color: 'var(--paper-ink)', letterSpacing: '0.01em' }}
         >
-          Figura {figureNumber}
+          {rotulo} {figureNumber}
         </div>
 
         {/* Título: cursiva, línea separada (APA 7) */}
@@ -77,6 +100,59 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           {figureTitle}
         </div>
 
+        {esTabla ? (
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '12px',
+              color: 'var(--paper-ink)',
+              marginBottom: 'var(--space-3)',
+            }}
+          >
+            {encabezados.length > 0 && (
+              <thead>
+                <tr>
+                  {encabezados.map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        textAlign: 'left',
+                        padding: '6px 10px',
+                        borderTop: '2px solid var(--paper-ink)',
+                        borderBottom: '1px solid var(--paper-ink)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {filas.map((fila, ri) => (
+                <tr key={ri}>
+                  {fila.map((celda, ci) => (
+                    <td
+                      key={ci}
+                      style={{
+                        padding: '6px 10px',
+                        borderBottom:
+                          ri === filas.length - 1
+                            ? '2px solid var(--paper-ink)'
+                            : '1px solid var(--color-border-subtle)',
+                      }}
+                    >
+                      {celda}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <>
         {/* Marco de imagen plano con controles flotantes */}
         <div
           style={{
@@ -97,9 +173,10 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
               alt={`Figura ${figureNumber}`}
               className="fig-media-img"
               style={{
-                maxHeight: '380px',
+                width: medida.declarada ? `${medida.anchoPx}px` : undefined,
+                maxHeight: medida.declarada ? undefined : '380px',
+                height: medida.declarada ? `${medida.altoPx}px` : 'auto',
                 maxWidth: '100%',
-                height: 'auto',
                 objectFit: 'contain',
                 display: 'block',
                 margin: '0 auto',
@@ -163,6 +240,8 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
             </div>
           )}
         </div>
+          </>
+        )}
 
         {/* Nota de la figura */}
         {figureNote && (
@@ -209,16 +288,18 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
             >
               <Sparkles size={14} style={{ color: 'var(--color-accent)' }} />
               <span>Sugerencia editorial de leyenda (IA)</span>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  color: 'var(--color-text-tertiary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {Math.round(aiSuggestion.confidence * 100)}%
-              </span>
+              {typeof aiSuggestion.confidence === 'number' && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-tertiary)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {Math.round(aiSuggestion.confidence * 100)}%
+                </span>
+              )}
             </div>
             {onApplyCaption && (
               <button
@@ -249,9 +330,12 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
               <span className="fig-kicker">Título sugerido</span>{' '}
               <span className="italic">{aiSuggestion.suggestedTitle}</span>
             </p>
-            <p style={{ margin: 0 }}>
-              <span className="fig-kicker">Nota sugerida</span> {aiSuggestion.suggestedNote}
-            </p>
+            {aiSuggestion.suggestedNote && (
+              <p style={{ margin: 0 }}>
+                <span className="fig-kicker">Nota sugerida</span>{' '}
+                {aiSuggestion.suggestedNote}
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -329,7 +329,10 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     min="3"
                     max="20"
                     value={widthCm}
-                    onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!Number.isNaN(v)) handleUpdate({ width_cm: v });
+                    }}
                     style={fieldStyle}
                   />
                 </div>
@@ -344,7 +347,10 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     min="2"
                     max="25"
                     value={heightCm}
-                    onChange={(e) => handleUpdate({ height_cm: parseFloat(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!Number.isNaN(v)) handleUpdate({ height_cm: v });
+                    }}
                     style={fieldStyle}
                   />
                 </div>
