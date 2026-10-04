@@ -438,6 +438,9 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                     display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
                     zIndex: activa ? 30 : Math.max(1, 20 - distancia * 5),
                     boxSizing: 'border-box',
+                    /* La hoja se dibuja a `anchoEfectivo` y el padding la saca de
+                       la caja: sin recorte asoma un filo fuera del scrim. */
+                    overflow: 'hidden',
                   }}
                 >
                   {!activa && (

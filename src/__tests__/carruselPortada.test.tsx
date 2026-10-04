@@ -163,6 +163,15 @@ describe('carrusel de portada', () => {
     expect(scrim.style.backgroundColor).toBe('var(--canvas-bg)');
   });
 
+  it('la tarjeta recorta la hoja a su caja: el scrim no deja un filo de papel suelto', () => {
+    /* El papel se dibuja con `anchoPx = anchoEfectivo`, así que con el padding
+       de la tarjeta sobresale unos píxeles por la derecha. Sin recorte, en tema
+       oscuro asoma un filo de papel fuera del scrim y del anillo de la activa. */
+    montarCarrusel();
+    expect(tarjeta('original').style.overflow).toBe('hidden');
+    expect(tarjeta('apa7').style.overflow).toBe('hidden');
+  });
+
   it('con ancho 320 y 560 la fila reserva un alto finito', () => {
     /* El alto de la fila sale de la miniatura activa: si la cuenta fallara,
        quedaría NaN/Infinity y las tarjetas absolutas se recortarían. */
