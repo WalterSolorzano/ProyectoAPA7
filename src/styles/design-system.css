@@ -963,6 +963,151 @@ html, body {
   animation: wk-step-fade 200ms ease-out;
 }
 
+/* ════════════ Taller de Activos Gráficos (Fase 3) ════════════
+   Movimiento sobrio al estilo de la app: entrada del lienzo, aparición
+   escalonada de filas y fundido de la imagen al cargar. Todo desactivado
+   bajo `prefers-reduced-motion`. */
+@keyframes fig-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fig-taller {
+  animation: fig-fade-up var(--transition-base) both;
+}
+
+@keyframes fig-row-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.fig-row {
+  animation: fig-row-in var(--transition-base) both;
+}
+
+@keyframes fig-img-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+.fig-media-img {
+  animation: fig-img-in 320ms ease-out both;
+}
+
+/* Botón de control flotante sobre la imagen */
+.fig-media-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs, 4px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.fig-media-btn:hover {
+  background: var(--color-bg-surface-hover);
+  color: var(--color-accent);
+}
+.fig-media-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Botón sólido de aplicar sugerencia */
+.fig-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-on-accent);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.fig-apply-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+/* Etiqueta pequeña en versalitas para metadatos de la sugerencia */
+.fig-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+/* El papel del manuscrito conserva su serif propio, ajeno al chrome Inter */
+.fig-paper {
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Preset de estilo: la miniatura ES la descripción; la etiqueta va debajo en
+   dos columnas, sin párrafos redundantes. */
+.fig-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 8px;
+  background: var(--color-bg-surface-alt);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+}
+.fig-preset:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-surface-hover);
+}
+.fig-preset:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.fig-preset[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.fig-preset-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}
+.fig-preset-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-ink-a08);
+}
+.fig-preset[aria-pressed='true'] .fig-preset-badge {
+  color: var(--color-text-on-accent);
+  background: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fig-taller,
+  .fig-row,
+  .fig-media-img,
+  .wizard-step-enter,
+  .wizard-step-fade {
+    animation: none !important;
+  }
+}
+
 /* ════════════ Cursor de edición interactiva en el lienzo ════════════ */
 [id^="paper-elem-"][data-hover="true"] {
   cursor: text;

@@ -46,7 +46,7 @@ import { X } from 'lucide-react';
 /* ═══ WIZARD STEP MAPPING (refactor UX) ═══
    1. Portada                          — CoverEditorPanel + Step1PortadaWizard (PaperCanvas)
    2. Estructura   (Índice + Títulos + Cuerpo) — EscritorioEstructura / Step2HeadingsWizard / Step5BodyWizard
-   3. Figuras y tablas                 — Step3FiguresTablesWizard
+   3. Figuras y tablas                 — TallerFigurasView
    4. Referencias                      — Step5ReferencesWizard
    5. Exportar                         — openExportTunnel() (viewMode='export')
 */

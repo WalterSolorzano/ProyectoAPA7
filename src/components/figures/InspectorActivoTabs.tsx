@@ -31,6 +31,34 @@ interface StylePreset {
   renderThumbnail: () => React.ReactNode;
 }
 
+/* Metadatos del inspector, una sola vez. La vista se apoya en estos estilos en
+   lugar de repetir la misma declaración en cada control. */
+const metaLabel: React.CSSProperties = {
+  fontSize: '11px',
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  color: 'var(--color-text-secondary)',
+};
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: '10px',
+  color: 'var(--color-text-secondary)',
+  marginBottom: '3px',
+};
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 8px',
+  fontSize: '11px',
+  fontFamily: 'var(--font-sans)',
+  border: '1px solid var(--color-border-subtle)',
+  borderRadius: 'var(--radius-sm)',
+  backgroundColor: 'var(--color-bg-surface-alt)',
+  color: 'var(--color-text-primary)',
+  boxSizing: 'border-box',
+};
+const hairline: React.CSSProperties = { height: '1px', backgroundColor: 'var(--color-border-subtle)' };
+
 const STYLE_PRESETS: StylePreset[] = [
   {
     value: 'standard',
@@ -38,11 +66,11 @@ const STYLE_PRESETS: StylePreset[] = [
     desc: 'Figura centrada con etiqueta y título en líneas separadas arriba.',
     badge: 'Oficial',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="8" y="5" width="16" height="2" rx="1" fill="var(--accent-primary)" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="8" y="5" width="16" height="2" rx="1" fill="var(--color-accent)" />
         <rect x="8" y="9" width="28" height="2" rx="1" fill="var(--color-text-secondary)" />
-        <rect x="12" y="14" width="24" height="14" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+        <rect x="12" y="14" width="24" height="14" rx="2" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
       </svg>
     ),
   },
@@ -52,11 +80,11 @@ const STYLE_PRESETS: StylePreset[] = [
     desc: 'Borde perimetral técnico con Figura N en negrita y nota al pie estructurada.',
     badge: 'Técnico',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="6" y="5" width="36" height="24" rx="2" fill="transparent" stroke="var(--border-subtle)" strokeWidth="1" strokeDasharray="2 2" />
-        <rect x="10" y="8" width="28" height="14" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="10" y="24" width="20" height="2" rx="1" fill="var(--color-text-muted)" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="6" y="5" width="36" height="24" rx="2" fill="transparent" stroke="var(--color-border-subtle)" strokeWidth={1.75} strokeDasharray="2 2" />
+        <rect x="10" y="8" width="28" height="14" rx="1" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="10" y="24" width="20" height="2" rx="1" fill="var(--color-text-tertiary)" />
       </svg>
     ),
   },
@@ -65,10 +93,10 @@ const STYLE_PRESETS: StylePreset[] = [
     label: 'Ancho Completo',
     desc: 'Ocupa el 100% del margen útil de la página. Ideal para mapas o planos.',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="4" y="6" width="40" height="20" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="4" y="28" width="26" height="2" rx="1" fill="var(--color-text-muted)" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="4" y="6" width="40" height="20" rx="2" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="4" y="28" width="26" height="2" rx="1" fill="var(--color-text-tertiary)" />
       </svg>
     ),
   },
@@ -77,12 +105,12 @@ const STYLE_PRESETS: StylePreset[] = [
     label: 'Compacto / Flotante',
     desc: 'Cuadro lateral estrecho con ajuste de texto continuo.',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="26" y="6" width="16" height="22" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="6" y="8" width="16" height="2" rx="1" fill="var(--color-text-muted)" />
-        <rect x="6" y="13" width="16" height="2" rx="1" fill="var(--color-text-muted)" />
-        <rect x="6" y="18" width="16" height="2" rx="1" fill="var(--color-text-muted)" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="26" y="6" width="16" height="22" rx="2" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="6" y="8" width="16" height="2" rx="1" fill="var(--color-text-tertiary)" />
+        <rect x="6" y="13" width="16" height="2" rx="1" fill="var(--color-text-tertiary)" />
+        <rect x="6" y="18" width="16" height="2" rx="1" fill="var(--color-text-tertiary)" />
       </svg>
     ),
   },
@@ -92,27 +120,27 @@ const STYLE_PRESETS: StylePreset[] = [
     desc: 'Dos subfiguras en paralelo rotuladas como (a) y (b) lado a lado.',
     badge: 'Doble',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="6" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="26" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="12" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
-        <rect x="32" y="25" width="4" height="2" rx="1" fill="var(--accent-primary)" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="6" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="26" y="7" width="16" height="15" rx="2" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="12" y="25" width="4" height="2" rx="1" fill="var(--color-accent)" />
+        <rect x="32" y="25" width="4" height="2" rx="1" fill="var(--color-accent)" />
       </svg>
     ),
   },
   {
     value: 'corner',
-    label: 'Esquina / Flotante Secundario',
+    label: 'Cuadrícula 2×2 (a, b, c, d)',
     desc: 'Malla compacta de subfiguras para estudios comparativos complejos.',
     badge: 'Malla',
     renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="7" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="26" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="7" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="26" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
+      <svg width="48" height="30" viewBox="0 0 48 34" fill="none" aria-hidden>
+        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--color-border-subtle)" strokeWidth={1.75} />
+        <rect x="7" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="26" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="7" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
+        <rect x="26" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--color-accent)" strokeWidth={1.75} />
       </svg>
     ),
   },
@@ -136,7 +164,6 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   const altText = imgInfo.alt_text || '';
   const currentStyle: DesignStyle = imgInfo.design_style || 'standard';
 
-  // Diagnósticos APA 7
   const checks = [
     {
       id: 'caption',
@@ -157,6 +184,8 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
       failMessage: 'Sin texto alternativo accesible.',
     },
   ];
+  const cumpidos = checks.filter((c) => c.passed).length;
+  const todoConforme = cumpidos === checks.length;
 
   const handleUpdate = (patch: Partial<NonNullable<ElementModel['image_info']>>) => {
     onUpdateImage(elem.id, patch);
@@ -180,26 +209,57 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
     { key: 'calidad', label: 'Calidad', icon: ShieldCheck },
   ];
 
+  const alignBtn = (valor: 'left' | 'center' | 'right', label: string, Icon: LucideIcon) => {
+    const activo = alignment === valor;
+    return (
+      <button
+        type="button"
+        aria-label={`Alinear ${label}`}
+        onClick={() => handleUpdate({ alignment: valor })}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '4px',
+          padding: '7px 4px',
+          fontSize: '11px',
+          cursor: 'pointer',
+          borderRadius: 'var(--radius-sm)',
+          border: `1px solid ${activo ? 'var(--color-accent)' : 'var(--color-border-subtle)'}`,
+          backgroundColor: activo ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
+          color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+          transition: 'background-color var(--transition-fast), border-color var(--transition-fast)',
+        }}
+      >
+        <Icon size={13} />
+        <span>{label === 'Izquierda' ? 'Izq' : label === 'Derecha' ? 'Der' : 'Centro'}</span>
+      </button>
+    );
+  };
+
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        backgroundColor: 'var(--color-bg-surface, #ffffff)',
-        borderLeft: '1px solid var(--border-subtle, #e2e8f0)',
+        width: '320px',
+        flexShrink: 0,
+        backgroundColor: 'var(--color-bg-surface)',
+        borderLeft: '1px solid var(--color-border-subtle)',
+        fontFamily: 'var(--font-sans)',
         fontSize: '12px',
-        color: 'var(--color-text-primary, #0f172a)',
+        color: 'var(--color-text-primary)',
       }}
     >
-      {/* Barra de Pestañas Planas */}
+      {/* Pestañas planas, sin tarjeta */}
       <div
         role="tablist"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          borderBottom: '1px solid var(--border-subtle, #e2e8f0)',
-          backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+          backgroundColor: 'var(--color-bg-surface)',
         }}
       >
         {tabs.map((tab) => {
@@ -213,62 +273,53 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
               onClick={() => setTabActiva(tab.key)}
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '5px',
-                padding: '10px 4px',
+                gap: '3px',
+                padding: '9px 4px',
                 border: 'none',
-                borderBottom: isActiva
-                  ? '2px solid var(--accent-primary, #0284c7)'
-                  : '2px solid transparent',
-                backgroundColor: isActiva ? 'var(--color-bg-surface, #ffffff)' : 'transparent',
-                color: isActiva
-                  ? 'var(--accent-primary, #0284c7)'
-                  : 'var(--color-text-secondary, #64748b)',
+                borderBottom: isActiva ? '2px solid var(--color-accent)' : '2px solid transparent',
+                backgroundColor: 'transparent',
+                color: isActiva ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
                 fontWeight: isActiva ? 600 : 500,
-                fontSize: '11px',
+                fontSize: '10px',
                 cursor: 'pointer',
-                transition: 'color 0.15s, border-color 0.15s, background-color 0.15s',
+                transition: 'color var(--transition-fast), border-color var(--transition-fast)',
               }}
             >
-              <Icon size={13} />
+              <Icon size={15} />
               <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Contenedor de Contenido */}
+      {/* Contenido */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '14px',
+          padding: 'var(--space-4)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
+          gap: 'var(--space-4)',
         }}
       >
-        {/* PESTAÑA FORMATO */}
+        {/* ── FORMATO ── */}
         {tabActiva === 'formato' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Dimensiones numéricas y slider */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-secondary, #64748b)' }}>
-                  Dimensiones
-                </span>
-                <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--accent-primary, #0284c7)' }}>
+                <span style={metaLabel}>Dimensiones</span>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
                   {widthCm.toFixed(1)} × {heightCm.toFixed(1)} cm
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
                 <div>
-                  <label
-                    htmlFor="field-ancho-cm"
-                    style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-secondary, #64748b)', marginBottom: '3px' }}
-                  >
+                  <label htmlFor="field-ancho-cm" style={fieldLabel}>
                     Ancho (cm)
                   </label>
                   <input
@@ -279,23 +330,11 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     max="20"
                     value={widthCm}
                     onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) || 1 })}
-                    style={{
-                      width: '100%',
-                      padding: '5px 8px',
-                      fontSize: '11px',
-                      border: '1px solid var(--border-subtle, #cbd5e1)',
-                      borderRadius: '4px',
-                      backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                      color: 'inherit',
-                      boxSizing: 'border-box',
-                    }}
+                    style={fieldStyle}
                   />
                 </div>
                 <div>
-                  <label
-                    htmlFor="field-alto-cm"
-                    style={{ display: 'block', fontSize: '10px', color: 'var(--color-text-secondary, #64748b)', marginBottom: '3px' }}
-                  >
+                  <label htmlFor="field-alto-cm" style={fieldLabel}>
                     Alto (cm)
                   </label>
                   <input
@@ -306,116 +345,38 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     max="25"
                     value={heightCm}
                     onChange={(e) => handleUpdate({ height_cm: parseFloat(e.target.value) || 1 })}
-                    style={{
-                      width: '100%',
-                      padding: '5px 8px',
-                      fontSize: '11px',
-                      border: '1px solid var(--border-subtle, #cbd5e1)',
-                      borderRadius: '4px',
-                      backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                      color: 'inherit',
-                      boxSizing: 'border-box',
-                    }}
+                    style={fieldStyle}
                   />
                 </div>
               </div>
 
-              <div style={{ marginTop: '4px' }}>
-                <input
-                  aria-label="Slider de ancho"
-                  type="range"
-                  min="5"
-                  max="17"
-                  step="0.5"
-                  value={widthCm}
-                  onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) })}
-                  style={{ width: '100%', accentColor: 'var(--accent-primary, #0284c7)' }}
-                />
-              </div>
+              <input
+                aria-label="Slider de ancho"
+                type="range"
+                min="5"
+                max="17"
+                step="0.5"
+                value={widthCm}
+                onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) })}
+                style={{ width: '100%', accentColor: 'var(--color-accent)', marginTop: '2px' }}
+              />
             </div>
 
-            <div style={{ height: '1px', backgroundColor: 'var(--border-subtle, #e2e8f0)' }} />
+            <div style={hairline} />
 
-            {/* Alineación */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-secondary, #64748b)' }}>
-                Alineación
-              </span>
+              <span style={metaLabel}>Alineación</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                <button
-                  type="button"
-                  aria-label="Alinear Izquierda"
-                  onClick={() => handleUpdate({ alignment: 'left' })}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '7px 4px',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                    border: alignment === 'left' ? '1px solid var(--accent-primary, #0284c7)' : '1px solid var(--border-subtle, #cbd5e1)',
-                    backgroundColor: alignment === 'left' ? 'var(--color-accent-soft, #f0f9ff)' : 'var(--color-bg-surface-alt, #f8fafc)',
-                    color: alignment === 'left' ? 'var(--accent-primary, #0284c7)' : 'inherit',
-                    borderRadius: '4px',
-                  }}
-                >
-                  <AlignLeft size={13} />
-                  <span>Izq</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Alinear Centro"
-                  onClick={() => handleUpdate({ alignment: 'center' })}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '7px 4px',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                    border: alignment === 'center' ? '1px solid var(--accent-primary, #0284c7)' : '1px solid var(--border-subtle, #cbd5e1)',
-                    backgroundColor: alignment === 'center' ? 'var(--color-accent-soft, #f0f9ff)' : 'var(--color-bg-surface-alt, #f8fafc)',
-                    color: alignment === 'center' ? 'var(--accent-primary, #0284c7)' : 'inherit',
-                    borderRadius: '4px',
-                  }}
-                >
-                  <AlignCenter size={13} />
-                  <span>Centro</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Alinear Derecha"
-                  onClick={() => handleUpdate({ alignment: 'right' })}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    padding: '7px 4px',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                    border: alignment === 'right' ? '1px solid var(--accent-primary, #0284c7)' : '1px solid var(--border-subtle, #cbd5e1)',
-                    backgroundColor: alignment === 'right' ? 'var(--color-accent-soft, #f0f9ff)' : 'var(--color-bg-surface-alt, #f8fafc)',
-                    color: alignment === 'right' ? 'var(--accent-primary, #0284c7)' : 'inherit',
-                    borderRadius: '4px',
-                  }}
-                >
-                  <AlignRight size={13} />
-                  <span>Der</span>
-                </button>
+                {alignBtn('left', 'Izquierda', AlignLeft)}
+                {alignBtn('center', 'Centro', AlignCenter)}
+                {alignBtn('right', 'Derecha', AlignRight)}
               </div>
             </div>
 
-            <div style={{ height: '1px', backgroundColor: 'var(--border-subtle, #e2e8f0)' }} />
+            <div style={hairline} />
 
-            {/* Alcance de aplicación */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label
-                htmlFor="select-alcance"
-                style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-secondary, #64748b)' }}
-              >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <label htmlFor="select-alcance" style={metaLabel}>
                 Alcance
               </label>
               <select
@@ -423,38 +384,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 aria-label="Alcance"
                 value={alcance}
                 onChange={(e) => setAlcance(e.target.value as 'esta' | 'todas')}
-                style={{
-                  padding: '6px 8px',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                  color: 'inherit',
-                }}
+                style={fieldStyle}
               >
                 <option value="esta">Solo esta figura</option>
                 <option value="todas">Todas las figuras ({totalFiguras})</option>
               </select>
 
               {alcance === 'todas' && (
-                <button
-                  type="button"
-                  onClick={onApplyToAll}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '7px 10px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    backgroundColor: 'var(--accent-primary, #0284c7)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
-                >
+                <button type="button" onClick={onApplyToAll} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
                   <Sliders size={13} />
                   <span>Aplicar a todas las figuras</span>
                 </button>
@@ -463,14 +400,11 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
           </div>
         )}
 
-        {/* PESTAÑA TEXTO */}
+        {/* ── TEXTO ── */}
         {tabActiva === 'texto' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div>
-              <label
-                htmlFor="field-caption"
-                style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', marginBottom: '4px' }}
-              >
+              <label htmlFor="field-caption" style={{ ...fieldLabel, fontWeight: 600 }}>
                 Título / Leyenda
               </label>
               <input
@@ -479,24 +413,11 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 value={caption}
                 onChange={(e) => handleUpdate({ caption: e.target.value })}
                 placeholder="Ej. Distribución de respuestas según cohorte..."
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                  color: 'inherit',
-                  boxSizing: 'border-box',
-                }}
+                style={fieldStyle}
               />
             </div>
-
             <div>
-              <label
-                htmlFor="field-note"
-                style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', marginBottom: '4px' }}
-              >
+              <label htmlFor="field-note" style={{ ...fieldLabel, fontWeight: 600 }}>
                 Nota al pie
               </label>
               <textarea
@@ -505,25 +426,11 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 value={note}
                 onChange={(e) => handleUpdate({ note: e.target.value })}
                 placeholder="Nota. Datos obtenidos mediante muestreo aleatorio estratificado..."
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                  color: 'inherit',
-                  fontFamily: 'inherit',
-                  boxSizing: 'border-box',
-                }}
+                style={{ ...fieldStyle, resize: 'vertical' }}
               />
             </div>
-
             <div>
-              <label
-                htmlFor="field-alt-text"
-                style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', marginBottom: '4px' }}
-              >
+              <label htmlFor="field-alt-text" style={{ ...fieldLabel, fontWeight: 600 }}>
                 Texto alternativo
               </label>
               <input
@@ -532,73 +439,31 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 value={altText}
                 onChange={(e) => handleUpdate({ alt_text: e.target.value })}
                 placeholder="Descripción para lectores de pantalla..."
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  fontSize: '11px',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
-                  color: 'inherit',
-                  boxSizing: 'border-box',
-                }}
+                style={fieldStyle}
               />
             </div>
           </div>
         )}
 
-        {/* PESTAÑA ESTILO */}
+        {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
         {tabActiva === 'estilo' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-secondary, #64748b)' }}>
-              Presets APA 7 ({STYLE_PRESETS.length})
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <span style={metaLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
               {STYLE_PRESETS.map((preset) => {
                 const isSelected = currentStyle === preset.value;
                 return (
                   <button
                     key={preset.value}
                     type="button"
+                    className="fig-preset"
+                    title={preset.desc}
+                    aria-pressed={isSelected}
                     onClick={() => handleUpdate({ design_style: preset.value })}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 10px',
-                      textAlign: 'left',
-                      border: isSelected ? '1px solid var(--accent-primary, #0284c7)' : '1px solid var(--border-subtle, #e2e8f0)',
-                      backgroundColor: isSelected ? 'var(--color-accent-soft, #f0f9ff)' : 'var(--color-bg-surface-alt, #f8fafc)',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.15s, background-color 0.15s',
-                    }}
                   >
                     {preset.renderThumbnail()}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 600, fontSize: '11px', color: 'var(--color-text-primary, #0f172a)' }}>
-                          {preset.label}
-                        </span>
-                        {preset.badge && (
-                          <span
-                            style={{
-                              fontSize: '9px',
-                              fontWeight: 700,
-                              padding: '1px 5px',
-                              borderRadius: '3px',
-                              backgroundColor: isSelected ? 'var(--accent-primary, #0284c7)' : 'var(--color-bg-surface, #e2e8f0)',
-                              color: isSelected ? '#ffffff' : 'var(--color-text-secondary, #475569)',
-                            }}
-                          >
-                            {preset.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-text-secondary, #64748b)', lineHeight: '1.3' }}>
-                        {preset.desc}
-                      </p>
-                    </div>
+                    <span className="fig-preset-label">{preset.label}</span>
+                    {preset.badge && <span className="fig-preset-badge">{preset.badge}</span>}
                   </button>
                 );
               })}
@@ -606,52 +471,46 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
           </div>
         )}
 
-        {/* PESTAÑA CALIDAD */}
+        {/* ── CALIDAD: diagnóstico sin amarillos ── */}
         {tabActiva === 'calidad' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-secondary, #64748b)' }}>
-                Diagnóstico APA 7
-              </span>
+              <span style={metaLabel}>Diagnóstico APA 7</span>
               <span
                 style={{
                   fontSize: '10px',
                   fontWeight: 600,
                   padding: '1px 6px',
-                  borderRadius: '3px',
-                  backgroundColor: checks.every((c) => c.passed) ? '#dcfce7' : '#fef3c7',
-                  color: checks.every((c) => c.passed) ? '#166534' : '#92400e',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: todoConforme ? 'var(--color-success-a12)' : 'var(--color-ink-a08)',
+                  color: todoConforme ? 'var(--color-success)' : 'var(--color-text-secondary)',
                 }}
               >
-                {checks.filter((c) => c.passed).length}/{checks.length} Criterios
+                {cumpidos}/{checks.length} criterios
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {checks.map((chk) => (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {checks.map((chk, i) => (
                 <div
                   key={chk.id}
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: '8px',
-                    padding: '8px 10px',
-                    borderRadius: '4px',
-                    border: '1px solid var(--border-subtle, #e2e8f0)',
-                    backgroundColor: 'var(--color-bg-surface-alt, #f8fafc)',
+                    gap: 'var(--space-2)',
+                    padding: '10px 2px',
+                    borderTop: i === 0 ? 'none' : '1px solid var(--color-border-subtle)',
                   }}
                 >
                   {chk.passed ? (
-                    <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: '1px' }} />
+                    <CheckCircle2 size={15} style={{ color: 'var(--color-success)', flexShrink: 0, marginTop: '1px' }} />
                   ) : (
-                    <AlertCircle size={14} style={{ color: '#dc2626', flexShrink: 0, marginTop: '1px' }} />
+                    <AlertCircle size={15} style={{ color: 'var(--color-danger)', flexShrink: 0, marginTop: '1px' }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 500 }}>
-                      {chk.label}
-                    </p>
+                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 500 }}>{chk.label}</p>
                     {!chk.passed && (
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#dc2626' }}>
+                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-danger)' }}>
                         {chk.failMessage}
                       </p>
                     )}
@@ -660,25 +519,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={handleAutocompletar}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 12px',
-                fontSize: '11px',
-                fontWeight: 600,
-                backgroundColor: 'var(--accent-primary, #0284c7)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                marginTop: '4px',
-              }}
-            >
+            <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
               <Sparkles size={13} />
               <span>Autocompletar recomendación APA</span>
             </button>

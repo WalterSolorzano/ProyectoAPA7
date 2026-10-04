@@ -1,20 +1,22 @@
 /**
- * EL GUARDIÁN DEL MONTAJE DE LA F4, por el mismo motivo que el de F3: componentes
- * con sus pruebas en verde y cero importadores son un trabajo TERMINADO que no
- * está terminado, está guardado. F3 cometió ese error y lo tapó con
- * `estructuraEstaMontada.test.tsx`; el precedente está a una carpeta de distancia y
- * la lección también.
+ * EL GUARDIÁN DEL MONTAJE DEL TALLER DE FIGURAS Y TABLAS.
  *
- * Todas las pruebas son negativas, y todas se apoyan en el mismo par: el glob lee
- * los fuentes del disco y la lista de componentes NO está escrita a mano. Una lista
- * escrita a mano es la tautología que hay que evitar: se agrega un componente, no
- * se monta, y la guarda sigue verde porque no lo conocía.
+ * La fase 3 llegó a tener DOS implementaciones: el par contextual
+ * (`ListaContextual` + `EscenarioFigura`, montado por `Step3FiguresTablesWizard`)
+ * y el Taller unificado (`TallerFigurasView`). El par quedó huérfano, con sus
+ * pruebas en verde y cero importadores: el trabajo TERMINADO que no está
+ * terminado, está guardado. Esta guarda vigila que exista UNA sola verdad.
+ *
+ * Todas las pruebas se apoyan en el mismo par: el glob lee los fuentes del disco
+ * y la lista de componentes NO está escrita a mano. Una lista escrita a mano es
+ * la tautología que hay que evitar: se agrega un componente, no se monta, y la
+ * guarda sigue verde porque no lo conocía.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
-import { Step3FiguresTablesWizard } from '../components/wizard/Step3FiguresTablesWizard';
+import { TallerFigurasView } from '../components/figures/TallerFigurasView';
 import { contextosDeFiguras } from '../lib/figuras';
 import type { ElementModel } from '../types';
 
@@ -27,7 +29,6 @@ vi.mock('../api/backend', () => ({
   autoCaptionAll: vi.fn().mockResolvedValue(undefined),
   suggestCaption: vi.fn().mockResolvedValue('sugerida'),
 }));
-vi.mock('../components/layout/PaperCanvas', () => ({ PaperCanvas: () => <div data-testid="canvas-real" /> }));
 
 const FUENTES = import.meta.glob('/src/**/*.{ts,tsx}', {
   query: '?raw',
@@ -43,7 +44,9 @@ const SIN_COMENTARIOS = (f: string) => f
 
 const CARPETA = '/src/components/figures/';
 const NOMBRES = Object.keys(FUENTES)
-  .filter((r) => r.startsWith(CARPETA) && r.endsWith('.tsx'))
+  /* Las pruebas NO son componentes de la carpeta: si entraran, cada archivo de
+     prueba se leería como un componente huérfano y la guarda acusaría al test. */
+  .filter((r) => r.startsWith(CARPETA) && r.endsWith('.tsx') && !r.includes('/__tests__/'))
   .map((r) => r.slice(CARPETA.length).replace(/\.tsx$/, ''));
 
 let n = 0;
@@ -68,25 +71,26 @@ function montar() {
       imagePanelOpen: false, selectedElementId: null,
     } as never);
   });
-  return render(<Step3FiguresTablesWizard />);
+  return render(<TallerFigurasView />);
 }
 
 beforeEach(() => { n = 0; });
 
 describe('la fase de Figuras y tablas está montada', () => {
-  it('el glob esta leyendo de verdad y la carpeta tiene los componentes', () => {
+  it('el glob esta leyendo de verdad y la carpeta tiene los componentes del taller', () => {
     expect(Object.keys(FUENTES).length).toBeGreaterThan(100);
-    expect(NOMBRES).toContain('ListaContextual');
-    expect(NOMBRES).toContain('EscenarioFigura');
+    expect(NOMBRES).toContain('TallerFigurasView');
+    expect(NOMBRES).toContain('RailTipoActivos');
+    expect(NOMBRES).toContain('GaleriaActivosColumna');
+    expect(NOMBRES).toContain('LienzoEditorialActivo');
+    expect(NOMBRES).toContain('InspectorActivoTabs');
+    expect(NOMBRES).toContain('IconosFiguras');
   });
 
   it('cada componente de la carpeta tiene un importador REAL fuera de las pruebas', () => {
-    /* POR QUÉ SE LEEN LOS COMENTARIOS ANTES. La primera versión de esta guarda
-       contaba un `import` comentado como importador, porque un regex no sabe qué es
-       un comentario. Eso la volvía inútil justo para el caso que viene a cazar:
-       commenting el import para "verificar" la guarda la dejaba verde con el
-       componente huérfano. Un guardián que se puede desactivar con un `//` no
-       vigila nada. */
+    /* POR QUÉ SE LEEN LOS COMENTARIOS ANTES. Un `import` comentado no es un
+       importador: un regex no sabe qué es un comentario, y esa guarda quedaría
+       verde justo con el componente huérfano que viene a cazar. */
     const cuenta: Record<string, number> = {};
     for (const nombre of NOMBRES) cuenta[nombre] = 0;
     for (const [ruta, fuente] of Object.entries(FUENTES)) {
@@ -100,31 +104,13 @@ describe('la fase de Figuras y tablas está montada', () => {
     expect(huerfanos, `componentes de figures/ que nadie usa: ${huerfanos.join(', ')}`).toEqual([]);
   });
 
-  it('monta la lista contextual y el escenario, con la figura elegida', () => {
+  it('monta el taller con el rail, la galería, el lienzo y el inspector', () => {
     montar();
-    expect(screen.getByTestId('lista-figuras-scroller')).toBeTruthy();
-    expect(screen.getByTestId('escenario-figura')).toBeTruthy();
-    /* Y el lienzo NO esta: es un toggle apagado por omision. El documento entero
-       como centro es exactamente el defecto que §8.1 viene a matar. */
-    expect(screen.queryByTestId('canvas-real')).toBeNull();
-  });
-
-  it('sin figura elegida, el escenario muestra una, y dice su seccion y su falta de leyenda', () => {
-    /* Con el filtro vacio, la primera figura es la que se mira por omision, y su
-       ausencia de leyenda se ve EN EL ESCENARIO, no solo en la lista. */
-    const { container } = montar();
-    expect(container.textContent).toMatch(/Metodología/);
-    expect(screen.getByTestId('escenario-figura').textContent).toMatch(/Diagrama/);
-  });
-
-  it('elegir una figura la pone en el escenario', () => {
-    montar();
-    /* Se elige la SEGUNDA, que es la que no tiene leyenda: si el clic no llegara al
-       escenario, esto seguiría mostrando la primera y la prueba no lo notaría.
-       `ELEMENTOS` se construye al cargar el módulo, así que sus ids son fijos:
-       elem_1 el H1, elem_2 el párrafo, elem_3 la Figura 1 y elem_4 la Figura 2. */
-    fireEvent.click(screen.getByTestId('contexto-elem_4'));
-    expect(screen.getByTestId('escenario-figura').textContent).toMatch(/sin leyenda/i);
+    expect(screen.getByTestId('taller-figuras-view')).toBeTruthy();
+    expect(screen.getByTestId('editorial-reading-canvas')).toBeTruthy();
+    /* El rail y la galería existen como regiones etiquetadas. */
+    expect(screen.getByRole('complementary', { name: /Selector de tipos de activos/i })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: /Galería de activos/i })).toBeTruthy();
   });
 
   it('la fase es alcanzable desde el rail: App.tsx la monta en el paso 3', () => {
@@ -133,59 +119,46 @@ describe('la fase de Figuras y tablas está montada', () => {
        importador. */
     const app = FUENTES['/src/App.tsx'];
     expect(app, 'App.tsx no esta entre los fuentes leidos').toBeTruthy();
-    expect(app).toMatch(/wizardStep === 3 && <Step3FiguresTablesWizard \/>/);
-  });
-
-  it('NO se importa ReviewMinimap en la fase, y el panel derecho sigue montandose', () => {
-    const paso = FUENTES['/src/components/wizard/Step3FiguresTablesWizard.tsx'];
-    expect(paso).not.toMatch(/ReviewMinimap/);
-    /* Y la tercera columna es la que ya existia, no una nueva. */
-    expect(FUENTES['/src/App.tsx']).toMatch(/wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel \/>/);
+    expect(app).toMatch(/wizardStep === 3 && <TallerFigurasView \/>/);
   });
 });
 
-/** Los comentarios se quitan porque la cabecera de `Step3FiguresTablesWizard.tsx`
- *  explica el defecto NOMBRANDO el código que ya no está —"la fila ya no llama a
- *  `setImagePanelOpen(true)`"— y una guarda que lee los comentarios accuse al
- *  comentario de ser el defecto. */
+describe('la vista previa se resuelve en los DOS canales', () => {
+  /* Bug histórico: el lienzo y la galería pasaban la ruta cruda al `<img>`, y en
+     Electron (origen app://) eso da 404 silencioso. Los dos canales deben leer
+     `resolveAssetUrl`; si uno vuelve a pintar la ruta cruda, esta guarda cae. */
+  it('el lienzo y la galería resuelven la URL del activo', () => {
+    const taller = SIN_COMENTARIOS(FUENTES['/src/components/figures/TallerFigurasView.tsx']);
+    const galeria = SIN_COMENTARIOS(FUENTES['/src/components/figures/GaleriaActivosColumna.tsx']);
+    expect(taller).toMatch(/resolveAssetUrl/);
+    expect(galeria).toMatch(/resolveAssetUrl/);
+  });
+});
+
 describe('la verdad de la figura no se re-deriva en la vista', () => {
-  it('la lista y el escenario leen el MISMO contexto', () => {
+  it('el taller lee la MISMA verdad contextual de la librería', () => {
     /* Un `sectionMap` local y un `contextosDeFiguras` en la lib son dos verdades
-       sobre a que seccion pertenece una figura, y divergen el primer dia que una
-       cambia. La lista y el escenario tienen que leer el mismo arreglo. */
-    const paso = SIN_COMENTARIOS(FUENTES['/src/components/wizard/Step3FiguresTablesWizard.tsx']);
-    expect(paso).toMatch(/contextosDeFiguras/);
-    expect(paso).not.toMatch(/new Map<string, \{ title: string; level/);
+       sobre a qué sección pertenece una figura, y divergen el primer día que una
+       cambia. El taller tiene que leer el mismo arreglo. */
+    const taller = SIN_COMENTARIOS(FUENTES['/src/components/figures/TallerFigurasView.tsx']);
+    expect(taller).toMatch(/contextosDeFiguras/);
+    expect(taller).not.toMatch(/new Map<string, \{ title: string; level/);
   });
 
-  it('la figura activa se guarda por indice, y no por element_id', () => {
-    const paso = SIN_COMENTARIOS(FUENTES['/src/components/wizard/Step3FiguresTablesWizard.tsx']);
-    expect(paso).toMatch(/indiceActivo/);
-    /* Y no queda ningun `setSelectedElementId(item.id)` como identidad de la
-       eleccion de la lista: la lista elige una POSICION. */
-    expect(paso).not.toMatch(/setSelectedElementId\(item\.id\)/);
-    /* Y seleccionar NO abre el panel de imagen: eso es reemplazar en vez de
-       navegar, y es el defecto de §8.3. */
-    expect(paso).not.toMatch(/setImagePanelOpen\(true\)/);
-    expect(paso).not.toMatch(/setForceRightPanelOpen\(true\)/);
+  it('la figura activa se guarda por índice y elegir NO abre el panel de imagen', () => {
+    const taller = SIN_COMENTARIOS(FUENTES['/src/components/figures/TallerFigurasView.tsx']);
+    expect(taller).toMatch(/indiceActivo/);
+    /* Seleccionar NO abre el panel de imagen: eso es reemplazar en vez de navegar. */
+    expect(taller).not.toMatch(/setImagePanelOpen\(true\)/);
+    expect(taller).not.toMatch(/setForceRightPanelOpen\(true\)/);
   });
 
-  it('el estado vacio de esta pantalla es el de F1, no uno escrito a mano', () => {
-    const paso = SIN_COMENTARIOS(FUENTES['/src/components/wizard/Step3FiguresTablesWizard.tsx']);
-    expect(paso).toMatch(/ListaContextual/);
-    expect(paso).not.toMatch(/No se detectaron \$\{/);
-    const lista = FUENTES['/src/components/figures/ListaContextual.tsx'];
-    expect(lista).toMatch(/EstadoVacio/);
-  });
-});
-
-describe('la lista y el escenario leen la misma verdad, de verdad', () => {
-  it('el total que muestra la lista y el que muestra el escenario son el mismo numero', () => {
+  it('el total que muestra el rail es el mismo número que sale de la librería', () => {
     const ctx = contextosDeFiguras(ELEMENTOS);
     expect(ctx.filter((c) => c.tipo === 'image')).toHaveLength(2);
     montar();
-    /* El toggle Figuras dice 2, y el escenario es 1 de 2: un numero derivado dos
-       veces divergen, y el que miente es el que la persona ve. */
+    /* El rail dice 2 y la librería dice 2: un número derivado dos veces divergen,
+       y el que miente es el que la persona ve. */
     expect(screen.getByRole('button', { name: /Figuras \(2\)/ })).toBeTruthy();
   });
 });

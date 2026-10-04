@@ -105,7 +105,7 @@ describe('InspectorActivoTabs', () => {
     expect(onUpdateImage).toHaveBeenCalledWith('img_1', expect.objectContaining({ alt_text: 'Alt text nuevo' }));
   });
 
-  it('pestaña Estilo: muestra los 7 presets visuales APA 7 con selección funcional', () => {
+  it('pestaña Estilo: muestra los 6 presets visuales APA 7 con selección funcional', () => {
     const onUpdateImage = vi.fn();
 
     render(
@@ -125,7 +125,6 @@ describe('InspectorActivoTabs', () => {
     expect(screen.getByText('Compacto / Flotante')).toBeDefined();
     expect(screen.getByText('Doble Horizontal (a, b)')).toBeDefined();
     expect(screen.getByText('Cuadrícula 2×2 (a, b, c, d)')).toBeDefined();
-    expect(screen.getByText('Vertical Apilado (a, b)')).toBeDefined();
 
     // Seleccionar preset científico
     fireEvent.click(screen.getByRole('button', { name: /Científico/i }));

@@ -7,10 +7,9 @@ import { InspectorActivoTabs } from './InspectorActivoTabs';
 import {
   contextosDeFiguras,
   figuraActiva,
-  type ContextoFigura,
   type TipoFigura,
 } from '../../lib/figuras';
-import { suggestCaption } from '../../api/backend';
+import { resolveAssetUrl } from '../../api/backend';
 import type { ElementModel } from '../../types';
 
 export const TallerFigurasView: React.FC = () => {
@@ -132,19 +131,17 @@ export const TallerFigurasView: React.FC = () => {
     });
   }, [elementoActual, todosContextos, aplicarImagenAMuchas]);
 
-  // Si no hay elementos en el documento
-  const totalActivos = todosContextos.length;
-
   return (
     <div
       data-testid="taller-figuras-view"
+      className="fig-taller"
       style={{
         display: 'flex',
         flexDirection: 'row',
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        backgroundColor: 'var(--canvas-bg, #f1f5f9)',
+        backgroundColor: 'var(--canvas-bg)',
       }}
     >
       <input
@@ -156,7 +153,7 @@ export const TallerFigurasView: React.FC = () => {
         data-testid="hidden-file-input"
       />
 
-      {/* 1. RailTipoActivos (Extrema Izquierda, 52px, fondo azul marino) */}
+      {/* 1. Rail de tipos (extrema izquierda, 56px) */}
       <RailTipoActivos
         tipoActivo={tipoActivo}
         conteos={conteos}
@@ -186,22 +183,23 @@ export const TallerFigurasView: React.FC = () => {
         <div style={{ width: '100%', maxWidth: '850px' }}>
           <header style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
                 Taller de Activos Gráficos
               </h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
-                Edición de precisión editorial y conformidad APA 7ma Edición.
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                Ajusta cada figura y tabla del documento con criterios APA 7.
               </p>
             </div>
             {contextoActual && (
               <span
                 style={{
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)',
+                  fontVariantNumeric: 'tabular-nums',
                   padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: 'var(--surface-raised, #e2e8f0)',
-                  color: 'var(--text-main, #334155)',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  color: 'var(--color-text-secondary)',
                 }}
               >
                 Activo {contextoActual.posicionEnTipo} de {contextosDelTipo.length}
@@ -214,7 +212,10 @@ export const TallerFigurasView: React.FC = () => {
               figureNumber={contextoActual.posicionEnTipo}
               figureTitle={elementoActual.image_info?.caption || contextoActual.leyenda || 'Sin título'}
               figureNote={elementoActual.image_info?.note}
-              imageUrl={elementoActual.image_info?.relative_url || contextoActual.url || undefined}
+              imageUrl={(() => {
+                const cruda = elementoActual.image_info?.relative_url || contextoActual.url || '';
+                return cruda ? resolveAssetUrl(cruda) : undefined;
+              })()}
               prevParagraph={contextoActual.parrafoAnterior ?? undefined}
               nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
               aiSuggestion={aiSuggestions[elementoActual.id]}
@@ -227,10 +228,10 @@ export const TallerFigurasView: React.FC = () => {
               style={{
                 padding: '48px 24px',
                 textAlign: 'center',
-                backgroundColor: 'var(--surface-base, #ffffff)',
-                border: '1px dashed var(--border-subtle, #cbd5e1)',
-                borderRadius: '8px',
-                color: 'var(--text-muted, #64748b)',
+                backgroundColor: 'var(--color-bg-surface)',
+                border: '1px dashed var(--color-border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                color: 'var(--color-text-secondary)',
               }}
             >
               <p style={{ margin: 0, fontSize: '14px' }}>
@@ -253,12 +254,12 @@ export const TallerFigurasView: React.FC = () => {
         <aside
           style={{
             width: '320px',
-            borderLeft: '1px solid var(--border-subtle, #e2e8f0)',
-            backgroundColor: 'var(--surface-base, #ffffff)',
+            borderLeft: '1px solid var(--color-border-subtle)',
+            backgroundColor: 'var(--color-bg-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--text-muted, #94a3b8)',
+            color: 'var(--color-text-tertiary)',
             fontSize: '13px',
           }}
         >

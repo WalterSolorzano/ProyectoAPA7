@@ -39,7 +39,7 @@ describe('LienzoEditorialActivo', () => {
     // Comprobamos el contenedor de lectura cálido
     const canvasContainer = container.querySelector('[data-testid="editorial-reading-canvas"]');
     expect(canvasContainer).toBeInTheDocument();
-    expect(canvasContainer).toHaveStyle({ backgroundColor: '#faf8f5' });
+    expect(canvasContainer).toHaveStyle({ backgroundColor: 'var(--paper-white)' });
   });
 
   it('renderiza el bloque de la figura con rótulo y título en cursiva según APA 7', () => {
