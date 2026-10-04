@@ -35,6 +35,7 @@ import { DistribucionVolumen } from './DistribucionVolumen';
 import { MatrizEvidencias } from './MatrizEvidencias';
 import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
 import { RailEstructura, type DestinoEstructura } from './RailEstructura';
+import { IndicePrevisualizacion } from './IndicePrevisualizacion';
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -185,11 +186,24 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
         />
       </div>
 
-      <div style={{ minWidth: 0, minHeight: 0, overflow: 'auto', padding: 'var(--space-4)' }}>
+      <div
+        style={{
+          minWidth: 0,
+          minHeight: 0,
+          overflow: 'auto',
+          padding: destino === 'esquema' ? 'var(--space-4)' : 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {destino === 'esquema' ? (
           <MapaEstructura raices={raices} onSelect={abrir} nodoSeleccionadoId={elegido?.id ?? null} />
         ) : (
-          <div data-testid="indice-preview-placeholder" />
+          <IndicePrevisualizacion
+            raices={raices}
+            onSelect={abrir}
+            nodoSeleccionadoId={elegido?.id ?? null}
+          />
         )}
       </div>
 

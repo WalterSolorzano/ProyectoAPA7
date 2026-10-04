@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { ListTree } from 'lucide-react';
+import { ChevronDown, ChevronRight, ListTree } from 'lucide-react';
 import type { ElementModel } from '../../types';
 import {
   construirJerarquia,
@@ -39,6 +39,15 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   nodoSeleccionadoId,
 }) => {
   const [filtro, setFiltro] = useState<string>('todas');
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) =>
+    setAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const raices = useMemo(
     () => construirJerarquia(elementos ?? [], faseConocida ?? {}, vocabulario),
@@ -60,6 +69,23 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
     () => (filtro === 'todas' ? filas : filas.filter((f) => f.nodo.fase === filtro)),
     [filas, filtro],
   );
+
+  // Preorden: una fila es visible si ningún H1 ancestro está plegado. Como
+  // `filasDelIndice` entrega en preorden, basta con ocultar desde un H1
+  // plegado hasta el próximo H1.
+  const filasVisibles = useMemo(() => {
+    const out: typeof filas = [];
+    let oculto = false;
+    for (const fila of visibles) {
+      if (fila.profundidad === 0) {
+        out.push(fila);
+        oculto = !abiertos.has(fila.nodo.id);
+      } else if (!oculto) {
+        out.push(fila);
+      }
+    }
+    return out;
+  }, [visibles, abiertos]);
 
   if (!elementos || elementos.length === 0) {
     return (
@@ -124,15 +150,46 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
         </div>
       ) : (
         <div role="list" style={{ overflowY: 'auto', minHeight: 0, flex: 1 }}>
-          {visibles.map((fila) => (
-            <NodoIndice
-              key={fila.nodo.id}
-              nodo={fila.nodo}
-              diagnostico={fila.diagnostico}
-              profundidad={fila.profundidad}
-              onSelect={onSelect}
-              seleccionado={fila.nodo.id === nodoSeleccionadoId}
-            />
+          {filasVisibles.map((fila) => (
+            <div key={fila.nodo.id} style={{ display: 'flex', alignItems: 'flex-start' }}>
+              {fila.profundidad === 0 && fila.nodo.hijos.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => toggle(fila.nodo.id)}
+                  aria-expanded={abiertos.has(fila.nodo.id)}
+                  aria-label={`${abiertos.has(fila.nodo.id) ? 'Contraer' : 'Expandir'} ${fila.nodo.titulo}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: '0 0 auto',
+                    width: 22,
+                    height: 34,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                >
+                  {abiertos.has(fila.nodo.id) ? (
+                    <ChevronDown size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+                  ) : (
+                    <ChevronRight size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+                  )}
+                </button>
+              ) : (
+                <span aria-hidden style={{ flex: '0 0 auto', width: 22 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <NodoIndice
+                  nodo={fila.nodo}
+                  diagnostico={fila.diagnostico}
+                  profundidad={fila.profundidad}
+                  onSelect={onSelect}
+                  seleccionado={fila.nodo.id === nodoSeleccionadoId}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}
