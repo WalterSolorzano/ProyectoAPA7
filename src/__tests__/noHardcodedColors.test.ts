@@ -804,7 +804,15 @@ describe('T20 — el lint de tokens del rediseño', () => {
         (s) => `${nombreDe(ruta)}:${s.linea} (${s.motivo})`,
       ),
     );
-    expect(ilustrados.length, 'demasiadas ilustraciones: R6 dejaria de mirar').toBeLessThan(20);
+    /* 20 ilustraciones reales (2026-10-04): las seis fichas esquematicas de
+       `InspectorActivoTabs` (48x34), las once de `ImageEditPanel` (siete 48x34 y
+       cuatro 36x24), el sello de `DownloadSuccessOverlay` (34x34), la mascota
+       editorial y el mapa de estructura. Cuando `components/figures` entro al
+       alcance de R3, esas fichas dejaron de ser invisibles y la cuenta llego a 20.
+       El tope sube a 24 y NO es una lista de excepciones: la prueba de abajo
+       —ningun svg con el viewBox de lucide— es la que impide que la excepcion se
+       coma un icono dibujado a mano. */
+    expect(ilustrados.length, 'demasiadas ilustraciones: R6 dejaria de mirar').toBeLessThan(24);
     const suspectas = ilustrados.filter((s) => s.includes('viewBox 0 0 24 24'));
     expect(
       suspectas,
