@@ -1,12 +1,14 @@
 /**
  * WordAPA7 — el carrusel de portada: la activa SIEMPRE al centro.
  *
- * Cómo funciona: las cinco tarjetas se dibujan en una fila centrada y la fila
- * se corre un paso por cada paso de índice (`paso * (centro - indice)`). Así la
- * que está elegida ocupa el centro por construcción —no por casualidad de que
- * sean cinco— y las demás pasan por ahí al navegar. El índice es una sola fuente
- * de verdad: la tira no tiene su propio estado de "cuál está activa", y la
- * tarjeta, la flecha, el teclado y el arrastre escriben el mismo índice.
+ * Cómo funciona: NO hay marco central que se corra. Cada tarjeta se posiciona
+ * de forma absoluta con su borde izquierdo en el 50% de la pista y se desplaza
+ * con `translateX((i - indice) * paso)`: la activa cae en el centro por
+ * construcción —con cualquier número de tarjetas y sin depender del
+ * `justify-content`— y las vecinas se ordenan a los costados con escala y
+ * `rotateY` por distancia. El índice es una sola fuente de verdad: la tira no
+ * tiene su propio estado de "cuál está activa", y la tarjeta, la flecha, el
+ * teclado y el arrastre escriben el mismo índice.
  *
  * LO QUE ESTABA MAL Y NO VUELVE:
  * - `transform: undefined` para una tarjeta a más de `VECINAS_POR_LADO` puestos

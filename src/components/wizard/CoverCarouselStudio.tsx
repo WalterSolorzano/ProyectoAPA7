@@ -47,6 +47,13 @@ import type { Hoja } from '../../lib/portada/geometria';
  *  demás porque conservar la portada del documento no es un estilo más. */
 type CoverMode = 'original' | 'apa7' | 'uni' | 'pro' | 'custom';
 
+/** La hoja A4 es la más alargada que el carrusel dibuja (297/210 ≈ 1.414); se
+ *  usa 1.42 como cota superior para que ninguna portada desborde su tarjeta. */
+const ASPECTO_DE_HOJA_MAX = 1.42;
+/** Piso de usabilidad: por debajo de esto la miniatura deja de leerse. No es un
+ *  tope — la tarjeta crece con el área de la fase. */
+const ANCHO_MINIMO_DE_TARJETA_PX = 240;
+
 export const CoverCarouselStudio: React.FC = () => {
   const { portada, acta, rules, setPortada, setActa, setCoverSetupDone, setWizardStep, showToast } = useDocStore();
   const [uploading, setUploading] = useState<boolean>(false);
@@ -56,6 +63,13 @@ export const CoverCarouselStudio: React.FC = () => {
 
   // Ancho de la tarjeta activa, medido sobre la CAJA REAL de la fase (no sobre
   // `window`): así el carrusel ocupa el espacio que tiene, no el que supone.
+  //
+  // El ancho es una PROPORCIÓN del área, no un tope fijo. Antes se acotaba a
+  // 300–360px y en una ventana grande la tarjeta quedaba rodeada de un desierto:
+  // el espacio de la fase es inmenso, así que la activa crece con él. El alto
+  // manda sobre el ancho (la hoja es 1.42:1 en A4) y el ancho se limita a algo
+  // más de la mitad para que las vecinas se asomen por los costados. Solo un
+  // piso evita una tarjeta inservible en ventanas chicas.
   const faseRef = useRef<HTMLDivElement>(null);
   const [anchoCalculado, setAnchoCalculado] = useState<number>(320);
 
@@ -65,12 +79,10 @@ export const CoverCarouselStudio: React.FC = () => {
     const calcular = () => {
       const alto = el.clientHeight;
       const ancho = el.clientWidth;
-      // Activa alrededor de 320: se ajusta al alto útil y deja que las vecinas
-      // se asomen por los lados. La hoja de portada ronda proporción 1.32 a 1.
-      const porAlto = Math.round((alto - 180) / 1.32);
-      const porAncho = Math.round(ancho * 0.4);
-      const optimo = Math.min(360, Math.max(300, Math.min(porAlto, porAncho)));
-      setAnchoCalculado(optimo);
+      const porAlto = Math.round((alto * 0.86) / ASPECTO_DE_HOJA_MAX);
+      const porAncho = Math.round(ancho * 0.55);
+      const optimo = Math.min(porAlto, porAncho);
+      setAnchoCalculado(Math.max(ANCHO_MINIMO_DE_TARJETA_PX, optimo));
     };
     calcular();
     if (typeof ResizeObserver === 'undefined') return;
