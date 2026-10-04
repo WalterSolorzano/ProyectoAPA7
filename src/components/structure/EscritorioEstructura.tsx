@@ -37,6 +37,12 @@ import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
 import { RailEstructura, type DestinoEstructura } from './RailEstructura';
 import { IndicePrevisualizacion } from './IndicePrevisualizacion';
 import { ControlesIndice, type ProfundidadIndice } from './ControlesIndice';
+import { useWindowWidth } from '../../hooks/useWindowWidth';
+
+/** Con esta ventana, el panel derecho vive cómodo. */
+export const ANCHO_ESTRUCTURA_COMPLETO = 1280;
+/** Por debajo, el panel derecho se pliega solo: 56 + 308 + centro deja muy poco. */
+export const ANCHO_ESTRUCTURA_MINIMO = 900;
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -150,6 +156,13 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const [destino, setDestino] = useState<DestinoEstructura>('esquema');
   const [profundidad, setProfundidad] = useState<ProfundidadIndice>(3);
 
+  /* El ancho de la ventana manda: en pantallas angostas el panel derecho se
+   * pliega solo. El estado local (`cerrado`) sigue existiendo para que el
+   * usuario lo cierre a mano aunque haya lugar. */
+  const anchoVentana = useWindowWidth();
+  const muyEstrecho = anchoVentana < ANCHO_ESTRUCTURA_MINIMO;
+  const panelCerrado = cerrado || muyEstrecho;
+
   const hayIndice = (doc?.elements ?? []).some((e) => e.type === 'toc');
 
   const elegido = useMemo(
@@ -214,7 +227,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
       className="escritorio-estructura"
       style={{
         display: 'grid',
-        gridTemplateColumns: cerrado
+        gridTemplateColumns: panelCerrado
           ? '56px 308px minmax(0, 1fr) 44px'
           : `56px 308px minmax(0, 1fr) ${anchoPanel}px`,
         height: '100%',
@@ -260,7 +273,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
         )}
       </div>
 
-      {cerrado ? (
+      {panelCerrado ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'var(--space-3)', background: 'var(--color-bg-surface)', borderLeft: '1px solid var(--color-border-subtle)' }}>
           <button type="button" onClick={() => setCerrado(false)} title="Mostrar panel" style={estiloIcono}>
             <BookOpen size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
