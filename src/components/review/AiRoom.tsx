@@ -4,6 +4,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { AIReviewResult } from '../../api/backend';
 import type { ElementModel, ProofreadFinding } from '../../types';
 import { AiSegment } from './AiSegment';
+import type { AuditItem } from '../../lib/auditItems';
 
 interface ParagraphLike { element_id: string; text: string; ai_score: number; ai_category: string }
 
@@ -43,11 +44,14 @@ interface Props {
   reviewResult: AIReviewResult | null;
   elements: ElementModel[];
   findings: ProofreadFinding[];
+  /** Hallazgos de IA del documento, para el split-comparador por párrafo. */
+  aiItems?: AuditItem[];
   onMark: (elementId: string) => void;
+  onReplace?: (id: string, text: string) => void;
   onExit: () => void;
 }
 
-export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, onMark, onExit }) => {
+export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, aiItems = [], onMark, onReplace, onExit }) => {
   const paragraphs = (reviewResult?.paragraphs ?? []) as ParagraphLike[];
   const [index, setIndex] = useState(0);
 
@@ -81,9 +85,11 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, onMa
           title={current.title}
           paragraphs={current.paragraphs}
           findings={findings}
+          aiItems={aiItems}
           index={safeIndex}
           total={segs.length}
           onMark={onMark}
+          onReplace={onReplace}
           onPrev={() => setIndex((i) => Math.max(0, i - 1))}
           onNext={() => setIndex((i) => Math.min(segs.length - 1, i + 1))}
         />

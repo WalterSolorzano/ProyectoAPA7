@@ -1,8 +1,11 @@
-/* WordAPA7 — Un segmento de la sala de IA: subrayado inline violeta + confianza + comparador. */
+/* WordAPA7 — Un segmento de la sala de IA: subrayado inline violeta + confianza
+   + el split-comparador (original LLM vs propuesta con voz de autor humano). */
 import React from 'react';
 import { ArrowLeft, ArrowRight, Bookmark } from 'lucide-react';
 import { AiReadingText } from './AiReadingText';
+import { AiCompareSplit } from './AiCompareSplit';
 import type { ProofreadFinding } from '../../types';
+import type { AuditItem } from '../../lib/auditItems';
 
 interface ParagraphLike { element_id: string; text: string; ai_score: number; ai_category: string }
 
@@ -10,15 +13,18 @@ interface Props {
   title: string;
   paragraphs: ParagraphLike[];
   findings: ProofreadFinding[];
+  /** Hallazgos de IA del documento, para el split-comparador por párrafo. */
+  aiItems?: AuditItem[];
   index: number;
   total: number;
   onMark: (elementId: string) => void;
+  onReplace?: (id: string, text: string) => void;
   onPrev: () => void;
   onNext: () => void;
 }
 
 export const AiSegment: React.FC<Props> = ({
-  title, paragraphs, findings, index, total, onMark, onPrev, onNext,
+  title, paragraphs, findings, aiItems = [], index, total, onMark, onReplace, onPrev, onNext,
 }) => (
   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
     <header style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -29,26 +35,36 @@ export const AiSegment: React.FC<Props> = ({
     </header>
 
     <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {paragraphs.map((p) => (
-        <article key={p.element_id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <AiReadingText
-            text={p.text}
-            elementId={p.element_id}
-            findings={findings}
-            renderNote={(mark) => (
-              <sup
-                title={`Confianza IA detectada: ${mark.kind}`}
-                style={{ marginLeft: '2px', fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--accent-primary)' }}
-              >
-                {Math.round(p.ai_score)}%
-              </sup>
+      {paragraphs.map((p) => {
+        const split = aiItems.find((it) => it.element_id === p.element_id);
+        return (
+          <article key={p.element_id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <AiReadingText
+              text={p.text}
+              elementId={p.element_id}
+              findings={findings}
+              renderNote={(mark) => (
+                <sup
+                  title={`Confianza IA detectada: ${mark.kind}`}
+                  style={{ marginLeft: '2px', fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--accent-primary)' }}
+                >
+                  {Math.round(p.ai_score)}%
+                </sup>
+              )}
+            />
+            <button type="button" onClick={() => onMark(p.element_id)} style={markBtn}>
+              <Bookmark size={12} /> Marcar para revisar
+            </button>
+            {split && (
+              <AiCompareSplit
+                item={split}
+                onMark={() => onMark(p.element_id)}
+                onReplace={onReplace}
+              />
             )}
-          />
-          <button type="button" onClick={() => onMark(p.element_id)} style={markBtn}>
-            <Bookmark size={12} /> Marcar para revisar
-          </button>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   </div>
 );

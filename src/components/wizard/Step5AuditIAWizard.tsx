@@ -95,13 +95,34 @@ export const Step5AuditIAWizard: React.FC = () => {
     showToast('Alerta descartada. Texto original conservado.', 'info');
   };
 
+  /* El detector de IA es probabilístico (AGENTS.md §1): "Reemplazar en
+     Manuscrito" escribe lo que la persona editó en la propuesta, y marca el
+     hallazgo para que quede trazable; nunca aplica una sugerencia a ciegas. */
+  const handleReplace = async (id: string, text: string) => {
+    const item = items.find((it) => it.id === id);
+    if (!doc || !item?.element_id || item.readOnly) return;
+    try {
+      await updateElementText(item.element_id, text);
+      setSelectedElementId(item.element_id);
+      setScrollTargetId(item.element_id);
+      dismissFinding(id);
+      showToast('Propuesta insertada en el manuscrito', 'success');
+    } catch {
+      showToast('Error al reemplazar en el manuscrito', 'error');
+    }
+  };
+
+  const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
+
   if (pantalla === 'ai') {
     return (
       <AiRoom
         reviewResult={reviewResult}
         elements={elements}
         findings={proofreadFindings}
+        aiItems={aiItems}
         onMark={(id) => handleMark({ element_id: id } as AuditItem)}
+        onReplace={handleReplace}
         onExit={() => setPantalla('gate')}
       />
     );
