@@ -47,14 +47,16 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         }}
         className={`card-source ${active ? 'active' : ''} ${className}`.trim()}
         style={{
-          padding: '11px 13px',
+          padding: '10px 12px',
           borderRadius: 'var(--radius-md)',
-          /* Sin caja en reposo: la lista respira y solo la tarjeta activa lleva
-             caja. El borde de hover aparece por CSS (`card-source`), no acá,
-             para no repintar el estilo con cada estado. */
-          border: active
-            ? '1.5px solid var(--color-accent)'
-            : '1px solid transparent',
+          /* Sin caja en reposo: la lista respira y solo el elemento activo lleva
+             caja de acento. El hover insinúa una fila —borde izquierdo tenue—
+             sin convertir cada renglón en una tarjeta; el contenedor de tarjetas
+             dentro de tarjetas fue justo lo que se retiró. */
+          border: 'none',
+          borderLeft: active
+            ? '2px solid var(--color-accent)'
+            : '2px solid transparent',
           backgroundColor: active
             ? 'var(--color-accent-soft)'
             : 'transparent',
@@ -203,8 +205,8 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
       <style>{`
         .card-source:not(.active):hover,
         .card-source:not(.active):focus-visible {
-          border-color: var(--color-border-subtle);
-          background-color: var(--color-bg-surface);
+          border-left-color: var(--color-border-strong);
+          background-color: var(--color-bg-surface-hover);
         }
         .card-source .hover-edit-trigger {
           opacity: 0;

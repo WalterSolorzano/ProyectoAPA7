@@ -306,18 +306,24 @@ describe('la jerarquía de acciones', () => {
   it('la barra superior tiene UN solo botón de acento', () => {
     /* Antes "Nueva Referencia" y "Continuar a Auditoría" eran los dos
        `btn-primary`, y el que ganaba la mirada era el de adelante porque
-       estaba más a la derecha. Agregar una referencia es el trabajo de la
-       pantalla; continuar es navegación. */
+       estaba más a la derecha. Después la barra quedó con "Auditar citas" y
+       "Continuar a Auditoría" como texto secundario al lado del botón de
+       agregar, y los tres verbos competían. La decisión final es que ESTA
+       pantalla tiene una sola acción: agregar una referencia. La auditoría
+       corre sola al entrar y "continuar" es el rail de fases, no una decisión
+       de esta pantalla. */
     const { container } = montar([REF]);
     expect(container.querySelectorAll('header [data-accion="principal"]')).toHaveLength(1);
   });
 
-  it('el botón de acento es el de agregar, y el de continuar es secundario', () => {
+  it('el botón de acento es el único de la barra: agregar', () => {
     const { container } = montar([REF]);
     const principal = container.querySelector('header [data-accion="principal"]');
     expect(principal?.textContent).toMatch(/nueva referencia/i);
-    const continuar = screen.getByRole('button', { name: /continuar a auditor/i });
-    expect(continuar.getAttribute('data-accion')).not.toBe('principal');
+    /* El texto que competía con el botón de agregar ya no está: ni "Auditar
+       citas" ni "Continuar a Auditoría" viven en esta barra. */
+    expect(screen.queryByRole('button', { name: /continuar a auditor/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /auditar citas/i })).toBeNull();
   });
 
   it('el modal conserva sus dos modos: DOI y entrada manual', () => {

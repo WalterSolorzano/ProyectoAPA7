@@ -11,7 +11,7 @@ import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
   Trash2, Copy, Check, Pencil,
-  ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
+  ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
 import {
@@ -80,7 +80,7 @@ export const Step5ReferencesWizard: React.FC = () => {
     doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
     addReference, removeReference, updateReferences, resolveDoiReference, resolveDoisBlock, isLoading,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
-    setScrollTargetId, setWizardStep,
+    setScrollTargetId,
   } = useDocStore();
 
   const [doiQuery, setDoiQuery] = useState('');
@@ -360,19 +360,9 @@ export const Step5ReferencesWizard: React.FC = () => {
               hasta ahora ninguna pantalla del editor usaba. Un `kind` declarado
               y no dibujado deja la mascota en blanco. */}
           <EditorialMascot kind="reference" expression={expresionFase} size={36} />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
-                Estudio de Referencias y Citas APA 7
-              </h2>
-              <span style={{
-                fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)',
-                backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)',
-              }}>
-                {references.length} fuentes registradas
-              </span>
-            </div>
-          </div>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+            Estudio de Referencias y Citas APA 7
+          </h2>
         </div>
 
         {/* La acción principal de ESTA pantalla es agregar una referencia, y
@@ -383,27 +373,14 @@ export const Step5ReferencesWizard: React.FC = () => {
             `data-accion="principal"` marca el bloque: el test comprueba que hay
             un solo bloque de acento en la barra. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <button
-            type="button"
-            onClick={() => runCitationAudit()}
-            title="Re-auditar correspondencia de citas"
-            style={botonInline()}
-          >
-            <RefreshCw size={13} strokeWidth="var(--icon-stroke)" />
-            <span>Auditar citas</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setWizardStep(5)}
-            style={botonInline()}
-          >
-            <span>Continuar a Auditoría</span>
-            <ChevronRight size={14} strokeWidth="var(--icon-stroke)" />
-          </button>
-
-          {/* El FAB vive fuera del flujo de botones secundarios: es el único
-              acento de la barra, y por eso el bloque `data-accion="principal"`
-              lo envuelve a él solo. */}
+          {/* La acción principal de ESTA pantalla es agregar una referencia, y
+              ahora es la ÚNICA acción de la barra: un botón CIRCULAR que
+              despliega las formas de agregar. Antes había además "Auditar citas"
+              y "Continuar a Auditoría", dos verbos que competían con la acción
+              real y que nadie pidió aquí —la auditoría corre sola al entrar y
+              "continuar" es el rail de fases, no una decisión de esta pantalla.
+              `data-accion="principal"` marca el bloque: el test comprueba que
+              hay un solo bloque de acento en la barra. */}
           <div data-accion="principal" style={{ position: 'relative' }}>
             <button
               type="button"
@@ -481,7 +458,14 @@ export const Step5ReferencesWizard: React.FC = () => {
             verified: validReferences.length,
             issues: unverifiedReferences.length + ghosts.length,
           }}
-          onSelectFilter={(f) => setRailFilter(f)}
+          onSelectFilter={(f) => {
+            setRailFilter(f);
+            /* Volver a "Todas" es volver a la BIBLIOGRAFÍA COMPLETA: la
+               selección se limpia para que el lienzo muestre el documento
+               entero y no la última ficha que quedó abierta. Elegir una
+               referencia en la lista vuelve a enfocar esa sola. */
+            if (f === 'all') setSelectedReferenceId(null);
+          }}
         />
 
         {/* ══ COLUMNA 1: Catálogo y Lista Agrupada por Estado (responsive min 380px, max 440px) ══ */}
@@ -490,6 +474,20 @@ export const Step5ReferencesWizard: React.FC = () => {
           backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--color-border-subtle)',
           display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)',
         }}>
+
+          {/* Encabezado de la columna: dice qué es la lista y cuánto tiene. El
+              conteo vivía en un pill suelto al lado del título de la pantalla,
+              donde no se sabía a qué se refería; acá corona la lista a la que
+              pertenece. */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+              Bibliografía
+            </span>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)' }}>
+              {references.length}{' '}
+              {references.length === 1 ? 'fuente' : 'fuentes'}
+            </span>
+          </div>
 
           {/* Buscador del directorio. Filtra por autor, año, título o fuente;
               `type="search"` para que el navegador ofrezca limpiar. */}
@@ -510,9 +508,14 @@ export const Step5ReferencesWizard: React.FC = () => {
             />
           </div>
 
-          {/* GRUPO 1: VERIFICADAS. El rótulo dice lo que el grupo ES —verificadas
-              contra una fuente— y no "válidas con DOI verificado", que era una
-              etiqueta que el sistema se daba a sí mismo por tener autor y título. */}
+          {/* LOS TRES GRUPOS, EN LOS DOS MODOS.
+              En "Todas" se ven los tres, separados por un divisor con rótulo: la
+              lista mezclada no decía dónde terminaba lo verificado y empezaba lo
+              pendiente, y el autor no podía ver de un golpe qué le falta. Elegir
+              un destino del rail reduce la lista a ESE grupo —no es un filtro de
+              búsqueda, es quedarse con una categoría. Las categorías no cambian:
+              Verificadas, Pendientes y En texto-no-en-biblio son las mismas en el
+              rail, en la lista y en el conteo. */}
           {(railFilter === 'all' || railFilter === 'verified') && (
             <Grupo
               titulo="Verificadas"
@@ -597,27 +600,27 @@ export const Step5ReferencesWizard: React.FC = () => {
                     <div
                       key={i}
                       style={{
-                        padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'var(--color-bg-surface-hover)', border: '1px solid var(--color-border-subtle)',
-                        display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+                        padding: '9px 12px', borderRadius: 'var(--radius-md)',
+                        borderLeft: '2px solid var(--color-warning)',
+                        backgroundColor: 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
-                        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                          {txt}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleResolveGhost(i)}
-                          disabled={resolvingGhostIdx === i}
-                          style={botonInline(true, { padding: '4px 10px', fontSize: 'var(--text-xs)', flexShrink: 0 })}
-                        >
-                          {resolvingGhostIdx === i
-                            ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" />
-                            : <Plus size={12} strokeWidth="var(--icon-stroke)" />}
-                          <span>Completar</span>
-                        </button>
-                      </div>
+                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', flex: 1, minWidth: 0 }}>
+                        {txt}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveGhost(i)}
+                        disabled={resolvingGhostIdx === i}
+                        title="Buscar esta cita y crear su ficha"
+                        style={botonInline(undefined, { padding: '4px 10px', fontSize: 'var(--text-xs)', flexShrink: 0 })}
+                      >
+                        {resolvingGhostIdx === i
+                          ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" />
+                          : <Plus size={12} strokeWidth="var(--icon-stroke)" />}
+                        <span>Completar</span>
+                      </button>
                     </div>
                   );
                 })
@@ -633,24 +636,59 @@ export const Step5ReferencesWizard: React.FC = () => {
         }}>
           <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {!selectedRef ? (
-            /* Sin selección no hay un tablero de tres cifras que nadie pidió:
-               §3 de la barra de calidad dice que la pantalla no repite
-               diagnósticos para parecer una pantalla con datos. Lo que hay es
-               el motivo de por qué está vacía, y es uno solo: no elegiste
-               ninguna referencia. */
-            <EstadoVacio
-              motivo="sin-seleccion"
-              accion={
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  style={botonInline(true)}
+            /* SIN SELECCIÓN: la BIBLIOGRAFÍA COMPLETA. La hoja muestra las
+               referencias de verdad —todas, en orden— como la página que va al
+               documento, no un tablero de cifras. Elegir una en la lista enfoca
+               esa sola y el estado del lienzo cambia a la ficha. */
+            <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
+                Bibliografía completa
+              </span>
+
+              {references.length === 0 ? (
+                <EstadoVacio
+                  motivo="sin-documento"
+                  accion={
+                    <button type="button" onClick={() => setShowAddModal(true)} style={botonInline(true)}>
+                      <Plus size={12} strokeWidth="var(--icon-stroke)" />
+                      <span>Nueva referencia</span>
+                    </button>
+                  }
+                />
+              ) : (
+                <article
+                  data-testid="bibliografia-completa"
+                  style={{
+                    backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)',
+                    borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)',
+                    boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
+                  }}
                 >
-                  <Plus size={12} strokeWidth="var(--icon-stroke)" />
-                  <span>Nueva referencia</span>
-                </button>
-              }
-            />
+                  <div
+                    style={{
+                      fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
+                      wordBreak: 'break-word', whiteSpace: 'normal',
+                    }}
+                  >
+                    {references.map((refItem) => (
+                      <p
+                        key={refItem.id}
+                        style={{
+                          margin: 0,
+                          paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
+                        }}
+                      >
+                        {textoDeLaReferencia(refItem) || (
+                          <em style={{ opacity: 0.55, fontStyle: 'normal' }}>
+                            Esta referencia no tiene texto para escribir en el documento.
+                          </em>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                </article>
+              )}
+            </div>
           ) : (
             <>
               {/* EL ESTADO, Y POR QUÉ. Arriba del detalle, antes del formulario.
@@ -701,6 +739,17 @@ export const Step5ReferencesWizard: React.FC = () => {
                 <span style={{ fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
                   {diagnostico ? porQueDeLaReferencia(diagnostico, selectedRef) : ''}
                 </span>
+                {/* Volver a la bibliografía completa sin tener que ir al rail:
+                    la selección se limpia y el lienzo muestra el documento
+                    entero. Es el gesto inverso de elegir una referencia. */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedReferenceId(null)}
+                  style={{ ...botonInline(), marginLeft: 'auto', padding: '4px 10px', fontSize: 'var(--text-xs)' }}
+                >
+                  <ArrowRight size={12} strokeWidth="var(--icon-stroke)" style={{ transform: 'rotate(180deg)' }} aria-hidden="true" />
+                  <span>Ver bibliografía completa</span>
+                </button>
               </div>
 
               {/* Etiqueta + hoja de papel: exactamente el texto que va al
