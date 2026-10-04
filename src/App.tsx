@@ -22,7 +22,7 @@ import { CommandPalette } from './components/CommandPalette';
 // Guided Wizard Components
 import { Step1PortadaWizard } from './components/wizard/Step1PortadaWizard';
 import { EstudioEstructuraView } from './components/structure/EstudioEstructuraView';
-import { Step3FiguresTablesWizard } from './components/wizard/Step3FiguresTablesWizard';
+import { TallerFigurasView } from './components/figures/TallerFigurasView';
 import { Step5ReferencesWizard } from './components/referencias/Step5ReferencesWizard';
 import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
 import { AppShell } from './components/shell/AppShell';
@@ -649,7 +649,7 @@ export const App: React.FC = () => {
             <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}`}>
               {wizardStep === 1 && <Step1PortadaWizard />}
               {wizardStep === 2 && <EstudioEstructuraView />}
-              {wizardStep === 3 && <Step3FiguresTablesWizard />}
+              {wizardStep === 3 && <TallerFigurasView />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
             </div>
           </div>
@@ -667,7 +667,7 @@ export const App: React.FC = () => {
           <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
               {wizardStep === 2 && <EstudioEstructuraView />}
-              {wizardStep === 3 && <Step3FiguresTablesWizard />}
+              {wizardStep === 3 && <TallerFigurasView />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
               {wizardStep === 5 && <Step5AuditIAWizard />}
               {wizardStep === 6 && <ExportView />}
