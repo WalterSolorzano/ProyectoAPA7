@@ -118,7 +118,10 @@ const chipBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '5px',
   fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)',
   background: 'var(--surface-subtle)',
-  border: '1px solid var(--color-border-subtle)',
+  /* Longhand y no `border`: el chip seleccionado y el hover cambian solo
+     `borderColor`, y mezclar el atajo con una propiedad larga hace que React
+     avise por rerender (y el orden de aplicación deje de ser predecible). */
+  borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--color-border-subtle)',
   borderRadius: 'var(--radius-full)', padding: '5px 10px',
   cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
   transition: 'border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.1s ease',
