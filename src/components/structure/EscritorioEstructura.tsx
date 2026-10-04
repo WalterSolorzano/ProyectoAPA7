@@ -279,6 +279,8 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
             hayIndice={hayIndice}
             onInsertar={() => insertarToc()}
             onQuitar={() => quitarToc()}
+            numeracionH1={reglas.heading_numbering_style_lvl1 ?? 'none'}
+            numeracionH2={reglas.heading_numbering_style_lvl2 ?? 'none'}
           />
         </aside>
       ) : (

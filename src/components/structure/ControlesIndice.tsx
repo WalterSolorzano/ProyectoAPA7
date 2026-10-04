@@ -24,6 +24,8 @@ export interface ControlesIndiceProps {
   hayIndice: boolean;
   onInsertar: () => void;
   onQuitar: () => void;
+  numeracionH1: string;
+  numeracionH2: string;
 }
 
 const PROFUNDIDADES: Array<{ valor: ProfundidadIndice; label: string }> = [
@@ -31,6 +33,16 @@ const PROFUNDIDADES: Array<{ valor: ProfundidadIndice; label: string }> = [
   { valor: 2, label: 'Hasta H2' },
   { valor: 3, label: 'Hasta H3' },
   { valor: 4, label: 'Todo' },
+];
+
+/** Notación de numeración de títulos. Espejo de `NUMERACIONES_DE_TITULO`. */
+export const NUMERACIONES_DE_TITULO: Array<{ valor: string; label: string }> = [
+  { valor: 'none', label: 'Sin numerar' },
+  { valor: 'decimal', label: '1. 2. 3.' },
+  { valor: 'upperRoman', label: 'I. II. III.' },
+  { valor: 'lowerRoman', label: 'i. ii. iii.' },
+  { valor: 'upperLetter', label: 'A. B. C.' },
+  { valor: 'lowerLetter', label: 'a. b. c.' },
 ];
 
 const ESTILOS: Array<{ valor: 'apa' | 'dotted' | 'plain'; label: string }> = [
@@ -47,6 +59,8 @@ export const ControlesIndice: React.FC<ControlesIndiceProps> = ({
   hayIndice,
   onInsertar,
   onQuitar,
+  numeracionH1,
+  numeracionH2,
 }) => (
   <section
     data-testid="controles-indice"
@@ -105,6 +119,40 @@ export const ControlesIndice: React.FC<ControlesIndiceProps> = ({
             aria-pressed={profundidad === valor}
             onClick={() => onProfundidad(valor)}
             style={estiloChip(profundidad === valor)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div>
+      <span style={estiloEtiqueta}>Numeración de H1</span>
+      <div role="group" aria-label="Numeración de H1" style={estiloGrupo}>
+        {NUMERACIONES_DE_TITULO.map(({ valor, label }) => (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={numeracionH1 === valor}
+            onClick={() => onRegla('heading_numbering_style_lvl1', valor)}
+            style={estiloChip(numeracionH1 === valor)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div>
+      <span style={estiloEtiqueta}>Numeración de H2</span>
+      <div role="group" aria-label="Numeración de H2" style={estiloGrupo}>
+        {NUMERACIONES_DE_TITULO.map(({ valor, label }) => (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={numeracionH2 === valor}
+            onClick={() => onRegla('heading_numbering_style_lvl2', valor)}
+            style={estiloChip(numeracionH2 === valor)}
           >
             {label}
           </button>

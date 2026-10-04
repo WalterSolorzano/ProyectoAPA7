@@ -7,7 +7,7 @@
  * una decisión de lectura, no un adorno.
  */
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ControlesIndice } from '../ControlesIndice';
 
@@ -19,6 +19,8 @@ const base = {
   hayIndice: false,
   onInsertar: () => {},
   onQuitar: () => {},
+  numeracionH1: 'none',
+  numeracionH2: 'none',
 };
 
 describe('ControlesIndice', () => {
@@ -64,5 +66,31 @@ describe('ControlesIndice', () => {
     const { container } = render(<ControlesIndice {...base} />);
     expect(document.querySelector('select')).toBeNull();
     expect(container.querySelector('[data-testid="controles-indice"]')).toBeTruthy();
+  });
+
+  it('permite elegir la notación de numeración de H1', () => {
+    const onRegla = vi.fn();
+    render(<ControlesIndice {...base} numeracionH1="none" onRegla={onRegla} />);
+    const grupo = screen.getByRole('group', { name: /numeración de H1/i });
+    const boton = [...grupo.querySelectorAll('button')].find((b) =>
+      /^I\. II\. III\.$/.test(b.textContent?.trim() ?? ''),
+    );
+    expect(boton).toBeTruthy();
+    fireEvent.click(boton!);
+    expect(onRegla).toHaveBeenCalledWith('heading_numbering_style_lvl1', 'upperRoman');
+  });
+
+  it('permite elegir la notación de numeración de H2 y marca la activa', () => {
+    const onRegla = vi.fn();
+    render(<ControlesIndice {...base} numeracionH2="lowerLetter" onRegla={onRegla} />);
+    const grupo = screen.getByRole('group', { name: /numeración de H2/i });
+    const activo = grupo.querySelector('[aria-pressed="true"]');
+    expect(activo?.textContent).toMatch(/a\. b\. c\./i);
+    const boton = [...grupo.querySelectorAll('button')].find((b) =>
+      /^A\. B\. C\.$/.test(b.textContent?.trim() ?? ''),
+    );
+    expect(boton).toBeTruthy();
+    fireEvent.click(boton!);
+    expect(onRegla).toHaveBeenCalledWith('heading_numbering_style_lvl2', 'upperLetter');
   });
 });

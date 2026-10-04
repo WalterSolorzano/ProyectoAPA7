@@ -163,9 +163,9 @@ class APARuleSet(BaseModel):
     # APA 7 does NOT require numbered headings: the 5 levels are distinguished
     # purely by formatting (bold, centered, italic, indented). The default is
     # therefore "none" so no spurious numbering (e.g. "0.1") is injected.
-    heading_numbering_style_lvl1: str = "none"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl2: str = "none"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl3: str = "none"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl1: str = "none"  # "none" | "decimal" | "upperRoman" | "lowerRoman" | "lowerLetter" | "upperLetter"
+    heading_numbering_style_lvl2: str = "none"  # mismo dominio; se aplica al componente propio del nivel
+    heading_numbering_style_lvl3: str = "none"  # mismo dominio (H3 no se numera hoy)
 
     # Referencias
     reference_hanging_indent_cm: float = 1.27

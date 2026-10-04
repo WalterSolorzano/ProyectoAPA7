@@ -186,17 +186,29 @@ def generate_apa7_from_scratch(
                 num -= v
         return roman
 
+    def _format_numero(n: int, estilo: str) -> str:
+        if estilo in ("upperRoman", "roman"):
+            return _to_roman(n)
+        if estilo == "lowerRoman":
+            return _to_roman(n).lower()
+        if estilo == "upperLetter":
+            return chr(64 + ((n - 1) % 26) + 1)
+        if estilo == "lowerLetter":
+            return chr(96 + ((n - 1) % 26) + 1)
+        return str(n)
+
     def _build_prefix(counters, level: int, style: str) -> str:
         if style == 'none' or level > 2:
+            return ""
+        if level > 1 and counters.get(level - 1, 0) == 0:
             return ""
         parts = []
         for l in range(1, level + 1):
             c = counters.get(l, 0)
             if c > 0:
-                if style == 'roman' and l == 1:
-                    parts.append(_to_roman(c))
-                else:
-                    parts.append(str(c))
+                # El estilo solo manda en el nivel propio; los padres van decimales.
+                estilo_componente = style if l == level else 'decimal'
+                parts.append(_format_numero(c, estilo_componente))
         return ".".join(parts) + ". " if parts else ""
 
     # F3: estado de deduplicación de la sección de Referencias.

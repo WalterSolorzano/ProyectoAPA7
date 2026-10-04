@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
+import { aNumero } from '../../lib/textUtils';
 import { ElementModel } from '../../types';
 import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
@@ -1007,15 +1008,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     if (style === 'none') {
       headingDisplayText.set(e.id, base);
     } else {
-      let num: string;
+      // La notación elegida manda en el componente del PROPIO nivel; en un H2 el
+      // componente del padre sigue decimal para no perder la lectura "2.5".
+      const comp = (n: number, l: number): string =>
+        aNumero(n, l === lvl ? style : 'decimal');
       if (lvl === 1) {
-        num = style === 'roman' ? `${toRoman(hCounters[1])}.` : `${hCounters[1]}.`;
+        headingDisplayText.set(e.id, `${comp(hCounters[1], 1)}. ${base}`);
       } else if (lvl === 2) {
-        num = `${hCounters[1]}.${hCounters[2]}.`;
+        headingDisplayText.set(e.id, `${comp(hCounters[1], 1)}.${comp(hCounters[2], 2)}. ${base}`);
       } else {
-        num = `${hCounters[1]}.${hCounters[2]}.${hCounters[3]}.`;
+        headingDisplayText.set(e.id, `${hCounters[1]}.${hCounters[2]}.${hCounters[3]}. ${base}`);
       }
-      headingDisplayText.set(e.id, `${num} ${base}`);
     }
   }
 

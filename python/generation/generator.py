@@ -90,13 +90,33 @@ def _detect_heading_numbering_style(heading_text: str) -> str:
     return 'decimal'
 
 
+def _format_numero(n: int, estilo: str) -> str:
+    """Formatea un contador según la notación de título elegida por nivel."""
+    if estilo in ("upperRoman", "roman"):
+        return _to_roman(n)
+    if estilo == "lowerRoman":
+        return _to_roman(n).lower()
+    if estilo == "upperLetter":
+        return chr(64 + ((n - 1) % 26) + 1)
+    if estilo == "lowerLetter":
+        return chr(96 + ((n - 1) % 26) + 1)
+    return str(n)
+
+
 def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style: str = 'decimal') -> str:
     """Construye el prefijo numérico para un heading según su nivel y estilo.
 
     Estilos:
-    - 'decimal': 1., 1.1., 1.1.1. (numeros arabigos)
-    - 'roman': I., II., III. para nivel 1, seguido de decimal para subniveles
-    - 'none': sin prefijo numerico
+    - 'decimal': 1., 1.1. (números arábigos)
+    - 'upperRoman'/'roman': I., II., III.
+    - 'lowerRoman': i., ii., iii.
+    - 'upperLetter': A., B., C.
+    - 'lowerLetter': a., b., c.
+    - 'none': sin prefijo numérico
+
+    La notación elegida se aplica al componente DEL PROPIO NIVEL. En un H2 el
+    componente del padre (nivel 1) se mantiene decimal para no perder la lectura
+    jerárquica "2.5"; solo el componente del hijo usa la notación elegida.
     """
     # Solo numerar H1 y H2. Niveles 3+ no llevan numeracion (APA 7 no lo requiere
     # y resulta visualmente cargado con demasiados digitos).
@@ -115,10 +135,9 @@ def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style:
     for l in range(1, level + 1):
         c = counters.get(l, 0)
         if c > 0:
-            if numbering_style == 'roman' and l == 1:
-                parts.append(_to_roman(c))
-            else:
-                parts.append(str(c))
+            # El estilo solo manda en el nivel propio; los padres van decimales.
+            estilo_componente = numbering_style if l == level else 'decimal'
+            parts.append(_format_numero(c, estilo_componente))
     if parts:
         return ".".join(parts) + ". "
     return ""

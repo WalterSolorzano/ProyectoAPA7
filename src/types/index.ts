@@ -261,9 +261,9 @@ export interface APARuleSet {
 
   // Headings
   heading_levels: Record<number, HeadingLevelConfig>;
-  heading_numbering_style_lvl1: 'decimal' | 'roman' | 'none';
-  heading_numbering_style_lvl2: 'decimal' | 'roman' | 'none';
-  heading_numbering_style_lvl3: 'decimal' | 'roman' | 'none';
+  heading_numbering_style_lvl1: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
+  heading_numbering_style_lvl2: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
+  heading_numbering_style_lvl3: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
 
   // References
   reference_hanging_indent_cm: number;
