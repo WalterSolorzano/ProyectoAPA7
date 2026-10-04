@@ -36,29 +36,42 @@ interface Props {
   hoja: Hoja;
 }
 
-export const MiniaturaRealDePortada: React.FC<Props> = ({ diseno, anchoPx, hoja }) => {
-  const reglas = useDocStore((s) => s.rules);
-
+/** El ancho y el alto del diseño REAL, en su unidad de verdad.
+ *
+ *  Lo comparten la miniatura (que lo dibuja) y el carrusel (que reserva el
+ *  alto de la fila): una sola cuenta, o el alto de la fila miente. */
+export function medidaDeLaMiniatura(
+  diseno: string,
+  hoja: Hoja,
+  reglas: { margins_cm?: unknown; font_size_pt?: number; line_spacing?: number; page_size?: unknown } | undefined,
+): { ancho: number; alto: number } {
   /* El ancho y el alto del diseño REAL, en su unidad de verdad:
      - la portada original la dibuja `PaperCanvas` en píxeles de lienzo
        (`getPageGeometry`), así que su medida sale de ahí;
-     - las otras tres las dibuja el editor sobre la hoja de `geometria`.
-     `escala` es la única cuenta: cuánto hay que reducir para que entre en la
+     - las otras tres las dibuja el editor sobre la hoja de `geometria`. */
+  if (diseno === 'original') {
+    const g = getPageGeometry({
+      margins_cm: (reglas as any)?.margins_cm,
+      font_size_pt: reglas?.font_size_pt,
+      line_spacing: reglas?.line_spacing,
+      page_size: (reglas as any)?.page_size,
+    });
+    return { ancho: Math.round(g.pageW), alto: Math.round(g.pageH) };
+  }
+  const m = medidaDeLaHoja(hoja, ANCHO_HOJA_PX);
+  return { ancho: ANCHO_HOJA_PX, alto: m.altoPx };
+}
+
+export const MiniaturaRealDePortada: React.FC<Props> = ({ diseno, anchoPx, hoja }) => {
+  const reglas = useDocStore((s) => s.rules);
+
+  /* `escala` es la única cuenta: cuánto hay que reducir para que entre en la
      tarjeta. Si una miniatura no se parece a lo que sale, es porque el diseño
      está mal, y ahora se ve. */
-  const medida = useMemo(() => {
-    if (diseno === 'original') {
-      const g = getPageGeometry({
-        margins_cm: (reglas as any)?.margins_cm,
-        font_size_pt: reglas?.font_size_pt,
-        line_spacing: reglas?.line_spacing,
-        page_size: (reglas as any)?.page_size,
-      });
-      return { ancho: Math.round(g.pageW), alto: Math.round(g.pageH) };
-    }
-    const m = medidaDeLaHoja(hoja, ANCHO_HOJA_PX);
-    return { ancho: ANCHO_HOJA_PX, alto: m.altoPx };
-  }, [diseno, hoja, reglas]);
+  const medida = useMemo(
+    () => medidaDeLaMiniatura(diseno, hoja, reglas),
+    [diseno, hoja, reglas],
+  );
 
   const escala = anchoPx / medida.ancho;
 
