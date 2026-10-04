@@ -50,6 +50,19 @@ W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 
+def runs_mayoria_negrita(runs) -> bool:
+    """True si más de la mitad de los runs con texto están en negrita.
+
+    Antes bastaba UN run en negrita (semántica OR) para que un párrafo de
+    cuerpo con una sola palabra destacada se clasificara como Heading 4.
+    """
+    con_texto = [r for r in runs if (getattr(r, "text", "") or "").strip()]
+    if not con_texto:
+        return False
+    negritas = sum(1 for r in con_texto if getattr(r, "bold", False))
+    return negritas * 2 > len(con_texto)
+
+
 def _extract_footnotes_and_endnotes(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
     """
     Extrae las notas al pie (word/footnotes.xml) y notas finales (word/endnotes.xml)
@@ -1019,19 +1032,14 @@ def parse_docx_bytes(
             if text:
                 total_words += len(text.split())
 
-            # Detectar formato directo
-            is_bold: bool = False
-            is_italic: bool = False
-            font_size: Optional[float] = None
-            font_name: Optional[str] = None
-
-            # First-run-wins for font_size and font_name: the first run with
-            # explicit formatting sets the value. This prevents a 14pt title
-            # run from being overwritten by subsequent 12pt body runs.
-            # is_bold/is_italic correctly use any-run (OR) semantics.
+            # Detectar formato directo. is_bold por mayoria de runs; para
+            # font_size/font_name gana el primer run con formato explicito (así
+            # un título de 14pt no lo pisa el cuerpo de 12pt que le sigue).
+            is_bold = runs_mayoria_negrita(p.runs)
+            is_italic = False
+            font_size = None
+            font_name = None
             for r in p.runs:
-                if r.bold:
-                    is_bold = True
                 if r.italic:
                     is_italic = True
                 if font_size is None and r.font.size and r.font.size.pt:
