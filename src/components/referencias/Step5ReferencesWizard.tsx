@@ -10,7 +10,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
-  Trash2, Copy, Sparkles, Check,
+  Trash2, Copy, Sparkles, Check, Pencil,
   ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
@@ -25,7 +25,6 @@ import {
 } from '../../lib/referencias';
 import { EditorialMascot } from '../layout/EditorialMascot';
 import { EstadoVacio } from '../shared/EstadoVacio';
-import { Seccion } from '../settings/tabs/word/Seccion';
 import { ReferenceRailFilter, ReferenceFilterType } from './ReferenceRailFilter';
 import { ReferenceCatalogItem } from './ReferenceCatalogItem';
 import { ManuscriptMentionsAccordion } from './ManuscriptMentionsAccordion';
@@ -102,8 +101,9 @@ export const Step5ReferencesWizard: React.FC = () => {
   const [openUnverified, setOpenUnverified] = useState(true);
   const [openGhosts, setOpenGhosts] = useState(true);
 
-  // Filtro de rail y modal de edición
+  // Filtro de rail, buscador del directorio y modal de edición
   const [railFilter, setRailFilter] = useState<ReferenceFilterType>('all');
+  const [query, setQuery] = useState('');
   const [editingRef, setEditingRef] = useState<ReferenciaModel | null>(null);
 
   // Reference activa
@@ -111,22 +111,7 @@ export const Step5ReferencesWizard: React.FC = () => {
     return references.find((r) => r.id === selectedReferenceId) || null;
   }, [references, selectedReferenceId]);
 
-  const [editAuthors, setEditAuthors] = useState('');
-  const [editYear, setEditYear] = useState('');
-  const [editTitle, setEditTitle] = useState('');
-  const [editSource, setEditSource] = useState('');
-  const [editDoi, setEditDoi] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (selectedRef) {
-      setEditAuthors((selectedRef.authors || []).join(', '));
-      setEditYear(selectedRef.year || '');
-      setEditTitle(selectedRef.title || '');
-      setEditSource(selectedRef.source || '');
-      setEditDoi(selectedRef.doi_or_url || '');
-    }
-  }, [selectedRef]);
 
   // Auditoría al entrar
   useEffect(() => {
@@ -180,6 +165,20 @@ export const Step5ReferencesWizard: React.FC = () => {
     () => (selectedRef ? diagnosticoDeReferencia(selectedRef, { huerfanas }) : null),
     [selectedRef, huerfanas],
   );
+
+  /* El buscador filtra las tres listas por autor, año, título o fuente. Es un
+     filtro de LECTURA: no toca `references`, así que lo que el documento recibe
+     no depende de lo que alguien escriba acá. */
+  const queryNorm = query.trim().toLowerCase();
+  const coincide = (r: ReferenciaModel) =>
+    !queryNorm ||
+    [(r.title || ''), (r.authors || []).join(' '), (r.year || ''), (r.source || '')]
+      .join(' ').toLowerCase().includes(queryNorm);
+  const validFiltradas = validReferences.filter(coincide);
+  const pendientesFiltradas = unverifiedReferences.filter(coincide);
+  const ghostsFiltrados = queryNorm
+    ? ghosts.filter((g: unknown) => ghostText(g).toLowerCase().includes(queryNorm))
+    : ghosts;
 
   const handleResolveDoi = async () => {
     if (!doiQuery.trim()) return;
@@ -238,28 +237,6 @@ export const Step5ReferencesWizard: React.FC = () => {
     setFormDoi('');
     setShowAddModal(false);
     showToast('Referencia agregada exitosamente', 'success');
-  };
-
-  const handleSaveSelected = () => {
-    if (!selectedRef) return;
-    const authorsArr = editAuthors.split(/,|&|;/).map((a) => a.trim()).filter(Boolean);
-    const yr = editYear.trim() || 's.f.';
-    const formatted = `${editAuthors.trim()} (${yr}). ${editTitle.trim()}.${editSource.trim() ? ' ' + editSource.trim() : ''}${editDoi.trim() ? ' ' + editDoi.trim() : ''}`;
-
-    updateReferences(references.map((r) => {
-      if (r.id !== selectedRef.id) return r;
-      return {
-        ...r,
-        authors: authorsArr.length ? authorsArr : [editAuthors.trim() || 'Autor'],
-        year: yr,
-        title: editTitle.trim(),
-        source: editSource.trim(),
-        doi_or_url: editDoi.trim() || undefined,
-        formatted_apa: formatted,
-        raw_text: formatted,
-      };
-    }));
-    showToast('Ficha bibliográfica actualizada', 'success');
   };
 
   const handleSaveModalRef = (updated: Partial<ReferenciaModel>) => {
@@ -331,6 +308,26 @@ export const Step5ReferencesWizard: React.FC = () => {
         ? `(${main} & ${refItem.authors[1].split(',')[0].trim()}, ${yr})`
         : `(${main}, ${yr})`;
 
+    navigator.clipboard.writeText(text);
+    setCopiedId(refItem.id);
+    setTimeout(() => setCopiedId(null), 2000);
+    showToast(`Copiado: ${text}`, 'info');
+  };
+
+  /**
+   * Copia la cita en texto en sus dos formas APA 7: parentética `(Autor, Año)` y
+   * narrativa `Autor (Año)`. Es la misma información que el cuerpo del trabajo
+   * necesita, sin obligar a escribirla a mano ni a equivocar la puntuación.
+   */
+  const copiarCita = (refItem: ReferenciaModel, modo: 'parentetica' | 'narrativa') => {
+    const main = (refItem.authors?.[0] || 'Autor').split(',')[0].trim();
+    const yr = refItem.year || 's.f.';
+    const autor = refItem.authors && refItem.authors.length > 2
+      ? `${main} et al.`
+      : refItem.authors && refItem.authors.length === 2
+        ? `${main} y ${refItem.authors[1].split(',')[0].trim()}`
+        : main;
+    const text = modo === 'parentetica' ? `(${autor}, ${yr})` : `${autor} (${yr})`;
     navigator.clipboard.writeText(text);
     setCopiedId(refItem.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -436,6 +433,25 @@ export const Step5ReferencesWizard: React.FC = () => {
           display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)',
         }}>
 
+          {/* Buscador del directorio. Filtra por autor, año, título o fuente;
+              `type="search"` para que el navegador ofrezca limpiar. */}
+          <div style={{ position: 'relative' }}>
+            <Search
+              size={15}
+              strokeWidth="var(--icon-stroke)"
+              aria-hidden="true"
+              style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', pointerEvents: 'none' }}
+            />
+            <input
+              type="search"
+              aria-label="Buscar referencia por autor o título"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por autor o título…"
+              style={{ ...inputFullStyle, paddingLeft: '34px' }}
+            />
+          </div>
+
           {/* GRUPO 1: VERIFICADAS. El rótulo dice lo que el grupo ES —verificadas
               contra una fuente— y no "válidas con DOI verificado", que era una
               etiqueta que el sistema se daba a sí mismo por tener autor y título. */}
@@ -443,13 +459,13 @@ export const Step5ReferencesWizard: React.FC = () => {
             <Grupo
               titulo="Verificadas"
               detalle="Contrastadas contra una fuente real."
-              conteo={validReferences.length}
+              conteo={validFiltradas.length}
               Icon={CheckCircle2}
               tono="var(--color-text-secondary)"
               abierto={openValid}
               alAlternar={() => setOpenValid(!openValid)}
             >
-              {validReferences.length === 0 ? (
+              {validFiltradas.length === 0 ? (
                 <EstadoVacio
                   motivo="sin-resultados"
                   filtroActivo="el grupo de verificadas"
@@ -461,7 +477,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                   }
                 />
               ) : (
-                validReferences.map((refItem) => (
+                validFiltradas.map((refItem) => (
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
@@ -481,16 +497,16 @@ export const Step5ReferencesWizard: React.FC = () => {
             <Grupo
               titulo="Pendientes"
               detalle="Faltan datos o falta contrastarlas contra una fuente."
-              conteo={unverifiedReferences.length}
+              conteo={pendientesFiltradas.length}
               Icon={HelpCircle}
               tono="var(--color-text-secondary)"
               abierto={openUnverified}
               alAlternar={() => setOpenUnverified(!openUnverified)}
             >
-              {unverifiedReferences.length === 0 ? (
+              {pendientesFiltradas.length === 0 ? (
                 <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
               ) : (
-                unverifiedReferences.map((refItem) => (
+                pendientesFiltradas.map((refItem) => (
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
@@ -508,16 +524,16 @@ export const Step5ReferencesWizard: React.FC = () => {
             <Grupo
               titulo="En texto, no en biblio"
               detalle="Citas que aparecen en el cuerpo y no tienen ficha."
-              conteo={ghosts.length}
+              conteo={ghostsFiltrados.length}
               Icon={AlertTriangle}
               tono="var(--color-text-secondary)"
               abierto={openGhosts}
               alAlternar={() => setOpenGhosts(!openGhosts)}
             >
-              {ghosts.length === 0 ? (
+              {ghostsFiltrados.length === 0 ? (
                 <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de citas sin fuente" />
               ) : (
-                ghosts.map((g: unknown, i: number) => {
+                ghostsFiltrados.map((g: unknown, i: number) => {
                   const txt = ghostText(g);
                   return (
                     <div
@@ -552,11 +568,12 @@ export const Step5ReferencesWizard: React.FC = () => {
           )}
         </div>
 
-        {/* ══ COLUMNA 2: Detalle de Referencia / Editor & Menciones en Texto (Flex 1) ══ */}
+        {/* ══ COLUMNA 2: Canvas editorial (Flex 1) ══ */}
         <div style={{
-          flex: 1, height: '100%', overflowY: 'auto', padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--color-bg-canvas)',
+          flex: 1, height: '100%', overflowY: 'auto', padding: 'var(--space-6)',
+          display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-canvas)',
         }}>
+          <div style={{ maxWidth: '1040px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {!selectedRef ? (
             /* Sin selección no hay un tablero de tres cifras que nadie pidió:
                §3 de la barra de calidad dice que la pantalla no repite
@@ -584,73 +601,71 @@ export const Step5ReferencesWizard: React.FC = () => {
                   chip sin razón obliga a la persona a adivinar, y adivinar el
                   estado de una referencia es exactamente el trabajo que esta
                   pantalla existe para ahorrar. */}
-              <Seccion titulo="Estado de la referencia" descripcion="Lo que el sistema sabe de esta ficha, y lo que no.">
+              {/* Franja de estado: el chip dice qué es, y la línea de al lado
+                  dice POR QUÉ. Un chip sin razón obliga a adivinar el estado,
+                  que es justo el trabajo que esta pantalla ahorra. */}
               <div
                 data-testid="estado-referencia"
-                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+                style={{
+                  display: 'flex', alignItems: 'center', flexWrap: 'wrap',
+                  gap: 'var(--space-2)', padding: '0 var(--space-1)',
+                }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <span
+                  data-testid="chip-estado"
+                  style={{
+                    fontSize: 'var(--text-xs)', fontWeight: 800,
+                    letterSpacing: '0.02em', textTransform: 'uppercase',
+                    padding: '3px 10px', borderRadius: 'var(--radius-full)',
+                    border: '1px solid var(--color-border-subtle)',
+                    color: diagnostico ? TONO_DE_ESTADO[diagnostico.estado] : 'var(--color-text-tertiary)',
+                    background: 'var(--color-bg-surface)',
+                  }}
+                >
+                  {diagnostico ? ROTULO_DE_ESTADO[diagnostico.estado] : ''}
+                </span>
+                {diagnostico?.huerfana === true && (
+                  /* Sólo cuando la auditoría CORRIÓ. `huerfana` es `null`
+                     mientras nadie miró, y `null` no es `false`: decir "sin
+                     citar" sobre una búsqueda que no se hizo es afirmar sin
+                     dato. */
                   <span
-                    data-testid="chip-estado"
+                    data-testid="marca-sin-citar"
                     style={{
-                      fontSize: 'var(--text-sm)', fontWeight: 700,
-                      padding: '2px 10px', borderRadius: 'var(--radius-full)',
-                      color: diagnostico ? TONO_DE_ESTADO[diagnostico.estado] : 'var(--color-text-tertiary)',
-                      background: 'var(--color-bg-surface-hover)',
+                      fontSize: 'var(--text-xs)', fontWeight: 700,
+                      padding: '3px 8px', borderRadius: 'var(--radius-xs)',
+                      color: 'var(--color-warning)', background: 'var(--color-warning-a12)',
                     }}
                   >
-                    {diagnostico ? ROTULO_DE_ESTADO[diagnostico.estado] : ''}
+                    Sin citar en el texto
                   </span>
-                  {diagnostico?.huerfana === true && (
-                    /* Sólo cuando la auditoría CORRIÓ. `huerfana` es `null`
-                       mientras nadie miró, y `null` no es `false`: decir "sin
-                       citar" sobre una búsqueda que no se hizo es afirmar sin
-                       dato. */
-                    <span
-                      data-testid="marca-sin-citar"
-                      style={{
-                        fontSize: 'var(--text-xs)', fontWeight: 700,
-                        padding: '2px 8px', borderRadius: 'var(--radius-xs)',
-                        color: 'var(--color-warning)', background: 'var(--color-bg-surface-hover)',
-                      }}
-                    >
-                      Sin citar en el texto
-                    </span>
-                  )}
-                </div>
-
-                <p style={{ margin: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
+                )}
+                <span style={{ fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
                   {diagnostico ? porQueDeLaReferencia(diagnostico, selectedRef) : ''}
-                </p>
+                </span>
               </div>
-              </Seccion>
 
-              {/* Vista previa: lo que va al documento, no un texto compuesto acá. */}
-              <Seccion titulo="Vista previa APA 7" descripcion="Sangría francesa. Es el texto que va al documento, no uno compuesto en pantalla.">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <Sparkles size={14} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" />
-                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
-                      Como sale en la bibliografía
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => copyInTextCitation(selectedRef)}
-                    style={botonInline()}
-                  >
-                    <Copy size={12} strokeWidth="var(--icon-stroke)" />
-                    <span>Copiar cita en texto</span>
-                  </button>
-                </div>
+              {/* Etiqueta + hoja de papel: exactamente el texto que va al
+                  documento, no uno compuesto en el render. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <Sparkles size={14} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
+                  Como sale en la bibliografía
+                </span>
+              </div>
 
+              <article
+                style={{
+                  backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)',
+                  borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)',
+                  boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
+                }}
+              >
                 <div
                   data-testid="vista-previa-apa"
                   style={{
                     fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
-                    color: 'var(--paper-ink)', paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
-                    backgroundColor: 'var(--paper-white)', padding: 'var(--space-4) var(--space-5) var(--space-4) var(--space-12)',
-                    borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-strong)', boxShadow: 'var(--shadow-md)',
+                    paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
                     wordBreak: 'break-word', whiteSpace: 'normal',
                   }}
                 >
@@ -658,78 +673,34 @@ export const Step5ReferencesWizard: React.FC = () => {
                     /* Sin `formatted_apa` ni `raw_text` no hay nada que escribir.
                        Componer `Autor (s.f.). Título.` acá sería pintar una
                        referencia que el backend nunca produjo. */
-                    <em style={{ color: 'var(--color-text-tertiary)' }}>
+                    <em style={{ color: 'var(--paper-ink)', opacity: 0.55, fontStyle: 'normal' }}>
                       Esta referencia no tiene texto para escribir en el documento.
                     </em>
                   )}
                 </div>
-              </Seccion>
+              </article>
 
-              {/* Editor de Campos */}
-              <Seccion titulo="Ficha bibliográfica" descripcion="Lo que edites acá es lo que se arma como formatted_apa al guardar.">
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-3)' }}>
-                  <div>
-                    <label style={labelFullStyle}>Autores (Formato: Apellido, Iniciales)</label>
-                    <input
-                      type="text"
-                      value={editAuthors}
-                      onChange={(e) => setEditAuthors(e.target.value)}
-                      style={inputFullStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelFullStyle}>Año</label>
-                    <input
-                      type="text"
-                      value={editYear}
-                      onChange={(e) => setEditYear(e.target.value)}
-                      style={inputFullStyle}
-                    />
-                  </div>
-                </div>
+              {/* Acciones sobre la ficha, fuera de la hoja para no mezclar la
+                  tinta del papel con los controles del sistema. La edición real
+                  vive en el modal: acá sólo se abre. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                <button type="button" onClick={() => copiarCita(selectedRef, 'parentetica')} style={botonInline()}>
+                  <Copy size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                  <span>Copiar parentética</span>
+                </button>
+                <button type="button" onClick={() => copiarCita(selectedRef, 'narrativa')} style={botonInline()}>
+                  <Copy size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                  <span>Copiar narrativa</span>
+                </button>
+                <button type="button" onClick={() => setEditingRef(selectedRef)} style={botonInline(true)}>
+                  <Pencil size={13} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                  <span>Editar ficha</span>
+                </button>
+              </div>
 
-                <div>
-                  <label style={labelFullStyle}>Título del Trabajo</label>
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    style={inputFullStyle}
-                  />
-                </div>
+              {/* La ficha editable vive ahora en el modal de edición —botón
+                  "Editar ficha"— y no como formulario permanente en el canvas. */}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-                  <div>
-                    <label style={labelFullStyle}>Fuente / Revista / Editorial</label>
-                    <input
-                      type="text"
-                      value={editSource}
-                      onChange={(e) => setEditSource(e.target.value)}
-                      style={inputFullStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelFullStyle}>DOI / URL Permanente</label>
-                    <input
-                      type="text"
-                      value={editDoi}
-                      onChange={(e) => setEditDoi(e.target.value)}
-                      style={inputFullStyle}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }} data-accion="principal">
-                  <button
-                    type="button"
-                    onClick={handleSaveSelected}
-                    style={botonInline(true)}
-                  >
-                    <Check size={14} strokeWidth="var(--icon-stroke)" />
-                    <span>Guardar cambios</span>
-                  </button>
-                </div>
-              </Seccion>
 
               {/* Menciones en el Manuscrito con Tipografía Editorial */}
               <ManuscriptMentionsAccordion
@@ -751,6 +722,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               />
             </>
           )}
+          </div>
         </div>
       </div>
 

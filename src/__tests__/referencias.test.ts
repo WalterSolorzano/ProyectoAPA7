@@ -322,9 +322,12 @@ describe('el paso de Referencias no reintroduce la deuda que R3 cobra', () => {
     expect(SIN_COMENTARIOS(FUENTES[PASO])).not.toMatch(/'4px'/);
   });
 
-  it('los bloques pasan por Seccion y los vacíos por EstadoVacio', () => {
+  /* El canvas ya no compone bloques con el molde `Seccion`: la hoja de papel es
+     un `article` y el acordeón de menciones un componente propio. Lo que sigue
+     fijo es que los vacíos pasan por `EstadoVacio`. */
+  it('el canvas usa la hoja de papel y los vacíos pasan por EstadoVacio', () => {
     const paso = SIN_COMENTARIOS(FUENTES[PASO]);
-    expect(paso).toMatch(/<Seccion/);
+    expect(paso).toMatch(/<article/);
     expect(paso).toMatch(/<EstadoVacio/);
   });
 

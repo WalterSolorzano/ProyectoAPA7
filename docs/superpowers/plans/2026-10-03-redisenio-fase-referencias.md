@@ -4,7 +4,7 @@
 
 **Goal:** Transformar el Paso 4 (`Step5ReferencesWizard.tsx`) en un Estudio Editorial ergonómico con mini-rail de íconos, previsualización de imprenta APA 7 con sangría francesa pura, menciones de manuscrito destacadas con citas tipográficas en comillas grandes y edición bibliográfica flotante bajo demanda.
 
-**Architecture:** Conservar la lógica central de datos en `src/lib/referencias.ts` y las mutaciones en `useDocStore.ts`. Reemplazar el layout abultado de dos columnas y formularios estáticos por un layout tri-panel liviano (Mini-rail 56px + Directorio animado 320px + Canvas Editorial con citas desplegables y modal flotante de edición rápida).
+**Architecture:** Conservar la lógica central de datos en `src/lib/referencias.ts` y las mutaciones en `useDocStore.ts`. Reemplazar el layout abultado de dos columnas y formularios estáticos por un layout tri-panel liviano (Mini-rail 56px + Directorio animado ~380-440px + Canvas Editorial centrado con hoja de papel APA, acciones de copiado y acordeón de menciones). El editor permanente de la ficha se retira del canvas: la edición vive en el `ReferenceEditModal` flotante, abierto bajo demanda.
 
 **Tech Stack:** React 18, TypeScript, Zustand (`useDocStore`), Lucide React, CSS Tokens (`design-system.css`).
 
@@ -13,17 +13,44 @@
 ## Global Constraints
 
 - Cero emojis en toda la interfaz (usar exclusivamente `lucide-react`).
-- Respetar los tokens CSS del sistema (`--primary`, `--surface-base`, `--border-subtle`, `--paper-white`, `--paper-ink`).
-- Sangría francesa APA 7 obligatoria en vista previa (`1.27 cm` / `text-indent: -1.27cm`).
+- **Paleta canónica únicamente** (`src/styles/design-system.css`, claro+oscuro). Prohibido hex/rgba hardcodeado y prohibidos los tokens fantasma que no existen en el sistema (`--primary*`, `--status-*`, `--color-info*`, `--surface-sidebar`, `--surface-base`, `--border-light`, `--border-medium`, `--text-light`).
+- **Disciplina de íconos** (ui-ux-pro-max): una sola familia (Lucide); `strokeWidth="var(--icon-stroke)"` (nunca 2 / 2.5 hardcodeado); color por `currentColor` o token; el acento se reserva al estado activo/acción principal; el color semántico sólo cuando codifica un estado real (badge/chip); íconos decorativos llevan `aria-hidden="true"`. Un solo acento visible por superficie.
+- **Contraste**: texto normal ≥4.5:1 y no-texto/íconos ≥3:1 en claro **y** oscuro. Botón sólido usa `--color-text-on-accent` sobre `--color-accent`.
+- Sangría francesa APA 7 obligatoria en vista previa (`text-indent: calc(var(--space-8) * -1)`, ~1.27 cm).
 - Acciones de copiado instantáneo de cita parentética `(Autor, Año)` y narrativa `Autor (Año)`.
-- No mutar ni romper los tests existentes en `src/__tests__/referencias.test.ts` y `src/__tests__/referenciasEstaMontada.test.tsx`.
+- No mutar ni romper `src/__tests__/referencias.test.ts` ni `src/__tests__/referenciasEstaMontada.test.tsx`. Las dos pruebas de formulario de `referenciasPaso4.test.tsx` se ajustan a la nueva ubicación en modal (autorizado).
+
+## Hallazgos y correcciones aplicadas (origen del colorido y la inconsistencia)
+
+El desajuste visual de la fase venía de un set de tokens **paralelo e inexistente**: al no resolverse, ganaba el hex de respaldo hardcodeado, produciendo indigo + esmeralda + ámbar + sky simultáneos y rompiendo el modo oscuro. Mapeo aplicado a tokens canónicos:
+
+| Fantasma (roto) | Canónico (design-system.css) |
+|---|---|
+| `--primary` | `--color-accent` |
+| `--primary-soft` / `--primary-subtle` | `--color-accent-soft` / `--color-accent-a12` |
+| `--status-verified` | `--color-success` |
+| `--status-verified-bg` | `--color-success-a12` |
+| `--status-warning` | `--color-warning` |
+| `--status-warning-bg` | `--color-warning-a12` |
+| `--color-info` / `--color-info-border` | `--color-accent` |
+| `--color-info-soft` | `--color-accent-a12` |
+| `--surface-sidebar` / `--surface-base` | `--color-bg-surface` |
+| `--border-light` | `--color-border-subtle` |
+| `--border-medium` | `--color-border-strong` |
+| `--text-light` | `--color-text-tertiary` |
+| `rgba(15,23,42,.45)` (scrim) | `--scrim-overlay` |
+| `rgba(67,97,238,.20)` (comilla) | `--color-accent-a20` |
+| `#ffffff` (texto sobre acento) | `--color-text-on-accent` |
+| `strokeWidth={2.5}` / `{2}` | `strokeWidth="var(--icon-stroke)"` |
+
+**Defecto de test corregido:** el rail rotulaba su filtro como *"Verificadas contra DOI/CrossRef"*, y ese "CrossRef" colisionaba con el botón *"DOI o Enlace Web"* del modal de nueva referencia; `referenciasPaso4.test.tsx:321` recibía dos coincidencias y fallaba. El rótulo ahora es sólo **"Verificadas"**.
 
 ## Review Focus
 
 - Cita sin autor o con autor corporativo largo: la cita parentética debe formatearse de forma limpia sin arrojar `undefined`.
 - Obra huérfana (0 menciones): debe mostrar la tarjeta con borde suave y el botón para copiar la cita para insertar en el texto, sin romper el render.
-- Modificación en modal: al guardar en el modal, los campos deben sincronizarse inmediatamente en `useDocStore` sin recargas completas.
-- Responsive en anchos pequeños (<960px): el acordeón de menciones debe acomodarse fluidamente.
+- Edición en modal: al guardar en el modal, los campos deben sincronizarse inmediatamente en `useDocStore` sin recargas completas.
+- Responsive en anchos pequeños (<960px): el canvas centrado y el acordeón de menciones deben acomodarse fluidamente.
 
 ---
 
@@ -37,11 +64,11 @@
 - Consumes: `filter: 'all' | 'verified' | 'issues'`, `counts: { total: number, verified: number, issues: number }`
 - Produces: `onSelectFilter(f: 'all' | 'verified' | 'issues'): void`
 
-- [ ] **Step 1: Escribir el test fallido para ReferenceRailFilter**
-- [ ] **Step 2: Verificar que el test falla**
-- [ ] **Step 3: Implementar ReferenceRailFilter con animaciones spring y tooltips**
-- [ ] **Step 4: Verificar que el test pasa**
-- [ ] **Step 5: Commit atómico**
+- [x] **Step 1: Escribir el test fallido para ReferenceRailFilter**
+- [x] **Step 2: Verificar que el test falla**
+- [x] **Step 3: Implementar ReferenceRailFilter con animaciones y tooltips (íconos neutros, acento sólo en activo)**
+- [x] **Step 4: Verificar que el test pasa**
+- [x] **Step 5: Commit atómico**
 
 ---
 
@@ -53,13 +80,13 @@
 
 **Interfaces:**
 - Consumes: `reference: ReferenciaModel`, `isSelected: boolean`, `onSelect: () => void`, `onEdit: () => void`
-- Produces: Render de autor, año, título con botón `[ ✎ Editar ]` animado en hover.
+- Produces: Render de autor, año, título con botón `[ Editar ]` animado en hover (Lápiz Lucide, sin emoji).
 
-- [ ] **Step 1: Escribir el test fallido para ReferenceCatalogItem**
-- [ ] **Step 2: Verificar que el test falla**
-- [ ] **Step 3: Implementar ReferenceCatalogItem con transición CSS en hover**
-- [ ] **Step 4: Verificar que el test pasa**
-- [ ] **Step 5: Commit atómico**
+- [x] **Step 1: Escribir el test fallido para ReferenceCatalogItem**
+- [x] **Step 2: Verificar que el test falla**
+- [x] **Step 3: Implementar ReferenceCatalogItem con transición CSS en hover y tokens canónicos**
+- [x] **Step 4: Verificar que el test pasa**
+- [x] **Step 5: Commit atómico**
 
 ---
 
@@ -70,14 +97,14 @@
 - Test: `src/components/referencias/__tests__/ManuscriptMentionsAccordion.test.tsx`
 
 **Interfaces:**
-- Consumes: `citations: { page: number, p: string, text: string }[]`, `onJumpToWord: (page: number, p: string) => void`, `onCopyCitation: () => void`
-- Produces: Acordeón desplegable con comillas editoriales grandes `“` y salto a Word.
+- Consumes: `citations: { page: number, p: string, text: string, highlight?: string }[]`, `onJumpToWord: (page: number, p: string) => void`, `onCopyCitation: () => void`
+- Produces: Acordeón desplegable con comillas editoriales grandes `“` (token `--color-accent-a20`) y salto a Word.
 
-- [ ] **Step 1: Escribir el test fallido para ManuscriptMentionsAccordion**
-- [ ] **Step 2: Verificar que el test falla**
-- [ ] **Step 3: Implementar ManuscriptMentionsAccordion con estado abierto/cerrado**
-- [ ] **Step 4: Verificar que el test pasa**
-- [ ] **Step 5: Commit atómico**
+- [x] **Step 1: Escribir el test fallido para ManuscriptMentionsAccordion**
+- [x] **Step 2: Verificar que el test falla**
+- [x] **Step 3: Implementar ManuscriptMentionsAccordion con estado abierto/cerrado**
+- [x] **Step 4: Verificar que el test pasa**
+- [x] **Step 5: Commit atómico**
 
 ---
 
@@ -89,23 +116,35 @@
 
 **Interfaces:**
 - Consumes: `reference: ReferenciaModel | null`, `isOpen: boolean`, `onClose: () => void`, `onSave: (updated: Partial<ReferenciaModel>) => void`
-- Produces: Modal flotante limpio para autores, año, título, fuente y DOI.
+- Produces: Modal flotante limpio para autores, año, título, fuente y DOI (scrim `--scrim-overlay`, superficies por token, dark-aware).
 
-- [ ] **Step 1: Escribir el test fallido para ReferenceEditModal**
-- [ ] **Step 2: Verificar que el test falla**
-- [ ] **Step 3: Implementar ReferenceEditModal**
-- [ ] **Step 4: Verificar que el test pasa**
-- [ ] **Step 5: Commit atómico**
+- [x] **Step 1: Escribir el test fallido para ReferenceEditModal**
+- [x] **Step 2: Verificar que el test falla**
+- [x] **Step 3: Implementar ReferenceEditModal**
+- [x] **Step 4: Verificar que el test pasa**
+- [x] **Step 5: Commit atómico**
 
 ---
 
-### Task 5: Integración Final en `Step5ReferencesWizard.tsx` y Verificación Completa
+### Task 5: Canvas Editorial e Integración Final en `Step5ReferencesWizard.tsx`
 
 **Files:**
 - Modify: `src/components/referencias/Step5ReferencesWizard.tsx`
-- Test: `src/__tests__/referenciasPaso4.test.tsx`
+- Modify (contrato autorizado): `src/__tests__/referenciasPaso4.test.tsx`, `src/__tests__/referencias.test.ts`
 
-- [ ] **Step 1: Integrar componentes en Step5ReferencesWizard manteniendo compatibilidad con useDocStore**
-- [ ] **Step 2: Correr suite de tests de referencias (`npm test -- -t "referencias"`)**
-- [ ] **Step 3: Verificar cobertura de tests y ausencia de errores de regresión**
-- [ ] **Step 4: Commit final del rediseño**
+**Layout objetivo (canvas editorial del mockup):** rail (56px) + directorio (búsqueda + grupos Verificadas / Pendientes / En texto no en biblio) + canvas centrado `max-width: 1040px`:
+1. **Hoja APA**: la referencia como sale en la bibliografía (Times New Roman, `line-height 2.0`, sangría francesa) sobre `--paper-white`, con `data-testid="vista-previa-apa"`.
+2. **Franja de estado**: chip (`data-testid="chip-estado"`) + marca "Sin citar en el texto" (sólo si la auditoría corrió y es huérfana) + la razón (`porQueDeLaReferencia`), todo bajo `data-testid="estado-referencia"`.
+3. **Fila de acciones**: `Copiar parentética` `(Autor, Año)`, `Copiar narrativa` `Autor (Año)` y `Editar ficha` (abre `ReferenceEditModal` sembrado con la referencia seleccionada).
+4. **Acordeón de menciones** del manuscrito.
+
+- [x] **Step 0a: Corregir la colisión de rótulo rail/CrossRef que rompía `referenciasPaso4`**
+- [x] **Step 0b: Migrar los 4 subcomponentes a la paleta canónica (sin hex, `--icon-stroke`, un acento)**
+- [x] **Step 1: Reestructurar el detalle a canvas editorial centrado (hoja APA + franja de estado + acciones + menciones)**
+- [x] **Step 2: Retirar el formulario permanente; la edición vive en `ReferenceEditModal` ("Editar ficha" y hover "Editar" del catálogo) reutilizando `handleSaveModalRef`**
+- [x] **Step 3: Añadir caja de búsqueda al directorio (filtra por autor/título)**
+- [x] **Step 4: Ajustar las dos pruebas de formulario de `referenciasPaso4` para abrir el modal de edición antes de contar campos y de pulsar "Guardar Cambios"**
+- [x] **Step 5: Correr suite de referencias (`npm test -- --run referencias`) → 108/108; `tsc --noEmit` limpio; guard `referenciasEstaMontada` verde**
+- [x] **Step 6: `graphify update .` y commit final del rediseño**
+
+**Nota de implementación:** la guardia `src/__tests__/referencias.test.ts` verificaba `/<Seccion/` en el wizard (molde del formulario viejo). Como el canvas ya no usa `Seccion` (la hoja es un `<article>` y las menciones un componente propio), esa aserción se reescribió a `/<article/` + `/<EstadoVacio/` en la misma tanda autorizada.

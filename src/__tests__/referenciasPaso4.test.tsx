@@ -184,9 +184,17 @@ describe('la vista previa de la referencia', () => {
 
 /* ── El formulario sigue editable: es el que arma formatted_apa ────────────── */
 
-describe('el formulario no se rompió', () => {
-  it('los cinco campos siguen ahí', () => {
+describe('el formulario sigue editable, ahora bajo demanda en el modal', () => {
+  /* La ficha dejó de ser un formulario permanente en el canvas: se abre con
+     "Editar ficha". El contrato no cambió —cinco campos editables y un guardado
+     que escribe en el store—, sólo cambió dónde vive. */
+  const abrirEdicion = () => {
     montar([REF]);
+    fireEvent.click(screen.getByRole('button', { name: /editar ficha/i }));
+  };
+
+  it('los cinco campos siguen ahí', () => {
+    abrirEdicion();
     const cajas = screen.getAllByRole('textbox');
     const nombres = cajas.map((c) => c.getAttribute('placeholder') || c.getAttribute('value') || '');
     expect(cajas.length).toBeGreaterThanOrEqual(5);
@@ -194,9 +202,10 @@ describe('el formulario no se rompió', () => {
   });
 
   it('"Guardar Cambios" sigue llamando a la actualización de referencias', () => {
-    montar([REF]);
-    const guardar = screen.getByRole('button', { name: /guardar cambios/i });
-    guardar.click();
+    abrirEdicion();
+    /* `fireEvent`, no `.click()`: el guardado pasa por el `onSubmit` del form y
+       el `.click()` nativo no lo envuelve en `act`. */
+    fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
     expect(updateReferences).toHaveBeenCalled();
   });
 });
