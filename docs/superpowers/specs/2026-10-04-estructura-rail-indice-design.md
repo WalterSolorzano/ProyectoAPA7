@@ -127,6 +127,60 @@ Backend (elimina H4 falsos):
    `style_name` esté seteado.
 6. `clustering_classifier.py:228-231` → saltar si `>20` palabras o multi-oración.
 
+### 5.6 Numeración de títulos (notación de H1/H2)
+
+La notación ya existe end-to-end y **no se crea un campo nuevo**; se reutiliza y se
+extiende:
+
+- Campo actual: `heading_numbering_style_lvl1|lvl2|lvl3: 'none' | 'decimal' | 'roman'`
+  (`src/types/index.ts:264-266`, `python/models.py:162-168`). Ya tiene UI en Ajustes
+  (`src/components/settings/tabs/formatoAjustes.ts:300-336`, opciones
+  `NUMERACIONES_DE_TITULO` `:148-152`), preview en el lienzo
+  (`PaperCanvas.tsx:1005-1017`) y dos consumidores backend
+  (`generator.py:93-124`, `layered_generator.py:189-200`).
+- **Dónde va el control nuevo**: en el panel derecho del destino **Índice**
+  (controles de diseño, §5.3), un selector de notación por nivel (H1, H2), además de
+  seguir disponible en Ajustes de formato. Es una regla, así que el panel escribe la
+  misma clave `heading_numbering_style_lvlN` en `rules`.
+- **Extender el dominio** para cubrir "otra forma de romanos" y letras:
+  `none | decimal | upperRoman | lowerRoman | lowerLetter | upperLetter`. `decimal`
+  = "1, 2, 3"; `upperRoman` = "I, II"; `lowerRoman` = "i, ii"; letras = "A/a".
+  Actualizar la unión TS (`src/types/index.ts:264-266`), el espejo generado
+  (`api-generated.d.ts:32-34`), `python/models.py:162-168` (a `Literal[...]`) y
+  `NUMERACIONES_DE_TITULO`.
+- **Bug a corregir**: hoy `roman` solo aplica al **H1**; H2/H3 fuerzan arábigo
+  jerárquico (`PaperCanvas.tsx:1013-1017`, `generator.py:118`,
+  `layered_generator.py:196`). El plan debe hacer que la notación elegida aplique de
+  verdad al nivel (al menos H1 y H2), en preview y en ambos generadores.
+- Los números se escriben como **texto de run**, no `numPr`; el TOC nativo enumera
+  ese texto, así que la coherencia índice↔título es automática.
+- `toc_style` (`apa`/`dotted`/`plain`) tiene control pero **cero consumidores backend**.
+  El plan debe decidir: consumirlo para el punteado del índice o retirar el control
+  muerto. Recomendado: consumirlo en el generador del índice.
+
+### 5.7 Pantallas angostas (el ancho no abunda)
+
+No existe token de breakpoints; el patrón canónico es el de `ReviewWorkbench`
+(`src/components/review/ReviewWorkbench.tsx:79-94`: `useState(window.innerWidth)` +
+listener `resize` + grid condicional `:139-145`). `EscritorioEstructura` ya tiene un
+colapso manual (`cerrado` → strip de 44px, `:160,167,186-191`).
+
+Plan responsive:
+
+- **Extraer `useWindowWidth`** (de `ReviewWorkbench`) a `src/hooks/`, con umbrales
+  como constantes con un solo dueño (evita repetir números sueltos).
+- Umbrales propuestos:
+  - `>= 1280`: layout completo — rail 56px + centro + panel derecho 452px.
+  - `900–1279`: panel derecho **colapsado a strip de 44px** (reusa `cerrado`),
+    ampliable manualmente.
+  - `< 900`: panel derecho como **overlay** (patrón `RailFlyout` +
+    `useRailFlyout`, `RailFlyout.tsx:80-96`) en vez de empujar el centro; rail de
+    íconos siempre vivo con tooltip.
+  - `< 720`: ocultar metadatos secundarios del índice; el diagrama usa "Ajustar".
+- El rail de la fase (56px) vive siempre, consistente con `IconRail`/`RailTipoActivos`.
+- El estado `cerrado` pasa a derivarse del ancho (auto-colapso) sin perder el toggle
+  manual del usuario.
+
 ## 6. Flujo de datos
 
 1. `useDocStore` → `elementos`.
@@ -157,6 +211,10 @@ Backend (elimina H4 falsos):
   - Drag llama `reorderElements` con la rama completa; descarta destinos inválidos.
   - `tieneContenido` verdadero con lista.
   - pytest: mayoría-de-negrita no promueve a heading; degradación con `style_name` seteado.
+  - Notación de título: `roman`/`decimal`/`lowerRoman`/letras aplican al nivel elegido
+    (preview + `_build_heading_prefix`/`_build_prefix`).
+  - Responsive: por debajo del umbral el panel derecho colapsa (grid condicional) y el
+    centro no se empuja.
 
 ## 9. Orden de implementación sugerido
 
@@ -165,4 +223,6 @@ Backend (elimina H4 falsos):
 3. `RailEstructura` + conmutación de destinos.
 4. Descarga del árbol (`NodoIndice` sin ruido, H1 plegadas).
 5. `MapaEstructura`: raíz, zoom, pan, drag.
-6. Panel de diseño del Índice.
+6. Panel de diseño del Índice (estilo, profundidad, insertar/quitar).
+7. Numeración de títulos (extender dominio + aplicar por nivel + control en el panel).
+8. Responsive (`useWindowWidth` + colapso/overlay del panel derecho).
