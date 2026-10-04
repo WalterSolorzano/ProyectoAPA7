@@ -59,12 +59,8 @@ const todasLasMiniaturas = () =>
   Array.from(document.querySelectorAll('[data-testid^="miniatura-"]')) as HTMLElement[];
 const todasLasTarjetas = () =>
   Array.from(document.querySelectorAll('[data-testid^="tarjeta-"]')) as HTMLElement[];
-/** La fila que se corre: la posición de cada tarjeta sale de acá. */
+/** La fila: reserva el alto de la tarjeta activa y aloja a las demás. */
 const fila = () => screen.getByTestId('cover-carousel-row');
-const desplazamientoDeLaFila = (): number => {
-  const m = /translateX\((-?[\d.]+)px\)/.exec(fila().style.transform);
-  return m ? Number(m[1]) : NaN;
-};
 
 describe('carrusel de portada', () => {
   beforeEach(() => {
@@ -128,33 +124,60 @@ describe('carrusel de portada', () => {
     expect(tarjeta('uni').textContent).toContain('Titulo nuevo');
   });
 
-  it('la fila se corre un paso por cada paso de índice, y con el índice central el corrimiento es cero', () => {
-    /* La activa al centro: el corrimiento de la fila es la distancia al centro,
-       así que el centro lo ocupa siempre la elegida y las demás pasan por ahí al
-       navegar. Con cinco tarjetas el centro es la tercera. */
+  it('la tarjeta activa queda siempre centrada y las demás se reparten alrededor', () => {
+    /* El centro es FIJO: cada tarjeta se corre `(i - índice) * paso`. La activa
+       tiene corrimiento 0 sin importar el índice, y las demás son simétricas. */
     montarCarrusel();
-    const corrimientos = [desplazamientoDeLaFila()];
-    for (let i = 0; i < 4; i++) {
-      fireEvent.click(screen.getByLabelText(/siguiente diseño/i));
-      corrimientos.push(desplazamientoDeLaFila());
-    }
+    const corrimiento = (id: string): number => {
+      const m = /translateX\((-?[\d.]+)px\)/.exec(tarjeta(id).style.transform);
+      return m ? Number(m[1]) : NaN;
+    };
 
-    // Los cinco corrimientos tienen el mismo tamaño de paso...
-    const pasos = corrimientos.slice(1).map((v, i) => v - corrimientos[i]);
-    const paso = Math.abs(pasos[0]);
+    // Índice inicial 0: 'original' al centro.
+    expect(corrimiento('original')).toBeCloseTo(0, 5);
+    const paso = Math.abs(corrimiento('apa7'));
     expect(paso).toBeGreaterThan(0);
-    for (const p of pasos) expect(Math.abs(p)).toBeCloseTo(paso, 5);
-    // ...y van hacia el mismo lado (el índice solo avanza).
-    for (const p of pasos) expect(p).toBeLessThan(0);
+    expect(corrimiento('uni')).toBeCloseTo(2 * paso, 5);
+    expect(corrimiento('pro')).toBeCloseTo(3 * paso, 5);
 
-    // Con el tercero activo (índice 2) el corrimiento es cero: está en el centro.
-    expect(corrimientos[2]).toBeCloseTo(0, 5);
-    // El índice volvió al final; se retrocede dos pasos para pararse en el 2.
-    fireEvent.click(screen.getByLabelText(/diseño anterior/i));
-    fireEvent.click(screen.getByLabelText(/diseño anterior/i));
-    expect(desplazamientoDeLaFila()).toBeCloseTo(0, 5);
+    // Avanzar al centro (índice 2): 'uni' al centro y simetría.
+    fireEvent.click(screen.getByLabelText(/siguiente diseño/i));
+    fireEvent.click(screen.getByLabelText(/siguiente diseño/i));
+    expect(corrimiento('uni')).toBeCloseTo(0, 5);
+    expect(corrimiento('original')).toBeCloseTo(-2 * paso, 5);
+    expect(corrimiento('custom')).toBeCloseTo(2 * paso, 5);
     expect(miniatura('uni').getAttribute('aria-current')).toBe('true');
-    expect(fila().style.justifyContent).toBe('center');
+  });
+
+  it('la activa se resalta con escala 1 y las demás con escala menor y scrim', () => {
+    montarCarrusel();
+    expect(tarjeta('original').style.transform).toContain('scale(1)');
+    expect(tarjeta('original').style.transform).not.toContain('rotateY');
+    expect(tarjeta('apa7').style.transform).toMatch(/scale\(0\.\d+\)/);
+    expect(tarjeta('apa7').style.transform).toContain('rotateY');
+
+    // El scrim está SOLO en las no activas, y es la capa del canvas, no un filtro.
+    expect(tarjeta('original').querySelector('[data-testid="scrim-original"]')).toBeNull();
+    const scrim = tarjeta('apa7').querySelector('[data-testid="scrim-apa7"]') as HTMLElement;
+    expect(scrim).toBeTruthy();
+    expect(scrim.style.backgroundColor).toBe('var(--canvas-bg)');
+  });
+
+  it('con ancho 320 y 560 la fila reserva un alto finito', () => {
+    /* El alto de la fila sale de la miniatura activa: si la cuenta fallara,
+       quedaría NaN/Infinity y las tarjetas absolutas se recortarían. */
+    for (const ancho of [320, 560]) {
+      useDocStore.setState({
+        portada: { ...defaultPortada },
+        acta: { ...defaultActa },
+        doc: null,
+      } as never);
+      const { unmount } = render(<CarruselPortada anchoMiniatura={ancho} />);
+      const alto = Number.parseFloat(fila().style.height);
+      expect(Number.isFinite(alto)).toBe(true);
+      expect(alto).toBeGreaterThan(0);
+      unmount();
+    }
   });
 
   it('ninguna tarjeta apaga el papel: el receso no usa filtro de brillo', () => {

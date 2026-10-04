@@ -29,7 +29,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDocStore } from '../../../store/useDocStore';
 import type { Hoja } from '../../../lib/portada/geometria';
-import { MiniaturaRealDePortada } from './MiniaturaRealDePortada';
+import { MiniaturaRealDePortada, medidaDeLaMiniatura } from './MiniaturaRealDePortada';
 import { HojaDatosPortada, HOJA_DE_DATOS_TESTID } from './HojaDatosPortada';
 import { EditorialMascot, type MascotKind, type MascotExpression } from '../../layout/EditorialMascot';
 
@@ -118,6 +118,16 @@ const ANCHO_DE_MINIATURA_PX = 224;
  *  con otro ancho. */
 const SEPARACION_PX = 20;
 
+/** Escala de las vecinas inmediatas y de las que quedan lejos.
+ *  Bajadas desde el mockup: en 0.58/0.42 el fondo pesaba demasiado y competía
+ *  con la activa. 0.46/0.30 deja una sola protagonista. */
+const ESCALA_VECINA = 0.46;
+const ESCALA_LEJANA = 0.30;
+/** Grados de `rotateY` de una vecina (efecto coverflow). */
+const ROTACION_VECINA_DEG = 16;
+/** Alto reservado debajo de la hoja para el rótulo (título + subtítulo). */
+const ALTO_ETIQUETA_PX = 72;
+
 /** Cuánto hay que arrastrar para que el arrastre cuente como paso. */
 export const UMBRAL_DE_ARRASTRE_PX = 48;
 
@@ -172,7 +182,7 @@ function useMovimientoReducido(): boolean {
 /** La escala de una tarjeta según su distancia a la activa. */
 function escalaDeLaTarjeta(distancia: number): number {
   if (distancia === 0) return 1;
-  return distancia <= VECINAS_POR_LADO ? 0.78 : 0.64;
+  return distancia <= VECINAS_POR_LADO ? ESCALA_VECINA : ESCALA_LEJANA;
 }
 
 export interface CarruselPortadaProps {
@@ -202,6 +212,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
 }) => {
   const portada = useDocStore((s) => s.portada);
   const acta = useDocStore((s) => s.acta);
+  const reglas = useDocStore((s) => s.rules);
   const reducido = useMovimientoReducido();
   const pistaRef = useRef<HTMLDivElement>(null);
   /* Dónde empezó el arrastre. `null` es "no hay arrastre en curso". */
@@ -271,12 +282,11 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
 
   const anchoEfectivo = anchoMiniatura || ANCHO_DE_MINIATURA_PX;
   const paso = anchoEfectivo + SEPARACION_PX;
-  /* El centro de la fila. Con cinco tarjetas es la tercera, y con cualquier otro
-     número sigue siendo el medio: la activa no depende de que sean cinco. */
-  const centro = (DISENOS_DE_PORTADA.length - 1) / 2;
-  const corrimiento = (centro - indice) * paso;
   const disenoActual = DISENOS_DE_PORTADA[indice] || DISENOS_DE_PORTADA[0];
   const mascotaActual = obtenerMascotaDePortada(disenoActual.id);
+  const medidaActiva = medidaDeLaMiniatura(disenoActual.id, hoja, reglas);
+  const escalaActiva = anchoEfectivo / medidaActiva.ancho;
+  const altoDeLaTarjeta = medidaActiva.alto * escalaActiva + ALTO_ETIQUETA_PX;
 
   return (
     <>
@@ -286,7 +296,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
       aria-label="Diseños de portada"
       tabIndex={0}
       onKeyDown={alTeclado}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: '100%', alignItems: 'center' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: '100%', alignItems: 'center', flex: 1, minHeight: 0, justifyContent: 'center' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', width: '100%', flexWrap: 'wrap' }}>
         {/* Mascota editorial con mensaje contextual */}
@@ -320,7 +330,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
       </div>
 
       {/* ── Flechas a los lados de la hoja, y la pista en el medio ── */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center', flex: 1, minHeight: 0 }}>
         <button
           type="button"
           aria-label="Ir al diseño anterior"
@@ -355,6 +365,9 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
           style={{
             flex: 1,
             minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             position: 'relative',
             overflowX: reducido ? 'auto' : 'hidden',
             overflowY: 'hidden',
@@ -367,22 +380,19 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
         >
           <div
             data-testid="cover-carousel-row"
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: SEPARACION_PX,
-              /* El corrimiento que pone a la activa en el centro. Sin transform
-                 cuando el movimiento está reducido: la tira se desplaza con el
-                 scroll y el mismo índice manda. */
-              transform: reducido ? undefined : `translateX(${corrimiento}px)`,
-              transition: reducido ? undefined : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
+            style={
+              reducido
+                ? { display: 'flex', alignItems: 'center', gap: SEPARACION_PX }
+                : { position: 'relative', width: '100%', height: altoDeLaTarjeta, perspective: '1200px' }
+            }
           >
             {DISENOS_DE_PORTADA.map((d, i) => {
               const activa = i === indice;
               const distancia = Math.abs(i - indice);
               const isHovered = hoveredId === d.id && !activa;
+              const dir = i - indice;
+              const escala = escalaDeLaTarjeta(distancia);
+              const rotacion = dir === 0 ? 0 : (dir > 0 ? 1 : -1) * ROTACION_VECINA_DEG;
 
               return (
                 <div
@@ -395,8 +405,15 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                     elegir(d.id);
                   }}
                   style={{
-                    flex: '0 0 auto',
-                    width: anchoEfectivo,
+                    ...(reducido
+                      ? { position: 'relative' as const, flex: '0 0 auto', width: anchoEfectivo }
+                      : {
+                          position: 'absolute' as const,
+                          top: 0,
+                          left: '50%',
+                          marginLeft: -anchoEfectivo / 2,
+                          width: anchoEfectivo,
+                        }),
                     borderRadius: 'var(--radius-lg)',
                     cursor: 'pointer',
                     background: activa ? 'var(--color-bg-surface)' : 'var(--color-bg-surface-alt)',
@@ -411,25 +428,28 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                       : isHovered
                         ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
                         : 'var(--shadow-sm)',
-                    transform: reducido ? undefined : `scale(${escalaDeLaTarjeta(distancia)})`,
+                    transform: reducido
+                      ? undefined
+                      : `translateX(${dir * paso}px) scale(${escala})${dir === 0 ? '' : ` rotateY(${rotacion}deg)`}`,
+                    transformOrigin: 'center center',
                     transition: reducido
                       ? undefined
                       : 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease, opacity 200ms ease',
                     display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 12px',
                     zIndex: activa ? 30 : Math.max(1, 20 - distancia * 5),
-                    position: 'relative',
                     boxSizing: 'border-box',
                   }}
                 >
                   {!activa && (
                     <div
+                      data-testid={`scrim-${d.id}`}
                       aria-hidden="true"
                       style={{
                         position: 'absolute',
                         inset: 0,
                         borderRadius: 'var(--radius-lg)',
                         backgroundColor: 'var(--canvas-bg)',
-                        opacity: isHovered ? 0.12 : 0.3,
+                        opacity: isHovered ? 0.12 : Math.min(0.5, 0.24 + distancia * 0.08),
                         pointerEvents: 'none',
                         transition: 'opacity 200ms ease',
                         zIndex: 5,
