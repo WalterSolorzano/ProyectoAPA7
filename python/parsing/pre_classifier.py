@@ -209,6 +209,17 @@ def _apply_native_heading_length_guard(elem: ElementModel, word_count: int) -> b
     return True
 
 
+def _contiene_multiples_oraciones(text: str) -> bool:
+    """True si hay varias oraciones reales (punto + espacio + mayúscula).
+
+    Las abreviaturas tipo "S.C.E.M." tienen varios puntos pero no son
+    oraciones distintas, así que NO cuentan.
+    """
+    if not text:
+        return False
+    return bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', text))
+
+
 def _flag_numbering_skips(elements: List[ElementModel]) -> None:
     """
     Valida la cadena de numeracion decimal de headings (1, 1.1, 1.1.1).
@@ -705,7 +716,8 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # Heading 4: sangria + negrita + termina en punto (inline)
-        if has_indent and all_bold and has_period_end and word_count <= 18 and not is_italic:
+        if (has_indent and all_bold and has_period_end and word_count <= 18
+                and not is_italic and not _contiene_multiples_oraciones(text)):
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.82
@@ -718,6 +730,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # entre parentesis) NO son headings aunque el formato coincida.
         if (
             has_indent and all_bold and is_italic and has_period_end and word_count <= 18
+            and not _contiene_multiples_oraciones(text)
             and not re.search(r"\(\d{4}[a-z]?\)", text)
             and not re.search(r"https?://|doi\.org|Recuperado de", text, re.IGNORECASE)
         ):
@@ -743,7 +756,10 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # MISMO parrafo (negrita + punto + texto normal). Patron definido pero
         # nunca activado antes. Solo si el inicio es negrita y es corto.
         inline_match = REGEX_INLINE_HEADING.match(text)
-        if inline_match and is_bold and word_count <= 20 and not is_centered and ":" not in inline_match.group(1) and not text.rstrip().endswith(":"):
+        if (inline_match and is_bold and word_count <= 20 and not is_centered
+                and ":" not in inline_match.group(1)
+                and len(inline_match.group(1).split()) <= 6
+                and not text.rstrip().endswith(":")):
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.80
@@ -1432,7 +1448,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # mayuscula). Las abreviaturas tipo "S.C.E.M." tienen varios puntos
         # pero NO son multiples oraciones — antes esto degradaba titulos con
         # acronimos (p.ej. "Aplicación del Método S.C.E.M.").
-        multi_sentence = bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', txt)) if txt else False
+        multi_sentence = _contiene_multiples_oraciones(txt)
         if len(words) > 25 or multi_sentence:
             score -= 0.5
 
