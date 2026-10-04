@@ -36,6 +36,7 @@ import { MatrizEvidencias } from './MatrizEvidencias';
 import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
 import { RailEstructura, type DestinoEstructura } from './RailEstructura';
 import { IndicePrevisualizacion } from './IndicePrevisualizacion';
+import { ControlesIndice, type ProfundidadIndice } from './ControlesIndice';
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -116,6 +117,10 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const reglas = useDocStore((s) => s.rules);
+  const setRules = useDocStore((s) => s.setRules);
+  const insertarToc = useDocStore((s) => s.insertTocElement);
+  const quitarToc = useDocStore((s) => s.removeTocElement);
 
   const elementos = (doc?.elements ?? null) as readonly ElementModel[] | null;
 
@@ -143,6 +148,9 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const [ampliado, setAmpliado] = useState(false);
   const [cerrado, setCerrado] = useState(false);
   const [destino, setDestino] = useState<DestinoEstructura>('esquema');
+  const [profundidad, setProfundidad] = useState<ProfundidadIndice>(3);
+
+  const hayIndice = (doc?.elements ?? []).some((e) => e.type === 'toc');
 
   const elegido = useMemo(
     () => buscarEn(raices, elegidoId) ?? raices[0] ?? null,
@@ -247,6 +255,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
             raices={raices}
             onSelect={abrir}
             nodoSeleccionadoId={elegido?.id ?? null}
+            profundidadMaxima={profundidad}
           />
         )}
       </div>
@@ -257,6 +266,21 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
             <BookOpen size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
           </button>
         </div>
+      ) : destino === 'indice' ? (
+        <aside
+          aria-label="Diseño del índice"
+          style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'auto', background: 'var(--color-bg-surface)', borderLeft: '1px solid var(--color-border-subtle)' }}
+        >
+          <ControlesIndice
+            profundidad={profundidad}
+            onProfundidad={setProfundidad}
+            reglas={reglas}
+            onRegla={(clave, valor) => setRules({ [clave]: valor } as never)}
+            hayIndice={hayIndice}
+            onInsertar={() => insertarToc()}
+            onQuitar={() => quitarToc()}
+          />
+        </aside>
       ) : (
         <aside
           aria-label="Panel de la sección"

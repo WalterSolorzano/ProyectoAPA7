@@ -1,0 +1,168 @@
+/* Controles de diseño del Índice: estilo, profundidad e insertar/quitar.
+ *
+ * El índice es el único destino de la fase que ESCRIBE en el documento, así que
+ * sus controles viven pegados a la previsualización que los refleja. Los
+ * controles son botones con `aria-pressed`, como el resto de la fase: nunca un
+ * desplegable nativo.
+ * TOKENS, NO HEX.
+ */
+
+import React from 'react';
+import { ListTree, Plus, Trash2 } from 'lucide-react';
+
+export type ProfundidadIndice = 1 | 2 | 3 | 4;
+
+export interface ReglasDeIndice {
+  toc_style?: 'apa' | 'dotted' | 'plain';
+}
+
+export interface ControlesIndiceProps {
+  profundidad: ProfundidadIndice;
+  onProfundidad: (p: ProfundidadIndice) => void;
+  reglas: ReglasDeIndice;
+  onRegla: (clave: string, valor: string) => void;
+  hayIndice: boolean;
+  onInsertar: () => void;
+  onQuitar: () => void;
+}
+
+const PROFUNDIDADES: Array<{ valor: ProfundidadIndice; label: string }> = [
+  { valor: 1, label: 'Hasta H1' },
+  { valor: 2, label: 'Hasta H2' },
+  { valor: 3, label: 'Hasta H3' },
+  { valor: 4, label: 'Todo' },
+];
+
+const ESTILOS: Array<{ valor: 'apa' | 'dotted' | 'plain'; label: string }> = [
+  { valor: 'apa', label: 'APA' },
+  { valor: 'dotted', label: 'Punteado' },
+  { valor: 'plain', label: 'Plano' },
+];
+
+export const ControlesIndice: React.FC<ControlesIndiceProps> = ({
+  profundidad,
+  onProfundidad,
+  reglas,
+  onRegla,
+  hayIndice,
+  onInsertar,
+  onQuitar,
+}) => (
+  <section
+    data-testid="controles-indice"
+    aria-label="Diseño del índice"
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--space-4)',
+      padding: 'var(--space-3)',
+      fontFamily: 'var(--font-sans)',
+    }}
+  >
+    <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+      <ListTree
+        size={16}
+        strokeWidth="var(--icon-stroke)"
+        aria-hidden
+        style={{ color: 'var(--color-accent)' }}
+      />
+      <h2
+        style={{
+          margin: 0,
+          fontSize: 'var(--text-sm)',
+          fontWeight: 700,
+          color: 'var(--color-text-primary)',
+        }}
+      >
+        Diseño del índice
+      </h2>
+    </header>
+
+    <div>
+      <span style={estiloEtiqueta}>Estilo</span>
+      <div role="group" aria-label="Estilo del índice" style={estiloGrupo}>
+        {ESTILOS.map(({ valor, label }) => (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={reglas.toc_style === valor}
+            onClick={() => onRegla('toc_style', valor)}
+            style={estiloChip(reglas.toc_style === valor)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div>
+      <span style={estiloEtiqueta}>Profundidad visible</span>
+      <div role="group" aria-label="Profundidad" style={estiloGrupo}>
+        {PROFUNDIDADES.map(({ valor, label }) => (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={profundidad === valor}
+            onClick={() => onProfundidad(valor)}
+            style={estiloChip(profundidad === valor)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onClick={hayIndice ? onQuitar : onInsertar}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 'var(--space-1)',
+        alignSelf: 'flex-start',
+        padding: 'var(--space-2) var(--space-3)',
+        border: '1px solid var(--color-border-subtle)',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--color-bg-surface)',
+        color: 'var(--color-text-primary)',
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--text-xs)',
+        cursor: 'pointer',
+      }}
+    >
+      {hayIndice ? (
+        <Trash2 size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+      ) : (
+        <Plus size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+      )}
+      {hayIndice ? 'Quitar índice' : 'Insertar índice'}
+    </button>
+  </section>
+);
+
+const estiloEtiqueta: React.CSSProperties = {
+  display: 'block',
+  fontSize: 'var(--text-xs)',
+  color: 'var(--color-text-tertiary)',
+  marginBottom: 'var(--space-1)',
+};
+
+const estiloGrupo: React.CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-1)',
+  flexWrap: 'wrap',
+};
+
+const estiloChip = (activo: boolean): React.CSSProperties => ({
+  fontFamily: 'var(--font-sans)',
+  fontSize: 'var(--text-xs)',
+  fontWeight: activo ? 600 : 400,
+  color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+  background: activo ? 'var(--color-accent-soft)' : 'transparent',
+  border: '1px solid ' + (activo ? 'var(--color-accent)' : 'var(--color-border-subtle)'),
+  borderRadius: 'var(--radius-full)',
+  padding: '2px var(--space-2)',
+  cursor: 'pointer',
+});
+
+export default ControlesIndice;
