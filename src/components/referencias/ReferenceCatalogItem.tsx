@@ -57,6 +57,9 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
           borderLeft: active
             ? '2px solid var(--color-accent)'
             : '2px solid transparent',
+          /* El separador entre filas: sin él las referencias se leían como un
+             bloque corrido. */
+          borderBottom: '1px solid var(--color-border-subtle)',
           backgroundColor: active
             ? 'var(--color-accent-soft)'
             : 'transparent',

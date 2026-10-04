@@ -6,10 +6,21 @@ Elimina 400MB+ del build final (sklearn + scipy + numpy + torch indirecto).
 
 import collections
 import math
+import re
 from dataclasses import dataclass
 from typing import Dict, List
 
 from models import ElementModel, ElementType
+
+
+def _demasiado_largo_para_heading(text: str) -> bool:
+    """Un heading real es corto y de una sola oración."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if len(t.split()) > 20:
+        return True
+    return bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', t))
 
 
 def _has_number_prefix(text: str) -> bool:
@@ -226,6 +237,8 @@ class ClusteringHeadingClassifier:
                 ) or (elem.text and elem.text.rstrip().endswith(":")) or getattr(elem, 'is_table_cell', False):
                     continue
                 if elem.type == ElementType.PARAGRAPH:
+                    if _demasiado_largo_para_heading(elem.text or ""):
+                        continue
                     elem.type = ElementType.HEADING
                     elem.heading_level = level
                     elem.confidence = min(0.95, score + 0.3)

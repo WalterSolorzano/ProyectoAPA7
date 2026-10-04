@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Tuple
 from models import CitationModel, CitationType, DocumentModel, ElementType
 
 from parsing.pre_classifier import REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA
+from modules.citation_engine import REGEX_ORG_ACRONIMO
 
 
 def _normalize_text(text: str) -> str:
@@ -13,6 +14,51 @@ def _normalize_text(text: str) -> str:
         return ""
     nfkd = unicodedata.normalize('NFKD', text.lower())
     return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+
+# Siglas organizacionales que el texto cita solas entre paréntesis: "(OIT, 2007)".
+# El pre-clasificador exige `[A-Z][a-z]+`, así que una sigla en mayúsculas se le
+# escapaba y la cita quedaba invisible para el cruce con la bibliografía.
+REGEX_ACRONIMO_PARENTETICA = re.compile(
+    r"\(\s*([A-ZÁÉÍÓÚÑ]{2,6})\s*,\s*(\d{4}[a-z]?)"
+    r"(?:\s*,\s*(?:p[p]?\.|p[aá]g\.)\s*\d+(?:[–\-]\d+)?)?\s*\)"
+)
+
+# Palabras que no aportan inicial a una sigla organizacional.
+_STOPWORDS_SIGLA = {"de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "&"}
+
+
+def _es_acronimo(texto: str) -> bool:
+    """Un texto normalizado que es una sigla: 2-6 letras, sin espacios."""
+    return bool(re.fullmatch(r"[a-z]{2,6}", texto.strip()))
+
+
+def _iniciales(texto: str) -> str:
+    """Iniciales de las palabras significativas, normalizadas.
+
+    "Organización Internacional del Trabajo" -> "oit" (la "del" no cuenta), que
+    es exactamente la sigla con la que el texto la cita.
+    """
+    palabras = _normalize_text(texto).split()
+    return "".join(p[0] for p in palabras if p and p not in _STOPWORDS_SIGLA)
+
+
+def _acronimo_de_organizacion(cita_autor: str, ref_autor: str) -> bool:
+    """La sigla y el nombre completo de la MISMA organización son el mismo autor.
+
+    "OIT" contra "Organización Internacional del Trabajo" no matchea por texto
+    —ninguno contiene al otro— y `SequenceMatcher` da un ratio bajísimo. Sin
+    esto, una cita válida de una organización se reportaba como sin referencia.
+    """
+    a = _normalize_text(cita_autor).strip()
+    b = _normalize_text(ref_autor).strip()
+    if not a or not b:
+        return False
+    if _es_acronimo(a):
+        return a == _iniciales(b) or (_es_acronimo(b) and a == b)
+    if _es_acronimo(b):
+        return b == _iniciales(a)
+    return False
 
 def _extract_authors_and_year(match_text: str, is_narrativa: bool = False) -> Tuple[List[str], str]:
     """Extrae autores y año de una cadena regex match."""
@@ -60,6 +106,25 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
         if not text:
             continue
 
+        # Organización + sigla + año: "Organización Internacional del Trabajo
+        # (OIT, 2007)". Va antes que la sigla suelta para no contarla dos veces.
+        org_spans = []
+        for match in REGEX_ORG_ACRONIMO.finditer(text):
+            nombre = match.group(1).strip()
+            sigla = match.group(2).strip()
+            year = match.group(3)
+            if nombre and year:
+                citations.append(CitationModel(
+                    raw_text=match.group(0),
+                    authors=[nombre, sigla],
+                    year=year,
+                    citation_type=CitationType.NARRATIVA,
+                    element_id=elem.id,
+                    start_offset=match.start(),
+                    end_offset=match.end()
+                ))
+                org_spans.append((match.start(), match.end()))
+
         # Parentéticas
         for match in REGEX_CITATION_PARENTETICA.finditer(text):
             raw_text = match.group(0)
@@ -74,6 +139,21 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
                     start_offset=match.start(),
                     end_offset=match.end()
                 ))
+
+        # Siglas parentéticas solas: "(OIT, 2007)". Se salta la que ya forma
+        # parte de "Nombre completo (SIGLA, año)".
+        for match in REGEX_ACRONIMO_PARENTETICA.finditer(text):
+            if any(s <= match.start() and match.end() <= e for s, e in org_spans):
+                continue
+            citations.append(CitationModel(
+                raw_text=match.group(0),
+                authors=[match.group(1)],
+                year=match.group(2),
+                citation_type=CitationType.PARENTETICA,
+                element_id=elem.id,
+                start_offset=match.start(),
+                end_offset=match.end()
+            ))
 
         # Narrativas
         for match in REGEX_CITATION_NARRATIVA.finditer(text):
@@ -143,6 +223,10 @@ def cross_check_citations_and_references(doc: DocumentModel) -> Dict[str, Any]:
                 ratio = SequenceMatcher(None, first_author_cit, first_author_ref).ratio()
                 if ratio > 0.8:
                     author_match = True
+            # La sigla y el nombre completo de la misma organización son el
+            # mismo autor ("OIT" ↔ "Organización Internacional del Trabajo").
+            if not author_match:
+                author_match = _acronimo_de_organizacion(first_author_cit, first_author_ref)
 
             year_match = str(cit.year) == str(ref.year)
 

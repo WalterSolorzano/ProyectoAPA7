@@ -1329,8 +1329,34 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
         get().runCitationAudit();
         return { ...newRef, candidates: result.candidates };
       }
-      get().showToast(`No se encontró referencia para "${authors.join(' ')} (${year})" en Crossref`, 'warning');
-      return null;
+      /* NO se encontró la obra, pero la cita EXISTE en el texto con su autor y
+         su año. Negarse a crear la ficha —o pedir un DOI para hacerlo— deja la
+         cita en el limbo: el autor ve "no hay referencia" sobre un dato que sí
+         tiene. Se crea la ficha con lo que hay (autor + año) y la auditoría
+         volverá a cruzarla; queda como Pendiente —le falta título y fuente—,
+         no como un hueco. El DOI nunca fue obligatorio: si aparece después, la
+         ficha se completa. */
+      const autorTxt = authors.map((a) => (a || '').trim()).filter(Boolean).join(', ') || 'Autor';
+      const anioTxt = (year || '').trim() || 's.f.';
+      const rawText = `${autorTxt} (${anioTxt}).`;
+      const newRef = {
+        id: `ghost-${Date.now()}`,
+        authors: authors.map((a) => (a || '').trim()).filter(Boolean),
+        year: (year || '').trim(),
+        title: '',
+        source: '',
+        doi_or_url: '',
+        raw_text: rawText,
+        formatted_apa: rawText,
+        verificada: false,
+      };
+      get().addReference(newRef);
+      get().showToast(
+        `Se creó la ficha de ${autorTxt} (${anioTxt}): completá el título y la fuente.`,
+        'info',
+      );
+      get().runCitationAudit();
+      return { ...newRef, candidates: [] };
     } catch (err: any) {
       get().showToast(err.message || 'Error al buscar referencia', 'error');
       return null;

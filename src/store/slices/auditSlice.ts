@@ -248,6 +248,18 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
           });
           added += 1;
           get().pushActivityEvent('success', `Referencia agregada automáticamente: ${ref.authors?.[0] ?? ''} (${ref.year ?? ''})`, author);
+        } else {
+          /* No está en las bases externas, pero la cita trae autor y año. Se
+             crea la ficha con eso —queda Pendiente, falta título y fuente— en
+             vez de dejar la cita sin ficha. El DOI no es requisito. */
+          const rawText = `${author} (${year}).`;
+          get().addReference({
+            id: `ghost-auto-${Date.now()}-${i}`,
+            authors: [author], year, title: '', source: '', doi_or_url: '',
+            raw_text: rawText, formatted_apa: rawText,
+          });
+          added += 1;
+          get().pushActivityEvent('info', `Ficha creada con lo disponible: ${author} (${year})`, author);
         }
       } catch { /* seguir con la siguiente */ }
     }

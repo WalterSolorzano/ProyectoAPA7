@@ -1472,7 +1472,11 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.confidence = 0.65
             elem.needs_review = True
         else:
-            if elem.type == ElementType.HEADING and not elem.style_name:
+            # Un heading heurístico de bajo score se degrada aunque traiga un
+            # `style_name` ('Normal' es tan común que no absuelve la heurística).
+            if elem.type == ElementType.HEADING and (
+                not elem.style_name or len(words) > 25
+            ):
                 elem.type = ElementType.PARAGRAPH
                 elem.confidence = 0.75
                 elem.needs_review = True

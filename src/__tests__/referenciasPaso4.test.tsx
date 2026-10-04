@@ -271,13 +271,14 @@ describe('la mascota de la fase', () => {
 /* ── Los vacíos son los compartidos ────────────────────────────────────────── */
 
 describe('los estados vacíos', () => {
-  it('los tres grupos vacíos usan EstadoVacio, no un div con texto a mano', () => {
-    /* Los tres textos viejos —"No hay fuentes válidas aún", "No hay entradas
+  it('el grupo activo vacío y el lienzo usan EstadoVacio, no un div con texto a mano', () => {
+    /* Los textos viejos —"No hay fuentes válidas aún", "No hay entradas
        pendientes", "No se detectaron citas huérfanas"— no decían SU CAUSA, que
-       es lo que el componente compartido exige. */
+       es lo que el componente compartido exige. Con las pestañas solo se pinta
+       UNA lista (la activa, vacía) más el vacío del lienzo: dos, no tres. */
     const { container } = montar([], null);
     expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
-      .toBeGreaterThanOrEqual(3);
+      .toBeGreaterThanOrEqual(2);
   });
 
   it('el vacío nombra el filtro que lo dejó así, que es lo único tocable', () => {
@@ -285,17 +286,20 @@ describe('los estados vacíos', () => {
     expect(container.textContent).toMatch(/filtro activo/i);
   });
 
-  it('el detalle sin selección es un vacío con motivo, no un tablero de números', () => {
+  it('sin selección con fuentes, el lienzo es la bibliografía, no un tablero de números', () => {
     /* El tablero de tres cifras que nadie pidió y que el §3 de la barra de
-       calidad prohíbe repetir como si fueran un resultado. */
+       calidad prohíbe repetir como si fueran un resultado. Con fuentes y sin
+       selección el lienzo muestra la página real; sin fuentes no hay página y
+       eso lo cubre el caso siguiente. */
     const { container } = montar([REF], null);
-    expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
-      .toBeGreaterThanOrEqual(1);
+    expect(container.querySelector('[data-testid="bibliografia-completa"]')).toBeTruthy();
     expect(container.textContent).not.toMatch(/Total Fuentes/);
   });
 
-  it('sin documento, el motivo es el de documento ausente', () => {
-    const { container } = montar([REF], 'r1', null, null);
+  it('sin documento y sin fuentes, el motivo es el de documento ausente', () => {
+    /* El vacío de "documento ausente" vive en el lienzo cuando no hay ni
+       documento ni fuentes que mostrar. */
+    const { container } = montar([], null, null, null);
     expect(container.textContent).toMatch(/documento/i);
   });
 });

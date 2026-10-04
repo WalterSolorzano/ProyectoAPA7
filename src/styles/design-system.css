@@ -22,6 +22,13 @@
   --color-accent-hover: #3b66e0;
   --color-accent-pressed: #2b52cc;
   --color-accent-soft: rgba(79, 124, 255, 0.10);
+  /* La tinta PROFUNDA del acento y las piezas de la marca de cita del
+     manuscrito. El azul vivo `#4f7cff` sobre papel blanco se leía como un
+     resaltador fluorescente; estas son las tres piezas juntas —tinta, fondo de
+     la marca y subrayado— para que no divergan. */
+  --color-accent-deep: #2f4a94;
+  --mark-citation-bg: #dde4f2;
+  --mark-citation-ink: #22386e;
   --color-accent-secondary: var(--color-success);
   /* Verde APAGADO (sage) y no el esmeralda saturado anterior (#38a017): el
      estado de verificación no es una alerta, y un verde vivo competía con el
@@ -346,6 +353,12 @@
   --color-accent-hover: #7ba0ff;
   --color-accent-pressed: #3b66e0;
   --color-accent-soft: rgba(79, 124, 255, 0.15);
+  /* En oscuro la tinta profunda se ACLARA: un `#2f4a94` sobre `#18181c` es
+     invisible. La marca conserva la misma jerarquía —tinte apagado, tinta
+     legible, subrayado tenue— sin el azul fluorescente. */
+  --color-accent-deep: #9fb4e6;
+  --mark-citation-bg: rgba(79, 124, 255, 0.18);
+  --mark-citation-ink: #cdd9f2;
   --mark-ai-bg: rgba(156, 163, 175, 0.22);
 
   /* ════════════ ESCALA DE ALFA (OSCURO) ════════════

@@ -5,9 +5,27 @@ precisely and avoid LLM hallucination.
 """
 
 import re
+import unicodedata
 from typing import Dict, List
 
 import networkx as nx
+
+
+_STOPWORDS_SIGLA = {"de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "&"}
+
+
+def _normaliza(texto: str) -> str:
+    if not texto:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', texto.lower())
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _iniciales(texto: str) -> str:
+    """Iniciales de las palabras significativas: 'Organización Internacional del
+    Trabajo' -> 'oit', que es la sigla con la que el texto la cita."""
+    palabras = _normaliza(texto).split()
+    return "".join(p[0] for p in palabras if p and p not in _STOPWORDS_SIGLA)
 
 
 def build_citation_graph(references: List[str]) -> nx.DiGraph:
@@ -34,8 +52,12 @@ def build_citation_graph(references: List[str]) -> nx.DiGraph:
         # Everything before the year is roughly the author(s)
         if year_match:
             author_part = ref_clean[:year_match.start()].strip()
+            # Una sigla entre paréntesis pegada al nombre ("Organización
+            # Internacional del Trabajo (OIT). (2007). ...") se descarta: su
+            # coma interior partía el nombre en dos y dejaba un autor falso.
+            author_part = re.sub(r'\s*\([^)]*\)\s*$', '', author_part).strip()
             # Extract main surname
-            surname = author_part.split(',')[0].strip()
+            surname = author_part.split(',')[0].strip().rstrip('.')
             # The rest is work title (after year)
             work = ref_clean[year_match.end():].strip('. ')
         else:
@@ -63,8 +85,12 @@ def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[D
     """
     issues = []
 
-    # Extract potential citations from text e.g. (Smith, 2019) or Smith (2019)
-    citation_pattern = re.compile(r'([A-Z][a-z]+(?:,\s*[A-Z][a-z]+)*)\s*(?:\(\s*(20\d{2}|19\d{2})\s*\)|\,\s*(20\d{2}|19\d{2}))')
+    # Extract potential citations from text e.g. (Smith, 2019), Smith (2019) or
+    # an all-caps organization acronym, (OIT, 2007).
+    citation_pattern = re.compile(
+        r'([A-Z][a-z]+(?:,\s*[A-Z][a-z]+)*|[A-ZÁÉÍÓÚÑ]{2,6})'
+        r'\s*(?:\(\s*(20\d{2}|19\d{2})\s*\)|\,\s*(20\d{2}|19\d{2}))'
+    )
 
     authors_in_graph = [n for n, d in graph.nodes(data=True) if d.get('type') == 'author']
 
@@ -75,10 +101,17 @@ def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[D
         author_node = f"AUTHOR:{author_raw}"
 
         if author_node not in graph:
-            # Maybe slight mismatch? Check if it exists as substring
+            acro = _normaliza(author_raw)
+            # Maybe slight mismatch? Check if it exists as substring, by
+            # normalized text, or as the initials of the graph's full name.
             found = False
             for ag in authors_in_graph:
-                if author_raw.lower() in ag.lower():
+                label = ag.split('AUTHOR:', 1)[-1]
+                if _normaliza(author_raw) in _normaliza(ag) or _normaliza(label) in _normaliza(author_raw):
+                    found = True
+                    break
+                # "OIT" ↔ "Organización Internacional del Trabajo".
+                if _iniciales(label) == acro:
                     found = True
                     break
 
