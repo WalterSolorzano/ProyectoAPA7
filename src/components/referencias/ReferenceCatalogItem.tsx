@@ -49,12 +49,15 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         style={{
           padding: '11px 13px',
           borderRadius: 'var(--radius-md)',
+          /* Sin caja en reposo: la lista respira y solo la tarjeta activa lleva
+             caja. El borde de hover aparece por CSS (`card-source`), no acá,
+             para no repintar el estilo con cada estado. */
           border: active
             ? '1.5px solid var(--color-accent)'
-            : '1px solid var(--color-border-subtle)',
+            : '1px solid transparent',
           backgroundColor: active
             ? 'var(--color-accent-soft)'
-            : 'var(--color-bg-surface)',
+            : 'transparent',
           cursor: 'pointer',
           position: 'relative',
           overflow: 'hidden',
@@ -198,6 +201,11 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
       </div>
 
       <style>{`
+        .card-source:not(.active):hover,
+        .card-source:not(.active):focus-visible {
+          border-color: var(--color-border-subtle);
+          background-color: var(--color-bg-surface);
+        }
         .card-source .hover-edit-trigger {
           opacity: 0;
           transform: translateX(12px) scale(0.9);

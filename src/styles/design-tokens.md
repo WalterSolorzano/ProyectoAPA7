@@ -19,7 +19,7 @@ La aplicación utiliza el tema **Claro nativo de Microsoft Word 365** por defect
 | `--color-border-strong` | `#cbd5e1` / `rgba(0, 0, 0, 0.15)` | Bordes de inputs y separadores |
 | `--color-accent` / `--accent-primary` | `#4f7cff` | Color de marca WordAPA7: acciones primarias y selección |
 | `--color-accent-hover` | `#3867f6` | Hover de acción primaria |
-| `--color-success` | `#38a017` / `#16a34a` | Semántico: estados exitosos y conformes a APA 7 |
+| `--color-success` | `#2f855a` / `#3f9c6d` | Semántico: estados exitosos y conformes a APA 7 |
 | `--color-warning` | `#d48806` / `#d97706` | Semántico: advertencias y observaciones |
 | `--color-danger` | `#d4382e` / `#dc2626` | Semántico: errores de validación y destrucción |
 

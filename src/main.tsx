@@ -14,6 +14,12 @@ import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
 import '@fontsource/baloo-2/700.css';
 import '@fontsource/baloo-2/800.css';
+/* Newsreader: la serif editorial que usa la cita del acordeón de menciones
+   (`ManuscriptMentionsAccordion`). Sin este import la familia cae a Georgia y
+   la cita se ve distinta según el sistema operativo. */
+import '@fontsource/newsreader/400.css';
+import '@fontsource/newsreader/400-italic.css';
+import '@fontsource/newsreader/500.css';
 import './styles/fluent.css';        // base styles + Tailwind directives
 import './styles/design-system.css'; // dark theme tokens override on top
 

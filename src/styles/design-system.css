@@ -23,7 +23,10 @@
   --color-accent-pressed: #2b52cc;
   --color-accent-soft: rgba(79, 124, 255, 0.10);
   --color-accent-secondary: var(--color-success);
-  --color-success: #38a017;
+  /* Verde APAGADO (sage) y no el esmeralda saturado anterior (#38a017): el
+     estado de verificación no es una alerta, y un verde vivo competía con el
+     acento azul por la mirada. Contraste sobre blanco ≥ 4.5:1. */
+  --color-success: #2f855a;
   --color-warning: #d48806;
   --color-danger: #d4382e;
   --color-info: #4f7cff;
@@ -130,8 +133,8 @@
   --color-danger-a08: rgba(220, 38, 38, 0.08);
   --color-danger-a12: rgba(220, 38, 38, 0.12);
   --color-danger-a30: rgba(220, 38, 38, 0.30);
-  --color-success-a12: rgba(34, 197, 94, 0.12);
-  --color-success-a14: rgba(34, 197, 94, 0.14);
+  --color-success-a12: rgba(47, 133, 90, 0.10);
+  --color-success-a14: rgba(47, 133, 90, 0.13);
 
   /* Los motores de revisión, que son un SEGUNDO conjunto de colores: el
      violeta del detector de IA, el cian de figuras y tablas. No son la
@@ -314,6 +317,7 @@
   --paper-near: #f8fafc;
   --paper-slate: #475569;
   --paper-slate2: #64748b;
+  --paper-slate3: #94a3b8;
 }
 
 /* ════════════ TEMA OSCURO ════════════ */
@@ -383,8 +387,8 @@
   --color-danger-a08: rgba(220, 38, 38, 0.08);
   --color-danger-a12: rgba(220, 38, 38, 0.12);
   --color-danger-a30: rgba(220, 38, 38, 0.30);
-  --color-success-a12: rgba(34, 197, 94, 0.12);
-  --color-success-a14: rgba(34, 197, 94, 0.14);
+  --color-success-a12: rgba(63, 156, 109, 0.16);
+  --color-success-a14: rgba(63, 156, 109, 0.20);
 
   --color-engine-ia: #7c3aed;
   --color-engine-ia-a08: rgba(124, 58, 237, 0.08);
@@ -411,7 +415,7 @@
   --ia-nivel-2: var(--color-engine-ia-a30);
   --ia-nivel-3: var(--color-engine-ia-a65);
   --ia-nivel-4: var(--color-engine-ia);
-  --color-success: #52c41a;
+  --color-success: #3f9c6d;
   --color-warning: #faad14;
   --color-danger: #ff4d4f;
   --color-info: #4f7cff;
@@ -447,6 +451,7 @@
   --paper-near: #f8fafc;
   --paper-slate: #475569;
   --paper-slate2: #64748b;
+  --paper-slate3: #94a3b8;
 
   /* TitleBar overlay (Electron) */
   --titlebar-bg: #18181c;

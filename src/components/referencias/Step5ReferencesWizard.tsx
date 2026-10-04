@@ -10,7 +10,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
-  Trash2, Copy, Sparkles, Check, Pencil,
+  Trash2, Copy, Check, Pencil,
   ChevronRight, RefreshCw, ArrowRight, X, ChevronDown, HelpCircle, FileText
 } from 'lucide-react';
 import { ReferenciaModel } from '../../types';
@@ -85,6 +85,7 @@ export const Step5ReferencesWizard: React.FC = () => {
 
   const [doiQuery, setDoiQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [addMode, setAddMode] = useState<'doi' | 'manual'>('doi');
   const [resolvingGhostIdx, setResolvingGhostIdx] = useState<number | null>(null);
 
@@ -371,27 +372,17 @@ export const Step5ReferencesWizard: React.FC = () => {
                 {references.length} fuentes registradas
               </span>
             </div>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 'var(--space-1) 0 0' }}>
-              Agrupación por estado y verificación bidireccional entre el cuerpo y la bibliografía.
-            </p>
           </div>
         </div>
 
-        {/* Un botón de acento por bloque. La acción principal de ESTA pantalla
-            es agregar una referencia: "Continuar a Auditoría" es navegación, y
-            cuando las dos competían por el acento el botón de adelante ganaba
-            porque estaba más a la derecha. `data-accion="principal"` es lo que
-            permite comprobar que hay una sola, como en el modal de nueva
-            referencia, que tiene su propio bloque. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }} data-accion="principal">
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            style={botonInline(true)}
-          >
-            <Plus size={14} strokeWidth="var(--icon-stroke)" />
-            <span>Nueva referencia</span>
-          </button>
+        {/* La acción principal de ESTA pantalla es agregar una referencia, y
+            ahora vive en un botón CIRCULAR que despliega las tres formas de
+            agregar. Antes era un botón de texto pegado a "Auditar citas" y a
+            "Continuar a Auditoría", y las tres palabras competían en la misma
+            fila. El menú separa la decisión (cómo agregar) del resto.
+            `data-accion="principal"` marca el bloque: el test comprueba que hay
+            un solo bloque de acento en la barra. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <button
             type="button"
             onClick={() => runCitationAudit()}
@@ -409,6 +400,73 @@ export const Step5ReferencesWizard: React.FC = () => {
             <span>Continuar a Auditoría</span>
             <ChevronRight size={14} strokeWidth="var(--icon-stroke)" />
           </button>
+
+          {/* El FAB vive fuera del flujo de botones secundarios: es el único
+              acento de la barra, y por eso el bloque `data-accion="principal"`
+              lo envuelve a él solo. */}
+          <div data-accion="principal" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setShowAddMenu((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={showAddMenu}
+              aria-label="Nueva referencia"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)',
+                height: '38px', padding: '0 var(--space-4) 0 var(--space-3)',
+                borderRadius: 'var(--radius-full)', border: '1px solid var(--color-accent)',
+                background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
+                fontSize: 'var(--text-sm)', fontWeight: 700, fontFamily: 'inherit',
+                cursor: 'pointer', boxShadow: 'var(--shadow-accent)',
+              }}
+            >
+              <Plus size={16} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+              <span>Nueva referencia</span>
+            </button>
+
+            {showAddMenu && (
+              <>
+                {/* Capa invisible que cierra el menú al hacer clic afuera. */}
+                <div
+                  onClick={() => setShowAddMenu(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  aria-hidden="true"
+                />
+                <div
+                  aria-label="Formas de agregar una referencia"
+                  style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50,
+                    width: '280px', padding: 'var(--space-2)',
+                    background: 'var(--color-bg-surface)',
+                    border: '1px solid var(--color-border-strong)',
+                    borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                    display: 'flex', flexDirection: 'column', gap: '2px',
+                  }}
+                >
+                  <MenuItem
+                    icon={Link2}
+                    title="DOI o enlace"
+                    detail="Extrae los metadatos automáticamente"
+                    onClick={() => { setShowAddMenu(false); setAddMode('doi'); setShowAddModal(true); }}
+                  />
+                  <MenuItem
+                    icon={Pencil}
+                    title="Entrada manual"
+                    detail="Escribes autor, año y título"
+                    onClick={() => { setShowAddMenu(false); setAddMode('manual'); setShowAddModal(true); }}
+                  />
+                  <MenuItem
+                    icon={FileText}
+                    title="Importar .bib / .ris"
+                    detail="Desde Zotero o Mendeley"
+                    disabled
+                    disabledNote="Requiere el conversor del motor"
+                    onClick={() => {}}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -646,13 +704,11 @@ export const Step5ReferencesWizard: React.FC = () => {
               </div>
 
               {/* Etiqueta + hoja de papel: exactamente el texto que va al
-                  documento, no uno compuesto en el render. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <Sparkles size={14} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
-                  Como sale en la bibliografía
-                </span>
-              </div>
+                  documento, no uno compuesto en el render. Sin ícono ni
+                  adorno: la palabra sola dice lo que es. */}
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
+                Bibliografía
+              </span>
 
               <article
                 style={{
@@ -906,11 +962,11 @@ const Grupo: React.FC<{
 }> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, children }) => (
   <section
     style={{
-      display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-      padding: 'var(--space-3) var(--space-4)',
-      border: '1px solid var(--color-border-subtle)',
-      borderRadius: 'var(--radius-md)',
-      background: 'var(--color-bg-surface)',
+      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+      /* Sin caja: el grupo es un encabezado sobre una lista, no un contenedor.
+         Antes tenía borde y fondo propios, y con la tarjeta de cada referencia
+         adentro quedaban cajas dentro de cajas. */
+      padding: 0,
     }}
   >
     <button
@@ -923,19 +979,20 @@ const Grupo: React.FC<{
         background: 'transparent', border: 'none', textAlign: 'left',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <Icon size={16} strokeWidth="var(--icon-stroke)" color={tono} />
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-            {titulo} ({conteo})
-          </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
+        <Icon size={15} strokeWidth="var(--icon-stroke)" color={tono} />
+        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>
+          {titulo}
+        </span>
+        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', opacity: 0.7 }}>
+          {conteo}
         </span>
         {detalle && (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', paddingLeft: '24px' }}>
-            {detalle}
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', opacity: 0.8 }}>
+            · {detalle}
           </span>
         )}
-      </div>
+      </span>
       <ChevronDown
         size={15}
         strokeWidth="var(--icon-stroke)"
@@ -945,6 +1002,52 @@ const Grupo: React.FC<{
     </button>
     {abierto && <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>{children}</div>}
   </section>
+);
+
+/**
+ * Una opción del menú que despliega el FAB de "Nueva referencia".
+ *
+ * Es un `role="menuitem"` con icono, título y una línea que dice qué hace, para
+ * que la decisión (cómo agregar la fuente) se lea antes de abrir el modal. El
+ * estado `disabled` no es decorativo: la importación .bib/.ris todavía no tiene
+ * conversor en el motor, así que en vez de esconder la opción se muestra apagada
+ * con la razón — una opción que desaparece deja al autor preguntándose si se
+ * equivocó de pantalla.
+ */
+const MenuItem: React.FC<{
+  icon: typeof CheckCircle2;
+  title: string;
+  detail: string;
+  onClick: () => void;
+  disabled?: boolean;
+  disabledNote?: string;
+}> = ({ icon: Icon, title, detail, onClick, disabled, disabledNote }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    style={{
+      display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
+      width: '100%', padding: 'var(--space-2) var(--space-3)',
+      border: 'none', borderRadius: 'var(--radius-sm)',
+      background: 'transparent', textAlign: 'left', fontFamily: 'inherit',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? 0.55 : 1,
+    }}
+  >
+    <Icon
+      size={16}
+      strokeWidth="var(--icon-stroke)"
+      aria-hidden="true"
+      style={{ color: 'var(--color-accent)', flexShrink: 0, marginTop: '2px' }}
+    />
+    <span style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>{title}</span>
+      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+        {disabled && disabledNote ? disabledNote : detail}
+      </span>
+    </span>
+  </button>
 );
 
 /**

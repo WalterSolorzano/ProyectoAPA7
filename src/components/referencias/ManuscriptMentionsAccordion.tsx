@@ -112,10 +112,11 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
-          backgroundColor: 'var(--color-bg-surface)',
-          border: '1px solid var(--color-border-subtle)',
-          borderRadius: 'var(--radius-md)',
+          padding: '8px 0',
+          backgroundColor: 'transparent',
+          border: 'none',
+          borderBottom: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--radius-none)',
           cursor: 'pointer',
           textAlign: 'left',
           transition: 'background-color var(--transition-fast)',
@@ -123,25 +124,15 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <BookOpen size={18} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
-          <div>
-            <div
-              style={{
-                fontSize: 'var(--text-sm, 14px)',
-                fontWeight: 700,
-                color: 'var(--color-text-primary)',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              Aparición en el Manuscrito
-            </div>
-            <div
-              style={{
-                fontSize: 'var(--text-xs, 12px)',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Ver los párrafos donde se cita esta obra
-            </div>
+          <div
+            style={{
+              fontSize: 'var(--text-sm)',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Aparición en el Manuscrito
           </div>
         </div>
 
@@ -211,7 +202,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
               </div>
               <div
                 style={{
-                  fontSize: 'var(--text-base, 15px)',
+                  fontSize: 'var(--text-base)',
                   fontWeight: 700,
                   color: 'var(--color-text-primary)',
                 }}
@@ -221,7 +212,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
               <p
                 style={{
                   margin: 0,
-                  fontSize: 'var(--text-sm, 13px)',
+                  fontSize: 'var(--text-sm)',
                   lineHeight: 1.5,
                   color: 'var(--color-text-secondary)',
                   maxWidth: '480px',
@@ -238,7 +229,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                   gap: '6px',
                   marginTop: '4px',
                   padding: '7px 14px',
-                  fontSize: 'var(--text-xs, 12px)',
+                  fontSize: 'var(--text-xs)',
                   fontWeight: 600,
                   color: 'var(--color-text-primary)',
                   backgroundColor: 'var(--color-bg-surface)',
@@ -263,10 +254,9 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                   className="mention-quote-card"
                   style={{
                     backgroundColor: 'var(--color-bg-surface)',
-                    borderRadius: 'var(--radius-lg)',
+                    borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--color-border-subtle)',
-                    boxShadow: 'var(--shadow-sm)',
-                    padding: '20px 24px',
+                    padding: '16px 20px',
                     position: 'relative',
                     display: 'flex',
                     flexDirection: 'column',
@@ -402,7 +392,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         alignItems: 'center',
                         gap: '6px',
                         padding: '5px 12px',
-                        fontSize: 'var(--text-xs, 12px)',
+                        fontSize: 'var(--text-xs)',
                         fontWeight: 600,
                         color: 'var(--color-accent)',
                         backgroundColor: 'var(--color-accent-soft)',

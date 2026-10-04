@@ -322,7 +322,9 @@ describe('la jerarquía de acciones', () => {
 
   it('el modal conserva sus dos modos: DOI y entrada manual', () => {
     /* El modal no se toca en esta fase, pero si al migrar los botones se
-       hubiera caído un modo, nadie lo notaría hasta que alguien lo use. */
+       hubiera caído un modo, nadie lo notaría hasta que alguien lo use.
+       "Nueva referencia" ahora despliega un menú: el modal abre al elegir
+       una de sus dos entradas. */
     montar([REF]);
     /* `fireEvent`, no `.click()` directo: el `.click()` de DOM native no lo
        envuelve en `act` y el modal no llega a pintarse antes del assert. */
@@ -354,7 +356,11 @@ describe('el campo de DOI acepta un bloque', () => {
 
   const abrirModoDoi = () => {
     montar([REF]);
+    /* El FAB despliega el menú; elegir "DOI o enlace" abre el modal en ese
+       modo. Dos clicks en vez de uno es el precio de separar la decisión
+       (cómo agregar) del resto de la barra. */
     fireEvent.click(screen.getByRole('button', { name: /nueva referencia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /doi|crossref/i }));
   };
 
   it('el campo es un área de texto, no una línea', () => {
