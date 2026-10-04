@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download, Check, Map, ChevronDown, ChevronUp, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { OutlineTree } from './OutlineTree';
+import { readPhaseStates } from '../../lib/railPending';
 
 const STEPS = [
   { step: 1, label: 'Portada', Icon: FileText },
@@ -21,6 +22,8 @@ export function StepRail() {
   const setLeftSidebarWidth = useDocStore((s) => s.setLeftSidebarWidth);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const reviewResult = useDocStore((s) => s.reviewResult);
+  const portada = useDocStore((s) => s.portada);
   const [mapOpen, setMapOpen] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -48,25 +51,30 @@ export function StepRail() {
   const showMap = wizardStep === 2 || wizardStep === 3 || wizardStep === 4;
 
   const elements = doc?.elements || [];
-  const pendingHeadings = elements.filter((e) => e.type === 'heading' && e.needs_review).length;
-  const pendingFigures = elements.filter(
-    (e) => (e.type === 'image' || e.type === 'table') && e.needs_review,
-  ).length;
   const hasReferences = (doc?.referencias?.length || 0) > 0;
-  const pendingAuditCount = proofreadFindings.length + (citationAuditResult?.ghost_citations?.length || 0);
+
+  // Conteo único de pendientes por fase: fuente compartida (src/lib/railPending.ts).
+  const pendingByPhase = readPhaseStates({
+    elements,
+    reviewResult,
+    proofreadFindings,
+    citationAuditResult,
+    portada,
+  });
 
   const doneByStep: Record<number, boolean> = {
     1: coverSetupDone,
-    2: !!doc && pendingHeadings === 0,
-    3: !!doc && pendingFigures === 0,
+    2: !!doc && pendingByPhase[2] === 0,
+    3: !!doc && pendingByPhase[3] === 0,
     4: hasReferences,
-    5: !!doc && pendingAuditCount === 0,
+    5: !!doc && pendingByPhase[5] === 0,
   };
 
   const badgeByStep: Record<number, number> = {
-    2: pendingHeadings,
-    3: pendingFigures,
-    5: pendingAuditCount,
+    2: pendingByPhase[2],
+    3: pendingByPhase[3],
+    4: pendingByPhase[4],
+    5: pendingByPhase[5],
   };
 
   const isCollapsed = leftSidebarWidth < 100;

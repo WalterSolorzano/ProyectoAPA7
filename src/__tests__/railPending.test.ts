@@ -37,4 +37,13 @@ describe('pendingCountForPhase', () => {
     const states = readPhaseStates(base);
     expect(Object.keys(states).sort()).toEqual(['1', '2', '3', '4', '5']);
   });
+
+  it('la fase 4 cuenta citas fantasma y la 5 no devuelve 0', () => {
+    const input = {
+      ...base,
+      citationAuditResult: { ghost_citations: [{ citation_text: 'x' }], orphan_references: [] },
+    };
+    expect(pendingCountForPhase(4, input)).toBe(1);
+    expect(pendingCountForPhase(5, input)).toBeGreaterThanOrEqual(1);
+  });
 });

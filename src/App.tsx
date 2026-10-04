@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useDocStore, migrateDocument } from './store/useDocStore';
-import { needsReview } from './lib/portadaAuthors';
+import { pendingCountForPhase as railPendingCount } from './lib/railPending';
 import { UnifiedToolbar } from './components/toolbar/UnifiedToolbar';
 import { ProjectTabs } from './components/layout/ProjectTabs';
 import { FileMenu } from './components/layout/FileMenu';
@@ -52,31 +52,15 @@ import { X, Sparkles } from 'lucide-react';
 */
 
 const pendingCountForPhase = (phaseId: number) => {
-  const doc = useDocStore.getState().doc;
-  if (!doc) return 0;
-
-  // Step 1: Portada — verificar si faltan campos requeridos
-  if (phaseId === 1) {
-    const portada = useDocStore.getState().portada;
-    let pending = 0;
-    if (!portada.title?.trim()) pending++;
-    if (!portada.author?.trim()) pending++;
-    return pending;
-  }
-
-  // Step 2: Estructura (headings pending review)
-  if (phaseId === 2) {
-    return doc.elements.filter((e) => e.type === 'heading' && needsReview(e as any)).length;
-  }
-
-  // Step 3: Figuras y tablas (figures + tables pending review)
-  if (phaseId === 3) {
-    const figures = doc.elements.filter((e) => e.type === 'image' && e.image_info && (e.image_info.figure_number || 0) > 0 && !(e.image_info as any).render_error && needsReview(e as any)).length;
-    const tables = doc.elements.filter((e) => e.type === 'table' && e.table_info && (e.table_info.table_number || 0) > 0 && needsReview(e as any)).length;
-    return figures + tables;
-  }
-
-  return 0;
+  const s = useDocStore.getState();
+  if (!s.doc) return 0;
+  return railPendingCount(phaseId, {
+    elements: s.doc.elements,
+    reviewResult: s.reviewResult,
+    proofreadFindings: s.proofreadFindings || [],
+    citationAuditResult: s.citationAuditResult,
+    portada: s.portada,
+  });
 };
 
 /** Toggle bar for step 2 (Estructura): Títulos | Cuerpo */
