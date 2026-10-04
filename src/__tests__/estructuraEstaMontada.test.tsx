@@ -1,30 +1,24 @@
 /**
- * EL GUARDIÁN DE LA MONTAJE. Este archivo existe por un hecho, no por una idea:
- * `src/components/structure/` tenía SIETE componentes terminados, con sus
+ * EL GUARDIÁN DEL MONTAJE. Este archivo existe por un hecho, no por una idea:
+ * `src/components/structure/` llegó a tener componentes terminados, con sus
  * pruebas en verde, y CERO importadores fuera de la propia carpeta. Un trabajo
  * terminado que no llega a la pantalla no está terminado: está guardado.
  *
- * Por eso hay dos pruebas y las dos son negativas:
+ * EL REDISEÑO «CANÓNICO UNIFICADO» (spec
+ * `2026-10-03-estructura-redesign-design.md`) volvió a una sola fase montada:
+ * `EscritorioEstructura`, con tres columnas —esquema, diagrama y panel—. La
+ * cadena anatómica (`EstudioEstructuraView → EsqueletoNavegacion,
+ * DiagramaAnatomicoSVG, InspectorActivosSeccion`) se absorbió y se borró.
  *
- *   1. la fase de Estructura MONTA el índice, no el documento entero. El
- *      defecto reportado fue que el centro era el archivo vomitado, y un centro
- *      que se puede volver a ensuciar no se arregla con un commit.
+ * Las pruebas siguen siendo negativas y ancladas al DISCO:
  *
- *   2. cada componente de la carpeta tiene un importador, y los nombres se LEEN
- *      DEL DISCO. Nada de lista escrita a mano: la lista escrita a mano es la
- *      misma tautología que hay que evitar —agrega un componente, no lo
- *      montás, la guarda sigue verde porque no lo conocía—. Si mañana aparece un
- *      noveno archivo en la carpeta, esta prueba lo mira sin que nadie la toque.
+ *   1. la fase monta el esquema y el diagrama, y NO el documento entero;
+ *   2. tocar un título abre la prosa de esa sección;
+ *   3. cada `.tsx` de la carpeta tiene un importador, y los nombres se LEEN.
  *
- * LOS `__tests__` NO CUENTAN COMO MONTADA UNA COSA. Una prueba que importa un
- * componente para probarlo no lo pone en pantalla; si contara, la guarda de
- * arriba habría pasado con los siete archivos huérfanos y sus cuatro archivos
- * de prueba.
- *
- * Y el LECTOR DE FUENTES: `?raw` sobre `.ts`/`.tsx`, que es lo que funciona
- * acá. NO sirve para `.css` —el runner tiene `css: false` y devuelve cadena
- * vacía—, y para una hoja se usa el rodeo del specifier en variable que ya
- * hacen `designTokens.test.ts` y `noHardcodedColors.test.ts`.
+ * LOS `__tests__` NO CUENTAN COMO MONTADA UNA COSA: una prueba que importa un
+ * componente para probarlo no lo pone en pantalla, así que ni sus nombres entran
+ * a la lista de componentes ni sus imports cuentan como importadores.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
@@ -53,26 +47,16 @@ const FUENTES = import.meta.glob('/src/**/*.{ts,tsx}', {
 
 const CARPETA = '/src/components/structure/';
 
-/** Los nombres de la carpeta, LEÍDOS. Nunca escritos. */
+/** Los nombres de los COMPONENTES de la carpeta, LEÍDOS. Nunca escritos. */
 const NOMBRES_DE_LA_CARPETA: string[] = Object.keys(FUENTES)
   .filter((ruta) => ruta.startsWith(CARPETA) && ruta.endsWith('.tsx'))
-  .map((ruta) => ruta.slice(CARPETA.length).replace(/\.tsx$/, ''));
+  .map((ruta) => ruta.slice(CARPETA.length).replace(/\.tsx$/, ''))
+  .filter((nombre) => !nombre.includes('.test'));
 
 /**
- * Cuántos archivos, fuera de las pruebas, importan cada componente.
- *
- * Se cuenta el IMPORT, no el archivo: la cadena de montaje va
- * `App.tsx → EscritorioEstructura → los otros seis`, así que a un componente lo
- * importa `./IndiceEstructura` y a otro `./components/structure/…` desde el
- * ensamblado. Lo que se busca es el specifier cuyo último segmento es el
- * nombre, con barra antes, y no el nombre suelto: el nombre suelto aparece en
- * los comentarios, en las pruebas y en los `import type`.
- *
- * Los `__tests__` quedan afuera: una prueba que importa un componente para
- * probarlo no lo pone en pantalla. Y la raíz de la cadena no se da por buena
- * sola —que `App.tsx` monte el compositor y no un recorte lo afirma la prueba
- * de alcance—, porque un árbol de importaciones que arranca en un módulo que
- * nadie monta tiene la misma existencia que un componente sin importador.
+ * Cuántos archivos, fuera de las pruebas, importan cada componente. Se cuenta
+ * el IMPORT, no el archivo: el specifier cuyo último segmento es el nombre, con
+ * barra antes, y no el nombre suelto —que aparece en comentarios y pruebas—.
  */
 function contarImportadores(carpeta: string): Record<string, number> {
   const cuenta: Record<string, number> = {};
@@ -126,21 +110,16 @@ const ELEMENTOS: ElementModel[] = [
 ];
 
 /**
- * Monta la fase de Estructura con un documento cargado.
- *
- * Se monta el componente al que el rail lleva cuando se pulsa "Estructura" —
-  `EscritorioEstructura`—, no un esqueleto: montar un recortes que se parece a
- * la pantalla es la forma de que la guarda passe por haber mirado la coisa
- * equivocada. Que `App.tsx` lo monte de verdad lo vigila la tercera prueba, y
- * no se puede sustituir por goodwill.
+ * Monta la fase de Estructura con un documento cargado. Se monta la superficie
+ * viva —`EscritorioEstructura`—, no un recorte que se parece a la pantalla.
  */
-function montarFase(_fase: 'estructura') {
+function montarCon(elementos: ElementModel[]) {
   act(() => {
     useDocStore.setState({
       doc: {
         session_id: 's-f3',
         file_name: 'Tesis.docx',
-        elements: ELEMENTOS,
+        elements: elementos,
         referencias: [],
         meta: { page_count: 12 },
       } as never,
@@ -149,109 +128,82 @@ function montarFase(_fase: 'estructura') {
       citationAuditResult: null,
     });
   });
-  return render(<EscritorioEstructura documento={<div data-testid="documento-real" />} />);
+  return render(<EscritorioEstructura />);
 }
+
+const montarFase = () => montarCon(ELEMENTOS);
 
 beforeEach(() => {
   secuencia = 0;
 });
 
 describe('la fase de Estructura está montada', () => {
-  it('la fase de Estructura monta el indice, no el documento entero', () => {
-    montarFase('estructura');
+  it('monta el esquema y el diagrama, y no el documento entero', () => {
+    montarFase();
     expect(screen.getByTestId('indice-estructura')).toBeTruthy();
-    /* Y el documento NO aparece: es un toggle apagado. Un centro que se puede
-       volver a ensuciar no lo arregla un commit, lo arregla una prueba. */
+    expect(screen.getByTestId('diagrama-estructura')).toBeTruthy();
     expect(screen.queryByTestId('documento-completo')).toBeNull();
-    expect(screen.queryByTestId('documento-real')).toBeNull();
   });
 
-  it('sin nodo elegido el inspector dice qué hacer, en vez de dejar un hueco', () => {
-    montarFase('estructura');
-    expect(screen.getByRole('status').textContent).toMatch(/elegí un capítulo/i);
+  it('el panel derecho ofrece Prosa y Herramientas', () => {
+    montarFase();
+    expect(screen.getByRole('tab', { name: /prosa/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /herramientas/i }));
+    expect(screen.getByTestId('panel-herramientas')).toBeTruthy();
   });
 
-  it('el pulso de cinco números YA NO ESTÁ: no se mide lo que no se acciona', () => {
-    /* La tira de palabras / balance / fases que faltan / figuras sin leyenda /
-       referencias sin citar se borró. Palabras y balance son métricas sin acción;
-       las otras tres duplicaban algo que ya vive donde se acciona (figuras en su
-       fase, referencias en el rail, fases que faltan en `FaltasApa7`, que está en
-       esta misma pantalla). Esta guarda existe para que nadie la reintroduzca
-       como una tira muda arriba del trabajo: si vuelve, vuelve como superficie
-       propia y con su prueba. */
-    montarFase('estructura');
-    expect(screen.queryByLabelText('Pulso del documento')).toBeNull();
-    expect(screen.queryByText('Palabras')).toBeNull();
-  });
+  it('tocar un título abre la prosa de esa sección', () => {
+    montarFase();
+    /* Estando en Herramientas, tocar el título debe volver a Prosa con la
+       sección elegida: es el gesto que el usuario pidió explícitamente. */
+    fireEvent.click(screen.getByRole('tab', { name: /herramientas/i }));
+    expect(screen.getByTestId('panel-herramientas')).toBeTruthy();
 
-  it('elegir un nodo abre su rama, con las cuatro acciones y su alcance a la vista', () => {
-    const { container } = montarFase('estructura');
     fireEvent.click(screen.getByText('2. Metodología'));
-    const rama = screen.getByLabelText(/^Rama 2\. Metodología$/);
-    expect(rama).toBeTruthy();
-    /* El alcance se PINTA al lado de cada botón: "mover" sin alcance es una
-       amenaza, y con alcance es una operación. */
-    expect(container.textContent).toMatch(/\(esta rama\)/);
-    /* Y la sección de APA 7 está, diciendo que no hay lista de fases obligatorias
-       en vez de inventarla. */
-    expect(screen.getByLabelText('Faltas de APA 7')).toBeTruthy();
-    expect(container.textContent).toMatch(/no expone qué secciones exige APA 7/i);
+    const prosa = screen.getByTestId('prosa-seccion');
+    expect(prosa.textContent).toContain('2. Metodología');
+    expect(screen.queryByTestId('panel-herramientas')).toBeNull();
   });
 
-  it('el mapa es un toggle dentro del indice y el documento otro, y no se ven juntos', () => {
-    const { container } = montarFase('estructura');
-    fireEvent.click(screen.getByRole('button', { name: /ver el mapa/i }));
-    expect(container.querySelector('[data-testid="mapa-estructura"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="documento-completo"]')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: /ver el documento/i }));
-    expect(container.querySelector('[data-testid="documento-completo"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="mapa-estructura"]')).toBeNull();
+  it('sin encabezados, el esquema dice que no hay estructura que medir', () => {
+    montarCon([parrafo(10)]);
+    expect(screen.getByRole('status')).toBeTruthy();
   });
 
   it('la fase es alcanzable desde el rail: App.tsx la monta, no un recorte', () => {
-    /* El grep de importadores de abajo ya exige que alguien la importe; esto
-       exige que sea el ENSAMBLADO, que es lo que el rail promises. Un
-       componente importado por un módulo que nadie monta tiene la misma
-       existencia que uno sin importador. */
     const app = FUENTES['/src/App.tsx'];
     expect(app, 'App.tsx no está entre los fuentes leídos').toBeTruthy();
     expect(app).toMatch(/from '\.\/components\/structure\/EscritorioEstructura'/);
-    /* Y la fase 2 lo muestra sin que haya que tocar un flag raro. */
-    expect(app).toMatch(/structureTab === 'indice'\s*\?\s*<EscritorioEstructura/);
+    expect(app).toMatch(/<EscritorioEstructura \/>/);
   });
 });
 
 describe('todos los componentes de structure/ están montados en algún lado', () => {
   it('el guard ve la carpeta entera, y la lista no está escrita a mano', () => {
-    /* Si el glob dejara de mirar, las dos pruebas de abajo pasarían sin haber
-       leído un archivo: es el modo de fallo más barato de una guarda de código. */
     expect(NOMBRES_DE_LA_CARPETA.length).toBeGreaterThanOrEqual(7);
-    expect(NOMBRES_DE_LA_CARPETA).toContain('IndiceEstructura');
     expect(NOMBRES_DE_LA_CARPETA).toContain('EscritorioEstructura');
+    expect(NOMBRES_DE_LA_CARPETA).toContain('IndiceEstructura');
+    expect(NOMBRES_DE_LA_CARPETA).toContain('MapaEstructura');
   });
 
   it('cada componente de la carpeta tiene un importador', () => {
     const usos = contarImportadores(CARPETA);
     const huerfanos = NOMBRES_DE_LA_CARPETA.filter((n) => (usos[n] ?? 0) === 0);
-    expect(huerfanos, `componentes de structure/ que nadie usa: ${huerfanos.join(', ')}`).toEqual([]);
+    expect(huerfanos, `componentes de structure/ que nadie usa: ${huerfanos.join(', ')}`).toEqual(
+      [],
+    );
   });
 
-  it('el documento entero no es el centro por omisión, ni en el código ni pintado', () => {
-    /* Las dos mitades. La primera es la regla; la segunda es que la regla siga
-       sirviendo de algo cuando alguien la cambie sin querer. */
-    const escritorio = FUENTES[CARPETA + 'EscritorioEstructura.tsx'];
-    expect(escritorio).not.toMatch(/useState<VistaEstructura>\(\s*'documento'/);
-    montarFase('estructura');
-    expect(screen.queryByTestId('documento-completo')).toBeNull();
+  it('ningún componente de la carpeta usa un <select>', () => {
+    const conSelect = NOMBRES_DE_LA_CARPETA.filter((n) =>
+      /<select\b/i.test(FUENTES[CARPETA + `${n}.tsx`] ?? ''),
+    );
+    expect(conSelect, `componentes con <select>: ${conSelect.join(', ')}`).toEqual([]);
   });
 });
 
 describe('la fase de un elemento la dice el backend, y no se re-deriva', () => {
   it('un hallazgo con fase le da la fase al elemento, y uno general no', () => {
-    /* `RULE_SCOPES` mapea regla → ámbito; un error de ortografía no abre
-       ámbito. Si esta función devolviera 'global' para un hallazgo general, el
-       índice metería un párrafo en la fase equivocada. */
     const elementos = [{ id: 'h1' }, { id: 'p1' }];
     const fases = fasesConocidasDe(elementos, [
       { element_id: 'h1', phase: 'metodo' },
