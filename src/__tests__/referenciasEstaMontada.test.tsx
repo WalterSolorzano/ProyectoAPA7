@@ -37,7 +37,7 @@ const SIN_COMENTARIOS = (f: string) => f
 
 const CARPETA = '/src/components/referencias/';
 const NOMBRES = Object.keys(FUENTES)
-  .filter((r) => r.startsWith(CARPETA) && r.endsWith('.tsx'))
+  .filter((r) => r.startsWith(CARPETA) && r.endsWith('.tsx') && !r.includes('/__tests__/'))
   .map((r) => r.slice(CARPETA.length).replace(/\.tsx$/, ''));
 
 describe('la superficie de referencias está montada', () => {
@@ -59,8 +59,15 @@ describe('la superficie de referencias está montada', () => {
        La primera version del archivo no la tenia, y se cazo mutando el glob a
        `{}`: seis pruebas se cayeron y dos de las ocho seguian verdes. Dos
        verdes sobre un glob vacio es un guardian que no vigila nada. */
-    expect(NOMBRES).toHaveLength(2);
-    expect(NOMBRES.sort()).toEqual(['ReferenceForm', 'Step5ReferencesWizard']);
+    expect(NOMBRES).toHaveLength(6);
+    expect(NOMBRES.sort()).toEqual([
+      'ManuscriptMentionsAccordion',
+      'ReferenceCatalogItem',
+      'ReferenceEditModal',
+      'ReferenceForm',
+      'ReferenceRailFilter',
+      'Step5ReferencesWizard'
+    ]);
   });
 
   /* La guarda de verdad. Para cada componente de la carpeta, su nombre tiene

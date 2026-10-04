@@ -26,6 +26,10 @@ import {
 import { EditorialMascot } from '../layout/EditorialMascot';
 import { EstadoVacio } from '../shared/EstadoVacio';
 import { Seccion } from '../settings/tabs/word/Seccion';
+import { ReferenceRailFilter, ReferenceFilterType } from './ReferenceRailFilter';
+import { ReferenceCatalogItem } from './ReferenceCatalogItem';
+import { ManuscriptMentionsAccordion } from './ManuscriptMentionsAccordion';
+import { ReferenceEditModal } from './ReferenceEditModal';
 
 /**
  * El texto que va al documento. Sin último recurso que INVENTE: si no hay
@@ -97,6 +101,10 @@ export const Step5ReferencesWizard: React.FC = () => {
   const [openValid, setOpenValid] = useState(true);
   const [openUnverified, setOpenUnverified] = useState(true);
   const [openGhosts, setOpenGhosts] = useState(true);
+
+  // Filtro de rail y modal de edición
+  const [railFilter, setRailFilter] = useState<ReferenceFilterType>('all');
+  const [editingRef, setEditingRef] = useState<ReferenciaModel | null>(null);
 
   // Reference activa
   const selectedRef = useMemo(() => {
@@ -252,6 +260,34 @@ export const Step5ReferencesWizard: React.FC = () => {
       };
     }));
     showToast('Ficha bibliográfica actualizada', 'success');
+  };
+
+  const handleSaveModalRef = (updated: Partial<ReferenciaModel>) => {
+    if (!editingRef) return;
+    const authorsArr = updated.authors || editingRef.authors || [];
+    const yr = updated.year?.trim() || editingRef.year || 's.f.';
+    const title = updated.title !== undefined ? updated.title.trim() : editingRef.title;
+    const source = updated.source !== undefined ? updated.source.trim() : (editingRef.source || '');
+    const doi = updated.doi_or_url !== undefined ? updated.doi_or_url.trim() : (editingRef.doi_or_url || '');
+    const authorsStr = authorsArr.join(', ');
+    const formatted = `${authorsStr} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
+
+    updateReferences(references.map((r) => {
+      if (r.id !== editingRef.id) return r;
+      return {
+        ...r,
+        ...updated,
+        authors: authorsArr.length ? authorsArr : ['Autor'],
+        year: yr,
+        title,
+        source,
+        doi_or_url: doi || undefined,
+        formatted_apa: formatted,
+        raw_text: formatted,
+      };
+    }));
+    setEditingRef(null);
+    showToast('Referencia actualizada con éxito', 'success');
   };
 
   function ghostText(g: any): string {

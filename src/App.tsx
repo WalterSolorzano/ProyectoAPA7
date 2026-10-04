@@ -674,7 +674,7 @@ export const App: React.FC = () => {
             </div>
           </div>
           {/* Mapa del documento y panel contextual: activo únicamente en paso 3 */}
-          {wizardStep === 3 && !focusMode && <RightSidePanel />}
+          {wizardStep !== 4 && wizardStep !== 5 && wizardStep !== 6 && !focusMode && <RightSidePanel />}
         </div>
       )}
 
