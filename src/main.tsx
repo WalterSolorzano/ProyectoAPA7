@@ -20,6 +20,14 @@ import '@fontsource/baloo-2/800.css';
 import '@fontsource/newsreader/400.css';
 import '@fontsource/newsreader/400-italic.css';
 import '@fontsource/newsreader/500.css';
+/* Outfit: títulos de interfaz (esquema y chips de Estructura). JetBrains Mono:
+   los conteos numéricos. Sin estos imports ambas familias caían al sistema. */
+import '@fontsource/outfit/500.css';
+import '@fontsource/outfit/600.css';
+import '@fontsource/outfit/700.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import '@fontsource/jetbrains-mono/700.css';
 import './styles/fluent.css';        // base styles + Tailwind directives
 import './styles/design-system.css'; // dark theme tokens override on top
 

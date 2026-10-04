@@ -27,15 +27,22 @@
      estado de verificación no es una alerta, y un verde vivo competía con el
      acento azul por la mirada. Contraste sobre blanco ≥ 4.5:1. */
   --color-success: #2f855a;
-  --color-warning: #d48806;
+  --color-warning: #c0562e;
   --color-danger: #d4382e;
   --color-info: #4f7cff;
   --color-navy-header: #1e293b;
   --color-navy-header-text: #ffffff;
+  /* Secundarios del rediseño de Estructura: combinan con el azul de acento.
+     El teal es el nivel H2 y el indigo el H3 del diagrama; el navy es la tinta
+     de los títulos editoriales (papel APA). */
+  --color-secondary: #0d9488;
+  --color-secondary-soft: rgba(13, 148, 136, 0.12);
+  --color-ink: #1e3a5f;
+  --color-level-3: #6366f1;
   /* Tintes de severidad (vista de revisión) — definidos UNA sola vez y
      estables en ambos temas para conservar el valor computado exacto. */
   --severity-critical-soft: rgba(220, 38, 38, 0.12);
-  --severity-warning-soft: rgba(217, 119, 6, 0.12);
+  --severity-warning-soft: rgba(192, 86, 46, 0.12);
   --severity-info-soft: rgba(59, 130, 246, 0.12);
   /* Fondo del resaltado del detector probabilístico de IA. Definido UNA sola
      vez por tema: en claro sobre superficie blanca, en oscuro con más alfa
@@ -124,11 +131,11 @@
      insignia. Antes cada uno escribía su propio `rgba` con el alfa que le
      parecía bien, y por eso había seis rosados distintos para el mismo
      "esto es una advertencia". */
-  --color-warning-a05: rgba(217, 119, 6, 0.05);
-  --color-warning-a08: rgba(217, 119, 6, 0.08);
-  --color-warning-a12: rgba(245, 158, 11, 0.12);
-  --color-warning-a30: rgba(245, 158, 11, 0.30);
-  --color-warning-a40: rgba(245, 158, 11, 0.40);
+  --color-warning-a05: rgba(192, 86, 46, 0.05);
+  --color-warning-a08: rgba(192, 86, 46, 0.08);
+  --color-warning-a12: rgba(192, 86, 46, 0.12);
+  --color-warning-a30: rgba(192, 86, 46, 0.30);
+  --color-warning-a40: rgba(192, 86, 46, 0.40);
   --color-danger-a05: rgba(220, 38, 38, 0.05);
   --color-danger-a08: rgba(220, 38, 38, 0.08);
   --color-danger-a12: rgba(220, 38, 38, 0.12);
@@ -169,6 +176,9 @@
   /* ════════════ 2 · TIPOGRAFÍA ════════════ */
   --font-sans: 'Inter', 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'Consolas', 'Courier New', monospace;
+  /* Títulos de interfaz (esquema, chips) y cuerpo editorial (hoja APA). */
+  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-editorial: 'Newsreader', 'Georgia', serif;
   --text-xs: 11px;
   --text-sm: 13px;
   --text-base: 14px;
@@ -317,7 +327,6 @@
   --paper-near: #f8fafc;
   --paper-slate: #475569;
   --paper-slate2: #64748b;
-  --paper-slate3: #94a3b8;
 }
 
 /* ════════════ TEMA OSCURO ════════════ */
@@ -378,11 +387,11 @@
      se repiten con el MISMO valor. No es que "no haga falta" declararlos: un
      token que existe en un solo tema es un bug en el otro, y el que lo
      detecta es R3. */
-  --color-warning-a05: rgba(217, 119, 6, 0.05);
-  --color-warning-a08: rgba(217, 119, 6, 0.08);
-  --color-warning-a12: rgba(245, 158, 11, 0.12);
-  --color-warning-a30: rgba(245, 158, 11, 0.30);
-  --color-warning-a40: rgba(245, 158, 11, 0.40);
+  --color-warning-a05: rgba(224, 138, 99, 0.05);
+  --color-warning-a08: rgba(224, 138, 99, 0.08);
+  --color-warning-a12: rgba(224, 138, 99, 0.12);
+  --color-warning-a30: rgba(224, 138, 99, 0.30);
+  --color-warning-a40: rgba(224, 138, 99, 0.40);
   --color-danger-a05: rgba(220, 38, 38, 0.05);
   --color-danger-a08: rgba(220, 38, 38, 0.08);
   --color-danger-a12: rgba(220, 38, 38, 0.12);
@@ -416,7 +425,7 @@
   --ia-nivel-3: var(--color-engine-ia-a65);
   --ia-nivel-4: var(--color-engine-ia);
   --color-success: #3f9c6d;
-  --color-warning: #faad14;
+  --color-warning: #e08a63;
   --color-danger: #ff4d4f;
   --color-info: #4f7cff;
   --color-navy-header: #0f172a;
@@ -451,7 +460,6 @@
   --paper-near: #f8fafc;
   --paper-slate: #475569;
   --paper-slate2: #64748b;
-  --paper-slate3: #94a3b8;
 
   /* TitleBar overlay (Electron) */
   --titlebar-bg: #18181c;

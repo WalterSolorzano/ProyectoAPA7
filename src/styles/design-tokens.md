@@ -20,7 +20,7 @@ La aplicación utiliza el tema **Claro nativo de Microsoft Word 365** por defect
 | `--color-accent` / `--accent-primary` | `#4f7cff` | Color de marca WordAPA7: acciones primarias y selección |
 | `--color-accent-hover` | `#3867f6` | Hover de acción primaria |
 | `--color-success` | `#2f855a` / `#3f9c6d` | Semántico: estados exitosos y conformes a APA 7 |
-| `--color-warning` | `#d48806` / `#d97706` | Semántico: advertencias y observaciones |
+| `--color-warning` | `#c0562e` / `#e08a63` | Semántico: advertencias y observaciones (terracota; dejó de ser amarillo) |
 | `--color-danger` | `#d4382e` / `#dc2626` | Semántico: errores de validación y destrucción |
 
 > **Canonicidad semántica:** `--color-success`, `--color-warning` y `--color-danger` son los únicos nombres válidos. Los alias `--accent-success`, `--accent-warning` y `--accent-danger` fueron eliminados; no usarlos en código nuevo.
