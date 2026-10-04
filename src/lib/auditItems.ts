@@ -30,6 +30,12 @@ export { PROOFREAD_SPECS } from './rotulos';
 export type { ProofreadSource } from './rotulos';
 
 export type EngineId = 'ai' | 'style' | 'spelling' | 'citations' | 'structure';
+
+/* Alias de compatibilidad: el rediseño de la fase 5 (puerta/recorrido/sala IA)
+   nombra al mismo conjunto de motores como `ToolWindowId`. Es el MISMO tipo, no
+   un vocabulario paralelo: si mañana cambia `EngineId`, cambia este también. */
+export type ToolWindowId = EngineId;
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
 export interface AuditItem {

@@ -205,6 +205,11 @@ export interface DocState {
   dismissedCommentIds: string[];
   dismissComment: (id: string) => void;
   restoreComment: (id: string) => void;
+  /** Hallazgos de la fase Revisión & IA descartados por el usuario. El id es la
+   *  clave de contenido que produce `collectAuditItems` (no la posición). */
+  dismissedFindingIds: string[];
+  dismissFinding: (id: string) => void;
+  restoreFinding: (id: string) => void;
   imagePanelOpen: boolean;
   setImagePanelOpen: (open: boolean) => void;
   tabs: {

@@ -206,6 +206,11 @@ export const createUISlice: StateCreator<DocState, [], [], Partial<DocState>> = 
     dismissedCommentIds: state.dismissedCommentIds.includes(id) ? state.dismissedCommentIds : [...state.dismissedCommentIds, id],
   })),
   restoreComment: (id) => set((state) => ({ dismissedCommentIds: state.dismissedCommentIds.filter((x) => x !== id) })),
+  dismissedFindingIds: [],
+  dismissFinding: (id) => set((state) => ({
+    dismissedFindingIds: state.dismissedFindingIds.includes(id) ? state.dismissedFindingIds : [...state.dismissedFindingIds, id],
+  })),
+  restoreFinding: (id) => set((state) => ({ dismissedFindingIds: state.dismissedFindingIds.filter((x) => x !== id) })),
   imagePanelOpen: false,
   setImagePanelOpen: (open: boolean) => set({ imagePanelOpen: open }),
   tabs: [],

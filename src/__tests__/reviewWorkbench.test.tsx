@@ -873,27 +873,51 @@ describe('T16 — tokens y copy de lo que esta task escribió', () => {
   });
 });
 
-/* ── El paso 5, reducido a envoltorio ─────────────────────────────────────── */
+/* ── El paso 5, orquestador de las tres capas ─────────────────────────────── */
 
-describe('T16 — el paso 5 es un envoltorio del workbench', () => {
-  it('monta las mismas tres columnas que el workbench', () => {
+describe('T16 — el paso 5 orquesta puerta, recorrido y sala de IA', () => {
+  it('arranca en la puerta de estado, no en el workbench de columnas', () => {
+    /* La fusión convirtió el paso 5 en la puerta (general) que lleva al
+       recorrido por categoría (específico). El workbench de tres columnas con
+       minimapa es la vista que se retiró: su minimapa no se reintroduce
+       (AGENTS §1). */
     store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
     render(<Step5AuditIAWizard />);
-    expect(screen.getByTestId('minimap')).toBeTruthy();
-    expect(tarjeta()).toBeTruthy();
-    expect(within(rack()).getByRole('button', { name: /Ortografía/ })).toBeTruthy();
+    expect(screen.getByText(/Estado de tu documento/i)).toBeTruthy();
+    expect(screen.queryByTestId('minimap')).toBeNull();
+    expect(screen.queryByLabelText('Párrafo en revisión')).toBeNull();
+  });
+
+  it('cuenta las observaciones en la cifra de entrada', () => {
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
+    render(<Step5AuditIAWizard />);
+    expect(screen.getByTestId('review-gate-total').textContent).not.toBe('0');
+  });
+
+  it('sin hallazgos ofrece el escaneo en vez de una cola vacía', () => {
+    store({ doc: documento([elemento()]) as never });
+    render(<Step5AuditIAWizard />);
+    expect(screen.getByText(/Aún no hay una revisión/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Escanear documento/i })).toBeTruthy();
+  });
+
+  it('la puerta lleva al recorrido por categoría', () => {
+    store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
+    render(<Step5AuditIAWizard />);
+    fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
+    expect(screen.getByText(/Recorrido de revisión/i)).toBeTruthy();
   });
 
   it('ya no trae el mapa heuristico de 1800 caracteres por pagina', () => {
     // Ese mapa era la SEGUNDA fuente de paginas: para el mismo elemento contaba
-    // una hoja distinta de la del lienzo. Con el archivo reducido a envoltorio
-    // la heuristica deja de existir, y las dos fuentes no pueden divergir.
-    expect(PASO5).toContain('ReviewWorkbench');
+    // una hoja distinta de la del lienzo. La fusión lo reemplazo por `usePageIndex`
+    // (la página REAL del índice), y las dos fuentes no pueden divergir.
     expect(PASO5).not.toMatch(/elementPageMap/);
     expect(PASO5).not.toMatch(/1800/);
+    expect(PASO5).toMatch(/usePageIndex/);
   });
 
-  it('el workbench tampoco reintroduce la heuristica que se acaba de borrar', () => {
+  it('el workbench de columnas tampoco reintroduce la heuristica que se acaba de borrar', () => {
     expect(SRC).not.toMatch(/elementPageMap/);
   });
 });
