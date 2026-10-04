@@ -24,6 +24,8 @@ export function StepRail() {
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
   const reviewResult = useDocStore((s) => s.reviewResult);
   const portada = useDocStore((s) => s.portada);
+  const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds || []);
+  const dismissedFindingIds = useDocStore((s) => s.dismissedFindingIds || []);
   const [mapOpen, setMapOpen] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -60,6 +62,7 @@ export function StepRail() {
     proofreadFindings,
     citationAuditResult,
     portada,
+    dismissedIds: new Set([...dismissedCommentIds, ...dismissedFindingIds]),
   });
 
   const doneByStep: Record<number, boolean> = {

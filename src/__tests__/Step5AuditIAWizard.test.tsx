@@ -13,6 +13,8 @@ const state: any = {
   setSelectedElementId: vi.fn(),
   setScrollTargetId: vi.fn(),
   updateElementText: vi.fn(),
+  dismissedFindingIds: [],
+  dismissFinding: vi.fn(),
 };
 
 vi.mock('../store/useDocStore', () => ({
@@ -26,6 +28,8 @@ describe('Step5AuditIAWizard', () => {
     state.reviewResult = null;
     state.proofreadFindings = [];
     state.citationAuditResult = null;
+    state.dismissedFindingIds = [];
+    state.dismissFinding.mockReset();
   });
 
   it('sin datos muestra la puerta con estado vacio', () => {
@@ -42,5 +46,18 @@ describe('Step5AuditIAWizard', () => {
     render(<Step5AuditIAWizard />);
     fireEvent.click(screen.getByText(/empezar revisión/i));
     expect(screen.getByText(/estado del documento/i)).toBeTruthy();
+  });
+
+  it('Descartar un hallazgo delega en dismissFinding del store', () => {
+    state.proofreadFindings = [{
+      element_id: 'e1', start: 0, end: 3, excerpt: 'abc',
+      kind: 'ortografia', severity: 'error', message: 'Falta tilde',
+      suggestion: 'ábc', source: 'local',
+    }];
+    render(<Step5AuditIAWizard />);
+    fireEvent.click(screen.getByText(/empezar revisión/i));
+    fireEvent.click(screen.getByText(/Falta ortográfica o tilde/i));
+    fireEvent.click(screen.getByText(/descartar/i));
+    expect(state.dismissFinding).toHaveBeenCalledWith('proact_e1_0');
   });
 });

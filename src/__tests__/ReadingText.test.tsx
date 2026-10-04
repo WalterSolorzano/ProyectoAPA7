@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { marksForElement, MARK_STYLE } from '../components/review/ReadingText';
+import { render } from '@testing-library/react';
+import { marksForElement, MARK_STYLE, ReadingText } from '../components/review/ReadingText';
 import type { ProofreadFinding } from '../types';
 
 const f = (over: Partial<ProofreadFinding>): ProofreadFinding => ({
@@ -18,5 +19,17 @@ describe('marksForElement', () => {
       expect(style.color).not.toMatch(/#[0-9a-fA-F]{3,8}/);
       expect(style.color).toMatch(/^var\(--/);
     }
+  });
+});
+
+describe('ReadingText con marcas solapadas', () => {
+  it('no duplica los chars de marcas solapadas [0,10] y [5,8]', () => {
+    const findings = [
+      f({ start: 0, end: 10, excerpt: '0123456789' }),
+      f({ start: 5, end: 8, excerpt: '567' }),
+    ];
+    const { container } = render(<ReadingText text="0123456789ABC" elementId="e1" findings={findings} />);
+    expect(container.textContent).toBe('0123456789ABC');
+    expect(container.textContent?.includes('5678956789')).toBe(false);
   });
 });

@@ -56,4 +56,17 @@ describe('collectAuditItems', () => {
     expect(items[0].pageNumber).toBe(1);
     expect(items[0].originalText).toBe('abc');
   });
+
+  it('no emite items de citas: ghost y orphan pertenecen solo a fase 4', () => {
+    const items = collectAuditItems({
+      elements: [elem],
+      reviewResult: null,
+      proofreadFindings: [],
+      citationAuditResult: {
+        ghost_citations: [{ citation_text: 'X', element_id: 'e1' }],
+        orphan_references: [{ authors: ['Autor'], year: '2020', raw_text: 'Autor (2020)' }],
+      },
+    });
+    expect(items.filter((i) => i.category === 'citations')).toHaveLength(0);
+  });
 });

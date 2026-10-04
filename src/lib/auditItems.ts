@@ -123,35 +123,10 @@ export function collectAuditItems(input: AuditInput): AuditItem[] {
     }
   });
 
-  if (citationAuditResult?.ghost_citations) {
-    citationAuditResult.ghost_citations.forEach((ghost, idx) => {
-      const id = `ghost_cite_${idx}`;
-      if (dismissed.has(id)) return;
-      items.push({
-        id, element_id: ghost.element_id || '', category: 'citations', severity: 'critical',
-        summary: `Cita "${ghost.citation_text || 'Desconocida'}" ausente en bibliografía`,
-        detail: 'Aparece citada en el cuerpo del documento pero no figura en la lista final de referencias.',
-        originalText: ghost.citation_text || '',
-        pageNumber: ghost.element_id ? pageOf(pageMap, ghost.element_id) : 1,
-        readOnly: false,
-      });
-    });
-  }
-
-  if (citationAuditResult?.orphan_references) {
-    citationAuditResult.orphan_references.forEach((orphan, idx) => {
-      const id = `orphan_ref_${idx}`;
-      if (dismissed.has(id)) return;
-      items.push({
-        id, element_id: '', category: 'citations', severity: 'medium',
-        summary: `Referencia "${orphan.authors?.[0] || 'Autor'} (${orphan.year || 's.f.'})" no citada en texto`,
-        detail: 'Consta en la bibliografía final pero ninguna sección del documento la referencia expresamente.',
-        originalText: orphan.raw_text || '',
-        pageNumber: elements.length > 0 ? pageOf(pageMap, elements[elements.length - 1].id) : 1,
-        readOnly: false,
-      });
-    });
-  }
+  // Ruling: ghost/orphan citations pertenecen SOLO a la fase 4 (Referencias).
+  // El recorrido de Revisión & IA (fase 5) no expone la categoría 'citations'
+  // (CATEGORY_META la excluye), así que emitirlas acá las volvía inalcanzables
+  // y duplicaba el conteo del ghost (fase 4 y fase 5 a la vez).
 
   elements.forEach((e) => {
     if (e.type === 'heading' && e.needs_review) {

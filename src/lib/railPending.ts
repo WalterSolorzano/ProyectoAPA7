@@ -3,6 +3,7 @@
 import type { ElementModel, ProofreadFinding } from '../types';
 import type { AIReviewResult } from '../api/backend';
 import { collectAuditItems } from './auditItems';
+import { needsReview } from './portadaAuthors';
 
 export interface RailPendingInput {
   elements: ElementModel[];
@@ -10,10 +11,8 @@ export interface RailPendingInput {
   proofreadFindings: ProofreadFinding[];
   citationAuditResult: { ghost_citations: any[]; orphan_references: any[] } | null;
   portada: { title?: string; author?: string };
-}
-
-function needsReview(e: any): boolean {
-  return Boolean(e?.needs_review);
+  /** IDs de hallazgos descartados/aceptados (comentarios inline + findings de fase 5). */
+  dismissedIds?: Set<string>;
 }
 
 export function pendingCountForPhase(phaseId: number, input: RailPendingInput): number {
@@ -47,6 +46,7 @@ export function pendingCountForPhase(phaseId: number, input: RailPendingInput): 
       reviewResult: input.reviewResult,
       proofreadFindings: input.proofreadFindings,
       citationAuditResult: input.citationAuditResult,
+      dismissedIds: input.dismissedIds,
     }).length;
   }
   return 0;

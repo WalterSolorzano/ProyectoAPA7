@@ -60,6 +60,7 @@ const pendingCountForPhase = (phaseId: number) => {
     proofreadFindings: s.proofreadFindings || [],
     citationAuditResult: s.citationAuditResult,
     portada: s.portada,
+    dismissedIds: new Set([...(s.dismissedCommentIds || []), ...(s.dismissedFindingIds || [])]),
   });
 };
 

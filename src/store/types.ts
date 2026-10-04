@@ -135,6 +135,10 @@ export interface DocState {
   dismissedCommentIds: string[];
   dismissComment: (id: string) => void;
   restoreComment: (id: string) => void;
+  /** Hallazgos de la fase Revisión & IA descartados/aceptados (badge del rail). */
+  dismissedFindingIds: string[];
+  dismissFinding: (id: string) => void;
+  restoreFinding: (id: string) => void;
   imagePanelOpen: boolean;
   setImagePanelOpen: (open: boolean) => void;
   tabs: {

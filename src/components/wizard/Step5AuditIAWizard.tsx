@@ -22,12 +22,15 @@ export const Step5AuditIAWizard: React.FC = () => {
   const showToast = useDocStore((s) => s.showToast);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
+  const dismissedFindingIds = useDocStore((s) => s.dismissedFindingIds || []);
+  const dismissFinding = useDocStore((s) => s.dismissFinding);
 
   const [pantalla, setPantalla] = useState<Pantalla>('gate');
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [isScanning, setIsScanning] = useState(false);
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
+
+  const dismissedIds = useMemo(() => new Set(dismissedFindingIds), [dismissedFindingIds]);
 
   const items = useMemo(
     () => collectAuditItems({ elements, reviewResult, proofreadFindings, citationAuditResult, dismissedIds }),
@@ -62,7 +65,7 @@ export const Step5AuditIAWizard: React.FC = () => {
         if (rewritten) await updateElementText(item.element_id, rewritten);
       }
       showToast('Corrección aplicada al documento', 'success');
-      setDismissedIds((prev) => new Set(prev).add(item.id));
+      dismissFinding(item.id);
     } catch {
       showToast('Error al aplicar la sugerencia', 'error');
     }
@@ -77,7 +80,7 @@ export const Step5AuditIAWizard: React.FC = () => {
   };
 
   const handleDismiss = (item: AuditItem) => {
-    setDismissedIds((prev) => new Set(prev).add(item.id));
+    dismissFinding(item.id);
     showToast('Alerta descartada. Texto original conservado.', 'info');
   };
 

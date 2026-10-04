@@ -46,7 +46,12 @@ export const ReadingText: React.FC<Props> = ({ text, elementId, findings, render
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   marks.forEach((mark, i) => {
-    if (mark.start > cursor) parts.push(<span key={`t${i}`}>{text.slice(cursor, mark.start)}</span>);
+    // Ruling Fix 4: clamp contra solapes. Una marca cuyo fin ya fue cubierto
+    // por una anterior se descarta; una que arranca dentro de lo ya cubierto
+    // se recorta al cursor para no duplicar caracteres en el DOM.
+    if (mark.end <= cursor) return;
+    const start = Math.max(mark.start, cursor);
+    if (start > cursor) parts.push(<span key={`t${i}`}>{text.slice(cursor, start)}</span>);
     const style = MARK_STYLE[mark.kind] || MARK_STYLE.default;
     parts.push(
       <span
@@ -54,7 +59,7 @@ export const ReadingText: React.FC<Props> = ({ text, elementId, findings, render
         data-mark={mark.kind}
         style={{ borderBottom: `2px solid ${style.underline}`, color: 'inherit' }}
       >
-        {text.slice(mark.start, mark.end)}
+        {text.slice(start, mark.end)}
         {renderNote ? renderNote(mark) : null}
       </span>,
     );
