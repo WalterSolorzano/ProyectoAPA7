@@ -9,10 +9,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-8B5CF6?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  <b>Suite académica de alta precisión y complemento nativo para Microsoft Word que transforma documentos universitarios (<code>.docx</code>) a las normas oficiales APA 7.ª Edición, preservando el 100% del contenido original, diagramando portadas de forma indivisible e integrando copilotos de IA proactivos.</b>
+  <b>Suite académica de alta precisión y complemento nativo para Microsoft Word que transforma documentos universitarios (<code>.docx</code>) a las normas oficiales APA 7.ª Edición, preservando el 100% del contenido original, diagramando portadas de forma indivisible e integrando un copiloto de IA proactivo con sala de revisión guiada por fases.</b>
 </p>
 
 <p align="center">
+  <a href="#-vista-del-producto">🖼️ Vista del Producto</a> •
   <a href="#-instalación-para-usuario-final">📥 Instalación Usuario</a> •
   <a href="#-por-qué-wordapa7-factores-diferenciadores">💡 ¿Por qué WordAPA7?</a> •
   <a href="#-características-principales">✨ Características</a> •
@@ -20,6 +21,20 @@
   <a href="#-instalación-y-ejecución-para-desarrolladores">🚀 Guía Desarrollador</a> •
   <a href="#-seguridad-y-privacidad">🛡️ Seguridad</a>
 </p>
+
+---
+
+## 🖼️ Vista del Producto
+
+<p align="center">
+  <img src="docs/images/00-step0-quickstart.png" alt="Asistente de inicio WordAPA7 con detección automática de documentos" width="820" />
+  <br />
+  <sub>Asistente de arranque: carga del <code>.docx</code>, detección de estructura y auditorías proactivas en segundo plano.</sub>
+</p>
+
+| Portada Indivisible | Jerarquía de Títulos | Figuras y Tablas | Revisión y Referencias |
+|---|---|---|---|
+| ![Portada](docs/images/01-step1-portada.png) | ![Títulos](docs/images/02-step2-headings.png) | ![Figuras](docs/images/03-step3-figures.png) | ![Referencias](docs/images/06-step5-references.png) |
 
 ---
 
@@ -60,6 +75,11 @@ Formatear un documento académico (tesis, monografía, ensayo o artículo) a las
   1. `runProactiveAudits()`: Cruce automático de citas bibliográficas vs. lista de referencias.
   2. `runProactiveAutoCaptioning()`: Detección e inyección reglamentaria de leyendas (*Tabla N / Figura N*) y notas al pie.
   3. `runProofreadBatch()`: Detección de patrones de escritura generados por IA, inconsistencias ortográficas y texto sin formato.
+- **Sala de Revisión IA Guiada por Fases** (rediseño reciente): El antiguo monolito `Step5AuditIAWizard.tsx` se reemplazó por tres capas desacopladas que el usuario recorre sin aplicar cambios masivos:
+  - **`ReviewGate` (puerta de estado)**: panel de entrada con matriz de calor *fase × motor* que resume de un vistazo qué revisar y dónde.
+  - **`ReviewPhaseJourney` (recorrido por fase)**: riel de iconos por categoría interna, dashboard vertical y **acordeones de corrección** (nunca decisión inline); cada hallazgo se aprueba o descarta por caso.
+  - **`AiRoom` (sala de IA segmentada)**: divide el documento por títulos H1, muestra el texto con **subrayado inline por tipo de hallazgo** y confianza, con comparador de sugerencias.
+  - **Módulos puros compartidos**: `auditItems.ts` normaliza los hallazgos de las tres fuentes del store (`AIReviewResult`, `proofreadFindings`, `citationAuditResult`) y `railPending.ts` deriva el conteo de pendientes que alimenta el riel de pasos. La voz sintética (IA) jamás se acepta automáticamente: solo se marca para revisar.
 
 ### 📐 4. Motor de Estilos APA 7.ª Edición Estricto
 - **Interlineado y Sangrías**: Normalización global a interlineado **Doble (2.0)**, espacios antes/después en 0pt y sangría de primera línea reglamentaria de **1.27 cm (0.5 in)**.
@@ -140,6 +160,8 @@ graph TD
 | **In-place Engine** | `python/generation/inplace_editor.py` | Modificación de documentos respetando la portada original |
 | **Multi-Provider AI Router** | `python/modules/ai_client.py` | Router balanceado con failover entre 10+ proveedores |
 | **Copiloto & Action DSL** | `python/modules/ai_document_editor.py` | Intérprete conversacional de comandos estructurales |
+| **Normalizador de Hallazgos** | `src/lib/auditItems.ts` | Fuente única de hallazgos (`AuditItem[]`) para recorrido, puerta y conteo del riel |
+| **Sala de Revisión IA** | `src/components/review/` | `ReviewGate` + `ReviewPhaseJourney` + `AiRoom` y acordeones de corrección por caso |
 | **Auditor Proactivo** | `python/modules/proactive_auditor.py` | Detección de citas huérfanas, patrones de IA y ortografía |
 | **Lienzo Interactivo** | `src/components/layout/PaperCanvas.tsx` | Renderizador WYSIWYG en vivo paginado |
 | **Zustand Store** | `src/store/useDocStore.ts` | Estado reactivo central y gestor de auditorías |
@@ -186,13 +208,13 @@ npm run dev
 Accede a la interfaz en tu navegador en: **`http://localhost:5173`** o **`http://localhost:8742`**.
 
 ### 4. Pruebas Automatizadas
-El proyecto cuenta con un riguroso suite de pruebas unitarias e integración:
+El proyecto cuenta con una rigurosa suite de pruebas unitarias e integración:
 
 ```bash
-# Pruebas Backend (pytest: 415+ tests)
+# Pruebas Backend (pytest: 532 tests)
 pytest python/tests/
 
-# Pruebas Frontend (Vitest: 120+ tests)
+# Pruebas Frontend (Vitest: 182 tests)
 npm test
 ```
 

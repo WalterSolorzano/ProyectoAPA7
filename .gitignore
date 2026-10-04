@@ -137,3 +137,8 @@ catalog/
 *.pdf
 python/test_estudio_diag.py
 
+# ── Artefactos de agentes/herramientas (no producto) ─────────────────────────
+.impeccable/
+.superpowers/
+graphify-out/
+
