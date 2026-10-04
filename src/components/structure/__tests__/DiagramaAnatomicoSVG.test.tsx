@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { DiagramaAnatomicoSVG } from '../DiagramaAnatomicoSVG';
-import type { NodoJerarquia } from '../../lib/jerarquia';
+import type { NodoJerarquia } from '../../../lib/jerarquia';
 
 describe('DiagramaAnatomicoSVG', () => {
   const arbolMock: NodoJerarquia[] = [

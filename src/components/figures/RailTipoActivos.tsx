@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Table2, Pi } from 'lucide-react';
+import { Image, Table2, Pi, LucideIcon } from 'lucide-react';
 import type { TipoFigura } from '../../lib/figuras';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 }
 
 export const RailTipoActivos: React.FC<Props> = ({ tipoActivo, conteos, onTipoChange }) => {
-  const items: Array<{ id: TipoFigura; label: string; icon: React.ComponentType<{ size?: number }>; count: number }> = [
+  const items: Array<{ id: TipoFigura; label: string; icon: LucideIcon; count: number }> = [
     { id: 'image', label: 'Figuras', icon: Image, count: conteos.image },
     { id: 'table', label: 'Tablas', icon: Table2, count: conteos.table },
     { id: 'equation', label: 'Ecuaciones', icon: Pi, count: conteos.equation },

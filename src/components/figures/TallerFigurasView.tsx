@@ -204,17 +204,17 @@ export const TallerFigurasView: React.FC = () => {
                   color: 'var(--text-main, #334155)',
                 }}
               >
-                Activo {contextoActual.posicionDelTipo + 1} de {contextosDelTipo.length}
+                Activo {contextoActual.posicionEnTipo} de {contextosDelTipo.length}
               </span>
             )}
           </header>
 
           {contextoActual && elementoActual ? (
             <LienzoEditorialActivo
-              figureNumber={contextoActual.posicionDelTipo + 1}
+              figureNumber={contextoActual.posicionEnTipo}
               figureTitle={elementoActual.image_info?.caption || contextoActual.leyenda || 'Sin título'}
               figureNote={elementoActual.image_info?.note}
-              imageUrl={elementoActual.image_info?.url}
+              imageUrl={elementoActual.image_info?.relative_url || contextoActual.url || undefined}
               prevParagraph={contextoActual.parrafoAnterior ?? undefined}
               nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
               aiSuggestion={aiSuggestions[elementoActual.id]}

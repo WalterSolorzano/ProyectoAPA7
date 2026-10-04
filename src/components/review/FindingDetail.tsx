@@ -47,6 +47,8 @@ export interface FindingDetailProps {
    *  ofrecen. */
   onEngineAction?: () => void;
   busy: boolean;
+  isSelected?: boolean;
+  onSelect?: () => void;
 }
 
 interface AccionProps {
@@ -63,7 +65,10 @@ function Accion({ label, Icon, onClick, disabled, primary, title }: AccionProps)
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       disabled={disabled}
       title={title}
       style={{
@@ -163,6 +168,8 @@ export function FindingDetail({
   onDismiss,
   onEngineAction,
   busy,
+  isSelected = false,
+  onSelect,
 }: FindingDetailProps) {
   /* El detector de IA es el motor probabilístico: propone, la persona
      decide. Ninguna otra ruta de la app aplica una sugerencia suya. */
@@ -171,12 +178,16 @@ export function FindingDetail({
   const motor = action !== 'none' && action !== 'accept' && action !== 'mark' ? ACCION_MOTOR[action] : undefined;
   return (
     <div
+      onClick={onSelect}
       style={{
         padding: 'var(--space-3) 14px',
         borderTop: '1px solid var(--color-border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
+        backgroundColor: isSelected ? 'var(--color-bg-surface-alt)' : 'transparent',
+        cursor: onSelect ? 'pointer' : 'default',
+        transition: 'background-color 0.15s ease',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
@@ -203,7 +214,10 @@ export function FindingDetail({
             <button
               type="button"
               aria-label="Aparición anterior"
-              onClick={() => onStep(-1)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStep(-1);
+              }}
               style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}
             >
               <ChevronLeft size={13} strokeWidth={1.75} aria-hidden />
@@ -212,7 +226,10 @@ export function FindingDetail({
             <button
               type="button"
               aria-label="Siguiente aparición"
-              onClick={() => onStep(1)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStep(1);
+              }}
               style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}
             >
               <ChevronRight size={13} strokeWidth={1.75} aria-hidden />

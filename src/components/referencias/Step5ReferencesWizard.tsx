@@ -418,9 +418,20 @@ export const Step5ReferencesWizard: React.FC = () => {
       {/* ── Layout de 2 Columnas (Progressive Disclosure) ── */}
       <div style={{ display: 'flex', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' }}>
 
-        {/* ══ COLUMNA 1: Lista Agrupada por Estado (responsive min 420px, max 460px) ══ */}
+        {/* ══ MINI-RAIL: Filtro Rápido por Estado (56px) ══ */}
+        <ReferenceRailFilter
+          filter={railFilter}
+          counts={{
+            total: references.length,
+            verified: validReferences.length,
+            issues: unverifiedReferences.length + ghosts.length,
+          }}
+          onSelectFilter={(f) => setRailFilter(f)}
+        />
+
+        {/* ══ COLUMNA 1: Catálogo y Lista Agrupada por Estado (responsive min 380px, max 440px) ══ */}
         <div style={{
-          width: 'clamp(420px, 32vw, 480px)', flexShrink: 0, height: '100%', overflowY: 'auto',
+          width: 'clamp(380px, 28vw, 440px)', flexShrink: 0, height: '100%', overflowY: 'auto',
           backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--border-subtle)',
           display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)',
         }}>
@@ -428,199 +439,117 @@ export const Step5ReferencesWizard: React.FC = () => {
           {/* GRUPO 1: VERIFICADAS. El rótulo dice lo que el grupo ES —verificadas
               contra una fuente— y no "válidas con DOI verificado", que era una
               etiqueta que el sistema se daba a sí mismo por tener autor y título. */}
-          <Grupo
-            titulo="Verificadas"
-            detalle="Contrastadas contra una fuente real."
-            conteo={validReferences.length}
-            Icon={CheckCircle2}
-            tono="var(--color-success)"
-            abierto={openValid}
-            alAlternar={() => setOpenValid(!openValid)}
-          >
-            {validReferences.length === 0 ? (
-              <EstadoVacio
-                motivo="sin-resultados"
-                filtroActivo="el grupo de verificadas"
-                accion={
-                  <button type="button" onClick={() => setShowAddModal(true)} style={botonInline()}>
-                    <Plus size={12} strokeWidth="var(--icon-stroke)" />
-                    <span>Nueva referencia</span>
-                  </button>
-                }
-              />
-            ) : (
-              validReferences.map((refItem, idx) => {
-                const isSelected = selectedRef?.id === refItem.id;
-                /* El dato de "sin citar" es el `id` que devolvió el backend, y
-                   sólo existe si la auditoría corrió. Antes se re-derivaba
-                   comparando texto contra el nombre completo del autor. */
-                const sinCitar = huerfanas?.has(refItem.id) === true;
-
-                return (
-                  <div
+          {(railFilter === 'all' || railFilter === 'verified') && (
+            <Grupo
+              titulo="Verificadas"
+              detalle="Contrastadas contra una fuente real."
+              conteo={validReferences.length}
+              Icon={CheckCircle2}
+              tono="var(--color-success)"
+              abierto={openValid}
+              alAlternar={() => setOpenValid(!openValid)}
+            >
+              {validReferences.length === 0 ? (
+                <EstadoVacio
+                  motivo="sin-resultados"
+                  filtroActivo="el grupo de verificadas"
+                  accion={
+                    <button type="button" onClick={() => setShowAddModal(true)} style={botonInline()}>
+                      <Plus size={12} strokeWidth="var(--icon-stroke)" />
+                      <span>Nueva referencia</span>
+                    </button>
+                  }
+                />
+              ) : (
+                validReferences.map((refItem) => (
+                  <ReferenceCatalogItem
                     key={refItem.id}
-                    onClick={() => setSelectedReferenceId(refItem.id)}
-                    style={{
-                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                      backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
-                      border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
-                      transition: 'all 0.15s ease',
-                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-text-secondary)' }}>
-                        {idx + 1}. {(refItem.authors?.[0] || 'Autor').split(',')[0]} ({refItem.year || 's.f.'})
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); copyInTextCitation(refItem); }}
-                          title="Copiar cita en texto"
-                          style={iconBtnStyle}
-                        >
-                          {copiedId === refItem.id
-                            ? <Check size={13} strokeWidth="var(--icon-stroke)" color="var(--color-success)" />
-                            : <Copy size={13} strokeWidth="var(--icon-stroke)" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); showToast('Referencia eliminada', 'info'); }}
-                          title="Eliminar"
-                          style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
-                        >
-                          <Trash2 size={13} strokeWidth="var(--icon-stroke)" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {refItem.title || refItem.raw_text || 'Sin título'}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: '2px' }}>
-                      {refItem.doi_or_url && (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-accent)', display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', fontWeight: 600 }}>
-                          <Link2 size={11} strokeWidth="var(--icon-stroke)" /> DOI
-                        </span>
-                      )}
-                      {sinCitar && (
-                        <span
-                          title="Esta referencia no está citada en el texto. Haz clic para opciones."
-                          style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-accent)' }}
-                        >
-                          Sin citar en texto
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </Grupo>
+                    reference={refItem}
+                    isSelected={selectedRef?.id === refItem.id}
+                    onSelect={() => setSelectedReferenceId(refItem.id)}
+                    onEdit={() => setEditingRef(refItem)}
+                  />
+                ))
+              )}
+            </Grupo>
+          )}
 
           {/* GRUPO 2: PENDIENTES. Antes decía "metadatos incompletos" para todo lo
               que no fuera válida, y ese rótulo mentía: una referencia con todos
               sus campos y jamás contrastada no tiene un metadato incompleto. */}
-          <Grupo
-            titulo="Pendientes"
-            detalle="Faltan datos o falta contrastarlas contra una fuente."
-            conteo={unverifiedReferences.length}
-            Icon={HelpCircle}
-            tono="var(--color-warning)"
-            abierto={openUnverified}
-            alAlternar={() => setOpenUnverified(!openUnverified)}
-          >
-            {unverifiedReferences.length === 0 ? (
-              <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
-            ) : (
-              unverifiedReferences.map((refItem) => {
-                const isSelected = selectedRef?.id === refItem.id;
-                const falta = diagnosticoDeReferencia(refItem).faltantes;
-                return (
-                  <div
+          {(railFilter === 'all' || railFilter === 'issues') && (
+            <Grupo
+              titulo="Pendientes"
+              detalle="Faltan datos o falta contrastarlas contra una fuente."
+              conteo={unverifiedReferences.length}
+              Icon={HelpCircle}
+              tono="var(--color-warning)"
+              abierto={openUnverified}
+              alAlternar={() => setOpenUnverified(!openUnverified)}
+            >
+              {unverifiedReferences.length === 0 ? (
+                <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
+              ) : (
+                unverifiedReferences.map((refItem) => (
+                  <ReferenceCatalogItem
                     key={refItem.id}
-                    onClick={() => setSelectedReferenceId(refItem.id)}
-                    style={{
-                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                      backgroundColor: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-hover)',
-                      border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
-                      transition: 'all 0.15s ease',
-                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{
-                        fontSize: 'var(--text-xs)', fontWeight: 700,
-                        color: falta.length > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)',
-                        backgroundColor: falta.length > 0 ? 'var(--severity-warning-soft)' : 'var(--color-bg-surface)',
-                        padding: '1px 6px', borderRadius: 'var(--radius-xs)'
-                      }}>
-                        {falta.length > 0 ? `Faltan ${falta.join(' y ')}` : 'Sin contrastar contra una fuente'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); removeReference(refItem.id); }}
-                        title="Eliminar"
-                        style={{ ...iconBtnStyle, color: 'var(--color-danger)' }}
-                      >
-                        <Trash2 size={13} strokeWidth="var(--icon-stroke)" />
-                      </button>
-                    </div>
-                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 600, lineHeight: 1.4 }}>
-                      {refItem.title || refItem.raw_text || 'Entrada sin título'}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </Grupo>
+                    reference={refItem}
+                    isSelected={selectedRef?.id === refItem.id}
+                    onSelect={() => setSelectedReferenceId(refItem.id)}
+                    onEdit={() => setEditingRef(refItem)}
+                  />
+                ))
+              )}
+            </Grupo>
+          )}
 
           {/* GRUPO 3: CITAS SIN FUENTE ("En texto, no en biblio") */}
-          <Grupo
-            titulo="En texto, no en biblio"
-            detalle="Citas que aparecen en el cuerpo y no tienen ficha."
-            conteo={ghosts.length}
-            Icon={AlertTriangle}
-            tono="var(--color-danger)"
-            abierto={openGhosts}
-            alAlternar={() => setOpenGhosts(!openGhosts)}
-          >
-            {ghosts.length === 0 ? (
-              <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de citas sin fuente" />
-            ) : (
-              ghosts.map((g: unknown, i: number) => {
-                const txt = ghostText(g);
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'var(--color-bg-surface-hover)', border: '1px solid var(--color-border-subtle)',
-                      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
-                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                        {txt}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleResolveGhost(i)}
-                        disabled={resolvingGhostIdx === i}
-                        style={botonInline(true, { padding: '4px 10px', fontSize: 'var(--text-xs)', flexShrink: 0 })}
-                      >
-                        {resolvingGhostIdx === i
-                          ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" />
-                          : <Plus size={12} strokeWidth="var(--icon-stroke)" />}
-                        <span>Completar</span>
-                      </button>
+          {(railFilter === 'all' || railFilter === 'issues') && (
+            <Grupo
+              titulo="En texto, no en biblio"
+              detalle="Citas que aparecen en el cuerpo y no tienen ficha."
+              conteo={ghosts.length}
+              Icon={AlertTriangle}
+              tono="var(--color-danger)"
+              abierto={openGhosts}
+              alAlternar={() => setOpenGhosts(!openGhosts)}
+            >
+              {ghosts.length === 0 ? (
+                <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de citas sin fuente" />
+              ) : (
+                ghosts.map((g: unknown, i: number) => {
+                  const txt = ghostText(g);
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--color-bg-surface-hover)', border: '1px solid var(--color-border-subtle)',
+                        display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}>
+                        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                          {txt}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleResolveGhost(i)}
+                          disabled={resolvingGhostIdx === i}
+                          style={botonInline(true, { padding: '4px 10px', fontSize: 'var(--text-xs)', flexShrink: 0 })}
+                        >
+                          {resolvingGhostIdx === i
+                            ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" />
+                            : <Plus size={12} strokeWidth="var(--icon-stroke)" />}
+                          <span>Completar</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </Grupo>
+                  );
+                })
+              )}
+            </Grupo>
+          )}
         </div>
 
         {/* ══ COLUMNA 2: Detalle de Referencia / Editor & Menciones en Texto (Flex 1) ══ */}
@@ -802,71 +731,36 @@ export const Step5ReferencesWizard: React.FC = () => {
                 </div>
               </Seccion>
 
-              {/* Menciones en el Texto */}
-              <Seccion
-                titulo="Menciones en el texto"
-                descripcion="Párrafos del documento que citan esta fuente, por apellido y año."
-              >
-                {linkedParagraphs.length === 0 ? (
-                  <EstadoVacio
-                    motivo="sin-resultados"
-                    filtroActivo="la búsqueda de menciones por apellido y año"
-                  />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    {linkedParagraphs.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedElementId(p.id);
-                          setScrollTargetId(p.id);
-                        }}
-                        style={{
-                          padding: 'var(--space-4)',
-                          borderRadius: 'var(--radius-md)',
-                          backgroundColor: 'var(--paper-white)',
-                          border: '1px solid var(--color-border-subtle)',
-                          boxShadow: '0 2px 8px var(--color-ink-a05)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 'var(--space-3)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        <div style={{
-                          fontSize: 'var(--text-sm)',
-                          lineHeight: '1.6',
-                          color: 'var(--color-text-primary)',
-                          fontStyle: 'italic',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                        }}>
-                          "{p.text}"
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedElementId(p.id);
-                              setScrollTargetId(p.id);
-                            }}
-                            style={botonInline()}
-                          >
-                            <span>Ver en la hoja</span>
-                            <ArrowRight size={12} strokeWidth="var(--icon-stroke)" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Seccion>
+              {/* Menciones en el Manuscrito con Tipografía Editorial */}
+              <ManuscriptMentionsAccordion
+                citations={linkedParagraphs.map((p, idx) => ({
+                  page: p.page_number || 1,
+                  p: `Párrafo ${idx + 1}`,
+                  text: p.text || '',
+                  highlight: (selectedRef.authors?.[0] || '').split(',')[0].trim(),
+                }))}
+                onJumpToWord={(page, pRef) => {
+                  const targetP = linkedParagraphs.find((_, i) => `Párrafo ${i + 1}` === pRef) || linkedParagraphs[0];
+                  if (targetP) {
+                    setSelectedElementId(targetP.id);
+                    setScrollTargetId(targetP.id);
+                  }
+                }}
+                onCopyCitation={() => copyInTextCitation(selectedRef)}
+                defaultOpen={true}
+              />
             </>
           )}
         </div>
       </div>
+
+      {/* ── Modal Flotante: Edición Bibliográfica Rápida ── */}
+      <ReferenceEditModal
+        reference={editingRef}
+        isOpen={Boolean(editingRef)}
+        onClose={() => setEditingRef(null)}
+        onSave={handleSaveModalRef}
+      />
 
       {/* ── Modal Flotante: Nueva Referencia ── */}
       {showAddModal && (

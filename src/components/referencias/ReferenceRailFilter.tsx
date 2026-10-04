@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Check, AlertCircle } from 'lucide-react';
+import { LayoutGrid, Check, AlertCircle, LucideIcon } from 'lucide-react';
 
 export type ReferenceFilterType = 'all' | 'verified' | 'issues';
 
@@ -21,7 +21,7 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
   const items: Array<{
     id: ReferenceFilterType;
     label: string;
-    icon: React.ComponentType<{ size?: number; stroke?: string; strokeWidth?: number }>;
+    icon: LucideIcon;
     count: number;
     iconColor?: string;
     showBadge?: boolean;

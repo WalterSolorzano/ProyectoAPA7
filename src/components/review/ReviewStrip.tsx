@@ -129,7 +129,8 @@ export function ReviewStrip(p: ReviewStripProps) {
           alignItems: 'center',
           gap: 'var(--space-1)',
           minWidth: 0,
-          overflow: 'hidden',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
         }}
       >
         {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
@@ -192,7 +193,15 @@ export function ReviewStrip(p: ReviewStripProps) {
         <div
           role="group"
           aria-label="Filtrar por fase del documento"
-          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', minWidth: 0, flexWrap: 'wrap' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-1)',
+            minWidth: 0,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            flexWrap: 'nowrap',
+          }}
         >
           <button
             type="button"

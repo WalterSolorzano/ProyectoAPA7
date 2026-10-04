@@ -6,7 +6,6 @@
    superconjunto del hover y quitarle el hover no le deja sin disparador. */
 
 import React, { useState } from 'react';
-import { Pin } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import type { RailDestination } from './railItems';
 
@@ -39,7 +38,6 @@ export interface IconRailProps {
 }
 
 const RAIL_WIDTH = 56;
-const PinIcon = Pin;
 
 // ── Curva spring para el zoom: rebote suave, sin sobrepasar demasiado. ──────
 // cubic-bezier(0.34, 1.56, 0.64, 1) — mismo perfil que wk-step-enter.
@@ -56,16 +54,13 @@ const surfaceOf = (active: boolean, hovered: boolean) =>
 const inkOf = (active: boolean, hovered: boolean) =>
   active || hovered ? 'var(--color-accent)' : 'var(--color-text-secondary)';
 
-// El pin no es una fase: mantiene surface-alt para no confundirse con ellas.
-const PIN_TRANSITION = `background ${FAST}, color ${FAST}`;
-
 // ── Estilos del botón de fase ────────────────────────────────────────────────
 // El zoom cambia width + height. overflow:hidden en el botón recorta el chip
 // cuando está colapsado, y flexDirection:column apila icono + chip.
 const btnStyle = (active: boolean, hovered: boolean): React.CSSProperties => ({
   position: 'relative',
-  width: active || hovered ? 48 : 40,
-  height: active || hovered ? 56 : 40,
+  width: active || hovered ? 48 : 44,
+  height: active || hovered ? 60 : 44,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -158,13 +153,12 @@ const pillStyle = (hovered: boolean, count: number): React.CSSProperties => ({
   ].join(', '),
 });
 
-export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePin, pinned, ariaLabel }: IconRailProps) {
+export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, ariaLabel }: IconRailProps) {
   const wizardStep = useDocStore((s) => s.wizardStep);
   const isActive = (item: RailDestination) =>
     item.current === true || (item.step !== null && wizardStep === item.step);
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [pinHovered, setPinHovered] = useState(false);
   const release = (id: string) => () => setHoveredId((cur) => (cur === id ? null : cur));
 
   return (
@@ -179,7 +173,6 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
       onMouseEnter={onEnterRail}
       onMouseLeave={() => {
         setHoveredId(null);
-        setPinHovered(false);
         onLeaveRail();
       }}
       style={{
@@ -189,8 +182,8 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 'var(--space-2)',
-        padding: '12px 0',
+        gap: 'var(--space-3)',
+        padding: '16px 0',
         backgroundColor: 'var(--color-bg-surface)',
         borderRight: '1px solid var(--color-border-subtle)',
         /* El rail vive SIEMPRE (AGENTS.md §1), así que tiene que quedar por
@@ -240,7 +233,7 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
           >
             {/* Icono con spring-scale */}
             <span style={iconWrapStyle(active, hovered)}>
-              <Icon size={17} strokeWidth={1.75} aria-hidden />
+              <Icon size={20} strokeWidth={1.75} aria-hidden />
             </span>
 
             {/* Chip de nombre — aria-hidden: el aria-label del botón ya lo cubre */}
@@ -276,53 +269,6 @@ export function IconRail({ items, onEnterRail, onLeaveRail, onSelect, onTogglePi
           </button>
         );
       })}
-
-      {/* Hairline que separa las fases de los destinos de la aplicación. */}
-      <div
-        aria-hidden
-        style={{
-          width: 24,
-          height: '1px',
-          flexShrink: 0,
-          backgroundColor: 'var(--color-border-subtle)',
-        }}
-      />
-
-      {/* Pin — solo si se proporciona onTogglePin */}
-      {onTogglePin && (
-        <button
-          type="button"
-          title="Anclar panel"
-          aria-label="Anclar panel"
-          aria-pressed={pinned}
-          onMouseEnter={() => setPinHovered(true)}
-          onMouseLeave={() => setPinHovered(false)}
-          onClick={onTogglePin}
-          style={{
-            width: 40,
-            height: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 'var(--radius-md)',
-            border: pinned ? '1px solid var(--color-accent)' : '1px solid transparent',
-            backgroundColor: pinned
-              ? 'transparent'
-              : pinHovered
-                ? 'var(--color-bg-surface-alt)'
-                : 'transparent',
-            color: pinned
-              ? 'var(--color-accent)'
-              : pinHovered
-                ? 'var(--color-text-primary)'
-                : 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            transition: PIN_TRANSITION,
-          }}
-        >
-          <PinIcon size={17} strokeWidth={1.75} aria-hidden />
-        </button>
-      )}
     </nav>
   );
 }

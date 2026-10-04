@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ElementModel } from '../../types';
+import type { ElementModel, DesignStyle } from '../../types';
 import {
   Sliders,
   Type,
@@ -11,6 +11,7 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
+  LucideIcon,
 } from 'lucide-react';
 
 export type InspectorTabKey = 'formato' | 'texto' | 'estilo' | 'calidad';
@@ -23,7 +24,7 @@ export interface InspectorActivoTabsProps {
 }
 
 interface StylePreset {
-  value: string;
+  value: DesignStyle;
   label: string;
   desc: string;
   badge?: string;
@@ -101,9 +102,9 @@ const STYLE_PRESETS: StylePreset[] = [
     ),
   },
   {
-    value: 'grid_2x2',
-    label: 'Cuadrícula 2×2 (a, b, c, d)',
-    desc: 'Malla simétrica de 4 subfiguras para estudios comparativos complejos.',
+    value: 'corner',
+    label: 'Esquina / Flotante Secundario',
+    desc: 'Malla compacta de subfiguras para estudios comparativos complejos.',
     badge: 'Malla',
     renderThumbnail: () => (
       <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
@@ -112,19 +113,6 @@ const STYLE_PRESETS: StylePreset[] = [
         <rect x="26" y="5" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
         <rect x="7" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
         <rect x="26" y="18" width="15" height="10" rx="1" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-      </svg>
-    ),
-  },
-  {
-    value: 'vertical_stack',
-    label: 'Vertical Apilado (a, b)',
-    desc: 'Secuencia longitudinal una sobre otra con rótulo independiente.',
-    badge: 'Serie',
-    renderThumbnail: () => (
-      <svg width="44" height="28" viewBox="0 0 48 34" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="2" y="2" width="44" height="30" rx="2" fill="var(--color-bg-surface-alt)" stroke="var(--border-subtle)" strokeWidth="1" />
-        <rect x="8" y="5" width="32" height="10" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
-        <rect x="8" y="18" width="32" height="10" rx="2" fill="var(--color-accent-soft)" stroke="var(--accent-primary)" strokeWidth="1" />
       </svg>
     ),
   },
@@ -139,14 +127,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   const [tabActiva, setTabActiva] = useState<InspectorTabKey>('formato');
   const [alcance, setAlcance] = useState<'esta' | 'todas'>('esta');
 
-  const imgInfo = elem.image_info || {};
+  const imgInfo = (elem.image_info || {}) as Partial<NonNullable<ElementModel['image_info']>>;
   const widthCm = typeof imgInfo.width_cm === 'number' ? imgInfo.width_cm : 14.5;
   const heightCm = typeof imgInfo.height_cm === 'number' ? imgInfo.height_cm : 9.0;
   const alignment = imgInfo.alignment || 'center';
   const caption = imgInfo.caption || '';
   const note = imgInfo.note || '';
   const altText = imgInfo.alt_text || '';
-  const currentStyle = imgInfo.design_style || 'standard';
+  const currentStyle: DesignStyle = imgInfo.design_style || 'standard';
 
   // Diagnósticos APA 7
   const checks = [
@@ -185,7 +173,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
     });
   };
 
-  const tabs: { key: InspectorTabKey; label: string; icon: React.FC<{ size: number }> }[] = [
+  const tabs: { key: InspectorTabKey; label: string; icon: LucideIcon }[] = [
     { key: 'formato', label: 'Formato', icon: Sliders },
     { key: 'texto', label: 'Texto', icon: Type },
     { key: 'estilo', label: 'Estilo', icon: Palette },

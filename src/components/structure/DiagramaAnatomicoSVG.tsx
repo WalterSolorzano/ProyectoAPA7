@@ -271,7 +271,7 @@ export const DiagramaAnatomicoSVG: React.FC<DiagramaAnatomicoSVGProps> = ({
                 key={p.nodo.id}
                 data-testid={`nodo-svg-${p.nodo.id}`}
                 data-nodo={p.nodo.id}
-                draggable
+                {...({ draggable: true } as any)}
                 onDragStart={(e) => handleDragStart(e, p.nodo.id)}
                 onDragOver={(e) => handleDragOver(e, p)}
                 onDragLeave={handleDragLeave}

@@ -381,6 +381,8 @@ export function ReviewWorkbench() {
                         onMark={wb.markForReview}
                         onDismiss={wb.dismiss}
                         onEngineAction={() => correrAccion(sub)}
+                        isSelected={wb.selected?.id === it.id}
+                        onSelect={() => wb.select(it.id)}
                         /* El cerrojo de la acción en masa, no un `false`
                            constante. `acceptMany` recorre los hallazgos de uno en
                            uno con una llamada de red cada uno: sin esto, apretar

@@ -24,19 +24,16 @@ const mkItems = (over: Partial<RailDestination> = {}): RailDestination[] =>
 const setup = (items = mkItems()) => {
   const onEnterRail = vi.fn();
   const onLeaveRail = vi.fn();
-  const onTogglePin = vi.fn();
   const onSelect = vi.fn();
   const utils = render(
     <IconRail
       items={items}
       onEnterRail={onEnterRail}
       onLeaveRail={onLeaveRail}
-      onTogglePin={onTogglePin}
       onSelect={onSelect}
-      pinned={false}
     />,
   );
-  return { ...utils, onEnterRail, onLeaveRail, onTogglePin, onSelect };
+  return { ...utils, onEnterRail, onLeaveRail, onSelect };
 };
 
 describe('T4 — IconRail', () => {
@@ -51,43 +48,6 @@ describe('T4 — IconRail', () => {
     const rail = screen.getByTestId('icon-rail');
     const chips = rail.querySelectorAll('[data-rail-chip]');
     chips.forEach((chip) => expect(chip.getAttribute('aria-hidden')).toBe('true'));
-  });
-
-  it('el botón de anclar expone su estado por `aria-pressed`, con nombre fijo', () => {
-    // El nombre de un toggle no cambia con el estado: `aria-pressed` ya lo
-    // lleva, y mutar el nombre hace que el control se anuncie como otro. El
-    // pin del flyout y este son el mismo flag global y se nombran igual.
-    const { onTogglePin, unmount } = setup();
-    const pin = screen.getByRole('button', { name: 'Anclar panel' });
-    expect(pin.getAttribute('aria-pressed')).toBe('false');
-    fireEvent.click(pin);
-    expect(onTogglePin).toHaveBeenCalledTimes(1);
-    unmount();
-
-    const onTogglePin2 = vi.fn();
-    render(
-      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={onTogglePin2} onSelect={vi.fn()} pinned={true} />,
-    );
-    const anclado = screen.getByRole('button', { name: 'Anclar panel' });
-    expect(anclado.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('anclado, el pin NO se pinta con la superficie de acento: ahí vive "fase actual"', () => {
-    // En esta misma columna de 56px, `--color-accent-soft` significa fase
-    // activa. El pin no es una fase, y a ocho píxeles no puede usar su tinta.
-    const { unmount } = setup();
-    const pin = screen.getByRole('button', { name: 'Anclar panel' });
-    expect(pin.style.backgroundColor).toBe('transparent');
-    unmount();
-
-    render(
-      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={vi.fn()} onSelect={vi.fn()} pinned={true} />,
-    );
-    const anclado = screen.getByRole('button', { name: 'Anclar panel' });
-    expect(anclado.style.backgroundColor).not.toBe('var(--color-accent-soft)');
-    // Contorno de acento, sin relleno: se distingue de la fase activa por
-    // forma y no solo por color.
-    expect(anclado.style.border).toBe('1px solid var(--color-accent)');
   });
 
   it('el hover de un destino NO lo elige: solo el clic elige', () => {
@@ -137,22 +97,10 @@ describe('T4 — IconRail', () => {
     expect(onLeaveRail).toHaveBeenCalled();
   });
 
-  it('el clic de una fase navega, y no ancla: anclar es el pin de abajo', () => {
-    // T4 fijó el clic como "solo ancla" y el hover como el que abría el detalle.
-    // Con el rail permanente, el hover no puede cambiar de fase (barrer el
-    // borde izquierdo desmontaría el documento que se está leyendo), así que
-    // el clic pasó a ser la navegación: es el único camino con teclado.
-    const { onSelect, onTogglePin } = setup();
+  it('el clic de una fase navega', () => {
+    const { onSelect } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ step: 1 }));
-    expect(onTogglePin).not.toHaveBeenCalled();
-  });
-
-  it('el clic del pin ancla y no navega', () => {
-    const { onSelect, onTogglePin } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
-    expect(onTogglePin).toHaveBeenCalledTimes(1);
-    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('las fases son botones de verdad, alcanzables con teclado', () => {
@@ -239,7 +187,7 @@ describe('T4 — IconRail', () => {
     expect(screen.getByRole('button', { name: 'Inicio' }).getAttribute('data-active')).toBe('false');
   });
 
-  it('el hueco entre destinos es de 8px, el que dice la spec 4.2', async () => {
+  it('el hueco entre destinos es de 12px (--space-3) para mejor respiración vertical', async () => {
     // Specifiers en variables + imports dinámicos: Vite no debe pasar estos
     // módulos por nodePolyfills (mismo motivo que designTokens.test.ts).
     const NODE_FS = 'node:fs';
@@ -254,10 +202,9 @@ describe('T4 — IconRail', () => {
 
     setup();
     const token = screen.getByTestId('icon-rail').style.gap.match(/var\((--[\w-]+)/)?.[1];
-    expect(token).toBeTruthy();
-    // El token se resuelve contra la hoja real: un `var(--space-1, 8px)` se
-    // vería correcto en el código y valdría 4px.
-    expect(raiz.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim()).toBe('8px');
+    expect(token).toBe('--space-3');
+    // El token se resuelve contra la hoja real:
+    expect(raiz.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim()).toBe('12px');
   });
 
   it('el hover de una fase aplica la superficie y tinta de acento (zoom spring)', () => {
@@ -292,25 +239,12 @@ describe('T4 — IconRail', () => {
     expect(btn.style.backgroundColor).toBe('transparent');
   });
 
-  it('el hover del botón de anclar usa la misma superficie', () => {
-    setup();
-    const pin = screen.getByRole('button', { name: 'Anclar panel' });
-    expect(pin.style.backgroundColor).toBe('transparent');
-    fireEvent.mouseEnter(pin);
-    expect(pin.style.backgroundColor).toBe('var(--color-bg-surface-alt)');
-    expect(pin.style.color).toBe('var(--color-text-primary)');
-    fireEvent.mouseLeave(pin);
-    expect(pin.style.backgroundColor).toBe('transparent');
-    expect(pin.style.color).toBe('var(--color-text-secondary)');
-  });
-
   it('el conteo de pendientes llega al NOMBRE del botón, no a un span por dentro', () => {
     // Un `aria-label` en un <span> dentro de un botón no suma nada al nombre
     // accesible: el nombre lo da el botón. El punto es decorativo; el número
     // tiene que estar en el `aria-label` del botón.
-    const onTogglePin = vi.fn();
     const { unmount } = render(
-      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onTogglePin={onTogglePin} onSelect={vi.fn()} pinned={false} />,
+      <IconRail items={mkItems()} onEnterRail={vi.fn()} onLeaveRail={vi.fn()} onSelect={vi.fn()} />,
     );
     expect(screen.queryByRole('button', { name: /pendientes/ })).toBeNull();
     unmount();
@@ -320,9 +254,7 @@ describe('T4 — IconRail', () => {
         items={mkItems().map((i) => (i.step === 5 ? { ...i, pending: 7, status: 'pending' as const } : i))}
         onEnterRail={vi.fn()}
         onLeaveRail={vi.fn()}
-        onTogglePin={onTogglePin}
         onSelect={vi.fn()}
-        pinned={false}
       />,
     );
     const btn = screen.getByRole('button', { name: 'Revisión & IA, 7 pendientes' });

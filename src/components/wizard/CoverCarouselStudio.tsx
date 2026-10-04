@@ -54,16 +54,18 @@ export const CoverCarouselStudio: React.FC = () => {
   const [vista, setVista] = useState<'carrusel' | 'editor'>('carrusel');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Responsive: ancho de miniatura calculado dinámicamente según viewport
-  const [anchoCalculado, setAnchoCalculado] = useState<number>(360);
+  // Responsive: ancho de miniatura calculado dinámicamente según viewport para protagonismo central
+  const [anchoCalculado, setAnchoCalculado] = useState<number>(440);
 
   useEffect(() => {
     const calcular = () => {
       if (typeof window === 'undefined') return;
-      const altoDisponible = window.innerHeight - 260;
-      const anchoPorAlto = Math.round(altoDisponible / 1.35);
-      const anchoPorAncho = Math.round(window.innerWidth * 0.28);
-      const optimo = Math.min(440, Math.max(260, Math.min(anchoPorAlto, anchoPorAncho)));
+      // Aprovechar altura útil del lienzo
+      const altoDisponible = window.innerHeight - 200;
+      const anchoPorAlto = Math.round(altoDisponible / 1.32);
+      const anchoPorAncho = Math.round(window.innerWidth * 0.42);
+      // Minimo 320px, máximo 560px para presencia imponente en centro
+      const optimo = Math.min(560, Math.max(320, Math.min(anchoPorAlto, anchoPorAncho)));
       setAnchoCalculado(optimo);
     };
     calcular();

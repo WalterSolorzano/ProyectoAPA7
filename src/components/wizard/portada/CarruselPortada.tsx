@@ -116,7 +116,7 @@ const ANCHO_DE_MINIATURA_PX = 224;
  *  calcula con él. Si la separación saliera de un `var(--space-*)` y el paso de
  *  un literal, las dos cuentas dirían cosas distintas en la primera pantalla
  *  con otro ancho. */
-const SEPARACION_PX = 28;
+const SEPARACION_PX = 20;
 
 /** Cuánto hay que arrastrar para que el arrastre cuente como paso. */
 export const UMBRAL_DE_ARRASTRE_PX = 48;
@@ -172,7 +172,7 @@ function useMovimientoReducido(): boolean {
 /** La escala de una tarjeta según su distancia a la activa. */
 function escalaDeLaTarjeta(distancia: number): number {
   if (distancia === 0) return 1;
-  return distancia <= VECINAS_POR_LADO ? 0.86 : 0.72;
+  return distancia <= VECINAS_POR_LADO ? 0.78 : 0.64;
 }
 
 export interface CarruselPortadaProps {
@@ -314,31 +314,30 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
         </span>
       </div>
 
-      {/* ── Flechas a los lados de la hoja, y la pista en el medio ──
-          Las flechas van FUERA de la pista a propósito: la pista contiene las
-          cinco tarjetas y nada más, así que "cinco botones" sigue queriendo
-          decir "cinco estrategias". */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', width: '100%' }}>
+      {/* ── Flechas a los lados de la hoja, y la pista en el medio ── */}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'center' }}>
         <button
           type="button"
           aria-label="Ir al diseño anterior"
           onClick={() => irA(indice - 1)}
           disabled={indice === 0}
           style={{
-            flex: '0 0 auto',
-            width: 48, height: 64,
+            position: 'absolute',
+            left: '12px',
+            zIndex: 40,
+            width: 46, height: 46,
+            borderRadius: 'var(--radius-full)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: indice === 0 ? 'not-allowed' : 'pointer',
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-lg)',
             color: 'var(--color-text-primary)',
-            opacity: indice === 0 ? 0.4 : 1,
-            transition: 'opacity 0.15s ease, background 0.15s ease',
-            boxShadow: 'var(--shadow-sm)',
+            opacity: indice === 0 ? 0.3 : 0.95,
+            transition: 'opacity 0.15s ease, background 0.15s ease, transform 0.15s ease',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
-          <ChevronLeft size={26} strokeWidth="var(--icon-stroke)" aria-hidden />
+          <ChevronLeft size={24} strokeWidth="var(--icon-stroke)" aria-hidden />
         </button>
 
         <div
@@ -491,20 +490,22 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
           onClick={() => irA(indice + 1)}
           disabled={indice === DISENOS_DE_PORTADA.length - 1}
           style={{
-            flex: '0 0 auto',
-            width: 48, height: 64,
+            position: 'absolute',
+            right: '12px',
+            zIndex: 40,
+            width: 46, height: 46,
+            borderRadius: 'var(--radius-full)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: indice === DISENOS_DE_PORTADA.length - 1 ? 'not-allowed' : 'pointer',
             background: 'var(--color-bg-surface)',
             border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-lg)',
             color: 'var(--color-text-primary)',
-            opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.4 : 1,
-            transition: 'opacity 0.15s ease, background 0.15s ease',
-            boxShadow: 'var(--shadow-sm)',
+            opacity: indice === DISENOS_DE_PORTADA.length - 1 ? 0.3 : 0.95,
+            transition: 'opacity 0.15s ease, background 0.15s ease, transform 0.15s ease',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
-          <ChevronRight size={26} strokeWidth="var(--icon-stroke)" aria-hidden />
+          <ChevronRight size={24} strokeWidth="var(--icon-stroke)" aria-hidden />
         </button>
       </div>
 

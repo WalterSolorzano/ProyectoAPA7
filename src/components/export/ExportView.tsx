@@ -304,7 +304,7 @@ export const ExportView: React.FC = () => {
         aria-label="Exportación lista para descargar"
         className="export-view-panel"
         style={{
-          width: 'clamp(340px, 32vw, 440px)',
+          width: 'clamp(420px, 38vw, 520px)',
           flexShrink: 0,
           height: '100%',
           display: 'flex',
@@ -1123,10 +1123,19 @@ export const ExportView: React.FC = () => {
  *    otros cinco tienen un interruptor que no llega a nada, y eso es peor que
  *    que no estén: ocupa el lugar de uno que sí llega.
  */
+const FUENTES_APA7_RAPIDAS = [
+  { id: 'Times New Roman', nombre: 'Times New Roman 12 pt', size: 12 },
+  { id: 'Arial', nombre: 'Arial 11 pt', size: 11 },
+  { id: 'Calibri', nombre: 'Calibri 11 pt', size: 11 },
+  { id: 'Georgia', nombre: 'Georgia 11 pt', size: 11 },
+  { id: 'Lucida Sans', nombre: 'Lucida Sans 10 pt', size: 10 },
+];
+
 const PanelDeAjustes: React.FC = () => {
   const portada = useDocStore((s) => s.portada);
   const setPortada = useDocStore((s) => s.setPortada);
   const rules = useDocStore((s) => s.rules);
+  const setRules = useDocStore((s) => s.setRules);
   const tracked = useDocStore((s) => s.tracked);
   const setTracked = useDocStore((s) => s.setTracked);
   const format = useDocStore((s) => s.format);
@@ -1158,126 +1167,301 @@ const PanelDeAjustes: React.FC = () => {
   return (
     <div
       aria-label="Ajustes de exportación"
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
     >
+      {/* ── AJUSTES RÁPIDOS DE FORMATO (PERSONALIZADO) ───────────────────── */}
+      <details
+        className="export-accordion"
+        open
+        style={{
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--radius-sm)',
+          padding: 'var(--space-2) var(--space-3)',
+          background: 'var(--color-bg-surface)',
+        }}
+      >
+        <summary
+          style={{
+            cursor: 'pointer',
+            userSelect: 'none',
+            outline: 'none',
+            marginBottom: 'var(--space-2)',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 'var(--text-xs)',
+              fontWeight: 700,
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            Ajustes Rápidos de Formato (Personalizado)
+          </span>
+        </summary>
+
+        <section
+          aria-label="Ajustes Rápidos de Formato (Personalizado)"
+          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginTop: 'var(--space-1)' }}
+        >
+          {/* Selector de fuente oficial APA 7 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <label
+              htmlFor="export-rapido-fuente"
+              style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)' }}
+            >
+              Fuente oficial APA 7
+            </label>
+            <select
+              id="export-rapido-fuente"
+              data-testid="selector-fuente-apa7"
+              value={rules.font_family || 'Times New Roman'}
+              onChange={(e) => {
+                const fuente = FUENTES_APA7_RAPIDAS.find((f) => f.id === e.target.value);
+                if (fuente) {
+                  setRules({ font_family: fuente.id, font_size_pt: fuente.size });
+                } else {
+                  setRules({ font_family: e.target.value });
+                }
+              }}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: 'var(--space-2) var(--space-3)',
+                fontSize: 'var(--text-sm)', fontFamily: 'var(--font-family)',
+                background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)',
+                border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              {FUENTES_APA7_RAPIDAS.map((f) => (
+                <option key={f.id} value={f.id}>{f.nombre}</option>
+              ))}
+              {!FUENTES_APA7_RAPIDAS.some((f) => f.id === rules.font_family) && rules.font_family && (
+                <option value={rules.font_family}>{rules.font_family}</option>
+              )}
+            </select>
+          </div>
+
+          {/* Selector de interlineado (chips rápidos para 2.0, 1.5, 1.0) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Interlineado
+            </span>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+              {[2.0, 1.5, 1.0].map((esp) => {
+                const activo = rules.line_spacing === esp;
+                return (
+                  <button
+                    key={esp}
+                    type="button"
+                    data-testid={`chip-interlineado-${esp}`}
+                    onClick={() => setRules({ line_spacing: esp })}
+                    style={{
+                      padding: 'var(--space-1) var(--space-3)',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: activo ? 700 : 500,
+                      borderRadius: 'var(--radius-full, 9999px)',
+                      border: activo ? '1px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                      background: activo ? 'var(--color-accent-subtle, rgba(0, 102, 204, 0.1))' : 'var(--color-bg-surface)',
+                      color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {esp.toFixed(1)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Checkbox de justificación: "Justificar texto completo" */}
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+              cursor: 'pointer', fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-secondary)', userSelect: 'none',
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="check-justificar-texto"
+              checked={rules.alignment === 'justify'}
+              onChange={(e) => setRules({ alignment: e.target.checked ? 'justify' : 'left' })}
+              style={{
+                borderRadius: 'var(--radius-sm)',
+                width: '14px', height: '14px',
+                cursor: 'pointer', accentColor: 'var(--color-accent)',
+              }}
+            />
+            <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+              Justificar texto completo
+            </span>
+          </label>
+
+          {/* Checkbox de sangría: "Sangría de 1.27 cm en párrafos" */}
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+              cursor: 'pointer', fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-secondary)', userSelect: 'none',
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="check-sangria-parrafos"
+              checked={rules.paragraph_indent_cm === 1.27}
+              onChange={(e) => setRules({ paragraph_indent_cm: e.target.checked ? 1.27 : 0 })}
+              style={{
+                borderRadius: 'var(--radius-sm)',
+                width: '14px', height: '14px',
+                cursor: 'pointer', accentColor: 'var(--color-accent)',
+              }}
+            />
+            <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>
+              Sangría de 1.27 cm en párrafos
+            </span>
+          </label>
+        </section>
+      </details>
+
+      {/* ── CUATRO GRUPOS REGLAMENTARIOS EN ACORDEONES ──────────────────── */}
       {CUATRO_GRUPOS.map((titulo) => {
         const controles = CONTROLES_DEL_PANEL.filter((c) => c.grupo === titulo);
         const derivados = DERIVADOS_DEL_PANEL.filter((d) => d.grupo === titulo);
         if (controles.length === 0 && derivados.length === 0) return null;
         return (
-          <section
+          <details
             key={titulo}
-            aria-label={titulo}
-            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+            className="export-accordion"
+            open
+            style={{
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 'var(--space-2) var(--space-3)',
+              background: 'var(--color-bg-surface)',
+            }}
           >
-            <span
+            <summary
               style={{
-                fontSize: 'var(--text-xs)', fontWeight: 700,
-                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+                userSelect: 'none',
+                outline: 'none',
+                marginBottom: 'var(--space-2)',
               }}
             >
-              {titulo}
-            </span>
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)', fontWeight: 700,
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {titulo}
+              </span>
+            </summary>
 
-            {/* Lo que se cambia acá. */}
-            {controles.map((c) => {
-              /* Un control que solo aplica a .docx no se dibuja con otro
-                 formato encendido: se dibujaría y no haría nada. */
-              if (c.soloDocx && format !== 'docx') return null;
-              if (c.id === 'idioma') {
+            <section
+              aria-label={titulo}
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}
+            >
+              {/* Lo que se cambia acá. */}
+              {controles.map((c) => {
+                /* Un control que solo aplica a .docx no se dibuja con otro
+                   formato encendido: se dibujaría y no haría nada. */
+                if (c.soloDocx && format !== 'docx') return null;
+                if (c.id === 'idioma') {
+                  return (
+                    <div
+                      key={c.id}
+                      data-testid={`control-${c.id}`}
+                      data-al-apagar={c.alApagar}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+                    >
+                      <label
+                        htmlFor="export-idioma"
+                        style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)' }}
+                      >
+                        {c.etiqueta}
+                      </label>
+                      <select
+                        id="export-idioma"
+                        data-testid="campo-idioma"
+                        value={idioma}
+                        onChange={(e) => setPortada({ language: e.target.value as PortadaLanguage })}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          padding: 'var(--space-2) var(--space-3)',
+                          fontSize: 'var(--text-sm)', fontFamily: 'var(--font-family)',
+                          background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)',
+                          border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        {PORTADA_IDIOMAS.map((i) => (
+                          <option key={i.valor} value={i.valor}>{i.etiqueta}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                        {c.alEncender}
+                      </span>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                        {c.alApagar}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
-                  <div
+                  <label
                     key={c.id}
                     data-testid={`control-${c.id}`}
                     data-al-apagar={c.alApagar}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)',
+                      cursor: 'pointer', fontSize: 'var(--text-xs)',
+                      color: 'var(--color-text-secondary)', userSelect: 'none',
+                    }}
                   >
-                    <label
-                      htmlFor="export-idioma"
-                      style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)' }}
-                    >
-                      {c.etiqueta}
-                    </label>
-                    <select
-                      id="export-idioma"
-                      data-testid="campo-idioma"
-                      value={idioma}
-                      onChange={(e) => setPortada({ language: e.target.value as PortadaLanguage })}
+                    <input
+                      type="checkbox"
+                      data-testid={`campo-${c.id}`}
+                      checked={valorDe(c.id)}
+                      onChange={(e) => cambiar(c.id, e.target.checked)}
                       style={{
-                        width: '100%', boxSizing: 'border-box',
-                        padding: 'var(--space-2) var(--space-3)',
-                        fontSize: 'var(--text-sm)', fontFamily: 'var(--font-family)',
-                        background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)',
-                        border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)',
+                        marginTop: '2px',
+                        borderRadius: 'var(--radius-sm)',
+                        width: '14px', height: '14px',
+                        cursor: 'pointer', accentColor: 'var(--color-accent)',
                       }}
-                    >
-                      {PORTADA_IDIOMAS.map((i) => (
-                        <option key={i.valor} value={i.valor}>{i.etiqueta}</option>
-                      ))}
-                    </select>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                      {c.alEncender}
+                    />
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{c.etiqueta}</span>
+                      <span>{c.alEncender}</span>
+                      <span style={{ color: 'var(--color-text-tertiary)' }}>{c.alApagar}</span>
                     </span>
-                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                      {c.alApagar}
-                    </span>
-                  </div>
+                  </label>
                 );
-              }
-              return (
-                <label
-                  key={c.id}
-                  data-testid={`control-${c.id}`}
-                  data-al-apagar={c.alApagar}
+              })}
+
+              {/* Lo que Ajustes ya tiene y acá solo se lee. */}
+              {derivados.map((d) => (
+                <div
+                  key={d.id}
+                  data-testid={`derivado-${d.id}`}
+                  data-solo-lectura="true"
                   style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)',
-                    cursor: 'pointer', fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-secondary)', userSelect: 'none',
+                    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 'var(--space-2)', fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-secondary)',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    data-testid={`campo-${c.id}`}
-                    checked={valorDe(c.id)}
-                    onChange={(e) => cambiar(c.id, e.target.checked)}
-                    style={{
-                      marginTop: '2px',
-                      borderRadius: 'var(--radius-sm)',
-                      width: '14px', height: '14px',
-                      cursor: 'pointer', accentColor: 'var(--color-accent)',
-                    }}
-                  />
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{c.etiqueta}</span>
-                    <span>{c.alEncender}</span>
-                    <span style={{ color: 'var(--color-text-tertiary)' }}>{c.alApagar}</span>
+                  <span style={{ color: 'var(--color-text-primary)' }}>{d.etiqueta}</span>
+                  <span style={{ textAlign: 'right' }}>
+                    {d.leer()}
+                    <span style={{ display: 'block', color: 'var(--color-text-tertiary)' }}>
+                      {`Se cambia en ${d.seCambiaEn}`}
+                    </span>
                   </span>
-                </label>
-              );
-            })}
-
-            {/* Lo que Ajustes ya tiene y acá solo se lee. */}
-            {derivados.map((d) => (
-              <div
-                key={d.id}
-                data-testid={`derivado-${d.id}`}
-                data-solo-lectura="true"
-                style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 'var(--space-2)', fontSize: 'var(--text-xs)',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                <span style={{ color: 'var(--color-text-primary)' }}>{d.etiqueta}</span>
-                <span style={{ textAlign: 'right' }}>
-                  {d.leer()}
-                  <span style={{ display: 'block', color: 'var(--color-text-tertiary)' }}>
-                    {`Se cambia en ${d.seCambiaEn}`}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </section>
+                </div>
+              ))}
+            </section>
+          </details>
         );
       })}
     </div>

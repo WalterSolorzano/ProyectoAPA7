@@ -24,6 +24,7 @@ import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SEVERITY_RANK } from '../../hooks/useReviewWorkbench';
 import type { AuditItem, EngineGroup, SubtypeGroup } from '../../hooks/useReviewWorkbench';
+import { phaseLabel } from '../../lib/auditItems';
 
 export interface EngineGroupCardProps {
   group: EngineGroup;
@@ -223,7 +224,7 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, busy, children
             ×{group.items.length}
           </span>
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', flexShrink: 0 }}>{group.label}</span>
-          {(group.key.endsWith(':verbo_bloom') || group.key.endsWith(':objetivo_generico') || group.key === 'verbo_bloom') && (
+          {primero?.phase && (
             <span
               style={{
                 flexShrink: 0,
@@ -236,7 +237,7 @@ export function SubtypeRow({ group, open, onToggle, onMassAction, busy, children
                 border: '1px solid var(--color-border-subtle)',
               }}
             >
-              Fase: Objetivos
+              Fase: {phaseLabel(primero.phase)}
             </span>
           )}
           {primero?.originalText && (
