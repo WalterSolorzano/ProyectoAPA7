@@ -94,7 +94,7 @@ export const MiniaturaRealDePortada: React.FC<Props> = ({ diseno, anchoPx, hoja 
     return (
       <div
         data-papel="true"
-        style={{ ...papel, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--accent-primary)' }}
+        style={{ ...papel, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--color-accent)' }}
       >
         <CloudUpload size={Math.max(18, anchoPx * 0.16)} strokeWidth="var(--icon-stroke)" aria-hidden />
         <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800 }}>.docx</span>

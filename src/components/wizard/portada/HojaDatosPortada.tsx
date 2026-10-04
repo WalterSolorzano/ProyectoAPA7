@@ -92,12 +92,12 @@ export const HojaDatosPortada: React.FC<HojaDatosPortadaProps> = ({
         display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
         padding: 'var(--space-4)',
         background: 'var(--color-bg-surface)',
-        border: '1px solid var(--border-subtle)',
+        border: '1px solid var(--color-border-subtle)',
         borderRadius: 'var(--radius-md)',
       }}
     >
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
           <Layers size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
           Datos de la portada
         </span>

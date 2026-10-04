@@ -232,9 +232,9 @@ export const CoverCarouselStudio: React.FC = () => {
             <span aria-hidden="true" style={{
               width: '16px', height: '16px', borderRadius: 'var(--radius-full)',
               border: '2px solid var(--color-border-subtle)',
-              borderTopColor: 'var(--accent-primary)', display: 'inline-block', animation: 'spin 0.9s linear infinite',
+              borderTopColor: 'var(--color-accent)', display: 'inline-block', animation: 'spin 0.9s linear infinite',
             }} />
-            <span style={{ fontSize: '13px', fontWeight: 700 }}>Estamos haciendo editable tu portada…</span>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700 }}>Estamos haciendo editable tu portada…</span>
           </div>
         </div>
       )}
@@ -301,7 +301,7 @@ export const CoverCarouselStudio: React.FC = () => {
                   onClick={() => setVista('carrusel')}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--accent-primary)',
+                    fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-accent)',
                     background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
@@ -311,7 +311,7 @@ export const CoverCarouselStudio: React.FC = () => {
                 {/* Qué plantilla está puesta. Sin esto, quien sube un .docx ve la
                     misma vista de siempre y no tiene cómo saber que su archivo ya
                     está en uso. */}
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
                   {plantilla ? `Vista previa de portada · ${plantilla}` : 'Vista previa de portada'}
                 </span>
               </div>
