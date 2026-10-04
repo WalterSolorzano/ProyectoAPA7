@@ -86,6 +86,6 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
 | **Proactive Auditor** | `python/modules/proactive_auditor.py` | Detección de patrones de IA, estilo y ortografía |
 | **Lienzo APA 7** | `src/components/layout/PaperCanvas.tsx` | Renderizador interactivo en vivo, paginador y chips editoriales |
 | **Carrusel de Portadas** | `src/components/wizard/CoverCarouselStudio.tsx` | Carrusel visual interactivo con miniaturas esqueleto y navegación |
-| **Explorador de Proyecto** | `src/components/project/ProjectFolderModal.tsx` | Gestión de carpeta de trabajo, múltiples .docx y figuras asociadas |
+| **Explorador de Proyecto** | `src/components/project/ExploradorProyecto.tsx` | Panel inline (no modal): carpeta de trabajo, múltiples .docx y figuras asociadas, dentro de `ProyectosScreen` |
 | **Zustand Store** | `src/store/useDocStore.ts` | Estado reactivo central y disparador de auditorías |
 | **Barra Unificada** | `src/components/toolbar/UnifiedToolbar.tsx` | Navegación, botón Inicio y Copiloto IA |

@@ -62,7 +62,7 @@ beforeAll(async () => {
 /* ── Lo que la columna final DEBE mostrar, y nada mas ── */
 const TITULO = 'Documento listo';
 const LINEA = 'Descarga el archivo final o vuelve al documento para hacer ajustes.';
-const TEXTO_ESPERADO = `${TITULO}Tesis.docxWord APA 7 .docx${LINEA}Descargar Word APA 7 (.docx)Convertir otroOpcionesVolver a editarMESA DE ENTREGATu documento tiene salida.Elige el formato, revisa una página si lo necesitas y llévatelo contigo.Ver una página`;
+const TEXTO_ESPERADO = `${TITULO}Tesis.docxWord APA 7 .docx${LINEA}Descargar Word APA 7 (.docx)Convertir otroVer en WordOpcionesVolver a editarMESA DE ENTREGATu documento tiene salida.Elige el formato, revisa una página si lo necesitas y llévatelo contigo.Ver una página`;
 
 /* Un documento con hallazgos de sobra: si la vista final los repitiera,
    estos datos serian justo lo que feedearia el recap que no debe existir. */
@@ -113,7 +113,7 @@ describe('T17 — ExportView: la columna final', () => {
      /* El archivo se identifica antes de la descripción; después quedan las
        dos acciones principales y el acceso terciario a Opciones/edición. */
     const hijos = Array.from(columna().children).map((el) => el.tagName.toLowerCase());
-     expect(hijos).toEqual(['svg', 'h1', 'div', 'p', 'div', 'div']);
+     expect(hijos).toEqual(['svg', 'h1', 'div', 'p', 'div', 'div', 'div']);
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(TITULO);
 

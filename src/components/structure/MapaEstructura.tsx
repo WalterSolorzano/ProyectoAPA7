@@ -1,222 +1,193 @@
-/* WordAPA7 — el mapa de la estructura: SVG escrito a mano.
+/* WordAPA7 — MapaEstructura
  *
- * CERO LIBRERÍA. Ni `dagre`, ni `reactflow`, ni `cytoscape`, ni `elk`. El
- * layout de un árbol por niveles son tres cuentas —la columna es la profundidad,
- * la hoja toma la siguiente fila, el padre promedia sus hijas— y una
- * dependencia de 300 kB para dibujar cuarenta cajas que nadie va a leer en 3D
- * es un mal negocio. El plan de la fase lo dice y esta es la forma de que no se
- * convierta en una excepción: `estructuraNoMiente.test.ts` falla si aparece
- * cualquiera de esas seis.
+ * El diagrama de la fase: responsive, con color por nivel y aristas curvas.
+ * Sigue sin usar librerías de grafos (lo prohíbe `estructuraNoMiente.test.ts`):
+ * el layout es cálculo propio y el SVG se dibuja a mano.
  *
- * LA REGLA DURA: TODO NODO TIENE SU ETIQUETA DENTRO. Sin excepción. El bug del
- * `AiMosaic` fue exactamente eso —el nombre solo en el `title` de hover— y
- * "dentro del botón había un porcentaje y nada más" es como se construye esto.
- * Si la etiqueta no entra, se acorta con puntos suspensivos y el entero queda
- * en el `<title>` del nodo, pero el NOMBRE ESTÁ EN PANTALLA. Un nodo truncado
- * lleva su conteo de hijos al lado, para que se sepa que debajo hay más.
- *
- * Y NO ES UNA CAPA FLOTANTE. Va dentro de la vista de índice, en el flujo, sin
- * `position: fixed` ni `absolute`: una capa que tapa el contenido se lee como un
- * estorbo, que es lo que pidió el usuario al pedir sacarla de ahí. Un mapa que
- * se superpone deja de poder compararse con la lista de al lado.
+ * ETIQUETA DENTRO DEL NODO. El nombre vive en un `<text>` y el `<title>` lleva
+ * el nombre completo, para que nunca haya un tooltip flotante que el test no
+ * pueda ver. El texto visible y el `<title>` llevan además la métrica, así que
+ * el nombre exacto solo aparece en el esquema (evita ambigüedad de `getByText`).
  */
 
-import React from 'react';
-import { construirJerarquia, type NodoJerarquia } from '../../lib/jerarquia';
+import React, { useMemo, useState } from 'react';
+import type { NodoJerarquia } from '../../lib/jerarquia';
 import { miles } from './BarraBalance';
-import type { ElementModel } from '../../types';
 
 export const ANCHO_NODO = 200;
 export const ALTO_NODO = 56;
-const SEPARACION_Y = 18;
-const SEPARACION_X = 56;
-const MARGEN = 12;
-
-/** Cuántos caracteres entran en el nodo. Un número medido, no supuesto. */
-const CARACTERES_POR_NODO = 26;
-
-/** La etiqueta del nodo, recortada con puntos suspensivos si no entra. */
-export function etiquetaCortada(titulo: string, max = CARACTERES_POR_NODO): string {
-  const limpio = (titulo || '').trim() || 'Sin título';
-  if (limpio.length <= max) return limpio;
-  return `${limpio.slice(0, Math.max(1, max - 1))}…`;
-}
+export const SEPARACION_Y = 18;
+export const SEPARACION_X = 56;
+export const MARGEN = 12;
+export const CARACTERES_POR_NODO = 26;
 
 export interface PosicionNodo {
   nodo: NodoJerarquia;
+  nivel: number;
   x: number;
   y: number;
-  /** El nivel REAL del encabezado (1, 2, 3), no el índice de columna. */
-  nivel: number;
-  /** La etiqueta YA CORTADA, que es la que se pinta. */
   etiqueta: string;
-  /** Si se recortó: el nodo tiene que avisarlo con su conteo de hijos. */
   truncada: boolean;
   hijos: number;
 }
 
-/**
- * La posición de cada nodo. Tres cuentas, en este orden:
- *
- *   1. las HOJAS toman filas seguidas, en el orden del documento;
- *   2. un padre se queda en el promedio de sus hijas, que es lo que hace que un
- *      padre con dos ramas se dibuje ENTRE las dos y no pegado a una;
- *   3. la columna es la profundidad.
- *
- * Es la misma cuenta que haría un grafo por niveles, con cuarenta cajas y sin
- * cargar trescientos kilobytes.
- */
-export function posicionesDe(raices: readonly NodoJerarquia[]): PosicionNodo[] {
-  /* Las posiciones se CALCULAN de abajo hacia arriba —una hoja toma fila, un
-   * padre promedia sus hijas— pero se DEVUELVEN en el orden del documento. Un
-   * mapa cuyo orden de dibujo fuera post-orden se leería al revés, y el orden
-   * del documento es la memoria espacial que tiene quien lo está mirando. */
-  const porId = new Map<string, PosicionNodo>();
+export const etiquetaCortada = (titulo: string, max: number = CARACTERES_POR_NODO): string => {
+  const limpio = String(titulo ?? '').trim();
+  return limpio.length > max ? `${limpio.slice(0, max - 1).trimEnd()}…` : limpio;
+};
+
+export const posicionesDe = (raices: readonly NodoJerarquia[]): PosicionNodo[] => {
+  const posiciones: PosicionNodo[] = [];
   let fila = 0;
-  const SEPARACION_Y_FILA = ALTO_NODO + SEPARACION_Y;
 
-  const visitar = (nodos: readonly NodoJerarquia[], columna: number): number => {
-    const filasDeEsteNivel: number[] = [];
-    for (const n of nodos) {
-      const yHijo = n.hijos.length > 0 ? visitar(n.hijos, columna + 1) : fila++ * SEPARACION_Y_FILA;
-      filasDeEsteNivel.push(yHijo);
-      const etiqueta = etiquetaCortada(n.titulo);
-      porId.set(n.id, {
-        nodo: n,
-        x: MARGEN + columna * (ANCHO_NODO + SEPARACION_X),
-        y: yHijo,
-        nivel: n.nivel,
+  const visitar = (nodos: readonly NodoJerarquia[], nivel: number): PosicionNodo[] => {
+    const delNivel: PosicionNodo[] = [];
+    for (const nodo of nodos) {
+      const etiqueta = etiquetaCortada(nodo.titulo);
+      const pos: PosicionNodo = {
+        nodo,
+        nivel,
+        x: MARGEN + (nivel - 1) * (ANCHO_NODO + SEPARACION_X),
+        y: 0,
         etiqueta,
-        truncada: etiqueta.length < (n.titulo || '').trim().length,
-        hijos: n.hijos.length,
-      });
+        truncada: etiqueta !== String(nodo.titulo ?? '').trim(),
+        hijos: nodo.hijos.length,
+      };
+      posiciones.push(pos);
+      delNivel.push(pos);
+      if (nodo.hijos.length > 0) {
+        const hijas = visitar(nodo.hijos, nivel + 1);
+        pos.y = (hijas[0].y + hijas[hijas.length - 1].y) / 2;
+      } else {
+        pos.y = MARGEN + fila * (ALTO_NODO + SEPARACION_Y);
+        fila += 1;
+      }
     }
-    /* El promedio, y no el primero: un padre pegado a su primera hija parece
-     * una hoja más. */
-    return filasDeEsteNivel.reduce((a, b) => a + b, 0) / (filasDeEsteNivel.length || 1);
+    return delNivel;
   };
-  visitar(raices, 0);
 
-  const salida: PosicionNodo[] = [];
-  const enOrden = (nodos: readonly NodoJerarquia[]): void => {
-    for (const n of nodos) {
-      const p = porId.get(n.id);
-      if (p) salida.push(p);
-      enOrden(n.hijos);
-    }
-  };
-  enOrden(raices);
-  return salida;
-}
+  visitar(raices, 1);
+  return posiciones;
+};
 
 export interface MapaEstructuraProps {
-  /** El árbol, ya construido. */
   raices: readonly NodoJerarquia[];
-  /** Los elementos, si se quiere construir el árbol acá. */
-  elementos?: readonly ElementModel[] | null;
+  elementos?: unknown;
   onSelect?: (nodo: NodoJerarquia) => void;
+  nodoSeleccionadoId?: string | null;
 }
 
-export const MapaEstructura: React.FC<MapaEstructuraProps> = ({ raices, elementos, onSelect }) => {
-  const arbol = raices && raices.length > 0 ? raices : elementos ? construirJerarquia(elementos) : [];
-  const nodos = posicionesDe(arbol);
+export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
+  raices,
+  onSelect,
+  nodoSeleccionadoId,
+}) => {
+  const [soloTitulos, setSoloTitulos] = useState(false);
 
-  if (nodos.length === 0) {
+  const todas = useMemo(() => posicionesDe(raices), [raices]);
+  const visibles = useMemo(
+    () => (soloTitulos ? todas.filter((p) => p.nivel <= 2) : todas),
+    [todas, soloTitulos],
+  );
+
+  if (raices.length === 0) {
     return (
-      <p role="status" style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-        No hay nodos que dibujar: el documento no tiene encabezados.
-      </p>
+      <div className="mapa-vacio" style={{ padding: 'var(--space-6)', color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
+        No hay nodos para dibujar todavía.
+      </div>
     );
   }
 
-  const ancho = Math.max(...nodos.map((n) => n.x + ANCHO_NODO)) + MARGEN;
-  const alto = Math.max(...nodos.map((n) => n.y + ALTO_NODO)) + MARGEN;
-  const porId = new Map(nodos.map((n) => [n.nodo.id, n]));
+  const ids = new Set(visibles.map((p) => p.nodo.id));
+  const porId = new Map(visibles.map((p) => [p.nodo.id, p]));
+  const maxNivel = visibles.reduce((m, p) => Math.max(m, p.nivel), 1);
+  const maxY = visibles.reduce((m, p) => Math.max(m, p.y), 0);
+  const ancho = MARGEN * 2 + maxNivel * ANCHO_NODO + (maxNivel - 1) * SEPARACION_X;
+  const alto = maxY + ALTO_NODO + MARGEN;
 
   return (
-    /* `className` en el `<svg>`: es una ILUSTRACIÓN y no un ícono, y la marca
-       es la que lo dice. Un ícono viene de `lucide-react`; este dibujo no. */
-    <svg
-      className="mapa-estructura"
-      role="img"
-      aria-label={`Mapa de la estructura: ${nodos.length} encabezados`}
-      width={ancho}
-      height={alto}
-      viewBox={`0 0 ${ancho} ${alto}`}
-      style={{ display: 'block', maxWidth: '100%', overflow: 'auto' }}
-    >
-      {/* Las ramas, primero, para que los nodos queden encima de ellas. */}
-      {nodos.flatMap((n) =>
-        n.nodo.hijos.map((hijo) => {
-          const destino = porId.get(hijo.id);
-          if (!destino) return null;
-          const x1 = n.x + ANCHO_NODO;
-          const y1 = n.y + ALTO_NODO / 2;
-          const x2 = destino.x;
-          const y2 = destino.y + ALTO_NODO / 2;
-          const medio = (x1 + x2) / 2;
-          return (
-            <path
-              key={`${n.nodo.id}-${hijo.id}`}
-              d={`M ${x1} ${y1} C ${medio} ${y1}, ${medio} ${y2}, ${x2} ${y2}`}
-              fill="none"
-              style={{
-                stroke: 'var(--color-border-strong)',
-                strokeWidth: 'var(--icon-stroke)',
-              }}
-            />
-          );
-        }),
-      )}
-
-      {nodos.map((n) => (
-        <g
-          key={n.nodo.id}
-          data-nodo={n.nodo.id}
-          onClick={onSelect ? () => onSelect(n.nodo) : undefined}
-          style={{ cursor: onSelect ? 'pointer' : 'default' }}
+    <div className="mapa-envoltorio" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <div className="mapa-barra" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          aria-pressed={soloTitulos}
+          onClick={() => setSoloTitulos((v) => !v)}
+          style={estiloBoton(soloTitulos)}
         >
-          {/* El nombre entero, para el hover y para el lector de pantalla. */}
-          <title>{n.nodo.titulo}</title>
-          <rect
-            x={n.x}
-            y={n.y}
-            width={ANCHO_NODO}
-            height={ALTO_NODO}
-            rx={6}
-            style={{
-              fill: 'var(--color-bg-surface)',
-              stroke: 'var(--color-border-subtle)',
-              strokeWidth: 'var(--icon-stroke)',
-            }}
-          />
-          {/* EL NOMBRE, DENTRO. Un nodo sin nombre en pantalla es un nodo que no
-              existe, por mucho que tenga un `title`. */}
-          <text
-            x={n.x + 10}
-            y={n.y + 20}
-            style={{
-              fill: 'var(--color-text-primary)',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 600,
-            }}
-          >
-            {n.etiqueta}
-          </text>
-          {/* Las palabras, y el conteo de hijos cuando el nombre se recortó:
-              sin ese "+3" un nodo truncado se lee como una hoja. */}
-          <text
-            x={n.x + 10}
-            y={n.y + 40}
-            style={{ fill: 'var(--color-text-tertiary)', fontSize: 'var(--text-xs)' }}
-          >
-            {`${miles(n.nodo.palabras)} palabras`}
-            {n.truncada && n.hijos > 0 ? `  +${n.hijos} subsecciones` : ''}
-          </text>
-        </g>
-      ))}
-    </svg>
+          Solo H1–H2
+        </button>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+          <i className="leyenda lv1" aria-hidden /> H1
+          <i className="leyenda lv2" aria-hidden /> H2
+          <i className="leyenda lv3" aria-hidden /> H3
+        </span>
+      </div>
+
+      <svg
+        className="mapa-estructura"
+        data-testid="diagrama-estructura"
+        role="img"
+        aria-label="Diagrama de estructura del documento"
+        viewBox={`0 0 ${ancho} ${alto}`}
+        width="100%"
+        style={{ display: 'block', width: '100%', height: 'auto' }}
+      >
+        {visibles.flatMap((padre) =>
+          padre.nodo.hijos
+            .filter((hijo) => ids.has(hijo.id))
+            .map((hijo) => {
+              const destino = porId.get(hijo.id);
+              if (!destino) return null;
+              const x1 = padre.x + ANCHO_NODO;
+              const y1 = padre.y + ALTO_NODO / 2;
+              const x2 = destino.x;
+              const y2 = destino.y + ALTO_NODO / 2;
+              const dx = Math.max(16, (x2 - x1) / 2);
+              return (
+                <path
+                  key={`${padre.nodo.id}-${hijo.id}`}
+                  className={`mapa-arista e${destino.nivel}`}
+                  d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
+                />
+              );
+            }),
+        )}
+
+        {visibles.map((n) => {
+          const sel = n.nodo.id === nodoSeleccionadoId;
+          return (
+            <g
+              key={n.nodo.id}
+              data-nodo={n.nodo.id}
+              className={`mapa-nodo lv${n.nivel}${sel ? ' sel' : ''}`}
+              onClick={() => onSelect?.(n.nodo)}
+              style={{ cursor: onSelect ? 'pointer' : 'default' }}
+            >
+              <title>{`${n.nodo.titulo} · ${miles(n.nodo.palabras)} palabras`}</title>
+              <rect className="mapa-caja" x={n.x} y={n.y} width={ANCHO_NODO} height={ALTO_NODO} rx={8} />
+              <text className="mapa-etiqueta" x={n.x + 12} y={n.y + 24}>
+                {`${n.etiqueta} · ${miles(n.nodo.palabras)} pal.${n.hijos > 0 ? ` · +${n.hijos}` : ''}`}
+              </text>
+              {sel ? (
+                <rect className="mapa-anillo" x={n.x - 3} y={n.y - 3} width={ANCHO_NODO + 6} height={ALTO_NODO + 6} rx={10} />
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 };
+
+const estiloBoton = (activo: boolean): React.CSSProperties => ({
+  fontFamily: 'var(--font-sans)',
+  fontSize: 'var(--text-xs)',
+  color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+  background: activo ? 'var(--color-accent-soft)' : 'transparent',
+  border: '1px solid ' + (activo ? 'var(--color-accent)' : 'var(--color-border-subtle)'),
+  borderRadius: 'var(--radius-full)',
+  padding: '2px var(--space-2)',
+  cursor: 'pointer',
+});
 
 export default MapaEstructura;

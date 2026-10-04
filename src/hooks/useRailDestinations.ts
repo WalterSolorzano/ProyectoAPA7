@@ -40,14 +40,6 @@ export function useRailDestinations(): RailDestination[] {
 
   const viewMode = useDocStore((s) => s.viewMode);
 
-  /* F7 Task 5. El destino del Explorador se enciende cuando su modulo esta
-     abierto, igual que Exportar se enciende con el tunel. Son el mismo caso: un
-     destino que no es una fase y cuya pantalla vive o muere aparte del
-     asistente. Sin esto, abrir el Explorador dejaba el rail apuntando a la
-     ultima fase que se vio —que no es la que esta en pantalla—, que es la
-     contradiccion que `AGENTS.md` prohibe. */
-  const exploradorAbierto = useDocStore((s) => s.exploradorAbierto);
-
   return useMemo<RailDestination[]>(() => {
     const states: Record<number, PhaseState> = readPhaseStates({
       hasDoc: !!doc,
@@ -60,7 +52,7 @@ export function useRailDestinations(): RailDestination[] {
       citationAuditResult,
     });
 
-    return EDITOR_RAIL_ITEMS.map(({ id, step, label, shortLabel, Icon, showOutline }) => {
+    return EDITOR_RAIL_ITEMS.map(({ id, step, label, shortLabel, Icon, showOutline, showFlyout }) => {
       /* Un destino sin fase NO se cuenta. Se devuelve temprano, sin `status` ni
          `pending`, y no es una faltan del derivation: es que `readPhaseStates` no
          sabe de el y no deberia. Calcular `?? 0` aca seria poner un cero
@@ -76,11 +68,13 @@ export function useRailDestinations(): RailDestination[] {
           shortLabel,
           Icon,
           showOutline,
-          current: id === 'proyecto'
-            ? (exploradorAbierto ? true : undefined)
-            : id === 'mis-proyectos'
-              ? (viewMode === 'proyectos' ? true : undefined)
-              : undefined,
+          showFlyout,
+          /* 'Mis proyectos' es una PANTALLA, no una capa, y se enciende con
+             `viewMode` igual que Exportar con su tunel: entrar no deja una fase
+             de fondo "a la vista". Sin esto el rail quedaba apuntando a la
+             ultima fase que se vio —que no es la que esta en pantalla—, que es
+             justo la contradiccion que `AGENTS.md` prohibe. */
+          current: viewMode === 'proyectos' ? true : undefined,
         };
       }
 
@@ -111,15 +105,12 @@ export function useRailDestinations(): RailDestination[] {
         status,
         pending,
         showOutline,
-        /* `&& !exploradorAbierto` NO ES COSMETICO. El Explorador es una CAPA encima de
-         lo que hay, no un salto de pantalla, asi que no cambia `viewMode`: el
-         tunel de exportacion sigue abierto debajo. Si los dos se marcaran
-         `current`, el rail afirmaria DOS destinos a la vista a la vez, que es
-         justo lo que `AGENTS.md` prohibe — el rail no puede contradecir la
-         pantalla a la que lleva. Gana la capa de arriba: mientras el Explorador
-         esta abierto, lo que la persona ve es el Explorador. */
-        current: step === 6 && viewMode === 'export' && !exploradorAbierto ? true : undefined,
+        showFlyout,
+        /* El tunel de exportacion es una pantalla entera, y `viewMode` ya dice
+           cual esta a la vista: si es 'export', el destino a la vista es Exportar
+           y no la fase que quedo de fondo. */
+        current: step === 6 && viewMode === 'export' ? true : undefined,
       };
     });
-  }, [doc, portada, coverSetupDone, reviewResult, proofreadFindings, citationAuditResult, viewMode, exploradorAbierto]);
+  }, [doc, portada, coverSetupDone, reviewResult, proofreadFindings, citationAuditResult, viewMode]);
 }

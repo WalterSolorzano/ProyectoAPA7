@@ -1,42 +1,26 @@
 /**
- * EL MODO FOCO NO PUEDE DEJAR UNA PANTALLA SIN SELECTOR.
+ * EL MODO FOCO NO PUEDE DEJAR UNA PANTALLA SIN HERRAMIENTAS.
  *
- * El defecto: en el paso 2, `App.tsx` montaba `StructureTabBar` con
- * `wizardStep === 2 && !focusMode`, y elegía el contenido con `structureTab`
- * sin mirar `focusMode`. Con el foco prendido, `Índice` quedaba sin selector
- * visible: no había forma de volver a `Títulos` ni a `Cuerpo`, y el diseño
- * viejo se volvía inalcanzable. El usuario pidió explícitamente que no se
- * pierda, y un diseño que no se puede alcanzar está perdido.
+ * El defecto: en el paso 2, la barra de pestañas de la fase se montaba con
+ * `!focusMode`, y el contenido elegía con `structureTab` sin mirar `focusMode`.
+ * Con el foco prendido el `Esquema` quedaba sin selector visible: no había
+ * forma de volver a `Títulos` ni a `Cuerpo`.
  *
- * LO QUE SE AFIRMA, Y POR QUÉ NO ES UNA PRUEBA DE TEXTO DE FUENTE
- *
- * Hay pruebas en este repo que leen `App.tsx` con `?raw` y buscan un patrón.
- * Una de esas no distingue "monta la barra siempre" de "monta la barra con
- * otra condición que también es cierta en el caso que importa". Esta prueba
- * MONTA la fase 2 con el foco prendido y aprieta el botón, que es lo que hace
- * una persona.
+ * Ahora la fase de Estructura es `EscritorioEstructura` y su contenido ya no
+ * depende de la barra de pestañas: el esquema, el diagrama y el panel son
+ * columnas permanentes del shell. Lo que se afirma es que con el foco prendido
+ * esas columnas siguen ahí, y que el foco sigue apagando lo que SÍ es suyo.
  *
  * Y no se reimplementa `App`: se monta el de verdad, con el store real y las
- * piezas pesadas sustituidas por su lugar. Reimplementar el árbol dentro de la
- * prueba probaría la prueba.
+ * piezas pesadas sustituidas por su lugar.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
-/* Los visores de PDF piden `DOMMatrix` en el import y no tienen nada que ver con
-   el selector de la fase 2. Se los cambia por su lugar. */
 vi.mock('../components/layout/PDFPreview', () => ({ PDFPreview: () => null }));
 vi.mock('../components/layout/ReactPDFPreview', () => ({ ReactPDFPreview: () => null }));
 
-/* La barra lateral de actividad, el mapa y los lienzos de cada fase: son
-   hermanos de la barra que se está probando, y ninguno participa de la
-   navegación. Un fallo de ellos no puede ser el fallo de esta prueba.
-
-   Los mocks DICEN que están montados, con un `data-testid`. Un mock que
-   devuelve `null` hace que "no aparece en pantalla" sea cierto siempre, y con
-   él una prueba que afirma que algo NO se monta pasa sin haber nada que no se
-   montara: es una guarda que vigila y no vigila. */
 vi.mock('../components/activity/RightSidePanel', () => ({
   RightSidePanel: () => <div data-testid="panel-actividad" />,
 }));
@@ -87,9 +71,6 @@ const Poner = (estado: Record<string, unknown>) => act(() => {
   } as never);
 });
 
-/** El botón de `Títulos` de la barra de la fase 2. */
-const pestanaTitulos = () => screen.getByRole('button', { name: /Revisor de T[ií]tulos/ });
-
 beforeEach(() => {
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
     observe() {}
@@ -99,45 +80,29 @@ beforeEach(() => {
   Poner({});
 });
 
-describe('el modo foco deja la fase de Estructura con su selector', () => {
-  it('con el foco prendido, "Títulos" sigue siendo alcanzable', () => {
-    /* El caso central, y el que se perdía. Con el foco prendido, el contenido
-       de la fase seguía respondiendo a `structureTab`, pero el selector no
-       estaba: `Índice` era un callejón sin salida, y con él se perdían el
-       revisor de títulos y el editor de prosa. */
+describe('el modo foco deja la fase de Estructura con sus herramientas', () => {
+  it('con el foco prendido, el esquema y el diagrama siguen montados', () => {
     Poner({ focusMode: true });
     render(<App />);
 
-    expect(pestanaTitulos()).toBeTruthy();
-    fireEvent.click(pestanaTitulos());
-    expect(screen.getByTestId('fase-titulos')).toBeTruthy();
-    expect(useDocStore.getState().structureTab).toBe('headings');
+    expect(screen.getByTestId('indice-estructura')).toBeTruthy();
+    expect(screen.getByTestId('diagrama-estructura')).toBeTruthy();
   });
 
-  it('con el foco prendido se puede volver a "Índice" y a "Cuerpo"', () => {
-    /* No alcanza con que `Títulos` sea alcanzable una vez: un selector que solo
-       deja avanzar es un selector roto. Las tres pestañas del paso 2 tienen que
-       seguir siendo alcanzables con el foco prendido. */
-    Poner({ focusMode: true, structureTab: 'headings' });
+  it('con el foco prendido se puede leer la prosa y abrir las herramientas', () => {
+    Poner({ focusMode: true });
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Esquema Jer[aá]rquico/ }));
-    expect(useDocStore.getState().structureTab).toBe('indice');
+    expect(screen.getByTestId('prosa-seccion')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /Editor de Prosa/ }));
-    expect(useDocStore.getState().structureTab).toBe('body');
-    expect(screen.getByTestId('fase-cuerpo')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /herramientas/i }));
+    expect(screen.getByTestId('panel-herramientas')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('tab', { name: /prosa/i }));
+    expect(screen.getByTestId('prosa-seccion')).toBeTruthy();
   });
 
   it('el foco sigue apagando lo que SÍ es suyo, y esa diferencia es real', () => {
-    /* El arreglo no es "el modo foco no hace nada". La barra nunca fue del foco:
-       lo que el foco apaga es el panel lateral y el mapa, que se montan en el
-       mismo `div` que la fase. Si el foco dejara de apagarlos, el arreglo
-       estaría apagando el modo foco entero.
-
-       Y la primera mitad de esta prueba es la que hace que la segunda diga algo:
-       sin el foco, el panel ESTÁ. Un `queryByTestId(...).toBeNull()` sobre un
-       panel que nunca se monta pasa sin mirar nada. */
     const { unmount } = render(<App />);
     expect(screen.getByTestId('panel-actividad'), 'sin foco el panel tiene que estar').toBeTruthy();
     unmount();
@@ -147,13 +112,10 @@ describe('el modo foco deja la fase de Estructura con su selector', () => {
     expect(screen.queryByTestId('panel-actividad')).toBeNull();
   });
 
-  it('sin foco, el paso 2 se comporta igual: el selector nunca se fue', () => {
-    /* La otra mitad de no romper nada. La barra con `!focusMode` solo se
-       notaba cuando el foco estaba prendido, así que la forma de no romper el
-       caso común es comprobar que sigue siendo el mismo. */
+  it('sin foco, el paso 2 se comporta igual: el shell nunca se fue', () => {
     Poner({ focusMode: false });
     render(<App />);
-    fireEvent.click(pestanaTitulos());
-    expect(screen.getByTestId('fase-titulos')).toBeTruthy();
+    expect(screen.getByTestId('indice-estructura')).toBeTruthy();
+    expect(screen.getByTestId('prosa-seccion')).toBeTruthy();
   });
 });

@@ -64,8 +64,25 @@ Plan derivado del feedback del autor sobre las capturas (`referencias-real-light
 ### Task 6: Verificación
 - [x] `npx vitest run referencias` → 7 archivos, **108/108** verde.
 - [x] `npx tsc --noEmit` limpio (sin `error TS`).
-- [ ] Screenshot claro/oscuro (pendiente; harness de preview temporal).
-- [ ] `graphify update .`.
+- [x] Screenshot claro/oscuro (`refs-v2-*`, `refs-v4-*`; harness de preview temporal).
+- [x] `graphify update .` → 7965 nodos / 18575 edges / 311 comunidades.
+
+### Task 7 (iteración v3): estilo bibliográfico y navegación
+- [x] Lienzo con vista previa tipo bibliografía real (Times New Roman, sangría francesa, interlineado 2.0).
+- [x] Modal de edición flotante (`ReferenceEditModal`) sustituye el formulario permanente del lienzo.
+
+### Task 8 (iteración v4): una sola acción, bibliografía completa, menos cards
+- [x] Barra superior: eliminado el pill "N fuentes registradas"; solo mascota + título.
+- [x] Quitados "Auditar citas" y "Continuar a Auditoría": queda solo el FAB `data-accion="principal"` (DOI o enlace / Entrada manual / Importar .bib .ris).
+- [x] Lienzo derecho por defecto = **bibliografía completa** (`data-testid="bibliografia-completa"`); al elegir una referencia muestra solo esa ficha, con botón "Ver bibliografía completa" para volver.
+- [x] Rail 'all' limpia `selectedReferenceId` para volver a la vista completa.
+- [x] Citas sin fuente pasan de tarjeta a fila de lista (borderLeft ámbar, fondo transparente, botón "Completar" secundario).
+- [x] `ReferenceCatalogItem`: activo = borderLeft 2px acento (no caja completa); inactivo sin caja; hover conserva el "Editar".
+- [x] Test `referenciasPaso4.test.tsx` de jerarquía actualizado (autorizado): ahora exige que "Continuar a Auditoría" y "Auditar citas" NO existan.
+- [x] Commit `7de3e4e`.
+
+### Pendiente de confirmación visual del autor
+- [ ] Capturas v4 (`refs-v4-light.png`, `refs-v4-dark.png`, `refs-v4-focus.png`) pendientes de visto bueno del autor.
 
 ## Set de sugerencias para ese menú (entregable separado)
 

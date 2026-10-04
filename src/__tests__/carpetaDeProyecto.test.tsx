@@ -3,7 +3,7 @@
  *
  * EL DEFECTO, EN DOS PARTES.
  *
- * `ProjectFolderModal` subía un `.docx` por archivo, en serie, cada uno con su
+ * `ExploradorProyecto` subía un `.docx` por archivo, en serie, cada uno con su
  * auditoría completa y su `isLoading`: veinte capítulos eran veinte pantallas
  * de carga seguidas, y el overlay de carga no decía qué estaba pasando. Con la
  * entidad del backend, "vincular una carpeta" es UNA operación: el backend
@@ -17,7 +17,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
-import { ProjectFolderModal } from '../components/project/ProjectFolderModal';
+import { ExploradorProyecto } from '../components/project/ExploradorProyecto';
 import { LoadingTips } from '../components/layout/LoadingTips';
 import { crearProyecto } from '../lib/proyecto';
 import type { ImagenProyecto } from '../types';
@@ -66,9 +66,7 @@ function abrirCarpetaCon(cantidad: number) {
   const archivos = Array.from({ length: cantidad }, (_, i) =>
     new File([new Uint8Array([1])], `capitulo-${i + 1}.docx`),
   );
-  const { container } = render(
-    <ProjectFolderModal isOpen onClose={() => {}} onOpenMerge={() => {}} />,
-  );
+  const { container } = render(<ExploradorProyecto onOpenMerge={() => {}} />);
   const input = container.querySelector('input[webkitdirectory]') as HTMLInputElement;
   fireEvent.change(input, { target: { files: archivos } });
 }
@@ -126,9 +124,7 @@ describe('la galería muestra todas las imágenes', () => {
       proyecto: proyectoDePrueba(),
       projectImages: Array.from({ length: 12 }, (_, i) => imagenDePrueba(i + 1)),
     });
-    const { container } = render(
-      <ProjectFolderModal isOpen onClose={() => {}} onOpenMerge={() => {}} />,
-    );
+    const { container } = render(<ExploradorProyecto onOpenMerge={() => {}} />);
     const galeria = container.querySelector('[data-testid="galeria-imagenes"]') as HTMLElement;
     expect(galeria.children.length).toBe(12);
   });
@@ -140,9 +136,7 @@ describe('la galería muestra todas las imágenes', () => {
       proyecto: proyectoDePrueba(),
       projectImages: [imagenDePrueba(1)],
     });
-    const { container } = render(
-      <ProjectFolderModal isOpen onClose={() => {}} onOpenMerge={() => {}} />,
-    );
+    const { container } = render(<ExploradorProyecto onOpenMerge={() => {}} />);
     const img = container.querySelector('[data-testid="galeria-imagenes"] img') as HTMLImageElement;
     expect(img).toBeTruthy();
     expect(img.style.objectFit).toBe('contain');

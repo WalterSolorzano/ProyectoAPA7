@@ -35,7 +35,7 @@ export interface RailFlyoutState {
   onEnterRail: () => void;
   /** El puntero SALIÓ del rail: programa la gracia de la unión. */
   onLeaveRail: () => void;
-  /** Clic en un destino: abre el detalle, navega y ancla. */
+  /** Clic en un destino: navega y, si el destino tiene detalle, abre y ancla el panel. */
   selectItem: (item: RailDestination) => void;
   close: () => void;
   togglePin: () => void;
@@ -85,21 +85,35 @@ export function useRailFlyout(onSelect?: (item: RailDestination) => void): RailF
     return soltar;
   }, []);
 
-  // El clic es la acción deliberada: lleva a la fase, ancla el panel y lo abre.
-  //
-  // ANTES el hover también lo abría, y por eso el panel aparecía solo con
-  // pasar el puntero por encima: el reporte literal del usuario, "al pasar el
-  // mouse por una fase que no salga la ventana flotante". Navegar desde el hover
-  // ya estaba descartado por el motivo de siempre —montaría y desmontaría la
-  // fase que se está leyendo—, pero ABRIR sin navegar era un superconjunto
-  // inútil: 240px de panel encima del documento, ofrecidos sobre fases cuyo
-  // detalle no es el árbol de estructura. El clic ya hacía las tres cosas.
+  /* El clic es la acción deliberada: lleva a la fase y, si el destino TIENE
+     detalle, abre el panel y lo ancla.
+     *
+     * ANTES el hover también lo abría, y por eso el panel aparecía solo con
+     * pasar el puntero por encima: el reporte literal del usuario, "al pasar el
+     * mouse por una fase que no salga la ventana flotante". Navegar desde el hover
+     * ya estaba descartado por el motivo de siempre —montaría y desmontaría la
+     * fase que se está leyendo—, pero ABRIR sin navegar era un superconjunto
+     * inútil: 240px de panel encima del documento, ofrecidos sobre fases cuyo
+     * detalle no es el árbol de estructura.
+     *
+     * Y UN DESTINO SIN DETALLE NO ABRE PANEL. 'Mis proyectos' es una pantalla,
+     * no una fase con descripción: `RailFlyout` no dibuja nada sin
+     * `description`/`status`/`showOutline`, así que abrir el panel sería
+     * reservar 240px para un componente que devuelve `null`. El clic navega y
+     * cierra el panel que hubiera: dejar la descripción de una fase al lado de
+     * la pantalla de proyectos es la contradicción rail/pantalla que el §1
+     * prohibe. */
   const selectItem = useCallback(
     (next: RailDestination) => {
       cancelClose();
-      setItem(next);
       onSelect?.(next);
-      setRailPinned(true);
+      const hasDetails = Boolean(next.description || next.status || next.showOutline);
+      if (hasDetails) {
+        setItem(next);
+        setRailPinned(true);
+      } else {
+        setItem(null);
+      }
     },
     [cancelClose, onSelect, setRailPinned],
   );

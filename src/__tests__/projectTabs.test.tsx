@@ -3,10 +3,10 @@
  *
  * Con un solo documento el strip no sirve para nada (su único trabajo es
  * navegar entre proyectos) y su nombre ya vive en la topbar. Pero el botón de
- * desborde abre el Explorador de Proyecto (`ProjectFolderModal`) y el cajón de
- * imágenes (`ProjectImagesDrawer`), y no hay ningún otro montaje de esos dos
- * módulos en `src/`: un guard `tabs.length < 2` antes del return los dejaba
- * inalcanzables en el estado más común de la app.
+ * desborde lleva a la pantalla de proyectos (`viewMode: 'proyectos'`, donde vive
+ * el Explorador) y abre el cajón de imágenes (`ProjectImagesDrawer`), y no hay
+ * ningún otro montaje de esos dos módulos en `src/`: un guard `tabs.length < 2`
+ * antes del return los dejaba inalcanzables en el estado más común de la app.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -14,9 +14,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
 import { ProjectTabs } from '../components/layout/ProjectTabs';
 
-vi.mock('../components/project/ProjectFolderModal', () => ({
-  ProjectFolderModal: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="folder" /> : null),
-}));
 vi.mock('../components/project/ProjectImagesDrawer', () => ({
   ProjectImagesDrawer: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="images" /> : null),
 }));
@@ -31,13 +28,13 @@ const abrirDesborde = () => fireEvent.click(screen.getByRole('button', { name: '
 
 describe('ProjectTabs — el guard es del strip, no de la pantalla', () => {
   beforeEach(() => {
-    /* `exploradorAbierto` tambien se limpia: es estado de un store singleton y
-       sobrevive entre tests. Sin este reset, el primer test que abre el
-       Explorador lo deja en `true` y el siguiente arranca abierto — el mismo
-       modo de fallo que hace que un guardián dependa del orden en que corre. */
+    /* `viewMode` se limpia: es estado de un store singleton y sobrevive entre
+       tests. Sin este reset, un test que navega a 'proyectos' lo deja así para
+       el siguiente — el mismo modo de fallo que hace que un guardián dependa
+       del orden en que corre. */
     useDocStore.setState({
       tabs: conTabs(1), activeTabIndex: 0, isLoading: false, projectImages: [],
-      exploradorAbierto: false,
+      viewMode: 'edit',
     } as never);
   });
 
@@ -47,28 +44,20 @@ describe('ProjectTabs — el guard es del strip, no de la pantalla', () => {
     expect(screen.queryByRole('button', { name: 'Abrir otra versión (.docx)' })).toBeNull();
   });
 
-  it('con un documento, el boton de Carpeta escribe el estado del Explorador', () => {
+  it('con un documento, el boton de Carpeta lleva a la pantalla de proyectos', () => {
     /* `AGENTS.md` §5 nombra este módulo como principal: es el lugar desde donde
        se abre la carpeta de trabajo y se combinan retazos.
 
-       LO QUE CAMBIO Y POR QUE (F7 Task 5): este archivo antes afirmaba que el
-       `ProjectFolderModal` aparecia DENTRO de `ProjectTabs`. Ese era el montaje
-       UNICO de la app, y `ProjectTabs` hace `return null` con cero documentos:
-       el Explorador era inalcanzable en el estado más común. El modal se montó
-       en `AppShell`, que vive siempre, y ahora hay un destino en el rail.
-
-       La garantía NO se relaja: lo que se afirma ahora es que el botón de
-       `ProjectTabs` y el destino del rail abren la MISMA cosa. Antes se
-       afirmaba "este componente monta el modal", que es un detalle de montaje;
-       ahora se afirma "este botón abre el Explorador", que es lo que la persona
-       usa. Un botón que pone `true` y un rail que alterna el mismo flag son dos
-       caminos a una verdad, y el modal se verifica montado en
-       `proyectoEstaAccesible.test.tsx`. */
+       LO QUE CAMBIO Y POR QUE: antes este botón abría el `ProjectFolderModal`,
+       una ventana externa. Ahora el Explorador vive DENTRO de la pantalla de
+       proyectos, así que el botón navega a esa pantalla (`viewMode`) con el
+       MISMO destino que el rail. Dos caminos a una sola verdad, y no dos
+       ventanas al mismo dato. */
     render(<ProjectTabs />);
-    expect(useDocStore.getState().exploradorAbierto).toBe(false);
+    expect(useDocStore.getState().viewMode).toBe('edit');
     abrirDesborde();
     fireEvent.click(screen.getByTitle('Explorador de archivos y carpeta del proyecto'));
-    expect(useDocStore.getState().exploradorAbierto).toBe(true);
+    expect(useDocStore.getState().viewMode).toBe('proyectos');
   });
 
   it('con un documento, el cajón de imágenes también', () => {

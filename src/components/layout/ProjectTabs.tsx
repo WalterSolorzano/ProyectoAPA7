@@ -6,15 +6,16 @@ import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { MergeDocumentsModal } from '../project/MergeDocumentsModal';
 import { ProjectImagesDrawer } from '../project/ProjectImagesDrawer';
-/* `ProjectFolderModal` ya NO se importa aca (F7 Task 5): se monta en `AppShell`,
-   que vive siempre. Un import que no se usa no es una defensa: es el rastro de
-   un montaje que ya no existe, y el proximo que lo lea lo asumira vigente. */
+/* `ProjectFolderModal` ya NO se importa aca: el explorador vive ahora DENTRO de
+   la pantalla de proyectos (`ProyectosScreen`), y el boton de Carpeta de abajo
+   lleva a esa pantalla. Un import que no se usa no es una defensa: es el rastro
+   de un montaje que ya no existe, y el proximo que lo lea lo asumira vigente. */
 
 export const ProjectTabs: React.FC = () => {
   const {
     tabs, activeTabIndex,
     switchToTab, removeTab, uploadFile, isLoading, projectImages,
-    abrirExplorador
+    setViewMode,
   } = useDocStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -191,7 +192,7 @@ export const ProjectTabs: React.FC = () => {
               <OverflowItem
                 label={`Carpeta (${tabs.length})`}
                 title="Explorador de archivos y carpeta del proyecto"
-                onClick={() => { setOverflowOpen(false); abrirExplorador(); }}
+                onClick={() => { setOverflowOpen(false); setViewMode('proyectos'); }}
               >
                 <Folder size={12} strokeWidth="var(--icon-stroke)" />
               </OverflowItem>
@@ -236,13 +237,10 @@ export const ProjectTabs: React.FC = () => {
         onClose={() => setImagesDrawerOpen(false)}
       />
 
-      {/* El Explorador NO se monta acá desde la F7 Task 5: vive en `AppShell`, que
-          es donde esta siempre montado. Este boton y el destino del rail escriben
-          el MISMO estado (`abrirExplorador`), o sea que son dos caminos a una
-          sola verdad y no dos verdades. `onOpenMerge` tampoco pasa mas: el modal
-          de combinar se abria desde el Explorador y el Explorador ya no esta
-          abajo de este arbol, asi que el cable queda desconectado en vez de
-          apuntar a un `setState` de otro componente. */}
+      {/* El Explorador no se monta acá: vive DENTRO de la pantalla de proyectos
+          (`ProyectosScreen`), que es a donde lleva el botón de Carpeta de arriba
+          con el MISMO `viewMode` que el destino del rail. O sea que son dos
+          caminos a una sola verdad, y no dos ventanas al mismo dato. */}
     </>
   );
 };

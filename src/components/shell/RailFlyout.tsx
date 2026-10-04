@@ -58,6 +58,10 @@ export function RailFlyout({ item, onClose, onEnter, onLeave }: {
   // desmontar: el cierre lo programa y el shell lo cancela.
   if (!item) return null;
 
+  // Exportar no abre flyout: al hacer clic ya se entra al túnel de exportación,
+  // y un panel que lo describa al lado competiría con la pantalla final.
+  if (item.showFlyout === false) return null;
+
   // El flyout se dibuja si el destino tiene descripción, estado o esquema documental.
   const hasDetails = Boolean(item.description || item.status || item.showOutline);
   if (!hasDetails) return null;

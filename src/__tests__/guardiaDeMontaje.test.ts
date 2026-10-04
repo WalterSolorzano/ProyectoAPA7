@@ -146,31 +146,35 @@ describe('nada de la fase F7 quedo huerfano', () => {
     expect(desdeLaApp, `lib/proyecto solo lo importan: ${JSON.stringify(ruta)}`).not.toHaveLength(0);
   });
 
-  it('el Explorador esta montado en el shell, que vive siempre', () => {
-    // El modulo tiene que estar montado en `AppShell`, no solo en `ProjectTabs`:
-    // `ProjectTabs` hace `return null` con cero documentos, y ahi el Explorador
-    // era inalcanzable. Este es el guardian que falla si alguien lo devuelve al
-    // arbol condicional sin darse cuenta.
-    const ruta = importadoresEn(mapa, 'project/ProjectFolderModal');
-    const desdeElShell = ruta.filter((r) => r.includes('/shell/AppShell'));
-    expect(desdeElShell, `el Explorador se importa desde: ${JSON.stringify(ruta)}`).not.toHaveLength(0);
+  it('el Explorador vive dentro de la pantalla de proyectos', () => {
+    // Antes era una ventana modal que se montaba encima de lo que hubiera. Ahora
+    // es contenido de `ProyectosScreen`: una sola superficie de proyecto. Este es
+    // el guardián que falla si alguien vuelve a montarlo como modal externo o lo
+    // saca de la pantalla donde el rail lleva.
+    const ruta = importadoresEn(mapa, 'ExploradorProyecto');
+    const desdeLaPantalla = ruta.filter((r) => r.includes('/project/ProyectosScreen'));
+    expect(desdeLaPantalla, `el Explorador se importa desde: ${JSON.stringify(ruta)}`).not.toHaveLength(0);
   });
 
-  it('el boton de carpeta de ProjectTabs usa la accion del store', () => {
-    // Si vuelve a un `setFolderModalOpen` local, el boton de la barra y el
-    // destino del rail pasan a ser dos verdades: uno abre el modal y el otro
-    // no. La accion compartida es lo que los ata.
+  it('el boton de carpeta de ProjectTabs navega a la pantalla de proyectos', () => {
+    // Si vuelve a un `setFolderModalOpen` local, el botón de la barra y el
+    // destino del rail pasan a ser dos verdades: uno abre algo y el otro no. El
+    // `viewMode` compartido es lo que los ata.
     const texto = mapa.get('/src/components/layout/ProjectTabs.tsx') ?? '';
-    expect(texto).toContain('abrirExplorador');
+    expect(texto).toContain("setViewMode('proyectos')");
     expect(texto, 'volvio un estado local para el Explorador').not.toContain('folderModalOpen');
+    expect(texto, 'volvio la accion del modal viejo').not.toContain('abrirExplorador');
   });
 
-  it('el estado del Explorador vive en uiSlice, con viewMode', () => {
+  it('no queda estado del Explorador modal en el store', () => {
+    /* El estado del modal (`exploradorAbierto` y sus acciones) se eliminó: nadie
+       lo consume. Un campo sin consumidor es el rastro de una superficie que ya
+       no existe, y el próximo que lo lea lo asumirá vigente. */
     const texto = mapa.get('/src/store/slices/uiSlice.ts') ?? '';
-    expect(texto).toContain('exploradorAbierto');
-    expect(texto).toContain('alternarExplorador');
-    /* `viewMode` esta en el mismo archivo, y por ahi el Explorador tambien: un
-       modulo que abre una pantalla es estado de sesion, no del documento. */
+    expect(texto).not.toContain('exploradorAbierto');
+    expect(texto).not.toContain('alternarExplorador');
+    /* `viewMode` sigue en el mismo archivo: la pantalla de proyectos es estado
+       de sesión, no del documento, y por ahí la navega el rail. */
     expect(texto).toContain('viewMode');
   });
 
@@ -185,9 +189,9 @@ describe('nada de la fase F7 quedo huerfano', () => {
     expect(mapa.get('/src/store/slices/documentSlice.ts') ?? '').toContain('activeFilePath: rutaDelArchivo');
   });
 
-  it('ProjectFolderModal ya no inventa un nombre de proyecto', () => {
+  it('ExploradorProyecto ya no inventa un nombre de proyecto', () => {
     {
-      const texto = mapa.get('/src/components/project/ProjectFolderModal.tsx') ?? '';
+      const texto = mapa.get('/src/components/project/ExploradorProyecto.tsx') ?? '';
       /* ESTA GUARDA ENCONTRO UN FALSO POSITIVO Y HAY QUE DECIRLO.
          La primera version hacia `not.toContain('Proyecto APA 7')` sobre el
          archivo entero, y se puso roja: la cadena sigue en el COMENTARIO que
@@ -267,7 +271,7 @@ describe('el catalogo del rail declara los destinos completos', () => {
   it('todo destino declara id y step, y el modulo tiene step null', () => {
     const carga = archivosDeLaApp['/src/components/shell/railItems.ts'] as () => Promise<string>;
     return carga().then((texto) => {
-      expect(texto).toContain("id: 'proyecto'");
+      expect(texto).toContain("id: 'mis-proyectos'");
       expect(texto).toContain("step: null");
     });
   });

@@ -114,6 +114,10 @@ export const ExportView: React.FC = () => {
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
   const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
+  /* "Ver en Word" genera el .docx APA y lo abre en Word SIN tocar el original:
+     es una vista previa real, no un reemplazo. Estado propio para no confundir
+     su progreso con el de "Enviar a Word". */
+  const [viendoEnWord, setViendoEnWord] = useState(false);
 
   /* LO QUE ESTÁ SIN GUARDAR EN WORD.
      El backend no lo descarta: devuelve 409 con `requiere_confirmacion` y no
@@ -178,6 +182,53 @@ export const ExportView: React.FC = () => {
       setConectando(false);
     }
   }, [activeFilePath, showToast]);
+
+  /* VER EN WORD (no destructivo). Genera el .docx APA y lo abre en Word para
+     revisarlo, sin pisar el archivo original. Reutiliza dos motores que ya
+     existen: /api/generate (o /generate-tracked) produce el archivo y devuelve
+     su ruta absoluta en `open_path`, y /api/open-in-word lo abre con el Word
+     del usuario. Es el verbo que faltaba: "Abrir" muestra el original,
+     "Enviar" pisa el original, "Ver" muestra el RESULTADO sin tocar nada. */
+  const verEnWord = useCallback(async () => {
+    const { doc: docActual, rules, portada, acta, references } = useDocStore.getState();
+    if (!docActual?.session_id) return;
+    setViendoEnWord(true);
+    try {
+      const base = getApiBase();
+      const endpoint = tracked ? `${base}/generate-tracked` : `${base}/generate`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: docActual.session_id, rules, portada, meta: acta, references,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.detail || `Error ${res.status} al generar el documento`, 'error');
+        return;
+      }
+      if (!data.open_path) {
+        showToast('El motor no devolvió la ruta del documento generado', 'error');
+        return;
+      }
+      const openRes = await fetch(`${base}/open-in-word`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: data.open_path }),
+      });
+      const openData = await openRes.json().catch(() => ({}));
+      if (!openRes.ok) {
+        showToast(openData.detail || `Error ${openRes.status} al abrir en Word`, 'error');
+        return;
+      }
+      showToast('Documento APA abierto en Word. Tu archivo original no se modificó.', 'success');
+    } catch {
+      showToast('No se pudo conectar al motor para abrir en Word', 'error');
+    } finally {
+      setViendoEnWord(false);
+    }
+  }, [tracked, showToast]);
 
   useEffect(() => {
     sayMascot('Tu documento cumple con las pautas de APA 7ma Edición. Listo para descargar.', 'success');
@@ -376,54 +427,82 @@ export const ExportView: React.FC = () => {
           </button>
         </div>
 
-        {/* Enviar a Word — solo visible cuando WordAPA7 detecta un .docx abierto en
-            paralelo en Word (activeFilePath). Llama al motor que usa COM para
-            reemplazar el archivo original con la versión APA formateada.
-            Antes de pisar, el motor deja una copia de seguridad al lado. */}
-        {activeFilePath && format === 'docx' && (
+        {/* Acciones de Word — solo para .docx. "Ver en Word" NO necesita un
+            archivo activo: genera la versión APA y la abre en Word para
+            revisarla SIN tocar el original (reutiliza /api/generate +
+            /api/open-in-word). "Abrir en Word" y "Enviar a Word" sí trabajan
+            sobre el .docx del usuario, así que solo aparecen con
+            `activeFilePath`: el primero lo trae al frente, el segundo lo pisa
+            dejando una copia .bak al lado. */}
+        {format === 'docx' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={abrirEnWord}
-              disabled={conectando || isLoading}
-              title={`Abrir ${activeFilePath.split(/[\\/]/).pop()} en tu Word para editar en vivo con el panel.`}
+              onClick={verEnWord}
+              disabled={viendoEnWord || isLoading}
+              title="Abrir en Word la versión APA ya formateada, sin modificar tu archivo original."
               style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: '8px 14px',
                 border: '1px solid var(--color-border-subtle)',
                 borderRadius: 'var(--radius-md)',
                 background: 'transparent',
-                color: 'var(--color-text-secondary)',
+                color: viendoEnWord ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
                 fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
-                cursor: conectando || isLoading ? 'not-allowed' : 'pointer',
-                opacity: conectando || isLoading ? 0.6 : 1,
+                cursor: viendoEnWord || isLoading ? 'not-allowed' : 'pointer',
+                opacity: viendoEnWord || isLoading ? 0.6 : 1,
                 transition: 'color 0.15s, opacity 0.15s',
               }}
             >
-              <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
-              {conectando ? 'Abriendo…' : 'Abrir en Word'}
+              <Eye size={14} strokeWidth={1.75} aria-hidden />
+              {viendoEnWord ? 'Abriendo en Word…' : 'Ver en Word'}
             </button>
-            <button
-              type="button"
-              onClick={() => enviarAWord()}
-              disabled={isSending || isLoading}
-              title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '7px',
-                padding: '8px 14px',
-                border: '1px solid var(--color-border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                background: 'transparent',
-                color: isSending ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
-                fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
-                cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
-                opacity: isSending || isLoading ? 0.6 : 1,
-                transition: 'color 0.15s, opacity 0.15s',
-              }}
-            >
-              <Upload size={14} strokeWidth={1.75} aria-hidden />
-              {isSending ? 'Enviando...' : 'Enviar a Word'}
-            </button>
+            {activeFilePath && (
+              <>
+                <button
+                  type="button"
+                  onClick={abrirEnWord}
+                  disabled={conectando || isLoading}
+                  title={`Abrir ${activeFilePath.split(/[\\/]/).pop()} en tu Word para editar en vivo con el panel.`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '7px',
+                    padding: '8px 14px',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'transparent',
+                    color: 'var(--color-text-secondary)',
+                    fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+                    cursor: conectando || isLoading ? 'not-allowed' : 'pointer',
+                    opacity: conectando || isLoading ? 0.6 : 1,
+                    transition: 'color 0.15s, opacity 0.15s',
+                  }}
+                >
+                  <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+                  {conectando ? 'Abriendo…' : 'Abrir en Word'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => enviarAWord()}
+                  disabled={isSending || isLoading}
+                  title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '7px',
+                    padding: '8px 14px',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'transparent',
+                    color: isSending ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
+                    fontFamily: 'inherit', fontSize: 'var(--text-sm)', fontWeight: 600,
+                    cursor: isSending || isLoading ? 'not-allowed' : 'pointer',
+                    opacity: isSending || isLoading ? 0.6 : 1,
+                    transition: 'color 0.15s, opacity 0.15s',
+                  }}
+                >
+                  <Upload size={14} strokeWidth={1.75} aria-hidden />
+                  {isSending ? 'Enviando...' : 'Enviar a Word'}
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -632,7 +711,7 @@ export const ExportView: React.FC = () => {
                           }),
                     }}
                   >
-                    <Icon size={20} style={{ color: f.iconColor }} />
+                    <Icon size={20} strokeWidth={1.75} style={{ color: f.iconColor }} aria-hidden />
                     {/* La extensión y el sublabel van ACÁ, que es donde la
                         persona elige. Antes solo aparecían en la línea de
                         identidad del documento, que no es donde se decide: un
@@ -677,7 +756,7 @@ export const ExportView: React.FC = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <AlertTriangle size={15} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} />
+                  <AlertTriangle size={15} strokeWidth={1.75} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} aria-hidden />
                   <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)' }}>
                     Hay <strong>{ghostCount}</strong> cita{ghostCount === 1 ? '' : 's'} sin referencia en la bibliografía.
                   </div>
@@ -940,7 +1019,7 @@ export const ExportView: React.FC = () => {
                     }),
               }}
             >
-              <Eye size={13} />
+              <Eye size={13} strokeWidth={1.75} aria-hidden />
               <span>Páginas APA (Interactivo)</span>
             </button>
             <button
@@ -969,7 +1048,7 @@ export const ExportView: React.FC = () => {
                     }),
               }}
             >
-              <Columns2 size={13} />
+              <Columns2 size={13} strokeWidth={1.75} aria-hidden />
               <span>Comparador Antes / Después</span>
             </button>
             <button
@@ -998,7 +1077,7 @@ export const ExportView: React.FC = () => {
                     }),
               }}
             >
-              <FileType size={13} />
+              <FileType size={13} strokeWidth={1.75} aria-hidden />
               <span>PDF Compilado</span>
             </button>
           </div>
@@ -1023,7 +1102,7 @@ export const ExportView: React.FC = () => {
                   justifyContent: 'center',
                 }}
               >
-                <ZoomOut size={13} />
+                <ZoomOut size={13} strokeWidth={1.75} aria-hidden />
               </button>
               <span
                 style={{
@@ -1054,7 +1133,7 @@ export const ExportView: React.FC = () => {
                   justifyContent: 'center',
                 }}
               >
-                <ZoomIn size={13} />
+                <ZoomIn size={13} strokeWidth={1.75} aria-hidden />
               </button>
               <button
                 type="button"
@@ -1258,9 +1337,9 @@ const PanelDeAjustes: React.FC = () => {
                       padding: 'var(--space-1) var(--space-3)',
                       fontSize: 'var(--text-xs)',
                       fontWeight: activo ? 700 : 500,
-                      borderRadius: 'var(--radius-full, 9999px)',
+                      borderRadius: 'var(--radius-full)',
                       border: activo ? '1px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
-                      background: activo ? 'var(--color-accent-subtle, rgba(0, 102, 204, 0.1))' : 'var(--color-bg-surface)',
+                      background: activo ? 'var(--color-accent-soft)' : 'var(--color-bg-surface)',
                       color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',

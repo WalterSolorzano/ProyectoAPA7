@@ -159,9 +159,18 @@ describe('T6 — AppShell', () => {
   });
 
   it('el clic en el workbench no es lo que ancla: el pin del rail sí', () => {
-    render(<AppShell><div>x</div></AppShell>);
-    fireEvent.click(screen.getByRole('button', { name: 'Anclar panel' }));
+    /* Abrir un destino ya ancla (el clic es navegación + detalle). Soltar el
+       ancla es lo que hace el pin del PANEL: por eso se lo busca adentro del
+       flyout, y el flyout se abre primero con un clic en una fase. El clic en el
+       workbench —el `<main>` de la derecha— no toca el ancla. */
+    render(<AppShell><div data-testid="work">x</div></AppShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     expect(useDocStore.getState().railPinned).toBe(true);
+    fireEvent.click(screen.getByTestId('work'));
+    expect(useDocStore.getState().railPinned).toBe(true);
+    const pin = within(screen.getByTestId('rail-flyout')).getByRole('button', { name: 'Anclar panel' });
+    fireEvent.click(pin);
+    expect(useDocStore.getState().railPinned).toBe(false);
   });
 
   /* TODAS LAS PRUEBAS DE LA GRACIA NECESITAN UN PANEL ABIERTO Y SUELTO.

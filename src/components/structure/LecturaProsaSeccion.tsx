@@ -1,8 +1,18 @@
-/* WordAPA7 — Lectura Editorial de Prosa por Sección
+/* WordAPA7 — LecturaProsaSeccion
  *
- * Muestra únicamente los párrafos e imágenes pertenecientes al capítulo o
- * subsección activa, con maquetación de libro académico de alta legibilidad.
- * Cero emojis: únicamente íconos de lucide-react y tokens CSS puros.
+ * La prosa de UNA sección, con maquetación editorial. Vive en el panel derecho
+ * del Estudio de Estructura y se abre al tocar un título.
+ *
+ * TOKENS, NO HEX. La versión anterior usaba clases Tailwind con fallback de
+ * color literal (`bg-[var(--paper-white,#ffffff)]`), que es exactamente lo que
+ * el lint de tokens prohíbe: un literal en la misma línea que un token no
+ * absuelve al literal. Acá el color sale de la hoja y la tipografía editorial
+ * de `--font-editorial`.
+ *
+ * LA SECCIÓN ES UN TRAMO DEL DOCUMENTO, no un nodo del árbol: se toma el
+ * encabezado que abre la sección y se avanza hasta el próximo encabezado de
+ * nivel igual o superior. Un capítulo con subsecciones pero todavía sin prosa
+ * muestra sus subsecciones, no un falso vacío.
  */
 
 import React, { useMemo } from 'react';
@@ -15,140 +25,206 @@ export interface LecturaProsaSeccionProps {
   elementos: readonly ElementModel[];
 }
 
+const hoja: React.CSSProperties = {
+  background: 'var(--paper-white)',
+  color: 'var(--paper-ink)',
+  fontFamily: 'var(--font-editorial)',
+};
+
 export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   seccionActiva,
   elementos,
 }) => {
-  // Extraer los elementos pertenecientes a la sección activa
-  const elementosSeccion = useMemo(() => {
+  const deLaSeccion = useMemo(() => {
     if (!seccionActiva) return [];
-
     const idInicio = seccionActiva.elementoId || seccionActiva.id;
     const idxInicio = elementos.findIndex(
-      (e) => e.id === idInicio || (e.type === 'heading' && e.text.trim() === seccionActiva.titulo.trim())
+      (e) => e.id === idInicio || (e.type === 'heading' && e.text.trim() === seccionActiva.titulo.trim()),
     );
-
     if (idxInicio === -1) return [];
-
-    const resultado: ElementModel[] = [];
-    resultado.push(elementos[idxInicio]);
-
     const nivelActual = seccionActiva.nivel || 1;
-
+    const resultado: ElementModel[] = [elementos[idxInicio]];
     for (let i = idxInicio + 1; i < elementos.length; i++) {
       const el = elementos[i];
-      if (el.type === 'heading') {
-        const nivelEl = el.heading_level || 1;
-        // Si encontramos otro encabezado del mismo nivel o superior, termina la sección
-        if (nivelEl <= nivelActual) {
-          break;
-        }
-      }
+      if (el.type === 'heading' && (el.heading_level || 1) <= nivelActual) break;
       resultado.push(el);
     }
-
     return resultado;
   }, [seccionActiva, elementos]);
 
   if (!seccionActiva) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center text-[var(--text-muted,#64748b)]">
-        <BookOpen className="w-10 h-10 stroke-1 mb-3 text-[var(--text-muted,#94a3b8)]" />
-        <p className="text-sm font-medium">Selecciona un capítulo o sección</p>
-        <p className="text-xs text-[var(--text-muted,#94a3b8)] mt-1">
-          Haz clic en cualquier nodo del diagrama o del esqueleto de navegación para leer su prosa.
+      <div
+        data-testid="prosa-seccion"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 'var(--space-2)',
+          height: '100%',
+          padding: 'var(--space-8)',
+          textAlign: 'center',
+          color: 'var(--color-text-tertiary)',
+        }}
+      >
+        <BookOpen size={22} strokeWidth="var(--icon-stroke)" aria-hidden />
+        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+          Selecciona un capítulo o sección
+        </p>
+        <p style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+          Haz clic en cualquier nodo del diagrama o del esquema para leer su prosa.
         </p>
       </div>
     );
   }
 
-  // Verificar si hay contenido aparte del encabezado principal
-  const contenidoProsa = elementosSeccion.slice(1);
-  const tieneContenido = contenidoProsa.some(
-    (el) => (el.type === 'paragraph' && el.text?.trim()) || el.type === 'image' || el.type === 'heading'
+  const cuerpo = deLaSeccion
+    .slice(1)
+    .filter((e) => !(e.type === 'paragraph' && !String(e.text ?? '').trim()));
+  const tieneContenido = cuerpo.some(
+    (e) =>
+      (e.type === 'paragraph' && String(e.text ?? '').trim()) ||
+      e.type === 'image' ||
+      e.type === 'heading',
   );
 
   return (
-    <div className="h-full overflow-y-auto p-6 flex justify-center bg-[var(--canvas-bg,#f8fafc)]">
-      <article
-        data-testid="hoja-editorial"
-        className="w-full max-w-2xl bg-[var(--paper-white,#ffffff)] text-[var(--paper-ink,#111827)] rounded-lg shadow-sm border border-[var(--border-subtle,#e2e8f0)] p-8 sm:p-12 font-serif leading-relaxed"
+    <article data-testid="prosa-seccion" style={{ ...hoja, padding: 'var(--space-6)' }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          marginBottom: 'var(--space-4)',
+          fontFamily: 'var(--font-sans)',
+        }}
       >
-        {/* Cabecera del Capítulo */}
-        <header className="mb-8 pb-4 border-b border-[var(--border-subtle,#e2e8f0)]">
-          <div className="flex items-center gap-2 mb-2 font-sans">
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--color-bg-surface-alt,#f1f5f9)] text-[var(--text-muted,#64748b)] border border-[var(--border-subtle,#e2e8f0)]">
-              Nivel H{seccionActiva.nivel}
-            </span>
-            {seccionActiva.fase && (
-              <span className="text-[10px] font-sans text-[var(--text-muted,#64748b)] uppercase tracking-wider">
-                Fase: {seccionActiva.fase}
-              </span>
-            )}
-          </div>
-          <h1 className="text-2xl font-bold font-sans tracking-tight text-[var(--text-main,#0f172a)]">
-            {seccionActiva.titulo}
-          </h1>
-        </header>
+        <span
+          style={{
+            fontSize: 'var(--text-xs)',
+            fontWeight: 700,
+            color: 'var(--color-accent)',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '1px 6px',
+          }}
+        >
+          Nivel H{seccionActiva.nivel}
+        </span>
+        {seccionActiva.fase ? (
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+            Fase: {seccionActiva.fase}
+          </span>
+        ) : null}
+      </header>
 
-        {/* Cuerpo Editorial */}
+      <div
+        data-testid="hoja-editorial"
+        className="hoja-editorial font-serif leading-relaxed"
+        style={{ maxWidth: '68ch', margin: '0 auto' }}
+      >
+        <h2
+          style={{
+            fontFamily: 'var(--font-editorial)',
+            fontWeight: 500,
+            fontSize: '30px',
+            lineHeight: 1.2,
+            margin: '0 0 var(--space-5)',
+            color: 'var(--paper-ink)',
+          }}
+        >
+          {seccionActiva.titulo}
+        </h2>
+
         {!tieneContenido ? (
-          <div className="py-12 px-4 text-center rounded border border-dashed border-[var(--border-subtle,#e2e8f0)] bg-[var(--color-bg-surface-alt,#f8fafc)] font-sans">
-            <FileText className="w-8 h-8 stroke-1 mx-auto mb-2 text-[var(--text-muted,#94a3b8)]" />
-            <p className="text-sm font-medium text-[var(--text-muted,#64748b)]">
-              Esta sección aún no contiene párrafos de prosa
-            </p>
-            <p className="text-xs text-[var(--text-muted,#94a3b8)] mt-1">
-              Los párrafos y activos redactados en Word bajo este título se visualizarán aquí automáticamente.
-            </p>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              color: 'var(--color-text-tertiary)',
+              fontFamily: 'var(--font-sans)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            <FileText size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
+            <p style={{ margin: 0 }}>Esta sección aún no contiene párrafos de prosa</p>
           </div>
         ) : (
-          <div className="space-y-4 text-[15px] text-[var(--paper-ink,#111827)]">
-            {contenidoProsa.map((el) => {
-              if (el.type === 'heading') {
-                const nivel = el.heading_level || 2;
-                return (
-                  <h2
-                    key={el.id}
-                    className={`font-sans font-bold text-[var(--text-main,#0f172a)] pt-4 pb-1 ${
-                      nivel === 2 ? 'text-lg' : 'text-base'
-                    }`}
-                  >
-                    {el.text}
-                  </h2>
-                );
-              }
-
-              if (el.type === 'image') {
-                return (
-                  <figure
-                    key={el.id}
-                    className="my-6 p-4 rounded border border-[var(--border-subtle,#e2e8f0)] bg-[var(--color-bg-surface-alt,#f8fafc)] text-center font-sans"
-                  >
-                    <div className="flex items-center justify-center p-6 bg-[var(--paper-white,#ffffff)] rounded border border-[var(--border-subtle,#e2e8f0)] mb-3">
-                      <ImageIcon className="w-10 h-10 text-[var(--accent-primary,#0284c7)] stroke-1" />
-                    </div>
-                    {el.image_info && (
-                      <figcaption className="text-xs text-[var(--text-muted,#64748b)]">
-                        <span className="font-semibold text-[var(--text-main,#0f172a)]">
-                          Figura {el.image_info.figure_number}.
-                        </span>{' '}
-                        {el.image_info.caption || 'Sin leyenda asignada'}
-                      </figcaption>
-                    )}
-                  </figure>
-                );
-              }
-
+          cuerpo.map((el, i) => {
+            if (el.type === 'heading') {
+              const nivel = Math.min(4, (el.heading_level ?? 2) + 1);
+              const Tag = `h${nivel}` as 'h2' | 'h3' | 'h4';
               return (
-                <p key={el.id} className="text-justify indent-6">
+                <Tag
+                  key={el.id ?? `h-${i}`}
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 600,
+                    fontSize: nivel === 2 ? '20px' : '17px',
+                    margin: 'var(--space-6) 0 var(--space-3)',
+                    color: 'var(--paper-ink)',
+                  }}
+                >
                   {el.text}
-                </p>
+                </Tag>
               );
-            })}
-          </div>
+            }
+            if (el.type === 'image') {
+              const numero = el.image_info?.figure_number;
+              const caption = el.image_info?.caption;
+              return (
+                <figure key={el.id ?? `f-${i}`} style={{ margin: 'var(--space-5) 0' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'var(--color-bg-surface-alt)',
+                      border: '1px dashed var(--color-border-strong)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-4)',
+                    }}
+                  >
+                    <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+                  </div>
+                  <figcaption
+                    style={{
+                      marginTop: 'var(--space-2)',
+                      fontSize: '13px',
+                      color: 'var(--color-text-secondary)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {numero ? (
+                      <span style={{ fontWeight: 600 }}>Figura {numero}. </span>
+                    ) : null}
+                    {caption || 'Sin leyenda asignada'}
+                  </figcaption>
+                </figure>
+              );
+            }
+            return (
+              <p
+                key={el.id ?? `p-${i}`}
+                style={{
+                  margin: '0 0 var(--space-4)',
+                  fontSize: '16px',
+                  lineHeight: 1.7,
+                  textAlign: 'justify',
+                  textIndent: '1.5em',
+                  hyphens: 'auto',
+                }}
+              >
+                {el.text}
+              </p>
+            );
+          })
         )}
-      </article>
-    </div>
+      </div>
+    </article>
   );
 };
+
+export default LecturaProsaSeccion;

@@ -35,17 +35,16 @@ const byStep = (items: ReturnType<typeof useRailDestinations>, step: number) => 
 /**
  * SOLO LAS FASES, Y POR QUE.
  *
- * F7 Task 5 sumo `proyecto` al catalogo: el Explorador es un modulo que
- * `AGENTS.md` §5 lista como principal y antes era inalcanzable con cero
- * documentos. Este archivo antes afirmaba "son las seis" sobre el catalogo
- * ENTERO, o sea que cualquier destino nuevo lo rompia.
+ * El catálogo suma 'mis-proyectos': la pantalla de proyectos es un módulo que
+ * `AGENTS.md` §5 lista como principal. Este archivo antes afirmaba "son las seis"
+ * sobre el catálogo ENTERO, o sea que cualquier destino nuevo lo rompía.
  *
- * La forma de arreglarlo NO es aflojar la afirmacion a "las que haya": es
+ * La forma de arreglarlo NO es aflojar la afirmación a "las que haya": es
  * separar las dos clases. Estas pruebas hablan de FASES, y una fase tiene `step`
- * numerico. El modulo tiene `step: null` y se cuenta aparte, con su propia
- * prueba (`proyectoEstaAccesible.test.tsx`). Un filtro explicito ademas evita el
+ * numérico. El módulo tiene `step: null` y se cuenta aparte, con su propia
+ * prueba (`proyectoEstaAccesible.test.tsx`). Un filtro explícito además evita el
  * modo de fallo de leer un token de un elemento vecino: si el filtro fuera
- * `.slice(0, 6)`, un destino nuevo insertado en el medio pasaria la prueba
+ * `.slice(0, 6)`, un destino nuevo insertado en el medio pasaría la prueba
  * midiendo las seis primeras sin comprobar que sean las fases.
  */
 const fasesDelCatalogo = () => EDITOR_RAIL_ITEMS.filter((i) => i.step !== null);
@@ -67,7 +66,7 @@ describe('T3 — destinos del rail', () => {
       'Portada', 'Estructura', 'Figuras', 'Referencias', 'Revisión & IA', 'Exportar',
     ]);
     // La afirmacion de "seis" se sostiene sobre las FASES, no sobre el
-    // catalogo entero: el Explorador se sumo en la F7 Task 5 y no es una fase.
+    // catalogo entero: la pantalla de proyectos no es una fase.
     expect(fasesDelCatalogo()).toHaveLength(6);
     for (const item of EDITOR_RAIL_ITEMS) {
       expect(item.label).not.toMatch(/\p{Extended_Pictographic}/u);
@@ -79,8 +78,8 @@ describe('T3 — destinos del rail', () => {
     // lista de fases, `byStep` dejaria de encontrarlo y estas pruebas empezarian
     // a medir un subconjunto sin decirlo.
     expect(fasesDelCatalogo().every((i) => typeof i.step === 'number')).toBe(true);
-    // 'proyecto' (Explorador) y 'mis-proyectos' son módulos, no fases: step: null.
-    expect(EDITOR_RAIL_ITEMS.filter((i) => i.step === null).map((i) => i.id)).toEqual(['proyecto', 'mis-proyectos']);
+    // 'mis-proyectos' es una pantalla, no una fase: step: null.
+    expect(EDITOR_RAIL_ITEMS.filter((i) => i.step === null).map((i) => i.id)).toEqual(['mis-proyectos']);
   });
 
   it('el mapa del documento solo se ofrece en las fases de sección', () => {
@@ -129,9 +128,9 @@ describe('T3b — estado por destino', () => {
   });
 
   it('sin documento, todas las fases quedan idle', () => {
-    // Se cuenta sobre las FASES. El Explorador no cuenta, y no es una excepcion
-    // escondida: es que no tiene `status` porque no es una tarea — es el mismo
-    // motivo por el que Ajustes no lleva estado en `HOME_RAIL_ITEMS`.
+    // Se cuenta sobre las FASES. La pantalla de proyectos no cuenta, y no es una
+    // excepcion escondida: es que no tiene `status` porque no es una tarea — es
+    // el mismo motivo por el que Ajustes no lleva estado en `HOME_RAIL_ITEMS`.
     const items = fasesPintadas();
     expect(items).toHaveLength(6);
     expect(items.every((i) => i.status === 'idle')).toBe(true);

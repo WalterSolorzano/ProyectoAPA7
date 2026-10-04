@@ -2079,6 +2079,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
                     "download_url": _artifact_url(req.session_id, artifact_id),
                     "artifact_id": artifact_id,
                     "file_name": out_file.name,
+                    "open_path": str(out_file),
                     "mode": "inplace",
                     "message": "Documento formateado in-place: portada y estructura originales intactas.",
                 }
@@ -2145,6 +2146,7 @@ async def generate_docx(req: GenerateRequest) -> dict:
             "download_url": _artifact_url(req.session_id, artifact_id),
             "artifact_id": artifact_id,
             "filename": generated_path.name,
+            "open_path": str(generated_path),
         }
     except Exception as e:
         print(f"[ERROR] Error generando DOCX: {e}")
@@ -2198,6 +2200,7 @@ async def generate_tracked_docx_endpoint(req: GenerateRequest) -> dict:
         return {
             "download_url": f"/api/download-tracked/{req.session_id}",
             "filename": f"Tracked_{doc.file_name}",
+            "open_path": str(out_file),
         }
     except Exception as e:
         print(f"[ERROR] Error generando tracked changes: {e}")

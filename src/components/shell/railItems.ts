@@ -3,7 +3,7 @@
    compartan la misma gramática de navegación sin duplicar JSX. */
 
 import { FileText, ListTree, Image as ImageIcon, BookOpen, ShieldCheck, Download,
-  Home, History, PlusCircle, Settings, FolderOpen, LayoutDashboard } from 'lucide-react';
+  Home, History, PlusCircle, Settings, LayoutDashboard } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type RailStatus = 'done' | 'pending' | 'idle';
@@ -31,6 +31,13 @@ export interface RailDestination {
   pending?: number;
   /** Si el flyout de este destino debe incluir el mapa del documento. */
   showOutline: boolean;
+  /**
+   * Si el destino abre su flyout de detalle al hacer clic. `false` en Exportar:
+   * al hacer clic ya se entra al túnel de exportación, y un panel que lo
+   * describa al lado competiría con la pantalla final, que ya dice dónde
+   * descargar. Ausente/`true` deja el comportamiento normal.
+   */
+  showFlyout?: boolean;
   /** "Estás acá", para los destinos que no son fases (Inicio ⇄ Recientes).
    *  El editor no lo usa: su fase activa la sigue mandando `wizardStep`, y un
    *  destino sin fase no tiene nada que aportar a ese store. */
@@ -39,10 +46,11 @@ export interface RailDestination {
 
 /* F7 Task 5: el catalogo del rail mezcla DOS clases de cosa y el tipo lo dice de
    una vez. Las seis primeras son FASES (`step` es un numero y el `wizardStep` las
-   enciende). `proyecto` tiene `step: null` porque no es una fase: es un modulo,
-   `AGENTS.md` §5 lo lista como principal, y abrirlo no avanza el asistente. El
-   `step: null` no es un caso raro del tipo: es lo que hace que `IconRail` no lo
-   ilumine y que `AppShell` sepa que no hay fase a la que saltar. */
+   enciende). `mis-proyectos` tiene `step: null` porque no es una fase: es una
+   pantalla, `AGENTS.md` §5 la lista como principal, y abrirla no avanza el
+   asistente. El `step: null` no es un caso raro del tipo: es lo que hace que
+   `IconRail` no lo ilumine por `wizardStep` y que `AppShell` sepa que no hay fase
+   a la que saltar. */
 export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
   id: string;
   step: number | null;
@@ -51,6 +59,7 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
   description?: string;
   Icon: LucideIcon;
   showOutline: boolean;
+  showFlyout?: boolean;
 }> = [
   /* `showOutline` SOLO en Estructura, y no por descuido: es la fase de la
      jerarquía del documento, y el árbol de estructura es lo que esa fase
@@ -68,20 +77,27 @@ export const EDITOR_RAIL_ITEMS: ReadonlyArray<{
   { id: 'step-3', step: 3, label: 'Figuras', shortLabel: 'Figuras', description: 'Tablas, figuras y numeración editorial.', Icon: ImageIcon, showOutline: false },
   { id: 'step-4', step: 4, label: 'Referencias', shortLabel: 'Refer.', description: 'Bibliografía, sangría francesa y formato APA.', Icon: BookOpen, showOutline: false },
   { id: 'step-5', step: 5, label: 'Revisión & IA', shortLabel: 'Revisión', description: 'Auditoría de estilo, ortografía y citas cruzadas.', Icon: ShieldCheck, showOutline: false },
-  { id: 'step-6', step: 6, label: 'Exportar', shortLabel: 'Exportar', description: 'Generación final de archivo .docx validado.', Icon: Download, showOutline: false },
-  /* SIN `status` Y SIN `pending`, Y NO POR OLVIDO. Es un modulo, no una fase: no
-     hay trabajo que completar ni que posponer, asi que no tiene un cero honesto
-     que anunciar. Es el mismo motivo por el que Ajustes no lleva estado (ver
-     `HOME_RAIL_ITEMS`) y por el que `status` es opcional en `RailDestination`:
-     un "Listo" sobre un boton que abre una pantalla es un vocabulario de estado
-     aplicado a una accion, y el rail no puede contradecir a la pantalla a la que
-     lleva. `railPending` sigue siendo la UNICA derivacion de trabajo pendiente,
-     y este destino no participa porque no tiene trabajo. */
-  { id: 'proyecto', step: null, label: 'Explorador de proyecto', shortLabel: 'Proyecto', description: 'Documentos, imágenes y carpeta de trabajo del proyecto.', Icon: FolderOpen, showOutline: false },
-  /* Pantalla de gestión de proyectos: lista de proyectos y línea de tiempo de versiones.
-     `step: null` igual que 'proyecto': es una pantalla, no una fase del asistente.
-     `viewMode: 'proyectos'` la monta en App.tsx. */
-  { id: 'mis-proyectos', step: null, label: 'Mis proyectos', shortLabel: 'Proyectos', description: 'Gestión de proyectos y versiones de documentos.', Icon: LayoutDashboard, showOutline: false },
+  { id: 'step-6', step: 6, label: 'Exportar', shortLabel: 'Exportar', description: 'Generación final de archivo .docx validado.', Icon: Download, showOutline: false, showFlyout: false },
+  /* SIN `status` Y SIN `pending`, Y NO POR OLVIDO. Es una pantalla, no una fase:
+     no hay trabajo que completar ni que posponer, asi que no tiene un cero
+     honesto que anunciar. Es el mismo motivo por el que Ajustes no lleva estado
+     (ver `HOME_RAIL_ITEMS`) y por el que `status` es opcional en
+     `RailDestination`: un "Listo" sobre un boton que abre una pantalla es un
+     vocabulario de estado aplicado a una accion, y el rail no puede contradecir
+     a la pantalla a la que lleva. `railPending` sigue siendo la UNICA derivacion
+     de trabajo pendiente, y este destino no participa porque no tiene trabajo.
+
+     UNA SOLA PANTALLA DE PROYECTO. Antes habia DOS destinos de proyecto: un
+     "Explorador de proyecto" que abria una ventana modal y "Mis proyectos" con su
+     pantalla. Dos caminos al mismo dato, y el modal encima de lo que hubiera.
+     Ahora el explorador vive ADENTRO de esta pantalla, asi que el rail tiene un
+     unico destino: esta.
+
+     SIN `description`, A PROPOSITO. `RailFlyout` no dibuja panel si el destino no
+     tiene detalle (`description`, `status` u `showOutline`), y una pantalla no
+     necesita un flyout que la describa al lado: al hacer clic ya se esta en ella.
+     La descripcion de una pantalla que uno va a abrir es ruido. */
+  { id: 'mis-proyectos', step: null, label: 'Mis proyectos', shortLabel: 'Proyectos', Icon: LayoutDashboard, showOutline: false },
 ];
 
 /* Inicio tiene su propio juego de destinos, pero el MISMO componente de rail.

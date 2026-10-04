@@ -13,7 +13,7 @@ describe('ProyectosScreen', () => {
   });
 
   it('sin proyectos muestra diálogo de configuración de carpeta', () => {
-    useDocStore.setState({ proyectos: [], raizConfigurada: null } as any);
+    useDocStore.setState({ proyectos: [] } as any);
     render(<ProyectosScreen />);
     expect(screen.getByText(/organizar mis documentos/i)).toBeInTheDocument();
   });
@@ -92,8 +92,14 @@ describe('ProyectosScreen', () => {
     expect(screen.getByText(/\+2 versiones anteriores/)).toBeInTheDocument();
   });
 
-  it('entrada en el rail tiene ícono Folder', async () => {
-    const src = await import('../lib/railItems.ts?raw');
-    expect(src.default).toMatch(/Folder/);
+  it('el rail lleva a la pantalla de proyectos, no a un Explorador aparte', async () => {
+    /* El defecto que este archivo cierra por el lado del dato: el rail tenía DOS
+       destinos de proyecto. Ahora hay uno, y su ícono es el de la pantalla de
+       gestión, no la carpeta del modal que ya no existe. Se lee el catálogo REAL
+       (`components/shell/railItems.ts`), no el `lib/railItems.ts` legacy que ya
+       no monta nadie. */
+    const src = await import('../components/shell/railItems.ts?raw');
+    expect(src.default).toMatch(/mis-proyectos/);
+    expect(src.default).not.toMatch(/id: 'proyecto'/);
   });
 });

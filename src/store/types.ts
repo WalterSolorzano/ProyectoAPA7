@@ -240,15 +240,6 @@ export interface DocState {
   /** Cierra el proyecto: borra en el backend y, si eso sale bien, en el store.
    *  Si el borrado falla, conserva el proyecto y avisa. `async` por eso. */
   cerrarProyecto: () => Promise<void>;
-  /** El Explorador de Proyecto abierto. Vive en el store porque lo abre el rail
-   *  y lo cierra el propio modal: dos pantallas, un estado. */
-  exploradorAbierto: boolean;
-  abrirExplorador: () => void;
-  cerrarExplorador: () => void;
-  /** Clic en el destino del rail: abre si estaba cerrado, cierra si estaba
-   *  abierto. Un destino de un clic que solo abre es medio camino a un boton que
-   *  no se puede deshacer. */
-  alternarExplorador: () => void;
   /** Relee la carpeta del proyecto abierto por el backend y devuelve la lista de
    *  documentos, o `null` si no se pudo. Es UNA operacion para toda la carpeta. */
   sincronizarProyectoActual: () => Promise<string[] | null>;

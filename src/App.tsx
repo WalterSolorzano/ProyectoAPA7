@@ -21,7 +21,7 @@ import { CommandPalette } from './components/CommandPalette';
 
 // Guided Wizard Components
 import { Step1PortadaWizard } from './components/wizard/Step1PortadaWizard';
-import { EstudioEstructuraView } from './components/structure/EstudioEstructuraView';
+import { EscritorioEstructura } from './components/structure/EscritorioEstructura';
 import { TallerFigurasView } from './components/figures/TallerFigurasView';
 import { Step5ReferencesWizard } from './components/referencias/Step5ReferencesWizard';
 import { Step5AuditIAWizard } from './components/wizard/Step5AuditIAWizard';
@@ -648,7 +648,7 @@ export const App: React.FC = () => {
           <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0, flexDirection: 'column' }}>
             <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`split-${wizardStep}`}>
               {wizardStep === 1 && <Step1PortadaWizard />}
-              {wizardStep === 2 && <EstudioEstructuraView />}
+              {wizardStep === 2 && <EscritorioEstructura />}
               {wizardStep === 3 && <TallerFigurasView />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
             </div>
@@ -666,7 +666,7 @@ export const App: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
           <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, height: '100%', overflow: 'hidden', minWidth: 0 }} className="wizard-step-enter" key={`step-${wizardStep}`}>
-              {wizardStep === 2 && <EstudioEstructuraView />}
+              {wizardStep === 2 && <EscritorioEstructura />}
               {wizardStep === 3 && <TallerFigurasView />}
               {wizardStep === 4 && <Step5ReferencesWizard />}
               {wizardStep === 5 && <Step5AuditIAWizard />}

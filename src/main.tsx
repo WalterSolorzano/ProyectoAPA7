@@ -30,6 +30,7 @@ import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/700.css';
 import './styles/fluent.css';        // base styles + Tailwind directives
 import './styles/design-system.css'; // dark theme tokens override on top
+import './styles/estructura.css';    // Estudio de Estructura (Paso 2): diagrama por nivel
 
 // ── TEMA PERSISTIDO ─────────────────────────────────────────────────────────
 // Restaura el tema (claro/oscuro) guardado antes de pintar para evitar un flash.

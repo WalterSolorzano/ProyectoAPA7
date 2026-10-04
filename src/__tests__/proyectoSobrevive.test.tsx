@@ -7,7 +7,7 @@
  *    de la pestaña activa, así que renombrar el archivo renombraba el proyecto y
  *    cerrar la app lo dejaba en nada. Eso no es una entidad: es un prefijo.
  *
- * 2. Sin pestaña, `ProjectFolderModal` imprimía literalmente `'Proyecto APA 7'`.
+ * 2. Sin pestaña, `ExploradorProyecto` imprimía literalmente `'Proyecto APA 7'`.
  *    Un nombre inventado en pantalla es peor que no tener chrome: la persona lee
  *    un nombre y razona sobre un trabajo que no existe.
  */
@@ -15,7 +15,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { useDocStore, persistPartialize } from '../store/useDocStore';
-import { ProjectFolderModal } from '../components/project/ProjectFolderModal';
+import { ExploradorProyecto as ProjectFolderModal } from '../components/project/ExploradorProyecto';
 import { crearProyecto } from '../lib/proyecto';
 
 // La subida pega al backend. Lo que se mide en esta tarea es la RUTA, y la ruta
@@ -260,7 +260,7 @@ describe('un proyecto sin nombre no se puede crear', () => {
 
 describe('sin proyecto, el chrome de proyecto no se monta', () => {
   const montar = () =>
-    render(<ProjectFolderModal isOpen onClose={() => {}} onOpenMerge={() => {}} />);
+    render(<ProjectFolderModal onOpenMerge={() => {}} />);
 
   it('el nombre inventado no aparece en pantalla', () => {
     // El defecto: sin pestaña activa el título decía 'Proyecto APA 7'.
