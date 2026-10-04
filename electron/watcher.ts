@@ -118,22 +118,39 @@ export function startWatcherNow(): void {
       const runtimeDir = path.join(process.resourcesPath, 'python-runtime')
       const pythonExe = path.join(runtimeDir, 'python.exe')
       const mainScript = path.join(runtimeDir, 'python', 'main.py')
-      spawn(pythonExe, [mainScript, '--watcher'], {
+
+      // Fail-closed: si el intérprete no está (instalador viejo/roto), NO
+      // intentamos spawnear. Un spawn ENOENT emite 'error' de forma asíncrona
+      // y, sin listener, tumba el proceso main con un "Uncaught Exception".
+      if (!require('fs').existsSync(pythonExe)) {
+        log('error', 'watcher', `Runtime embebido ausente: no existe ${pythonExe}. Watcher no iniciado.`)
+        return
+      }
+
+      const child = spawn(pythonExe, [mainScript, '--watcher'], {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
         cwd: path.join(runtimeDir, 'python'),
-      }).unref()
+      })
+      child.on('error', (err) => {
+        log('warn', 'watcher', `No se pudo iniciar el watcher: ${String(err)}`)
+      })
+      child.unref()
     } else {
       const scriptPath = path.join(app.getAppPath(), 'python', 'word_watcher.py')
       const venvPythonw = path.join(app.getAppPath(), 'venv', 'Scripts', 'pythonw.exe')
       const pythonw = require('fs').existsSync(venvPythonw) ? venvPythonw : 'pythonw'
-      spawn(pythonw, [scriptPath], {
+      const child = spawn(pythonw, [scriptPath], {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
         cwd: path.join(app.getAppPath(), 'python'),
-      }).unref()
+      })
+      child.on('error', (err) => {
+        log('warn', 'watcher', `No se pudo iniciar el watcher: ${String(err)}`)
+      })
+      child.unref()
     }
     log('info', 'watcher', 'Watcher iniciado en background')
   } catch (err) {
