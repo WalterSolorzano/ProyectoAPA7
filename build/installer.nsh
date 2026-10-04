@@ -3,17 +3,15 @@
 ; ANTES del template principal, por lo que puede definir macros y defines
 ; de MUI2 (welcome/finish/colores) que el resto del script consume.
 
-; ── One-click: mínima fricción (oneClick: true en electron-builder.yml) ────
-; Con oneClick: true, electron-builder NO muestra página de bienvenida ni
-; de elección de carpeta. El instalador muestra una sola barra de progreso,
-; se instala en %LOCALAPPDATA%\Programs\WordAPA7\ (sin UAC) y al terminar
-; muestra la página de finalización (MUI_FINISHPAGE) con el checkbox de
-; "Abrir WordAPA7" (runAfterFinish: true).
+; ── Instalador asistido (oneClick: false en electron-builder.yml) ──────────
+; Con oneClick: false, electron-builder SÍ muestra las páginas de bienvenida
+; y de finalización, por lo que el branding (sidebar/header, colores y textos
+; MUI2 de abajo) está activo. allowToChangeInstallationDirectory: false evita
+; la página de elección de carpeta. La instalación es por usuario
+; (%LOCALAPPDATA%\Programs\WordAPA7\, sin UAC) y runAfterFinish: true abre la
+; app al terminar.
 ;
-; La macro customWelcomePage se conserva por compatibilidad: si en el futuro
-; se vuelve a oneClick: false, las páginas de bienvenida con branding se
-; muestran automáticamente. Con oneClick: true, electron-builder no llama
-; a esta macro y las defines son simplemente ignoradas (inofensivas).
+; La macro customWelcomePage inserta la página de bienvenida con branding.
 
 ; ── Instalación por usuario (sin UAC) ──────────────────────────────────────
 ; perMachine: false en electron-builder.yml instala en
@@ -29,17 +27,17 @@
 ;
 ; ── Definiciones de texto MUI2 (Installer & Uninstaller) ─────────────────
 !define MUI_WELCOMEPAGE_TITLE "WordAPA7 · Edición Editorial"
-!define MUI_WELCOMEPAGE_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
+!define MUI_WELCOMEPAGE_TEXT "Instala WordAPA7 y su complemento para Microsoft Word.$\r$\n$\r$\nLa aplicación se abrirá automáticamente al finalizar."
 
 !define MUI_TEXT_WELCOMEINFO_TITLE "WordAPA7 · Edición Editorial"
-!define MUI_TEXT_WELCOMEINFO_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
+!define MUI_TEXT_WELCOMEINFO_TEXT "Instala WordAPA7 y su complemento para Microsoft Word.$\r$\n$\r$\nLa aplicación se abrirá automáticamente al finalizar."
 
 ; ── Página de finalización ──────────────────────────────────────────────────
 !define MUI_FINISHPAGE_TITLE "Listo para usar"
-!define MUI_FINISHPAGE_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
+!define MUI_FINISHPAGE_TEXT "WordAPA7 y su complemento para Word están listos.$\r$\n$\r$\nAcceso directo en Escritorio e Inicio. La pestaña «WordAPA7» ya está en la cinta de Word."
 
 !define MUI_TEXT_FINISH_TITLE "Listo para usar"
-!define MUI_TEXT_FINISH_INFO_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
+!define MUI_TEXT_FINISH_INFO_TEXT "WordAPA7 y su complemento para Word están listos.$\r$\n$\r$\nAcceso directo en Escritorio e Inicio. La pestaña «WordAPA7» ya está en la cinta de Word."
 
 !define MUI_ABORTWARNING_TEXT "¿Deseas cancelar la instalación de WordAPA7?"
 
@@ -62,12 +60,12 @@
 ; ── Identidad visual (accent #4f7cff, tokens de design-tokens.md) ─────────
 BrandingText "WordAPA7 · Edición Editorial"
 
-; Fondo de las páginas en tono azul claro de marca con texto en azul marino
-!define MUI_BGCOLOR "DEE7FF"
-!define MUI_TEXTCOLOR "14213D"
+; Fondo y texto de páginas desde tokens de la app (canvas-bg + text-primary)
+!define MUI_BGCOLOR "F5F6F8"
+!define MUI_TEXTCOLOR "1A1A2E"
 
 ; Barra de progreso fluida y cabeceras limpias
-!define MUI_INSTFILESPAGE_COLORS "14213d 4f7cff"
+!define MUI_INSTFILESPAGE_COLORS "1a1a2e 4f7cff"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
 !define MUI_PAGE_HEADER_TEXT "Instalando componentes"
 !define MUI_PAGE_HEADER_SUBTEXT "Configuración automática en tu equipo"

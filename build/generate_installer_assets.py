@@ -1,13 +1,19 @@
 """WordAPA7 — Generador de recursos de marca del instalador NSIS.
 
-Assets visuales con la identidad de la app (mascota + Baloo 2 + azul #4f7cff):
- - build/icon.ico                -> icono del instalador / app / desinstalador
- - build/installerHeader.bmp     -> MUI_HEADERIMAGE_BITMAP (150x57)
- - build/installerSidebar.bmp    -> MUI_WELCOMEFINISHPAGE_BITMAP (164x314)
- - build/uninstallerSidebar.bmp  -> MUI_UNWELCOMEFINISHPAGE_BITMAP (164x314)
+Assets visuales alineados al design system de la app
+(src/styles/design-system.css + src/styles/design-tokens.md):
+  - build/icon.ico                -> icono del instalador / app / desinstalador
+  - build/installerHeader.bmp     -> MUI_HEADERIMAGE_BITMAP (150x57)
+  - build/installerSidebar.bmp    -> MUI_WELCOMEFINISHPAGE_BITMAP (164x314)
+  - build/uninstallerSidebar.bmp  -> MUI_UNWELCOMEFINISHPAGE_BITMAP (164x314)
 
-Diseño: alto contraste, bordes redondeados y fuente cartoon Baloo 2
-(la misma que usa la app), con la cinta "docx -> APA 7" bien alineada.
+Diseño sobrio: superficie plana de marca, sin gradientes decorativos, sin
+círculos flotantes y sin sombras de texto. La mascota (documento) se apoya
+sobre una tarjeta blanca para dar estructura sin ruido. Baloo 2 se reserva
+para el wordmark (fuente display de la app).
+
+Paleta UI: SOLO tokens de design-system.css. Los colores de la mascota son
+de ilustración (identidad del personaje), no chrome de UI.
 """
 
 from __future__ import annotations
@@ -19,23 +25,19 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent
 BALOO = ROOT.parent / "node_modules/@fontsource/baloo-2/files"
 
-# ── Paleta de marca (design-tokens.md) ──────────────────────────────────────
-BRAND = (79, 124, 255)          # #4f7cff
-BRAND_HOVER = (123, 160, 255)   # #7ba0ff
-GRAD_TOP = (96, 135, 255)       # #6087ff
-GRAD_MID = (79, 124, 255)       # #4f7cff
-GRAD_BOTTOM = (34, 70, 196)     # #2246c4
-FRAME = (188, 208, 255)         # #bcd0ff (borde del marco redondeado)
-NAVY = (20, 33, 61)             # #14213d (texto oscuro de contraste)
-SOFT = (222, 231, 255)          # #dee7ff
-YELLOW = (255, 201, 77)         # #ffc94d (cinta "docx -> APA 7")
-YELLOW_DEEP = (226, 160, 30)    # #e2a01e (sombra de la cinta)
-WHITE = (255, 255, 255)
+# ── Tokens de UI (design-system.css :root) ──────────────────────────────────
+ACCENT = (79, 124, 255)         # #4f7cff  --color-accent
+ACCENT_HOVER = (59, 102, 224)   # #3b66e0  --color-accent-hover
+ACCENT_PRESSED = (43, 82, 204)  # #2b52cc  --color-accent-pressed
+TEXT_PRIMARY = (26, 26, 46)     # #1a1a2e  --color-text-primary
+SURFACE = (255, 255, 255)       # #ffffff  --color-bg-surface / --paper-white
+BORDER_SUBTLE = (226, 232, 240)  # #e2e8f0  --color-paper-border-subtle
 
-PAGE_FILL = (255, 204, 128)     # #FFCC80
-PAGE_STROKE = (230, 81, 0)      # #E65100
-FOLD_FILL = (255, 224, 178)     # #FFE0B2
-FACE = (78, 52, 46)             # #4E342E
+# ── Paleta de la mascota (ilustración, no UI) ───────────────────────────────
+PAGE_FILL = (255, 204, 128)     # #ffcc80
+PAGE_STROKE = (230, 81, 0)      # #e65100
+FOLD_FILL = (255, 224, 178)     # #ffe0b2
+FACE = (78, 52, 46)             # #4e342e
 
 
 def baloo(weight: str, size: int) -> ImageFont.FreeTypeFont:
@@ -45,23 +47,22 @@ def baloo(weight: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(path), size)
 
 
-def v3_gradient(w: int, h: int, top, mid, bottom) -> Image.Image:
+def flat(w: int, h: int, color) -> Image.Image:
+    return Image.new("RGB", (w, h), color)
+
+
+def vertical_two_stop(w: int, h: int, top, bottom) -> Image.Image:
     img = Image.new("RGB", (w, h))
     draw = ImageDraw.Draw(img)
-    mid_y = int(h * 0.45)
     for y in range(h):
-        if y < mid_y:
-            t = y / max(1, mid_y)
-            c0, c1 = top, mid
-        else:
-            t = (y - mid_y) / max(1, h - 1 - mid_y)
-            c0, c1 = mid, bottom
-        color = tuple(int(c0[i] + (c1[i] - c0[i]) * t) for i in range(3))
+        t = y / max(1, h - 1)
+        color = tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3))
         draw.line([(0, y), (w, y)], fill=color)
     return img
 
 
-def draw_mascot(draw: ImageDraw.Draw, s: float, ox: float, oy: float, mouth: str = "happy") -> None:
+def draw_mascot(draw: ImageDraw.Draw, s: float, ox: float, oy: float) -> None:
+    """Documento mascota. Expresión tranquila (sonrisa sutil, sin bigote)."""
     stroke = max(1, round(2 * s))
     draw.rounded_rectangle(
         [6 * s + ox, 6 * s + oy, 52 * s + ox, 58 * s + oy],
@@ -71,52 +72,41 @@ def draw_mascot(draw: ImageDraw.Draw, s: float, ox: float, oy: float, mouth: str
         [(52 * s + ox, 6 * s + oy), (52 * s + ox, 16 * s + oy), (42 * s + ox, 6 * s + oy)],
         fill=FOLD_FILL, outline=PAGE_STROKE,
     )
+    # Renglones del documento
     for x0, y0, x1, y1 in [(14, 16, 44, 18.5), (14, 22, 39, 24.5), (14, 28, 42, 30.5), (14, 34, 32, 36.5)]:
         draw.rounded_rectangle(
             [x0 * s + ox, y0 * s + oy, x1 * s + ox, y1 * s + oy],
             radius=1.2 * s, fill=PAGE_STROKE,
         )
-    for cx in (22, 42):
-        draw.ellipse([cx * s - 4 * s + ox, 46 * s - 2.4 * s + oy, cx * s + 4 * s + ox, 46 * s + 2.4 * s + oy], fill=FOLD_FILL)
+    # Ojos
     for cx in (26, 38):
         draw.ellipse([cx * s - 2.6 * s + ox, 44 * s - 2.6 * s + oy, cx * s + 2.6 * s + ox, 44 * s + 2.6 * s + oy], fill=FACE)
-    draw.ellipse([27 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 27 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=WHITE)
-    draw.ellipse([39 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 39 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=WHITE)
-    if mouth == "happy":
-        draw.arc([27 * s + ox, 49 * s + oy, 37 * s + ox, 55 * s + oy], 200, 340, fill=FACE, width=max(1, round(2.5 * s)))
-    elif mouth == "excited":
-        draw.pieslice([26 * s + ox, 48 * s + oy, 38 * s + ox, 57 * s + oy], 200, 340, fill=FACE)
+    draw.ellipse([27 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 27 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=SURFACE)
+    draw.ellipse([39 * s - 0.9 * s + ox, 43.2 * s - 0.9 * s + oy, 39 * s + 0.9 * s + ox, 43.2 * s + 0.9 * s + oy], fill=SURFACE)
+    # Sonrisa sutil (serena, sin bigote)
+    draw.arc([29 * s + ox, 48 * s + oy, 35 * s + ox, 54 * s + oy], 210, 330, fill=FACE, width=max(1, round(1.8 * s)))
 
 
-def draw_arrow(draw: ImageDraw.Draw, x1: float, y: float, x2: float, color, width: int = 3) -> None:
-    draw.line([(x1, y), (x2, y)], fill=color, width=width)
-    h = max(6, width * 2)
-    draw.polygon([(x2, y), (x2 - h, y - h / 1.6), (x2 - h, y + h / 1.6)], fill=color)
-
-
-def shadow_text(draw, xy, text, font, fill, shadow=(22, 33, 77), offset=(0, 3)):
-    draw.text((xy[0] + offset[0], xy[1] + offset[1]), text, font=font, fill=shadow)
-    draw.text(xy, text, font=font, fill=fill)
+def centered_text(draw: ImageDraw.Draw, cx: float, cy: float, text: str, font, fill) -> None:
+    draw.text((cx, cy), text, font=font, fill=fill, anchor="mm")
 
 
 def build_icon() -> None:
     size = 256
     radius = 56
-    img = v3_gradient(size, size, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
+    img = vertical_two_stop(size, size, ACCENT, ACCENT_PRESSED)
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=255)
-    img = img.resize((size, size))
     bg = Image.new("RGB", (size, size), (0, 0, 0))
     bg.paste(img, (0, 0), mask)
     img = bg
 
     draw = ImageDraw.Draw(img)
-    # Disco de marca que eleva la mascota
-    draw.ellipse([74, 82, 182, 190], fill=BRAND_HOVER)
-    draw.ellipse([82, 90, 174, 182], fill=BRAND)
+    # Tarjeta blanca que eleva la mascota
+    draw.rounded_rectangle([56, 60, 200, 204], radius=36, fill=SURFACE)
 
-    s = 2.9
-    draw_mascot(draw, s, 128 - 29 * s, 130 - 32 * s, mouth="excited")
+    s = 2.4
+    draw_mascot(draw, s, 128 - 29 * s, 132 - 32 * s)
 
     img.save(ROOT / "icon.ico", format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     print("[assets] icon.ico generado")
@@ -124,100 +114,54 @@ def build_icon() -> None:
 
 def build_header() -> None:
     w, h = 150, 57
-    img = v3_gradient(w, h, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
+    img = flat(w, h, ACCENT_HOVER)
     draw = ImageDraw.Draw(img)
 
     font = baloo("800", 22)
-    shadow_text(draw, (12, 12), "WordAPA7", font, WHITE, shadow=(23, 51, 148), offset=(0, 3))
+    centered_text(draw, w / 2, h / 2, "WordAPA7", font, SURFACE)
 
-    # Filete redondeado de acento en el borde inferior
-    draw.rounded_rectangle([10, h - 7, w - 10, h - 3], radius=2, fill=BRAND_HOVER)
-
-    img.convert("RGB").save(ROOT / "installerHeader.bmp", "BMP")
+    img.save(ROOT / "installerHeader.bmp", "BMP")
     print("[assets] installerHeader.bmp generado")
+
+
+def _sidebar_base(w: int, h: int, base, mascot_card_y: int = 30) -> tuple[Image.Image, ImageDraw.Draw]:
+    img = flat(w, h, base)
+    draw = ImageDraw.Draw(img)
+    # Tarjeta blanca que enmarca la mascota (estructura, no decoración)
+    draw.rounded_rectangle([22, mascot_card_y, 142, mascot_card_y + 120], radius=18, fill=SURFACE)
+    s = 1.7
+    draw_mascot(draw, s, 82 - 29 * s, (mascot_card_y + 60) - 32 * s)
+    return img, draw
 
 
 def build_sidebar() -> None:
     w, h = 164, 314
-    img = v3_gradient(w, h, GRAD_TOP, GRAD_MID, GRAD_BOTTOM)
-    draw = ImageDraw.Draw(img)
+    img, draw = _sidebar_base(w, h, ACCENT_HOVER)
 
-    # Círculos decorativos suaves en tonos de marca
-    draw.ellipse([-30, 220, 50, 310], fill=(30, 62, 172))
-    draw.ellipse([115, -25, 220, 85], fill=(63, 100, 214))
-    draw.ellipse([125, 260, 195, 330], fill=(28, 58, 158))
+    centered_text(draw, w / 2, 178, "WordAPA7", baloo("800", 26), SURFACE)
+    centered_text(draw, w / 2, 212, "Edición Editorial", baloo("600", 14), SURFACE)
 
-    # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=FRAME, width=2)
+    # Píldora informativa (única pieza de acento, texto de marca)
+    draw.rounded_rectangle([14, 250, 150, 284], radius=17, fill=SURFACE)
+    centered_text(draw, w / 2, 267, "Normas APA 7ma Ed.", baloo("700", 12), ACCENT_HOVER)
 
-    # Mascota grande
-    s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="excited")
-
-    # Título + tagline con Baloo 2
-    font_title = baloo("800", 30)
-    font_tag = baloo("600", 14)
-    title = "WordAPA7"
-    tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(23, 51, 148), offset=(0, 2))
-    tag = "Edición Editorial"
-    tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=SOFT)
-
-    # Píldora de marca elegante y minimalista
-    font_badge = baloo("700", 12)
-    px0, py0, px1, py1 = 18, 256, 146, 288
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(45, 82, 205), outline=FRAME, width=1)
-    badge_txt = "Normas APA 7ma Ed."
-    tw_b = draw.textlength(badge_txt, font=font_badge)
-    draw.text(((w - tw_b) / 2, py0 + 6), badge_txt, font=font_badge, fill=WHITE)
-
-    img.convert("RGB").save(ROOT / "installerSidebar.bmp", "BMP")
+    img.save(ROOT / "installerSidebar.bmp", "BMP")
     print("[assets] installerSidebar.bmp generado")
 
 
 def build_uninstaller_sidebar() -> None:
-    """Genera un sidebar diferenciado para el desinstalador con paleta slate/navy y mensaje de limpieza."""
+    """Mismo sistema visual; base sobria (text-primary) para diferenciar sin romper marca."""
     w, h = 164, 314
-    UN_TOP = (51, 65, 85)       # slate-700
-    UN_MID = (30, 41, 59)       # slate-800
-    UN_BOTTOM = (15, 23, 42)    # slate-900
-    UN_FRAME = (148, 163, 184)  # slate-400
+    img, draw = _sidebar_base(w, h, TEXT_PRIMARY)
 
-    img = v3_gradient(w, h, UN_TOP, UN_MID, UN_BOTTOM)
-    draw = ImageDraw.Draw(img)
+    centered_text(draw, w / 2, 178, "WordAPA7", baloo("800", 26), SURFACE)
+    centered_text(draw, w / 2, 212, "Desinstalador", baloo("600", 14), SURFACE)
 
-    # Círculos decorativos en tonos slate profundos
-    draw.ellipse([-30, 220, 50, 310], fill=(20, 30, 48))
-    draw.ellipse([115, -25, 220, 85], fill=(40, 53, 75))
+    draw.rounded_rectangle([14, 250, 150, 284], radius=17, fill=SURFACE)
+    centered_text(draw, w / 2, 267, "No borra tus .docx", baloo("700", 12), TEXT_PRIMARY)
 
-    # Marco redondeado que enmarca a la mascota
-    draw.rounded_rectangle([28, 28, 136, 148], radius=24, outline=UN_FRAME, width=2)
-
-    # Mascota con expresión tranquila
-    s = 2.0
-    draw_mascot(draw, s, 82 - 29 * s, 88 - 32 * s, mouth="happy")
-
-    # Título + tagline de desinstalación con Baloo 2
-    font_title = baloo("800", 30)
-    font_tag = baloo("600", 14)
-    title = "WordAPA7"
-    tw = draw.textlength(title, font=font_title)
-    shadow_text(draw, ((w - tw) / 2, 166), title, font_title, WHITE, shadow=(10, 15, 30), offset=(0, 2))
-    tag = "Desinstalador"
-    tw2 = draw.textlength(tag, font=font_tag)
-    draw.text(((w - tw2) / 2, 212), tag, font=font_tag, fill=(203, 213, 225))
-
-    # Píldora de estado sobria
-    font_badge = baloo("700", 12)
-    px0, py0, px1, py1 = 18, 256, 146, 288
-    draw.rounded_rectangle([px0, py0, px1, py1], radius=16, fill=(20, 30, 48), outline=UN_FRAME, width=1)
-    pill_text = "Limpieza Segura"
-    tw_pill = draw.textlength(pill_text, font=font_badge)
-    draw.text(((w - tw_pill) / 2, py0 + 6), pill_text, font=font_badge, fill=(241, 245, 249))
-
-    img.convert("RGB").save(ROOT / "uninstallerSidebar.bmp", "BMP")
-    print("[assets] uninstallerSidebar.bmp diferenciado generado")
+    img.save(ROOT / "uninstallerSidebar.bmp", "BMP")
+    print("[assets] uninstallerSidebar.bmp generado")
 
 
 if __name__ == "__main__":
