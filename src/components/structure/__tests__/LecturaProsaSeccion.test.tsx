@@ -294,4 +294,37 @@ describe('LecturaProsaSeccion', () => {
 
     expect(screen.getByText(/selecciona un capítulo o sección/i)).toBeInTheDocument();
   });
+
+  it('muestra una lista numerada como contenido, no como vacío', () => {
+    const nodo = {
+      id: 'h2-1', elementoId: 'h2-1', titulo: 'Objetivos específicos', nivel: 2,
+      palabras: 12, figuras: 0, tablas: 0, citas: 0, hijos: [], fase: null,
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'h2-1', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'l1', type: 'numbered_list', text: 'Diseñar el sistema.' },
+      { id: 'l2', type: 'numbered_list', text: 'Implementar el plan.' },
+      { id: 'h2-2', type: 'heading', text: 'Marco teórico', heading_level: 1 },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.queryByText(/no contiene párrafos de prosa/i)).toBeNull();
+    expect(screen.getByText('Diseñar el sistema.')).toBeTruthy();
+  });
+
+  it('no confunde la sección con un título duplicado anterior (TOC)', () => {
+    const nodo = {
+      id: 'h2-1', elementoId: 'h2-1', titulo: 'Objetivos específicos', nivel: 2,
+      palabras: 8, figuras: 0, tablas: 0, citas: 0, hijos: [], fase: null,
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'toc-h', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'toc-p', type: 'paragraph', text: 'Índice (TOC).' },
+      { id: 'h1', type: 'heading', text: 'Objetivos', heading_level: 1 },
+      { id: 'h2-1', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'p1', type: 'paragraph', text: 'El objetivo específico es medir.' },
+      { id: 'h1b', type: 'heading', text: 'Marco teórico', heading_level: 1 },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.getByText('El objetivo específico es medir.')).toBeTruthy();
+  });
 });

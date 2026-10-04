@@ -38,9 +38,14 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   const deLaSeccion = useMemo(() => {
     if (!seccionActiva) return [];
     const idInicio = seccionActiva.elementoId || seccionActiva.id;
-    const idxInicio = elementos.findIndex(
-      (e) => e.id === idInicio || (e.type === 'heading' && e.text.trim() === seccionActiva.titulo.trim()),
-    );
+    let idxInicio = elementos.findIndex((e) => e.id === idInicio);
+    if (idxInicio === -1) {
+      const titulo = seccionActiva.titulo.trim();
+      for (let i = elementos.length - 1; i >= 0; i--) {
+        const e = elementos[i];
+        if (e.type === 'heading' && e.text.trim() === titulo) { idxInicio = i; break; }
+      }
+    }
     if (idxInicio === -1) return [];
     const nivelActual = seccionActiva.nivel || 1;
     const resultado: ElementModel[] = [elementos[idxInicio]];
@@ -82,9 +87,10 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   const cuerpo = deLaSeccion
     .slice(1)
     .filter((e) => !(e.type === 'paragraph' && !String(e.text ?? '').trim()));
+  const ES_PROSA_CON_TEXTO = new Set(['paragraph', 'bullet', 'numbered_list', 'block_quote']);
   const tieneContenido = cuerpo.some(
     (e) =>
-      (e.type === 'paragraph' && String(e.text ?? '').trim()) ||
+      (ES_PROSA_CON_TEXTO.has(e.type) && String(e.text ?? '').trim()) ||
       e.type === 'image' ||
       e.type === 'heading',
   );
