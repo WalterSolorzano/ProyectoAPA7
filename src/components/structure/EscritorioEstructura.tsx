@@ -34,6 +34,7 @@ import { FaltasApa7 } from './FaltasApa7';
 import { DistribucionVolumen } from './DistribucionVolumen';
 import { MatrizEvidencias } from './MatrizEvidencias';
 import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
+import { RailEstructura, type DestinoEstructura } from './RailEstructura';
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -139,6 +140,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const [tab, setTab] = useState<'prosa' | 'herramientas'>('prosa');
   const [ampliado, setAmpliado] = useState(false);
   const [cerrado, setCerrado] = useState(false);
+  const [destino, setDestino] = useState<DestinoEstructura>('esquema');
 
   const elegido = useMemo(
     () => buscarEn(raices, elegidoId) ?? raices[0] ?? null,
@@ -164,12 +166,16 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
       className="escritorio-estructura"
       style={{
         display: 'grid',
-        gridTemplateColumns: cerrado ? '308px minmax(0, 1fr) 44px' : `308px minmax(0, 1fr) ${anchoPanel}px`,
+        gridTemplateColumns: cerrado
+          ? '56px 308px minmax(0, 1fr) 44px'
+          : `56px 308px minmax(0, 1fr) ${anchoPanel}px`,
         height: '100%',
         minHeight: 0,
         background: 'var(--color-bg-canvas)',
       }}
     >
+      <RailEstructura destino={destino} onDestino={setDestino} />
+
       <div style={{ minWidth: 0, minHeight: 0, background: 'var(--color-bg-surface)', borderRight: '1px solid var(--color-border-subtle)' }}>
         <IndiceEstructura
           elementos={elementos}
@@ -180,7 +186,11 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
       </div>
 
       <div style={{ minWidth: 0, minHeight: 0, overflow: 'auto', padding: 'var(--space-4)' }}>
-        <MapaEstructura raices={raices} onSelect={abrir} nodoSeleccionadoId={elegido?.id ?? null} />
+        {destino === 'esquema' ? (
+          <MapaEstructura raices={raices} onSelect={abrir} nodoSeleccionadoId={elegido?.id ?? null} />
+        ) : (
+          <div data-testid="indice-preview-placeholder" />
+        )}
       </div>
 
       {cerrado ? (
