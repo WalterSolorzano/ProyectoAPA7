@@ -525,6 +525,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               tono="var(--color-text-secondary)"
               abierto={openValid}
               alAlternar={() => setOpenValid(!openValid)}
+              primero
             >
               {validFiltradas.length === 0 ? (
                 <EstadoVacio
@@ -563,6 +564,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               tono="var(--color-text-secondary)"
               abierto={openUnverified}
               alAlternar={() => setOpenUnverified(!openUnverified)}
+              primero={railFilter === 'issues'}
             >
               {pendientesFiltradas.length === 0 ? (
                 <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
@@ -600,8 +602,8 @@ export const Step5ReferencesWizard: React.FC = () => {
                     <div
                       key={i}
                       style={{
-                        padding: '9px 12px', borderRadius: 'var(--radius-md)',
-                        borderLeft: '2px solid var(--color-warning)',
+                        padding: '7px 8px',
+                        borderLeft: '2px solid var(--color-border-strong)',
                         backgroundColor: 'transparent',
                         display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                       }}
@@ -1007,15 +1009,18 @@ const Grupo: React.FC<{
   tono: string;
   abierto: boolean;
   alAlternar: () => void;
+  primero?: boolean;
   children: React.ReactNode;
-}> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, children }) => (
+}> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, primero, children }) => (
   <section
     style={{
       display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-      /* Sin caja: el grupo es un encabezado sobre una lista, no un contenedor.
-         Antes tenía borde y fondo propios, y con la tarjeta de cada referencia
-         adentro quedaban cajas dentro de cajas. */
-      padding: 0,
+      /* Sin caja, pero CON SEPARACIÓN REAL entre grupos. El defecto era que dos
+         encabezados pegados se leían como una sola lista continua; el divisor es
+         lo que dice "acá termina un grupo y empieza otro". El primero no lleva
+         línea: arriba tiene el buscador, no otro grupo. */
+      padding: primero ? 0 : 'var(--space-4) 0 0',
+      borderTop: primero ? 'none' : '1px solid var(--color-border-subtle)',
     }}
   >
     <button
