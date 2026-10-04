@@ -48,17 +48,17 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         className={`card-source ${active ? 'active' : ''} ${className}`.trim()}
         style={{
           padding: '11px 13px',
-          borderRadius: 'var(--radius-md, 8px)',
+          borderRadius: 'var(--radius-md)',
           border: active
-            ? '1.5px solid var(--primary, var(--color-accent, #3b82f6))'
-            : '1px solid var(--border-light, var(--color-border-subtle, #e2e8f0))',
+            ? '1.5px solid var(--color-accent)'
+            : '1px solid var(--color-border-subtle)',
           backgroundColor: active
-            ? 'var(--primary-subtle, var(--color-accent-soft, #eff6ff))'
-            : 'var(--paper-white, #ffffff)',
+            ? 'var(--color-accent-soft)'
+            : 'var(--color-bg-surface)',
           cursor: 'pointer',
           position: 'relative',
           overflow: 'hidden',
-          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast)',
           ...style,
         }}
       >
@@ -75,14 +75,14 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             position: 'absolute',
             right: '8px',
             top: '8px',
-            backgroundColor: '#ffffff',
-            border: '1px solid var(--border-medium, #cbd5e1)',
-            boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05))',
-            color: 'var(--primary, var(--color-accent, #3b82f6))',
+            backgroundColor: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-strong)',
+            boxShadow: 'var(--shadow-sm)',
+            color: 'var(--color-accent)',
             fontSize: '11px',
             fontWeight: 700,
             padding: '4px 9px',
-            borderRadius: 'var(--radius-sm, 4px)',
+            borderRadius: 'var(--radius-sm)',
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
@@ -90,7 +90,7 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             zIndex: 5,
           }}
         >
-          <Pencil size={12} strokeWidth={2.5} />
+          <Pencil size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
           <span>Editar</span>
         </button>
 
@@ -109,7 +109,7 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             style={{
               fontSize: '12.5px',
               fontWeight: 700,
-              color: 'var(--color-text-primary, #111827)',
+              color: 'var(--color-text-primary)',
             }}
           >
             {mainAuthor} ({yearText})
@@ -121,15 +121,15 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
                 fontSize: '10px',
                 fontWeight: 700,
                 padding: '2px 7px',
-                borderRadius: 'var(--radius-full, 9999px)',
-                backgroundColor: 'var(--status-verified-bg, #ecfdf5)',
-                color: 'var(--status-verified, #059669)',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-success-a12)',
+                color: 'var(--color-success)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
               }}
             >
-              <CheckCircle2 size={11} strokeWidth={2.5} />
+              <CheckCircle2 size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
               <span>Verificada</span>
             </span>
           ) : isOrphan ? (
@@ -138,15 +138,15 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
                 fontSize: '10px',
                 fontWeight: 700,
                 padding: '2px 7px',
-                borderRadius: 'var(--radius-full, 9999px)',
-                backgroundColor: 'var(--status-warning-bg, #fffbeb)',
-                color: 'var(--status-warning, #d97706)',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-warning-a12)',
+                color: 'var(--color-warning)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
               }}
             >
-              <AlertTriangle size={11} strokeWidth={2.5} />
+              <AlertTriangle size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
               <span>Sin citar</span>
             </span>
           ) : null}
@@ -156,7 +156,7 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         <div
           style={{
             fontSize: '12px',
-            color: 'var(--color-text-secondary, #64748b)',
+            color: 'var(--color-text-secondary)',
             lineHeight: 1.35,
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -177,18 +177,14 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             fontSize: '11px',
           }}
         >
-          <span
-            style={{
-              color: 'var(--text-light, var(--color-text-tertiary, #94a3b8))',
-            }}
-          >
+          <span style={{ color: 'var(--color-text-tertiary)' }}>
             {mentionsCount} {mentionsCount === 1 ? 'mención' : 'menciones'}
           </span>
 
           {hasDoi && (
             <span
               style={{
-                color: 'var(--primary, var(--color-accent, #3b82f6))',
+                color: 'var(--color-accent)',
                 fontWeight: 700,
                 marginLeft: 'auto',
                 fontSize: '10px',
@@ -205,7 +201,7 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         .card-source .hover-edit-trigger {
           opacity: 0;
           transform: translateX(12px) scale(0.9);
-          transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transition: opacity 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
           pointer-events: none;
         }
         .card-source:hover .hover-edit-trigger,
@@ -215,12 +211,14 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
           pointer-events: auto;
         }
         .hover-edit-trigger:hover {
-          background-color: var(--primary, var(--color-accent, #3b82f6)) !important;
-          color: #ffffff !important;
-          border-color: var(--primary, var(--color-accent, #3b82f6)) !important;
+          background-color: var(--color-accent) !important;
+          color: var(--color-text-on-accent) !important;
+          border-color: var(--color-accent) !important;
           transform: scale(1.06);
         }
       `}</style>
     </>
   );
 };
+
+export default ReferenceCatalogItem;

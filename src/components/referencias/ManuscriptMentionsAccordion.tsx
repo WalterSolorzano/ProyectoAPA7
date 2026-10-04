@@ -113,22 +113,22 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 16px',
-          backgroundColor: 'var(--color-bg-surface, #ffffff)',
-          border: '1px solid var(--color-border-subtle, #e2e8f0)',
-          borderRadius: 'var(--radius-md, 8px)',
+          backgroundColor: 'var(--color-bg-surface)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--radius-md)',
           cursor: 'pointer',
           textAlign: 'left',
-          transition: 'background-color 0.15s ease',
+          transition: 'background-color var(--transition-fast)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <BookOpen size={18} strokeWidth={2} color="var(--primary, #4361ee)" />
+          <BookOpen size={18} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
           <div>
             <div
               style={{
                 fontSize: 'var(--text-sm, 14px)',
                 fontWeight: 700,
-                color: 'var(--paper-ink, #1e293b)',
+                color: 'var(--color-text-primary)',
                 letterSpacing: '-0.01em',
               }}
             >
@@ -137,7 +137,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
             <div
               style={{
                 fontSize: 'var(--text-xs, 12px)',
-                color: 'var(--color-text-secondary, #64748b)',
+                color: 'var(--color-text-secondary)',
               }}
             >
               Ver los párrafos donde se cita esta obra
@@ -151,9 +151,9 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
               fontSize: '11px',
               fontWeight: 700,
               padding: '3px 8px',
-              borderRadius: 'var(--radius-full, 9999px)',
-              backgroundColor: 'var(--primary-soft, #eef2ff)',
-              color: 'var(--primary, #4361ee)',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--color-accent-soft)',
+              color: 'var(--color-accent)',
             }}
           >
             {countBadgeText}
@@ -162,10 +162,12 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              color: 'var(--color-text-secondary, #64748b)',
+              color: 'var(--color-text-secondary)',
             }}
           >
-            {isOpen ? <ChevronUp size={16} strokeWidth={2} /> : <ChevronDown size={16} strokeWidth={2} />}
+            {isOpen
+              ? <ChevronUp size={16} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+              : <ChevronDown size={16} strokeWidth="var(--icon-stroke)" aria-hidden="true" />}
           </span>
         </div>
       </button>
@@ -186,9 +188,9 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
               data-testid="orphan-mentions-card"
               style={{
                 padding: '24px',
-                borderRadius: 'var(--radius-lg, 12px)',
-                backgroundColor: 'var(--color-bg-surface, #ffffff)',
-                border: '1px solid var(--color-border-subtle, #e2e8f0)',
+                borderRadius: 'var(--radius-lg)',
+                backgroundColor: 'var(--color-bg-surface)',
+                border: '1px dashed var(--color-border-strong)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -200,18 +202,18 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                 style={{
                   display: 'inline-flex',
                   padding: '10px',
-                  borderRadius: 'var(--radius-full, 9999px)',
-                  backgroundColor: 'var(--severity-warning-soft, #fef3c7)',
-                  color: 'var(--color-warning, #d97706)',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--severity-warning-soft)',
+                  color: 'var(--color-warning)',
                 }}
               >
-                <AlertTriangle size={24} strokeWidth={2} />
+                <AlertTriangle size={24} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
               </div>
               <div
                 style={{
                   fontSize: 'var(--text-base, 15px)',
                   fontWeight: 700,
-                  color: 'var(--color-text-primary, #1e293b)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Esta obra no está citada en el cuerpo del trabajo
@@ -221,7 +223,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                   margin: 0,
                   fontSize: 'var(--text-sm, 13px)',
                   lineHeight: 1.5,
-                  color: 'var(--color-text-secondary, #64748b)',
+                  color: 'var(--color-text-secondary)',
                   maxWidth: '480px',
                 }}
               >
@@ -238,15 +240,15 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                   padding: '7px 14px',
                   fontSize: 'var(--text-xs, 12px)',
                   fontWeight: 600,
-                  color: 'var(--color-text-primary, #1e293b)',
-                  backgroundColor: 'var(--paper-white, #ffffff)',
-                  border: '1px solid var(--color-border-subtle, #cbd5e1)',
-                  borderRadius: 'var(--radius-sm, 6px)',
+                  color: 'var(--color-text-primary)',
+                  backgroundColor: 'var(--color-bg-surface)',
+                  border: '1px solid var(--color-border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  transition: 'background-color var(--transition-fast), border-color var(--transition-fast)',
                 }}
               >
-                <Copy size={13} strokeWidth={2} />
+                <Copy size={13} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
                 <span>Copiar cita para insertar en un párrafo</span>
               </button>
             </div>
@@ -260,16 +262,16 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                   key={idx}
                   className="mention-quote-card"
                   style={{
-                    backgroundColor: 'var(--paper-white, #ffffff)',
-                    borderRadius: 'var(--radius-lg, 12px)',
-                    border: '1px solid var(--color-border-subtle, #e2e8f0)',
-                    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))',
+                    backgroundColor: 'var(--color-bg-surface)',
+                    borderRadius: 'var(--radius-lg)',
+                    border: '1px solid var(--color-border-subtle)',
+                    boxShadow: 'var(--shadow-sm)',
                     padding: '20px 24px',
                     position: 'relative',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '12px',
-                    transition: 'all 0.15s ease',
+                    transition: 'box-shadow var(--transition-fast), transform var(--transition-fast)',
                   }}
                 >
                   {/* Badge bar */}
@@ -278,7 +280,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      borderBottom: '1px solid var(--canvas-bg, #f1f5f9)',
+                      borderBottom: '1px solid var(--color-border-subtle)',
                       paddingBottom: '8px',
                     }}
                   >
@@ -286,16 +288,16 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                       style={{
                         fontSize: '12px',
                         fontWeight: 700,
-                        color: 'var(--primary, #4361ee)',
-                        backgroundColor: 'var(--primary-soft, #eef2ff)',
+                        color: 'var(--color-accent)',
+                        backgroundColor: 'var(--color-accent-soft)',
                         padding: '3px 10px',
-                        borderRadius: 'var(--radius-full, 9999px)',
+                        borderRadius: 'var(--radius-full)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '5px',
                       }}
                     >
-                      <FileText size={12} strokeWidth={2.5} />
+                      <FileText size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
                       Página {c.page} • {c.p}
                     </span>
 
@@ -306,10 +308,10 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         gap: '4px',
                         fontSize: '11px',
                         fontWeight: 700,
-                        color: 'var(--status-verified, #16a34a)',
+                        color: 'var(--color-success)',
                       }}
                     >
-                      <CheckCircle2 size={12} strokeWidth={2.5} />
+                      <CheckCircle2 size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
                       <span>Concordancia APA Confirmada</span>
                     </span>
                   </div>
@@ -332,7 +334,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         fontFamily: "'Newsreader', 'Georgia', serif",
                         fontSize: '72px',
                         lineHeight: 1,
-                        color: 'rgba(67, 97, 238, 0.20)',
+                        color: 'var(--color-accent-a20)',
                         userSelect: 'none',
                         pointerEvents: 'none',
                       }}
@@ -345,7 +347,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         fontFamily: "'Newsreader', 'Georgia', serif",
                         fontSize: '17px',
                         lineHeight: 1.65,
-                        color: 'var(--paper-ink, #1e293b)',
+                        color: 'var(--color-text-primary)',
                         fontStyle: 'italic',
                         letterSpacing: '-0.01em',
                       }}
@@ -356,11 +358,11 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                             key={sIdx}
                             data-testid="citation-highlight"
                             style={{
-                              backgroundColor: 'var(--color-info-soft, #dbeafe)',
-                              color: 'var(--color-info, #1e40af)',
-                              borderBottom: '2px solid var(--color-info-border, #3b82f6)',
+                              backgroundColor: 'var(--color-accent-a12)',
+                              color: 'var(--color-accent)',
+                              borderBottom: '2px solid var(--color-accent)',
                               padding: '1px 4px',
-                              borderRadius: 'var(--radius-xs, 3px)',
+                              borderRadius: 'var(--radius-xs)',
                               fontWeight: 600,
                               fontStyle: 'normal',
                             }}
@@ -386,7 +388,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                     <span
                       style={{
                         fontSize: '11.5px',
-                        color: 'var(--color-text-secondary, #64748b)',
+                        color: 'var(--color-text-secondary)',
                       }}
                     >
                       Ubicación exacta en el documento Word
@@ -402,16 +404,16 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         padding: '5px 12px',
                         fontSize: 'var(--text-xs, 12px)',
                         fontWeight: 600,
-                        color: 'var(--primary, #4361ee)',
-                        backgroundColor: 'var(--primary-soft, #eef2ff)',
-                        border: '1px solid var(--color-border-subtle, #e2e8f0)',
-                        borderRadius: 'var(--radius-sm, 6px)',
+                        color: 'var(--color-accent)',
+                        backgroundColor: 'var(--color-accent-soft)',
+                        border: '1px solid var(--color-border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
+                        transition: 'background-color var(--transition-fast), border-color var(--transition-fast)',
                       }}
                     >
                       <span>Saltar al párrafo en Word</span>
-                      <ArrowRight size={12} strokeWidth={2.5} />
+                      <ArrowRight size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -423,3 +425,5 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
     </div>
   );
 };
+
+export default ManuscriptMentionsAccordion;

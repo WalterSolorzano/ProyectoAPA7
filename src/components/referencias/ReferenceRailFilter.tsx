@@ -13,6 +13,17 @@ export interface ReferenceRailFilterProps {
   onSelectFilter: (f: ReferenceFilterType) => void;
 }
 
+/**
+ * El mini-rail de filtros. Tres destinos, una sola familia de íconos y un solo
+ * acento: el que está activo. Los íconos NO se pintan por estado (verde para
+ * verificadas, ámbar para pendientes): eso era un arcoíris donde el color
+ * competía con la selección. El estado real vive en las tarjetas del catálogo,
+ * que sí lo dicen con todas las letras.
+ *
+ * El rótulo de "verificadas" dice sólo "Verificadas": antes decía "Verificadas
+ * contra DOI/CrossRef" y ese "CrossRef" chocaba con el modo DOI del modal de
+ * nueva referencia, que es el único botón que debe responder a ese nombre.
+ */
 export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
   filter,
   counts,
@@ -23,9 +34,7 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
     label: string;
     icon: LucideIcon;
     count: number;
-    iconColor?: string;
     showBadge?: boolean;
-    badgeBg?: string;
   }> = [
     {
       id: 'all',
@@ -33,14 +42,12 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
       icon: LayoutGrid,
       count: counts.total,
       showBadge: true,
-      badgeBg: 'var(--primary, #4361ee)',
     },
     {
       id: 'verified',
-      label: 'Verificadas contra DOI/CrossRef',
+      label: 'Verificadas',
       icon: Check,
       count: counts.verified,
-      iconColor: 'var(--status-verified, #10b981)',
       showBadge: false,
     },
     {
@@ -48,9 +55,7 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
       label: 'Por revisar (huérfanas o incompletas)',
       icon: AlertCircle,
       count: counts.issues,
-      iconColor: 'var(--status-warning, #f59e0b)',
       showBadge: counts.issues > 0,
-      badgeBg: 'var(--status-warning, #f59e0b)',
     },
   ];
 
@@ -61,8 +66,8 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
       style={{
         width: '56px',
         flexShrink: 0,
-        background: 'var(--surface-sidebar, #ffffff)',
-        borderRight: '1px solid var(--border-light, #e2e8f0)',
+        background: 'var(--color-bg-surface)',
+        borderRight: '1px solid var(--color-border-subtle)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -88,25 +93,21 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
             style={{
               width: '40px',
               height: '40px',
-              borderRadius: 'var(--radius-md, 10px)',
-              border: isActive ? '1px solid rgba(67, 97, 238, 0.3)' : '1px solid transparent',
-              background: isActive ? 'var(--primary-soft, #edf2ff)' : 'transparent',
-              color: isActive ? 'var(--primary, #4361ee)' : 'var(--color-text-secondary, #64748b)',
+              borderRadius: 'var(--radius-md)',
+              border: isActive ? '1px solid var(--color-accent-a30)' : '1px solid transparent',
+              background: isActive ? 'var(--color-accent-soft)' : 'transparent',
+              color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              transition: 'all 0.24s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              transform: isActive ? 'scale(1.08)' : 'scale(1)',
-              boxShadow: isActive ? '0 3px 10px rgba(67, 97, 238, 0.18)' : 'none',
+              transition: 'background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast)',
+              transform: isActive ? 'scale(1.06)' : 'scale(1)',
+              boxShadow: isActive ? 'var(--shadow-accent)' : 'none',
             }}
           >
-            <Icon
-              size={18}
-              stroke={isActive ? 'var(--primary, #4361ee)' : item.iconColor || 'currentColor'}
-              strokeWidth={item.id === 'verified' ? 2.5 : 2}
-            />
+            <Icon size={18} stroke="currentColor" strokeWidth="var(--icon-stroke)" />
             {item.showBadge && (
               <span
                 className="rail-badge"
@@ -118,10 +119,11 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
                   fontSize: '9.5px',
                   fontWeight: 800,
                   padding: '1px 5px',
-                  borderRadius: '9999px',
-                  background: item.badgeBg || 'var(--primary, #4361ee)',
-                  color: '#ffffff',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-text-on-accent)',
                   lineHeight: '13px',
+                  border: '1px solid var(--color-bg-surface)',
                 }}
               >
                 {item.count}
@@ -133,3 +135,5 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
     </aside>
   );
 };
+
+export default ReferenceRailFilter;

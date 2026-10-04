@@ -350,7 +350,7 @@ export const Step5ReferencesWizard: React.FC = () => {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', backgroundColor: 'var(--color-bg-canvas)' }}>
       {/* ── Barra superior: mascota con la cara del estado, título y acciones ── */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -432,7 +432,7 @@ export const Step5ReferencesWizard: React.FC = () => {
         {/* ══ COLUMNA 1: Catálogo y Lista Agrupada por Estado (responsive min 380px, max 440px) ══ */}
         <div style={{
           width: 'clamp(380px, 28vw, 440px)', flexShrink: 0, height: '100%', overflowY: 'auto',
-          backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--border-subtle)',
+          backgroundColor: 'var(--color-bg-surface)', borderRight: '1px solid var(--color-border-subtle)',
           display: 'flex', flexDirection: 'column', padding: 'var(--space-4)', gap: 'var(--space-4)',
         }}>
 
@@ -445,7 +445,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               detalle="Contrastadas contra una fuente real."
               conteo={validReferences.length}
               Icon={CheckCircle2}
-              tono="var(--color-success)"
+              tono="var(--color-text-secondary)"
               abierto={openValid}
               alAlternar={() => setOpenValid(!openValid)}
             >
@@ -483,7 +483,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               detalle="Faltan datos o falta contrastarlas contra una fuente."
               conteo={unverifiedReferences.length}
               Icon={HelpCircle}
-              tono="var(--color-warning)"
+              tono="var(--color-text-secondary)"
               abierto={openUnverified}
               alAlternar={() => setOpenUnverified(!openUnverified)}
             >
@@ -510,7 +510,7 @@ export const Step5ReferencesWizard: React.FC = () => {
               detalle="Citas que aparecen en el cuerpo y no tienen ficha."
               conteo={ghosts.length}
               Icon={AlertTriangle}
-              tono="var(--color-danger)"
+              tono="var(--color-text-secondary)"
               abierto={openGhosts}
               alAlternar={() => setOpenGhosts(!openGhosts)}
             >
@@ -555,7 +555,7 @@ export const Step5ReferencesWizard: React.FC = () => {
         {/* ══ COLUMNA 2: Detalle de Referencia / Editor & Menciones en Texto (Flex 1) ══ */}
         <div style={{
           flex: 1, height: '100%', overflowY: 'auto', padding: '24px',
-          display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--canvas-bg)',
+          display: 'flex', flexDirection: 'column', gap: '20px', backgroundColor: 'var(--color-bg-canvas)',
         }}>
           {!selectedRef ? (
             /* Sin selección no hay un tablero de tres cifras que nadie pidió:
@@ -649,8 +649,8 @@ export const Step5ReferencesWizard: React.FC = () => {
                   style={{
                     fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
                     color: 'var(--paper-ink)', paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
-                    backgroundColor: 'var(--color-bg-surface)', padding: 'var(--space-4) var(--space-5) var(--space-4) var(--space-12)',
-                    borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)',
+                    backgroundColor: 'var(--paper-white)', padding: 'var(--space-4) var(--space-5) var(--space-4) var(--space-12)',
+                    borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-strong)', boxShadow: 'var(--shadow-md)',
                     wordBreak: 'break-word', whiteSpace: 'normal',
                   }}
                 >
@@ -770,14 +770,14 @@ export const Step5ReferencesWizard: React.FC = () => {
           zIndex: 1000, padding: '20px',
         }}>
           <div style={{
-            width: '460px', backgroundColor: 'var(--color-bg-surface-hover)', borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)', boxShadow: '0 12px 32px var(--color-ink-a20)',
+            width: '460px', backgroundColor: 'var(--color-bg-surface)', borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-subtle)', boxShadow: '0 12px 32px var(--color-ink-a20)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* Header Modal */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '14px 18px', borderBottom: '1px solid var(--border-subtle)',
+              padding: '14px 18px', borderBottom: '1px solid var(--color-border-subtle)',
               backgroundColor: 'var(--color-bg-surface)',
             }}>
               <span style={{ fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
@@ -794,14 +794,14 @@ export const Step5ReferencesWizard: React.FC = () => {
 
             {/* Selector de Modo (DOI vs Manual) */}
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', gap: '6px', background: 'var(--canvas-bg)', padding: '3px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', gap: '6px', background: 'var(--color-bg-surface-alt)', padding: '3px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)' }}>
                 <button
                   type="button"
                   onClick={() => setAddMode('doi')}
                   style={{
                     flex: 1, padding: '6px', fontSize: 'var(--text-sm)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
                     border: 'none', cursor: 'pointer',
-                    backgroundColor: addMode === 'doi' ? 'var(--color-bg-surface-hover)' : 'transparent',
+                    backgroundColor: addMode === 'doi' ? 'var(--color-bg-surface)' : 'transparent',
                     color: addMode === 'doi' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   }}
                 >
@@ -813,7 +813,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                   style={{
                     flex: 1, padding: '6px', fontSize: 'var(--text-sm)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
                     border: 'none', cursor: 'pointer',
-                    backgroundColor: addMode === 'manual' ? 'var(--color-bg-surface-hover)' : 'transparent',
+                    backgroundColor: addMode === 'manual' ? 'var(--color-bg-surface)' : 'transparent',
                     color: addMode === 'manual' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   }}
                 >
@@ -861,7 +861,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                         onClick={() => setRefType(tKey)}
                         style={{
                           padding: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 700, borderRadius: 'var(--radius-sm)',
-                          border: refType === tKey ? '1px solid var(--color-accent)' : '1px solid var(--border-subtle)',
+                          border: refType === tKey ? '1px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
                           backgroundColor: refType === tKey ? 'var(--color-accent-soft)' : 'transparent',
                           color: refType === tKey ? 'var(--color-accent)' : 'var(--color-text-secondary)',
                           cursor: 'pointer',
@@ -936,7 +936,7 @@ const Grupo: React.FC<{
     style={{
       display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
       padding: 'var(--space-3) var(--space-4)',
-      border: '1px solid var(--border-subtle)',
+      border: '1px solid var(--color-border-subtle)',
       borderRadius: 'var(--radius-md)',
       background: 'var(--color-bg-surface)',
     }}
@@ -991,7 +991,7 @@ const botonInline = (principal = false, extra?: React.CSSProperties): React.CSSP
   padding: 'var(--space-2) var(--space-4)', borderRadius: 'var(--radius-sm)',
   fontSize: 'var(--text-sm)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
   background: principal ? 'var(--color-accent)' : 'transparent',
-  color: principal ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+  color: principal ? 'var(--color-text-on-accent)' : 'var(--color-text-secondary)',
   border: `1px solid ${principal ? 'var(--color-accent)' : 'var(--color-border-subtle)'}`,
   ...extra,
 });
@@ -1020,8 +1020,8 @@ const inputFullStyle: React.CSSProperties = {
   padding: '7px 10px',
   fontSize: 'var(--text-sm)',
   borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--border-subtle)',
-  backgroundColor: 'var(--canvas-bg)',
+  border: '1px solid var(--color-border-subtle)',
+  backgroundColor: 'var(--color-bg-surface-alt)',
   color: 'var(--color-text-primary)',
   outline: 'none',
   boxSizing: 'border-box',

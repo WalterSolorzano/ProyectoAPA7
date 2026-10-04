@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, BookOpen, Save } from 'lucide-react';
 import type { ReferenciaModel } from '../../types';
 
@@ -25,27 +25,53 @@ export function parseAuthors(input: string): string[] {
   return [trimmed];
 }
 
+const labelStyle: React.CSSProperties = {
+  fontSize: '11px',
+  fontWeight: 700,
+  color: 'var(--color-text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.03em',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '7px 10px',
+  fontSize: '13px',
+  borderRadius: 'var(--radius-md)',
+  border: '1px solid var(--color-border-subtle)',
+  backgroundColor: 'var(--color-bg-surface-alt)',
+  color: 'var(--color-text-primary)',
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
 export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
   reference,
   isOpen,
   onClose,
   onSave,
 }) => {
-  const [authors, setAuthors] = useState('');
-  const [year, setYear] = useState('');
-  const [title, setTitle] = useState('');
-  const [source, setSource] = useState('');
-  const [doi, setDoi] = useState('');
+  const initial = useMemo(() => ({
+    authors: reference?.authors ? reference.authors.join(', ') : '',
+    year: reference?.year || '',
+    title: reference?.title || '',
+    source: reference?.source || '',
+    doi: reference?.doi_or_url || '',
+  }), [reference]);
+
+  const [authors, setAuthors] = useState(initial.authors);
+  const [year, setYear] = useState(initial.year);
+  const [title, setTitle] = useState(initial.title);
+  const [source, setSource] = useState(initial.source);
+  const [doi, setDoi] = useState(initial.doi);
 
   useEffect(() => {
-    if (reference) {
-      setAuthors(reference.authors ? reference.authors.join(', ') : '');
-      setYear(reference.year || '');
-      setTitle(reference.title || '');
-      setSource(reference.source || '');
-      setDoi(reference.doi_or_url || '');
-    }
-  }, [reference]);
+    setAuthors(initial.authors);
+    setYear(initial.year);
+    setTitle(initial.title);
+    setSource(initial.source);
+    setDoi(initial.doi);
+  }, [initial]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -88,7 +114,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        backgroundColor: 'var(--scrim-overlay)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
@@ -106,11 +132,11 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
         style={{
           width: '100%',
           maxWidth: '480px',
-          backgroundColor: 'var(--paper-white, #ffffff)',
-          color: 'var(--color-text-primary, #0f172a)',
-          borderRadius: 'var(--radius-lg, 12px)',
-          boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1))',
-          border: '1px solid var(--border-subtle, #e2e8f0)',
+          backgroundColor: 'var(--color-bg-surface)',
+          color: 'var(--color-text-primary)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--color-border-subtle)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -119,21 +145,21 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
         <div
           style={{
             padding: '14px 20px',
-            borderBottom: '1px solid var(--border-subtle, #e2e8f0)',
+            borderBottom: '1px solid var(--color-border-subtle)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BookOpen size={16} color="var(--primary, #4361ee)" />
+            <BookOpen size={16} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
             <h2
               id="modal-edit-ref-title"
               style={{
                 margin: 0,
                 fontSize: '15px',
                 fontWeight: 700,
-                color: 'var(--color-text-primary, #0f172a)',
+                color: 'var(--color-text-primary)',
               }}
             >
               Editar Ficha Bibliográfica
@@ -147,31 +173,22 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',
-              color: 'var(--color-text-secondary, #64748b)',
+              color: 'var(--color-text-secondary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '4px',
-              borderRadius: 'var(--radius-sm, 4px)',
+              borderRadius: 'var(--radius-sm)',
             }}
           >
-            <X size={16} />
+            <X size={16} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label
-                htmlFor="modalEditAuthors"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--color-text-secondary, #64748b)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em',
-                }}
-              >
+              <label htmlFor="modalEditAuthors" style={labelStyle}>
                 Autores (Apellido, Iniciales)
               </label>
               <input
@@ -180,31 +197,12 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
                 value={authors}
                 onChange={(e) => setAuthors(e.target.value)}
                 placeholder="Ej. Gómez, R., Morales, E."
-                style={{
-                  width: '100%',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  borderRadius: 'var(--radius-md, 6px)',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  backgroundColor: 'var(--surface-base, #ffffff)',
-                  color: 'var(--color-text-primary, #0f172a)',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                style={inputStyle}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label
-                htmlFor="modalEditYear"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--color-text-secondary, #64748b)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em',
-                }}
-              >
+              <label htmlFor="modalEditYear" style={labelStyle}>
                 Año
               </label>
               <input
@@ -213,32 +211,13 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
                 placeholder="Ej. 2023"
-                style={{
-                  width: '100%',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  borderRadius: 'var(--radius-md, 6px)',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  backgroundColor: 'var(--surface-base, #ffffff)',
-                  color: 'var(--color-text-primary, #0f172a)',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                style={inputStyle}
               />
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label
-              htmlFor="modalEditTitle"
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: 'var(--color-text-secondary, #64748b)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.03em',
-              }}
-            >
+            <label htmlFor="modalEditTitle" style={labelStyle}>
               Título del Trabajo / Artículo
             </label>
             <input
@@ -247,32 +226,13 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Título completo de la obra"
-              style={{
-                width: '100%',
-                padding: '7px 10px',
-                fontSize: '13px',
-                borderRadius: 'var(--radius-md, 6px)',
-                border: '1px solid var(--border-subtle, #cbd5e1)',
-                backgroundColor: 'var(--surface-base, #ffffff)',
-                color: 'var(--color-text-primary, #0f172a)',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
+              style={inputStyle}
             />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label
-                htmlFor="modalEditSource"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--color-text-secondary, #64748b)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em',
-                }}
-              >
+              <label htmlFor="modalEditSource" style={labelStyle}>
                 Fuente / Revista / Editorial
               </label>
               <input
@@ -281,31 +241,12 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 placeholder="Nombre de la revista o editorial"
-                style={{
-                  width: '100%',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  borderRadius: 'var(--radius-md, 6px)',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  backgroundColor: 'var(--surface-base, #ffffff)',
-                  color: 'var(--color-text-primary, #0f172a)',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                style={inputStyle}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label
-                htmlFor="modalEditDoi"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: 'var(--color-text-secondary, #64748b)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.03em',
-                }}
-              >
+              <label htmlFor="modalEditDoi" style={labelStyle}>
                 DOI / Enlace Permanente
               </label>
               <input
@@ -314,17 +255,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
                 value={doi}
                 onChange={(e) => setDoi(e.target.value)}
                 placeholder="https://doi.org/..."
-                style={{
-                  width: '100%',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  borderRadius: 'var(--radius-md, 6px)',
-                  border: '1px solid var(--border-subtle, #cbd5e1)',
-                  backgroundColor: 'var(--surface-base, #ffffff)',
-                  color: 'var(--color-text-primary, #0f172a)',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
+                style={inputStyle}
               />
             </div>
           </div>
@@ -335,12 +266,12 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
               onClick={onClose}
               style={{
                 backgroundColor: 'transparent',
-                color: 'var(--color-text-primary, #334155)',
-                border: '1px solid var(--border-subtle, #cbd5e1)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border-subtle)',
                 padding: '7px 14px',
                 fontSize: '12.5px',
                 fontWeight: 600,
-                borderRadius: 'var(--radius-md, 6px)',
+                borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
               }}
             >
@@ -349,20 +280,20 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
             <button
               type="submit"
               style={{
-                backgroundColor: 'var(--primary, #4361ee)',
-                color: '#ffffff',
+                backgroundColor: 'var(--color-accent)',
+                color: 'var(--color-text-on-accent)',
                 border: 'none',
                 padding: '7px 14px',
                 fontSize: '12.5px',
                 fontWeight: 600,
-                borderRadius: 'var(--radius-md, 6px)',
+                borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
               }}
             >
-              <Save size={14} />
+              <Save size={14} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
               <span>Guardar Cambios</span>
             </button>
           </div>
@@ -371,3 +302,5 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
     </div>
   );
 };
+
+export default ReferenceEditModal;
