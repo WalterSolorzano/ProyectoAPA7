@@ -252,11 +252,9 @@ describe('T18 — el editor vive a la derecha, en 320px', () => {
     render(<CoverCarouselStudio />);
     const centro = screen.getByTestId('cover-carousel');
     expect(centro.contains(screen.getByTestId('cover-model-track'))).toBe(true);
-    // El paginador es el `PaperCanvas` oculto del carrusel. Se lo nombra por su
-    // caja y no por `canvas` porque el carrusel monta una miniatura real por
-    // tarjeta: hay más de un lienzo en el árbol, y el paginador es este.
-    expect(centro.contains(screen.getByTestId('paginador-de-portada'))).toBe(true);
-    expect(within(screen.getByTestId('paginador-de-portada')).getByTestId('canvas')).toBeTruthy();
+    // La preview del carrusel ES la tarjeta activa: no hay un segundo paginador
+    // oculto. Un paginador escondido era una instancia pesada por nada.
+    expect(within(centro).queryByTestId('paginador-de-portada')).toBeNull();
   });
 });
 
@@ -285,14 +283,9 @@ describe('T18 — la cadena de alto llega hasta el panel de 320px', () => {
     portada();
     render(<CoverCarouselStudio />);
     const centro = screen.getByTestId('cover-carousel');
-    const vista = screen.getByTestId('paginador-de-portada');
     expect(centro.style.display).toBe('flex');
     expect(centro.style.flexDirection).toBe('column');
     expect(centro.style.minHeight).toBe('0px');
-    // El preview crece hasta llenar lo que queda, con `minHeight: 0` para que
-    // pueda encogerse: sin esto el `flex: 1` de abajo no manda.
-    expect(vista.style.flex).not.toBe('');
-    expect(vista.style.minHeight).toBe('0px');
   });
 });
 

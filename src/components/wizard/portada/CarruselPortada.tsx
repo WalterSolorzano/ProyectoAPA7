@@ -211,7 +211,12 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
   const [datosAbiertos, setDatosAbiertos] = useState(false);
 
   const modo: string = modoActivo ?? '';
-  const [indice, setIndice] = useState(0);
+  // El índice nace en el modo activo, no en 0: al volver al carrusel desde el
+  // editor (que ahora lo desmonta) la tarjeta elegida no parpadea desde la primera.
+  const [indice, setIndice] = useState(() => {
+    const i = DISENOS_DE_PORTADA.findIndex((d) => d.id === modo);
+    return i >= 0 ? i : 0;
+  });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   // El índice sigue al modo activo: si el documento ya trae un modo, el carrusel
   // tiene que estar en esa tarjeta. Sin esto, dos controles distintos dicen dos

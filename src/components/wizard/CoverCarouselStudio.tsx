@@ -54,23 +54,29 @@ export const CoverCarouselStudio: React.FC = () => {
   const [vista, setVista] = useState<'carrusel' | 'editor'>('carrusel');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Responsive: ancho de miniatura calculado dinámicamente según viewport para protagonismo central
-  const [anchoCalculado, setAnchoCalculado] = useState<number>(440);
+  // Ancho de la tarjeta activa, medido sobre la CAJA REAL de la fase (no sobre
+  // `window`): así el carrusel ocupa el espacio que tiene, no el que supone.
+  const faseRef = useRef<HTMLDivElement>(null);
+  const [anchoCalculado, setAnchoCalculado] = useState<number>(320);
 
   useEffect(() => {
+    const el = faseRef.current;
+    if (!el) return;
     const calcular = () => {
-      if (typeof window === 'undefined') return;
-      // Aprovechar altura útil del lienzo
-      const altoDisponible = window.innerHeight - 200;
-      const anchoPorAlto = Math.round(altoDisponible / 1.32);
-      const anchoPorAncho = Math.round(window.innerWidth * 0.42);
-      // Minimo 320px, máximo 560px para presencia imponente en centro
-      const optimo = Math.min(560, Math.max(320, Math.min(anchoPorAlto, anchoPorAncho)));
+      const alto = el.clientHeight;
+      const ancho = el.clientWidth;
+      // Activa alrededor de 320: se ajusta al alto útil y deja que las vecinas
+      // se asomen por los lados. La hoja de portada ronda proporción 1.32 a 1.
+      const porAlto = Math.round((alto - 180) / 1.32);
+      const porAncho = Math.round(ancho * 0.4);
+      const optimo = Math.min(360, Math.max(300, Math.min(porAlto, porAncho)));
       setAnchoCalculado(optimo);
     };
     calcular();
-    window.addEventListener('resize', calcular);
-    return () => window.removeEventListener('resize', calcular);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(calcular);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   /* Modo actual derivado, o `null` si el documento trae un `cover_mode` que la
@@ -231,6 +237,7 @@ export const CoverCarouselStudio: React.FC = () => {
         {/* Columna Izquierda / Centro: Carrusel Grande o Preview */}
         <div
           data-testid="cover-carousel"
+          ref={faseRef}
           style={{
             flex: 1, minWidth: 0, minHeight: 0,
             display: 'flex', flexDirection: 'column',
@@ -269,12 +276,6 @@ export const CoverCarouselStudio: React.FC = () => {
                     setVista('editor');
                   }}
                 />
-              </div>
-
-              {/* El paginador de la portada vive en `PaperCanvas` y en ningún otro
-                  lado: acá se monta oculto para que exista en el árbol. */}
-              <div data-testid="paginador-de-portada" style={{ flex: 1, minHeight: 0, display: 'none' }}>
-                <PaperCanvas onlyCover />
               </div>
             </div>
           ) : (
@@ -323,17 +324,6 @@ export const CoverCarouselStudio: React.FC = () => {
                 ) : (
                   <PaperCanvas onlyCover />
                 )}
-              </div>
-
-              {/* El carrusel sigue montado (oculto) para que el editor pueda volver
-                  sin perder el índice elegido. */}
-              <div style={{ display: 'none' }}>
-                <CarruselPortada
-                  modoActivo={currentMode}
-                  hoja={hojaDeLaSesion}
-                  onSelect={(id) => selectMode(id as CoverMode)}
-                  onUpload={abrirSelector}
-                />
               </div>
             </div>
           )}
