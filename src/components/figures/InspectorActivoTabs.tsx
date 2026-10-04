@@ -31,25 +31,28 @@ interface StylePreset {
   renderThumbnail: () => React.ReactNode;
 }
 
-/* Metadatos del inspector, una sola vez. La vista se apoya en estos estilos en
-   lugar de repetir la misma declaración en cada control. */
-const metaLabel: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 600,
+/* Escala tipográfica deliberada del inspector: tres roles, no una colección
+   de tamaños vecinos. El encabezado de sección retrocede (tertiary, versalitas),
+   la etiqueta de campo guía (secondary) y el valor de control es el
+   protagonista (primary, un paso mayor). */
+const sectionLabel: React.CSSProperties = {
+  fontSize: '10px',
+  fontWeight: 700,
   textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  color: 'var(--color-text-secondary)',
+  letterSpacing: '0.06em',
+  color: 'var(--color-text-tertiary)',
 };
 const fieldLabel: React.CSSProperties = {
   display: 'block',
-  fontSize: '10px',
+  fontSize: '11px',
+  fontWeight: 500,
   color: 'var(--color-text-secondary)',
-  marginBottom: '3px',
+  marginBottom: '4px',
 };
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  fontSize: '11px',
+  fontSize: '12px',
   fontFamily: 'var(--font-sans)',
   border: '1px solid var(--color-border-subtle)',
   borderRadius: 'var(--radius-sm)',
@@ -276,19 +279,19 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '3px',
+                gap: '4px',
                 padding: '9px 4px',
                 border: 'none',
                 borderBottom: isActiva ? '2px solid var(--color-accent)' : '2px solid transparent',
-                backgroundColor: 'transparent',
+                backgroundColor: isActiva ? 'var(--color-accent-soft)' : 'transparent',
                 color: isActiva ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
                 fontWeight: isActiva ? 600 : 500,
-                fontSize: '10px',
+                fontSize: '11px',
                 cursor: 'pointer',
-                transition: 'color var(--transition-fast), border-color var(--transition-fast)',
+                transition: 'background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast)',
               }}
             >
-              <Icon size={15} />
+              <Icon size={16} />
               <span>{tab.label}</span>
             </button>
           );
@@ -311,8 +314,8 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={metaLabel}>Dimensiones</span>
-                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
+                <span style={sectionLabel}>Dimensiones</span>
+                <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--color-accent)' }}>
                   {widthCm.toFixed(1)} × {heightCm.toFixed(1)} cm
                 </span>
               </div>
@@ -371,7 +374,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
             <div style={hairline} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={metaLabel}>Alineación</span>
+              <span style={sectionLabel}>Alineación</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                 {alignBtn('left', 'Izquierda', AlignLeft)}
                 {alignBtn('center', 'Centro', AlignCenter)}
@@ -382,7 +385,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
             <div style={hairline} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <label htmlFor="select-alcance" style={metaLabel}>
+              <label htmlFor="select-alcance" style={sectionLabel}>
                 Alcance
               </label>
               <select
@@ -454,7 +457,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
         {tabActiva === 'estilo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <span style={metaLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
+            <span style={sectionLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
               {STYLE_PRESETS.map((preset) => {
                 const isSelected = currentStyle === preset.value;
@@ -481,12 +484,12 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         {tabActiva === 'calidad' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={metaLabel}>Diagnóstico APA 7</span>
+              <span style={sectionLabel}>Diagnóstico APA 7</span>
               <span
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 600,
-                  padding: '1px 6px',
+                  padding: '2px 8px',
                   borderRadius: 'var(--radius-full)',
                   backgroundColor: todoConforme ? 'var(--color-success-a12)' : 'var(--color-ink-a08)',
                   color: todoConforme ? 'var(--color-success)' : 'var(--color-text-secondary)',
@@ -514,9 +517,9 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     <AlertCircle size={15} style={{ color: 'var(--color-danger)', flexShrink: 0, marginTop: '1px' }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 500 }}>{chk.label}</p>
+                    <p style={{ margin: 0, fontSize: '12px', fontWeight: 500 }}>{chk.label}</p>
                     {!chk.passed && (
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-danger)' }}>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--color-danger)' }}>
                         {chk.failMessage}
                       </p>
                     )}

@@ -91,6 +91,7 @@ WordAPA7 combina dos mundos visuales con límites estrictos e infranqueables:
 ## Typography
 
 - **UI Shell**: *Inter*, *Segoe UI Variable*, sistema sans-serif. Diseñada para legibilidad densa en herramientas de escritorio (11px labels, 13px controls, 14px body).
+- **Micro-escala de inspectores** (paneles laterales densos, p. ej. `InspectorActivoTabs`): tres roles fijos — *kicker* de sección `10px/700/versalitas` (tertiary, retrocede), etiqueta de campo `11px/500` (secondary) y valor de control `12px` (primary). Son un escalón deliberado por debajo del shell general: la jerarquía la cargan peso, caja y tono —no solo el tamaño— y nunca se usa un valor intermedio no listado.
 - **Hoja APA 7**: *Times New Roman* (12pt), *Calibri* (11pt), *Arial* (11pt) o *Georgia* (11pt). Interlineado reglamentario 2.0 y sangría de primera línea / francesa de 0.5 pulgadas (1.27 cm).
 
 ## Layout
