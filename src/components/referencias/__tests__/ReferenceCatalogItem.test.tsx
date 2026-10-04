@@ -126,7 +126,7 @@ describe('ReferenceCatalogItem', () => {
       />
     );
 
-    expect(screen.getByText(/Verificada/i)).toBeDefined();
+    expect(screen.getByLabelText(/Verificada/i)).toBeDefined();
     expect(screen.getByText(/3 menciones/i)).toBeDefined();
     expect(screen.getByText(/DOI/i)).toBeDefined();
   });
@@ -149,7 +149,7 @@ describe('ReferenceCatalogItem', () => {
       />
     );
 
-    expect(screen.getByText(/Sin citar/i)).toBeDefined();
+    expect(screen.getByLabelText(/Sin citar/i)).toBeDefined();
   });
 
   it('cumple la regla de CERO emojis en el render', () => {
