@@ -320,13 +320,23 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
             <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
               {disenoActual.titulo}
             </span>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
               {mascotaActual.mensaje}
             </span>
           </div>
         </div>
 
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: 'var(--space-1) var(--space-3)',
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+            fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+          }}
+        >
           {indice + 1} de {DISENOS_DE_PORTADA.length}
         </span>
       </div>
@@ -560,6 +570,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
               color: 'var(--color-text-on-accent)',
               border: 'none',
               fontSize: 'var(--text-sm)',
+              fontFamily: 'var(--font-display)',
               fontWeight: 800,
               cursor: 'pointer',
               display: 'inline-flex',
