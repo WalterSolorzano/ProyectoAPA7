@@ -484,7 +484,6 @@ export const computeRenderedPages = ({
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean; onlyCover?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly, onlyCover }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
-  const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
@@ -1746,7 +1745,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     const isContextMenuOpen = contextMenuElemId === elem.id;
                     const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0 && !elem.is_cover_section;
                     const captionPosition = elem.image_info?.caption_position ?? 'below';
-                    const tableStyle = elem.type === 'table' ? (tableStyles[elem.id] || 'standard') : 'standard';
                     const imgAlign = (elem.type === 'image' && elem.image_info?.alignment) || 'center';
                     const imgOuterTextAlign = imgAlign === 'left' ? 'left' : imgAlign === 'right' ? 'right' : 'center';
                     const imgInnerMargin = imgAlign === 'left' ? '8px auto 8px 0' : imgAlign === 'right' ? '8px 0 8px auto' : '8px auto';

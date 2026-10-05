@@ -3,7 +3,6 @@ import { DocState } from '../types';
 import { DocumentModel, ElementModel, ElementType, APARuleSet, FormatProfile, ReferenciaModel, ValidationIssue, LLMProgressState, ImageModel } from '../../types';
 import * as api from '../../api/backend';
 import { migrateDocument, toRoman, cleanHeadingPrefix } from '../../lib/textUtils';
-import { alcancesDe } from '../../lib/modulosApa';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { syncCoverFieldToElements, defaultPortada, defaultActa, migrarActaDesdePortada } from './coverSlice';
 import { CATALOGO_DE_UNIVERSIDADES } from '../../lib/portada/catalogo';
@@ -184,7 +183,6 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
   error: null,
   selectedElementId: null,
   selectedReferenceId: null,
-  tableStyles: {},
   llmProgress: defaultLLMProgress,
   llmUsageStats: {
     total_tokens: 0,
@@ -249,7 +247,6 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     selectedReferenceId: id,
     selectedElementId: id ? null : state.selectedElementId,
   })),
-  setTableStyle: (elementId, style) => set((state) => ({ tableStyles: { ...state.tableStyles, [elementId]: style } })),
   runProactiveAudits: async () => {
     const { doc, sugerenciasProactivas, apiKey, aiProviderConfig } = get();
     if (!sugerenciasProactivas || !doc) return;
@@ -1378,28 +1375,11 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
     }
   },
   exportDocx: async (tracked = false) => {
-    const { doc, rules, portada, acta, references, sessionScopes } = get();
+    const { doc, rules, portada, acta, references } = get();
     if (!doc) return;
     set({ isLoading: true });
     try {
       const base = getApiBase();
-      /* Los alcances se normalizan acá, en el borde, con la fuente única
-         (`modulosApa.ts`): un estado guardado con los ids finos viejos
-         (`titulos`, `tablas`, `imagenes`) hacía que `apply_scopes` levantara
-         `ValueError`, la exportación cayera al formato completo con un aviso y
-         el usuario recibiera todo formateado cuando había pedido una parte. */
-      const alcances = alcancesDe(sessionScopes);
-      if (!tracked && alcances.length > 0) {
-        try {
-          await api.scopedApply(doc.session_id, alcances);
-          triggerDownload(`${base}/download-scoped/${doc.session_id}`, `Scoped_${doc.file_name}`);
-          set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
-          get().showToast('¡Documento DOCX descargado con éxito!', 'success');
-          return;
-        } catch (e: any) {
-          get().showToast(`Alcances fallaron, exportando completo: ${e.message}`, 'warning');
-        }
-      }
       const endpoint = tracked ? `${base}/generate-tracked` : `${base}/generate`;
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -1412,10 +1392,16 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       });
       if (!res.ok) throw new Error('Error al generar el documento');
       const data = await res.json();
-      const downloadUrl = data.download_url.startsWith('http')
-        ? data.download_url
-        : `${base}${data.download_url.startsWith('/api') ? data.download_url : data.download_url}`;
-      triggerDownload(downloadUrl, data.filename || `APA7_${doc.file_name}`);
+      /* `download_url` es root-relative (`/api/download-artifact/...`) y `base`
+         ya termina en `/api`: concatenar tal cual producía `/api/api/...`, el
+         backend devolvía 404 y el navegador bajaba ese JSON en vez del .docx.
+         El PDF ya hacía este recorte; el DOCX lo había perdido. */
+      let path: string = data.download_url;
+      if (!/^https?:\/\//i.test(path)) {
+        if (base.endsWith('/api') && path.startsWith('/api/')) path = path.slice(4);
+        path = `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+      }
+      triggerDownload(path, data.filename || `APA7_${doc.file_name}`);
       set({ hasUnsavedChanges: false, exportSuccessAt: Date.now() });
       get().showToast('¡Documento DOCX descargado con éxito!', 'success');
     } catch (err: any) {

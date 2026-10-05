@@ -63,9 +63,6 @@ export interface DocState {
   /** El detalle del rail de iconos está anclado (flyout abierto) en vez de abrirse al hover. */
   railPinned: boolean;
   setRailPinned: (pinned: boolean) => void;
-  /** Estilo de tabla APA por elemento (solo preview; no afecta la generación del .docx) */
-  tableStyles: Record<string, 'standard' | 'compact' | 'expanded'>;
-  setTableStyle: (elementId: string, style: 'standard' | 'compact' | 'expanded') => void;
   nimLogs: any[];
   isNIMDiagnosticsOpen: boolean;
 
