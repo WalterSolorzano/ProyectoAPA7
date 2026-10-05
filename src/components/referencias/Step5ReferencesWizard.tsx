@@ -29,22 +29,11 @@ import { ReferenceRailFilter, ReferenceFilterType } from './ReferenceRailFilter'
 import { ReferenceCatalogItem } from './ReferenceCatalogItem';
 import { ManuscriptMentionsAccordion } from './ManuscriptMentionsAccordion';
 import { ReferenceEditModal } from './ReferenceEditModal';
+import { ReferenciaLinea } from './ReferenciaLinea';
+import { APA_LISTA, APA_ENTRADA } from '../../lib/apaLayout';
 
 /** Los tres grupos del catálogo, como pestañas cerradas: una lista a la vez. */
 type GroupTab = 'verificadas' | 'pendientes' | 'texto';
-
-/**
- * El texto que va al documento. Sin último recurso que INVENTE: si no hay
- * `formatted_apa` ni `raw_text`, se devuelve cadena vacía y el bloque lo dice.
- * La alternativa —componer `Autor (s.f.). Título.` en el render— es la que la
- * vista previa tenía, y está conectada al mismo motivo por el que este archivo
- * no la tiene: la elipsis de APA de 21+ autores y el
- * DOI normalizado sólo los sabe armar el backend, y lo que la persona lee tiene
- * que ser lo que el documento recibe.
- */
-function textoDeLaReferencia(ref: ReferenciaModel | null): string {
-  return (ref?.formatted_apa || '').trim() || (ref?.raw_text || '').trim();
-}
 
 /**
  * POR QUÉ esta referencia está en el estado en que está.
@@ -708,16 +697,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                 >
                   <div style={{ ...APA_LISTA }}>
                     {referenciasOrdenadas.map((refItem) => (
-                      <p
-                        key={refItem.id}
-                        style={{ ...APA_ENTRADA }}
-                      >
-                        {textoDeLaReferencia(refItem) || (
-                          <em style={{ opacity: 0.55, fontStyle: 'normal' }}>
-                            Esta referencia no tiene texto para escribir en el documento.
-                          </em>
-                        )}
-                      </p>
+                      <ReferenciaLinea key={refItem.id} referencia={refItem} />
                     ))}
                   </div>
                 </article>
@@ -800,18 +780,16 @@ export const Step5ReferencesWizard: React.FC = () => {
                   boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
                 }}
               >
-                <div
-                  data-testid="vista-previa-apa"
-                  style={{ ...APA_LISTA, ...APA_ENTRADA }}
-                >
-                  {textoDeLaReferencia(selectedRef) || (
-                    /* Sin `formatted_apa` ni `raw_text` no hay nada que escribir.
-                       Componer `Autor (s.f.). Título.` acá sería pintar una
-                       referencia que el backend nunca produjo. */
-                    <em style={{ color: 'var(--paper-ink)', opacity: 0.55, fontStyle: 'normal' }}>
-                      Esta referencia no tiene texto para escribir en el documento.
-                    </em>
-                  )}
+                <div style={{ ...APA_LISTA }}>
+                  {selectedRef && (selectedRef.formatted_apa || selectedRef.raw_text)
+                    ? <ReferenciaLinea referencia={selectedRef} as="div" data-testid="vista-previa-apa" />
+                    : (
+                      <div data-testid="vista-previa-apa" style={{ ...APA_ENTRADA }}>
+                        <em style={{ color: 'var(--paper-ink)', opacity: 0.55, fontStyle: 'normal' }}>
+                          Esta referencia no tiene texto para escribir en el documento.
+                        </em>
+                      </div>
+                    )}
                 </div>
               </article>
 
@@ -1017,28 +995,6 @@ export const Step5ReferencesWizard: React.FC = () => {
 };
 
 // Estilos auxiliares
-
-/**
- * La ley de APA 7 para la lista de referencias, en un solo lugar: Times New
- * Roman 12 pt, doble espacio, alineación a la izquierda (nunca justificada) y
- * sangría francesa de 0.5 in. Antes cada bloque repetía su propio `fontSize` y
- * su propio `textIndent` con el token de espaciado —32 px, no media pulgada—, y
- * el mismo renglón se veía distinto en la bibliografía y en la vista previa.
- */
-const APA_LISTA: React.CSSProperties = {
-  fontFamily: "'Times New Roman', Times, serif",
-  fontSize: '12pt',
-  lineHeight: 2,
-  textAlign: 'left',
-  wordBreak: 'break-word',
-  whiteSpace: 'normal',
-};
-
-const APA_ENTRADA: React.CSSProperties = {
-  margin: 0,
-  paddingLeft: '0.5in',
-  textIndent: '-0.5in',
-};
 
 /**
  * Una opción del menú que despliega el FAB de "Nueva referencia".
