@@ -273,7 +273,13 @@ export const ReactPDFPreview: React.FC = () => {
           <PageNumber startAt={1} />
           <Text style={styles.heading1}>Referencias</Text>
           {debouncedDoc.referencias.map((ref: any) => (
-            <Text key={ref.id} style={styles.referenceItem}>{ref.text || ref.raw_text || ref.formatted_apa}</Text>
+            <Text key={ref.id} style={styles.referenceItem}>
+              {(ref.apa_segments && ref.apa_segments.length ? ref.apa_segments : null)
+                ? ref.apa_segments.map((s: any, i: number) => (
+                    <Text key={i} style={s.italic ? { fontStyle: 'italic' } : undefined}>{s.text}</Text>
+                  ))
+                : (ref.formatted_apa || ref.raw_text || '')}
+            </Text>
           ))}
         </Page>
       )}

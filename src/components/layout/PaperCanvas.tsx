@@ -8,6 +8,7 @@ import { ElementModel } from '../../types';
 import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
+import { ReferenciaLinea } from '../referencias/ReferenciaLinea';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
@@ -2030,17 +2031,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     {doc.referencias && doc.referencias.length > 0 ? (
                                       <div style={{ paddingLeft: 0 }}>
                                         {doc.referencias.map((ref, ri) => (
-                                          <p key={ref.id || ri} style={{
-                                            fontFamily: fontFamily,
-                                            fontSize: '11pt', lineHeight: 2.0, textAlign: 'left',
-                                            textIndent: '-0.5in', marginLeft: '0.5in',
-                                            marginBottom: '8px', marginTop: 0, marginRight: 0,
-                                            paddingLeft: 0,
-                                          }}>
-                                            {ref.formatted_apa || (
-                                              <>{[...(ref.authors || [])].join(', ')}{ref.year ? ` (${ref.year}).` : '.'} {ref.title}.{ref.source ? ` ${ref.source}.` : ''}{ref.doi_or_url ? ` ${ref.doi_or_url}` : ''}</>
-                                            )}
-                                          </p>
+                                          <ReferenciaLinea key={ref.id || ri} referencia={ref} />
                                         ))}
                                       </div>
                                     ) : null}

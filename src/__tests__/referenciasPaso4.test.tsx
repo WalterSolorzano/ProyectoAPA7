@@ -180,6 +180,13 @@ describe('la vista previa de la referencia', () => {
     montar([{ ...REF, formatted_apa: '', raw_text: '' }]);
     expect(screen.getByTestId('vista-previa-apa').textContent).toMatch(/no tiene texto/i);
   });
+
+  it('la vista previa aplica sangría francesa y no se centra', () => {
+    montar([REF]);
+    const el = screen.getByTestId('vista-previa-apa');
+    expect(el.style.textIndent).toBe('-0.5in');
+    expect(el.style.paddingLeft).toBe('0.5in');
+  });
 });
 
 /* ── El formulario sigue editable: es el que arma formatted_apa ────────────── */
