@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FolderOpen, Sparkles, FileDown } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { VersionTimeline } from './VersionTimeline';
 import { ExploradorProyecto } from './ExploradorProyecto';
@@ -27,11 +28,24 @@ const useStore = useDocStore as unknown as import('zustand').UseBoundStore<impor
  */
 const ANCHO_COLUMNA = 'min(860px, 100%)';
 
+/** Los tres momentos del trabajo, en una tira. Solo se dibuja cuando la
+ *  pantalla está realmente vacía: es lo que explica PARA QUÉ existe, en vez
+ *  de dejar el hueco sin causa. */
+const PASOS_DE_USO = [
+  { Icon: FolderOpen, texto: 'Cargá tus documentos' },
+  { Icon: Sparkles, texto: 'Revisá con la IA' },
+  { Icon: FileDown, texto: 'Exportá en APA 7' },
+] as const;
+
 export const ProyectosScreen: React.FC = () => {
   const proyectos = useStore(s => s.proyectos);
+  const tabs = useStore(s => s.tabs);
+  const projectImages = useStore(s => s.projectImages);
   const cerrarProyecto = useStore(s => s.cerrarProyecto);
   const marcarVersionActiva = useStore(s => s.marcarVersionActiva);
   const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
+
+  const nadaAun = proyectos.length === 0 && tabs.length === 0 && projectImages.length === 0;
 
   const seleccionado: Proyecto | undefined =
     proyectos.find((p: Proyecto) => p.id === seleccionadoId) ?? proyectos[0];
@@ -54,36 +68,66 @@ export const ProyectosScreen: React.FC = () => {
           gap: 'var(--space-6)',
         }}
       >
-        {/* Sin proyectos todavía: el encabezado orienta, y el explorador de
-            abajo es donde se configura la carpeta. Antes había un botón
-            "Configurar carpeta" que abría la ventana modal; esa ventana ya no
-            existe, y el explorador embebido es el mismo camino en el lugar. */}
-        {proyectos.length === 0 && (
-          <header style={{ textAlign: 'center', paddingTop: 'var(--space-4)' }}>
-            <h2
-              style={{
-                fontSize: 'var(--text-xl)',
-                fontWeight: 700,
-                color: 'var(--text-main)',
-                margin: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Organizar mis documentos
-            </h2>
-            <p
-              style={{
-                fontSize: 'var(--text-sm)',
-                color: 'var(--text-muted)',
-                margin: 'var(--space-2) auto 0',
-                maxWidth: '46ch',
-                lineHeight: 1.55,
-              }}
-            >
-              Configurá una carpeta para organizar tus proyectos y versiones.
-              WordAPA7 va a crear subcarpetas automáticamente.
-            </p>
-          </header>
+        {/* El encabezado ya NO es condicional: es el ancla de la pantalla. Antes
+            solo aparecía sin proyectos, y con proyectos la pantalla arrancaba
+            directamente en la tarjeta, sin decir qué era todo esto. */}
+        <header style={{ textAlign: 'center', paddingTop: 'var(--space-4)' }}>
+          <h2
+            style={{
+              fontSize: 'var(--text-xl)',
+              fontWeight: 700,
+              color: 'var(--text-main)',
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Organizar mis documentos
+          </h2>
+          <p
+            style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-muted)',
+              margin: 'var(--space-2) auto 0',
+              maxWidth: '52ch',
+              lineHeight: 1.55,
+            }}
+          >
+            Acá viven tus documentos, versiones e imágenes del proyecto.
+            WordAPA7 crea las subcarpetas por vos.
+          </p>
+        </header>
+
+        {nadaAun && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 'var(--space-3)',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            {PASOS_DE_USO.map(({ Icon, texto }) => (
+              <div
+                key={texto}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: 'var(--space-2) var(--space-3)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'var(--surface-subtle)',
+                }}
+              >
+                <span aria-hidden style={{ display: 'inline-flex', color: 'var(--accent-primary)' }}>
+                  <Icon size={14} strokeWidth="var(--icon-stroke)" />
+                </span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {texto}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
 
         <ExploradorProyecto />

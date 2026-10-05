@@ -92,6 +92,38 @@ describe('ProyectosScreen', () => {
     expect(screen.getByText(/\+2 versiones anteriores/)).toBeInTheDocument();
   });
 
+  it('el encabezado y los pasos de uso se ven aunque no haya nada', () => {
+    // La pantalla vacía no explicaba PARA QUÉ existe: header condicional +
+    // tarjeta + la nada. Ahora el encabezado es estable y una tira de tres
+    // pasos dice el uso (cargar, revisar, exportar).
+    useDocStore.setState({ proyectos: [], tabs: [], projectImages: [] } as any);
+    render(<ProyectosScreen />);
+    expect(screen.getByText(/organizar mis documentos/i)).toBeInTheDocument();
+    expect(screen.getByText(/cargá tus documentos/i)).toBeInTheDocument();
+    expect(screen.getByText(/revisá con la ia/i)).toBeInTheDocument();
+    expect(screen.getByText(/exportá en apa 7/i)).toBeInTheDocument();
+  });
+
+  it('con proyectos cargados, el encabezado de la pantalla sigue visible', () => {
+    useDocStore.setState({
+      proyectos: [
+        {
+          id: 'p1',
+          nombre: 'Tesis',
+          carpeta: '/tmp/proyecto1',
+          versiones: [],
+          creadoEn: Date.now(),
+          cerrado: false,
+        },
+      ],
+      tabs: [],
+      projectImages: [],
+      raizConfigurada: '/tmp/WordAPA7',
+    } as any);
+    render(<ProyectosScreen />);
+    expect(screen.getByText(/organizar mis documentos/i)).toBeInTheDocument();
+  });
+
   it('el rail lleva a la pantalla de proyectos, no a un Explorador aparte', async () => {
     /* El defecto que este archivo cierra por el lado del dato: el rail tenía DOS
        destinos de proyecto. Ahora hay uno, y su ícono es el de la pantalla de

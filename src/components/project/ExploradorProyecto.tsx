@@ -3,6 +3,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { parseDocumentVersion } from '../../lib/projectUtils';
 import { crearProyecto } from '../../lib/proyecto';
 import { Folder, FileText, Image as ImageIcon, Plus, ExternalLink, X, Check, Layers } from 'lucide-react';
+import { EstadoVacio } from '../shared/EstadoVacio';
 
 /** La carpeta de un archivo, si el archivo la trae.
  *
@@ -87,6 +88,12 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
    * archivo es correcto. Lo que no puede ser un dato del archivo es el nombre
    * del proyecto. */
   const nombreProyecto = proyecto?.nombre ?? null;
+
+  /* El vacío TOTAL —ni documentos ni imágenes— es un estado propio, no dos
+     cajas punteadas apiladas. Dos cupos en blanco ("Todavía no hay documentos"
+     y "No hay imágenes") leen como si faltara llenar formularios; un estado
+     vacío guiado dice la causa y ofrece la salida en el lugar donde se mira. */
+  const vacioTotal = tabs.length === 0 && projectImages.length === 0;
 
   const handleSelectFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -271,6 +278,57 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
 
       {/* Contenido */}
       <div style={{ padding: 'var(--space-5)', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        {vacioTotal ? (
+          <EstadoVacio
+            motivo="proyecto-vacio"
+            accion={
+              <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--accent-primary)',
+                    backgroundColor: 'var(--accent-primary)',
+                    color: 'var(--color-text-on-accent)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Folder size={14} strokeWidth="var(--icon-stroke)" />
+                  <span>Vincular carpeta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileDocxRef.current?.click()}
+                  disabled={isLoading}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-main)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 600,
+                    cursor: isLoading ? 'default' : 'pointer',
+                  }}
+                >
+                  <Plus size={14} strokeWidth="var(--icon-stroke)" />
+                  <span>Agregar .docx</span>
+                </button>
+              </div>
+            }
+          />
+        ) : (
+          <>
         {/* Sección de Documentos */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
@@ -403,9 +461,13 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
-      {/* Pie con acciones de carpeta */}
+      {/* Pie con acciones de carpeta. Cuando no hay nada, el estado vacío ya
+          trae la acción primaria y este pie solo la repetiría 20px más abajo. */}
+      {!vacioTotal && (
       <div
         style={{
           padding: 'var(--space-3) var(--space-5)',
@@ -463,6 +525,7 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
           )}
         </div>
       </div>
+      )}
 
       {/* Inputs ocultos */}
       <input
