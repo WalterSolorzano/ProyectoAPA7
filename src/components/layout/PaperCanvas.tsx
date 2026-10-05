@@ -19,6 +19,7 @@ import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { expandByLineCuts } from '../../lib/lineCuts';
 import { useLayoutRepaginate } from '../../lib/useLayoutRepaginate';
+import { altoImagenAjustado } from '../../lib/figuraAjuste';
 import { usePdfRestLayer } from '../../lib/usePdfRestLayer';
 import { PdfRestLayer } from './PdfRestLayer';
 import { InlineTextEditor } from './InlineTextEditor';
@@ -2298,7 +2299,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     <div
                                       style={{
                                         width: '100%',
-                                        height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 30}px` : '170px',
+                                        height: (() => {
+                                          const declarado = elem.image_info?.height_cm ? elem.image_info.height_cm * 30 : null;
+                                          const alto = altoImagenAjustado(declarado, geom.contentH);
+                                          return alto === null ? '170px' : `${alto}px`;
+                                        })(),
                                         backgroundColor: 'var(--paper-bg)',
                                         border: '1px solid var(--paper-line)',
                                         borderRadius: 'var(--radius-xs)',
@@ -2337,7 +2342,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   order: 1,
                                   margin: '0 auto',
                                   width: '100%', maxWidth: '100%',
-                                  height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
+                                  height: (() => {
+                                    const declarado = elem.image_info?.height_cm ? elem.image_info.height_cm * 37.8 : null;
+                                    const alto = altoImagenAjustado(declarado, geom.contentH);
+                                    return alto === null ? '200px' : `${alto}px`;
+                                  })(),
                                   minWidth: '120px',
                                   minHeight: '120px',
                                   overflow: 'hidden',
