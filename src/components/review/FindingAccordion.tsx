@@ -30,10 +30,12 @@ interface Props {
   index?: number;
   total?: number;
   onNext?: () => void;
+  /** Ref del botón de cabecera, para que el padre maneje el foco al avanzar. */
+  buttonRef?: React.Ref<HTMLButtonElement>;
 }
 
 export const FindingAccordion: React.FC<Props> = ({
-  item, open, onToggle, onAccept, onMark, onDismiss, index, total, onNext,
+  item, open, onToggle, onAccept, onMark, onDismiss, index, total, onNext, buttonRef,
 }) => {
   const acciones = actionsForItem(item);
   const mostrarPie = typeof index === 'number' && typeof total === 'number' && total > 1 && Boolean(onNext);
@@ -47,6 +49,7 @@ export const FindingAccordion: React.FC<Props> = ({
       }}
     >
       <button
+        ref={buttonRef}
         type="button"
         onClick={onToggle}
         aria-expanded={open}
@@ -134,7 +137,7 @@ export const FindingAccordion: React.FC<Props> = ({
                 borderTop: '1px solid var(--border-subtle)', paddingTop: '8px',
               }}
             >
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+              <span role="status" aria-atomic="true" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                 {index} de {total}
               </span>
               <button type="button" onClick={onNext} style={ghostBtn}>

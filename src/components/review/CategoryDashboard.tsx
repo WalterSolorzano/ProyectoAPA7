@@ -1,5 +1,5 @@
 /* WordAPA7 — Dashboard vertical de una categoría: cifra grande, temas, y acordeones de corrección. */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
 import { CATEGORY_META } from './CategoryRail';
 import { FindingAccordion } from './FindingAccordion';
@@ -54,6 +54,27 @@ export const CategoryDashboard: React.FC<Props> = ({
   const [localOpen, setLocalOpen] = useState<string | null>(null);
   const openId = activeItemId !== undefined ? activeItemId : localOpen;
 
+  /* Foco al avanzar: al aceptar o descartar, el ítem se va de la lista y su botón
+     se desmonta. Movemos el foco al vecino para no devolverlo al body. */
+  const btnRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    const id = pendingFocus.current;
+    if (!id) return;
+    const el = btnRefs.current.get(id);
+    if (el) {
+      el.focus();
+      pendingFocus.current = null;
+    }
+  }, [items]);
+
+  const focusTrasQuitar = (id: string) => {
+    const i = items.findIndex((x) => x.id === id);
+    const next = items[i + 1] ?? items[i - 1] ?? null;
+    pendingFocus.current = next ? next.id : null;
+  };
+
   const toggle = (id: string) => {
     if (onOpenItem) onOpenItem(openId === id ? '' : id);
     else setLocalOpen(openId === id ? null : id);
@@ -62,7 +83,7 @@ export const CategoryDashboard: React.FC<Props> = ({
   if (items.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-        {meta ? <meta.Icon size={22} /> : null}
+        {meta ? <meta.Icon size={22} aria-hidden /> : null}
         <p style={{ margin: 0, fontSize: 'var(--text-sm)' }}>Esta categoría no tiene observaciones.</p>
       </div>
     );
@@ -71,7 +92,12 @@ export const CategoryDashboard: React.FC<Props> = ({
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
       <header style={{ marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)' }}>{meta?.label}</h2>
+        <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)' }}>
+          {meta?.label}
+          <span role="status" aria-atomic="true" style={{ marginLeft: '8px', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+            {items.length} observaciones
+          </span>
+        </h2>
       </header>
 
       {temas.map((tema) => (
@@ -86,9 +112,13 @@ export const CategoryDashboard: React.FC<Props> = ({
                 item={it}
                 open={openId === it.id}
                 onToggle={() => toggle(it.id)}
-                onAccept={() => onAccept(it)}
+                onAccept={() => { focusTrasQuitar(it.id); onAccept(it); }}
                 onMark={() => onMark(it)}
-                onDismiss={() => onDismiss(it)}
+                onDismiss={() => { focusTrasQuitar(it.id); onDismiss(it); }}
+                buttonRef={(el) => {
+                  if (el) btnRefs.current.set(it.id, el);
+                  else btnRefs.current.delete(it.id);
+                }}
               />
             ))}
           </div>

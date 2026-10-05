@@ -509,6 +509,7 @@ export function AiHierarchy({
                   <div
                     role="button"
                     tabIndex={0}
+                    aria-expanded={isH1Active}
                     onClick={() => {
                       setSelectedH1Id(ch.id);
                       if (ch.subsections[0]) setSelectedSubId(ch.subsections[0].id);
@@ -516,6 +517,7 @@ export function AiHierarchy({
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
                         setSelectedH1Id(ch.id);
                         if (ch.subsections[0]) setSelectedSubId(ch.subsections[0].id);
                       }
@@ -590,9 +592,13 @@ export function AiHierarchy({
                             key={sub.id}
                             role="button"
                             tabIndex={0}
+                            aria-current={isSubActive ? 'true' : undefined}
                             onClick={() => setSelectedSubId(sub.id)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') setSelectedSubId(sub.id);
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setSelectedSubId(sub.id);
+                              }
                             }}
                             style={{
                               padding: '8px var(--space-3)',

@@ -64,7 +64,7 @@ export const CategoryRail: React.FC<Props> = ({ active, counts, onSelect }) => (
             cursor: 'pointer',
           }}
         >
-          <Icon size={18} />
+          <Icon size={18} aria-hidden />
           <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800 }}>{counts[id] ?? 0}</span>
         </button>
       );

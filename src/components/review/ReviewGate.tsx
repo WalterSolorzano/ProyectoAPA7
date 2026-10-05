@@ -31,13 +31,13 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
   if (total === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '40px' }}>
-        <div style={{ color: 'var(--accent-primary)' }}><ShieldCheck size={32} /></div>
+        <div style={{ color: 'var(--accent-primary)' }}><ShieldCheck size={32} aria-hidden /></div>
         <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-main)' }}>Aún no hay una revisión</h2>
         <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
           Ejecutá el escaneo para medir ortografía, voz, estructura y voz sintética.
         </p>
-        <button type="button" onClick={onScan} disabled={isScanning} style={solidBtn}>
-          <Sparkles size={14} /> Escanear documento
+        <button type="button" onClick={onScan} disabled={isScanning} aria-busy={isScanning} style={solidBtn}>
+          <Sparkles size={14} aria-hidden /> Escanear documento
         </button>
       </div>
     );
@@ -47,7 +47,7 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
     <div style={{ flex: 1, overflowY: 'auto', padding: '40px 48px' }}>
       <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--text-main)' }}>Estado de tu documento</h1>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
+      <div role="status" aria-atomic="true" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
         <span data-testid="review-gate-total" style={{ fontSize: '40px', fontWeight: 900, lineHeight: 1, color: 'var(--accent-primary)' }}>{total}</span>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>observaciones por revisar</span>
       </div>
@@ -59,7 +59,7 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '520px', marginBottom: '28px' }}>
         {CATEGORY_META.map(({ id, label, Icon }) => (
           <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-            <Icon size={16} />
+            <Icon size={16} aria-hidden />
             <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-main)' }}>{label}</span>
             <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: matrix[id] > 0 ? 'var(--text-main)' : 'var(--text-secondary)' }}>{matrix[id]}</span>
           </div>
@@ -71,11 +71,11 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
 
       <div style={{ display: 'flex', gap: '10px' }}>
         <button type="button" onClick={onStart} style={solidBtn}>
-          Empezar revisión <ArrowRight size={14} />
+          Empezar revisión <ArrowRight size={14} aria-hidden />
         </button>
         {aiCount > 0 && (
           <button type="button" onClick={onOpenAiRoom} style={ghostBtn}>
-            <Sparkles size={14} /> Ver mapa de IA
+            <Sparkles size={14} aria-hidden /> Ver mapa de IA
           </button>
         )}
       </div>
