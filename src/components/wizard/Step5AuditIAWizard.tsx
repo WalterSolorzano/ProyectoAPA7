@@ -1,16 +1,17 @@
 /* WordAPA7 — Paso 5: orquestador del rediseño de Revisión & IA.
-   Tres capas: puerta de estado, recorrido por fase, sala de IA. */
+   Cuatro pantallas: puerta de estado, informe general, modo lectura, sala de IA. */
 import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { collectAuditItems, type AuditItem } from '../../lib/auditItems';
 import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
-import { ReviewPhaseJourney } from '../review/ReviewPhaseJourney';
+import { ReviewInforme } from '../review/ReviewInforme';
+import { ReviewReader } from '../review/ReviewReader';
 import { AiRoom } from '../review/AiRoom';
 import * as api from '../../api/backend';
 import '../../styles/revision.css';
 
-type Pantalla = 'gate' | 'journey' | 'ai';
+type Pantalla = 'gate' | 'informe' | 'reader' | 'ai';
 
 const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
 
@@ -31,6 +32,7 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   const [pantalla, setPantalla] = useState<Pantalla>('gate');
   const [isScanning, setIsScanning] = useState(false);
+  const [capInicial, setCapInicial] = useState<string | null>(null);
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
@@ -138,17 +140,31 @@ export const Step5AuditIAWizard: React.FC = () => {
     );
   }
 
-  if (pantalla === 'journey') {
+  if (pantalla === 'informe') {
     return (
       <div className="revision-phase" style={PHASE_WRAP}>
-        <ReviewPhaseJourney
+        <ReviewInforme
           items={items}
-          phaseLabel="Recorrido de revisión"
+          elements={elements}
+          title={doc?.title ?? ''}
+          onStart={(capId) => { setCapInicial(capId ?? null); setPantalla('reader'); }}
+          onBack={() => setPantalla('gate')}
+        />
+      </div>
+    );
+  }
+
+  if (pantalla === 'reader') {
+    return (
+      <div className="revision-phase" style={PHASE_WRAP}>
+        <ReviewReader
+          elements={elements}
+          items={items}
+          initialCapId={capInicial}
           onAccept={handleAccept}
           onMark={handleMark}
           onDismiss={handleDismiss}
-          onBack={() => setPantalla('gate')}
-          onOpenAiRoom={() => setPantalla('ai')}
+          onBack={() => setPantalla('informe')}
         />
       </div>
     );
@@ -161,7 +177,7 @@ export const Step5AuditIAWizard: React.FC = () => {
         aiScore={aiScore}
         isScanning={isScanning}
         onScan={handleScan}
-        onStart={() => setPantalla('journey')}
+        onStart={() => setPantalla('informe')}
         onOpenAiRoom={() => setPantalla('ai')}
       />
     </div>

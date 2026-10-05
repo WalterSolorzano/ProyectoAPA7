@@ -901,11 +901,30 @@ describe('T16 — el paso 5 orquesta puerta, recorrido y sala de IA', () => {
     expect(screen.getByRole('button', { name: /Escanear documento/i })).toBeTruthy();
   });
 
-  it('la puerta lleva al recorrido por categoría', () => {
+  it('la puerta lleva al informe general', () => {
     store({ doc: documento([elemento()]) as never, proofreadFindings: [hallazgo()] as never });
     render(<Step5AuditIAWizard />);
     fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
-    expect(screen.getByText(/Recorrido de revisión/i)).toBeTruthy();
+    expect(screen.getByText('Informe general')).toBeTruthy();
+  });
+
+  it('Revisión va de lo general a lo específico y no muestra la categoría IA', () => {
+    /* El rediseño saca la IA de Revisión: la puerta lleva al informe general
+       (panorama) y de ahí al modo lectura (un párrafo a la vez). La categoría
+       probabilística NO tiene fila en la puerta ni aparece al entrar. */
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, text: 'Introduccion' }),
+        elemento(),
+      ]) as never,
+      proofreadFindings: [hallazgo()] as never,
+    });
+    render(<Step5AuditIAWizard />);
+    expect(screen.queryByText('Voz sintética')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
+    expect(screen.getByText('Informe general')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Leer y corregir/i }));
+    expect(screen.getByText(/de \d+$/)).toBeTruthy();
   });
 
   it('ya no trae el mapa heuristico de 1800 caracteres por pagina', () => {
