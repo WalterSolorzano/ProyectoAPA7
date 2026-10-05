@@ -162,4 +162,26 @@ describe('LienzoEditorialActivo', () => {
     expect(img.style.width).toBe(`${esperado.anchoPx}px`);
     expect(img.style.height).toBe(`${esperado.altoPx}px`);
   });
+
+  it('aplica borde, sombra, esquinas, rotación y volteo declarados en el formato', () => {
+    const { container } = render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        border="strong"
+        shadow
+        cornerRadius="md"
+        rotation={90}
+        flipH
+      />
+    );
+
+    const marco = screen.getByTestId('figura-marco');
+    expect(marco.style.border).toContain('var(--color-border-strong)');
+    expect(marco.style.borderRadius).toBe('var(--radius-md)');
+    expect(marco.style.boxShadow).not.toBe('none');
+
+    const img = container.querySelector('img') as HTMLElement;
+    expect(img.style.transform).toContain('rotate(90deg)');
+    expect(img.style.transform).toContain('scaleX(-1)');
+  });
 });

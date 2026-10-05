@@ -32,7 +32,27 @@ export interface LienzoEditorialActivoProps {
   onApplyCaption?: (caption: { title: string; note: string }) => void;
   /** Vuelve a pedir la sugerencia al motor de IA para el activo actual. */
   onRegenerateSuggestion?: () => void;
+  /** Presentación del marco (tokens, no valores crudos). */
+  border?: 'none' | 'subtle' | 'strong';
+  shadow?: boolean;
+  cornerRadius?: 'none' | 'sm' | 'md' | 'lg';
+  /** Rotación exacta en grados (0 por defecto). */
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
 }
+
+const BORDE_MARCO: Record<'none' | 'subtle' | 'strong', string> = {
+  none: 'none',
+  subtle: '1px solid var(--color-border-subtle)',
+  strong: '1px solid var(--color-border-strong)',
+};
+const RADIO_MARCO: Record<'none' | 'sm' | 'md' | 'lg', string> = {
+  none: '0px',
+  sm: 'var(--radius-sm)',
+  md: 'var(--radius-md)',
+  lg: 'var(--radius-lg)',
+};
 
 export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   figureNumber,
@@ -50,6 +70,12 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   onReplaceImage,
   onApplyCaption,
   onRegenerateSuggestion,
+  border = 'none',
+  shadow = false,
+  cornerRadius = 'none',
+  rotation = 0,
+  flipH = false,
+  flipV = false,
 }) => {
   const esTabla =
     tipo === 'table' &&
@@ -159,10 +185,12 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           <>
         {/* Marco de imagen plano con controles flotantes */}
         <div
+          data-testid="figura-marco"
           style={{
             position: 'relative',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)',
+            border: BORDE_MARCO[border],
+            borderRadius: RADIO_MARCO[cornerRadius],
+            boxShadow: shadow ? 'var(--shadow-sm)' : 'none',
             backgroundColor: 'var(--color-bg-surface-alt)',
             minHeight: '220px',
             display: 'flex',
@@ -184,6 +212,10 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
                 objectFit: 'contain',
                 display: 'block',
                 margin: '0 auto',
+                transform:
+                  rotation || flipH || flipV
+                    ? `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`
+                    : undefined,
               }}
             />
           ) : (

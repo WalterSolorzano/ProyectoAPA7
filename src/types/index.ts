@@ -100,6 +100,12 @@ export interface ImageModel {
   design_style: DesignStyle;
   rotation?: number;
   alt_text?: string;
+  // Presentacion del marco (tokens del design-system, no valores crudos)
+  border?: 'none' | 'subtle' | 'strong';
+  shadow?: boolean;
+  corner_radius?: 'none' | 'sm' | 'md' | 'lg';
+  flip_h?: boolean;
+  flip_v?: boolean;
   // Floating (anchor) attributes
   is_anchor?: boolean;
   anchor_pos_h?: string | null;

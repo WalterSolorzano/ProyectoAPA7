@@ -388,6 +388,12 @@ export const TallerFigurasView: React.FC = () => {
             onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
             onApplyCaption={handleApplyCaption}
             onRegenerateSuggestion={handleRegenerateSuggestion}
+            border={elementoActual.image_info?.border}
+            shadow={elementoActual.image_info?.shadow}
+            cornerRadius={elementoActual.image_info?.corner_radius}
+            rotation={elementoActual.image_info?.rotation}
+            flipH={elementoActual.image_info?.flip_h}
+            flipV={elementoActual.image_info?.flip_v}
           />
         ) : (
           <div

@@ -16,6 +16,7 @@ describe('InspectorActivoTabs', () => {
       note: 'Nota al pie descriptiva',
       alt_text: 'Descripción para accesibilidad',
       design_style: 'standard',
+      constrain_proportions: false,
     },
   };
 
@@ -169,6 +170,68 @@ describe('InspectorActivoTabs', () => {
         width_cm: 15.0,
       })
     );
+  });
+
+  it('pestaña Formato: ofrece proporción, borde, sombra, esquinas, rotación y volteo', () => {
+    const onUpdate = vi.fn();
+    render(
+      <InspectorActivoTabs elem={baseElem} totalFiguras={1} onUpdate={onUpdate} onApplyToAll={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByLabelText(/conservar proporción/i));
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ constrain_proportions: true }));
+
+    fireEvent.change(screen.getByLabelText(/^Borde$/i), { target: { value: 'strong' } });
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ border: 'strong' }));
+
+    fireEvent.click(screen.getByLabelText(/^Sombra$/i));
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ shadow: true }));
+
+    fireEvent.change(screen.getByLabelText(/^Esquinas$/i), { target: { value: 'md' } });
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ corner_radius: 'md' }));
+
+    fireEvent.change(screen.getByLabelText(/Rotación/i), { target: { value: '45' } });
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ rotation: 45 }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Voltear horizontal/i }));
+    expect(onUpdate).toHaveBeenCalledWith('img_1', expect.objectContaining({ flip_h: true }));
+  });
+
+  it('pestaña Texto: contador de caracteres y mini vista previa del rótulo, título y nota', () => {
+    render(
+      <InspectorActivoTabs elem={baseElem} totalFiguras={1} onUpdate={vi.fn()} onApplyToAll={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Texto/i }));
+
+    const preview = screen.getByTestId('texto-preview');
+    expect(preview.textContent).toContain('Figura 1');
+    expect(preview.textContent).toContain('Figura de prueba');
+    expect(screen.getByText(/16 caracteres/i)).toBeDefined();
+  });
+
+  it('pestaña Texto en una tabla muestra su propia leyenda y nota, no las de imagen', () => {
+    const elemTabla: ElementModel = {
+      id: 'tbl_9',
+      type: 'table',
+      table_info: {
+        element_id: 'tbl_9',
+        headers: ['A', 'B'],
+        rows: [['1', '2']],
+        caption: 'Resumen descriptivo de la tabla',
+        note: 'Nota de la tabla',
+        table_number: 3,
+      },
+    };
+
+    render(
+      <InspectorActivoTabs elem={elemTabla} totalFiguras={1} onUpdate={vi.fn()} onApplyToAll={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: /Texto/i }));
+
+    expect(screen.getByLabelText(/Título \/ Leyenda/i)).toHaveValue('Resumen descriptivo de la tabla');
+    expect(screen.getByLabelText(/Nota al pie/i)).toHaveValue('Nota de la tabla');
   });
 
   it('en una tabla solo ofrece Texto y Calidad: sin controles exclusivos de imagen', () => {

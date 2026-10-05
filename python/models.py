@@ -421,6 +421,11 @@ class ImageModel(BaseModel):
     design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width" | "multipanel"
     rotation: int = 0                          # grados de rotacion (0, 90, 180, 270)
     alt_text: str = ""                         # texto alternativo / accesibilidad
+    border: str = "none"                        # "none" | "subtle" | "strong"
+    shadow: bool = False                        # sombra sutil del marco
+    corner_radius: str = "none"                # "none" | "sm" | "md" | "lg"
+    flip_h: bool = False                        # espejo horizontal
+    flip_v: bool = False                        # espejo vertical
 
     # Nuevos atributos flotantes (anchor)
     is_anchor: bool = False
