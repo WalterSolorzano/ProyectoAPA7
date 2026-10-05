@@ -133,8 +133,21 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   });
   const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: grupo ? `Grupo: ${grupo}` : '' }] : []].filter((c) => c.length > 0);
 
+  // Anchos de columna en centimetros, identicos a los del .docx
+  // (`portada_uni.py`): 3 estudiantes -> 3.5 cm, 2 -> 5.0 cm, 1 -> 7.0 cm;
+  // el docente siempre 5.0 cm. Asi la preview y el Word miden lo mismo.
+  const studentColWidthCm = { 3: 3.5, 2: 5.0, 1: 7.0 }[nStudentCols] ?? 3.5;
+  const tutorColWidthCm = 5.0;
+  const colWidthsCm = [
+    ...Array.from({ length: nStudentCols }, () => studentColWidthCm),
+    ...(tutorName ? [tutorColWidthCm] : []),
+  ];
+
   const cellStyle: React.CSSProperties = {
-    flex: 1,
+    // Ancho fijo (box-sizing border-box = el padding queda DENTRO del ancho,
+    // igual que en Word); no se estira para llenar la hoja.
+    flex: '0 0 auto',
+    boxSizing: 'border-box',
     minWidth: 0,
     padding: `${px(1.6)}px ${px(2)}px`,
     fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
@@ -260,7 +273,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
       <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: px(1) }}>
         {cols.map((col, ci) => (
           <React.Fragment key={ci}>
-            <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
+            <div style={{ ...cellStyle, width: px(colWidthsCm[ci] * 10), borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
               {col.map((a, ai) => (
                 <div key={ai} style={{ marginBottom: px(2.5), fontFamily: 'Montserrat, sans-serif' }}>
                   <div
