@@ -1,7 +1,7 @@
 # Separar Revisión de Mapa IA + dashboard del mapa de IA — diseño
 
 Fecha: 2026-10-04
-Estado: aprobado en conversación, pendiente de revisión del escrito
+Estado: aprobado — Revisión («Modo lectura») y Mapa IA (dashboard); listo para plan
 Precede a: `docs/superpowers/plans/2026-10-04-fusion-fase5-revision.md`
 
 ## Contexto y problema
@@ -45,7 +45,9 @@ Dos problemas, uno de forma y uno de fondo:
 
 **Dentro:**
 
-- `ReviewPhaseJourney` deja de mostrar la categoría `ai` en su riel y no aterriza en ella.
+- La ruta `journey` (`ReviewPhaseJourney` + `CategoryRail` + `CategoryDashboard`) se
+  reemplaza por **R1 Informe general + R2 Modo lectura**; no quedan rieles de categorías ni
+  listas de hallazgos dentro de Revisión.
 - `ReviewGate` mantiene sus dos botones («Empezar revisión →» y «Mapa IA · N») y omite la
   fila de IA del conteo por motor.
 - `AiHierarchy` (pantalla Mapa IA) pasa a **dashboard general→específico**: hero +
@@ -65,20 +67,60 @@ Dos problemas, uno de forma y uno de fondo:
 
 ## Arquitectura
 
-### 1. Revisión sin IA (propuesta en curso, pendiente de OK)
+### 1. Revisión — «Modo lectura» (aprobado)
 
-Diseño abierto. Objetivo del usuario: **una sola elección**, no encadenar «elegir fase» +
-«elegir categoría» en dos pantallas que hacen pesado el flujo. Lo único fijado:
+La Revisión va **de lo general a lo específico** en dos pantallas, sin listas ni «cards»
+de navegación. El documento manda.
 
-- Revisión **no** muestra hallazgos de categoría `ai` ni aterriza en «Voz sintética».
-- `ReviewGate` conserva sus dos botones («Empezar revisión →» y «Mapa IA · N»).
-- `ReviewPhaseJourney.tsx` deja fuera la categoría `ai` de su riel (`CATEGORY_META`
-  filtrado a `['style', 'spelling', 'structure']`); la activa por defecto es el primer
-  motor objetivo con hallazgos.
+**R1 · Informe general (aterrizaje de Revisión = lo general).** Es lo primero que se ve al
+pulsar «Empezar revisión →». Muestra la calidad global, sin listas de hallazgos:
 
-La forma final se decide con el mockup en curso (borrador: **una sola elección = fase H1**;
-motor como filtro, no como paso; «Siguiente hallazgo» recorre todos los hallazgos de la
-fase en orden de documento).
+- **Objetivos · validación Bloom**: cada objetivo con su verbo actual → verbo propuesto
+  (p. ej. Recall → Analizar / Evaluar), chip `bad` (actual) → chip `good` (propuesto).
+- **Repetición · cuerpo completo**: palabras repetidas en todo el documento, en barras
+  horizontales + conteo (cubre «fallas de repeticiones que muestre con un gráfico qué
+  palabras se repiten demasiado»). Vive aquí porque cruza todo el cuerpo, no un H1.
+- **Salud por capítulo**: la micro-franja de capítulos (la misma de R2) como resumen
+  tocable.
+- CTA **«Leer y corregir»** → entra a R2 en el primer capítulo con pendientes.
+
+**R2 · Modo lectura (lo específico).** El documento es la navegación; cero selectores
+intermedios:
+
+- **Hoja tipo libro** centrada (papel, márgenes amplios, `--paper-white`); se lee.
+- **Cinta superior pegada** (sticky, *no* es una lista): «Revisión · {H1 actual}» + **micro
+  franja de segmentos de capítulo = progreso** (cada segmento proporcional al tamaño del
+  H1; un punto marca pendientes; tocar un segmento salta de capítulo) + contador `X/N` +
+  botón **Informe** (despliega R1 como hoja encima) + botón **Siguiente**.
+- **Hallazgos inline**: subrayados sobre el texto; los pinta `ReadingText` (único dueño del
+  subrayado inline).
+- **Categoría = chips-filtro** (Ortografía y formato / Redacción y estilo / Estructura /
+  Citas), opcional. La categoría `ai` **no** aparece nunca en Revisión.
+- **Dock inferior flotante**: motor + texto del hallazgo actual + pág. + «Aceptar» /
+  «Aceptar todas» / «Siguiente». Reemplaza **toda** lista de hallazgos. (Los motores de
+  Revisión son objetivos, así que sí ofrecen «Aceptar»; IA, que no está aquí, es la única
+  que solo «Marca para revisar».)
+- **Un párrafo a la vez**: «Siguiente» avanza por el documento cruzando motores dentro del
+  capítulo.
+
+**Secuencia de pantallas (quién empieza y a dónde lleva):**
+
+```
+ReviewGate ──[Empezar revisión →]──> R1 Informe general ──[Leer y corregir / tocar capítulo]──> R2 Modo lectura
+     │                                                                                              │
+     └──[Mapa IA · N]──> Mapa IA (AiHierarchy, dashboard + rectángulos)          [Informe] ──> R1 como hoja encima
+```
+
+- **Empieza en R1** (lo general). No hay forma de aterrizar en un hallazgo suelto.
+- De R1 se entra a **R2** (lo específico) con «Leer y corregir» o tocando un capítulo de la
+  micro-franja.
+- R2 vuelve a R1 con el botón **Informe** (hoja encima, sin cambiar de pantalla) y al mapa
+  general volviendo a la entrada.
+- El **Mapa IA** (pantalla `ai`) es independiente y solo contiene IA.
+
+Reglas del usuario aplicadas: **nada de listas** ni de estilo «cards»; el capítulo y el
+hallazgo se navegan por la cinta y el dock, no por una lista; el informe nunca es otra
+pantalla, es una hoja encima del documento.
 
 ### 2. Mapa IA como dashboard (aprobado)
 
@@ -156,10 +198,16 @@ motor) es texto. La rampa ya existe como tokens:
 
 ## Archivos previstos
 
-- `src/components/review/ReviewPhaseJourney.tsx` — riel sin `ai`, activa por defecto
-  objetivo.
-- `src/components/review/CategoryRail.tsx` — lista de categorías de Revisión sin `ai`.
+- `src/components/review/ReviewInforme.tsx` (nombre a definir) — **nuevo**: R1 Informe
+  general (Bloom + repetición + salud por capítulo + CTA «Leer y corregir»).
+- `src/components/review/ReviewReader.tsx` (nombre a definir) — **nuevo**: R2 Modo lectura
+  (hoja tipo libro + cinta de progreso de capítulos + dock de hallazgo + hoja de informe
+  encima).
+- `src/components/wizard/Step5AuditIAWizard.tsx` — la ruta `journey` pasa a
+  `informe | reader`.
 - `src/components/review/ReviewGate.tsx` — conteo sin fila de IA; dos botones.
+- Se retiran del flujo montado `ReviewPhaseJourney` / `CategoryRail` / `CategoryDashboard`;
+  se eliminan si nadie más los usa.
 - `src/components/review/AiHierarchy.tsx` — hero + heatmap + rectángulos de capítulo.
 - `src/components/review/AiHeatmap.tsx` — nuevo (SVG/CSS + tokens).
 - `src/components/review/AiMosaicRectangulos.tsx` (nombre a definir) — nuevo: franja de
@@ -178,5 +226,8 @@ motor) es texto. La rampa ya existe como tokens:
   vista aislada.
 - Verificar que Revisión **no** muestra «Voz sintética» ni hallazgos de categoría `ai`
   (nuevo test o extensión de los existentes que pulsan «Ver mapa de IA»).
+- Nuevo test de R1/R2: «Empezar revisión» aterriza en **Informe general** (Bloom visible,
+  repetición visible); «Leer y corregir» entra a **Modo lectura** (cinta de progreso + dock
+  presentes) y el botón **Informe** vuelve a mostrar R1 encima.
 - `npx tsc --noEmit` limpio; suite focalizada verde; luego la suite completa antes del
   commit (`npm test`, objetivo baseline 1401 vitest).
