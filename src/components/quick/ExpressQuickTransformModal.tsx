@@ -75,7 +75,9 @@ export const ExpressQuickTransformModal: React.FC<ExpressQuickTransformModalProp
       const genRes = await api.generateDocx(activeDoc.session_id);
       
       if (genRes && genRes.download_url) {
-        setResultFileUrl(genRes.download_url);
+        /* Root-relative (`/api/download-artifact/...`); en Electron el renderer
+           vive en `app://`, así que hay que prefijar el host del backend. */
+        setResultFileUrl(api.resolveAssetUrl(genRes.download_url));
         setResultFilePath(genRes.saved_path || null);
         setStatus('done');
         setCurrentStep('');
