@@ -76,6 +76,43 @@ _limiter_registry = RateLimiterRegistry()
 _provider_cooldowns: Dict[str, float] = {}
 _provider_health: Dict[str, Dict[str, Any]] = {}
 
+# --- Circuit breaker por proveedor ---
+# Sustituye a `_provider_cooldowns` como fuente de decisión del enrutado. Los
+# cooldowns se siguen escribiendo para el indicador de salud y por compatibilidad
+# con los tests existentes, pero quien decide saltarse un proveedor es el breaker:
+# un 401/404/410 lo abre tras `_BREAKER_THRESHOLD` fallos y solo se vuelve a
+# probar en `half_open` pasado el cooldown.
+_BREAKER_THRESHOLD = int(os.getenv("AI_BREAKER_THRESHOLD", "3"))
+_BREAKER_COOLDOWN_S = float(os.getenv("AI_BREAKER_COOLDOWN_S", "60"))
+_provider_breaker: Dict[str, Dict[str, Any]] = {}
+
+
+def _breaker_estado(p_id: str) -> Dict[str, Any]:
+    b = _provider_breaker.setdefault(
+        p_id, {"state": "closed", "failures": 0, "opened_at": 0.0}
+    )
+    if b["state"] == "open" and time.time() - b["opened_at"] >= _BREAKER_COOLDOWN_S:
+        b["state"] = "half_open"
+    return b
+
+
+def _breaker_allows(p_id: str) -> bool:
+    return _breaker_estado(p_id)["state"] != "open"
+
+
+def _breaker_record(p_id: str, ok: bool) -> None:
+    b = _provider_breaker.setdefault(
+        p_id, {"state": "closed", "failures": 0, "opened_at": 0.0}
+    )
+    if ok:
+        b["state"] = "closed"
+        b["failures"] = 0
+        return
+    b["failures"] += 1
+    if b["failures"] >= _BREAKER_THRESHOLD or b["state"] == "half_open":
+        b["state"] = "open"
+        b["opened_at"] = time.time()
+
 # --- Cache ---
 # El archivo es UNO, pero lo usan dos capas con claves distintas: las respuestas
 # del prompt (`sha256(prompt + system_prompt)`) y la clasificacion por elemento
@@ -324,6 +361,8 @@ async def execute_with_specialty(
     return_provider_info: bool = False,
     json_mode: bool = False,
     provider_id: Optional[str] = None,
+    cancel_token: Optional[Any] = None,
+    deadline_s: Optional[float] = None,
 ) -> Any:
     """
     Ejecuta un prompt enrutando predictivamente según la especialidad solicitada.
@@ -358,12 +397,17 @@ async def execute_with_specialty(
 
     routing_queue = preferred_providers + fallback_providers
     is_json = json_mode or "json" in system_prompt.lower() or "json" in prompt.lower()
+    inicio = time.time()
 
     # 3. Enrutamiento Predictivo
     for p in routing_queue:
         p_id = p["id"]
-        if _provider_cooldowns.get(p_id, 0) > time.time():
-            logger.info(f"[Router] {p['name']} en enfriamiento tras un fallo reciente.")
+        if cancel_token is not None and cancel_token.is_set():
+            raise asyncio.CancelledError()
+        if deadline_s is not None and time.time() - inicio > deadline_s:
+            break
+        if not _breaker_allows(p_id):
+            logger.info(f"[Router] {p['name']} con breaker abierto. Saltando.")
             continue
         capacity = PROVIDER_CAPACITY.get(p_id, {"timeout": 25, "requests_per_minute": 10})
         timeout = capacity.get("timeout", 25)
@@ -389,6 +433,7 @@ async def execute_with_specialty(
 
         logger.info(f"[Router] Asignando tarea {specialty} a {p['name']}")
         result = await _try_provider(p, payload, timeout)
+        _breaker_record(p_id, result is not None)
 
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
@@ -407,8 +452,9 @@ async def execute_with_specialty(
 
     # Si todos están ocupados predictivamente o fallaron, forzamos un intento con el primero disponible
     logger.warning("[Router] Todos los proveedores están ocupados o fallaron. Forzando fallback global.")
-    if routing_queue:
-        p = routing_queue[0]
+    candidato = next((c for c in routing_queue if _breaker_allows(c["id"])), None)
+    if candidato is not None:
+        p = candidato
         capacity = PROVIDER_CAPACITY.get(p["id"], {"timeout": 25})
         payload = {
             "model": p["model"],
