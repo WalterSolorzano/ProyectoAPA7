@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useDocStore } from '../../store/useDocStore';
 import { RailTipoActivos } from './RailTipoActivos';
 import { GaleriaActivosColumna } from './GaleriaActivosColumna';
-import { LienzoEditorialActivo, AISuggestionData } from './LienzoEditorialActivo';
+import { LienzoEditorialActivo, AISuggestionData, type SubfiguraVista } from './LienzoEditorialActivo';
 import { InspectorActivoTabs, type ActivoPatch } from './InspectorActivoTabs';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import {
@@ -23,7 +23,7 @@ import {
   INSPECTOR_MIN,
   INSPECTOR_MAX,
 } from '../../lib/layoutTaller';
-import { resolveAssetUrl, suggestCaption } from '../../api/backend';
+import { resolveAssetUrl, suggestCaption, subirImagenDeProyecto } from '../../api/backend';
 import type { ElementModel } from '../../types';
 
 export const TallerFigurasView: React.FC = () => {
@@ -39,6 +39,9 @@ export const TallerFigurasView: React.FC = () => {
   const [idActivo, setIdActivo] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, AISuggestionData>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const subfigInputRef = useRef<HTMLInputElement>(null);
+  // Slot (b, c, d...) que se llenará con el próximo archivo importado.
+  const slotPendiente = useRef<number | null>(null);
   // Ids ya consultados a la IA: evita refetch al volver a un activo.
   const solicitadas = useRef<Set<string>>(new Set());
 
@@ -128,6 +131,17 @@ export const TallerFigurasView: React.FC = () => {
     if (!contextoActual || !doc?.elements) return null;
     return doc.elements.find((e) => e.id === contextoActual.id) ?? doc.elements[contextoActual.indice] ?? null;
   }, [contextoActual, doc?.elements]);
+
+  // Subfiguras resueltas a URL para el lienzo multipanel.
+  const subfigurasVista: SubfiguraVista[] | undefined = useMemo(() => {
+    const lista = elementoActual?.image_info?.subfigures;
+    if (!lista || lista.length === 0) return undefined;
+    return lista.map((s) => ({
+      label: s.label,
+      title: s.title,
+      url: s.relative_url ? resolveAssetUrl(s.relative_url) : undefined,
+    }));
+  }, [elementoActual]);
 
   const handleTipoChange = useCallback((nuevoTipo: TipoFigura) => {
     setTipoActivo(nuevoTipo);
@@ -219,6 +233,42 @@ export const TallerFigurasView: React.FC = () => {
       }
     },
     [elementoActual, replaceImage]
+  );
+
+  // Importar una subfigura a un slot de la malla (b, c, d...).
+  const handleImportSubfigure = useCallback((slot: number) => {
+    slotPendiente.current = slot;
+    subfigInputRef.current?.click();
+  }, []);
+
+  const handleSubfigInputChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      const slot = slotPendiente.current;
+      if (!file || slot === null || !elementoActual || elementoActual.type !== 'image') return;
+      try {
+        const { assetId, name } = await subirImagenDeProyecto(file);
+        const etiqueta = `(${String.fromCharCode(97 + slot)})`;
+        const actuales = elementoActual.image_info?.subfigures ?? [];
+        const siguientes = [...actuales];
+        // El slot (a) es la imagen principal; (b) en adelante viven en subfigures.
+        siguientes[slot - 1] = {
+          id: `sub-${slot}-${Date.now()}`,
+          label: etiqueta,
+          title: name,
+          relative_url: `/api/assets/archivo/${encodeURIComponent(assetId)}`,
+        };
+        updateElementImage(elementoActual.id, { subfigures: siguientes });
+      } catch (err) {
+        console.error('Error al importar subfigura:', err);
+      } finally {
+        slotPendiente.current = null;
+        if (subfigInputRef.current) {
+          subfigInputRef.current.value = '';
+        }
+      }
+    },
+    [elementoActual, updateElementImage]
   );
 
   // Aplicar sugerencia de IA
@@ -394,6 +444,9 @@ export const TallerFigurasView: React.FC = () => {
             rotation={elementoActual.image_info?.rotation}
             flipH={elementoActual.image_info?.flip_h}
             flipV={elementoActual.image_info?.flip_v}
+            designStyle={contextoActual.designStyle}
+            subfiguras={subfigurasVista}
+            onImportSubfigure={esTablaActual ? undefined : handleImportSubfigure}
           />
         ) : (
           <div
@@ -437,6 +490,14 @@ export const TallerFigurasView: React.FC = () => {
         accept="image/*"
         style={{ display: 'none' }}
         data-testid="hidden-file-input"
+      />
+      <input
+        type="file"
+        ref={subfigInputRef}
+        onChange={handleSubfigInputChange}
+        accept="image/*"
+        style={{ display: 'none' }}
+        data-testid="hidden-subfig-input"
       />
 
       {/* 1. Rail de tipos (extrema izquierda, 56px) */}

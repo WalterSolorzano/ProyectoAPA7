@@ -26,7 +26,7 @@
  * Sin estado, sin React, sin `any` en la firma. Todo derivado de `doc.elements`
  * en una sola vuelta.
  */
-import type { ElementModel } from '../types';
+import type { ElementModel, DesignStyle } from '../types';
 import { seccionesDeElementos } from './jerarquia';
 import { ANCHO_DE_LA_HOJA_PX, anchoUtilMm, mmAPx, type Hoja } from './portada/geometria';
 
@@ -90,7 +90,7 @@ export interface ContextoFigura {
    *  `headers: string[]` y `rows: string[][]` (`src/types/index.ts:88-95`). */
   tabla: { headers: string[]; rows: string[][] } | null;
   /** Estilo de diseño ('standard', 'scientific', 'full_width', 'multipanel', etc.) */
-  designStyle?: string;
+  designStyle?: DesignStyle;
   /** Subfiguras si la figura es compuesta / multipanel */
   subfigures?: { id: string; label: string; title: string; relative_url?: string }[];
 }

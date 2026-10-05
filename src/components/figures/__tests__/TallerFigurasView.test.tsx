@@ -7,7 +7,7 @@ import type { DocumentModel } from '../../../types';
 
 vi.mock('../../../api/backend', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../api/backend')>();
-  return { ...actual, suggestCaption: vi.fn() };
+  return { ...actual, suggestCaption: vi.fn(), subirImagenDeProyecto: vi.fn() };
 });
 
 const mockDoc: DocumentModel = {
@@ -253,6 +253,45 @@ describe('TallerFigurasView', () => {
         'img_1',
         expect.any(String),
         'test-key'
+      )
+    );
+  });
+
+  it('importa una subfigura al slot elegido de la malla multipanel', async () => {
+    const backend = await import('../../../api/backend');
+    const mockSubir = backend.subirImagenDeProyecto as unknown as ReturnType<typeof vi.fn>;
+    mockSubir.mockResolvedValue({ assetId: 'asset-9', name: 'detalle.png' });
+    const updateElementImage = vi.fn();
+    useDocStore.setState({
+      doc: {
+        ...mockDoc,
+        elements: mockDoc.elements.map((e) =>
+          e.id === 'img_1'
+            ? { ...e, image_info: { ...e.image_info, caption: '', design_style: 'corner' } }
+            : e
+        ),
+      },
+      apiKey: 'test-key',
+      updateElementImage,
+    });
+    definirAnchoVentana(1400);
+    render(<TallerFigurasView />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Importar subfigura (b)' }));
+
+    const input = screen.getByTestId('hidden-subfig-input') as HTMLInputElement;
+    const archivo = new File(['x'], 'detalle.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    await waitFor(() => expect(mockSubir).toHaveBeenCalledWith(archivo));
+    await waitFor(() =>
+      expect(updateElementImage).toHaveBeenCalledWith(
+        'img_1',
+        expect.objectContaining({
+          subfigures: [
+            expect.objectContaining({ label: '(b)', title: 'detalle.png' }),
+          ],
+        })
       )
     );
   });

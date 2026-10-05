@@ -184,4 +184,41 @@ describe('LienzoEditorialActivo', () => {
     expect(img.style.transform).toContain('rotate(90deg)');
     expect(img.style.transform).toContain('scaleX(-1)');
   });
+
+  it('dibuja la cuadrícula 2x2 con la imagen en (a) y slots vacíos que invitan a importar', () => {
+    const onImportSubfigure = vi.fn();
+    render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        designStyle="corner"
+        subfiguras={[]}
+        onImportSubfigure={onImportSubfigure}
+      />
+    );
+
+    expect(screen.getByTestId('marco-multipanel')).toBeInTheDocument();
+    // (b), (c) y (d) están vacíos; (a) lleva la imagen principal.
+    ['(b)', '(c)', '(d)'].forEach((rotulo) => {
+      expect(screen.getByRole('button', { name: `Importar subfigura ${rotulo}` })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Importar subfigura (b)' }));
+    expect(onImportSubfigure).toHaveBeenCalledWith(1);
+  });
+
+  it('dibuja la doble horizontal con dos paneles y muestra la subfigura importada', () => {
+    render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        designStyle="multipanel"
+        subfiguras={[{ label: '(b)', title: 'Vista de detalle', url: 'blob:sub-b' }]}
+        onImportSubfigure={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('marco-multipanel')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Importar subfigura (b)' })).toBeNull();
+    const subImgs = screen.getAllByRole('img');
+    expect(subImgs.length).toBe(2);
+  });
 });

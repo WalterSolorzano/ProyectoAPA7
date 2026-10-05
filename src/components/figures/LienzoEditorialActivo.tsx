@@ -1,8 +1,9 @@
 import React from 'react';
-import { RotateCw, Image as ImageIcon, Check, RefreshCw } from 'lucide-react';
+import { RotateCw, Image as ImageIcon, ImagePlus, Check, RefreshCw } from 'lucide-react';
 import { IconoLeyenda } from './IconosFiguras';
 import { DocumentMascot } from '../layout/DocumentMascot';
 import { medidaDeFigura, type TipoFigura } from '../../lib/figuras';
+import type { DesignStyle } from '../../types';
 
 export interface AISuggestionData {
   suggestedTitle: string;
@@ -40,6 +41,18 @@ export interface LienzoEditorialActivoProps {
   rotation?: number;
   flipH?: boolean;
   flipV?: boolean;
+  /** Preset de diseño; multipanel y corner dibujan malla de subfiguras. */
+  designStyle?: DesignStyle;
+  /** Paneles adicionales ya resueltos: (b), (c), (d)... */
+  subfiguras?: SubfiguraVista[];
+  /** Abre el selector de archivo para llenar el slot indicado. */
+  onImportSubfigure?: (slot: number) => void;
+}
+
+export interface SubfiguraVista {
+  label: string;
+  title?: string;
+  url?: string;
 }
 
 const BORDE_MARCO: Record<'none' | 'subtle' | 'strong', string> = {
@@ -76,6 +89,9 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   rotation = 0,
   flipH = false,
   flipV = false,
+  designStyle,
+  subfiguras,
+  onImportSubfigure,
 }) => {
   const esTabla =
     tipo === 'table' &&
@@ -86,6 +102,54 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   const filas = esTabla ? tabla!.rows : [];
   const rotulo = tipo === 'table' ? 'Tabla' : tipo === 'equation' ? 'Ecuación' : 'Figura';
   const medida = medidaDeFigura({ width_cm: anchoCm ?? undefined, height_cm: altoCm ?? undefined });
+  // Multipanel: la imagen principal ocupa (a) y los demás paneles se importan.
+  const esMultipanel = tipo === 'image' && (designStyle === 'multipanel' || designStyle === 'corner');
+  const numeroSlots = designStyle === 'corner' ? 4 : 2;
+  const renderSlot = (i: number) => {
+    const etiqueta = `(${String.fromCharCode(97 + i)})`;
+    const sub = i === 0 ? undefined : subfiguras?.[i - 1];
+    const url = i === 0 ? imageUrl : sub?.url;
+    if (url) {
+      return (
+        <figure key={i} style={{ margin: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <img
+            src={url}
+            alt={sub?.title || `Subfigura ${etiqueta}`}
+            style={{ width: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block' }}
+          />
+          <figcaption style={{ textAlign: 'center', fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+            {etiqueta}{sub?.title ? ` ${sub.title}` : ''}
+          </figcaption>
+        </figure>
+      );
+    }
+    return (
+      <button
+        key={i}
+        type="button"
+        aria-label={`Importar subfigura ${etiqueta}`}
+        onClick={() => onImportSubfigure?.(i)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          minHeight: '140px',
+          padding: 'var(--space-3)',
+          border: '1px dashed var(--color-border-subtle)',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'var(--color-bg-surface)',
+          color: 'var(--color-text-tertiary)',
+          cursor: 'pointer',
+          fontSize: '12px',
+        }}
+      >
+        <ImagePlus size={22} />
+        <span>{etiqueta} Importar</span>
+      </button>
+    );
+  };
   return (
     <div
       data-testid="editorial-reading-canvas"
@@ -199,7 +263,20 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
             overflow: 'hidden',
           }}
         >
-          {imageUrl ? (
+          {esMultipanel ? (
+            <div
+              data-testid="marco-multipanel"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'var(--space-2)',
+                width: '100%',
+                alignContent: 'center',
+              }}
+            >
+              {Array.from({ length: numeroSlots }, (_, i) => renderSlot(i))}
+            </div>
+          ) : imageUrl ? (
             <img
               src={imageUrl}
               alt={`Figura ${figureNumber}`}
