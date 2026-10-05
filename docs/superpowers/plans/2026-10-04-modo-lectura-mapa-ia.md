@@ -1559,3 +1559,124 @@ Expected: sin coincidencias.
 **3. Consistencia de tipos:** `CapituloRevision` (Task 1) lo consumen Tasks 6, 7 y 9/10 (vía `chapters` de `AiHierarchy`, que expone `subsections[].findings`). `FilaHeatmap` (Task 4) lo consumen Task 9. `AuditItem` es el tipo único que viaja por todas las superficies.
 
 **4. Review Focus:** sin H1 (Task 1 test), sin objetivos (Task 6 estado vacío), IA sin medición (Task 4 `sinMedir`), `element_id` inexistente (Task 7 delega en `ReadingText`; el dock igual muestra el hallazgo), portada antes del primer H1 (Task 1 test), muchos hallazgos (Task 9/10: al entrar solo hero + heatmap + rectángulos).
+
+---
+
+## Anexo A — Leyes de metodología por fase van PRIMERO (requisito del 2026-10-04)
+
+Requisito del usuario: «hay correcciones para anexos, conclusiones, resultados, metodología, título; todos tienen reglas generales de metodología de la investigación y son leyes que no se deben romper… pon esos de primero si los hay».
+
+**Cambio en R1 (`ReviewInforme`):** antes de Objetivos·Bloom y de Repetición, un bloque **«Leyes de metodología»** que agrupa por fase los hallazgos cuyo `AuditItem.phase` es una fase concreta (no `global`, no `null`). Orden de fases: objetivos → metodología (`metodo`) → marco teórico → resultados → discusión → conclusiones → resumen → título/portada → anexos. Si no hay ninguno, el bloque no se pinta.
+
+- Helper puro nuevo en `src/lib/informeRevision.ts`:
+  - `export interface LeyPorFase { phase: string; label: string; items: AuditItem[] }`
+  - `export function leyesPorFase(items: readonly AuditItem[]): LeyPorFase[]` — filtra `item.phase && item.phase !== 'global'`, agrupa por `phase`, ordena por `PHASE_ORDER` de `../../lib/auditItems` y devuelve `label` con `phaseLabel(phase)`.
+- Test en `src/__tests__/informeRevision.test.ts`: dos items con `phase: 'objetivos'` y `phase: 'metodo'` → dos grupos, objetivos primero; un item `phase: 'global'`/`null` queda fuera.
+
+**Leyes de fase vivas hoy (para los tests de contenido, no inventar):**
+
+| Fase (`phase`) | kinds vivos |
+|---|---|
+| `objetivos` | `bloom_vague`, `objetivo_sin_variable` (+ los nuevos de Task 12) |
+| `metodo` | `metodo_sin_detalle`, `paragraph_words` |
+| `marco_teorico` | `parafrasis_vs_cita` |
+| `resultados` / `discusion` / `conclusiones` / `resumen` | `verbo_pasado`, `paragraph_words` |
+| `portada` (título) | `portada_title_larga`, `portada_punto_final` |
+| `anexos` | (sin kind propio; solo globales) |
+
+Los rótulos por fase salen de `phaseLabel(phase)` (`src/lib/auditItems.ts`); no se hardcodea texto de fase en la vista.
+
+### Task 12: Backend — leyes de objetivos en infinitivo y verbo único
+
+**Files:**
+- Modify: `python/modules/phase_scope.py` (nuevos checkers + `RULE_SCOPES` + `_CHECKS`)
+- Test: `python/tests/test_phase_scope.py` (extender)
+
+**Interfaces:**
+- Produces: dos `kind` nuevos, ambos scope `objetivos`:
+  - `objetivo_sin_infinitivo` — el verbo rector del objetivo no está en infinitivo (termina en algo que no es `-ar/-er/-ir`).
+  - `objetivo_multi_verbo` — el objetivo contiene más de un verbo en infinitivo.
+
+- [ ] **Step 1: Write the failing tests** (en `python/tests/test_phase_scope.py`)
+
+```python
+def test_objetivo_sin_infinitivo_emite_kind():
+    from python.modules.phase_scope import phase_findings
+    out = phase_findings([{"id": "o1", "type": "paragraph", "text": "Conoce los procesos de gestión"}])
+    kinds = [f["kind"] for f in out]
+    assert "objetivo_sin_infinitivo" in kinds
+
+def test_objetivo_multi_verbo_emite_kind():
+    from python.modules.phase_scope import phase_findings
+    out = phase_findings([{"id": "o1", "type": "paragraph", "text": "Determinar y evaluar el efecto de X sobre Y"}])
+    kinds = [f["kind"] for f in out]
+    assert "objetivo_multi_verbo" in kinds
+```
+
+> Ajustar el arranque (`phase_findings` recibe la lista dentro de una fase `objetivos`; copiar el patrón de los tests existentes de `_check_bloom_verb` en ese mismo archivo, línea ~409-430 de `test_phase_scope.py`).
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pytest -q python/tests/test_phase_scope.py -k "infinitivo or multi_verbo"`
+Expected: FAIL — kinds no emitidos.
+
+- [ ] **Step 3: Implement in `phase_scope.py`**
+
+Añadir a `RULE_SCOPES` (junto a `bloom_vague`/`objetivo_sin_variable`, línea ~247):
+
+```python
+    "objetivo_sin_infinitivo": "objetivos",
+    "objetivo_multi_verbo": "objetivos",
+```
+
+Añadir los checkers junto a `_check_objetivo_sin_variable`:
+
+```python
+_INFINITIVO_RE = re.compile(r"\b[a-záéíóúñ]{4,}(?:ar|er|ir)\b", re.IGNORECASE)
+
+def _check_objetivo_sin_infinitivo(eid, text, cfg, mk):
+    words = _WORD_SPLIT.findall(text or "")
+    if not words:
+        return []
+    first = words[0].lower()
+    if first.endswith(("ar", "er", "ir")):
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_sin_infinitivo", "warn",
+               "El objetivo debe abrir con un verbo en infinitivo (determinar, evaluar, analizar).",
+               suggestion="Determinar ...", phase=cfg.key, read_only=cfg.read_only)]
+
+def _check_objetivo_multi_verbo(eid, text, cfg, mk):
+    infinitivos = _INFINITIVO_RE.findall(text or "")
+    if len(infinitivos) <= 1:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_multi_verbo", "warn",
+               f"El objetivo usa {len(infinitivos)} verbos en infinitivo; debe tener uno solo.",
+               suggestion="Elegí un único verbo rector.", phase=cfg.key, read_only=cfg.read_only)]
+```
+
+Registrar ambos en `_CHECKS` (línea ~470-484) y en el `criteria` de `PHASES['objetivos']` (línea ~60-65):
+
+```python
+                criteria=("bloom_verb", "objetivo_sin_variable",
+                          "objetivo_sin_infinitivo", "objetivo_multi_verbo")),
+```
+Mapear los criterios a los checkers donde `criteria` se resuelve a `_CHECKS` (mismo patrón que `bloom_verb`→`_check_bloom_verb`).
+
+- [ ] **Step 4: Run tests**
+
+Run: `pytest -q python/tests/test_phase_scope.py python/tests/test_rule_scopes.py`
+Expected: PASS. Si `test_rule_scopes.py` exige que cada kind emitido esté declarado, ya lo está; si exige lo inverso para los `criteria`, ajustar el mismo test para incluir los dos nuevos (el test declara a mano los kinds sin productor, no los criteria).
+
+- [ ] **Step 5: Añadir rótulos en `src/lib/rotulos.ts`**
+
+```ts
+  objetivo_sin_infinitivo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
+  objetivo_multi_verbo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+& 'C:\Program Files\Git\cmd\git.exe' add python/modules/phase_scope.py python/tests/test_phase_scope.py src/lib/rotulos.ts
+& 'C:\Program Files\Git\cmd\git.exe' commit -m "feat(leyes): objetivos con verbo en infinitivo y verbo unico"
+```
