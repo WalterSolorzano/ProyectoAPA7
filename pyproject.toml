@@ -48,6 +48,7 @@ py-modules = [
     "embedded_secrets",
     "key_loader",
     "main",
+    "mcp_server",
     "models",
     "preset_store",
     "profiles",
