@@ -16,6 +16,8 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { dpiEfectivo, ratioDeDimensiones, altoProporcional, esBajaResolucion, DPI_MIN } from '../../lib/imagenFormato';
+import { TablaEstiloSelector } from './TablaEstiloSelector';
+import { PRESETS_TABLA } from '../../lib/tablaRender';
 
 export type InspectorTabKey = 'formato' | 'texto' | 'estilo' | 'calidad';
 
@@ -300,7 +302,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   const tabs: { key: InspectorTabKey; label: string; icon: LucideIcon }[] = [
     ...(esTabla ? [] : [{ key: 'formato' as const, label: 'Formato', icon: Sliders }]),
     { key: 'texto', label: 'Texto', icon: Type },
-    ...(esTabla ? [] : [{ key: 'estilo' as const, label: 'Estilo', icon: Palette }]),
+    { key: 'estilo', label: 'Estilo', icon: Palette },
     { key: 'calidad', label: 'Calidad', icon: ShieldCheck },
   ];
   // Si el cambio de activo deja la pestaña activa fuera de las disponibles
@@ -697,7 +699,16 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         )}
 
         {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
-        {tabEfectiva === 'estilo' && (
+        {tabEfectiva === 'estilo' && esTabla && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <span style={sectionLabel}>Estilo de tabla ({PRESETS_TABLA.length})</span>
+            <TablaEstiloSelector
+              valor={(tablaInfo.style as any) || 'apa'}
+              onChange={(p) => handleUpdate({ style: p } as ActivoPatch)}
+            />
+          </div>
+        )}
+        {tabEfectiva === 'estilo' && !esTabla && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <span style={sectionLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
