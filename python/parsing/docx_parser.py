@@ -1546,17 +1546,25 @@ def parse_docx_bytes(
     # de portada (guardados en doc_model.portada). La portada original NO se toca —
     # el usuario llena el formulario y se genera una portada APA limpia.
 
-    # Detectar si hay elementos que parecen portada (antes del primer heading)
-    portada_detected: bool = False
+    # Detectar portada (cabecera del documento) con SEÑALES MÚLTIPLES.
+    # Antes UNA sola señal, en CUALQUIER parte del documento, bastaba: una
+    # figura del cuerpo (IMAGE) o un párrafo que dijera "la escuela de..." en
+    # la página 8 marcaban portada fantasma, y eso descolocaba la UI de
+    # portada. Ahora se mira solo la cabecera (antes del primer heading o
+    # primeros elementos) y se exigen al menos dos señales: dos párrafos con
+    # palabra de portada, o una imagen de cabecera + una palabra de portada.
+    _COVER_KWS = ["universidad", "facultad", "escuela", "tesis", "monografía", "monografia"]
+    _header_elems: list = []
     for elem in elements:
-        if elem.type == ElementType.IMAGE or (
-            elem.text and any(
-                kw in elem.text.lower()
-                for kw in ["universidad", "facultad", "escuela", "tesis", "monografia"]
-            )
-        ):
-            portada_detected = True
+        if elem.type == ElementType.HEADING or len(_header_elems) >= 15:
             break
+        _header_elems.append(elem)
+    _kw_hits = sum(
+        1 for e in _header_elems
+        if e.text and any(kw in e.text.lower() for kw in _COVER_KWS)
+    )
+    _header_image = any(e.type == ElementType.IMAGE for e in _header_elems[:4])
+    portada_detected: bool = _kw_hits >= 2 or (_kw_hits >= 1 and _header_image)
 
     # Deduplicar IDs de elementos para garantizar unicidad absoluta
     seen_ids = set()

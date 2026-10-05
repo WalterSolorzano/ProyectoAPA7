@@ -619,6 +619,11 @@ class PortadaData(BaseModel):
     author_note: Optional[str] = None
     departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
     logos: list[LogoPortada] = Field(default_factory=list)
+    # La portada UNI dibuja su logo por defecto. `mostrar_logo=False` construye
+    # la portada SIN la fila de logos (útil cuando el autor arma la portada a
+    # medida). No confundir con `logos=[]`: vacío significa "usá el logo de la
+    # institución", que es justo lo contrario de suprimirlo.
+    mostrar_logo: bool = True
 
     # QUÉ SALIÓ DE AQUÍ Y POR QUÉ.
     #

@@ -348,47 +348,60 @@ def _is_table_too_wide(table_info) -> tuple[bool, bool]:
     return too_many, too_wide
 
 
-def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str | None:
-    """Detecta si ya existe un caption de figura en el texto del parrafo de
-    la imagen o en el parrafo inmediatamente anterior. Retorna el texto del
-    caption encontrado o None. Usa la MISMA semantica de deteccion que el
-    parser (REGEX_FIGURE_CAPTION: Figura|Figure|Fig. + digito) para que las
-    etiquetas detectadas en parseo no queden huerfanas aqui."""
+def _existing_caption_paragraph(img_paragraph, all_paragraphs: list):
+    """Devuelve el parrafo que YA contiene el caption de la figura, o None.
+
+    APA 7 deja el caption arriba de la figura, pero un .docx hecho a mano
+    suele traerlo debajo. Se revisan el propio parrafo de la imagen, el
+    anterior y el siguiente. Antes solo se miraban el propio y el anterior:
+    con un caption DEBAJO el generador no lo veia y añadia un segundo caption
+    encima (el "Figura 1" duplicado). Usa la MISMA semantica que el parser
+    (REGEX_FIGURE_CAPTION)."""
     fig_pattern = REGEX_FIGURE_CAPTION
-    # Revisar el propio parrafo de la imagen
-    img_text = img_paragraph.text.strip()
-    if fig_pattern.match(img_text):
-        return img_text
-    # Revisar el parrafo inmediatamente anterior
-    prev_elem = img_paragraph._element.getprevious()
-    if prev_elem is not None:
+    if fig_pattern.match(img_paragraph.text.strip()):
+        return img_paragraph
+    for sibling in (
+        img_paragraph._element.getprevious(),
+        img_paragraph._element.getnext(),
+    ):
+        if sibling is None:
+            continue
         for p in all_paragraphs:
-            if p._element is prev_elem:
-                prev_text = p.text.strip()
-                if fig_pattern.match(prev_text):
-                    return prev_text
+            if p._element is sibling:
+                if fig_pattern.match(p.text.strip()):
+                    return p
                 break
     return None
 
 
-def _update_existing_caption_text(img_paragraph, new_caption: str, rules: APARuleSet) -> None:
-    """Actualiza el texto del caption existente en el parrafo (sin duplicar el parrafo)."""
+def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str | None:
+    """Detecta si ya existe un caption de figura en el parrafo de la imagen,
+    el anterior o el siguiente. Retorna el texto encontrado o None."""
+    para = _existing_caption_paragraph(img_paragraph, all_paragraphs)
+    return para.text.strip() if para is not None else None
+
+
+def _update_existing_caption_text(
+    img_paragraph, new_caption: str, rules: APARuleSet, all_paragraphs: list | None = None
+) -> None:
+    """Actualiza el texto del caption existente (sin duplicar el parrafo)."""
     from docx.shared import Pt
-    # Buscar si el caption esta en el parrafo de la imagen o en el anterior
-    for para in [img_paragraph]:
-        text = para.text.strip()
-        if text:
-            # Preservar el prefijo "Figura X." si existe, solo reemplazar la descripcion
-            import re
-            m = re.match(r'^(.*?\d+[\.:)]\s*)', text)
-            prefix = m.group(1) if m else ""
-            para.text = ""
-            r = para.add_run(prefix + new_caption)
-            r.italic = True
-            r.font.name = rules.font_family
-            r.font.size = Pt(rules.font_size_pt)
-            r.font.color.rgb = RGBColor(0, 0, 0)
-            return
+    para = None
+    if all_paragraphs:
+        para = _existing_caption_paragraph(img_paragraph, all_paragraphs)
+    if para is None:
+        para = img_paragraph
+    text = para.text.strip()
+    # Preservar el prefijo "Figura X." si existe, solo reemplazar la descripcion
+    import re
+    m = re.match(r'^(.*?\d+[\.:)]\s*)', text)
+    prefix = m.group(1) if m else ""
+    para.text = ""
+    r = para.add_run(prefix + new_caption)
+    r.italic = True
+    r.font.name = rules.font_family
+    r.font.size = Pt(rules.font_size_pt)
+    r.font.color.rgb = RGBColor(0, 0, 0)
 
 
 def _wrap_in_landscape_section(doc: docx.Document, element) -> None:
@@ -1079,6 +1092,7 @@ def generate_apa7_docx(
                     grupo=doc_model.meta.grupo or "",
                     fecha=portada.date or "",
                     departamento=getattr(portada, 'departamento', '') or "",
+                    incluir_logo=getattr(portada, 'mostrar_logo', True),
                 )
             except Exception as err:
                 print(f"[WARN] Error creando portada UNI: {err}")
@@ -1088,6 +1102,26 @@ def generate_apa7_docx(
     for table in doc.tables:
         _tbl_style = getattr(rules, 'table_border_style', None)
         set_table_borders(table, _tbl_style.value if _tbl_style else "apa")
+
+    # 5.5 FRONTERA DE LA PORTADA SINTÉTICA (UNI/APA).
+    # La portada se inserta SIEMPRE en las primeras posiciones del cuerpo (ver
+    # `_UniCoverBuilder`) y puede traer un logo y la tabla de integrantes. Esos
+    # nodos NO son cuerpo: si entran en los coleccionables de más abajo, el logo
+    # se empareja como "Figura 1" y la tabla de integrantes como "Tabla 1", y
+    # todas las figuras/tablas reales se corren una posición. Se cuentan los
+    # hijos que insertó la portada para excluirlos por POSICIÓN (no por
+    # identidad: los proxies de lxml no son `is`-estables).
+    # Con portada original (`use_orig_cover`) no se excluye nada: sus imágenes
+    # son elementos is_cover_section que el bucle consume aparte.
+    _cover_para_count = 0
+    _cover_table_count = 0
+    if not use_orig_cover and paragraphs_before_body > 0:
+        _W_P = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'
+        for _child in list(doc.element.body)[:paragraphs_before_body]:
+            if _child.tag == _W_P:
+                _cover_para_count += 1
+            else:
+                _cover_table_count += 1
 
     # 6. Mapear y aplicar estilos sobre los párrafos existentes del documento
     elem_map: dict[str, ElementModel] = {}
@@ -1173,8 +1207,12 @@ def generate_apa7_docx(
                             img_count_at_start = para_idx + 1
                     cover_paragraph_count = img_count_at_start
     else:
-        # Al reemplazar portada con la plantilla UNI, los parrafos de cuerpo empiezan despues de la nueva portada
-        cover_paragraph_count = paragraphs_before_body
+        # Al reemplazar portada con la plantilla UNI, los parrafos de cuerpo
+        # empiezan despues de la nueva portada. Se usa el conteo de PÁRRAFOS de
+        # la portada (no `paragraphs_before_body`, que cuenta tambien la tabla de
+        # integrantes): si no, `p_idx` arrancaba uno de más y se saltaba el
+        # primer parrafo del cuerpo.
+        cover_paragraph_count = _cover_para_count
 
     # SAFETY NET: Si cover_paragraph_count sigue siendo 0 pero el modelo
     # tiene elementos marcados como is_cover_section, usar ese count.
@@ -1210,7 +1248,11 @@ def generate_apa7_docx(
         except Exception as err:
             print(f"[WARN] No se pudo escribir el acta del documento: {err}")
 
-    existing_tables = list(doc.tables)
+    # Excluir las tablas que insertó la portada sintética (p.ej. la de
+    # integrantes UNI): son las PRIMERAS del documento, así que basta con
+    # saltarse las primeras `_cover_table_count`. Si no, el fallback de
+    # matching ponía "Tabla 1" sobre la portada.
+    existing_tables = list(doc.tables)[_cover_table_count:]
     table_count_processed = 0
 
     # Construir fingerprint de tablas existentes (hash de primera celda) para matching robusto
@@ -1225,9 +1267,14 @@ def generate_apa7_docx(
         table_fingerprints.append((tbl_idx, first_cell_text))
     used_table_indices: set[int] = set()
 
-    # Coleccionar imágenes existentes en el documento para formateo in-place
+    # Coleccionar imágenes existentes para formateo in-place. Se saltan los
+    # párrafos de la portada sintética (el logo): su imagen no es una figura del
+    # documento y, si entra, el logo se empareja como "Figura 1" y corre todas
+    # las figuras reales una posición.
     existing_drawings = []
-    for p in doc.paragraphs:
+    for _pi, p in enumerate(doc.paragraphs):
+        if _pi < _cover_para_count:
+            continue
         if p._element.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip') or p._element.findall('.//{urn:schemas-microsoft-com:vml}imagedata'):
             existing_drawings.append(p)
     image_count_processed = 0
@@ -1341,8 +1388,16 @@ def generate_apa7_docx(
         if elem_type == ElementType.EMPTY:
             continue
 
-        # No formatear párrafos pertenecientes a la sección de portada (pero avanzar contadores de elementos de portada)
+        # No formatear párrafos pertenecientes a la sección de portada.
         if elem.is_cover_section or elem_type == ElementType.PORTADA_BLOCK:
+            if not use_orig_cover:
+                # Portada sintética: la portada original (con sus imágenes y
+                # tablas) se ELIMINÓ. Los elementos de portada del modelo son
+                # restos que ya no existen en el docx, así que no deben consumir
+                # drawings ni tablas del cuerpo.
+                continue
+            # Portada original conservada: avanzar contadores de elementos de
+            # portada para que el cuerpo empiece alineado.
             if elem_type == ElementType.IMAGE and image_count_processed < len(existing_drawings):
                 image_count_processed += 1
             elif elem_type == ElementType.TABLE:
@@ -1489,7 +1544,7 @@ def generate_apa7_docx(
                     # caption nuevo en el UI, actualizar el texto existente en vez
                     # de crear otro parrafo.
                     if caption_text and caption_text != existing_caption:
-                        _update_existing_caption_text(img_p, caption_text, rules)
+                        _update_existing_caption_text(img_p, caption_text, rules, existing_paragraphs)
                 else:
                     # No hay caption previo — crear parrafo de etiqueta APA 7
                     new_p_xml = parse_xml(f'<w:p {nsdecls("w")}/>')

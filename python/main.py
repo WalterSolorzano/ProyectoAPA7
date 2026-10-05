@@ -2043,7 +2043,10 @@ async def generate_docx(req: GenerateRequest) -> dict:
         if original_path_ip.exists():
             try:
                 from generation.inplace_editor import apply_inplace
-                apply_inplace(
+                from starlette.concurrency import run_in_threadpool
+                # apply_inplace es bloqueante (lxml + IO): fuera del event loop.
+                await run_in_threadpool(
+                    apply_inplace,
                     original_path_ip, out_file, doc, rules, scopes=None,
                     language=getattr(portada, "language", None),
                     acta=meta,
@@ -2094,23 +2097,33 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
         is_com = doc_converter.get_active_engine() == "COM"
 
-        generated_path: Path = generate_apa7_docx(
+        from starlette.concurrency import run_in_threadpool
+        generated_path: Path = await run_in_threadpool(
+            generate_apa7_docx,
             doc, out_file, rules, portada, references,
-            remove_cover_paragraphs=preserve_cover and is_com
+            remove_cover_paragraphs=preserve_cover and is_com,
         )
 
         original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
 
-        # Inyectar Post-Processor Dual Engine
+        # Inyectar Post-Processor Dual Engine. Va en threadpool porque COM es
+        # bloqueante y NO debe correr en el event loop (congelaba el servidor
+        # mientras Word trabajaba). Y si el post-proceso revienta, NO se pierde
+        # el .docx ya generado: se devuelve sin post-procesar.
         final_path = out_dir / f"Final_{artifact_id}_{doc.file_name}"
-        success, pdf_path = doc_converter.process_and_convert(
-            original_path=original_path,
-            generated_path=generated_path,
-            final_path=final_path,
-            preserve_cover=preserve_cover,
-            generate_pdf=True,
-            rules=rules
-        )
+        try:
+            success, pdf_path = await run_in_threadpool(
+                doc_converter.process_and_convert,
+                original_path=original_path,
+                generated_path=generated_path,
+                final_path=final_path,
+                preserve_cover=preserve_cover,
+                generate_pdf=True,
+                rules=rules,
+            )
+        except Exception as _post_exc:
+            print(f"[WARN] Post-proceso falló; se devuelve el .docx sin post-procesar: {_post_exc}")
+            success, pdf_path = False, None
 
         if success and final_path.exists():
             generated_path = final_path
