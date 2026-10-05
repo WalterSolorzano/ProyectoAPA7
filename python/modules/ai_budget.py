@@ -7,9 +7,11 @@ un dato que no tiene. Nunca se inventan numeros.
 from __future__ import annotations
 
 import os
+import random
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from email.utils import parsedate_to_datetime
+from typing import Dict, Mapping, Optional
 
 # rpm/rph/rpd/tpm/tpd: requests y tokens por minuto/hora/dia. concurrency:
 # llamadas simultaneas maximas. fuente/fecha: de donde salio el dato.
@@ -36,6 +38,40 @@ LIMITES_REALES: Dict[str, Dict[str, Optional[int]]] = {
 
 def limite(p_id: str, clave: str, default: Optional[int] = None) -> Optional[int]:
     return LIMITES_REALES.get(p_id, {}).get(clave, default)
+
+
+def retry_after_s(headers: Mapping[str, str]) -> Optional[float]:
+    """Lee el header Retry-After (segundos o fecha HTTP) o el reset de cuota."""
+    raw = headers.get("Retry-After") or headers.get("retry-after")
+    if raw:
+        raw = raw.strip()
+        if raw.isdigit():
+            return float(raw)
+        try:
+            cuando = parsedate_to_datetime(raw)
+            return max(0.0, cuando.timestamp() - time.time())
+        except (TypeError, ValueError):
+            pass
+    reset = headers.get("x-ratelimit-reset-requests") or headers.get("X-RateLimit-Reset")
+    if reset and reset.strip().isdigit():
+        return float(reset.strip())
+    return None
+
+
+def backoff_con_jitter(attempt: int, base: float = 1.0, cap: float = 60.0) -> float:
+    """Espera exponencial con jitter uniforme, nunca mayor que cap."""
+    techo = min(cap, base * (2 ** attempt))
+    return random.uniform(0, techo)
+
+
+def cooldown_para(status: int, headers: Mapping[str, str]) -> float:
+    """Cuanto enfriar el proveedor segun el status; honra Retry-After en 429."""
+    if status == 429:
+        ra = retry_after_s(headers)
+        return max(30.0, ra) if ra is not None else 30.0
+    if status in (401, 403, 404, 410):
+        return 600.0
+    return 15.0
 
 
 @dataclass

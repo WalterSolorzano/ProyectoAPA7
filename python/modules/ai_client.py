@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
+from modules.ai_budget import backoff_con_jitter, cooldown_para
 
 logger = logging.getLogger(__name__)
 
@@ -321,15 +322,16 @@ async def _try_provider(
                 return resp.json()
 
             elif resp.status_code == 429:
-                _provider_cooldowns[provider["id"]] = time.time() + 30
+                cd = cooldown_para(429, getattr(resp, "headers", None) or {})
+                _provider_cooldowns[provider["id"]] = time.time() + cd
                 _provider_health[provider["id"]] = {"status": "rate_limited", "checked_at": time.time()}
-                wait_time = 1.5 ** attempt
-                logger.warning(f"[AI] {provider['name']} devolvió 429. Reintentando en {wait_time}s...")
+                wait_time = min(cd, backoff_con_jitter(attempt))
+                logger.warning(f"[AI] {provider['name']} devolvió 429. Cooldown {cd}s, espera {wait_time:.1f}s.")
                 await asyncio.sleep(wait_time)
                 continue
 
             else:
-                cooldown = 600 if resp.status_code in (401, 403, 404, 410) else 15
+                cooldown = cooldown_para(resp.status_code, getattr(resp, "headers", None) or {})
                 _provider_cooldowns[provider["id"]] = time.time() + cooldown
                 _provider_health[provider["id"]] = {
                     "status": "unavailable",
