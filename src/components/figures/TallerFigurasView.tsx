@@ -4,11 +4,25 @@ import { RailTipoActivos } from './RailTipoActivos';
 import { GaleriaActivosColumna } from './GaleriaActivosColumna';
 import { LienzoEditorialActivo, AISuggestionData } from './LienzoEditorialActivo';
 import { InspectorActivoTabs, type ActivoPatch } from './InspectorActivoTabs';
+import { PanelResizeHandle } from './PanelResizeHandle';
 import {
   contextosDeFiguras,
   figuraActiva,
   type TipoFigura,
 } from '../../lib/figuras';
+import {
+  modoDeAncho,
+  clampAncho,
+  leerAnchoGuardado,
+  ANCHO_GALERIA_KEY,
+  ANCHO_INSPECTOR_KEY,
+  GALERIA_DEFAULT,
+  GALERIA_MIN,
+  GALERIA_MAX,
+  INSPECTOR_DEFAULT,
+  INSPECTOR_MIN,
+  INSPECTOR_MAX,
+} from '../../lib/layoutTaller';
 import { resolveAssetUrl, suggestCaption } from '../../api/backend';
 import type { ElementModel } from '../../types';
 
@@ -27,6 +41,57 @@ export const TallerFigurasView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Ids ya consultados a la IA: evita refetch al volver a un activo.
   const solicitadas = useRef<Set<string>>(new Set());
+
+  // Ancho real disponible para decidir el modo de layout. El rect del contenedor
+  // manda; si aún no tiene medida (primer render o jsdom) se usa la ventana.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [anchoDisponible, setAnchoDisponible] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+
+  useEffect(() => {
+    const medir = () => {
+      const rect = rootRef.current?.getBoundingClientRect().width ?? 0;
+      setAnchoDisponible(rect > 0 ? rect : window.innerWidth);
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    let observador: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined' && rootRef.current) {
+      observador = new ResizeObserver(medir);
+      observador.observe(rootRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', medir);
+      observador?.disconnect();
+    };
+  }, []);
+
+  const modo = modoDeAncho(anchoDisponible);
+
+  // Anchos escalables de galería e inspector, recordados entre sesiones.
+  const [galeriaAncho, setGaleriaAncho] = useState<number>(() =>
+    leerAnchoGuardado(ANCHO_GALERIA_KEY, GALERIA_DEFAULT, GALERIA_MIN, GALERIA_MAX)
+  );
+  const [inspectorAncho, setInspectorAncho] = useState<number>(() =>
+    leerAnchoGuardado(ANCHO_INSPECTOR_KEY, INSPECTOR_DEFAULT, INSPECTOR_MIN, INSPECTOR_MAX)
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANCHO_GALERIA_KEY, String(galeriaAncho));
+    } catch {
+      /* almacenamiento no disponible: el ancho vive solo en memoria */
+    }
+  }, [galeriaAncho]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANCHO_INSPECTOR_KEY, String(inspectorAncho));
+    } catch {
+      /* almacenamiento no disponible: el ancho vive solo en memoria */
+    }
+  }, [inspectorAncho]);
 
   // Derivar contextos de figuras según elementos actuales
   const todosContextos = useMemo(
@@ -172,6 +237,27 @@ export const TallerFigurasView: React.FC = () => {
     [elementoActual, updateElementImage, updateElementTable]
   );
 
+  // Volver a pedir la leyenda al motor de IA desde el globo de la mascota.
+  const handleRegenerateSuggestion = useCallback(async () => {
+    if (!doc?.session_id || !elementoActual) return;
+    if (elementoActual.type !== 'image' && elementoActual.type !== 'table') return;
+    try {
+      const texto = await suggestCaption(
+        doc.session_id,
+        elementoActual.id,
+        parrafoActual,
+        apiKey ?? undefined
+      );
+      if (!texto) return;
+      setAiSuggestions((prev) => ({
+        ...prev,
+        [elementoActual.id]: { suggestedTitle: texto, suggestedNote: '' },
+      }));
+    } catch {
+      // La sugerencia es oportunista: un fallo de red no rompe el taller.
+    }
+  }, [doc?.session_id, elementoActual, parrafoActual, apiKey]);
+
   // Enrutar el parche según el tipo del activo: una tabla nunca se envía como
   // imagen. Sin esto, el campo `type` del request convertía la tabla en imagen
   // y el lienzo saltaba al siguiente activo (bug del botón de estilo).
@@ -201,9 +287,133 @@ export const TallerFigurasView: React.FC = () => {
     });
   }, [elementoActual, todosContextos, aplicarImagenAMuchas]);
 
+  const handleDragGaleria = useCallback((dx: number) => {
+    setGaleriaAncho((w) => clampAncho(w + dx, GALERIA_MIN, GALERIA_MAX));
+  }, []);
+
+  const handleDragInspector = useCallback((dx: number) => {
+    setInspectorAncho((w) => clampAncho(w - dx, INSPECTOR_MIN, INSPECTOR_MAX));
+  }, []);
+
+  const galeria = (
+    <GaleriaActivosColumna
+      contextos={contextosDelTipo}
+      indiceActivo={contextoActual ? contextoActual.indice : null}
+      onSelectIndice={handleSelectIndice}
+    />
+  );
+
+  const inspector = elementoActual ? (
+    <InspectorActivoTabs
+      elem={elementoActual}
+      totalFiguras={conteos.image}
+      onUpdate={handleUpdateActivo}
+      onApplyToAll={handleApplyToAll}
+    />
+  ) : (
+    <aside
+      style={{
+        width: '100%',
+        borderLeft: '1px solid var(--color-border-subtle)',
+        backgroundColor: 'var(--color-bg-surface)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--color-text-tertiary)',
+        fontSize: '13px',
+      }}
+    >
+      Selecciona un activo para inspeccionar
+    </aside>
+  );
+
+  const lienzo = (
+    <main
+      style={{
+        flex: modo === 'angosto' ? undefined : 1,
+        width: modo === 'angosto' ? '100%' : undefined,
+        height: modo === 'angosto' ? 'auto' : '100%',
+        overflowY: modo === 'angosto' ? 'visible' : 'auto',
+        padding: '32px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        minWidth: 0,
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: '850px' }}>
+        <header style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Taller de Activos Gráficos
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              Ajusta cada figura y tabla del documento con criterios APA 7.
+            </p>
+          </div>
+          {contextoActual && (
+            <span
+              style={{
+                fontSize: '11px',
+                fontFamily: 'var(--font-mono)',
+                fontVariantNumeric: 'tabular-nums',
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              Activo {contextoActual.posicionEnTipo} de {contextosDelTipo.length}
+            </span>
+          )}
+        </header>
+
+        {contextoActual && elementoActual ? (
+          <LienzoEditorialActivo
+            figureNumber={contextoActual.posicionEnTipo}
+            figureTitle={captionActual || contextoActual.leyenda || 'Sin título'}
+            figureNote={infoTextoActual?.note}
+            imageUrl={(() => {
+              const cruda = elementoActual.image_info?.relative_url || contextoActual.url || '';
+              return cruda ? resolveAssetUrl(cruda) : undefined;
+            })()}
+            tipo={contextoActual.tipo}
+            tabla={contextoActual.tabla}
+            anchoCm={contextoActual.anchoCm}
+            altoCm={contextoActual.altoCm}
+            prevParagraph={contextoActual.parrafoAnterior ?? undefined}
+            nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
+            aiSuggestion={aiSuggestions[elementoActual.id]}
+            onRotate={esTablaActual ? undefined : handleRotate}
+            onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
+            onApplyCaption={handleApplyCaption}
+            onRegenerateSuggestion={handleRegenerateSuggestion}
+          />
+        ) : (
+          <div
+            style={{
+              padding: '48px 24px',
+              textAlign: 'center',
+              backgroundColor: 'var(--color-bg-surface)',
+              border: '1px dashed var(--color-border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            <p style={{ margin: 0, fontSize: '14px' }}>
+              No se encontraron {tipoActivo === 'image' ? 'figuras' : tipoActivo === 'table' ? 'tablas' : 'ecuaciones'} en este documento.
+            </p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+
   return (
     <div
+      ref={rootRef}
       data-testid="taller-figuras-view"
+      data-modo={modo}
       className="fig-taller"
       style={{
         display: 'flex',
@@ -230,115 +440,104 @@ export const TallerFigurasView: React.FC = () => {
         onTipoChange={handleTipoChange}
       />
 
-      {/* 2. Galería de Activos Columna (320px) */}
-      <GaleriaActivosColumna
-        contextos={contextosDelTipo}
-        indiceActivo={contextoActual ? contextoActual.indice : null}
-        onSelectIndice={handleSelectIndice}
-      />
+      {modo === 'ancho' && (
+        <>
+          <div
+            style={{
+              position: 'relative',
+              flexShrink: 0,
+              width: `${galeriaAncho}px`,
+              minWidth: 0,
+              height: '100%',
+              display: 'flex',
+            }}
+          >
+            {galeria}
+            <PanelResizeHandle ariaLabel="Ajustar ancho de galería" onDrag={handleDragGaleria} />
+          </div>
+          {lienzo}
+          <div
+            style={{
+              position: 'relative',
+              flexShrink: 0,
+              width: `${inspectorAncho}px`,
+              minWidth: 0,
+              height: '100%',
+              display: 'flex',
+            }}
+          >
+            <PanelResizeHandle ariaLabel="Ajustar ancho del inspector" onDrag={handleDragInspector} />
+            {inspector}
+          </div>
+        </>
+      )}
 
-      {/* 3. Centro: Lienzo Editorial Activo con scroll independiente */}
-      <main
-        style={{
-          flex: 1,
-          height: '100%',
-          overflowY: 'auto',
-          padding: '32px 24px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          minWidth: 0,
-        }}
-      >
-        <div style={{ width: '100%', maxWidth: '850px' }}>
-          <header style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Taller de Activos Gráficos
-              </h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                Ajusta cada figura y tabla del documento con criterios APA 7.
-              </p>
+      {modo === 'medio' && (
+        <>
+          <div
+            style={{
+              position: 'relative',
+              flexShrink: 0,
+              width: `${galeriaAncho}px`,
+              minWidth: 0,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+              {galeria}
             </div>
-            {contextoActual && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontVariantNumeric: 'tabular-nums',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--color-bg-surface-alt)',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                Activo {contextoActual.posicionEnTipo} de {contextosDelTipo.length}
-              </span>
-            )}
-          </header>
-
-          {contextoActual && elementoActual ? (
-            <LienzoEditorialActivo
-              figureNumber={contextoActual.posicionEnTipo}
-              figureTitle={captionActual || contextoActual.leyenda || 'Sin título'}
-              figureNote={infoTextoActual?.note}
-              imageUrl={(() => {
-                const cruda = elementoActual.image_info?.relative_url || contextoActual.url || '';
-                return cruda ? resolveAssetUrl(cruda) : undefined;
-              })()}
-              tipo={contextoActual.tipo}
-              tabla={contextoActual.tabla}
-              anchoCm={contextoActual.anchoCm}
-              altoCm={contextoActual.altoCm}
-              prevParagraph={contextoActual.parrafoAnterior ?? undefined}
-              nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
-              aiSuggestion={aiSuggestions[elementoActual.id]}
-              onRotate={esTablaActual ? undefined : handleRotate}
-              onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
-              onApplyCaption={handleApplyCaption}
-            />
-          ) : (
             <div
               style={{
-                padding: '48px 24px',
-                textAlign: 'center',
-                backgroundColor: 'var(--color-bg-surface)',
-                border: '1px dashed var(--color-border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                color: 'var(--color-text-secondary)',
+                flex: '1 1 0',
+                minHeight: 0,
+                display: 'flex',
+                overflow: 'hidden',
+                borderTop: '1px solid var(--color-border-subtle)',
               }}
             >
-              <p style={{ margin: 0, fontSize: '14px' }}>
-                No se encontraron {tipoActivo === 'image' ? 'figuras' : tipoActivo === 'table' ? 'tablas' : 'ecuaciones'} en este documento.
-              </p>
+              {inspector}
             </div>
-          )}
-        </div>
-      </main>
+            <PanelResizeHandle ariaLabel="Ajustar ancho de galería" onDrag={handleDragGaleria} />
+          </div>
+          {lienzo}
+        </>
+      )}
 
-      {/* 4. Inspector Técnico Derecho (4 Pestañas: Formato, Texto, Estilo, Calidad) */}
-      {elementoActual ? (
-        <InspectorActivoTabs
-          elem={elementoActual}
-          totalFiguras={conteos.image}
-          onUpdate={handleUpdateActivo}
-          onApplyToAll={handleApplyToAll}
-        />
-      ) : (
-        <aside
+      {modo === 'angosto' && (
+        <div
           style={{
-            width: '320px',
-            borderLeft: '1px solid var(--color-border-subtle)',
-            backgroundColor: 'var(--color-bg-surface)',
+            flex: 1,
+            minWidth: 0,
+            height: '100%',
+            overflowY: 'auto',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-text-tertiary)',
-            fontSize: '13px',
+            flexDirection: 'column',
           }}
         >
-          Selecciona un activo para inspeccionar
-        </aside>
+          <div
+            style={{
+              minHeight: '260px',
+              display: 'flex',
+              flexShrink: 0,
+              borderBottom: '1px solid var(--color-border-subtle)',
+            }}
+          >
+            {galeria}
+          </div>
+          {lienzo}
+          <div
+            style={{
+              display: 'flex',
+              flexShrink: 0,
+              borderTop: '1px solid var(--color-border-subtle)',
+            }}
+          >
+            {inspector}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -33,7 +33,7 @@ export const GaleriaActivosColumna: React.FC<Props> = ({
     <aside
       aria-label="Galería de activos"
       style={{
-        width: '320px',
+        width: '100%',
         backgroundColor: 'var(--color-bg-surface)',
         borderRight: '1px solid var(--color-border-subtle)',
         display: 'flex',

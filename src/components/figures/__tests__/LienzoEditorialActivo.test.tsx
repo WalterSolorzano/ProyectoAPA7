@@ -82,25 +82,45 @@ describe('LienzoEditorialActivo', () => {
     expect(onReplaceImage).toHaveBeenCalledTimes(1);
   });
 
-  it('muestra bloque de sugerencia IA abajo de la figura con acción de aplicar', () => {
+  it('acompaña la sugerencia con una mascota y permite aplicar la leyenda', () => {
     const onApplyCaption = vi.fn();
 
     render(
-      <LienzoEditorialActivo
-        {...defaultProps}
-        onApplyCaption={onApplyCaption}
-      />
+      <LienzoEditorialActivo {...defaultProps} onApplyCaption={onApplyCaption} />
     );
 
+    expect(screen.getByTestId('figura-mascota')).toBeInTheDocument();
+    expect(screen.getByText(/¿Uso esta leyenda\?/i)).toBeInTheDocument();
     expect(screen.getByText(/Distribución porcentual por estratos/i)).toBeInTheDocument();
-    const applyBtn = screen.getByRole('button', { name: /aplicar sugerencia/i });
-    expect(applyBtn).toBeInTheDocument();
 
+    const applyBtn = screen.getByRole('button', { name: /aplicar sugerencia/i });
     fireEvent.click(applyBtn);
     expect(onApplyCaption).toHaveBeenCalledWith({
       title: defaultProps.aiSuggestion.suggestedTitle,
       note: defaultProps.aiSuggestion.suggestedNote,
     });
+  });
+
+  it('ofrece regenerar la sugerencia desde el globo de la mascota', () => {
+    const onRegenerateSuggestion = vi.fn();
+
+    render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        onRegenerateSuggestion={onRegenerateSuggestion}
+      />
+    );
+
+    const regenBtn = screen.getByRole('button', { name: /regenerar sugerencia/i });
+    fireEvent.click(regenBtn);
+    expect(onRegenerateSuggestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('no dibuja la mascota cuando no hay sugerencia', () => {
+    render(<LienzoEditorialActivo {...defaultProps} aiSuggestion={undefined} />);
+
+    expect(screen.queryByTestId('figura-mascota')).toBeNull();
+    expect(screen.queryByText(/¿Uso esta leyenda\?/i)).toBeNull();
   });
 
   it('previsualiza una tabla APA 7 a partir de sus encabezados y filas', () => {

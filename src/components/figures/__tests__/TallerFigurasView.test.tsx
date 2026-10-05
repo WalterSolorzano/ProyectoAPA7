@@ -1,9 +1,14 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, act, within, waitFor } from '@testing-library/react';
 import { TallerFigurasView } from '../TallerFigurasView';
 import { useDocStore } from '../../../store/useDocStore';
 import type { DocumentModel } from '../../../types';
+
+vi.mock('../../../api/backend', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../api/backend')>();
+  return { ...actual, suggestCaption: vi.fn() };
+});
 
 const mockDoc: DocumentModel = {
   id: 'doc-test',
@@ -182,5 +187,73 @@ describe('TallerFigurasView', () => {
     expect(screen.queryByRole('tab', { name: /Estilo/i })).toBeNull();
     expect(screen.getByRole('tab', { name: /Texto/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Calidad/i })).toBeInTheDocument();
+  });
+
+  const definirAnchoVentana = (ancho: number) => {
+    Object.defineProperty(window, 'innerWidth', { value: ancho, configurable: true, writable: true });
+    fireEvent(window, new Event('resize'));
+  };
+
+  it('etiqueta el modo de layout según el ancho disponible', () => {
+    definirAnchoVentana(1400);
+    render(<TallerFigurasView />);
+
+    expect(screen.getByTestId('taller-figuras-view')).toHaveAttribute('data-modo', 'ancho');
+
+    act(() => definirAnchoVentana(900));
+    expect(screen.getByTestId('taller-figuras-view')).toHaveAttribute('data-modo', 'medio');
+
+    act(() => definirAnchoVentana(600));
+    expect(screen.getByTestId('taller-figuras-view')).toHaveAttribute('data-modo', 'angosto');
+  });
+
+  it('permite escalar la galería con el tirador y persiste el ancho', () => {
+    localStorage.clear();
+    definirAnchoVentana(1400);
+    render(<TallerFigurasView />);
+
+    const galeria = screen.getByRole('complementary', { name: /Galería de activos/i });
+    const columnaGaleria = galeria.parentElement as HTMLElement;
+    expect(columnaGaleria).toHaveStyle({ width: '320px' });
+
+    const tirador = screen.getByRole('separator', { name: /Ajustar ancho de galería/i });
+    fireEvent.mouseDown(tirador, { clientX: 300 });
+    fireEvent.mouseMove(window, { clientX: 360 });
+    fireEvent.mouseUp(window);
+
+    expect(columnaGaleria).toHaveStyle({ width: '380px' });
+    expect(localStorage.getItem('wordapa7-figuras-galeria-width')).toBe('380');
+  });
+
+  it('regenera la sugerencia de leyenda desde la mascota del lienzo', async () => {
+    const { suggestCaption } = await import('../../../api/backend');
+    const mockSuggest = suggestCaption as unknown as ReturnType<typeof vi.fn>;
+    mockSuggest.mockResolvedValue('Leyenda regenerada');
+    useDocStore.setState({
+      doc: {
+        ...mockDoc,
+        elements: mockDoc.elements.map((e) =>
+          e.id === 'img_1'
+            ? { ...e, image_info: { ...e.image_info, caption: '' } }
+            : e
+        ),
+      },
+      apiKey: 'test-key',
+    });
+    definirAnchoVentana(1400);
+    render(<TallerFigurasView />);
+
+    const regen = await screen.findByRole('button', { name: /regenerar sugerencia/i });
+    mockSuggest.mockClear();
+    fireEvent.click(regen);
+
+    await waitFor(() =>
+      expect(mockSuggest).toHaveBeenCalledWith(
+        'sess-123',
+        'img_1',
+        expect.any(String),
+        'test-key'
+      )
+    );
   });
 });

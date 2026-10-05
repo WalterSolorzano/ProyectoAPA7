@@ -1,6 +1,7 @@
 import React from 'react';
-import { RotateCw, Image as ImageIcon, Sparkles, Check } from 'lucide-react';
+import { RotateCw, Image as ImageIcon, Check, RefreshCw } from 'lucide-react';
 import { IconoLeyenda } from './IconosFiguras';
+import { DocumentMascot } from '../layout/DocumentMascot';
 import { medidaDeFigura, type TipoFigura } from '../../lib/figuras';
 
 export interface AISuggestionData {
@@ -29,6 +30,8 @@ export interface LienzoEditorialActivoProps {
   onRotate?: () => void;
   onReplaceImage?: () => void;
   onApplyCaption?: (caption: { title: string; note: string }) => void;
+  /** Vuelve a pedir la sugerencia al motor de IA para el activo actual. */
+  onRegenerateSuggestion?: () => void;
 }
 
 export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
@@ -46,6 +49,7 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   onRotate,
   onReplaceImage,
   onApplyCaption,
+  onRegenerateSuggestion,
 }) => {
   const esTabla =
     tipo === 'table' &&
@@ -258,36 +262,42 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
         )}
       </figure>
 
-      {/* Sugerencia IA — banda plana, no tarjeta anidada */}
+      {/* Sugerencia IA — la mascota propone la leyenda, no una banda anónima */}
       {aiSuggestion && (
         <div
+          data-testid="figura-mascota"
           style={{
             marginTop: 'var(--space-4)',
-            paddingTop: 'var(--space-3)',
-            borderTop: '1px solid var(--color-border-subtle)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 'var(--space-3)',
           }}
         >
+          <DocumentMascot size={64} kind="reference" expression="curious" />
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 'var(--space-2)',
-              marginBottom: 'var(--space-2)',
+              position: 'relative',
+              flex: 1,
+              minWidth: 0,
+              backgroundColor: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-3) var(--space-4)',
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: 'var(--color-text-secondary)',
+                justifyContent: 'space-between',
+                gap: 'var(--space-2)',
+                marginBottom: 'var(--space-2)',
               }}
             >
-              <Sparkles size={14} style={{ color: 'var(--color-accent)' }} />
-              <span>Sugerencia editorial de leyenda (IA)</span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                ¿Uso esta leyenda?
+              </span>
               {typeof aiSuggestion.confidence === 'number' && (
                 <span
                   style={{
@@ -301,41 +311,57 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
                 </span>
               )}
             </div>
-            {onApplyCaption && (
-              <button
-                type="button"
-                onClick={() =>
-                  onApplyCaption({
-                    title: aiSuggestion.suggestedTitle,
-                    note: aiSuggestion.suggestedNote,
-                  })
-                }
-                className="fig-apply-btn"
-                aria-label="Aplicar sugerencia"
-              >
-                <Check size={13} />
-                <span>Aplicar sugerencia</span>
-              </button>
-            )}
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gap: 'var(--space-1)',
-              fontSize: '12px',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            <p style={{ margin: 0 }}>
-              <span className="fig-kicker">Título sugerido</span>{' '}
-              <span className="italic">{aiSuggestion.suggestedTitle}</span>
-            </p>
-            {aiSuggestion.suggestedNote && (
+
+            <div
+              style={{
+                display: 'grid',
+                gap: 'var(--space-1)',
+                fontSize: '12px',
+                color: 'var(--color-text-secondary)',
+                marginBottom:
+                  onApplyCaption || onRegenerateSuggestion ? 'var(--space-3)' : 0,
+              }}
+            >
               <p style={{ margin: 0 }}>
-                <span className="fig-kicker">Nota sugerida</span>{' '}
-                {aiSuggestion.suggestedNote}
+                <span className="fig-kicker">Título</span>{' '}
+                <span className="italic">{aiSuggestion.suggestedTitle}</span>
               </p>
-            )}
+              {aiSuggestion.suggestedNote && (
+                <p style={{ margin: 0 }}>
+                  <span className="fig-kicker">Nota</span> {aiSuggestion.suggestedNote}
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+              {onApplyCaption && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onApplyCaption({
+                      title: aiSuggestion.suggestedTitle,
+                      note: aiSuggestion.suggestedNote,
+                    })
+                  }
+                  className="fig-apply-btn"
+                  aria-label="Aplicar sugerencia"
+                >
+                  <Check size={13} />
+                  <span>Aplicar sugerencia</span>
+                </button>
+              )}
+              {onRegenerateSuggestion && (
+                <button
+                  type="button"
+                  onClick={onRegenerateSuggestion}
+                  aria-label="Regenerar sugerencia"
+                  className="fig-regenerate-btn"
+                >
+                  <RefreshCw size={13} />
+                  <span>Regenerar</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
