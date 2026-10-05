@@ -1,17 +1,17 @@
-/* WordAPA7 — Paso 5: orquestador del rediseño de Revisión & IA.
-   Cuatro pantallas: puerta de estado, informe general, modo lectura, sala de IA. */
+/* WordAPA7 — Paso 5: orquestador de Revisión & IA.
+   Tres pantallas: la puerta de estado (`gate`), la superficie secuencial de
+   revisión (`review`, un hallazgo a la vez) y la sala de IA (`ai`). La puerta
+   es la entrada; el workbench de columna única es la revisión. */
 import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { collectAuditItems, type AuditItem } from '../../lib/auditItems';
+import { reviewItems, type AuditItem } from '../../lib/auditItems';
 import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
-import { ReviewInforme } from '../review/ReviewInforme';
-import { ReviewReader } from '../review/ReviewReader';
+import { ReviewWorkbench } from '../review/ReviewWorkbench';
 import { AiRoom } from '../review/AiRoom';
-import * as api from '../../api/backend';
 import '../../styles/revision.css';
 
-type Pantalla = 'gate' | 'informe' | 'reader' | 'ai';
+type Pantalla = 'gate' | 'review' | 'ai';
 
 const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
 
@@ -32,31 +32,24 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   const [pantalla, setPantalla] = useState<Pantalla>('gate');
   const [isScanning, setIsScanning] = useState(false);
-  const [capInicial, setCapInicial] = useState<string | null>(null);
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
   const { pageOf } = usePageIndex();
 
-  const dismissedIds = useMemo(() => new Set(dismissedFindingIds), [dismissedFindingIds]);
-
-  /* `collectAuditItems` de esta rama recibe las fuentes y un `pageOf` opcional, y
-     descarta por id de contenido. El descarte del usuario se aplica acá, sobre la
-     lista ya construida, para no depender de un `dismissedIds` que la firma no
-     expone. */
+  /* `reviewItems` es la MISMA lista que cuenta el rail: todos los hallazgos
+     menos los que la persona ya descartó. No se filtra por categoría —ni citas
+     ni leyendas— porque el rail las cuenta y la pantalla tiene que mostrarlas:
+     si escondiera un motor, el rail prometería trabajo que la pantalla no abre
+     (AGENTS.md §1). */
   const items = useMemo(
     () =>
-      collectAuditItems(
+      reviewItems(
         { elements, reviewResult, proofreadFindings, citationAuditResult },
         pageOf,
-      )
-        /* Las citas viven en la fase de Referencias (paso 4), no en Revisión.
-           Las leyendas (figura/tabla sin rotular) tienen su mecanismo en la
-           pantalla Estructura (paso 2): Revisión no las repite sueltas. */
-        .filter((it) => it.category !== 'citations')
-        .filter((it) => !(it.category === 'structure' && (it.subtype === 'figura' || it.subtype === 'tabla')))
-        .filter((it) => !dismissedIds.has(it.id)),
-    [elements, reviewResult, proofreadFindings, citationAuditResult, pageOf, dismissedIds],
+        dismissedFindingIds,
+      ),
+    [elements, reviewResult, proofreadFindings, citationAuditResult, pageOf, dismissedFindingIds],
   );
 
   const aiScore = reviewResult?.ai_indices?.score ?? 0;
@@ -74,47 +67,12 @@ export const Step5AuditIAWizard: React.FC = () => {
     }
   };
 
-  const handleAccept = async (item: AuditItem) => {
-    if (!doc || !item.element_id || item.readOnly) return;
-    try {
-      if (item.suggestedText) {
-        await updateElementText(item.element_id, item.suggestedText);
-      } else {
-        const rewritten = await api.rewriteText(
-          doc.session_id, item.element_id, item.originalText,
-          'Reescribir en voz formal impersonal académica según APA 7, eliminando rigidez y muletillas',
-        );
-        if (rewritten) await updateElementText(item.element_id, rewritten);
-      }
-      showToast('Corrección aplicada al documento', 'success');
-      dismissFinding(item.id);
-    } catch {
-      showToast('Error al aplicar la sugerencia', 'error');
-    }
-  };
-
   const handleMark = (item: AuditItem) => {
     if (item.element_id) {
       setSelectedElementId(item.element_id);
       setScrollTargetId(item.element_id);
     }
     showToast('Marcado para revisar', 'info');
-  };
-
-  const handleDismiss = (item: AuditItem) => {
-    dismissFinding(item.id);
-    showToast('Alerta descartada. Texto original conservado.', 'info');
-  };
-
-  /* Aplicar una alternativa de Bloom reescribe SOLO el verbo del objetivo; el
-     texto nuevo lo arma el panel en el frontend, sin gastar una llamada a la IA. */
-  const handleApplyBloom = async (elementId: string, texto: string) => {
-    try {
-      await updateElementText(elementId, texto);
-      showToast('Objetivo actualizado', 'success');
-    } catch {
-      showToast('Error al aplicar la alternativa', 'error');
-    }
   };
 
   /* El detector de IA es probabilístico (AGENTS.md §1): "Reemplazar en
@@ -151,33 +109,10 @@ export const Step5AuditIAWizard: React.FC = () => {
     );
   }
 
-  if (pantalla === 'informe') {
+  if (pantalla === 'review') {
     return (
       <div className="revision-phase" style={PHASE_WRAP}>
-        <ReviewInforme
-          items={items}
-          elements={elements}
-          title={doc?.file_name ?? ''}
-          onStart={(capId) => { setCapInicial(capId ?? null); setPantalla('reader'); }}
-          onBack={() => setPantalla('gate')}
-          onAplicar={handleApplyBloom}
-        />
-      </div>
-    );
-  }
-
-  if (pantalla === 'reader') {
-    return (
-      <div className="revision-phase" style={PHASE_WRAP}>
-        <ReviewReader
-          elements={elements}
-          items={items}
-          initialCapId={capInicial}
-          onAccept={handleAccept}
-          onMark={handleMark}
-          onDismiss={handleDismiss}
-          onBack={() => setPantalla('informe')}
-        />
+        <ReviewWorkbench onExit={() => setPantalla('gate')} />
       </div>
     );
   }
@@ -190,7 +125,7 @@ export const Step5AuditIAWizard: React.FC = () => {
         aiScore={aiScore}
         isScanning={isScanning}
         onScan={handleScan}
-        onStart={() => setPantalla('informe')}
+        onStart={() => setPantalla('review')}
         onOpenAiRoom={() => setPantalla('ai')}
       />
     </div>

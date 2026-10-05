@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowRight,
+  ArrowLeft,
   ScanLine,
   Layers,
   FileText,
@@ -61,6 +62,9 @@ export interface ReviewStripProps {
    *  mentir con un `() => void` que devolvería un rechazo sin manejar. */
   onScan: () => void | Promise<void>;
   isScanning: boolean;
+  /** Volver a la puerta de Revisión. Opcional: sin esto, el control no se pinta
+   *  y la tira queda como estaba. Es la salida de la superficie secuencial. */
+  onExit?: () => void;
 }
 
 const chipStyle = (active: boolean): React.CSSProperties => ({
@@ -133,6 +137,20 @@ export function ReviewStrip(p: ReviewStripProps) {
           scrollbarWidth: 'none',
         }}
       >
+        {/* Volver a la puerta: la salida de la superficie secuencial. Icono
+            solo, sin texto largo: la tira ya lleva el nombre del paso en el
+            chip de fase, y una palabra de más le come ancho a los filtros. */}
+        {p.onExit && (
+          <button
+            type="button"
+            onClick={p.onExit}
+            aria-label="Volver"
+            title="Volver a la puerta de Revisión"
+            style={chipStyle(false)}
+          >
+            <ArrowLeft size={14} strokeWidth={1.75} aria-hidden />
+          </button>
+        )}
         {/* El escaneo NO es un filtro: vive fuera del grupo para que un lector
             de pantalla no lo anuncie como parte del conjunto de filtros. Y no
             desaparece cuando hay hallazgos: un "Escanear" que solo existe en el
