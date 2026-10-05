@@ -174,3 +174,12 @@ def test_format_apa_reference_limpia_vancouver():
     }
     out = _format_apa_reference(ref)
     assert "Available" not in out and "accessed" not in out
+
+
+def test_parse_limpia_available_from_y_accessed_midstring():
+    raw = ("ResearchGate (2020). Available from: https://researchgate.net/figure/123 "
+           "[accessed 26 Jun 2025]")
+    parsed = _parse_single_reference(raw)
+    joined = " ".join([parsed.get("title", ""), parsed.get("source", "")])
+    assert "Available" not in joined
+    assert "[accessed" not in joined and "accessed" not in joined
