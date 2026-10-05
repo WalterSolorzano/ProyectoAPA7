@@ -31,6 +31,7 @@ import { ManuscriptMentionsAccordion } from './ManuscriptMentionsAccordion';
 import { ReferenceEditModal } from './ReferenceEditModal';
 import { ReferenciaLinea } from './ReferenciaLinea';
 import { APA_LISTA, APA_ENTRADA } from '../../lib/apaLayout';
+import { formatearReferencia } from '../../lib/apaApi';
 
 /** Los tres grupos del catálogo, como pestañas cerradas: una lista a la vez. */
 type GroupTab = 'verificadas' | 'pendientes' | 'texto';
@@ -83,6 +84,8 @@ export const Step5ReferencesWizard: React.FC = () => {
 
   // Formulario manual guiado dentro de Modal
   const [refType, setRefType] = useState<'journal' | 'book' | 'thesis' | 'web'>('journal');
+  const tipoSeleccionado =
+    refType === 'journal' ? 'articulo' : refType === 'book' ? 'libro' : refType === 'thesis' ? 'tesis' : 'web';
   const [formAuthors, setFormAuthors] = useState('');
   const [formYear, setFormYear] = useState('');
   const [formTitle, setFormTitle] = useState('');
@@ -231,24 +234,34 @@ export const Step5ReferencesWizard: React.FC = () => {
     setShowAddModal(false);
   };
 
-  const handleAddManual = () => {
+  const handleAddManual = async () => {
     if (!formTitle.trim() && !formAuthors.trim()) {
       showToast('Ingresa al menos autor o título', 'warning');
       return;
     }
     const authorsArr = formAuthors.split(/,|&|;/).map((a) => a.trim()).filter(Boolean);
     const yr = formYear.trim() || 's.f.';
-    const formatted = `${formAuthors.trim()} (${yr}). ${formTitle.trim()}.${formSource.trim() ? ' ' + formSource.trim() : ''}${formDoi.trim() ? ' ' + formDoi.trim() : ''}`;
+    const title = formTitle.trim();
+    const source = formSource.trim();
+    const doi = formDoi.trim();
+    const formato = await formatearReferencia({
+      authors: authorsArr, year: yr, title, source, doi_or_url: doi || undefined,
+      tipo: tipoSeleccionado,
+    });
+    const formatted = formato?.formatted_apa
+      ?? `${formAuthors.trim()} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
 
     const newRef: ReferenciaModel = {
       id: `ref-${Date.now()}`,
       authors: authorsArr.length > 0 ? authorsArr : [formAuthors.trim() || 'Autor'],
       year: yr,
-      title: formTitle.trim(),
-      source: formSource.trim(),
-      doi_or_url: formDoi.trim() || undefined,
+      title,
+      source,
+      doi_or_url: doi || undefined,
       formatted_apa: formatted,
       raw_text: formatted,
+      apa_segments: formato?.apa_segments,
+      tipo: formato?.tipo,
     };
 
     addReference(newRef);
@@ -262,15 +275,19 @@ export const Step5ReferencesWizard: React.FC = () => {
     showToast('Referencia agregada exitosamente', 'success');
   };
 
-  const handleSaveModalRef = (updated: Partial<ReferenciaModel>) => {
+  const handleSaveModalRef = async (updated: Partial<ReferenciaModel>) => {
     if (!editingRef) return;
     const authorsArr = updated.authors || editingRef.authors || [];
     const yr = updated.year?.trim() || editingRef.year || 's.f.';
     const title = updated.title !== undefined ? updated.title.trim() : editingRef.title;
     const source = updated.source !== undefined ? updated.source.trim() : (editingRef.source || '');
     const doi = updated.doi_or_url !== undefined ? updated.doi_or_url.trim() : (editingRef.doi_or_url || '');
-    const authorsStr = authorsArr.join(', ');
-    const formatted = `${authorsStr} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
+    const tipo = updated.tipo ?? editingRef.tipo ?? 'otro';
+    const formato = await formatearReferencia({
+      authors: authorsArr, year: yr, title, source, doi_or_url: doi || undefined, tipo,
+    });
+    const formatted = formato?.formatted_apa
+      ?? `${authorsArr.join(', ')} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
 
     updateReferences(references.map((r) => {
       if (r.id !== editingRef.id) return r;
@@ -284,6 +301,8 @@ export const Step5ReferencesWizard: React.FC = () => {
         doi_or_url: doi || undefined,
         formatted_apa: formatted,
         raw_text: formatted,
+        apa_segments: formato?.apa_segments,
+        tipo: formato?.tipo,
       };
     }));
     setEditingRef(null);

@@ -208,12 +208,13 @@ describe('el formulario sigue editable, ahora bajo demanda en el modal', () => {
     expect(nombres.join(' ')).not.toBe('');
   });
 
-  it('"Guardar Cambios" sigue llamando a la actualización de referencias', () => {
+  it('"Guardar Cambios" sigue llamando a la actualización de referencias', async () => {
     abrirEdicion();
     /* `fireEvent`, no `.click()`: el guardado pasa por el `onSubmit` del form y
-       el `.click()` nativo no lo envuelve en `act`. */
+       el `.click()` nativo no lo envuelve en `act`. El guardado es async porque
+       pide la línea APA al backend; por eso se espera. */
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
-    expect(updateReferences).toHaveBeenCalled();
+    await vi.waitFor(() => expect(updateReferences).toHaveBeenCalled());
   });
 });
 

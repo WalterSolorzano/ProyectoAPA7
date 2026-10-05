@@ -57,6 +57,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
     title: reference?.title || '',
     source: reference?.source || '',
     doi: reference?.doi_or_url || '',
+    tipo: reference?.tipo || 'otro',
   }), [reference]);
 
   const [authors, setAuthors] = useState(initial.authors);
@@ -64,6 +65,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
   const [title, setTitle] = useState(initial.title);
   const [source, setSource] = useState(initial.source);
   const [doi, setDoi] = useState(initial.doi);
+  const [tipo, setTipo] = useState<ReferenciaModel['tipo']>(initial.tipo);
 
   useEffect(() => {
     setAuthors(initial.authors);
@@ -71,6 +73,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
     setTitle(initial.title);
     setSource(initial.source);
     setDoi(initial.doi);
+    setTipo(initial.tipo);
   }, [initial]);
 
   const handleKeyDown = useCallback(
@@ -101,6 +104,7 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
       title: title.trim(),
       source: source.trim(),
       doi_or_url: doi.trim(),
+      tipo,
     });
     onClose();
   };
@@ -258,6 +262,27 @@ export const ReferenceEditModal: React.FC<ReferenceEditModalProps> = ({
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label htmlFor="modalEditTipo" style={labelStyle}>
+              Tipo de referencia
+            </label>
+            <select
+              id="modalEditTipo"
+              data-testid="modal-edit-tipo"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as ReferenciaModel['tipo'])}
+              style={inputStyle}
+            >
+              <option value="articulo">Artículo</option>
+              <option value="libro">Libro</option>
+              <option value="capitulo">Capítulo de libro</option>
+              <option value="tesis">Tesis</option>
+              <option value="web">Página web</option>
+              <option value="informe">Informe</option>
+              <option value="otro">Otro</option>
+            </select>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
