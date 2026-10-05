@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AiHierarchy } from '../components/review/AiHierarchy';
 import { AiHeatmap } from '../components/review/AiHeatmap';
+import { AiChapterGrid } from '../components/review/AiChapterGrid';
 import type { ElementModel } from '../types';
 import type { AuditItem } from '../lib/auditItems';
 
@@ -67,6 +68,7 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
     Object.assign(navigator, { clipboard: { writeText } });
 
     render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
     const copyBtn = screen.getByRole('button', { name: /Copiar/i });
     fireEvent.click(copyBtn);
     expect(writeText).toHaveBeenCalled();
@@ -84,6 +86,7 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
     const applyBtn = screen.getByRole('button', { name: /Reemplazar en Manuscrito/i });
     fireEvent.click(applyBtn);
     expect(onApplyParaphrase).toHaveBeenCalledWith(mockAiItems[0], mockAiItems[0].suggestedText);
@@ -102,5 +105,20 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
     expect(screen.getByText('Intro')).toBeTruthy();
     expect(screen.getByText('Método')).toBeTruthy();
     expect(screen.getAllByTestId('heatmap-col')).toHaveLength(4);
+  });
+
+  it('los capítulos son rectángulos que abren el capítulo', () => {
+    const onOpen = vi.fn();
+    render(
+      <AiChapterGrid
+        chapters={[
+          { id: 'a', titulo: 'Intro', findings: [] },
+          { id: 'b', titulo: 'Método', findings: [] },
+        ]}
+        onOpen={onOpen}
+      />,
+    );
+    fireEvent.click(screen.getByText('Método'));
+    expect(onOpen).toHaveBeenCalledWith('b');
   });
 });

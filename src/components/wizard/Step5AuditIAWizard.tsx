@@ -146,7 +146,7 @@ export const Step5AuditIAWizard: React.FC = () => {
         <ReviewInforme
           items={items}
           elements={elements}
-          title={doc?.title ?? ''}
+          title={doc?.file_name ?? ''}
           onStart={(capId) => { setCapInicial(capId ?? null); setPantalla('reader'); }}
           onBack={() => setPantalla('gate')}
         />
