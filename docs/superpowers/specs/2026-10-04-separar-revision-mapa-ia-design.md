@@ -33,9 +33,11 @@ Dos problemas, uno de forma y uno de fondo:
 - **Gráfico grande:** **mapa de calor H1 × rango de índice IA**. Filas = capítulos H1;
   columnas = rango del índice (`45–59 / 60–74 / 75–89 / 90–100`); celda coloreada por
   concentración de párrafos.
-- **Debajo:** cada capítulo H1 conserva **el inspector de hoy** (pills por hallazgo +
-  split comparador «Texto Original (Fórmula LLM Detectada)» | «Propuesta con Voz de Autor
-  Humano» + acciones). Sin cambios de fondo en esa pieza.
+- **Capítulos como rectángulos:** en lugar de una lista o acordeones, los capítulos H1 se
+  muestran como **rectángulos** (bloques) dimensionados por el tamaño del capítulo y
+  coloreados por intensidad. Al tocar uno se abre una **vista de revisión aislada solo de
+  ese capítulo** (lectura + split comparador «Original (Fórmula LLM Detectada)» |
+  «Propuesta con Voz de Autor Humano» + acciones), sin volcar el resto del documento.
 - Se puede usar gráficas; se hacen con **SVG/CSS y tokens**, sin agregar librerías.
 - Se sigue el design system: cero emojis, solo `lucide-react`, solo `var(--...)`.
 
@@ -47,52 +49,56 @@ Dos problemas, uno de forma y uno de fondo:
 - `ReviewGate` mantiene sus dos botones («Empezar revisión →» y «Mapa IA · N») y omite la
   fila de IA del conteo por motor.
 - `AiHierarchy` (pantalla Mapa IA) pasa a **dashboard general→específico**: hero +
-  heatmap arriba, inspector por H1 en acordeones colapsados abajo.
+  heatmap arriba, **capítulos como rectángulos** abajo, y una **vista aislada por
+  capítulo** al tocar un rectángulo.
 - Nuevo módulo puro para los datos del heatmap, con test unitario.
 
 **Fuera (no se toca / no se monta):**
 
-- `ReviewWorkbench`, `ReviewMinimap`, `AiMosaic`, `ReviewStrip`, `FocusReadingCard`
-  (rama B, no montados). No se montan.
+- `ReviewWorkbench`, `ReviewMinimap`, `ReviewStrip`, `FocusReadingCard` (rama B, no
+  montados). No se montan. De `AiMosaic` / `src/lib/aiMosaic.ts` se **reutiliza la idea de
+  mosaico** (bloques por sección), pero se re-monta una versión nueva dentro del Mapa IA,
+  no el componente tal cual.
 - El rail de la app: la fase 5 sigue siendo el paso `step-5` («Revisión & IA»). No se
   parte en dos destinos de rail.
 - La portada sigue `readOnly`, sin `suggestion` y sin acción de aceptar.
 
 ## Arquitectura
 
-### 1. Revisión sin IA
+### 1. Revisión sin IA (propuesta en curso, pendiente de OK)
 
-- `ReviewPhaseJourney.tsx`: el riel excluye la categoría `ai`. Se filtra `CATEGORY_META`
-  a `['style', 'spelling', 'structure']` antes de calcular `disponibles`, de modo que la
-  categoría activa por defecto sea el primer motor objetivo con hallazgos (nunca `ai`).
-- `CategoryRail.tsx`: se parametriza o se exporta una lista sin `ai` para el recorrido de
-  Revisión; `CATEGORY_META` se mantiene como fuente de metadata (ícono/etiqueta).
-- `ReviewGate.tsx`: la lista de categorías del estado del documento **omite IA** (la IA
-  se resume en la línea de «Voz sintética X % · N fragmentos» y se abre con «Mapa IA · N»).
-  Se conservan los dos botones.
-- Regla permanente: un hallazgo de IA jamás aparece en el riel ni en el dashboard de
-  Revisión. Un hallazgo objetivo jamás aparece en el Mapa IA.
+Diseño abierto. Objetivo del usuario: **una sola elección**, no encadenar «elegir fase» +
+«elegir categoría» en dos pantallas que hacen pesado el flujo. Lo único fijado:
 
-### 2. Mapa IA como dashboard
+- Revisión **no** muestra hallazgos de categoría `ai` ni aterriza en «Voz sintética».
+- `ReviewGate` conserva sus dos botones («Empezar revisión →» y «Mapa IA · N»).
+- `ReviewPhaseJourney.tsx` deja fuera la categoría `ai` de su riel (`CATEGORY_META`
+  filtrado a `['style', 'spelling', 'structure']`); la activa por defecto es el primer
+  motor objetivo con hallazgos.
+
+La forma final se decide con el mockup en curso (borrador: **una sola elección = fase H1**;
+motor como filtro, no como paso; «Siguiente hallazgo» recorre todos los hallazgos de la
+fase en orden de documento).
+
+### 2. Mapa IA como dashboard (aprobado)
 
 `AiHierarchy.tsx` reorganiza su render (hoy: hero macro + `<aside>` «Jerarquía
 Capitular» con todos los capítulos + `<section>` «Inspector de Alertas»):
 
-- **Hero** (se conserva): «Integridad humana» grande (`humanIntegrityPct`, ya en
-  `var(--text-2xl)`; se puede subir a la escala mayor disponible), con subdato
+- **Hero**: «Integridad humana» grande (`humanIntegrityPct`), con subdato
   «`syntheticPct` % rigidez sintética», nº de párrafos, «párrafos con autoría nítida» y
   «pico crítico: {capítulo}».
 - **Mapa de calor H1 × rango** (nuevo componente, p.ej.
   `src/components/review/AiHeatmap.tsx`): una fila por H1, una columna por rango del
   índice, celda sombreada por concentración de párrafos y con el número dentro. Encabezado
   de columnas con los rangos; primera columna con el título del H1. Leyenda de la rampa.
-  Clic en una fila o celda abre el acordeón de ese capítulo (opcional, mejora).
-- **Desglose por H1**: la lista de capítulos pasa a **acordeones colapsados por defecto**.
-  Al abrir un H1, se muestra el inspector de hoy: subsecciones H2/H3 con su score, pills de
-  hallazgos y el split comparador con sus acciones. El estado de selección actual
-  (`selectedH1Id`, `selectedSubId`, `selectedFindingId`) se reutiliza.
-- Se elimina el volcado inmediato: al entrar solo se ve hero + heatmap + la lista de
-  capítulos cerrada.
+- **Capítulos como rectángulos**: franja/grid de bloques, uno por H1, ancho proporcional al
+  tamaño del capítulo, color por `--ia-nivel-1..4` según intensidad, etiqueta con nombre +
+  nº de hallazgos + score. Reemplaza la lista y los acordeones.
+- **Vista aislada por capítulo**: al tocar un rectángulo se abre una superficie de revisión
+  **solo de ese capítulo** (lectura + pills + split comparador + acciones). Un botón
+  «‹ Mapa IA» vuelve. Aísla y reduce el ruido.
+- Se elimina el volcado inmediato: al entrar solo se ve hero + heatmap + rectángulos.
 
 ### 3. Datos del heatmap (módulo puro)
 
@@ -154,8 +160,12 @@ motor) es texto. La rampa ya existe como tokens:
   objetivo.
 - `src/components/review/CategoryRail.tsx` — lista de categorías de Revisión sin `ai`.
 - `src/components/review/ReviewGate.tsx` — conteo sin fila de IA; dos botones.
-- `src/components/review/AiHierarchy.tsx` — hero + heatmap + acordeones.
+- `src/components/review/AiHierarchy.tsx` — hero + heatmap + rectángulos de capítulo.
 - `src/components/review/AiHeatmap.tsx` — nuevo (SVG/CSS + tokens).
+- `src/components/review/AiMosaicRectangulos.tsx` (nombre a definir) — nuevo: franja de
+  rectángulos por H1; al tocar, abre la vista aislada.
+- `src/components/review/CapituloAislado.tsx` (nombre a definir) — nuevo: revisión de un
+  solo capítulo.
 - `src/lib/aiHeatmap.ts` — nuevo (puro, con test).
 - Tests.
 
@@ -164,7 +174,8 @@ motor) es texto. La rampa ya existe como tokens:
 - Nuevo/ampliado: `src/__tests__/aiHeatmap.test.ts` (bucketing por rango, `sinMedir`,
   `max`).
 - `src/__tests__/aiHierarchy.test.tsx`: hero visible; heatmap renderiza una fila por H1 y
-  cuatro columnas de rango; los acordeones arrancan colapsados.
+  cuatro columnas de rango; los rectángulos de capítulo se renderizan y el clic abre la
+  vista aislada.
 - Verificar que Revisión **no** muestra «Voz sintética» ni hallazgos de categoría `ai`
   (nuevo test o extensión de los existentes que pulsan «Ver mapa de IA»).
 - `npx tsc --noEmit` limpio; suite focalizada verde; luego la suite completa antes del
