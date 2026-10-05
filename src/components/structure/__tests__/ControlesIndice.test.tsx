@@ -84,4 +84,17 @@ describe('ControlesIndice', () => {
     fireEvent.click(boton!);
     expect(onRegla).toHaveBeenCalledWith('heading_numbering_style_lvl2', 'upperLetter');
   });
+
+  it('la mini-preview refleja la notación elegida', () => {
+    render(
+      <ControlesIndice {...base} profundidad={2} numeracionH1="upperRoman" numeracionH2="lowerLetter" />,
+    );
+    expect(screen.getByText('I. Introducción')).toBeTruthy();
+    expect(screen.getByText('1.a. Marco teórico')).toBeTruthy();
+  });
+
+  it('la mini-preview respeta la profundidad visible', () => {
+    render(<ControlesIndice {...base} profundidad={1} />);
+    expect(screen.queryByText('Marco teórico')).toBeNull();
+  });
 });

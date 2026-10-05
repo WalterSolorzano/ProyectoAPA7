@@ -38,6 +38,8 @@ import { RailEstructura, type DestinoEstructura } from './RailEstructura';
 import { IndicePrevisualizacion } from './IndicePrevisualizacion';
 import { ControlesIndice, type ProfundidadIndice } from './ControlesIndice';
 import { useWindowWidth } from '../../hooks/useWindowWidth';
+import { usePageIndex } from '../../hooks/usePageIndex';
+import { construirTextosDeTitulo } from '../../lib/numeracionTitulos';
 
 /** Con esta ventana, el panel derecho vive cómodo. */
 export const ANCHO_ESTRUCTURA_COMPLETO = 1280;
@@ -169,6 +171,10 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const insertarToc = useDocStore((s) => s.insertTocElement);
   const quitarToc = useDocStore((s) => s.removeTocElement);
 
+  /* Páginas y numeración para el índice: la MISMA paginación del lienzo y la
+   * MISMA numeración de títulos, para que la preview no contradiga a la hoja. */
+  const pageIndex = usePageIndex();
+
   const elementos = (doc?.elements ?? null) as readonly ElementModel[] | null;
 
   const faseConocida = useMemo(
@@ -188,6 +194,11 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const raices = useMemo(
     () => construirJerarquia(elementos ?? [], faseConocida),
     [elementos, faseConocida],
+  );
+
+  const textosTitulo = useMemo(
+    () => construirTextosDeTitulo(elementos ?? [], reglas),
+    [elementos, reglas],
   );
 
   const [elegidoId, setElegidoId] = useState<string | null>(nodoInicial?.id ?? null);
@@ -288,6 +299,8 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
             onSelect={abrir}
             nodoSeleccionadoId={elegido?.id ?? null}
             profundidadMaxima={profundidad}
+            textosTitulo={textosTitulo}
+            paginaDe={pageIndex.pageOf}
           />
         )}
       </div>

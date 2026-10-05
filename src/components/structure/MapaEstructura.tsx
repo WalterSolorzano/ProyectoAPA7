@@ -10,7 +10,7 @@
  * el nombre exacto solo aparece en el esquema (evita ambigüedad de `getByText`).
  */
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 
@@ -93,6 +93,63 @@ export const posicionesDe = (
   return posiciones;
 };
 
+/**
+ * El id del nodo cuya caja contiene el punto `(x, y)`, o `null` si ninguno.
+ *
+ * El punto vive en coordenadas del lienzo (las mismas de `PosicionNodo.x/y`),
+ * y con dos cajas solapadas gana la última dibujada, que es la de arriba.
+ */
+export const destinoBajoCursor = (
+  posiciones: readonly PosicionNodo[],
+  x: number,
+  y: number,
+): string | null => {
+  let hallado: string | null = null;
+  for (const p of posiciones) {
+    if (x >= p.x && x < p.x + ANCHO_NODO && y >= p.y && y < p.y + ALTO_NODO) {
+      hallado = p.nodo.id;
+    }
+  }
+  return hallado;
+};
+
+/**
+ * `true` si la rama `origenId` puede soltarse sobre `destinoId`.
+ *
+ * Es la única regla que decide si un arrastre es legal: ni sobre sí misma ni
+ * dentro de su propia rama, que partiría el árbol.
+ */
+export const esDestinoReubicable = (
+  raices: readonly NodoJerarquia[],
+  origenId: string,
+  destinoId: string,
+): boolean => origenId !== destinoId && !esDescendiente(raices, origenId, destinoId);
+
+/**
+ * El reflujo, interpolado: las cajas y las aristas viajan del layout viejo al
+ * nuevo en vez de saltar. Un id que solo existe en `hasta` arranca en su
+ * posición final (nace en su sitio), y uno que ya no está simplemente no viaja.
+ */
+export const interpolarPosiciones = (
+  desde: readonly PosicionNodo[],
+  hasta: readonly PosicionNodo[],
+  t: number,
+): PosicionNodo[] => {
+  const avance = Math.max(0, Math.min(1, t));
+  const previas = new Map(desde.map((p) => [p.nodo.id, p]));
+  return hasta.map((fin) => {
+    const ini = previas.get(fin.nodo.id);
+    if (!ini) return fin;
+    return { ...fin, x: ini.x + (fin.x - ini.x) * avance, y: ini.y + (fin.y - ini.y) * avance };
+  });
+};
+
+/** La línea que avisa dónde cae la rama, sobre el borde superior del destino. */
+export const lineaInsercion = (
+  destino: PosicionNodo | null | undefined,
+): { x: number; y: number; ancho: number } | null =>
+  destino ? { x: destino.x, y: destino.y - 5, ancho: ANCHO_NODO } : null;
+
 export interface MapaEstructuraProps {
   raices: readonly NodoJerarquia[];
   elementos?: unknown;
@@ -111,8 +168,14 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   const [escala, setEscala] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState<string | null>(null);
+  const [destino, setDestino] = useState<string | null>(null);
+  const [fantasma, setFantasma] = useState<{ x: number; y: number } | null>(null);
   const draggingRef = useRef<string | null>(null);
+  const destinoRef = useRef<string | null>(null);
   const arrastreRef = useRef<{ x: number; y: number } | null>(null);
+  const arrastroRef = useRef(false);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   /* La raíz sintética: el documento del que cuelgan las H1. Existe solo para
    * el dibujo, no es un elemento del documento ni se puede seleccionar. */
@@ -134,9 +197,52 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   );
 
   const todas = useMemo(() => posicionesDe([raizDocumento], 0), [raizDocumento]);
+
+  /* Las posiciones DIBUJADAS: nacen en el layout calculado y viajan hacia el
+   * nuevo cuando `raices` cambia, para que mover una fase se VEA moverse y las
+   * aristas se recompongan con ella. Sin cambio real no hay re-render. */
+  const [posiciones, setPosiciones] = useState<PosicionNodo[]>(() => todas);
+  const posicionesRef = useRef(posiciones);
+  posicionesRef.current = posiciones;
+  const firmaObjetivo = useMemo(
+    () => todas.map((p) => `${p.nodo.id}@${Math.round(p.x)},${Math.round(p.y)}`).join('|'),
+    [todas],
+  );
+  const firmaRef = useRef('');
+
+  useEffect(() => {
+    if (firmaRef.current === firmaObjetivo) return;
+    const previas = posicionesRef.current;
+    const primera = firmaRef.current === '';
+    firmaRef.current = firmaObjetivo;
+
+    const reducido =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (primera || reducido || typeof requestAnimationFrame !== 'function') {
+      setPosiciones(todas);
+      return;
+    }
+
+    const inicio = performance.now();
+    const DURACION = 320;
+    const paso = (ahora: number) => {
+      const t = Math.min(1, (ahora - inicio) / DURACION);
+      const suave = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      setPosiciones(interpolarPosiciones(previas, todas, suave));
+      if (t < 1) rafRef.current = requestAnimationFrame(paso);
+    };
+    rafRef.current = requestAnimationFrame(paso);
+
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [firmaObjetivo, todas]);
+
   const visibles = useMemo(
-    () => (soloTitulos ? todas.filter((p) => p.nivel <= 2) : todas),
-    [todas, soloTitulos],
+    () => (soloTitulos ? posiciones.filter((p) => p.nivel <= 2) : posiciones),
+    [posiciones, soloTitulos],
   );
 
   if (raices.length === 0) {
@@ -149,8 +255,8 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
 
   const ids = new Set(visibles.map((p) => p.nodo.id));
   const porId = new Map(visibles.map((p) => [p.nodo.id, p]));
-  const maxX = visibles.reduce((m, p) => Math.max(m, p.x), 0);
-  const maxY = visibles.reduce((m, p) => Math.max(m, p.y), 0);
+  const maxX = [...visibles, ...todas].reduce((m, p) => Math.max(m, p.x), 0);
+  const maxY = [...visibles, ...todas].reduce((m, p) => Math.max(m, p.y), 0);
   const ancho = maxX + ANCHO_NODO + MARGEN;
   const alto = maxY + ALTO_NODO + MARGEN;
 
@@ -172,9 +278,49 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
     if (!arrastreRef.current) return;
     setPan({ x: e.clientX - arrastreRef.current.x, y: e.clientY - arrastreRef.current.y });
   };
-  const onPointerUp = () => {
+  /* Cierra un arrastre de rama. El destino principal es el que resolvió la
+   * última `pointermove` (coordenadas del lienzo, con la caja bajo el cursor);
+   * si no hubo movimiento —un click, o un entorno sin geometría— cae al nodo
+   * que recibió el `pointerup`, que es la misma respuesta que da el navegador.
+   * `reubicar=false` cancela (salir del lienzo) sin soltar nada. */
+  const terminarArrastre = (e: React.PointerEvent, reubicar: boolean) => {
     arrastreRef.current = null;
+    const origen = draggingRef.current;
+    if (origen === null) return;
+    const objetivo =
+      (e.target as Element)?.closest?.('[data-nodo]')?.getAttribute('data-nodo') ?? null;
+    const idDestino = destinoRef.current ?? objetivo;
+    draggingRef.current = null;
+    destinoRef.current = null;
+    setDragging(null);
+    setDestino(null);
+    setFantasma(null);
+    if (!reubicar || !idDestino) return;
+    if (!esDestinoReubicable([raizDocumento], origen, idDestino)) return;
+    onReubicar?.(origen, idDestino);
   };
+
+  /* El cursor, en coordenadas de las cajas: de la pantalla al lienzo pasando
+   * por el `viewBox` y por el zoom. Sin eso, el fantasma y la detección de la
+   * caja de destino caerían en otro lado. */
+  const puntoEnLienzo = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const svg = svgRef.current;
+    if (!svg || typeof svg.getScreenCTM !== 'function' || typeof svg.createSVGPoint !== 'function') return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const punto = svg.createSVGPoint();
+    punto.x = clientX;
+    punto.y = clientY;
+    const global = punto.matrixTransform(ctm.inverse());
+    return { x: (global.x - pan.x) / escala, y: (global.y - pan.y) / escala };
+  };
+
+  const destinoValido =
+    dragging !== null && destino !== null
+      ? esDestinoReubicable([raizDocumento], dragging, destino)
+      : false;
+  const posDestino = destino !== null ? visibles.find((p) => p.nodo.id === destino) : undefined;
+  const insercion = destinoValido ? lineaInsercion(posDestino) : null;
 
   return (
     <div className="mapa-envoltorio" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -204,7 +350,8 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
       </div>
 
       <svg
-        className="mapa-estructura"
+        ref={svgRef}
+        className={`mapa-estructura${dragging !== null ? ' arrastrando' : ''}`}
         data-testid="diagrama-estructura"
         role="img"
         aria-label="Diagrama de estructura del documento"
@@ -214,25 +361,37 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
+        onPointerUp={(e) => terminarArrastre(e, true)}
+        onPointerLeave={(e) => terminarArrastre(e, false)}
       >
         <g data-testid="mapa-zoom" transform={`translate(${pan.x} ${pan.y}) scale(${escala})`}>
+          {insercion ? (
+            <rect
+              className="mapa-insercion"
+              x={insercion.x}
+              y={insercion.y}
+              width={insercion.ancho}
+              height={3}
+              rx={1.5}
+              aria-hidden
+            />
+          ) : null}
+
           {visibles.flatMap((padre) =>
             padre.nodo.hijos
               .filter((hijo) => ids.has(hijo.id))
               .map((hijo) => {
-                const destino = porId.get(hijo.id);
-                if (!destino) return null;
+                const dest = porId.get(hijo.id);
+                if (!dest) return null;
                 const x1 = padre.x + ANCHO_NODO;
                 const y1 = padre.y + ALTO_NODO / 2;
-                const x2 = destino.x;
-                const y2 = destino.y + ALTO_NODO / 2;
+                const x2 = dest.x;
+                const y2 = dest.y + ALTO_NODO / 2;
                 const dx = Math.max(16, (x2 - x1) / 2);
                 return (
                   <path
                     key={`${padre.nodo.id}-${hijo.id}`}
-                    className={`mapa-arista e${destino.nivel}`}
+                    className={`mapa-arista e${dest.nivel}`}
                     d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
                   />
                 );
@@ -242,32 +401,43 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
           {visibles.map((n) => {
             const sel = n.nodo.id === nodoSeleccionadoId;
             const esRaiz = n.nodo.id === RAIZ_ID;
+            const esOrigen = dragging === n.nodo.id;
+            const esDestino = dragging !== null && destino === n.nodo.id;
             return (
               <g
                 key={n.nodo.id}
                 data-nodo={n.nodo.id}
-                className={`mapa-nodo lv${n.nivel}${sel ? ' sel' : ''}`}
+                className={`mapa-nodo lv${n.nivel}${sel ? ' sel' : ''}${esOrigen ? ' origen' : ''}${esDestino ? ' destino' : ''}`}
                 onClick={() => {
+                  if (arrastroRef.current) {
+                    arrastroRef.current = false;
+                    return;
+                  }
                   if (!esRaiz) onSelect?.(n.nodo);
                 }}
                 onPointerDown={(e) => {
                   if (!onReubicar || esRaiz) return;
                   e.stopPropagation();
+                  (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
                   draggingRef.current = n.nodo.id;
+                  destinoRef.current = null;
+                  arrastroRef.current = false;
                   setDragging(n.nodo.id);
+                  setDestino(null);
+                  setFantasma(null);
                 }}
-                onPointerUp={() => {
-                  const origen = draggingRef.current;
-                  const destino = n.nodo.id;
-                  draggingRef.current = null;
-                  setDragging(null);
-                  if (!origen || esRaiz || origen === destino) return;
-                  if (esDescendiente([raizDocumento], origen, destino)) return;
-                  onReubicar?.(origen, destino);
+                onPointerMove={(e) => {
+                  if (draggingRef.current !== n.nodo.id) return;
+                  const punto = puntoEnLienzo(e.clientX, e.clientY);
+                  setFantasma(punto);
+                  const bajo = punto ? destinoBajoCursor(posicionesRef.current, punto.x, punto.y) : null;
+                  const id = bajo && bajo !== n.nodo.id ? bajo : null;
+                  if (id !== null) arrastroRef.current = true;
+                  destinoRef.current = id;
+                  setDestino(id);
                 }}
                 style={{
                   cursor: esRaiz ? 'default' : onSelect ? 'pointer' : 'default',
-                  opacity: dragging === n.nodo.id ? 0.45 : 1,
                 }}
               >
                 <title>{`Sección: ${n.nodo.titulo}`}</title>
@@ -276,12 +446,39 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
                   {n.etiqueta}
                   {n.hijos > 0 ? ` · +${n.hijos}` : ''}
                 </text>
+                {esDestino ? (
+                  <rect
+                    className={`mapa-destino ${destinoValido ? 'valido' : 'invalido'}`}
+                    x={n.x - 3}
+                    y={n.y - 3}
+                    width={ANCHO_NODO + 6}
+                    height={ALTO_NODO + 6}
+                    rx={10}
+                  />
+                ) : null}
                 {sel ? (
                   <rect className="mapa-anillo" x={n.x - 3} y={n.y - 3} width={ANCHO_NODO + 6} height={ALTO_NODO + 6} rx={10} />
                 ) : null}
               </g>
             );
           })}
+
+          {fantasma && dragging !== null ? (
+            <g className="mapa-fantasma" aria-hidden pointerEvents="none">
+              <rect
+                x={fantasma.x - ANCHO_NODO / 2}
+                y={fantasma.y - ALTO_NODO / 2}
+                width={ANCHO_NODO}
+                height={ALTO_NODO}
+                rx={8}
+              />
+              {porId.get(dragging) ? (
+                <text x={fantasma.x - ANCHO_NODO / 2 + 12} y={fantasma.y - ALTO_NODO / 2 + 24}>
+                  {porId.get(dragging)?.etiqueta}
+                </text>
+              ) : null}
+            </g>
+          ) : null}
         </g>
       </svg>
     </div>

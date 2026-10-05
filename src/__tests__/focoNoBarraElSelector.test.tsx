@@ -27,6 +27,9 @@ vi.mock('../components/activity/RightSidePanel', () => ({
 vi.mock('../components/layout/PaperCanvas', () => ({
   PaperCanvas: () => <div data-testid="lienzo" />,
   computePages: () => [],
+  // `usePageIndex` (consumido por EscritorioEstructura) lee esta función del
+  // mismo módulo: sin ella el mock deja la fase de Estructura sin paginación.
+  computeRenderedPages: () => ({ geom: {}, pages: [] }),
 }));
 vi.mock('../components/wizard/Step2HeadingsWizard', () => ({
   Step2HeadingsWizard: () => <div data-testid="fase-titulos" />,

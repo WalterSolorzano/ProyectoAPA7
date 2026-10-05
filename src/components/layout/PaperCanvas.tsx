@@ -1,8 +1,9 @@
 /* WordAPA7 — Interactive Canvas with Faithful Original Document Layout */
 
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
-import { aNumero } from '../../lib/textUtils';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useDocStore } from '../../store/useDocStore';
+import { construirTextosDeTitulo, esTituloDeReferencias } from '../../lib/numeracionTitulos';
+import { paginasPorElemento } from '../../lib/paginasDeElementos';
 import { ElementModel } from '../../types';
 import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
@@ -977,50 +978,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   let globalListCounter = 0;
 
   // Numeración JERÁRQUICA de títulos (1, 1.1, 1.1.1) aplicada SOLO en el preview.
-  // Filtra headings de portada/TOC y la sección de Referencias (que no se numera).
-  const isRefHeading = (txt: string): boolean => {
-    const n = (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    return /^(referencias?|bibliografia|obras consultadas|works cited)\b/.test(n.trim());
-  };
-  const hCounters: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
-  const headingDisplayText = new Map<string, string>();
-  for (const e of doc.elements) {
-    if (e.type !== 'heading') continue;
-    if (e.is_cover_section) continue;
-    if (isRefHeading(e.text || '')) continue;
-    const lvl = e.heading_level || 1;
-    if (lvl > 3) continue;
-
-    const explicitMultiMatch = (e.text || '').trim().match(/^(\d+)\.(\d+)/);
-    if (explicitMultiMatch && lvl >= 2) {
-      const maj = parseInt(explicitMultiMatch[1], 10);
-      const min = parseInt(explicitMultiMatch[2], 10);
-      if (maj > 0) hCounters[1] = maj;
-      if (min > 0 && lvl === 2) hCounters[2] = min;
-      if (lvl === 3) hCounters[3] = (hCounters[3] || 0) + 1;
-    } else {
-      hCounters[lvl] = (hCounters[lvl] || 0) + 1;
-      if (lvl === 1) { hCounters[2] = 0; hCounters[3] = 0; }
-      if (lvl === 2) { hCounters[3] = 0; }
-    }
-    const style = rules[`heading_numbering_style_lvl${lvl}` as keyof typeof rules] as string || 'decimal';
-    const base = cleanHeadingPrefix(e.text || '');
-    if (style === 'none') {
-      headingDisplayText.set(e.id, base);
-    } else {
-      // La notación elegida manda en el componente del PROPIO nivel; en un H2 el
-      // componente del padre sigue decimal para no perder la lectura "2.5".
-      const comp = (n: number, l: number): string =>
-        aNumero(n, l === lvl ? style : 'decimal');
-      if (lvl === 1) {
-        headingDisplayText.set(e.id, `${comp(hCounters[1], 1)}. ${base}`);
-      } else if (lvl === 2) {
-        headingDisplayText.set(e.id, `${comp(hCounters[1], 1)}.${comp(hCounters[2], 2)}. ${base}`);
-      } else {
-        headingDisplayText.set(e.id, `${hCounters[1]}.${hCounters[2]}.${hCounters[3]}. ${base}`);
-      }
-    }
-  }
+  // La lógica vive en `numeracionTitulos` para que la vista previa del índice
+  // consuma exactamente la misma fuente que la hoja.
+  const headingDisplayText = construirTextosDeTitulo(doc.elements, rules);
+  /* La página REAL de cada encabezado, con las MISMAS páginas que dibuja el
+   * lienzo. Antes el índice inventaba un número a mano; donde no hay dato va un
+   * guion, que es la respuesta honesta. */
+  const paginaDe = useMemo(() => paginasPorElemento(pages), [pages]);
 
   return (
     <div
@@ -2040,7 +2004,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         ) : elem.type !== 'image' ? (
                           <>
                             {elem.type === 'heading' && (() => {
-                              const isRef = isRefHeading(elem.text || '');
+                              const isRef = esTituloDeReferencias(elem.text || '');
                               if (isRef) {
                                 return (
                                   <div style={{ marginTop: '20px', marginBottom: '8px' }}>
@@ -2210,7 +2174,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                           </span>
                                           <span style={{ flex: 1, borderBottom: '1px dotted var(--paper-faint)', margin: '0 8px', minWidth: '20px' }}></span>
                                           <span style={{ fontSize: '10pt', color: 'var(--paper-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                            {hIdx + 3}
+                                            {paginaDe.get(h.id) ?? '—'}
                                           </span>
                                         </div>
                                       );

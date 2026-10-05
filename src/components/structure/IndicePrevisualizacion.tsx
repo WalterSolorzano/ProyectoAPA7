@@ -5,6 +5,11 @@
  * previsualización, no un editor: muestra lo que el índice del documento va a
  * enumerar, con el mismo lenguaje visual que el árbol del esquema.
  *
+ * COMO EL ÍNDICE DE WORD: cada fila lleva el título, un punteado de relleno y
+ * la página alineada a la derecha. El texto llega ya numerado desde
+ * `construirTextosDeTitulo` y la página desde la paginación real; lo que no se
+ * conoce se marca con `—`, nunca se inventa.
+ *
  * Sin métricas ni diagnósticos: eso vive en el árbol y en el panel derecho.
  */
 
@@ -17,6 +22,10 @@ export interface IndicePrevisualizacionProps {
   onSelect?: (nodo: NodoJerarquia) => void;
   nodoSeleccionadoId?: string | null;
   profundidadMaxima?: number;
+  /** Texto ya numerado por id de elemento («I. Introducción», «1.a. Contexto»). */
+  textosTitulo?: ReadonlyMap<string, string>;
+  /** Página 1-based del elemento, o `null` si no se conoce. */
+  paginaDe?: (elementoId: string) => number | null;
 }
 
 const estiloTitulo = (nivel: number): React.CSSProperties =>
@@ -31,6 +40,8 @@ export const IndicePrevisualizacion: React.FC<IndicePrevisualizacionProps> = ({
   onSelect,
   nodoSeleccionadoId,
   profundidadMaxima = 3,
+  textosTitulo,
+  paginaDe,
 }) => {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
 
@@ -87,57 +98,96 @@ export const IndicePrevisualizacion: React.FC<IndicePrevisualizacionProps> = ({
         Documento
       </div>
 
-      {visibles.map(({ nodo, nivel }) => (
-        <div key={nodo.id} role="listitem" style={{ display: 'flex', alignItems: 'flex-start' }}>
-          {nivel === 1 && nodo.hijos.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => toggle(nodo.id)}
-              aria-expanded={abiertos.has(nodo.id)}
-              aria-label={`${abiertos.has(nodo.id) ? 'Contraer' : 'Expandir'} ${nodo.titulo}`}
+      {visibles.map(({ nodo, nivel }) => {
+        const clave = nodo.elementoId;
+        const etiqueta = (clave ? textosTitulo?.get(clave) : null) ?? nodo.titulo;
+        const pagina = clave && paginaDe ? paginaDe(clave) : null;
+        return (
+          <div key={nodo.id} role="listitem" style={{ display: 'flex', alignItems: 'flex-start' }}>
+            {nivel === 1 && nodo.hijos.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => toggle(nodo.id)}
+                aria-expanded={abiertos.has(nodo.id)}
+                aria-label={`${abiertos.has(nodo.id) ? 'Contraer' : 'Expandir'} ${nodo.titulo}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: '0 0 auto',
+                  width: 22,
+                  height: 34,
+                  border: 0,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-tertiary)',
+                }}
+              >
+                {abiertos.has(nodo.id) ? (
+                  <ChevronDown size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+                ) : (
+                  <ChevronRight size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
+                )}
+              </button>
+            ) : (
+              <span aria-hidden style={{ flex: '0 0 auto', width: 22 }} />
+            )}
+            <div
+              onClick={() => onSelect?.(nodo)}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: '0 0 auto',
-                width: 22,
-                height: 34,
-                border: 0,
-                background: 'transparent',
-                cursor: 'pointer',
-                color: 'var(--color-text-tertiary)',
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-3)',
+                paddingLeft: `calc(var(--space-3) + ${(nivel - 1) * 18}px)`,
+                cursor: onSelect ? 'pointer' : 'default',
+                background:
+                  nodo.id === nodoSeleccionadoId ? 'var(--color-accent-soft)' : 'transparent',
+                color: 'var(--color-text-primary)',
               }}
+              title={etiqueta}
             >
-              {abiertos.has(nodo.id) ? (
-                <ChevronDown size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
-              ) : (
-                <ChevronRight size={14} strokeWidth="var(--icon-stroke)" aria-hidden />
-              )}
-            </button>
-          ) : (
-            <span aria-hidden style={{ flex: '0 0 auto', width: 22 }} />
-          )}
-          <div
-            onClick={() => onSelect?.(nodo)}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: 'var(--space-2) var(--space-3)',
-              paddingLeft: `calc(var(--space-3) + ${(nivel - 1) * 18}px)`,
-              cursor: onSelect ? 'pointer' : 'default',
-              background: nodo.id === nodoSeleccionadoId ? 'var(--color-accent-soft)' : 'transparent',
-              color: 'var(--color-text-primary)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              ...estiloTitulo(nivel),
-            }}
-            title={nodo.titulo}
-          >
-            {nodo.titulo}
+              <span
+                style={{
+                  minWidth: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  ...estiloTitulo(nivel),
+                }}
+              >
+                {etiqueta}
+              </span>
+              {paginaDe ? (
+                <>
+                  {/* Punteado de relleno, como el índice de Word. */}
+                  <span
+                    aria-hidden
+                    style={{
+                      flex: 1,
+                      minWidth: 12,
+                      borderBottom: '1px dotted var(--color-border-subtle)',
+                      transform: 'translateY(-3px)',
+                    }}
+                  />
+                  <span
+                    style={{
+                      flex: '0 0 auto',
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: '12px',
+                      color: 'var(--color-text-tertiary)',
+                    }}
+                  >
+                    {pagina ?? '—'}
+                  </span>
+                </>
+              ) : null}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
