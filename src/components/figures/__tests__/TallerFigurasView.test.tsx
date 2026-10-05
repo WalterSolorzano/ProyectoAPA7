@@ -226,9 +226,10 @@ describe('TallerFigurasView', () => {
     expect(localStorage.getItem('wordapa7-figuras-galeria-width')).toBe('380');
   });
 
-  it('regenera la sugerencia de leyenda desde la mascota del lienzo', async () => {
+  it('genera la leyenda a demanda y no al montar (cero tokens automaticos)', async () => {
     const { suggestCaption } = await import('../../../api/backend');
     const mockSuggest = suggestCaption as unknown as ReturnType<typeof vi.fn>;
+    mockSuggest.mockClear();
     mockSuggest.mockResolvedValue('Leyenda regenerada');
     useDocStore.setState({
       doc: {
@@ -244,9 +245,11 @@ describe('TallerFigurasView', () => {
     definirAnchoVentana(1400);
     render(<TallerFigurasView />);
 
-    const regen = await screen.findByRole('button', { name: /regenerar sugerencia/i });
-    mockSuggest.mockClear();
-    fireEvent.click(regen);
+    // D-8: nada de IA al montar.
+    expect(mockSuggest).not.toHaveBeenCalled();
+
+    const generar = await screen.findByRole('button', { name: /generar leyenda con ia/i });
+    fireEvent.click(generar);
 
     await waitFor(() =>
       expect(mockSuggest).toHaveBeenCalledWith(

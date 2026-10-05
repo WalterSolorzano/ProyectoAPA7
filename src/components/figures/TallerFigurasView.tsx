@@ -42,8 +42,6 @@ export const TallerFigurasView: React.FC = () => {
   const subfigInputRef = useRef<HTMLInputElement>(null);
   // Slot (b, c, d...) que se llenará con el próximo archivo importado.
   const slotPendiente = useRef<number | null>(null);
-  // Ids ya consultados a la IA: evita refetch al volver a un activo.
-  const solicitadas = useRef<Set<string>>(new Set());
 
   // Ancho real disponible para decidir el modo de layout. El rect del contenedor
   // manda; si aún no tiene medida (primer render o jsdom) se usa la ventana.
@@ -180,31 +178,6 @@ export const TallerFigurasView: React.FC = () => {
   const captionActual = infoTextoActual?.caption ?? '';
   const parrafoActual = contextoActual?.parrafoAnterior ?? '';
 
-  // IA proactiva: sugiere leyenda para activos sin caption, una vez por id.
-  useEffect(() => {
-    if (!doc?.session_id || !elementoActual) return;
-    const tipo = elementoActual.type;
-    if (tipo !== 'image' && tipo !== 'table') return;
-    if (captionActual.trim()) return;
-    if (solicitadas.current.has(elementoActual.id)) return;
-    solicitadas.current.add(elementoActual.id);
-    let cancelado = false;
-    suggestCaption(doc.session_id, elementoActual.id, parrafoActual, apiKey ?? undefined)
-      .then((texto) => {
-        if (cancelado || !texto) return;
-        setAiSuggestions((prev) => ({
-          ...prev,
-          [elementoActual.id]: { suggestedTitle: texto, suggestedNote: '' },
-        }));
-      })
-      .catch(() => {
-        // La sugerencia es oportunista: un fallo de red no rompe el taller.
-      });
-    return () => {
-      cancelado = true;
-    };
-  }, [doc?.session_id, elementoActual, captionActual, parrafoActual, apiKey]);
-
   // Rotación de imagen (+90 grados)
   const handleRotate = useCallback(() => {
     if (!elementoActual || elementoActual.type !== 'image') return;
@@ -307,6 +280,15 @@ export const TallerFigurasView: React.FC = () => {
       // La sugerencia es oportunista: un fallo de red no rompe el taller.
     }
   }, [doc?.session_id, elementoActual, parrafoActual, apiKey]);
+
+  // Edición de una celda de tabla: el patch va directo al elemento tabla.
+  const handleEditarCeldaTabla = useCallback(
+    (patch: { headers?: string[]; rows?: string[][] }) => {
+      if (!elementoActual || elementoActual.type !== 'table') return;
+      updateElementTable(elementoActual.id, patch);
+    },
+    [elementoActual, updateElementTable]
+  );
 
   // Enrutar el parche según el tipo del activo: una tabla nunca se envía como
   // imagen. Sin esto, el campo `type` del request convertía la tabla en imagen
@@ -438,6 +420,8 @@ export const TallerFigurasView: React.FC = () => {
             onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
             onApplyCaption={handleApplyCaption}
             onRegenerateSuggestion={handleRegenerateSuggestion}
+            onGenerarSuggestion={handleRegenerateSuggestion}
+            onEditarCeldaTabla={handleEditarCeldaTabla}
             border={elementoActual.image_info?.border}
             shadow={elementoActual.image_info?.shadow}
             cornerRadius={elementoActual.image_info?.corner_radius}
