@@ -31,9 +31,9 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
   if (total === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '40px' }}>
-        <div style={{ color: 'var(--accent-primary)' }}><ShieldCheck size={32} aria-hidden /></div>
-        <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-main)' }}>Aún no hay una revisión</h2>
-        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+        <div style={{ color: 'var(--color-accent)' }}><ShieldCheck size={32} aria-hidden /></div>
+        <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Aún no hay una revisión</h2>
+        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
           Ejecutá el escaneo para medir ortografía, voz, estructura y voz sintética.
         </p>
         <button type="button" onClick={onScan} disabled={isScanning} aria-busy={isScanning} style={solidBtn}>
@@ -45,23 +45,23 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(20px, 4vw, 48px)' }}>
-      <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--text-main)' }}>Estado de tu documento</h1>
+      <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Estado de tu documento</h1>
 
       <div role="status" aria-atomic="true" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
-        <span data-testid="review-gate-total" style={{ fontSize: '40px', fontWeight: 900, lineHeight: 1, color: 'var(--accent-primary)' }}>{total}</span>
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>observaciones por revisar</span>
+        <span data-testid="review-gate-total" style={{ fontSize: '40px', fontWeight: 900, lineHeight: 1, color: 'var(--color-accent)' }}>{total}</span>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>observaciones por revisar</span>
       </div>
 
-      <p style={{ margin: '6px 0 28px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+      <p style={{ margin: '6px 0 28px', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
         Voz sintética {Math.round(aiScore * 100)}% · {aiCount} fragmentos con IA
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '520px', marginBottom: '28px' }}>
         {CATEGORY_META.map(({ id, label, Icon }) => (
-          <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
             <Icon size={16} aria-hidden />
-            <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-main)' }}>{label}</span>
-            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: matrix[id] > 0 ? 'var(--text-main)' : 'var(--text-secondary)' }}>{matrix[id]}</span>
+            <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{label}</span>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: matrix[id] > 0 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>{matrix[id]}</span>
           </div>
         ))}
       </div>
@@ -86,13 +86,13 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
 const solidBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '8px',
   padding: '10px 18px', borderRadius: 'var(--radius-sm)',
-  border: 'none', background: 'var(--accent-primary)', color: 'var(--paper-white)',
+  border: 'none', background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
   fontSize: 'var(--text-sm)', fontWeight: 800, cursor: 'pointer',
 };
 
 const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '8px',
   padding: '10px 18px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border-subtle)', background: 'transparent',
-  color: 'var(--text-main)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer',
+  border: '1px solid var(--color-border-subtle)', background: 'transparent',
+  color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer',
 };

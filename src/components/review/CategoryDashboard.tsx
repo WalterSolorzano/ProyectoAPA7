@@ -82,7 +82,7 @@ export const CategoryDashboard: React.FC<Props> = ({
 
   if (items.length === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--color-text-secondary)' }}>
         {meta ? <meta.Icon size={22} aria-hidden /> : null}
         <p style={{ margin: 0, fontSize: 'var(--text-sm)' }}>Esta categoría no tiene observaciones.</p>
       </div>
@@ -92,9 +92,9 @@ export const CategoryDashboard: React.FC<Props> = ({
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
       <header style={{ marginBottom: '16px' }}>
-        <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)' }}>
+        <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
           {meta?.label}
-          <span role="status" aria-atomic="true" style={{ marginLeft: '8px', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          <span role="status" aria-atomic="true" style={{ marginLeft: '8px', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
             {items.length} observaciones
           </span>
         </h2>
@@ -102,10 +102,10 @@ export const CategoryDashboard: React.FC<Props> = ({
 
       {temas.map((tema) => (
         <section key={tema.key} style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
+          <h3 style={{ margin: '0 0 6px', fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-secondary)' }}>
             {tema.title} · {tema.items.length}
           </h3>
-          <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
             {tema.items.map((it) => (
               <FindingAccordion
                 key={it.id}

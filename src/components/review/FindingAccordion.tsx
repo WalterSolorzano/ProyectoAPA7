@@ -43,7 +43,7 @@ export const FindingAccordion: React.FC<Props> = ({
   return (
     <section
       style={{
-        borderBottom: '1px solid var(--border-subtle)',
+        borderBottom: '1px solid var(--color-border-subtle)',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -65,23 +65,23 @@ export const FindingAccordion: React.FC<Props> = ({
         }}
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-main)' }}>
+        <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
           {item.summary}
         </span>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Pág. {item.pageNumber}</span>
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>Pág. {item.pageNumber}</span>
       </button>
 
       {open && (
         <div style={{ padding: '0 12px 12px 36px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{item.detail}</p>
+          <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{item.detail}</p>
 
           <div
             style={{
               padding: '8px 10px',
               borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--sidebar-bg)',
+              backgroundColor: 'var(--color-bg-surface)',
               fontSize: 'var(--text-xs)',
-              color: 'var(--text-main)',
+              color: 'var(--color-text-primary)',
             }}
           >
             {item.originalText}
@@ -94,7 +94,7 @@ export const FindingAccordion: React.FC<Props> = ({
                 borderRadius: 'var(--radius-sm)',
                 backgroundColor: 'var(--color-accent-soft)',
                 fontSize: 'var(--text-xs)',
-                color: 'var(--text-main)',
+                color: 'var(--color-text-primary)',
               }}
             >
               {item.suggestedText}
@@ -105,7 +105,7 @@ export const FindingAccordion: React.FC<Props> = ({
             <span
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
-                fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
+                fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
               }}
             >
               <Lock size={12} /> Zona protegida: se revisa, no se escribe.
@@ -134,10 +134,10 @@ export const FindingAccordion: React.FC<Props> = ({
             <div
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderTop: '1px solid var(--border-subtle)', paddingTop: '8px',
+                borderTop: '1px solid var(--color-border-subtle)', paddingTop: '8px',
               }}
             >
-              <span role="status" aria-atomic="true" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+              <span role="status" aria-atomic="true" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
                 {index} de {total}
               </span>
               <button type="button" onClick={onNext} style={ghostBtn}>
@@ -154,13 +154,13 @@ export const FindingAccordion: React.FC<Props> = ({
 const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '4px',
   padding: '4px 10px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border-subtle)', background: 'transparent',
-  color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
+  border: '1px solid var(--color-border-subtle)', background: 'transparent',
+  color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
 };
 
 const solidBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '4px',
   padding: '4px 10px', borderRadius: 'var(--radius-sm)',
-  border: 'none', background: 'var(--accent-primary)',
-  color: 'var(--paper-white)', fontSize: 'var(--text-xs)', fontWeight: 800, cursor: 'pointer',
+  border: 'none', background: 'var(--color-accent)',
+  color: 'var(--color-text-on-accent)', fontSize: 'var(--text-xs)', fontWeight: 800, cursor: 'pointer',
 };

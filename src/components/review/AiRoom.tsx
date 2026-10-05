@@ -11,8 +11,8 @@ interface ParagraphLike { element_id: string; text: string; ai_score: number; ai
 const navBtnGhost: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
   padding: '4px 10px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border-subtle)', background: 'transparent',
-  color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
+  border: '1px solid var(--color-border-subtle)', background: 'transparent',
+  color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
 };
 
 /** Segmenta los párrafos por H1. Sin H1 devuelve un único segmento "Documento completo". */
@@ -57,7 +57,7 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, aiItems = [], 
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '40px' }}>
         <Sparkles size={28} />
-        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>Aún no hay un análisis de voz sintética.</p>
+        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Aún no hay un análisis de voz sintética.</p>
         <button type="button" onClick={onExit} style={navBtnGhost}>
           <ArrowLeft size={14} /> Volver al estado del documento
         </button>
@@ -66,12 +66,12 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, aiItems = [], 
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, backgroundColor: 'var(--canvas-bg)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, backgroundColor: 'var(--color-bg-canvas)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 24px', borderBottom: '1px solid var(--color-border-subtle)' }}>
         <button type="button" onClick={onExit} style={navBtnGhost}>
           <ArrowLeft size={14} /> Estado del documento
         </button>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Sala de IA · solo marcar para revisar</span>
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>Sala de IA · solo marcar para revisar</span>
       </div>
       <AiHierarchy
         elements={elements}

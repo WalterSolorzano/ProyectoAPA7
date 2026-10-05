@@ -36,8 +36,8 @@ export const CategoryRail: React.FC<Props> = ({ active, counts, onSelect }) => (
       alignItems: 'center',
       gap: '8px',
       padding: '12px 0',
-      borderRight: '1px solid var(--border-subtle)',
-      backgroundColor: 'var(--sidebar-bg)',
+      borderRight: '1px solid var(--color-border-subtle)',
+      backgroundColor: 'var(--color-bg-surface)',
     }}
   >
     {CATEGORY_META.map(({ id, label, Icon }) => {
@@ -60,7 +60,7 @@ export const CategoryRail: React.FC<Props> = ({ active, counts, onSelect }) => (
             borderRadius: 'var(--radius-sm)',
             border: '1px solid transparent',
             backgroundColor: isActive ? 'var(--color-accent-soft)' : 'transparent',
-            color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
             cursor: 'pointer',
           }}
         >

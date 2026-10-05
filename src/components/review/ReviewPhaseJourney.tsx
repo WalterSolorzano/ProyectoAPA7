@@ -34,19 +34,19 @@ export const ReviewPhaseJourney: React.FC<Props> = ({
   const aiCount = counts.ai;
 
   return (
-    <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: 'var(--canvas-bg)' }}>
+    <div style={{ flex: 1, display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: 'var(--color-bg-canvas)' }}>
       <CategoryRail active={active} counts={counts} onSelect={setActive} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <header
           style={{
             display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)',
+            padding: '12px 24px', borderBottom: '1px solid var(--color-border-subtle)',
           }}
         >
           <button type="button" onClick={onBack} style={backBtn}>
             <ArrowLeft size={14} /> Estado del documento
           </button>
-          <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)' }}>
+          <span style={{ flex: 1, fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
             {phaseLabel}
           </span>
           {aiCount > 0 && (
@@ -71,6 +71,6 @@ export const ReviewPhaseJourney: React.FC<Props> = ({
 const backBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
   padding: '4px 10px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border-subtle)', background: 'transparent',
-  color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
+  border: '1px solid var(--color-border-subtle)', background: 'transparent',
+  color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: 'pointer',
 };
