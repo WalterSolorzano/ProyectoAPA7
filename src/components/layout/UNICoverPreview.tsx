@@ -33,6 +33,26 @@ const BLACK = 'var(--paper-ink)';
  *  sale de la escala que este numero produce. */
 export const ANCHO_HOJA_PX = 680;
 
+/** Separa el acta en estudiantes y docente por DATO, no por el prefijo del
+ *  nombre. La heuristica anterior (`/^(ing\.|dr\.|m\.sc\.|lic\.)/`) clasificaba
+ *  a un estudiante con titulo como docente y a un docente sin titulo como
+ *  estudiante, asi que la preview podia mostrar (u ocultar) al tutor distinto de
+ *  lo que escribia `portada_uni.py`. El criterio real es el mismo que usa el
+ *  `.docx`: el docente es quien esta en `profesor_asesor` (alli viaja el flag
+ *  `es_tutor`). Si ademas viene en la lista de autores, se excluye de
+ *  estudiantes para no duplicarlo. */
+export function clasificarAutoresDePortada(
+  autores: { nombre: string; carnet: string }[],
+  profesorAsesor: string[],
+): { estudiantes: { nombre: string; carnet: string }[]; tutor: string } {
+  const docentes = new Set((profesorAsesor || []).map((d) => d.toLowerCase().trim()));
+  const esDocente = (nombre: string) => docentes.has(nombre.toLowerCase().trim());
+  return {
+    estudiantes: autores.filter((a) => !esDocente(a.nombre)),
+    tutor: (profesorAsesor && profesorAsesor[0]) || '',
+  };
+}
+
 export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   hoja = 'carta',
   anchoPx = ANCHO_HOJA_PX,
@@ -91,10 +111,10 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   };
 
   const autores = parseAuthorEntries(acta.autor);
-  const tutores = autores.filter((a) => /^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
-  const estudiantes = autores.filter((a) => !/^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
-
-  const tutorName = acta.profesor_asesor[0] || (tutores.length > 0 ? tutores[0].nombre : '');
+  const { estudiantes, tutor: tutorName } = clasificarAutoresDePortada(
+    autores,
+    acta.profesor_asesor || [],
+  );
   const grupo = acta.grupo || '';
 
   // Columnas de estudiantes dinámicas adaptativas:
@@ -111,7 +131,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   estudiantes.forEach((a, i) => {
     studentCols[i % nStudentCols].push({ nombre: a.nombre, carnet: a.carnet });
   });
-  const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: `Grupo: ${grupo}` }] : []].filter((c) => c.length > 0);
+  const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: grupo ? `Grupo: ${grupo}` : '' }] : []].filter((c) => c.length > 0);
 
   const cellStyle: React.CSSProperties = {
     flex: 1,
@@ -246,7 +266,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
                   <div
                     style={{
                       fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
-                      fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                      fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
                       wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2,
                     }}
                   >
@@ -256,7 +276,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
                     <div
                       style={{
                         fontSize: `${pt(PT_PORTADA_UNI.carnet)}px`,
-                        fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                        fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
                         wordBreak: 'break-word', overflowWrap: 'break-word',
                         marginTop: px(0.5), lineHeight: 1.2,
                       }}

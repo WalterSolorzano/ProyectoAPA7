@@ -40,6 +40,7 @@ from generation.heading_numbering import (  # noqa: F401
     _detect_heading_numbering_style,
     _extract_numbering_style_marker,
     _resolver_estilo_de_nivel,
+    _strip_existing_numbering,
 )
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
@@ -279,42 +280,6 @@ def _generate_toc_from_headings(
 
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
-
-def _strip_existing_numbering(text: str) -> str:
-    """Remove existing numbering prefix from heading text to avoid double prefixes.
-
-    Handles patterns like 'I. Title', 'II. Title', 'A. Title', '1. Title',
-    '0.1 Title', '1.1 Title', '1.1.1 Title' (multi-level decimal numbering
-    with or without a trailing dot).
-    """
-    if not text:
-        return text
-    import re
-    t = text.strip()
-    # Roman prefixes: I. II. III. IV. V. VI. VII. VIII. IX. X.
-    m = re.match(
-        r'^(M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))\.\s+(.*)',
-        t, re.IGNORECASE
-    )
-    if m:
-        return m.group(2)
-    # Multi-level decimal prefixes: 0.1, 1.1, 1.1.1, etc. followed by a space.
-    # The optional trailing dot also covers build-style prefixes like "1.1. ".
-    # Checked before the single-level decimal so that '1.1 Title' is stripped as
-    # a whole rather than leaving the '.1 Title' remainder behind.
-    m_multi = re.match(r'^(\d+(?:\.\d+)+)\.?\s+(.*)', t)
-    if m_multi:
-        return m_multi.group(2)
-    # Decimal prefixes: 1. 2. 10.
-    m2 = re.match(r'^(\d+)\.\s+(.*)', t)
-    if m2:
-        return m2.group(2)
-    # Letter prefixes: A. B. a. b.
-    m3 = re.match(r'^([A-Za-z])\.\s+(.*)', t)
-    if m3:
-        return m3.group(2)
-    return text
-
 
 
 # ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
@@ -1622,9 +1587,14 @@ def generate_apa7_docx(
             # Construir prefijo numerico (vacío para el heading de Referencias)
             number_prefix = "" if _is_refs_h else _build_heading_prefix(heading_counters, lvl, level_style)
 
-            # Strip existing numbering from text before adding programmatic prefix
+            # Strip existing numbering from text before adding programmatic prefix.
+            # Si el heading recibira un prefijo automatico, hay que quitar el
+            # manual primero o sale DOBLE numerado ("1. 9.1 Metodología"). El
+            # limpiador ya existia; estaba cableado solo para el romano de H1.
+            # Con estilo 'none' no hay prefijo que añadir: la numeracion manual
+            # se respeta tal cual.
             raw_text = elem.text or p.text
-            if level_style == 'roman' and lvl == 1:
+            if number_prefix:
                 raw_text = _strip_existing_numbering(raw_text)
 
             # Limpiar marcadores del texto y construir heading final

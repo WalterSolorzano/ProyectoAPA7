@@ -673,3 +673,53 @@ def _docx_bytes(doc) -> bytes:
     buf = _io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+# ── NUMERACIÓN MANUAL (no duplicar) ──────────────────────────────────────────
+
+def test_manual_numbering_se_strip_cuando_hay_prefijo_automatico(rules, test_output_dir):
+    """Un heading que ya viene numerado a mano ("9.1 Metodología") NO debe salir
+    doble numerado cuando la auto-numeración decimal está encendida: el generador
+    quita la manual y escribe SOLO la suya."""
+    rules = rules.model_copy(update={
+        "heading_numbering_style_lvl1": "decimal",
+        "heading_numbering_style_lvl2": "decimal",
+        "heading_numbering_style_lvl3": "none",
+    })
+    elements = [
+        ElementModel(id="h1", type=ElementType.HEADING, text="9.1 Metodología", heading_level=1),
+        ElementModel(id="h2", type=ElementType.HEADING, text="9.1.1 Subsección", heading_level=2),
+        ElementModel(id="h3", type=ElementType.HEADING, text="9.2 Resultados", heading_level=1),
+    ]
+    doc_model = DocumentModel(
+        session_id="test_manual_numbering",
+        file_name="manual_numbering.docx",
+        elements=elements,
+    )
+    out = test_output_dir / "manual_numbering_output.docx"
+    generate_apa7_docx(doc_model, out, rules)
+
+    all_text = "\n".join(p.text for p in docx.Document(str(out)).paragraphs)
+    assert "9.1" not in all_text, f"numeración manual conservada: {all_text!r}"
+    assert "9.2" not in all_text
+    assert "Metodología" in all_text
+    assert "Resultados" in all_text
+    assert "1. Metodología" in all_text
+
+
+def test_numeracion_manual_intacta_si_auto_numeracion_apagada(rules, test_output_dir):
+    """Con estilo 'none' la numeración manual del autor se respeta tal cual."""
+    rules = rules.model_copy(update={"heading_numbering_style_lvl1": "none"})
+    elements = [
+        ElementModel(id="h1", type=ElementType.HEADING, text="9.1 Metodología", heading_level=1),
+    ]
+    doc_model = DocumentModel(
+        session_id="test_none_numbering",
+        file_name="none_numbering.docx",
+        elements=elements,
+    )
+    out = test_output_dir / "none_numbering_output.docx"
+    generate_apa7_docx(doc_model, out, rules)
+
+    all_text = "\n".join(p.text for p in docx.Document(str(out)).paragraphs)
+    assert "9.1 Metodología" in all_text

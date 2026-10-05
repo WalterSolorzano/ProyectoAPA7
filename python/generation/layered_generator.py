@@ -30,7 +30,10 @@ from parsing.pre_classifier import (
 )
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
-from generation.heading_numbering import _resolver_estilo_de_nivel
+from generation.heading_numbering import (
+    _resolver_estilo_de_nivel,
+    _strip_existing_numbering,
+)
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
@@ -265,7 +268,12 @@ def generate_apa7_from_scratch(
                 doc.add_page_break()
 
             p = doc.add_paragraph()
-            format_heading_paragraph(p, lvl, prefix + (elem.text or ""), rules)
+            # Mismo criterio que `generator.py`: si hay prefijo automatico, se
+            # quita la numeracion manual para no duplicarla.
+            heading_text = elem.text or ""
+            if prefix:
+                heading_text = _strip_existing_numbering(heading_text)
+            format_heading_paragraph(p, lvl, prefix + heading_text, rules)
 
         elif elem_type == ElementType.PARAGRAPH:
             numbered_counters = {1: 0, 2: 0, 3: 0}

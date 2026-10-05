@@ -61,3 +61,30 @@ def test_generate_uni_cover_editable_empty():
     assert "Título del trabajo" in full_text
     assert "Elaborado por" in full_text
     assert "Managua, Nicaragua" in full_text
+
+
+def test_tutor_sale_en_su_propia_columna_y_no_como_estudiante():
+    """El docente debe salir SEPARADO de los estudiantes, en su propia columna
+    (con su grupo), no mezclado en la lista de autores."""
+    doc = Document()
+    autores = [
+        {"nombre": "Br. Estudiante Uno", "carnet": "2023-0001U"},
+        {"nombre": "Br. Estudiante Dos", "carnet": "2023-0002U"},
+    ]
+    generate_uni_cover(
+        doc,
+        titulo="Caso Práctico",
+        asignatura="Asignatura",
+        autores=autores,
+        tutor="Ing. Carlos Docente",
+        grupo="3T1 IND",
+        fecha="7 de septiembre del año 2026",
+    )
+
+    celdas = [c.text for t in doc.tables for row in t.rows for c in row.cells]
+    celda_tutor = [c for c in celdas if "Ing. Carlos Docente" in c]
+    assert len(celda_tutor) == 1, f"el docente no tiene columna propia: {celdas}"
+    # La columna del docente NO contiene estudiantes y sí trae el grupo.
+    assert "Estudiante Uno" not in celda_tutor[0]
+    assert "Estudiante Dos" not in celda_tutor[0]
+    assert "3T1 IND" in celda_tutor[0]
