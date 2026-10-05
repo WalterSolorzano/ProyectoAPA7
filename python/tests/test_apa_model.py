@@ -50,3 +50,9 @@ def test_validador_no_rompe_referencia_vacia():
     r = ReferenciaModel(id="r6")
     assert r.apa_segments == []
     assert (r.formatted_apa or "") == ""
+
+
+def test_validador_no_degenera_con_raw_y_doi():
+    raw = "Perez, A. (2020). Un titulo real. Revista X. https://doi.org/10.1000/a"
+    r = ReferenciaModel(id="r7", raw_text=raw, formatted_apa=raw, doi_or_url="10.1000/a")
+    assert "Un titulo real" in "".join(s.text for s in r.apa_segments)

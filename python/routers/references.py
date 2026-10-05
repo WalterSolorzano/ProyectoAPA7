@@ -222,7 +222,7 @@ async def format_reference(req: FormatReferenceRequest) -> Dict[str, Any]:
     recibe, con la misma cursiva y la misma limpieza.
     """
     from models import ReferenciaModel
-    from modules.apa_format import build_apa_segments, inferir_tipo
+    from modules.apa_format import build_apa_segments
 
     ref = ReferenciaModel(
         id="format", authors=req.authors, year=req.year, title=req.title,
@@ -233,5 +233,5 @@ async def format_reference(req: FormatReferenceRequest) -> Dict[str, Any]:
     return {
         "formatted_apa": "".join(s.text for s in segs).strip(),
         "apa_segments": [s.model_dump() for s in segs],
-        "tipo": inferir_tipo(ref),
+        "tipo": ref.tipo,
     }

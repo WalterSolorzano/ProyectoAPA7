@@ -20,7 +20,7 @@ _DOI_RE = re.compile(r"(?:https?://doi\.org/|doi:\s*)?10\.\d{4,9}/\S+", re.IGNOR
 _ACCESSED_RE = re.compile(
     r"[\[(]\s*(?:accessed|consultado|recuperado)(?:\s+[^\])]*)?[\])]", re.IGNORECASE
 )
-_AVAILABLE_RE = re.compile(r"\bavailable\s*(?:from|at|:)\s*", re.IGNORECASE)
+_AVAILABLE_RE = re.compile(r"\bavailable\s*(?:from|at)?\s*:?\s*", re.IGNORECASE)
 _RETRIEVAL_RE = re.compile(
     r"\b(?:recuperado|obtenido|disponible|consultado|retrieved)\s+"
     r"(?:el\s+\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+\d{4},?\s+)?"
@@ -160,8 +160,10 @@ def build_apa_segments(ref: Any) -> List[Any]:
     if tipo == "otro":
         tipo = inferir_tipo(d)
 
-    # Sin campos: usar (limpiado) el texto crudo si existe.
-    if not authors and not title and not source and not (d.get("doi_or_url") or ""):
+    # Sin campos estructurados: usar (limpiado) el texto crudo si existe. NO se
+    # mira `doi_or_url`: una referencia que solo trae raw_text/formatted_apa y un
+    # DOI no debe fabricar "(s.f.). <url>" y perder autor/título.
+    if not authors and not title and not source:
         return [_seg(limpiar_artefactos(raw))] if raw else []
 
     author_str = formatear_autores(authors)
@@ -173,6 +175,13 @@ def build_apa_segments(ref: Any) -> List[Any]:
     prefix = f"{author_str} ({year}). " if author_str else f"({year}). "
     segs: List[Any] = [_seg(prefix)]
     url = url_segura(d.get("doi_or_url"), tipo)
+    # Evita duplicar el enlace: si el texto crudo ya lo trae en título/fuente,
+    # se quita de ahí porque se agrega como segmento propio más abajo.
+    if url:
+        for cand in {url, (d.get("doi_or_url") or "").strip()}:
+            if cand:
+                title = title.replace(cand, "").strip(" .,;:")
+                source = source.replace(cand, "").strip(" .,;:")
 
     if tipo in ("libro", "informe"):
         edition = ""

@@ -9,6 +9,7 @@ import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, W
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
 import { ReferenciaLinea } from '../referencias/ReferenciaLinea';
+import { APA_LISTA } from '../../lib/apaLayout';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
@@ -2029,7 +2030,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     </p>
                                     {/* Lista de referencias estructuradas */}
                                     {doc.referencias && doc.referencias.length > 0 ? (
-                                      <div style={{ paddingLeft: 0 }}>
+                                      <div style={{ ...APA_LISTA }}>
                                         {doc.referencias.map((ref, ri) => (
                                           <ReferenciaLinea key={ref.id || ri} referencia={ref} />
                                         ))}

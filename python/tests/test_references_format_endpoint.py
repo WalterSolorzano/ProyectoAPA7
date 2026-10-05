@@ -32,3 +32,11 @@ def test_format_infiere_tipo_si_viene_otro():
     })
     assert r.json()["tipo"] == "tesis"
     assert "https://upc.edu/t/1" in r.json()["formatted_apa"]
+
+
+def test_format_respeta_tipo_explicito_con_doi():
+    r = client.post("/api/references/format", json={
+        "authors": ["Autor, A."], "year": "2020", "title": "Un libro",
+        "source": "Editorial", "doi_or_url": "https://doi.org/10.1000/x", "tipo": "libro",
+    })
+    assert r.json()["tipo"] == "libro"

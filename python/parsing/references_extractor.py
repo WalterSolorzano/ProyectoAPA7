@@ -75,7 +75,7 @@ _ACCESSED_BRACKET = re.compile(
     r"[\[(]\s*(?:accessed|consultado|recuperado)(?:\s+[^\])]*)?[\])]", re.IGNORECASE
 )
 _AVAILABLE_PREFIX = re.compile(
-    r"\bavailable\s*(?:from|at|:)\s*", re.IGNORECASE
+    r"\bavailable\s*(?:from|at)?\s*:?\s*", re.IGNORECASE
 )
 
 # Prefijo de lista numerada manual al inicio de una entrada de bibliografia:

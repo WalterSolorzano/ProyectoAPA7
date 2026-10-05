@@ -654,6 +654,13 @@ def format_apa_referencias_section(
             from modules.apa_format import build_apa_segments
             segs = build_apa_segments(ref)
         if not segs:
+            # Fallback: una referencia que solo trae `formatted_apa`/`raw_text`
+            # (sin campos estructurados) NO debe desaparecer en silencio.
+            plano = (ref.formatted_apa or ref.raw_text or "").strip()
+            if plano:
+                from models import ApaSegment
+                segs = [ApaSegment(text=plano)]
+        if not segs:
             continue
         # Seguridad F-06: nunca dejar `[SIGLAS]` en la lista final (APA 7, 9.11).
         from modules.apa_format import recortar_siglas_corporativas

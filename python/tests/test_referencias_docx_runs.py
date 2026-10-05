@@ -43,3 +43,12 @@ def test_docx_corporativo_sin_siglas():
     texto = "\n".join(p.text for p in doc.paragraphs)
     assert "Instituto Nicaragüense de Energía" in texto
     assert "[INE]" not in texto
+
+
+def test_docx_usa_formatted_apa_sin_campos():
+    # Regresión: una referencia que solo trae formatted_apa no debe desaparecer.
+    ref = ReferenciaModel(id="r3", formatted_apa="Autor, A. (2019). Texto que debe salir.")
+    doc = docx.Document()
+    format_apa_referencias_section(doc, [ref], RULES)
+    texto = "\n".join(p.text for p in doc.paragraphs)
+    assert "Texto que debe salir" in texto

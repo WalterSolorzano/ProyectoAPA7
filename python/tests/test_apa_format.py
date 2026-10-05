@@ -113,3 +113,21 @@ def test_autor_corporativo_lleva_punto_antes_del_anio():
     _only = {"authors": ["Instituto Nicaragüense de Energía"], "year": "2026",
             "title": "", "source": "", "doi_or_url": None, "tipo": "otro"}
     assert format_apa_plain(_only).startswith("Instituto Nicaragüense de Energía. (2026)")
+
+
+def test_limpieza_vancouver_sin_dos_puntos_huerfanos():
+    limpio = limpiar_artefactos(
+        "Avances en robótica. Available from: https://x.com [accessed 26 Jun 2025]"
+    )
+    assert limpio == "Avances en robótica. https://x.com"
+
+
+def test_raw_con_doi_no_degenera():
+    # Regresión: con raw_text/formatted_apa pero sin campos estructurados y con
+    # doi_or_url, el formateador NO debe fabricar "(s.f.). <url>" y perder el texto.
+    ref = {"authors": [], "year": None, "title": "", "source": "",
+           "raw_text": "Perez, A. (2020). Un titulo real. Revista X, 3(2), 10-20. https://doi.org/10.1000/a",
+           "doi_or_url": "10.1000/a", "tipo": "otro"}
+    plain = format_apa_plain(ref)
+    assert "Un titulo real" in plain
+    assert "(s.f.)" not in plain
