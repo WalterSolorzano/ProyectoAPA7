@@ -112,9 +112,16 @@ export function UnifiedToolbar() {
     <header
       className="app-drag"
       style={{
-        display: 'flex',
+        /* Tres pistas: laterales `minmax(max-content, 1fr)` (nunca bajan de su
+           contenido) y centro `minmax(0, auto)` (puede encogerse a 0). Con
+           espacio de sobra las dos pistas `1fr` quedan iguales y el título
+           queda centrado en la ventana; al angostar, el centro se achica y
+           trunca en vez de montarse encima del cluster derecho —el bug de la
+           barra absoluta, que centraba sobre la ventana ignorando los dos
+           extremos. */
+        display: 'grid',
+        gridTemplateColumns: 'minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr)',
         alignItems: 'center',
-        justifyContent: 'space-between',
         height: 48,
         flexShrink: 0,
         padding: isElectron ? '0 150px 0 16px' : '0 16px',
@@ -145,14 +152,14 @@ export function UnifiedToolbar() {
 
       {doc && (
         <div
+          data-testid="toolbar-centro-doc"
           style={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
+            minWidth: 0,
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 10,
-            maxWidth: '50%',
             pointerEvents: 'none',
           }}
         >
@@ -160,6 +167,8 @@ export function UnifiedToolbar() {
             title="Nombre del documento activo"
             style={{
               maxWidth: 380,
+              flex: '0 1 auto',
+              minWidth: 0,
               fontSize: 'var(--text-sm)',
               fontWeight: 600,
               color: 'var(--color-text-primary)',
@@ -193,7 +202,7 @@ export function UnifiedToolbar() {
         </div>
       )}
 
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
         {/* El estado de Word va primero: es el entorno donde vive el documento,
             y el Copiloto queda pegado al cluster de menú/desborde de la derecha. */}
         <WordLiveChip />

@@ -277,4 +277,26 @@ describe('T7 — la barra mínima', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }));
     expect(useDocStore.getState().settingsHubOpen).toBe(true);
   });
+
+  it('al angostar, el bloque central del título no se monta sobre los controles', () => {
+    /* Bug: el centro era `position:absolute; left:50%; maxWidth:50%`, así que
+       centraba sobre la ventana ignorando los dos extremos. Con el cluster
+       derecho (Word + Copiloto + desborde + avatar) por debajo de ~1200px —el
+       propio `minWidth` de Electron— el título se montaba encima. Ahora es una
+       pista de grid que encoge y trunca. */
+    const { container } = render(<UnifiedToolbar />);
+    const header = container.querySelector('header') as HTMLElement;
+    expect(header.style.display).toBe('grid');
+    expect(header.style.gridTemplateColumns).toContain('max-content');
+    expect(header.style.gridTemplateColumns).toContain('minmax(0');
+
+    const centro = screen.getByTestId('toolbar-centro-doc');
+    expect(centro.style.position).not.toBe('absolute');
+    expect(['0px', '0']).toContain(centro.style.minWidth);
+    expect(centro.style.overflow).toBe('hidden');
+
+    // El título trunca en vez de empujar/anchar la barra.
+    const titulo = screen.getByText('B.docx');
+    expect(['0px', '0']).toContain(titulo.style.minWidth);
+  });
 });
