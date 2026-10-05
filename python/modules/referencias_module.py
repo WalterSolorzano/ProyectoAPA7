@@ -122,17 +122,20 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                 issue = data.get("issue", "")
                 page = data.get("page", "")
 
-                formatted = f"{author_str} ({year_str}). {title}."
-                if container_title:
-                    formatted += f" {container_title}"
-                    if volume:
-                        formatted += f", {volume}"
-                        if issue:
-                            formatted += f"({issue})"
-                    if page:
-                        formatted += f", {page}."
-                    else:
-                        formatted += "."
+                source_parts = container_title
+                if container_title and volume:
+                    source_parts += f", {volume}"
+                    if issue:
+                        source_parts += f"({issue})"
+                if container_title and page:
+                    source_parts += f", {page}"
+                from modules.apa_format import build_apa_segments
+                _segs = build_apa_segments({
+                    "authors": authors, "year": year_str, "title": title,
+                    "source": source_parts, "doi_or_url": doi,
+                    "raw_text": "", "tipo": "articulo",
+                })
+                formatted = "".join(s.text for s in _segs)
 
                 results.append({
                     "author": author_str,
@@ -144,6 +147,7 @@ async def fetch_crossref_metadata(doi: str) -> Optional[dict]:
                     "issue": issue,
                     "page": page,
                     "formatted_apa": formatted,
+                    "apa_segments": [s.model_dump() for s in _segs],
                     "provider": "crossref",
                 })
 
@@ -190,9 +194,12 @@ async def fetch_openalex_metadata(query_or_doi: str) -> Optional[dict]:
             doi_str = work.get("doi", "").replace("https://doi.org/", "")
             pdf_url = work.get("primary_location", {}).get("pdf_url")
 
-            formatted = f"{author_str} ({year_str}). {title_str}."
-            if venue:
-                formatted += f" {venue}."
+            from modules.apa_format import build_apa_segments
+            _segs = build_apa_segments({
+                "authors": authors, "year": year_str, "title": title_str,
+                "source": venue, "doi_or_url": doi_str, "raw_text": "", "tipo": "articulo",
+            })
+            formatted = "".join(s.text for s in _segs)
 
             return {
                 "author": author_str,
@@ -202,6 +209,7 @@ async def fetch_openalex_metadata(query_or_doi: str) -> Optional[dict]:
                 "doi": doi_str,
                 "pdf_url": pdf_url,
                 "formatted_apa": formatted,
+                "apa_segments": [s.model_dump() for s in _segs],
                 "provider": "openalex",
             }
     except Exception as e:
@@ -242,9 +250,12 @@ async def fetch_semantic_scholar_metadata(query_or_doi: str) -> Optional[dict]:
             pdf_info = paper.get("openAccessPdf", {}) or {}
             pdf_url = pdf_info.get("url")
 
-            formatted = f"{author_str} ({year_str}). {title_str}."
-            if venue:
-                formatted += f" {venue}."
+            from modules.apa_format import build_apa_segments
+            _segs = build_apa_segments({
+                "authors": authors, "year": year_str, "title": title_str,
+                "source": venue, "doi_or_url": doi_str, "raw_text": "", "tipo": "articulo",
+            })
+            formatted = "".join(s.text for s in _segs)
 
             return {
                 "author": author_str,
@@ -254,6 +265,7 @@ async def fetch_semantic_scholar_metadata(query_or_doi: str) -> Optional[dict]:
                 "doi": doi_str,
                 "pdf_url": pdf_url,
                 "formatted_apa": formatted,
+                "apa_segments": [s.model_dump() for s in _segs],
                 "provider": "semantic_scholar",
             }
     except Exception as e:
@@ -355,19 +367,20 @@ async def search_crossref_by_author_year(authors: list[str], year: str) -> Optio
                 issue = item.get("issue", "")
                 page = item.get("page", "")
 
-                # Formato APA 7
-                formatted = f"{author_str} ({year_str}). {title_str}."
-                if source_str:
-                    formatted += f" {source_str}"
-                    if volume:
-                        formatted += f", {volume}"
-                        if issue:
-                            formatted += f"({issue})"
-                    if page:
-                        formatted += f", {page}"
-                formatted += "."
-                if doi:
-                    formatted += f" https://doi.org/{doi}"
+                # Formato APA 7 (formateador canónico)
+                src = source_str
+                if source_str and volume:
+                    src += f", {volume}"
+                    if issue:
+                        src += f"({issue})"
+                if source_str and page:
+                    src += f", {page}"
+                from modules.apa_format import build_apa_segments
+                _segs = build_apa_segments({
+                    "authors": apa_authors, "year": year_str, "title": title_str,
+                    "source": src, "doi_or_url": doi, "raw_text": "", "tipo": "articulo",
+                })
+                formatted = "".join(s.text for s in _segs)
 
                 # Score de relevancia: el primer autor coincide = alta relevancia
                 item_surnames = [a.get("family", "").lower() for a in item_authors]
@@ -381,6 +394,7 @@ async def search_crossref_by_author_year(authors: list[str], year: str) -> Optio
                     "source": source_str or publisher,
                     "doi": doi,
                     "formatted_apa": formatted,
+                    "apa_segments": [s.model_dump() for s in _segs],
                     "relevance": relevance,
                 })
 
@@ -413,7 +427,13 @@ async def fetch_openlibrary_metadata(isbn: str) -> Optional[dict]:
                     title = book.get("title", "")
                     publisher = book.get("publishers", [{"name": ""}])[0].get("name", "")
 
-                    formatted = f"{author_str} ({year}). {title}. {publisher}."
+                    from modules.apa_format import build_apa_segments
+                    _segs = build_apa_segments({
+                        "authors": authors, "year": year, "title": title,
+                        "source": publisher, "doi_or_url": None,
+                        "raw_text": "", "tipo": "libro",
+                    })
+                    formatted = "".join(s.text for s in _segs)
 
                     return {
                         "author": author_str,
@@ -421,7 +441,9 @@ async def fetch_openlibrary_metadata(isbn: str) -> Optional[dict]:
                         "title": title,
                         "publisher": publisher,
                         "isbn": isbn,
-                        "formatted": formatted
+                        "formatted": formatted,
+                        "formatted_apa": formatted,
+                        "apa_segments": [s.model_dump() for s in _segs],
                     }
     except Exception as e:
         print(f"[WARN] Error in OpenLibrary API: {e}")
@@ -537,30 +559,17 @@ def _purgar_seccion_referencias(doc: docx.Document, header) -> None:
 
 
 def _armar_apa_desde_campos(ref: ReferenciaModel) -> str:
-    """Construye la linea APA desde los campos sueltos de la referencia.
+    """Construye la linea APA (texto plano) desde los campos de la referencia.
 
-    Reutiliza `_format_apa_reference` del store del add-in: existe una sola
-    regla de armado de APA en el proyecto y esta funcion no es una segunda
-    version. Lo que faltaba no era el formato, era la llamada.
-
-    Devuelve "" si no hay con que armar una linea. Sin esta guarda, una
-    referencia totalmente vacia salia como "(s.f.).": el formateador le pone
-    anio "s.f." y `_strip_ref_prefix` se come el "(s." de paso.
+    Devuelve "" si no hay con que armar una linea.
     """
-    from modules.addin_references_store import _format_apa_reference
+    from modules.apa_format import format_apa_plain
 
     if not (ref.authors or ref.title.strip() or ref.source.strip()
             or (ref.doi_or_url or "").strip()):
         return ""
 
-    return _format_apa_reference({
-        "authors": ref.authors or [],
-        "year": ref.year,
-        "title": ref.title,
-        "source": ref.source,
-        "doi_or_url": ref.doi_or_url,
-        "raw_text": ref.raw_text,
-    })
+    return format_apa_plain(ref)
 
 
 def format_apa_referencias_section(
@@ -639,25 +648,26 @@ def format_apa_referencias_section(
         p_ref.paragraph_format.space_before = Pt(0)
         p_ref.paragraph_format.space_after = Pt(0)
 
-        # Si tenemos texto crudo formateado o campos individuales
-        text: str = ref.formatted_apa if ref.formatted_apa else ref.raw_text
-
-        # Si no hay texto, se ARMA desde los campos. Antes se saltaba con
-        # `continue` y dejaba la seccion vacia bajo el titulo "Referencias", sin
-        # error: una referencia con autores, ano y titulo —todo lo que hace
-        # falta para la APA— desaparecia en silencio. Solo se omite cuando no
-        # hay NADA con que armar una linea.
-        if not text or not text.strip():
-            text = _armar_apa_desde_campos(ref)
-        if not text or not text.strip():
+        # Segmentos: los del modelo, o reconstruidos desde los campos/texto.
+        segs = list(ref.apa_segments) if ref.apa_segments else []
+        if not segs:
+            from modules.apa_format import build_apa_segments
+            segs = build_apa_segments(ref)
+        if not segs:
+            continue
+        # Seguridad F-06: nunca dejar `[SIGLAS]` en la lista final (APA 7, 9.11).
+        from modules.apa_format import recortar_siglas_corporativas
+        segs[0].text = recortar_siglas_corporativas(segs[0].text)
+        texto = _strip_ref_prefix("".join(s.text for s in segs))
+        if not texto.strip():
             continue
 
-        text = _strip_ref_prefix(text)
-        # F-06: Los corchetes [SIGLA] en el autor corporativo solo son válidos en citas textuales,
-        # en la lista de referencias final debe figurar el nombre de la institución sin corchetes (APA 7, 9.11)
-        text = re.sub(r'^([A-ZÁÉÍÓÚÑ][^.\(\n]+?)\s*\[[A-ZÁÉÍÓÚÑ]{2,8}\]', r'\1', text)
-
-        run = p_ref.add_run(text)
-        run.bold = False
-        set_run_font(run, rules.font_family, rules.font_size_pt)
-        run.font.color.rgb = RGBColor(0, 0, 0)
+        for i, seg in enumerate(segs):
+            t = _strip_ref_prefix(seg.text) if i == 0 else seg.text
+            if not t:
+                continue
+            run = p_ref.add_run(t)
+            run.bold = False
+            run.italic = bool(seg.italic)
+            set_run_font(run, rules.font_family, rules.font_size_pt)
+            run.font.color.rgb = RGBColor(0, 0, 0)
