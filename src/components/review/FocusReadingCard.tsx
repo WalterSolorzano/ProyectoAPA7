@@ -9,7 +9,7 @@
    defecto llega a la pantalla por un solo lado. */
 
 import React, { useMemo } from 'react';
-import { Check, CheckCheck, Flag, Quote, Tags, X, type LucideIcon } from 'lucide-react';
+import { Check, CheckCheck, Flag, Layers, Quote, Tags, X, type LucideIcon } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useAutoFitText } from '../../hooks/useAutoFitText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
@@ -20,6 +20,9 @@ import { EditorialMascot, type MascotExpression, type MascotKind } from '../layo
 export interface FocusReadingCardProps {
   item: AuditItem | null;
   totalFindings: number;
+  /** La fase activa del documento, como línea de contexto. El `label` lo aporta
+   *  el hook (`allPhases`); la tarjeta no lo inventa. Sin fase, no se pinta. */
+  phaseLabel?: string | null;
   /** Acción declarada para el hallazgo seleccionado (`accionDeItem`). Sin ella
    *  la tarjeta solo lee: no ofrece ningún botón. */
   action?: SubtypeAction;
@@ -89,6 +92,7 @@ const ACCION_MOTOR: Partial<Record<SubtypeAction, { label: string; Icon: LucideI
 export function FocusReadingCard({
   item,
   totalFindings,
+  phaseLabel = null,
   action,
   marked = false,
   busy = false,
@@ -175,6 +179,21 @@ export function FocusReadingCard({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <EditorialMascot size={24} kind={mascotKind} expression={mascotExpression} />
+          {/* Línea de contexto de fase (AGENTS.md §2): de qué parte del documento
+              es este hallazgo. Icono, una palabra, sin más. */}
+          {phaseLabel && (
+            <span
+              data-testid="review-phase-context"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)',
+                color: 'var(--color-text-secondary)', fontWeight: 600,
+                maxWidth: '28ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}
+            >
+              <Layers size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              {phaseLabel}
+            </span>
+          )}
           {pagina !== null && <span style={{ fontWeight: 600 }}>{`${seccion}${pagina}`}</span>}
         </div>
         <span>{totalFindings} {totalFindings === 1 ? 'hallazgo en este bloque' : 'hallazgos en este bloque'}</span>

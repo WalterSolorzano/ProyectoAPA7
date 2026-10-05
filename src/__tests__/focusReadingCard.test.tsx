@@ -179,6 +179,16 @@ describe('T14 - FocusReadingCard', () => {
     expect(screen.getByText(/3 hallazgos en este bloque/)).toBeTruthy();
   });
 
+  it('pinta la fase activa como contexto, y no la inventa si no llega', () => {
+    // La fase la aporta el hook (`allPhases`); la tarjeta solo la muestra. Sin
+    // fase activa, la línea no existe: no se inventa un rótulo.
+    const { unmount } = montar({ phaseLabel: 'Metodo' });
+    expect(screen.getByTestId('review-phase-context').textContent).toBe('Metodo');
+    unmount();
+    montar();
+    expect(screen.queryByTestId('review-phase-context')).toBeNull();
+  });
+
   it('un solo hallazgo no se declara en plural', () => {
     montar({ totalFindings: 1 });
     expect(screen.getByText(/1 hallazgo en este bloque/)).toBeTruthy();

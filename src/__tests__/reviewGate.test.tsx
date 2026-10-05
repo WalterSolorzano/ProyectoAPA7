@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ReviewGate } from '../components/review/ReviewGate';
 import type { AuditItem } from '../lib/auditItems';
 import { phaseLabel } from '../lib/auditItems';
@@ -68,5 +68,48 @@ describe('ReviewGate', () => {
     );
     const boton = screen.getByText('Ver mapa de IA').closest('button') as HTMLButtonElement;
     expect(boton.disabled).toBe(true);
+  });
+
+  /* Drill-down: la matriz deja de ser un cartel y abre la revisión ya acotada. */
+  const gateConFase = (onStart: (foco?: { phase?: string; engine?: string }) => void) =>
+    render(
+      <ReviewGate
+        items={[itemConFase('1', 'spelling', 'metodo')]}
+        elements={[encabezado('h1', 'Metodo'), parrafo('e')]}
+        aiScore={0}
+        isScanning={false}
+        onScan={vi.fn()}
+        onStart={onStart}
+        onOpenAiRoom={vi.fn()}
+      />,
+    );
+
+  it('una celda con hallazgos abre la revisión filtrada por fase y motor', () => {
+    const onStart = vi.fn();
+    gateConFase(onStart);
+    fireEvent.click(screen.getByRole('button', { name: /Revisar Metodo: 1 hallazgo de Ortografía/i }));
+    expect(onStart).toHaveBeenCalledWith({ phase: 'metodo', engine: 'spelling' });
+  });
+
+  it('la etiqueta de fase abre la revisión filtrada solo por esa fase', () => {
+    const onStart = vi.fn();
+    gateConFase(onStart);
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar la fase Metodo' }));
+    expect(onStart).toHaveBeenCalledWith({ phase: 'metodo' });
+  });
+
+  it('una celda sin hallazgos no es un botón accionable', () => {
+    gateConFase(vi.fn());
+    // Ortografía tiene 1; Estructura tiene 0: su celda no abre nada.
+    expect(
+      screen.getByRole('button', { name: /Revisar Metodo: 0 hallazgos de Estructura/i }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
+  it('el botón global abre sin filtro: la matriz entera', () => {
+    const onStart = vi.fn();
+    gateConFase(onStart);
+    fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
+    expect(onStart).toHaveBeenCalledWith();
   });
 });

@@ -3,7 +3,7 @@
    Sin emoji: los iconos son de lucide-react y la mascota es `EditorialMascot`.
    Todo el color sale de tokens; ninguna celda escribe un hex. */
 import React, { useMemo } from 'react';
-import { ShieldCheck, Sparkles, ArrowRight, Lock, ListChecks, Bot, Layers } from 'lucide-react';
+import { ShieldCheck, Sparkles, ArrowRight, ChevronRight, Lock, ListChecks, Bot, Layers } from 'lucide-react';
 import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
 import { phaseLabel } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
@@ -52,12 +52,28 @@ const COLUMNA: Record<MotorMatriz, { label: string; marca: string; relleno: [str
 const rellenoDe = (motor: MotorMatriz, nivel: 0 | 1 | 2 | 3): string =>
   nivel === 0 ? 'transparent' : COLUMNA[motor].relleno[nivel - 1];
 
+/** Foco con el que la puerta abre la revisión: una fase y, si la celda es de un
+ *  motor concreto, también ese motor. El drill-down va de lo general (la matriz
+ *  entera) a lo específico (una fase y un motor). */
+export interface FocoRevision {
+  phase?: string;
+  engine?: MotorMatriz;
+}
+
+/* La matriz agrupa las reglas generales como `sin_fase`, pero el workbench las
+   filtra por `global` (`it.phase ?? 'global'`). Sin traducir, abrir esa fila
+   dejaría la revisión vacía: la celda prometería hallazgos que la superficie no
+   abre. Es la única clave que la matriz y el hook nombran distinto. */
+const faseDeFiltro = (phase: string): string => (phase === 'sin_fase' ? 'global' : phase);
+
 interface Props {
   items: AuditItem[];
   aiScore: number;
   isScanning: boolean;
   onScan: () => void;
-  onStart: () => void;
+  /** Abre la revisión. Sin argumento, sin filtro (la matriz entera). Con
+   *  `{ phase, engine }`, ya acotada a esa fila y esa celda. */
+  onStart: (foco?: FocoRevision) => void;
   onOpenAiRoom: () => void;
   /** El documento, para resolver la fase de cada elemento por su H1 ancestro. */
   elements?: readonly ElementModel[];
@@ -140,21 +156,43 @@ export const ReviewGate: React.FC<Props> = ({
 
             {filas.map((fila) => (
               <React.Fragment key={fila.phase}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', minWidth: 0 }}>
+                {/* La fila abre la fase entera; cada celda con hallazgos abre la
+                    fase acotada además a su motor. Botones reales, con nombre
+                    accesible: la matriz deja de ser un cartel y pasa a ser la
+                    puerta de entrada al detalle. */}
+                <button
+                  type="button"
+                  onClick={() => onStart({ phase: faseDeFiltro(fila.phase) })}
+                  aria-label={`Revisar la fase ${fila.label}`}
+                  style={filaBtn}
+                >
+                  <ChevronRight size={12} aria-hidden style={{ flexShrink: 0, color: 'var(--color-text-tertiary)' }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fila.label}</span>
                   {fila.protegida && <Lock size={12} aria-label="Portada protegida" style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />}
-                </div>
+                </button>
                 {MOTORES_MATRIZ.map((motor) => {
                   const n = fila.counts[motor];
                   const nivel = nivelCelda(n, maxPorMotor[motor]);
+                  const abrible = n > 0;
                   return (
-                    <div
+                    <button
                       key={motor}
+                      type="button"
+                      disabled={!abrible}
+                      onClick={() => onStart({ phase: faseDeFiltro(fila.phase), engine: motor })}
+                      aria-label={`Revisar ${fila.label}: ${n} hallazgo${n === 1 ? '' : 's'} de ${COLUMNA[motor].label}`}
                       title={`${fila.label} · ${COLUMNA[motor].label}: ${n}`}
-                      style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: rellenoDe(motor, nivel), fontSize: 'var(--text-xs)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: n > 0 ? 'var(--color-text-primary)' : 'transparent' }}
+                      style={{
+                        height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 'var(--radius-sm)', background: rellenoDe(motor, nivel),
+                        fontSize: 'var(--text-xs)', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                        color: n > 0 ? 'var(--color-text-primary)' : 'transparent',
+                        border: 'none', fontFamily: 'inherit', padding: 0,
+                        cursor: abrible ? 'pointer' : 'default',
+                      }}
                     >
                       {n > 0 ? n : ''}
-                    </div>
+                    </button>
                   );
                 })}
               </React.Fragment>
@@ -174,7 +212,7 @@ export const ReviewGate: React.FC<Props> = ({
         </section>
 
         <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--color-border-subtle)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={onStart} style={solidBtn}>
+          <button type="button" onClick={() => onStart()} style={solidBtn}>
             Empezar revisión <ArrowRight size={14} aria-hidden />
           </button>
           <button
@@ -221,6 +259,15 @@ const eyebrow: React.CSSProperties = {
 const colHeader: React.CSSProperties = {
   fontSize: '10px', color: 'var(--color-text-tertiary)',
   textAlign: 'center', lineHeight: 1.1, overflowWrap: 'anywhere',
+};
+
+/* La etiqueta de fase es un botón, no un rótulo: reset de botón y el foco
+   visible lo aporta `.revision-phase :focus-visible` (revision.css). */
+const filaBtn: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '6px',
+  fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
+  minWidth: 0, background: 'transparent', border: 'none',
+  padding: 0, fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer',
 };
 
 const solidBtn: React.CSSProperties = {

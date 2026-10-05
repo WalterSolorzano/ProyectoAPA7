@@ -317,6 +317,61 @@ describe('T16 — el filtro no deja botones encendidos que no hacen nada', () =>
   });
 });
 
+/* ── El foco elegido en la puerta abre la revisión ya filtrada ─────────────── */
+
+describe('T16 — el drill-down de la puerta llega a la superficie', () => {
+  /* Un hallazgo de fase (`metodo`) y uno de regla general: alcanza para ver el
+     filtro de fase y el de motor a la vez, sin ruido. */
+  const conFaseYMotor = () =>
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, text: 'Metodo' }),
+        elemento(),
+      ]) as never,
+      proofreadFindings: [
+        hallazgo({ kind: 'ortografia', phase: 'metodo' }),
+        hallazgo({ element_id: 'e1', start: 0, end: 3, excerpt: 'seg', kind: 'passive_voice', phase: 'global' }),
+      ] as never,
+    });
+
+  it('aplica la fase y el motor con los que la puerta abrió', () => {
+    conFaseYMotor();
+    render(<ReviewWorkbench initialPhase="metodo" initialEngine="spelling" />);
+    expect(screen.getByRole('button', { name: 'Ortografía 1' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Metodo 1' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('no pisa el filtro que el usuario elige después de montar', () => {
+    conFaseYMotor();
+    const { rerender } = render(<ReviewWorkbench initialPhase="metodo" initialEngine="spelling" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Todo 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Todas las fases' }));
+    rerender(<ReviewWorkbench initialPhase="metodo" initialEngine="spelling" />);
+    expect(screen.getByRole('button', { name: 'Todo 2' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Todas las fases' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Ortografía 1' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Metodo 1' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('sin foco, arranca sin filtros', () => {
+    conFaseYMotor();
+    render(<ReviewWorkbench />);
+    expect(screen.getByRole('button', { name: 'Todo 2' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('muestra la fase activa como línea de contexto en la tarjeta', () => {
+    conFaseYMotor();
+    render(<ReviewWorkbench initialPhase="metodo" />);
+    expect(screen.getByTestId('review-phase-context').textContent).toBe('Metodo');
+  });
+
+  it('sin fase activa no pinta la línea de contexto', () => {
+    conFaseYMotor();
+    render(<ReviewWorkbench />);
+    expect(screen.queryByTestId('review-phase-context')).toBeNull();
+  });
+});
+
 /* ── "Aceptar todas" no se puede repetir mientras corre ───────────────────── */
 
 describe('T16 — "Aceptar todas" no es reentrante', () => {
@@ -594,6 +649,36 @@ describe('T16 — el paso 5 orquesta puerta, workbench y sala de IA', () => {
     fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
     expect(screen.getByText(/Estado de tu documento/i)).toBeTruthy();
+  });
+
+  it('la celda de la matriz abre la revisión ya filtrada por fase y motor', () => {
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, text: 'Metodo' }),
+        elemento(),
+      ]) as never,
+      proofreadFindings: [hallazgo({ kind: 'ortografia', phase: 'metodo' })] as never,
+    });
+    render(<Step5AuditIAWizard />);
+    fireEvent.click(screen.getByRole('button', { name: /Revisar Metodo: 1 hallazgo de Ortografía/i }));
+    expect(screen.getByRole('button', { name: 'Metodo 1' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Ortografía 1' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('volver a la puerta limpia el foco: el siguiente inicio es global', () => {
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, text: 'Metodo' }),
+        elemento(),
+      ]) as never,
+      proofreadFindings: [hallazgo({ kind: 'ortografia', phase: 'metodo' })] as never,
+    });
+    render(<Step5AuditIAWizard />);
+    fireEvent.click(screen.getByRole('button', { name: /Revisar Metodo: 1 hallazgo de Ortografía/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
+    expect(screen.getByRole('button', { name: 'Todo 1' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Metodo 1' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('ya no trae el mapa heuristico de 1800 caracteres por pagina', () => {

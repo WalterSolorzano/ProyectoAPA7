@@ -15,8 +15,8 @@
    - Las páginas salen de `usePageIndex` para las cosas que las nombran (la
      cuenta de la tira y la etiqueta de la tarjeta). */
 
-import React, { useMemo } from 'react';
-import { useReviewWorkbench, accionDeItem } from '../../hooks/useReviewWorkbench';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useReviewWorkbench, accionDeItem, type EngineFilter } from '../../hooks/useReviewWorkbench';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { ReviewStrip } from './ReviewStrip';
 import { FocusReadingCard } from './FocusReadingCard';
@@ -28,9 +28,15 @@ import { ScanLine } from 'lucide-react';
 export interface ReviewWorkbenchProps {
   /** Volver a la puerta de Revisión. Sin esto, el control no se pinta. */
   onExit?: () => void;
+  /** Fase con la que abre la revisión (drill-down desde la puerta). `null` o
+   *  ausente = sin filtro de fase. Se aplica UNA sola vez, al montar: si el
+   *  usuario cambia el filtro después, su elección manda. */
+  initialPhase?: string | null;
+  /** Motor con el que abre la revisión. Misma regla de una sola vez. */
+  initialEngine?: EngineFilter | null;
 }
 
-export function ReviewWorkbench({ onExit }: ReviewWorkbenchProps) {
+export function ReviewWorkbench({ onExit, initialPhase, initialEngine }: ReviewWorkbenchProps) {
   const wb = useReviewWorkbench();
   const doc = useDocStore((s) => s.doc);
   /* El interruptor que descarta los hallazgos sin decir nada. La vista lo lee
@@ -38,6 +44,28 @@ export function ReviewWorkbench({ onExit }: ReviewWorkbenchProps) {
      sus resultados se tiran, y sin esta lectura el motivo sería "no corrió
      ningún motor", que es exactamente lo contrario de lo que pasó. */
   const sugerenciasProactivas = useDocStore((s) => s.sugerenciasProactivas);
+
+  /* El foco elegido en la puerta se aplica UNA vez, al montar. El hook reinicia
+     el filtro de fase por sesión de documento, así que este efecto corre
+     DESPUÉS del suyo y el foco gana en el arranque; a partir de ahí el usuario
+     manda: un `useEffect` que re-aplicara el foco en cada render le pisaría el
+     filtro que acaba de elegir. */
+  const focoAplicado = useRef(false);
+  useEffect(() => {
+    if (focoAplicado.current) return;
+    focoAplicado.current = true;
+    if (initialPhase) wb.setPhaseFilter(initialPhase);
+    if (initialEngine) wb.setFilter(initialEngine);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* La fase activa, como línea de contexto de la superficie secuencial. El
+     `label` sale de `allPhases` (el mismo que pinta el chip): la tarjeta no
+     re-deriva el nombre de una fase. Sin fase activa, la línea no existe. */
+  const faseActiva =
+    wb.phaseFilter === 'all'
+      ? null
+      : wb.allPhases.find((f) => f.key === wb.phaseFilter)?.label ?? null;
 
   /* El "Escanear" del estado vacío es el MISMO verbo que el de la tira, con el
      mismo guardián de rechazo: el hook ya publica el resultado de cada motor
@@ -239,6 +267,7 @@ export function ReviewWorkbench({ onExit }: ReviewWorkbenchProps) {
             <FocusReadingCard
               key={wb.selected?.id ?? 'sin-hallazgo'}
               item={wb.selected}
+              phaseLabel={faseActiva}
               totalFindings={enElBloque}
               action={selAction}
               marked={sel ? wb.markedIds.includes(sel.id) : false}

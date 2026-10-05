@@ -6,7 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { reviewItems, type AuditItem } from '../../lib/auditItems';
 import { usePageIndex } from '../../hooks/usePageIndex';
-import { ReviewGate } from '../review/ReviewGate';
+import { ReviewGate, type FocoRevision } from '../review/ReviewGate';
 import { ReviewWorkbench } from '../review/ReviewWorkbench';
 import { AiRoom } from '../review/AiRoom';
 import '../../styles/revision.css';
@@ -32,6 +32,16 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   const [pantalla, setPantalla] = useState<Pantalla>('gate');
   const [isScanning, setIsScanning] = useState(false);
+  /* El foco elegido en la puerta (fase y/o motor). Vive acá porque la puerta se
+     desmonta al abrir la revisión; la superficie secuencial lo recibe al
+     montar. Volver a la puerta lo limpia: el próximo "Empezar revisión" arranca
+     sin filtro. */
+  const [foco, setFoco] = useState<FocoRevision | null>(null);
+
+  const volverAPuerta = () => {
+    setFoco(null);
+    setPantalla('gate');
+  };
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
@@ -103,7 +113,7 @@ export const Step5AuditIAWizard: React.FC = () => {
           aiItems={aiItems}
           onMark={(id) => handleMark({ element_id: id } as AuditItem)}
           onReplace={handleReplace}
-          onExit={() => setPantalla('gate')}
+          onExit={volverAPuerta}
         />
       </div>
     );
@@ -112,7 +122,11 @@ export const Step5AuditIAWizard: React.FC = () => {
   if (pantalla === 'review') {
     return (
       <div className="revision-phase rev-screen" style={PHASE_WRAP}>
-        <ReviewWorkbench onExit={() => setPantalla('gate')} />
+        <ReviewWorkbench
+          onExit={volverAPuerta}
+          initialPhase={foco?.phase ?? null}
+          initialEngine={foco?.engine ?? null}
+        />
       </div>
     );
   }
@@ -125,7 +139,10 @@ export const Step5AuditIAWizard: React.FC = () => {
         aiScore={aiScore}
         isScanning={isScanning}
         onScan={handleScan}
-        onStart={() => setPantalla('review')}
+        onStart={(destino) => {
+          setFoco(destino ?? null);
+          setPantalla('review');
+        }}
         onOpenAiRoom={() => setPantalla('ai')}
       />
     </div>
