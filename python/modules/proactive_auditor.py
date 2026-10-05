@@ -570,6 +570,32 @@ _LOTE_MAX = 60
 _CONTEXT_MAX = 160
 
 
+class TopeDeLlamadas:
+    """Limita cuantas llamadas a IA se hacen por documento (D10-bis).
+
+    Un documento de 300 parrafos con RPM 10-30 haria inviable llamar por parrafo;
+    el tope corta y se reporta cuantos elementos quedaron sin verificar.
+
+    `maximo <= 0` significa ilimitado: el tope no corta nada y `sin_verificar`
+    queda en cero.
+    """
+
+    def __init__(self, maximo: int):
+        self.maximo = maximo
+        self.usadas = 0
+        self.sin_verificar = 0
+
+    def permitir(self) -> bool:
+        if self.maximo <= 0:
+            self.usadas += 1
+            return True
+        if self.usadas < self.maximo:
+            self.usadas += 1
+            return True
+        self.sin_verificar += 1
+        return False
+
+
 def _match_de(f: Dict[str, Any], text_by_id: Dict[str, str]) -> str:
     """El texto marcado por el hallazgo, tal cual lo va a ver el LLM.
 
@@ -698,8 +724,22 @@ async def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
         if not por_preguntar:
             return _armar(findings, dubious, resueltos), True
 
+        # Tope de llamadas por documento (D10-bis). Por defecto coincide con el
+        # techo de lote (`_LOTE_MAX`) para no cambiar el comportamiento actual:
+        # hoy un documento hace UNA llamada al router, asi que el tope de lote y
+        # el de documento son el mismo numero. `AI_MAX_LLAMADAS_POR_DOC` lo baja
+        # cuando haga falta racionar mas agresivo; `_LOTE_MAX` sigue siendo el
+        # techo absoluto que nadie sube.
+        import os as _os
+        tope = TopeDeLlamadas(
+            maximo=int(_os.getenv("AI_MAX_LLAMADAS_POR_DOC", str(_LOTE_MAX))))
+
         payload_items = []
+        admitidos = []
         for j, (i, _clave) in enumerate(por_preguntar[:_LOTE_MAX]):
+            if not tope.permitir():
+                break
+            admitidos.append((i, _clave))
             f = dubious[i]
             payload_items.append({
                 "i": j,
@@ -707,6 +747,8 @@ async def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
                 "match": _match_de(f, text_by_id),
                 "context": f["excerpt"][:_CONTEXT_MAX],
             })
+        if not payload_items:
+            return _armar(findings, dubious, resueltos), False
         # El prompt del corrector va partido como lo espera el router: la
         # instruccion en el `system_prompt` y los items en el prompt del
         # usuario. El "Items: " es el separador que `test_refine_cache` usa
@@ -736,7 +778,7 @@ async def refine_with_llm(findings: List[Dict[str, Any]], elements: List[Any],
         # dejar la lista a medias, ni borrar lo que ya estaba en el registro.
         verdicts = {v.get("i"): v for v in _json.loads(m.group(0)) if isinstance(v, dict)}
 
-        asked = por_preguntar[:_LOTE_MAX]
+        asked = admitidos
         for j, v in verdicts.items():
             if not isinstance(j, int) or not 0 <= j < len(asked):
                 continue
