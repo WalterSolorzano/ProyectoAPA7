@@ -8,6 +8,7 @@ de tablas/figuras, márgenes ajustados) antes de entregar el archivo final.
 
 from __future__ import annotations
 
+import base64
 import io
 from typing import Any, Dict, List, Optional
 
@@ -83,10 +84,18 @@ async def audit_pdf_with_multimodal_llm(
     pdf_bytes: bytes,
     page_num: int,
     api_key: str,
-    prompt: Optional[str] = None
+    prompt: Optional[str] = None,
+    provider_id: Optional[str] = None,
 ) -> Optional[str]:
-    """Renderiza una página de PDF a PNG y consulta al modelo visual Gemini / NIM Multimodal."""
-    if not fitz or not api_key or not pdf_bytes:
+    """Renderiza una página de PDF a PNG y consulta al modelo visual a través
+    del router de IA (TokenBucket, cooldowns, breaker y presupuesto diario).
+
+    Antes hacía una petición HTTP directa a NVIDIA: evadía el rate limiting, se
+    comía el cupo sin contarlo y no respetaba `Retry-After`. Ahora la imagen
+    viaja como bloque multimodal por `execute_with_specialty`, que es el único
+    camino que conoce los límites reales del proveedor.
+    """
+    if not fitz or not pdf_bytes:
         return None
 
     try:
@@ -98,31 +107,22 @@ async def audit_pdf_with_multimodal_llm(
         pix = page.get_pixmap(dpi=150)
         img_bytes = pix.tobytes("png")
 
-        import base64
-        import requests
-
         b64_img = base64.b64encode(img_bytes).decode("utf-8")
         query_prompt = prompt or "Analiza el maquetado APA 7 de esta página: ¿hay tablas cortadas, títulos huérfanos o márgenes desalineados? Responde conciso."
 
-        resp = requests.post(
-            "https://integrate.api.nvidia.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "meta/llama-3.2-11b-vision-instruct",
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": query_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}}
-                    ]
-                }],
-                "temperature": 0.2,
-                "max_tokens": 500,
-            },
-            timeout=15.0,
+        from modules.ai_client import execute_with_specialty
+
+        return await execute_with_specialty(
+            prompt=query_prompt,
+            system_prompt="Eres un auditor visual de documentos APA 7.",
+            specialty="HEAVY",
+            api_key=api_key,
+            temperature=0.2,
+            max_tokens=500,
+            use_cache=False,
+            provider_id=provider_id,
+            image_b64=b64_img,
         )
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"[WARN] Error en V-LLM visual audit: {e}")
 

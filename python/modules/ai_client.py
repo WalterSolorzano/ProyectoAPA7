@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager
 from asyncio import Lock
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
@@ -355,6 +355,25 @@ async def _try_provider(
 
     return None
 
+def _construir_messages(system_prompt: str, prompt: str,
+                        image_b64: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Arma los mensajes del payload. Con `image_b64` el turno del usuario lleva
+    un bloque multimodal (texto + imagen), que es lo que consume el modelo de
+    visión. Sin imagen, es texto plano como siempre."""
+    if not image_b64:
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url",
+             "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+        ]},
+    ]
+
 async def execute_with_specialty(
     prompt: str,
     system_prompt: str,
@@ -370,6 +389,7 @@ async def execute_with_specialty(
     provider_id: Optional[str] = None,
     cancel_token: Optional[Any] = None,
     deadline_s: Optional[float] = None,
+    image_b64: Optional[str] = None,
 ) -> Any:
     """
     Ejecuta un prompt enrutando predictivamente según la especialidad solicitada.
@@ -431,10 +451,7 @@ async def execute_with_specialty(
 
         payload: Dict[str, Any] = {
             "model": p["model"],
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": _construir_messages(system_prompt, prompt, image_b64),
             "temperature": temperature,
             "max_tokens": max_tokens
         }
@@ -479,10 +496,7 @@ async def execute_with_specialty(
         capacity = PROVIDER_CAPACITY.get(p["id"], {"timeout": 25})
         payload = {
             "model": p["model"],
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": _construir_messages(system_prompt, prompt, image_b64),
             "temperature": temperature,
             "max_tokens": max_tokens
         }

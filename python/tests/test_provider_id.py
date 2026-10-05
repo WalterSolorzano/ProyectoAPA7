@@ -326,17 +326,19 @@ def test_el_inventario_no_esta_escrito_a_mano():
     guardian que aprueba el vacio.
 
     Y el numero. El spec de la fase decia dieciocho endpoints. El grep da
-    dieciocho llamadas al router, pero una de ellas es el alias
-    `execute_with_fallback` del propio `ai_client`, que no es un endpoint. O sea
-    que los endpoints reales son diecisiete, y el "dieciocho" del spec cuenta el
-    router llamandose a si mismo.
+    diecinueve llamadas al router (2026-10-04: se sumo el motor de vision,
+    `visual_auditor.audit_pdf_with_multimodal_llm`, que dejo de pegarle a NVIDIA
+    directo), y una de ellas es el alias `execute_with_fallback` del propio
+    `ai_client`, que no es un endpoint. O sea que los endpoints reales son
+    dieciocho: el motor de vision suma como los demas, aunque hoy no tenga
+    llamadores (igual que `check_spelling_with_ia`).
     """
-    assert len(SITIOS) == 18, (
+    assert len(SITIOS) == 19, (
         f"el grep encuentra {len(SITIOS)} llamadas a execute_with_specialty y "
-        f"eran 18 el 2026-09-29. Si el numero cambio, el spec §12.3 esta mal y "
+        f"eran 19 el 2026-10-04. Si el numero cambio, el spec §12.3 esta mal y "
         "hay que corregirlo, no reescribir el numero para que pase."
     )
-    assert len(SITIOS_DE_ENDPOINT) == 17, (
+    assert len(SITIOS_DE_ENDPOINT) == 18, (
         f"quedan {len(SITIOS_DE_ENDPOINT)} endpoints que llaman al router y el "
         "spec §12.3 dice dieciocho. La diferencia es el alias del router, que "
         "no es un endpoint."
