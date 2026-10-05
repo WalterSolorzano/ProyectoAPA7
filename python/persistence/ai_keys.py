@@ -43,6 +43,10 @@ VARIABLES_DE_CLAVE: list[str] = [
     "KILOCODE_API_KEY",
     "OLLAMA_API_KEY",
     "HUGGINGFACE_API_KEY",
+    "MODELSCOPE_API_KEY",
+    "SAMBANOVA_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "AGNES_AI_API_KEY",
 ]
 
 VARIABLES_DE_MODELO: list[str] = [
@@ -59,6 +63,10 @@ VARIABLES_DE_MODELO: list[str] = [
     "KILOCODE_MODEL",
     "OLLAMA_MODEL",
     "HUGGINGFACE_MODEL",
+    "MODELSCOPE_MODEL",
+    "SAMBANOVA_MODEL",
+    "DASHSCOPE_MODEL",
+    "AGNES_AI_MODEL",
 ]
 
 # Lo que el endpoint acepta y lo que se persiste. El mismo conjunto, derivado
@@ -89,6 +97,10 @@ VARIABLES_DE_CLAVE_POR_ID: dict[str, list[str]] = {
     "kilocode": ["KILOCODE_API_KEY"],
     "ollama_cloud": ["OLLAMA_API_KEY"],
     "huggingface": ["HUGGINGFACE_API_KEY"],
+    "modelscope": ["MODELSCOPE_API_KEY"],
+    "sambanova": ["SAMBANOVA_API_KEY"],
+    "dashscope": ["DASHSCOPE_API_KEY"],
+    "agnes_ai": ["AGNES_AI_API_KEY"],
 }
 
 # De todo lo permitido, lo que es una clave. Lo usa el endpoint para no

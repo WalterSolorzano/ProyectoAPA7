@@ -69,6 +69,18 @@ CATALOGO: List[Dict[str, Any]] = [
      "modelo": "gpt-oss:20b"},
     {"id": "huggingface", "clave": ["HUGGINGFACE_API_KEY"], "url": "https://router.huggingface.co/v1/chat/completions",
      "modelo": "meta-llama/Llama-3.1-8B-Instruct"},
+    {"id": "modelscope", "clave": ["MODELSCOPE_API_KEY"],
+     "url": "https://api-inference.modelscope.cn/v1/chat/completions",
+     "modelo": "Qwen/Qwen2.5-72B-Instruct"},
+    {"id": "sambanova", "clave": ["SAMBANOVA_API_KEY"],
+     "url": "https://api.sambanova.ai/v1/chat/completions",
+     "modelo": "Meta-Llama-3.3-70B-Instruct"},
+    {"id": "dashscope", "clave": ["DASHSCOPE_API_KEY"],
+     "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+     "modelo": "qwen-plus"},
+    {"id": "agnes_ai", "clave": ["AGNES_AI_API_KEY"],
+     "url": "https://api.agnes.ai/v1/chat/completions",
+     "modelo": "gpt-4o-mini"},
 ]
 
 TODAS_LAS_VARIABLES = sorted({v for p in CATALOGO for v in p["clave"]})

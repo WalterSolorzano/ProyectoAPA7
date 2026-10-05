@@ -68,6 +68,14 @@ PROVIDER_CAPACITY = {
     "ollama_cloud": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 15, "typical_latency_s": 5},
     # HuggingFace Inference Router - OpenAI-compatible, capa gratuita
     "huggingface": {"timeout": 30, "max_tokens_per_request": 3000, "requests_per_minute": 20, "typical_latency_s": 4},
+    # ModelScope (Alibaba) - API OpenAI-compatible, sin doc publica de RPM.
+    "modelscope": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 10, "typical_latency_s": 6},
+    # SambaNova Cloud - free tier conservador.
+    "sambanova": {"timeout": 20, "max_tokens_per_request": 3000, "requests_per_minute": 10, "typical_latency_s": 4},
+    # DashScope (Alibaba Qwen) - OpenAI-compatible, limpieza conservadora.
+    "dashscope": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 10, "typical_latency_s": 6},
+    # Agnes AI - proveedor propio del autor, limites desconocidos -> conservador.
+    "agnes_ai": {"timeout": 25, "max_tokens_per_request": 3000, "requests_per_minute": 10, "typical_latency_s": 5},
 }
 
 # ── Progress tracking (in-memory, keyed by session_id) ──────────────────────
@@ -317,6 +325,57 @@ def _get_active_providers(custom_key: Optional[str] = None, custom_nim_url: Opti
             "url": "https://router.huggingface.co/v1/chat/completions",
             "key": hf_key,
             "model": os.getenv("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 14. ModelScope (Alibaba) - OpenAI-compatible. La clave vivia huerfana en
+    #     el .env: se leia en tools/llm_connect.py pero el clasificador no la
+    #     conocia, asi que nunca entraba a la cola. Ahora es de primera clase.
+    ms_key = os.getenv("MODELSCOPE_API_KEY", "")
+    if ms_key:
+        providers.append({
+            "name": "ModelScope",
+            "id": "modelscope",
+            "url": "https://api-inference.modelscope.cn/v1/chat/completions",
+            "key": ms_key,
+            "model": os.getenv("MODELSCOPE_MODEL", "Qwen/Qwen2.5-72B-Instruct"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 15. SambaNova Cloud - OpenAI-compatible, free tier conservador.
+    sn_key = os.getenv("SAMBANOVA_API_KEY", "")
+    if sn_key:
+        providers.append({
+            "name": "SambaNova",
+            "id": "sambanova",
+            "url": "https://api.sambanova.ai/v1/chat/completions",
+            "key": sn_key,
+            "model": os.getenv("SAMBANOVA_MODEL", "Meta-Llama-3.3-70B-Instruct"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 16. DashScope (Alibaba Qwen) - endpoint internacional OpenAI-compatible.
+    ds_key = os.getenv("DASHSCOPE_API_KEY", "")
+    if ds_key:
+        providers.append({
+            "name": "DashScope",
+            "id": "dashscope",
+            "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+            "key": ds_key,
+            "model": os.getenv("DASHSCOPE_MODEL", "qwen-plus"),
+            "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
+        })
+
+    # 17. Agnes AI - proveedor propio del autor, limites desconocidos ->
+    #     se trata conservador (10 RPM) hasta conocer sus numeros reales.
+    ag_key = os.getenv("AGNES_AI_API_KEY", "")
+    if ag_key:
+        providers.append({
+            "name": "Agnes AI",
+            "id": "agnes_ai",
+            "url": "https://api.agnes.ai/v1/chat/completions",
+            "key": ag_key,
+            "model": os.getenv("AGNES_AI_MODEL", "gpt-4o-mini"),
             "headers": lambda k: {"Authorization": f"Bearer {k}", "Content-Type": "application/json"},
         })
 
