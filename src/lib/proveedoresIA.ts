@@ -110,6 +110,26 @@ export const PROVEEDORES_IA: ProveedorIA[] = [
     variablesClave: ['HUGGINGFACE_API_KEY'],
     variableModelo: 'HUGGINGFACE_MODEL', modeloPorDefecto: 'meta-llama/Llama-3.1-8B-Instruct',
   },
+  {
+    id: 'modelscope', etiqueta: 'ModelScope',
+    variablesClave: ['MODELSCOPE_API_KEY'],
+    variableModelo: 'MODELSCOPE_MODEL', modeloPorDefecto: 'Qwen/Qwen2.5-72B-Instruct',
+  },
+  {
+    id: 'sambanova', etiqueta: 'SambaNova',
+    variablesClave: ['SAMBANOVA_API_KEY'],
+    variableModelo: 'SAMBANOVA_MODEL', modeloPorDefecto: 'Meta-Llama-3.3-70B-Instruct',
+  },
+  {
+    id: 'dashscope', etiqueta: 'DashScope',
+    variablesClave: ['DASHSCOPE_API_KEY'],
+    variableModelo: 'DASHSCOPE_MODEL', modeloPorDefecto: 'qwen-plus',
+  },
+  {
+    id: 'agnes_ai', etiqueta: 'Agnes AI',
+    variablesClave: ['AGNES_AI_API_KEY'],
+    variableModelo: 'AGNES_AI_MODEL', modeloPorDefecto: 'gpt-4o-mini',
+  },
 ];
 
 /** La clave en localStorage de un campo de proveedor. La misma convención que
