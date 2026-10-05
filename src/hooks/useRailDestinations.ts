@@ -21,22 +21,26 @@ export function railPendingInputFrom(state: DocState): RailPendingInput {
   return {
     hasDoc: !!state.doc,
     portada: state.portada,
+    acta: state.acta,
     coverSetupDone: state.coverSetupDone,
     elements: state.doc?.elements || [],
     hasReferences: (state.doc?.referencias?.length || 0) > 0,
     reviewResult: state.reviewResult,
     proofreadFindings: state.proofreadFindings,
     citationAuditResult: state.citationAuditResult,
+    dismissedFindingIds: state.dismissedFindingIds,
   };
 }
 
 export function useRailDestinations(): RailDestination[] {
   const doc = useDocStore((s) => s.doc);
   const portada = useDocStore((s) => s.portada);
+  const acta = useDocStore((s) => s.acta);
   const coverSetupDone = useDocStore((s) => s.coverSetupDone);
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const dismissedFindingIds = useDocStore((s) => s.dismissedFindingIds);
 
   const viewMode = useDocStore((s) => s.viewMode);
 
@@ -44,12 +48,14 @@ export function useRailDestinations(): RailDestination[] {
     const states: Record<number, PhaseState> = readPhaseStates({
       hasDoc: !!doc,
       portada,
+      acta,
       coverSetupDone,
       elements: doc?.elements || [],
       hasReferences: (doc?.referencias?.length || 0) > 0,
       reviewResult,
       proofreadFindings,
       citationAuditResult,
+      dismissedFindingIds,
     });
 
     return EDITOR_RAIL_ITEMS.map(({ id, step, label, shortLabel, Icon, showOutline, showFlyout }) => {
@@ -112,5 +118,5 @@ export function useRailDestinations(): RailDestination[] {
         current: step === 6 && viewMode === 'export' ? true : undefined,
       };
     });
-  }, [doc, portada, coverSetupDone, reviewResult, proofreadFindings, citationAuditResult, viewMode]);
+  }, [doc, portada, acta, coverSetupDone, reviewResult, proofreadFindings, citationAuditResult, dismissedFindingIds, viewMode]);
 }

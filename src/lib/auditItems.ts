@@ -421,3 +421,26 @@ export function collectAuditItems(
 
   return out;
 }
+
+/**
+ * La lista que abre el workbench de Revisión Y la que cuenta el rail, en una
+ * sola definición: todos los hallazgos menos los que la persona ya descartó.
+ *
+ * No filtra por motor a propósito. `AGENTS.md` §1 lista ortografía, estructura,
+ * citas y Bloom como motores de Revisión; si la pantalla escondiera uno, el rail
+ * volvería a contar trabajo que la pantalla no muestra —la contradicción que el
+ * rail no puede cometer—. Antes Step5 recortaba citas y figuras/tablas y el rail
+ * las seguía contando: la fase 5 decía "3 pendientes" sobre una pantalla sin
+ * nada que aceptar.
+ */
+export function reviewItems(
+  sources: AuditSources,
+  pageOf?: (elementId: string) => number | null,
+  dismissedIds?: ReadonlySet<string> | readonly string[] | null,
+): AuditItem[] {
+  const todos = collectAuditItems(sources, pageOf);
+  if (!dismissedIds) return todos;
+  const dismissed = dismissedIds instanceof Set ? dismissedIds : new Set(dismissedIds);
+  if (dismissed.size === 0) return todos;
+  return todos.filter((it) => !dismissed.has(it.id));
+}

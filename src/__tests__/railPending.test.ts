@@ -85,6 +85,29 @@ describe('las tres definiciones de "pendiente", en una sola', () => {
     expect(rail).toBe(workbench);
   });
 
+  it('el rail descuenta lo que la persona ya descartó en la pantalla', () => {
+    // Si no lo hiciera, la fase 5 seguiría "pendiente" después de que el usuario
+    // la dejó limpia: la misma contradicción rail/pantalla, con el signo cambiado.
+    const elements = [img({ id: 'f1', image_info: { figure_number: 1 } })];
+    const input = base({
+      elements,
+      proofreadFindings: [
+        { element_id: 'p1', start: 0, end: 1, excerpt: 'x', kind: 'ortografia', severity: 'warn', message: 'x', source: 'local' },
+      ] as never,
+    });
+    const total = collectAuditItems(input).length;
+    const conDescarte = readPhaseStates({
+      ...input,
+      dismissedFindingIds: [collectAuditItems(input)[0].id],
+    })[5].pending;
+    expect(conDescarte).toBe(total - 1);
+  });
+
+  it('la fase 1 cuenta el autor del acta, no solo el título de la portada', () => {
+    const input = base({ portada: portadaLlena, acta: { autor: '' } as never });
+    expect(readPhaseStates(input)[1].pending).toBe(1);
+  });
+
   it('la fase 2 usa needsReview: un elemento ya editado por el usuario no es pendiente', () => {
     const elements = [
       { id: 'h1', type: 'heading', text: 'x', needs_review: true, auto_applied: false, cita_ids: [], confidence: 1, is_user_modified: true },
