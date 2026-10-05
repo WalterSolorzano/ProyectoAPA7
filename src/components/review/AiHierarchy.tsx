@@ -9,13 +9,17 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  Activity,
   AlertCircle,
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
+  FileText,
   Flag,
   Layers,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import type { ElementModel } from '../../types';
@@ -362,7 +366,7 @@ export function AiHierarchy({
         backgroundColor: 'var(--color-bg-canvas)',
       }}
     >
-      {/* ── MACRO DASHBOARD SUPERIOR ── */}
+      {/* ── HERO: general (score) → específico (chips) ── */}
       <section
         aria-label="Dashboard de Integridad Autoral"
         style={{
@@ -371,72 +375,98 @@ export function AiHierarchy({
           borderBottom: '1px solid var(--color-border-subtle)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--space-2)',
+          gap: 'var(--space-3)',
           flexShrink: 0,
         }}
       >
-        {/* Voz autoral: cifra y contexto, sin anillo */}
-        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-4)' }}>
-          <span
-            style={{
-              fontSize: 'var(--text-2xl)',
-              fontWeight: 800,
-              lineHeight: 1,
-              color: humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)',
-            }}
-          >
-            {humanIntegrityPct}%
-          </span>
-          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-            Voz Autoral Humana
-          </span>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-            {syntheticPct}% rigidez sintética detectada
-          </span>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-            {totalParagraphsEstimated} párrafos ·{' '}
-            {Math.max(0, totalParagraphsEstimated - flaggedParagraphsCount)} con autoría nítida
-          </span>
-          <span
-            style={{
-              fontSize: 'var(--text-sm)',
-              fontWeight: flaggedParagraphsCount > 0 ? 700 : 400,
-              color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-secondary)',
-            }}
-          >
-            {flaggedParagraphsCount} <span>Párrafos en Alerta</span>
-          </span>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-            Pico crítico:{' '}
-            {criticalPeakChapter
-              ? `${criticalPeakChapter.h1Number} (${criticalPeakChapter.iaScore}%)`
-              : 'sin picos'}
-          </span>
-          <button
-            type="button"
-            onClick={() => navegarConIa(1)}
-            disabled={capitulosConIa.length === 0}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'transparent',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              padding: '4px 10px',
-              cursor: capitulosConIa.length === 0 ? 'default' : 'pointer',
-              color: 'var(--color-text-secondary)',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 700,
-            }}
-          >
-            Siguiente con IA <ChevronRight size={14} aria-hidden />
-          </button>
-          {contadorIa && (
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              {contadorIa}
-            </span>
-          )}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 'var(--space-5)',
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Score grande: la cifra manda, la etiqueta la nombra */}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
+              <span
+                style={{
+                  fontSize: 'clamp(30px, 4vw, 40px)',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: humanIntegrityPct >= 80 ? 'var(--success)' : 'var(--warning)',
+                }}
+              >
+                {humanIntegrityPct}%
+              </span>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Voz Autoral Humana
+              </span>
+            </div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 'var(--space-1)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
+              <Activity size={12} aria-hidden />
+              {syntheticPct}% rigidez sintética
+            </div>
+          </div>
+
+          {/* Chips: icono + cifra, sin frases */}
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <StatChip icon={<FileText size={14} aria-hidden />} valor={totalParagraphsEstimated} etiqueta="párrafos" />
+            <StatChip
+              icon={<AlertTriangle size={14} aria-hidden />}
+              valor={flaggedParagraphsCount}
+              etiqueta="Párrafos en Alerta"
+              tono={flaggedParagraphsCount > 0 ? 'danger' : 'neutral'}
+            />
+            <StatChip
+              icon={<TrendingUp size={14} aria-hidden />}
+              valor={criticalPeakChapter ? `${criticalPeakChapter.iaScore}%` : '—'}
+              etiqueta="pico crítico"
+              titulo={
+                criticalPeakChapter
+                  ? `${criticalPeakChapter.h1Number}: ${criticalPeakChapter.title}`
+                  : 'Sin picos de IA'
+              }
+            />
+          </div>
+
+          {/* Acción primaria del mapa */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginLeft: 'auto' }}>
+            {contadorIa && (
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{contadorIa}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => navegarConIa(1)}
+              disabled={capitulosConIa.length === 0}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'var(--accent-bg)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '8px 12px',
+                cursor: capitulosConIa.length === 0 ? 'default' : 'pointer',
+                color: 'var(--color-text-primary)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 700,
+              }}
+            >
+              Siguiente con IA <ChevronRight size={14} aria-hidden />
+            </button>
+          </div>
         </div>
 
         {/* Mapa de calor H1 × rango */}
@@ -483,5 +513,66 @@ export function AiHierarchy({
     </div>
   );
 }
+
+type TonoChip = 'neutral' | 'danger' | 'warning';
+
+const TONO_CHIP: Record<TonoChip, { fondo: string; tinta: string }> = {
+  neutral: { fondo: 'var(--accent-bg)', tinta: 'var(--color-accent)' },
+  warning: { fondo: 'var(--warning-bg)', tinta: 'var(--warning)' },
+  danger: { fondo: 'var(--danger-bg)', tinta: 'var(--danger)' },
+};
+
+/** Chip de una cifra: icono + número + etiqueta corta. Reemplaza las frases
+ *  sueltas del dashboard viejo; el detalle largo viaja en `title`. */
+const StatChip: React.FC<{
+  icon: React.ReactNode;
+  valor: number | string;
+  etiqueta: string;
+  tono?: TonoChip;
+  titulo?: string;
+}> = ({ icon, valor, etiqueta, tono = 'neutral', titulo }) => {
+  const t = TONO_CHIP[tono];
+  return (
+    <div
+      title={titulo}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-2) var(--space-3)',
+        borderRadius: 'var(--radius-md)',
+        background: t.fondo,
+        minWidth: 0,
+      }}
+    >
+      <span aria-hidden style={{ display: 'inline-flex', color: t.tinta, flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, minWidth: 0 }}>
+        <span
+          style={{
+            fontSize: 'var(--text-lg)',
+            fontWeight: 800,
+            color: 'var(--color-text-primary)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {valor}
+        </span>
+        <span
+          style={{
+            fontSize: 'var(--text-xs)',
+            color: 'var(--color-text-secondary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {etiqueta}
+        </span>
+      </span>
+    </div>
+  );
+};
 
 export default AiHierarchy;

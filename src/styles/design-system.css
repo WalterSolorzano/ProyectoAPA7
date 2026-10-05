@@ -309,6 +309,17 @@
   --accent-secondary: var(--color-accent-secondary);
   /* Semánticos canónicos: --color-success / --color-warning / --color-danger
      (los alias --accent-success|warning|danger fueron eliminados). */
+  /* Alias cortos de ESTADO para las superficies de Revisión & IA. No abren una
+     paleta nueva: cada uno apunta al token canónico que ya existe y que se
+     declara en los dos temas, así que hereda el valor del tema activo. El
+     sufijo `-bg` es el paso de alfa de fondo de un chip; el color entero es la
+     tinta. */
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --danger-bg: var(--color-danger-a12);
+  --warning-bg: var(--color-warning-a12);
+  --accent-bg: var(--color-accent-a12);
   --font-family: var(--font-sans);
   --wizard-step-active: var(--color-accent);
   --wizard-step-complete: var(--color-accent-secondary);
@@ -441,6 +452,15 @@
   --color-warning: #e08a63;
   --color-danger: #ff4d4f;
   --color-info: #4f7cff;
+  /* Los alias cortos de estado, repetidos para que un token declarado en un
+     solo tema no sea la mitad de un bug. Apuntan a la familia canónica de
+     arriba, que ya cambia con el tema. */
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --danger-bg: var(--color-danger-a12);
+  --warning-bg: var(--color-warning-a12);
+  --accent-bg: var(--color-accent-a12);
   --color-navy-header: #0f172a;
   --color-navy-header-text: #ffffff;
   --color-paper: #ffffff;

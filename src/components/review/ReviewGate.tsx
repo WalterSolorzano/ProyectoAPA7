@@ -3,7 +3,7 @@
    Sin emoji: los iconos son de lucide-react y la mascota es `EditorialMascot`.
    Todo el color sale de tokens; ninguna celda escribe un hex. */
 import React, { useMemo } from 'react';
-import { ShieldCheck, Sparkles, ArrowRight, Lock } from 'lucide-react';
+import { ShieldCheck, Sparkles, ArrowRight, Lock, ListChecks, Bot, Layers } from 'lucide-react';
 import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
 import { phaseLabel } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
@@ -126,9 +126,9 @@ export const ReviewGate: React.FC<Props> = ({
         </div>
 
         <div role="status" aria-atomic="true" style={{ display: 'flex', flexWrap: 'wrap', marginTop: '24px' }}>
-          <Cifra valor={total} etiqueta="por revisar" testId="review-gate-total" />
-          <Cifra valor={`${Math.round(aiScore * 100)}%`} etiqueta="voz sintética" />
-          <Cifra valor={filas.length} etiqueta={filas.length === 1 ? 'fase' : 'fases'} />
+          <Cifra valor={total} etiqueta="por revisar" testId="review-gate-total" icono={<ListChecks size={14} />} />
+          <Cifra valor={`${Math.round(aiScore * 100)}%`} etiqueta="voz sintética" icono={<Bot size={14} />} />
+          <Cifra valor={filas.length} etiqueta={filas.length === 1 ? 'fase' : 'fases'} icono={<Layers size={14} />} />
         </div>
 
         <section aria-label="Hallazgos por fase y motor" style={{ marginTop: '28px' }}>
@@ -192,9 +192,16 @@ export const ReviewGate: React.FC<Props> = ({
   );
 };
 
-const Cifra: React.FC<{ valor: number | string; etiqueta: string; testId?: string }> = ({ valor, etiqueta, testId }) => (
+const Cifra: React.FC<{ valor: number | string; etiqueta: string; testId?: string; icono?: React.ReactNode }> = ({ valor, etiqueta, testId, icono }) => (
   <div style={{ flex: '1 1 90px', padding: '0 18px', borderLeft: '1px solid var(--color-border-subtle)' }}>
-    <div data-testid={testId} style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, lineHeight: 1.1, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {icono && (
+        <span aria-hidden style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)' }}>
+          {icono}
+        </span>
+      )}
+      <div data-testid={testId} style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, lineHeight: 1.1, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
+    </div>
     <div style={{ marginTop: '2px', fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-tertiary)' }}>{etiqueta}</div>
   </div>
 );
