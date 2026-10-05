@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 try:
     from config import APP_VERSION
@@ -833,6 +833,15 @@ class ReferenciaModel(BaseModel):
             csl["URL"] = None if str(self.doi_or_url).lower().startswith("10.") else str(self.doi_or_url)
             csl = {k: v for k, v in csl.items() if v is not None}
         return csl
+
+    @model_validator(mode="after")
+    def _normalizar_apa(self) -> "ReferenciaModel":
+        # Import diferido: evita cargar el formateador (y potenciales ciclos)
+        # durante el arranque de Pydantic. Nunca pisa un `apa_segments` ya
+        # presente ni un `formatted_apa` ya presente.
+        from modules.apa_format import normalizar_referencia
+        normalizar_referencia(self)
+        return self
 
 
 class ValidationIssueModel(BaseModel):

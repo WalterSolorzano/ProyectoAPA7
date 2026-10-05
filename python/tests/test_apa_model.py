@@ -30,3 +30,23 @@ def test_csl_type_mapea_tesis():
     r = ReferenciaModel(id="r3", authors=["Taha, M."], year="2021",
                         title="Diseño", tipo="tesis")
     assert r.to_csl_json()["type"] == "thesis"
+
+
+def test_validador_migra_dato_viejo():
+    r = ReferenciaModel(id="r4", authors=["Hirano, H."], year="1995",
+                        title="5 Pillars", source="Productivity Press")
+    assert r.tipo == "libro"
+    assert len(r.apa_segments) >= 2
+    assert r.formatted_apa == "Hirano, H. (1995). 5 Pillars. Productivity Press."
+
+
+def test_validador_no_pisa_formatted_apa_existente():
+    r = ReferenciaModel(id="r5", authors=["A, B."], year="2000", title="T",
+                        formatted_apa="TEXTO PREVIO DEL USUARIO")
+    assert r.formatted_apa == "TEXTO PREVIO DEL USUARIO"
+
+
+def test_validador_no_rompe_referencia_vacia():
+    r = ReferenciaModel(id="r6")
+    assert r.apa_segments == []
+    assert (r.formatted_apa or "") == ""
