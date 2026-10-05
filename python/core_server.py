@@ -192,7 +192,11 @@ async def resolve_ghost(req: CiteReq) -> dict:
                     year = dp[0][0]; break
             src = (it.get("container-title") or [""])[0]
             doi = it.get("DOI", "")
-            apa = f"{', '.join(a for a in auths if a)} ({year}). {title}. {src}."
+            from modules.apa_format import format_apa_plain
+            apa = format_apa_plain({
+                "authors": auths, "year": year, "title": title,
+                "source": src, "doi_or_url": doi, "raw_text": "",
+            })
             cands.append({"authors": auths, "year": year, "title": title,
                           "source": src, "doi": doi, "formatted_apa": apa})
         return {"found": bool(cands), "candidates": cands}

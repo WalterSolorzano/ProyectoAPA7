@@ -36,20 +36,12 @@ def parse_bibtex_text(content: str) -> List[ReferenciaModel]:
                 source = entry.get("journal") or entry.get("booktitle") or entry.get("publisher") or ""
                 doi = entry.get("doi") or entry.get("url")
 
-                # Reconstruir raw_text formateado
-                author_str = ", & ".join(authors) if authors else "Autor desconocido"
-                formatted = f"{author_str} ({year or 's.f.'}). {title}."
-                if source:
-                    formatted += f" {source}."
-                if doi:
-                    doi_str = str(doi).strip()
-                    if doi_str.startswith("http://") or doi_str.startswith("https://"):
-                        formatted += f" {doi_str}"
-                    elif doi_str.lower().startswith("www."):
-                        formatted += f" https://{doi_str}"
-                    else:
-                        clean_doi = doi_str.replace("doi:", "").strip()
-                        formatted += f" https://doi.org/{clean_doi}"
+                # Reconstruir raw_text formateado (formateador canónico)
+                from modules.apa_format import format_apa_plain
+                formatted = format_apa_plain({
+                    "authors": authors, "year": str(year) if year else None,
+                    "title": title, "source": source, "doi_or_url": doi, "raw_text": "",
+                })
 
                 refs.append(ReferenciaModel(
                     id=f"ref-bib-{uuid.uuid4().hex[:8]}",
@@ -76,7 +68,12 @@ def parse_bibtex_text(content: str) -> List[ReferenciaModel]:
         author = author_m.group(1) if author_m else ""
         year = year_m.group(1) if year_m else None
         if title or author:
-            raw = f"{author} ({year or 's.f.'}). {title}."
+            from modules.apa_format import format_apa_plain
+            raw = format_apa_plain({
+                "authors": [a.strip() for a in author.split(" and ") if a.strip()],
+                "year": year, "title": title, "source": "", "doi_or_url": None,
+                "raw_text": "",
+            })
             refs.append(ReferenciaModel(
                 id=f"ref-bib-{uuid.uuid4().hex[:8]}",
                 authors=[a.strip() for a in author.split(" and ") if a.strip()],
@@ -103,10 +100,11 @@ def parse_ris_text(content: str) -> List[ReferenciaModel]:
                 source = entry.get("secondary_title") or entry.get("journal_name") or entry.get("publisher") or ""
                 doi = entry.get("doi") or entry.get("url")
 
-                author_str = ", & ".join(authors) if authors else "Autor desconocido"
-                formatted = f"{author_str} ({year or 's.f.'}). {title}."
-                if source:
-                    formatted += f" {source}."
+                from modules.apa_format import format_apa_plain
+                formatted = format_apa_plain({
+                    "authors": authors, "year": str(year) if year else None,
+                    "title": title, "source": source, "doi_or_url": doi, "raw_text": "",
+                })
 
                 refs.append(ReferenciaModel(
                     id=f"ref-ris-{uuid.uuid4().hex[:8]}",
@@ -134,8 +132,11 @@ def parse_ris_text(content: str) -> List[ReferenciaModel]:
         title = title_m.group(1).strip() if title_m else ""
         year = year_m.group(1) if year_m else None
         if title or authors:
-            author_str = ", & ".join(authors) if authors else "Autor"
-            raw = f"{author_str} ({year or 's.f.'}). {title}."
+            from modules.apa_format import format_apa_plain
+            raw = format_apa_plain({
+                "authors": authors, "year": year, "title": title,
+                "source": "", "doi_or_url": None, "raw_text": "",
+            })
             refs.append(ReferenciaModel(
                 id=f"ref-ris-{uuid.uuid4().hex[:8]}",
                 authors=authors,
