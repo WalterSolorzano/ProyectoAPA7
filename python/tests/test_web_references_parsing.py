@@ -156,3 +156,21 @@ async def test_resolve_web_metadata_rejects_empty_title(monkeypatch):
 
     with pytest.raises(ValueError, match="no contiene título"):
         await resolve_web_metadata("https://sitio-vacio.com")
+
+
+def test_apa_ellipsis_se_reexporta():
+    from modules.addin_references_store import APA_ELLIPSIS
+    from modules.apa_format import APA_ELLIPSIS as CANON
+    assert APA_ELLIPSIS == CANON == "..."
+
+
+def test_format_apa_reference_limpia_vancouver():
+    ref = {
+        "authors": ["Pérez, J."],
+        "year": "2021",
+        "title": "Avances en robótica. Available from: https://x.com [accessed 26 Jun 2025]",
+        "source": "",
+        "doi_or_url": "https://x.com",
+    }
+    out = _format_apa_reference(ref)
+    assert "Available" not in out and "accessed" not in out
