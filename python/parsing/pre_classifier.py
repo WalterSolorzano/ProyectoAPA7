@@ -837,6 +837,39 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 first_heading_idx = idx
             continue
 
+        # --- CERTEZA 0.78: Titulos atipicos que el formato tipico no cubre ---
+        # Un documento real no siempre marca sus titulos como "Heading N" ni con
+        # negrita+centrado. Estos casos caian a parrafo (o a un nivel equivocado)
+        # y la revision no los veia como titulos.
+        text_stripped = text.strip()
+        if "\n" not in text and word_count <= 8:
+            # CAPITULO <romano> sin punto ("CAPITULO I", "CAPÍTULO IV").
+            _cap = text_stripped.upper()
+            if re.match(r"^(CAP[IÍ]TULO|CAPITULO)\s+[IVXLC]+\b", _cap) \
+                    and not _cap.rstrip().endswith("."):
+                elem.type = ElementType.HEADING
+                elem.heading_level = 1
+                elem.confidence = 0.78
+                elem.pre_classifier_rule = "capitulo_romano_sin_punto"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
+            # MAYUSCULAS cortas sin negrita, sin centrado, sin numero.
+            # No arranca con digito (seria lista) y no termina en punto (seria
+            # oracion). Guard: solo si es corto (<=8 palabras) y sin minusculas.
+            _sin_minusculas = text_stripped == text_stripped.upper() \
+                and any(c.isalpha() for c in text_stripped)
+            _arranca_con_digito = bool(re.match(r"^\d", text_stripped))
+            if _sin_minusculas and not _arranca_con_digito \
+                    and not text_stripped.endswith("."):
+                elem.type = ElementType.HEADING
+                elem.heading_level = 1
+                elem.confidence = 0.78
+                elem.pre_classifier_rule = "mayusculas_cortas"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
+
         # --- CERTEZA 0.75: Parrafo normal por defecto ---
         elem.type = ElementType.PARAGRAPH
         elem.confidence = 0.75
