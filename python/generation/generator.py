@@ -36,6 +36,11 @@ from parsing.pre_classifier import (
 )
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.heading_numbering import (  # noqa: F401
+    _detect_heading_numbering_style,
+    _extract_numbering_style_marker,
+    _resolver_estilo_de_nivel,
+)
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
@@ -74,20 +79,6 @@ def _strip_inline_footnote_markers(text: str) -> str:
     if not text:
         return text or ""
     return re.sub(r'\s*\(nota\s+\d+\)', '', text).strip()
-
-
-def _detect_heading_numbering_style(heading_text: str) -> str:
-    """
-    Detecta si el texto del heading usa numeración romana (I., II., III.)
-    o decimal (1., 2., 3.) basado en el prefijo original.
-    Retorna 'roman' o 'decimal'.
-    """
-    import re
-    text_stripped = heading_text.strip()
-    first_word = text_stripped.split()[0] if text_stripped else ""
-    if re.match(r'^(?:X{0,3})(?:I[XV]|V?I{1,3})\.$', first_word):
-        return 'roman'
-    return 'decimal'
 
 
 def _format_numero(n: int, estilo: str) -> str:
@@ -1343,15 +1334,6 @@ def generate_apa7_docx(
         """Verifica si el texto contiene el marcador [FORCE_PAGE_BREAK]."""
         return text and '[FORCE_PAGE_BREAK]' in text
 
-    def _extract_numbering_style_marker(text: str) -> str:
-        """Extrae el marcador de estilo de numeración: [ROMAN] o [DECIMAL]. Retorna 'decimal' por defecto."""
-        if not text:
-            return 'decimal'
-        upper = text.upper()
-        if '[ROMAN]' in upper:
-            return 'roman'
-        return 'decimal'
-
     def _strip_markers(text: str) -> str:
         """Elimina marcadores internos como [FORCE_PAGE_BREAK], [ROMAN], [DECIMAL] del texto."""
         if not text:
@@ -1635,13 +1617,7 @@ def generate_apa7_docx(
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
 
             orig_text = elem.original_text or elem.text or ""
-            if lvl == 1:
-                marker_style = _extract_numbering_style_marker(orig_text)
-                detected_style = _detect_heading_numbering_style(orig_text)
-                if marker_style:
-                    level_style = marker_style
-                elif detected_style == 'roman':
-                    level_style = 'roman'
+            level_style = _resolver_estilo_de_nivel(lvl, level_style, orig_text)
 
             # Construir prefijo numerico (vacío para el heading de Referencias)
             number_prefix = "" if _is_refs_h else _build_heading_prefix(heading_counters, lvl, level_style)

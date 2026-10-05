@@ -55,6 +55,14 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   );
   const filas = useMemo(() => filasDelIndice(raices), [raices]);
 
+  /* El rango de niveles se DERIVA de las filas: mostrar "Nivel 1 a 3" cuando el
+   * árbol enseña un H4 sería exactamente la clase de mentira que esta fase
+   * existe para no contar. Un árbol sin nodos no tiene rango que declarar. */
+  const nivelMaximo = useMemo(
+    () => filas.reduce((m, f) => Math.max(m, f.nodo.nivel), 0),
+    [filas],
+  );
+
   const fases = useMemo(() => {
     const vistas: { clave: string; etiqueta: string }[] = [];
     for (const raiz of raices) {
@@ -116,7 +124,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
           </h2>
         </div>
         <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-          {filas.length} secciones detectadas · Nivel 1 a 3
+          {filas.length} secciones detectadas{nivelMaximo > 0 ? ` · Nivel 1 a ${nivelMaximo}` : ''}
         </p>
       </header>
 

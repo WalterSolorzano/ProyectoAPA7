@@ -1,4 +1,4 @@
-/* Controles de diseño del Índice: estilo, profundidad e insertar/quitar.
+/* Controles de diseño del Índice: profundidad, numeración e insertar/quitar.
  *
  * El índice es el único destino de la fase que ESCRIBE en el documento, así que
  * sus controles viven pegados a la previsualización que los refleja. Los
@@ -12,14 +12,9 @@ import { ListTree, Plus, Trash2 } from 'lucide-react';
 
 export type ProfundidadIndice = 1 | 2 | 3 | 4;
 
-export interface ReglasDeIndice {
-  toc_style?: 'apa' | 'dotted' | 'plain';
-}
-
 export interface ControlesIndiceProps {
   profundidad: ProfundidadIndice;
   onProfundidad: (p: ProfundidadIndice) => void;
-  reglas: ReglasDeIndice;
   onRegla: (clave: string, valor: string) => void;
   hayIndice: boolean;
   onInsertar: () => void;
@@ -45,16 +40,9 @@ export const NUMERACIONES_DE_TITULO: Array<{ valor: string; label: string }> = [
   { valor: 'lowerLetter', label: 'a. b. c.' },
 ];
 
-const ESTILOS: Array<{ valor: 'apa' | 'dotted' | 'plain'; label: string }> = [
-  { valor: 'apa', label: 'APA' },
-  { valor: 'dotted', label: 'Punteado' },
-  { valor: 'plain', label: 'Plano' },
-];
-
 export const ControlesIndice: React.FC<ControlesIndiceProps> = ({
   profundidad,
   onProfundidad,
-  reglas,
   onRegla,
   hayIndice,
   onInsertar,
@@ -91,23 +79,6 @@ export const ControlesIndice: React.FC<ControlesIndiceProps> = ({
         Diseño del índice
       </h2>
     </header>
-
-    <div>
-      <span style={estiloEtiqueta}>Estilo</span>
-      <div role="group" aria-label="Estilo del índice" style={estiloGrupo}>
-        {ESTILOS.map(({ valor, label }) => (
-          <button
-            key={valor}
-            type="button"
-            aria-pressed={reglas.toc_style === valor}
-            onClick={() => onRegla('toc_style', valor)}
-            style={estiloChip(reglas.toc_style === valor)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
 
     <div>
       <span style={estiloEtiqueta}>Profundidad visible</span>

@@ -17,6 +17,13 @@ describe('EscritorioEstructura responsive', () => {
     expect(grid().style.gridTemplateColumns).not.toMatch(/452px|760px/);
   });
 
+  it('en la banda 900-1279 tampoco reserva el panel derecho', () => {
+    window.innerWidth = 1100;
+    window.dispatchEvent(new Event('resize'));
+    render(<EscritorioEstructura />);
+    expect(grid().style.gridTemplateColumns).not.toMatch(/452px|760px/);
+  });
+
   it('en pantalla ancha sí reserva el panel derecho', () => {
     window.innerWidth = 1440;
     window.dispatchEvent(new Event('resize'));

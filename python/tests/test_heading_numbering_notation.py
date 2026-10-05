@@ -60,3 +60,32 @@ def test_h3_no_lleva_numeracion():
 
 def test_h2_sin_padre_no_inventa_cero():
     assert _build_heading_prefix({1: 0, 2: 1}, 2, "decimal") == ""
+
+
+# --- Issue 3 de la revisión: la elección explícita no se pisa con la detección ---
+
+
+def test_eleccion_explicita_gana_a_deteccion_romana():
+    """Un H1 que ya dice «IV.» no debe forzar romano si el usuario eligió letras."""
+    from generation.generator import _resolver_estilo_de_nivel
+
+    assert _resolver_estilo_de_nivel(1, "upperLetter", "IV. Metodología") == "upperLetter"
+
+
+def test_deteccion_romana_aplica_solo_en_el_default_ambiguo():
+    """Con el nivel en el valor por defecto (decimal), el texto romano se respeta."""
+    from generation.generator import _resolver_estilo_de_nivel
+
+    assert _resolver_estilo_de_nivel(1, "decimal", "IV. Metodología") == "roman"
+
+
+def test_marcador_explicito_gana_siempre():
+    from generation.generator import _resolver_estilo_de_nivel
+
+    assert _resolver_estilo_de_nivel(1, "upperLetter", "[ROMAN] Metodología") == "roman"
+
+
+def test_resolver_no_toca_niveles_mas_profundos():
+    from generation.generator import _resolver_estilo_de_nivel
+
+    assert _resolver_estilo_de_nivel(2, "lowerLetter", "IV. Algo") == "lowerLetter"

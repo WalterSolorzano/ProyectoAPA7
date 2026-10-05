@@ -30,6 +30,7 @@ from parsing.pre_classifier import (
 )
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.heading_numbering import _resolver_estilo_de_nivel
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
@@ -253,6 +254,9 @@ def generate_apa7_from_scratch(
                 heading_counters[lower] = 0
 
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
+            level_style = _resolver_estilo_de_nivel(
+                lvl, level_style, elem.original_text or elem.text or ""
+            )
             prefix = _build_prefix(heading_counters, lvl, level_style)
 
             # Page break before H1 (skip once si la portada acaba de emitir

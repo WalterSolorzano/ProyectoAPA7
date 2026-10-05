@@ -220,6 +220,31 @@ def _contiene_multiples_oraciones(text: str) -> bool:
     return bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', text))
 
 
+def _debe_degradar_heading(text: str, style_name: str) -> bool:
+    """Decide si un heading heurístico que cayó en la rama de bajo score debe
+    volver a ser párrafo.
+
+    Un `style_name` presente no absuelve la heurística: 'Normal' es el estilo
+    por defecto de TODO el cuerpo, así que un heading marcado como tal por las
+    heurísticas de formato (o heredado de un estilo que no es de Word) tiene que
+    degradarse igual cuando su score no alcanza. Se degrada ante cualquiera de
+    estas señales:
+      - no tiene `style_name` (nunca lo tuvo),
+      - el texto es largo (>25 palabras), o
+      - el texto tiene varias oraciones reales.
+
+    El heading inline («Título corto. Sigue el cuerpo…», que ES multi-oración)
+    no llega a esta rama: la Pasada 1 lo marca con `pre_classifier_rule =
+    "inline_heading"` y la rama de scoring lo deja pasar.
+    """
+    words = (text or "").split()
+    return (
+        not style_name
+        or len(words) > 25
+        or _contiene_multiples_oraciones(text)
+    )
+
+
 def _flag_numbering_skips(elements: List[ElementModel]) -> None:
     """
     Valida la cadena de numeracion decimal de headings (1, 1.1, 1.1.1).
@@ -764,6 +789,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.heading_level = 4
             elem.confidence = 0.80
             elem.needs_review = True
+            elem.pre_classifier_rule = "inline_heading"
             if first_heading_idx == -1:
                 first_heading_idx = idx
             continue
@@ -1474,8 +1500,12 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         else:
             # Un heading heurístico de bajo score se degrada aunque traiga un
             # `style_name` ('Normal' es tan común que no absuelve la heurística).
-            if elem.type == ElementType.HEADING and (
-                not elem.style_name or len(words) > 25
+            # El heading inline ya validado en Pasada 1 queda exento: es
+            # multi-oración por forma pero es un título legítimo.
+            if (
+                elem.type == ElementType.HEADING
+                and elem.pre_classifier_rule != "inline_heading"
+                and _debe_degradar_heading(txt, elem.style_name)
             ):
                 elem.type = ElementType.PARAGRAPH
                 elem.confidence = 0.75

@@ -1,5 +1,5 @@
 /**
- * Los controles de diseño del Índice: estilo, profundidad e insertar/quitar.
+ * Los controles de diseño del Índice: profundidad, numeración e insertar/quitar.
  *
  * El índice es el único destino de la fase que escribe en el documento, así
  * que sus controles tienen que decir la verdad de lo que ya hay: si el
@@ -7,14 +7,13 @@
  * una decisión de lectura, no un adorno.
  */
 
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ControlesIndice } from '../ControlesIndice';
 
 const base = {
   profundidad: 3 as const,
   onProfundidad: () => {},
-  reglas: { toc_style: 'apa' as const },
   onRegla: () => {},
   hayIndice: false,
   onInsertar: () => {},
@@ -52,14 +51,6 @@ describe('ControlesIndice', () => {
     fireEvent.click(screen.getByRole('button', { name: /quitar índice/i }));
     expect(onQuitar).toHaveBeenCalled();
     expect(onInsert).not.toHaveBeenCalled();
-  });
-
-  it('cambia el estilo del índice y marca el activo', () => {
-    const onRegla = vi.fn();
-    render(<ControlesIndice {...base} onRegla={onRegla} />);
-    expect(screen.getByRole('button', { name: /^apa$/i }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: /punteado/i }));
-    expect(onRegla).toHaveBeenCalledWith('toc_style', 'dotted');
   });
 
   it('no usa <select>: los controles son botones', () => {

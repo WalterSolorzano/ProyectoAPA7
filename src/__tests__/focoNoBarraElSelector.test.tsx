@@ -77,6 +77,9 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   };
+  /* jsdom no es una pantalla: su `innerWidth` por defecto (1024) cae bajo el
+   * umbral responsive y colapsaría el panel derecho de Estructura. */
+  window.innerWidth = 1440;
   Poner({});
 });
 

@@ -41,8 +41,6 @@ import { useWindowWidth } from '../../hooks/useWindowWidth';
 
 /** Con esta ventana, el panel derecho vive cómodo. */
 export const ANCHO_ESTRUCTURA_COMPLETO = 1280;
-/** Por debajo, el panel derecho se pliega solo: 56 + 308 + centro deja muy poco. */
-export const ANCHO_ESTRUCTURA_MINIMO = 900;
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -80,6 +78,49 @@ const buscarEn = (nodos: readonly NodoJerarquia[], id: string | null): NodoJerar
     if (encontrado) return encontrado;
   }
   return null;
+};
+
+/**
+ * Calcula el nuevo orden de ids al reubicar una rama entera delante del
+ * destino. Se mueve TODO el bloque de la rama de origen —su encabezado y su
+ * cuerpo hasta la próxima sección del mismo nivel o superior— para que la prosa
+ * nunca quede huérfana ni cambie de padre.
+ *
+ * Devuelve `null` cuando la operación no tiene sentido (ids ausentes, el
+ * destino ya está dentro de la rama o el origen es el propio destino). Es una
+ * función pura para poder probarla sin montar el store.
+ */
+export const calcularReubicacion = (
+  elementos: readonly ElementModel[],
+  origenId: string,
+  destinoId: string,
+): string[] | null => {
+  const inicioDe = (id: string): number => elementos.findIndex((e) => e.id === id);
+  const ini = inicioDe(origenId);
+  const iniDestino = inicioDe(destinoId);
+  if (ini < 0 || iniDestino < 0 || ini === iniDestino) return null;
+
+  const nivelOrigen = elementos[ini].heading_level ?? 1;
+  let fin = ini + 1;
+  while (fin < elementos.length) {
+    const e = elementos[fin];
+    if (e.type === 'heading' && (e.heading_level ?? 1) <= nivelOrigen) break;
+    fin += 1;
+  }
+  // El destino cae dentro de la propia rama: moverla dentro de sí misma la
+  // partiría en dos y dejaría el cuerpo descolgado.
+  if (ini <= iniDestino && iniDestino < fin) return null;
+
+  const bloque = elementos.slice(ini, fin).map((e) => e.id);
+  const resto = elementos.filter((_, i) => i < ini || i >= fin);
+  const iDestino = resto.findIndex((e) => e.id === destinoId);
+  if (iDestino < 0) return null;
+
+  return [
+    ...resto.slice(0, iDestino).map((e) => e.id),
+    ...bloque,
+    ...resto.slice(iDestino).map((e) => e.id),
+  ];
 };
 
 const Plegable: React.FC<{ titulo: string; children: React.ReactNode }> = ({ titulo, children }) => {
@@ -156,12 +197,13 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const [destino, setDestino] = useState<DestinoEstructura>('esquema');
   const [profundidad, setProfundidad] = useState<ProfundidadIndice>(3);
 
-  /* El ancho de la ventana manda: en pantallas angostas el panel derecho se
-   * pliega solo. El estado local (`cerrado`) sigue existiendo para que el
-   * usuario lo cierre a mano aunque haya lugar. */
+  /* El ancho de la ventana manda. Por debajo del ancho cómodo el panel derecho
+   * se pliega solo: entre 900 y 1279px todavía hay lugar para el centro, pero
+   * no para reservarle 452px al panel; por debajo de 900 se plegaría de todos
+   * modos. El estado local (`cerrado`) sigue existiendo para que el usuario lo
+   * cierre a mano aunque haya lugar. */
   const anchoVentana = useWindowWidth();
-  const muyEstrecho = anchoVentana < ANCHO_ESTRUCTURA_MINIMO;
-  const panelCerrado = cerrado || muyEstrecho;
+  const panelCerrado = cerrado || anchoVentana < ANCHO_ESTRUCTURA_COMPLETO;
 
   const hayIndice = (doc?.elements ?? []).some((e) => e.type === 'toc');
 
@@ -191,31 +233,8 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const manejarReubicar = useCallback(
     (origenId: string, destinoId: string) => {
       const elementos = doc?.elements ?? [];
-      const inicioDe = (id: string): number => elementos.findIndex((e) => e.id === id);
-      const ini = inicioDe(origenId);
-      const iniDestino = inicioDe(destinoId);
-      if (ini < 0 || iniDestino < 0) return;
-
-      const nivelOrigen = elementos[ini].heading_level ?? 1;
-      let fin = ini + 1;
-      while (fin < elementos.length) {
-        const e = elementos[fin];
-        if (e.type === 'heading' && (e.heading_level ?? 1) <= nivelOrigen) break;
-        fin += 1;
-      }
-      if (fin <= iniDestino && iniDestino < fin) return; // el destino ya está dentro de la rama
-
-      const bloque = elementos.slice(ini, fin).map((e) => e.id);
-      const resto = elementos.filter((_, i) => i < ini || i >= fin);
-      const iDestino = resto.findIndex((e) => e.id === destinoId);
-      if (iDestino < 0) return;
-
-      const orden = [
-        ...resto.slice(0, iDestino).map((e) => e.id),
-        ...bloque,
-        ...resto.slice(iDestino).map((e) => e.id),
-      ];
-      void reorderElements(orden);
+      const orden = calcularReubicacion(elementos, origenId, destinoId);
+      if (orden) void reorderElements(orden);
     },
     [doc, reorderElements],
   );
@@ -287,7 +306,6 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
           <ControlesIndice
             profundidad={profundidad}
             onProfundidad={setProfundidad}
-            reglas={reglas}
             onRegla={(clave, valor) => setRules({ [clave]: valor } as never)}
             hayIndice={hayIndice}
             onInsertar={() => insertarToc()}
