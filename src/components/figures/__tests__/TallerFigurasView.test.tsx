@@ -152,4 +152,35 @@ describe('TallerFigurasView', () => {
     expect(within(lienzoDespues).getByText('Leyenda de la primera figura')).toBeInTheDocument();
     expect(within(lienzoDespues).queryByText('Leyenda de la segunda figura')).toBeNull();
   });
+
+  it('enruta la edición de una tabla a updateElementTable sin marcarla como imagen', () => {
+    const updateElementImage = vi.fn();
+    const updateElementTable = vi.fn();
+    useDocStore.setState({ doc: mockDoc, apiKey: 'test-key', updateElementImage, updateElementTable });
+
+    render(<TallerFigurasView />);
+
+    // Ir al activo tabla y editar su leyenda desde la pestaña Texto
+    fireEvent.click(screen.getByTitle(/Tablas \(1\)/i));
+    fireEvent.click(screen.getByRole('tab', { name: /Texto/i }));
+    fireEvent.change(screen.getByLabelText(/Título \/ Leyenda/i), {
+      target: { value: 'Nueva leyenda de tabla' },
+    });
+
+    expect(updateElementTable).toHaveBeenCalledWith(
+      'tbl_1',
+      expect.objectContaining({ caption: 'Nueva leyenda de tabla' })
+    );
+    expect(updateElementImage).not.toHaveBeenCalled();
+  });
+
+  it('oculta los controles exclusivos de imagen cuando el activo es una tabla', () => {
+    render(<TallerFigurasView />);
+
+    fireEvent.click(screen.getByTitle(/Tablas \(1\)/i));
+
+    expect(screen.queryByRole('tab', { name: /Estilo/i })).toBeNull();
+    expect(screen.getByRole('tab', { name: /Texto/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Calidad/i })).toBeInTheDocument();
+  });
 });

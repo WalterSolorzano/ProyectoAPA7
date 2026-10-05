@@ -144,7 +144,7 @@ def run_background_analysis(session_id: str, storage_dir: Path):
 class UpdateElementRequest(BaseModel):
     session_id: str
     element_id: str
-    type: str
+    type: Optional[str] = None
     heading_level: Optional[int] = None
     text: Optional[str] = None
     image_info: Optional[dict] = None
@@ -713,10 +713,22 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
     for elem in doc.elements:
         elem_id: str = elem.id if hasattr(elem, 'id') else elem.get('id', '')
         if elem_id == req.element_id:
-            if hasattr(elem, 'type'):
-                elem.type = req.type
-            else:
-                elem['type'] = req.type
+            # El tipo del request es una pista del cliente, no una orden:
+            # si viene junto a un payload que contradice el tipo real
+            # del elemento (image_info sobre una tabla o viceversa), el tipo
+            # existente manda para no convertir el elemento por accidente.
+            current_type = elem.type if hasattr(elem, 'type') else elem.get('type')
+            new_type = req.type
+            if new_type is not None:
+                if req.image_info is not None and current_type == 'table':
+                    new_type = None
+                elif req.table_info is not None and current_type == 'image':
+                    new_type = None
+            if new_type is not None:
+                if hasattr(elem, 'type'):
+                    elem.type = new_type
+                else:
+                    elem['type'] = new_type
 
             if req.heading_level is not None:
                 if hasattr(elem, 'heading_level'):

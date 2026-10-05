@@ -3,7 +3,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { RailTipoActivos } from './RailTipoActivos';
 import { GaleriaActivosColumna } from './GaleriaActivosColumna';
 import { LienzoEditorialActivo, AISuggestionData } from './LienzoEditorialActivo';
-import { InspectorActivoTabs } from './InspectorActivoTabs';
+import { InspectorActivoTabs, type ActivoPatch } from './InspectorActivoTabs';
 import {
   contextosDeFiguras,
   figuraActiva,
@@ -172,9 +172,23 @@ export const TallerFigurasView: React.FC = () => {
     [elementoActual, updateElementImage, updateElementTable]
   );
 
+  // Enrutar el parche según el tipo del activo: una tabla nunca se envía como
+  // imagen. Sin esto, el campo `type` del request convertía la tabla en imagen
+  // y el lienzo saltaba al siguiente activo (bug del botón de estilo).
+  const handleUpdateActivo = useCallback(
+    (id: string, patch: ActivoPatch) => {
+      const el = doc?.elements.find((e) => e.id === id);
+      if (el?.type === 'table') {
+        updateElementTable(id, patch);
+      } else {
+        updateElementImage(id, patch);
+      }
+    },
+    [doc?.elements, updateElementImage, updateElementTable]
+  );
+
   // Aplicar estilo o configuración a todas las imágenes
-  const handleApplyToAll = useCallback(async () => {
-    if (!elementoActual?.image_info) return;
+  const handleApplyToAll = useCallback(async () => {    if (!elementoActual?.image_info) return;
     const imageIds = todosContextos
       .filter((c) => c.tipo === 'image')
       .map((c) => c.id);
@@ -307,7 +321,7 @@ export const TallerFigurasView: React.FC = () => {
         <InspectorActivoTabs
           elem={elementoActual}
           totalFiguras={conteos.image}
-          onUpdateImage={updateElementImage}
+          onUpdate={handleUpdateActivo}
           onApplyToAll={handleApplyToAll}
         />
       ) : (

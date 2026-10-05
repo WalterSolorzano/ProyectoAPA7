@@ -16,10 +16,14 @@ import {
 
 export type InspectorTabKey = 'formato' | 'texto' | 'estilo' | 'calidad';
 
+/** Parche de un activo: campos de imagen y de tabla, según el tipo del elemento. */
+export type ActivoPatch = Partial<NonNullable<ElementModel['image_info']>> &
+  Partial<NonNullable<ElementModel['table_info']>>;
+
 export interface InspectorActivoTabsProps {
   elem: ElementModel;
   totalFiguras: number;
-  onUpdateImage: (id: string, patch: Partial<NonNullable<ElementModel['image_info']>>) => void;
+  onUpdate: (id: string, patch: ActivoPatch) => void;
   onApplyToAll: () => void;
 }
 
@@ -152,11 +156,14 @@ const STYLE_PRESETS: StylePreset[] = [
 export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   elem,
   totalFiguras,
-  onUpdateImage,
+  onUpdate,
   onApplyToAll,
 }) => {
   const [tabActiva, setTabActiva] = useState<InspectorTabKey>('formato');
   const [alcance, setAlcance] = useState<'esta' | 'todas'>('esta');
+
+  // Las tablas no tienen imagen: ocultar todo control exclusivo de figura.
+  const esTabla = elem.type === 'table';
 
   const imgInfo = (elem.image_info || {}) as Partial<NonNullable<ElementModel['image_info']>>;
   const widthCm = typeof imgInfo.width_cm === 'number' ? imgInfo.width_cm : 14.5;
@@ -167,31 +174,35 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   const altText = imgInfo.alt_text || '';
   const currentStyle: DesignStyle = imgInfo.design_style || 'standard';
 
-  const checks = [
+  const checks: { id: string; passed: boolean; label: string; failMessage: string }[] = [
     {
       id: 'caption',
       passed: Boolean(caption && caption.trim().length > 0),
       label: 'Título breve y descriptivo en cursiva',
       failMessage: 'Falta título o leyenda en la figura.',
     },
-    {
-      id: 'width',
-      passed: widthCm <= 16.5,
-      label: 'Ancho dentro del margen útil (≤ 16.5 cm)',
-      failMessage: `Excede ancho de caja útil (${widthCm.toFixed(1)} cm > 16.5 cm).`,
-    },
-    {
-      id: 'alt',
-      passed: Boolean(altText && altText.trim().length > 0),
-      label: 'Texto alternativo para lectores de pantalla',
-      failMessage: 'Sin texto alternativo accesible.',
-    },
+    ...(!esTabla
+      ? [
+          {
+            id: 'width',
+            passed: widthCm <= 16.5,
+            label: 'Ancho dentro del margen útil (≤ 16.5 cm)',
+            failMessage: `Excede ancho de caja útil (${widthCm.toFixed(1)} cm > 16.5 cm).`,
+          },
+          {
+            id: 'alt',
+            passed: Boolean(altText && altText.trim().length > 0),
+            label: 'Texto alternativo para lectores de pantalla',
+            failMessage: 'Sin texto alternativo accesible.',
+          },
+        ]
+      : []),
   ];
   const cumpidos = checks.filter((c) => c.passed).length;
   const todoConforme = cumpidos === checks.length;
 
-  const handleUpdate = (patch: Partial<NonNullable<ElementModel['image_info']>>) => {
-    onUpdateImage(elem.id, patch);
+  const handleUpdate = (patch: ActivoPatch) => {
+    onUpdate(elem.id, patch);
   };
 
   const handleAutocompletar = () => {
@@ -206,11 +217,16 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   };
 
   const tabs: { key: InspectorTabKey; label: string; icon: LucideIcon }[] = [
-    { key: 'formato', label: 'Formato', icon: Sliders },
+    ...(esTabla ? [] : [{ key: 'formato' as const, label: 'Formato', icon: Sliders }]),
     { key: 'texto', label: 'Texto', icon: Type },
-    { key: 'estilo', label: 'Estilo', icon: Palette },
+    ...(esTabla ? [] : [{ key: 'estilo' as const, label: 'Estilo', icon: Palette }]),
     { key: 'calidad', label: 'Calidad', icon: ShieldCheck },
   ];
+  // Si el cambio de activo deja la pestaña activa fuera de las disponibles
+  // (p. ej. estaba en Estilo y ahora es una tabla), caer a la primera válida.
+  const tabEfectiva: InspectorTabKey = tabs.some((t) => t.key === tabActiva)
+    ? tabActiva
+    : tabs[0].key;
 
   const alignBtn = (valor: 'left' | 'center' | 'right', label: string, Icon: LucideIcon) => {
     const activo = alignment === valor;
@@ -260,14 +276,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         role="tablist"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
           borderBottom: '1px solid var(--color-border-subtle)',
           backgroundColor: 'var(--color-bg-surface)',
         }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActiva = tabActiva === tab.key;
+          const isActiva = tabEfectiva === tab.key;
           return (
             <button
               key={tab.key}
@@ -310,7 +326,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         }}
       >
         {/* ── FORMATO ── */}
-        {tabActiva === 'formato' && (
+        {tabEfectiva === 'formato' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -410,7 +426,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         )}
 
         {/* ── TEXTO ── */}
-        {tabActiva === 'texto' && (
+        {tabEfectiva === 'texto' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div>
               <label htmlFor="field-caption" style={{ ...fieldLabel, fontWeight: 600 }}>
@@ -438,24 +454,26 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 style={{ ...fieldStyle, resize: 'vertical' }}
               />
             </div>
-            <div>
-              <label htmlFor="field-alt-text" style={{ ...fieldLabel, fontWeight: 600 }}>
-                Texto alternativo
-              </label>
-              <input
-                id="field-alt-text"
-                type="text"
-                value={altText}
-                onChange={(e) => handleUpdate({ alt_text: e.target.value })}
-                placeholder="Descripción para lectores de pantalla..."
-                style={fieldStyle}
-              />
-            </div>
+            {!esTabla && (
+              <div>
+                <label htmlFor="field-alt-text" style={{ ...fieldLabel, fontWeight: 600 }}>
+                  Texto alternativo
+                </label>
+                <input
+                  id="field-alt-text"
+                  type="text"
+                  value={altText}
+                  onChange={(e) => handleUpdate({ alt_text: e.target.value })}
+                  placeholder="Descripción para lectores de pantalla..."
+                  style={fieldStyle}
+                />
+              </div>
+            )}
           </div>
         )}
 
         {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
-        {tabActiva === 'estilo' && (
+        {tabEfectiva === 'estilo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <span style={sectionLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
@@ -481,7 +499,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         )}
 
         {/* ── CALIDAD: diagnóstico sin amarillos ── */}
-        {tabActiva === 'calidad' && (
+        {tabEfectiva === 'calidad' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={sectionLabel}>Diagnóstico APA 7</span>
@@ -528,10 +546,12 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
               ))}
             </div>
 
-            <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
-              <Sparkles size={13} />
-              <span>Autocompletar recomendación APA</span>
-            </button>
+            {!esTabla && (
+              <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
+                <Sparkles size={13} />
+                <span>Autocompletar recomendación APA</span>
+              </button>
+            )}
           </div>
         )}
       </div>
