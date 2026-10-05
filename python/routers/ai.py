@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from modules.ai_scheduler import (
+    PRIORITY_MANUAL,
     PRIORITY_PREFETCH,
     PRIORITY_VISIBLE,
     get_scheduler,
@@ -58,9 +59,16 @@ async def ai_demand(req: DemandRequest) -> dict:
 
 @router.post("/api/ai/run-all")
 async def ai_run_all(req: MotorsRequest) -> dict:
-    """El "o lo pida": re-encola todo lo pendiente con prioridad manual."""
+    """El "o lo pida": re-encola lo pendiente con prioridad manual.
+
+    Fase 1: no hay fuente de elementos en el router todavia, asi que "todo" se
+    limita a re-encolar los jobs ya conocidos como pendientes. El encolado
+    completo del documento llega en la Fase 3 (boton "Revisar todo ahora").
+    """
     sched = get_scheduler()
-    reencolados = await sched.resume_pending(req.session_id, req.motors or None)
+    reencolados = await sched.resume_pending(
+        req.session_id, req.motors or None, priority=PRIORITY_MANUAL
+    )
     return {"resumed": reencolados}
 
 

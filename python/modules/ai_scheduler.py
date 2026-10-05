@@ -22,6 +22,7 @@ AI_MAX_CONCURRENCY = int(os.getenv("AI_MAX_CONCURRENCY", "2"))
 AI_COPILOT_RESERVED_SLOTS = int(os.getenv("AI_COPILOT_RESERVED_SLOTS", "1"))
 AI_JOB_DEADLINE_S = float(os.getenv("AI_JOB_DEADLINE_S", "25"))
 AI_JOB_MAX_ATTEMPTS = int(os.getenv("AI_JOB_MAX_ATTEMPTS", "3"))
+_MAX_JOBS_POR_SESION = int(os.getenv("AI_MAX_JOBS_POR_SESION", "1000"))
 
 PRIORITY_COPILOT = 0
 PRIORITY_MANUAL = 5
@@ -123,6 +124,13 @@ class Scheduler:
         if usa_sem:
             await self._sem.acquire()
         try:
+            # Re-chequeo tras el semáforo: un job pudo despacharse y luego
+            # cancelarse mientras esperaba turno. No se ejecuta ni se pisa un
+            # estado ya cerrado (cancelled/done).
+            if job.state != "queued" or self._cancelled.get(job.session_id):
+                if job.state == "queued":
+                    job.state = "cancelled"
+                return
             job.state = "running"
             job.attempts += 1
             runner = _RUNNERS.get(job.motor)
@@ -135,6 +143,9 @@ class Scheduler:
             except asyncio.TimeoutError:
                 job.error = "deadline"
                 resultado = None
+            except asyncio.CancelledError:
+                job.state = "cancelled"
+                return
             except Exception as e:  # noqa: BLE001 - el scheduler nunca cae por un motor
                 job.error = str(e)
                 logger.warning("[Scheduler] job %s fallo: %s", job.id, e)
@@ -145,12 +156,43 @@ class Scheduler:
             if resultado is None:
                 job.state = "failed" if job.attempts >= AI_JOB_MAX_ATTEMPTS else "pending"
                 return
+            # Guardar el resultado puede fallar (p. ej. un objeto no serializable).
+            # Si falla, el job NO puede quedar pegado en "running".
+            try:
+                _store_result(job.content_hash, resultado)
+            except Exception as e:  # noqa: BLE001
+                job.error = f"store: {e}"
+                logger.warning("[Scheduler] no se pudo guardar el job %s: %s", job.id, e)
+                job.state = "failed" if job.attempts >= AI_JOB_MAX_ATTEMPTS else "pending"
+                return
             job.result = resultado
-            _store_result(job.content_hash, resultado)
             job.state = "done"
         finally:
             if usa_sem:
                 self._sem.release()
+            self._podar_sesion(job.session_id)
+
+    def _podar_sesion(self, session_id: str) -> None:
+        """Acota la memoria: descarta los jobs cerrados mas viejos de la sesion.
+
+        Nunca toca queued/running. El resultado durable vive en la cache, asi que
+        tirar el Job no pierde nada: reencolar el mismo contenido lo reusa.
+        """
+        ids = self._by_session.get(session_id)
+        if not ids or len(ids) <= _MAX_JOBS_POR_SESION:
+            return
+        sobrante = len(ids) - _MAX_JOBS_POR_SESION
+        conservar: List[str] = []
+        for jid in ids:
+            job = self._jobs.get(jid)
+            if sobrante > 0 and job is not None and job.state in ("done", "failed", "cancelled"):
+                self._jobs.pop(jid, None)
+                if self._by_hash.get(job.content_hash) == jid:
+                    self._by_hash.pop(job.content_hash, None)
+                sobrante -= 1
+                continue
+            conservar.append(jid)
+        self._by_session[session_id] = conservar
 
     async def enqueue(self, session_id: str, motor: str, element_id: str,
                       text: str, *, phase: str = "",
@@ -164,9 +206,19 @@ class Scheduler:
             existente = self._by_hash.get(chash)
             if existente is not None:
                 ej = self._jobs.get(existente)
-                if ej is not None and ej.session_id == session_id \
-                        and ej.state in ("queued", "running", "done"):
-                    return existente
+                if ej is not None:
+                    if ej.session_id == session_id and ej.state in ("queued", "running", "done"):
+                        return existente
+                    if ej.session_id == session_id and ej.state in ("pending", "failed"):
+                        # Reusar el mismo Job en vez de crear otro y duplicar el LLM.
+                        ej.element_id = element_id
+                        ej.payload = payload or ej.payload
+                        ej.deadline_s = deadline_s or AI_JOB_DEADLINE_S
+                        ej.state = "queued"
+                        ej.error = None
+                        self._queue.put_nowait((ej.priority, ej.seq, ej.id))
+                        self._ensure_dispatcher()
+                        return ej.id
             self._seq += 1
             base = dict(
                 session_id=session_id, motor=motor, element_id=element_id,
@@ -182,6 +234,7 @@ class Scheduler:
             self._jobs[job.id] = job
             self._by_hash[chash] = job.id
             self._by_session.setdefault(session_id, []).append(job.id)
+            self._podar_sesion(session_id)
             if job.state == "queued":
                 self._queue.put_nowait((priority, job.seq, job.id))
         self._ensure_dispatcher()
@@ -201,7 +254,8 @@ class Scheduler:
         return ids
 
     async def resume_pending(self, session_id: str,
-                             motors: Optional[List[str]] = None) -> int:
+                             motors: Optional[List[str]] = None,
+                             priority: Optional[int] = None) -> int:
         async with self._lock:
             self._cancelled[session_id] = False
             n = 0
@@ -211,6 +265,8 @@ class Scheduler:
                     continue
                 if motors and job.motor not in motors:
                     continue
+                if priority is not None:
+                    job.priority = priority
                 job.state = "queued"
                 job.attempts = 0
                 self._by_hash[job.content_hash] = job.id
@@ -243,10 +299,23 @@ class Scheduler:
             "motores": motores,
             "jobs": [
                 {"id": j.id, "motor": j.motor, "element_id": j.element_id,
-                 "state": j.state, "provider": j.provider,
+                 "state": j.state, "provider": j.provider, "attempts": j.attempts,
+                 "error": j.error,
                  "result": j.result if j.state == "done" else None}
                 for j in jobs
             ],
+        }
+
+    def health(self) -> Dict[str, Any]:
+        """Estado operativo del scheduler: cola, jobs por estado y sesiones."""
+        estados: Dict[str, int] = {}
+        for job in self._jobs.values():
+            estados[job.state] = estados.get(job.state, 0) + 1
+        return {
+            "queued": self._queue.qsize(),
+            "jobs": estados,
+            "sesiones": len(self._by_session),
+            "max_concurrency": AI_MAX_CONCURRENCY,
         }
 
 

@@ -174,3 +174,101 @@ def test_cancel_session_drena_la_cola_y_no_reejecuta(cache_aislada):
     assert cancelados >= 1
     assert "queued" not in estados
     assert len(llamadas) < 5
+
+
+def test_cancel_no_ejecuta_jobs_ya_despachados(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    arrancados = []
+
+    async def runner(job):
+        arrancados.append(job.element_id)
+        await asyncio.sleep(0.1)
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        for i in range(4):
+            await sched.enqueue("s1", "proofread", f"p{i}", f"texto {i}")
+        await asyncio.sleep(0.01)  # deja que el dispatcher despache
+        await sched.cancel_session("s1")
+        await asyncio.sleep(0.3)
+        return arrancados
+
+    arrancados = asyncio.run(flujo())
+    assert len(arrancados) <= 1
+
+
+def test_error_al_guardar_resultado_no_deja_running(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+
+    async def runner(job):
+        return {"no_serializable": {1, 2, 3}}  # un set no es JSON
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        await sched.enqueue("s1", "proofread", "p1", "texto")
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    assert sched.status("s1")["jobs"][0]["state"] in ("pending", "failed")
+
+
+def test_reencolar_pending_no_duplica(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    intentos = {"n": 0}
+
+    async def runner(job):
+        intentos["n"] += 1
+        return None if intentos["n"] == 1 else {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        await sched.enqueue("s1", "proofread", "p1", "texto")
+        await _esperar(sched, "s1")
+        assert len(sched.status("s1")["jobs"]) == 1
+        await sched.enqueue("s1", "proofread", "p1", "texto")
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    assert len(sched.status("s1")["jobs"]) == 1
+    assert sched.status("s1")["jobs"][0]["state"] == "done"
+    assert intentos["n"] == 2
+
+
+def test_prune_limita_jobs_por_sesion(cache_aislada, monkeypatch):
+    monkeypatch.setattr(ai_scheduler, "_MAX_JOBS_POR_SESION", 10)
+    sched = ai_scheduler.Scheduler()
+
+    async def runner(job):
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        for i in range(30):
+            await sched.enqueue("s1", "proofread", f"p{i}", f"texto {i}")
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    assert len(sched.status("s1")["jobs"]) <= 12
+
+
+def test_health_reporta_estado(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+
+    async def runner(job):
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        await sched.enqueue("s1", "proofread", "p1", "texto")
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    salud = sched.health()
+    assert salud["sesiones"] == 1
+    assert salud["jobs"].get("done") == 1

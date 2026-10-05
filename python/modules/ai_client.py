@@ -452,7 +452,15 @@ async def execute_with_specialty(
 
     # Si todos están ocupados predictivamente o fallaron, forzamos un intento con el primero disponible
     logger.warning("[Router] Todos los proveedores están ocupados o fallaron. Forzando fallback global.")
-    candidato = next((c for c in routing_queue if _breaker_allows(c["id"])), None)
+    candidato = None
+    for c in routing_queue:
+        if not _breaker_allows(c["id"]):
+            continue
+        c_cap = PROVIDER_CAPACITY.get(c["id"], {"timeout": 25, "requests_per_minute": 10})
+        c_bucket = _limiter_registry.get_bucket(c["id"], c_cap.get("requests_per_minute", 10))
+        if await c_bucket.consume(1):
+            candidato = c
+            break
     if candidato is not None:
         p = candidato
         capacity = PROVIDER_CAPACITY.get(p["id"], {"timeout": 25})
@@ -517,14 +525,16 @@ def get_ai_system_health() -> Dict[str, Any]:
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": percentage,
-                "status": status
+                "status": status,
+                "breaker": _breaker_estado(primary_id)["state"],
             }
         else:
             observed = _provider_health.get(primary_id, {}).get("status")
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": 100, # Si nunca se usó, está lleno
-                "status": observed or "unknown"
+                "status": observed or "unknown",
+                "breaker": _breaker_estado(primary_id)["state"],
             }
 
     return health_data
