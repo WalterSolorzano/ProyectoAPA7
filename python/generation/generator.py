@@ -52,6 +52,7 @@ from generation.style_engine import (
     set_run_font,
 )
 from generation.table_engine import (
+    borde_de_preset,
     fit_table_to_page,
     format_apa_table,
     set_table_borders,
@@ -1443,11 +1444,15 @@ def generate_apa7_docx(
 
         # ── CASO ESPECIAL: TABLA EXISTENTE (FORMATO ATÓMICO IN-PLACE + ETIQUETA PEGUERA) ──
         if elem_type == ElementType.TABLE:
-            # 🆕 LANDSCAPE: Check if table needs landscape orientation
+            # LANDSCAPE: la orientación declarada manda; en "auto" decide el ancho.
             table_needs_landscape = False
             if elem.table_info:
-                too_many, too_wide = _is_table_too_wide(elem.table_info)
-                table_needs_landscape = too_many or too_wide
+                _orient = getattr(elem.table_info, 'orientation', 'auto') or 'auto'
+                if _orient == 'landscape':
+                    table_needs_landscape = True
+                elif _orient == 'auto':
+                    too_many, too_wide = _is_table_too_wide(elem.table_info)
+                    table_needs_landscape = too_many or too_wide
             # Intentar matching por contenido (fingerprint de primera celda) en vez de solo índice
             matched_tbl_idx = -1
             elem_first_cell = ""
@@ -1467,9 +1472,13 @@ def generate_apa7_docx(
                 curr_tbl = existing_tables[matched_tbl_idx]
                 table_count_processed += 1
                 used_table_indices.add(matched_tbl_idx)
-                _tbl_style = getattr(rules, 'table_border_style', None)
-                set_table_borders(curr_tbl, _tbl_style.value if _tbl_style else "apa")
-                fit_table_to_page(curr_tbl, rules, landscape=table_needs_landscape)
+                set_table_borders(curr_tbl, borde_de_preset(getattr(elem.table_info, 'style', None)))
+                fit_table_to_page(
+                    curr_tbl,
+                    rules,
+                    landscape=table_needs_landscape,
+                    column_widths=getattr(elem.table_info, 'column_widths', None),
+                )
 
                 tbl_num = elem.table_info.table_number if (elem.table_info and elem.table_info.table_number > 0) else table_count_processed
                 caption_text = elem.table_info.caption if elem.table_info else ""
