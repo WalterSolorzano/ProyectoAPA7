@@ -191,6 +191,12 @@ export interface ElementModel {
    */
   split_chunk?: number;
 
+  /**
+   * Rebanada de filas de una tabla partida entre páginas (solo render).
+   * start/end son índices de fila (0-based, end exclusivo) sobre `table_info.rows`.
+   */
+  table_slice?: { start: number; end: number };
+
   // Classification
   needs_review: boolean;
   auto_applied: boolean;
