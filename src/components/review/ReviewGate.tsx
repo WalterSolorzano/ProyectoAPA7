@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
 import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
-import { CATEGORY_META } from './CategoryRail';
+import { CATEGORY_META } from './categoryMeta';
 
 /** Matriz de calor: cuenta hallazgos por motor/categoría. Función pura. */
 export function heatMatrix(items: AuditItem[]): Record<ToolWindowId, number> {
@@ -12,7 +12,7 @@ export function heatMatrix(items: AuditItem[]): Record<ToolWindowId, number> {
   return m;
 }
 
-/* Etiquetas de motor: única fuente de verdad en CategoryRail.CATEGORY_META. */
+/* Etiquetas de motor: única fuente de verdad en categoryMeta.CATEGORY_META. */
 
 interface Props {
   items: AuditItem[];

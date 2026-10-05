@@ -21,13 +21,13 @@ export interface ReviewReaderProps {
 const barra: React.CSSProperties = {
   position: 'sticky', top: 0, zIndex: 5,
   display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-  padding: '8px 12px', borderRadius: 999,
+  padding: '8px 12px', borderRadius: 'var(--radius-full)',
   backgroundColor: 'var(--color-bg-surface)',
   border: '1px solid var(--color-border-subtle)',
   boxShadow: 'var(--shadow-sm)',
 };
 const iconoBtn: React.CSSProperties = {
-  width: 30, height: 30, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 30, height: 30, borderRadius: 'var(--radius-full)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   border: '1px solid var(--color-border-subtle)', backgroundColor: 'var(--color-bg-surface)', color: 'var(--color-text-secondary)', cursor: 'pointer',
 };
 
@@ -68,12 +68,12 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
         <span style={{ flex: 1, display: 'flex', gap: 4, minWidth: 80 }}>
           {caps.map((c) => (
             <button key={c.id} type="button" aria-label={c.titulo} title={c.titulo} onClick={() => irA(c.id)}
-              style={{ flex: Math.max(1, c.elementIds.length), height: 6, border: 0, borderRadius: 4, cursor: 'pointer', backgroundColor: c.id === cap?.id ? 'var(--color-accent)' : 'var(--color-bg-surface-alt)' }} />
+              style={{ flex: Math.max(1, c.elementIds.length), height: 6, border: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: c.id === cap?.id ? 'var(--color-accent)' : 'var(--color-bg-surface-alt)' }} />
           ))}
         </span>
         {motores.map((m) => (
           <button key={m} type="button" onClick={() => { setCat(m); setCursor(0); }}
-            style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '4px 9px', borderRadius: 999, cursor: 'pointer', border: '1px solid var(--color-border-subtle)', backgroundColor: cat === m ? 'var(--color-bg-surface-alt)' : 'transparent', color: cat === m ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}>
+            style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '4px 9px', borderRadius: 'var(--radius-full)', cursor: 'pointer', border: '1px solid var(--color-border-subtle)', backgroundColor: cat === m ? 'var(--color-bg-surface-alt)' : 'transparent', color: cat === m ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}>
             {m === 'all' ? 'Todos' : ENGINE_META[m]?.title ?? m}
           </button>
         ))}
@@ -81,10 +81,10 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
           {itemsCap.length === 0 ? '0 de 0' : `${Math.min(cursor + 1, itemsCap.length)} de ${itemsCap.length}`}
         </span>
         <button type="button" aria-label="Informe" onClick={() => setInforme((v) => !v)} style={iconoBtn}><BarChart3 size={15} aria-hidden /></button>
-        <button type="button" aria-label="Siguiente hallazgo" onClick={siguiente} style={{ ...iconoBtn, backgroundColor: 'var(--color-accent)', borderColor: 'var(--color-accent)', color: '#fff' }}><ArrowRight size={15} aria-hidden /></button>
+        <button type="button" aria-label="Siguiente hallazgo" onClick={siguiente} style={{ ...iconoBtn, backgroundColor: 'var(--color-accent)', borderColor: 'var(--color-accent)', color: 'var(--color-text-on-accent)' }}><ArrowRight size={15} aria-hidden /></button>
       </div>
 
-      <div style={{ backgroundColor: 'var(--color-paper-white)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-10) var(--space-12)', marginTop: 'var(--space-4)' }}>
+      <div style={{ backgroundColor: 'var(--paper-white)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-10) var(--space-12)', marginTop: 'var(--space-4)' }}>
         {elemsCap.map((e) => (
           <div key={e.id} style={{ marginBottom: 'var(--space-4)' }}>
             <ReadingText text={e.text || ''} source={buildMarkSource(markBase, e)} />
@@ -96,7 +96,7 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
       <div style={{ position: 'fixed', left: '50%', bottom: 18, transform: 'translateX(-50%)', width: 'min(720px, 92%)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '10px 12px', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-md)' }}>
         {actual ? (
           <>
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', padding: '3px 8px', borderRadius: 999, backgroundColor: 'var(--color-bg-surface-alt)', color: ENGINE_META[actual.category]?.color ?? 'var(--color-text-secondary)' }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', padding: '3px 8px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-bg-surface-alt)', color: ENGINE_META[actual.category]?.color ?? 'var(--color-text-secondary)' }}>
               {ENGINE_META[actual.category]?.title ?? actual.category}
             </span>
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -107,7 +107,7 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
             </div>
             {!actual.readOnly && (
               <>
-                <button type="button" onClick={() => onAccept(actual)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-accent)', backgroundColor: 'var(--color-accent)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}><Check size={14} aria-hidden /> Aceptar</button>
+                <button type="button" onClick={() => onAccept(actual)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-accent)', backgroundColor: 'var(--color-accent)', color: 'var(--color-text-on-accent)', fontWeight: 700, cursor: 'pointer' }}><Check size={14} aria-hidden /> Aceptar</button>
                 <button type="button" onClick={aceptarTodas} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)', backgroundColor: 'transparent', color: 'var(--color-text-secondary)', fontWeight: 700, cursor: 'pointer' }}><CheckCheck size={14} aria-hidden /> Aceptar todas</button>
               </>
             )}
@@ -121,10 +121,10 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
       </div>
 
       {informe && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,25,50,.28)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '26px 16px', zIndex: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--scrim-overlay)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '26px 16px', zIndex: 20 }}>
           <div style={{ width: 'min(760px, 96%)', backgroundColor: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', maxHeight: '86vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-              <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 800 }}>Informe general</h3>
+              <h3 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800 }}>Informe general</h3>
               <span style={{ flex: 1 }} />
               <button type="button" aria-label="Cerrar informe" onClick={() => setInforme(false)} style={iconoBtn}><X size={15} aria-hidden /></button>
             </div>

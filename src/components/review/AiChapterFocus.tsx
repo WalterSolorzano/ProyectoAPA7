@@ -49,7 +49,7 @@ export function AiChapterFocus({
         >
           <ArrowLeft size={14} aria-hidden /> Mapa IA
         </button>
-        <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 800 }}>{titulo}</h3>
+        <h3 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800 }}>{titulo}</h3>
       </div>
 
       <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
@@ -62,7 +62,7 @@ export function AiChapterFocus({
               fontSize: 'var(--text-xs)',
               fontWeight: 700,
               padding: '3px 8px',
-              borderRadius: 999,
+              borderRadius: 'var(--radius-full)',
               cursor: 'pointer',
               border: '1px solid var(--color-border-subtle)',
               backgroundColor: i === sel ? 'var(--ia-nivel-2)' : 'transparent',

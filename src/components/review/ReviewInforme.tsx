@@ -79,9 +79,9 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
             objetivos.map((o) => (
               <div key={o.elementId} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '6px 0', borderTop: '1px solid var(--color-border-subtle)' }}>
                 <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.texto}>{o.texto}</span>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 999, backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-warning)' }}>{o.verboActual}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-warning)' }}>{o.verboActual}</span>
                 <ArrowRight size={13} aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 999, backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-success)' }}>{o.verboPropuesto}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-success)' }}>{o.verboPropuesto}</span>
               </div>
             ))
           )}
@@ -95,7 +95,7 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
             repetidos.map((t) => (
               <div key={t.termino} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '4px 0', fontSize: 'var(--text-sm)' }}>
                 <span style={{ width: 130, color: 'var(--color-text-secondary)', fontWeight: 600 }}>{t.termino}</span>
-                <span style={{ flex: 1, height: 9, borderRadius: 5, backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
+                <span style={{ flex: 1, height: 9, borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
                   <span style={{ display: 'block', height: '100%', width: `${Math.round((t.conteo / maxRep) * 100)}%`, backgroundColor: 'var(--color-warning)' }} />
                 </span>
                 <span style={{ width: 32, textAlign: 'right', color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{t.conteo}</span>
@@ -115,7 +115,7 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
                 <button key={c.id} type="button" onClick={() => onStart(c.id)}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)', backgroundColor: n === 0 ? 'var(--color-bg-surface-alt)' : 'var(--color-bg-surface)', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{c.titulo}</span>
-                  <span style={{ height: 5, width: '100%', borderRadius: 3, backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
+                  <span style={{ height: 5, width: '100%', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
                     <span style={{ display: 'block', height: '100%', width: `${Math.round((n / maxCap) * 100)}%`, backgroundColor: 'var(--color-danger)' }} />
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{n === 0 ? 'sin pendientes' : `${n} pendiente${n === 1 ? '' : 's'}`}</span>
@@ -128,7 +128,7 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
 
       {!embedded && (
         <button type="button" onClick={() => onStart()} disabled={items.length === 0}
-          style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-accent)', backgroundColor: items.length === 0 ? 'var(--color-bg-surface-alt)' : 'var(--color-accent)', color: items.length === 0 ? 'var(--color-text-tertiary)' : '#fff', fontWeight: 700, cursor: items.length === 0 ? 'not-allowed' : 'pointer' }}>
+          style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-accent)', backgroundColor: items.length === 0 ? 'var(--color-bg-surface-alt)' : 'var(--color-accent)', color: items.length === 0 ? 'var(--color-text-tertiary)' : 'var(--color-text-on-accent)', fontWeight: 700, cursor: items.length === 0 ? 'not-allowed' : 'pointer' }}>
           <PenLine size={15} aria-hidden /> Leer y corregir
         </button>
       )}
