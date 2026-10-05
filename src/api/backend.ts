@@ -440,6 +440,8 @@ export interface ResultadoDeProbarProveedor {
   ms: number;
   model: string | null;
   motivo: string;
+  /** Segundos hasta poder reintentar. Solo viene en un 429 (cuota agotada). */
+  retry_after?: number | null;
 }
 
 /** Le pregunta a UN proveedor si su clave funciona, y dice cuanto costo.

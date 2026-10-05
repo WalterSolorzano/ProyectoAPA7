@@ -29,6 +29,14 @@ export interface ProbarProveedorProps {
 /** Un texto corto para el resultado. El motivo completo va en el `title`. */
 const RESUMEN = (r: ResultadoDeProbarProveedor): string => {
   if (r.ok) return `Anduvo · ${r.model ?? 'modelo por defecto'} · ${r.ms} ms`;
+  /* Un 429 no es "no anda": es "todavia no". Decir "Fallo con 429" manda al
+     usuario a revisar una clave que esta bien. Si el servidor dijo cuando se
+     libera, lo repetimos; si no, al menos nombramos la causa. */
+  if (r.status === 429) {
+    return r.retry_after
+      ? `Limitado por cuota · reintentar en ${r.retry_after}s`
+      : 'Limitado por cuota · reintentar mas tarde';
+  }
   if (r.status) return `Falló con ${r.status} · ${r.motivo}`;
   return r.motivo || 'Sin respuesta';
 };

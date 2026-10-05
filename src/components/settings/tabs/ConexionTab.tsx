@@ -36,6 +36,7 @@ import {
   type ProveedorIA,
 } from '../../../lib/proveedoresIA';
 import { getSideloadStatus, repairSideload, type SideloadStatus } from '../../../api/backend';
+import { formatearCuota } from '../../../lib/cuotaProveedor';
 import { ConexionProviderField } from './word/ConexionProviderField';
 import { ProbarProveedor } from './word/ProbarProveedor';
 import { Seccion } from './word/Seccion';
@@ -175,6 +176,16 @@ export const ConexionTab: React.FC = () => {
             </option>
           ))}
         </select>
+        {/* Cuota del proveedor elegido. El backend todavía no expone un cupo
+            por proveedor, así que cuando no hay dato el formateador dice
+            "sin dato de cuota" en vez de inventar un número: un medidor que
+            miente es peor que uno ausente. */}
+        <p
+          data-testid="cuota-proveedor"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
+        >
+          {formatearCuota(null, null, null)}
+        </p>
         <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
           {aiProviderConfig.useLocal
             ? 'Con el servidor local activado, el proveedor de la nube no se usa.'
