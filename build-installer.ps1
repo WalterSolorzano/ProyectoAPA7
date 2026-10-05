@@ -130,6 +130,7 @@ $runtimeChecks = @(
     "dist-python\python-runtime\pythonw.exe",
     "dist-python\python-runtime\$pyTag.dll",
     "dist-python\python-runtime\python\main.py",
+    "dist-python\python-runtime\python\_embedded_payload.json",
     "dist-python\python-runtime\Lib\site-packages"
 )
 $runtimeMissing = @()
@@ -143,6 +144,17 @@ if ($runtimeMissing.Count -gt 0) {
     exit 1
 }
 Write-Output "Runtime verificado: python.exe + pythonw.exe + $pyTag.dll + site-packages + main.py"
+
+# El payload embebido puede existir pero estar vacío ({}): en ese caso el
+# instalador arrancaría sin ninguna clave. Presencia no basta, hay que
+# verificar que tenga contenido real.
+$payloadPath = "dist-python\python-runtime\python\_embedded_payload.json"
+$payloadRaw = (Get-Content $payloadPath -Raw -ErrorAction SilentlyContinue)
+if ([string]::IsNullOrWhiteSpace($payloadRaw) -or $payloadRaw.Trim() -eq "{}") {
+    Write-Output "ERROR: $payloadPath está vacío. Corre embed_payload.py con un .env válido. Abortando."
+    exit 1
+}
+Write-Output "Payload embebido verificado: presente y no vacío."
 
 Write-Output "=== STEP 1: Building unpacked app (--dir) ==="
 
