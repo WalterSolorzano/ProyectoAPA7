@@ -90,3 +90,39 @@ describe('flowPagination', () => {
     expect(after[0].endLine).toBeNull();
   });
 });
+
+describe('flowPagination tablas', () => {
+  const g = { contentH: 200, lineHeightPx: 20 } as any; // totalLines = 10
+  const tabla = { id: 't1', type: 'table', text: '' } as ElementModel;
+
+  it('tabla que cabe: un solo chunk con todas las filas', () => {
+    const pages = flowPagination(
+      [{ elem: tabla, heightPx: 120, splittable: false, tableRows: { headerHeightPx: 20, rowHeightsPx: [20, 20, 20] } }],
+      g,
+    );
+    expect(pages).toHaveLength(1);
+    expect(pages[0].chunks[0].startRow).toBe(0);
+    expect(pages[0].chunks[0].endRow).toBe(3);
+  });
+
+  it('tabla alta: parte por filas repitiendo encabezado en cada página', () => {
+    const pages = flowPagination(
+      [{ elem: tabla, heightPx: 400, splittable: false, tableRows: { headerHeightPx: 40, rowHeightsPx: [40, 40, 40, 40, 40, 40, 40, 40] } }],
+      g,
+    );
+    expect(pages.length).toBeGreaterThan(1);
+    const filas = pages.flatMap((p) => p.chunks.filter((c) => c.elem.id === 't1')).map((c) => [c.startRow, c.endRow]);
+    expect(filas[0][0]).toBe(0);
+    expect(filas[filas.length - 1][1]).toBe(8);
+    for (let i = 1; i < filas.length; i++) expect(filas[i][0]).toBe(filas[i - 1][1]);
+  });
+
+  it('una fila gigante va sola y no se pierde', () => {
+    const pages = flowPagination(
+      [{ elem: tabla, heightPx: 400, splittable: false, tableRows: { headerHeightPx: 20, rowHeightsPx: [400] } }],
+      g,
+    );
+    const total = pages.flatMap((p) => p.chunks).reduce((n, c) => n + ((c.endRow ?? 0) - (c.startRow ?? 0)), 0);
+    expect(total).toBe(1);
+  });
+});
