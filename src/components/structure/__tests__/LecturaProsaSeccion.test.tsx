@@ -222,6 +222,20 @@ describe('LecturaProsaSeccion', () => {
     ).toBeNull();
   });
 
+  it('carga la imagen real de la figura, no un placeholder (bug: no se veían las figuras)', () => {
+    const { container } = render(
+      <LecturaProsaSeccion
+        seccionActiva={nodoIntro}
+        elementos={elementosMock}
+      />
+    );
+
+    // Debe existir un <img> con el asset resuelto de la figura de la sección.
+    const imagenes = container.querySelectorAll('img');
+    expect(imagenes.length).toBe(1);
+    expect(imagenes[0].getAttribute('src')).toBe('/assets/fig1.png');
+  });
+
   it('aplica maquetación editorial tipo libro con tipografía y estilo académico', () => {
     const { container } = render(
       <LecturaProsaSeccion

@@ -17,6 +17,7 @@
 
 import React, { useMemo } from 'react';
 import { BookOpen, FileText, Image as ImageIcon } from 'lucide-react';
+import { resolveAssetUrl } from '../../api/backend';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 import type { ElementModel } from '../../types';
 
@@ -29,6 +30,25 @@ const hoja: React.CSSProperties = {
   background: 'var(--paper-white)',
   color: 'var(--paper-ink)',
   fontFamily: 'var(--font-editorial)',
+};
+
+/** Recuadro de una figura: sólido si hay imagen, punteado si falta. */
+const marcoImagen = (conImagen: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--color-bg-surface-alt)',
+  border: conImagen
+    ? '1px solid var(--color-border-subtle)'
+    : '1px dashed var(--color-border-strong)',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-4)',
+});
+
+const imagenEditorial: React.CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: '420px',
+  objectFit: 'contain',
 };
 
 export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
@@ -178,23 +198,60 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
               );
             }
             if (el.type === 'image') {
-              const numero = el.image_info?.figure_number;
-              const caption = el.image_info?.caption;
+              const info = el.image_info;
+              const numero = info?.figure_number;
+              const caption = info?.caption;
+              const subfiguras = info?.subfigures ?? [];
+              const puedeRender = Boolean(info?.relative_url) && !info?.render_error;
               return (
                 <figure key={el.id ?? `f-${i}`} style={{ margin: 'var(--space-5) 0' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'var(--color-bg-surface-alt)',
-                      border: '1px dashed var(--color-border-strong)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 'var(--space-4)',
-                    }}
-                  >
-                    <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-                  </div>
+                  {subfiguras.length > 0 ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${subfiguras.length}, minmax(0, 1fr))`,
+                        gap: 'var(--space-3)',
+                      }}
+                    >
+                      {subfiguras.map((sub, sIdx) => {
+                        const urlSub = sub.relative_url || info?.relative_url;
+                        return (
+                          <div
+                            key={sub.id || `sub-${sIdx}`}
+                            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+                          >
+                            <div style={marcoImagen(Boolean(urlSub))}>
+                              {urlSub ? (
+                                <img
+                                  src={resolveAssetUrl(urlSub)}
+                                  alt={sub.title || `Panel ${sub.label}`}
+                                  style={imagenEditorial}
+                                />
+                              ) : (
+                                <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+                              )}
+                            </div>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                              {sub.label ? <span style={{ fontWeight: 600 }}>{sub.label} </span> : null}
+                              {sub.title}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={marcoImagen(puedeRender)}>
+                      {puedeRender ? (
+                        <img
+                          src={resolveAssetUrl(info!.relative_url)}
+                          alt={caption || 'Figura'}
+                          style={imagenEditorial}
+                        />
+                      ) : (
+                        <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+                      )}
+                    </div>
+                  )}
                   <figcaption
                     style={{
                       marginTop: 'var(--space-2)',
