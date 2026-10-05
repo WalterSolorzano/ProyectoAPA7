@@ -920,4 +920,55 @@ describe('T16 — el paso 5 orquesta puerta, recorrido y sala de IA', () => {
   it('el workbench de columnas tampoco reintroduce la heuristica que se acaba de borrar', () => {
     expect(SRC).not.toMatch(/elementPageMap/);
   });
+
+  it('las citas no entran a la revision: viven en la fase de Referencias', () => {
+    /* Citas es dueño de la fase 4 (Referencias). Si la puerta las contara,
+       inflaria el total sin darles destino en el riel. */
+    store({
+      doc: documento([elemento()]) as never,
+      citationAuditResult: {
+        ghost_citations: [{ citation_text: 'García, 2020', element_id: 'e1' }],
+      } as never,
+    });
+    render(<Step5AuditIAWizard />);
+    expect(screen.queryByTestId('review-gate-total')).toBeNull();
+    expect(screen.getByText(/Aún no hay una revisión/i)).toBeTruthy();
+  });
+
+  it('las leyendas (figura/tabla sin rotular) no se sueltan en la revision', () => {
+    /* Su mecanismo es `autoCaption` en la pantalla Estructura (paso 2): la
+       revision no las repite como un hallazgo suelto. */
+    store({
+      doc: documento([
+        elemento({ id: 'img1', type: 'image', image_info: { caption: '' } }),
+        elemento({ id: 'tbl1', type: 'table', table_info: { caption: '' } }),
+      ]) as never,
+    });
+    render(<Step5AuditIAWizard />);
+    expect(screen.queryByTestId('review-gate-total')).toBeNull();
+    expect(screen.getByText(/Aún no hay una revisión/i)).toBeTruthy();
+  });
+
+  it('sacar la leyenda no se lleva el encabezado mal nivelado', () => {
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, needs_review: true, text: 'Metodo' }),
+      ]) as never,
+    });
+    render(<Step5AuditIAWizard />);
+    expect(screen.getByTestId('review-gate-total').textContent).toBe('1');
+  });
+
+  it('la sala de IA monta el dashboard jerarquico de H1, no el segmento suelto', () => {
+    store({
+      doc: documento([
+        elemento({ id: 'h1', type: 'heading', heading_level: 1, text: 'Introduccion' }),
+        elemento(),
+      ]) as never,
+      reviewResult: { ai_indices: { score: 0.8 }, paragraphs: [fraseIAIA('e1')] } as never,
+    });
+    render(<Step5AuditIAWizard />);
+    fireEvent.click(screen.getByRole('button', { name: /Ver mapa de IA/i }));
+    expect(screen.getByLabelText('Dashboard de Integridad Autoral')).toBeTruthy();
+  });
 });

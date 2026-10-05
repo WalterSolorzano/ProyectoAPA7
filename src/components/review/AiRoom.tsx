@@ -1,9 +1,9 @@
 /* WordAPA7 — Capa 3: sala de IA aparte, segmentada por títulos H1/H2. */
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { AIReviewResult } from '../../api/backend';
-import type { ElementModel, ProofreadFinding } from '../../types';
-import { AiSegment } from './AiSegment';
+import type { ElementModel } from '../../types';
+import { AiHierarchy } from './AiHierarchy';
 import type { AuditItem } from '../../lib/auditItems';
 
 interface ParagraphLike { element_id: string; text: string; ai_score: number; ai_category: string }
@@ -43,19 +43,15 @@ export function segmentsFromParagraphs(
 interface Props {
   reviewResult: AIReviewResult | null;
   elements: ElementModel[];
-  findings: ProofreadFinding[];
-  /** Hallazgos de IA del documento, para el split-comparador por párrafo. */
+  /** Hallazgos de IA del documento, para el explorador jerárquico H1→H2→H3. */
   aiItems?: AuditItem[];
   onMark: (elementId: string) => void;
   onReplace?: (id: string, text: string) => void;
   onExit: () => void;
 }
 
-export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, aiItems = [], onMark, onReplace, onExit }) => {
+export const AiRoom: React.FC<Props> = ({ reviewResult, elements, aiItems = [], onMark, onReplace, onExit }) => {
   const paragraphs = (reviewResult?.paragraphs ?? []) as ParagraphLike[];
-  const [index, setIndex] = useState(0);
-
-  const segs = useMemo(() => segmentsFromParagraphs(paragraphs, elements), [paragraphs, elements]);
 
   if (paragraphs.length === 0) {
     return (
@@ -69,9 +65,6 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, aiIt
     );
   }
 
-  const safeIndex = Math.min(index, Math.max(0, segs.length - 1));
-  const current = segs[safeIndex];
-
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, backgroundColor: 'var(--canvas-bg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -80,20 +73,16 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, findings, aiIt
         </button>
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Sala de IA · solo marcar para revisar</span>
       </div>
-      {current && (
-        <AiSegment
-          title={current.title}
-          paragraphs={current.paragraphs}
-          findings={findings}
-          aiItems={aiItems}
-          index={safeIndex}
-          total={segs.length}
-          onMark={onMark}
-          onReplace={onReplace}
-          onPrev={() => setIndex((i) => Math.max(0, i - 1))}
-          onNext={() => setIndex((i) => Math.min(segs.length - 1, i + 1))}
-        />
-      )}
+      <AiHierarchy
+        elements={elements}
+        items={aiItems}
+        onApplyParaphrase={async (item, newText) => {
+          onReplace?.(item.id, newText);
+        }}
+        onMark={(item) => {
+          if (item.element_id) onMark(item.element_id);
+        }}
+      />
     </div>
   );
 };

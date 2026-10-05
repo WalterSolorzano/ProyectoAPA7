@@ -44,7 +44,13 @@ export const Step5AuditIAWizard: React.FC = () => {
       collectAuditItems(
         { elements, reviewResult, proofreadFindings, citationAuditResult },
         pageOf,
-      ).filter((it) => !dismissedIds.has(it.id)),
+      )
+        /* Las citas viven en la fase de Referencias (paso 4), no en Revisión.
+           Las leyendas (figura/tabla sin rotular) tienen su mecanismo en la
+           pantalla Estructura (paso 2): Revisión no las repite sueltas. */
+        .filter((it) => it.category !== 'citations')
+        .filter((it) => !(it.category === 'structure' && (it.subtype === 'figura' || it.subtype === 'tabla')))
+        .filter((it) => !dismissedIds.has(it.id)),
     [elements, reviewResult, proofreadFindings, citationAuditResult, pageOf, dismissedIds],
   );
 
@@ -119,7 +125,6 @@ export const Step5AuditIAWizard: React.FC = () => {
       <AiRoom
         reviewResult={reviewResult}
         elements={elements}
-        findings={proofreadFindings}
         aiItems={aiItems}
         onMark={(id) => handleMark({ element_id: id } as AuditItem)}
         onReplace={handleReplace}
