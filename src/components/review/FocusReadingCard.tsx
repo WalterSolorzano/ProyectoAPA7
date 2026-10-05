@@ -149,6 +149,7 @@ export function FocusReadingCard({
   return (
     <section
       aria-label="Párrafo en revisión"
+      className="rev-item"
       style={{
         display: 'flex',
         flexDirection: 'column',

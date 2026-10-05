@@ -96,7 +96,7 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   if (pantalla === 'ai') {
     return (
-      <div className="revision-phase" style={PHASE_WRAP}>
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
         <AiRoom
           reviewResult={reviewResult}
           elements={elements}
@@ -111,14 +111,14 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   if (pantalla === 'review') {
     return (
-      <div className="revision-phase" style={PHASE_WRAP}>
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
         <ReviewWorkbench onExit={() => setPantalla('gate')} />
       </div>
     );
   }
 
   return (
-    <div className="revision-phase" style={PHASE_WRAP}>
+    <div className="revision-phase rev-screen" style={PHASE_WRAP}>
       <ReviewGate
         items={items}
         elements={elements}

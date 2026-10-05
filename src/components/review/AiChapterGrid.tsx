@@ -26,7 +26,7 @@ function nivelDe(score: number): 1 | 2 | 3 | 4 {
 export function AiChapterGrid({ chapters, onOpen }: AiChapterGridProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {chapters.map((c) => {
+      {chapters.map((c, idx) => {
         const hayScore = typeof c.score === 'number';
         const nivel = hayScore && c.score! > 0 ? nivelDe(c.score!) : null;
         const relleno = hayScore ? Math.max(0, Math.min(100, c.score!)) : 0;
@@ -35,8 +35,10 @@ export function AiChapterGrid({ chapters, onOpen }: AiChapterGridProps) {
             key={c.id}
             type="button"
             onClick={() => onOpen(c.id)}
+            className="rev-item"
             style={{
               textAlign: 'left',
+              animationDelay: `${Math.min(idx, 8) * 35}ms`,
               display: 'flex',
               flexDirection: 'column',
               gap: 6,

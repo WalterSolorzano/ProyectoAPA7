@@ -237,6 +237,7 @@ export function ReviewWorkbench({ onExit }: ReviewWorkbenchProps) {
             />
           ) : (
             <FocusReadingCard
+              key={wb.selected?.id ?? 'sin-hallazgo'}
               item={wb.selected}
               totalFindings={enElBloque}
               action={selAction}

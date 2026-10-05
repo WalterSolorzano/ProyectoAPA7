@@ -35,6 +35,7 @@ export function AiChapterFocus({
   return (
     <section
       aria-label={`Capítulo ${titulo}`}
+      className="rev-item"
       style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -82,13 +83,15 @@ export function AiChapterFocus({
       </div>
 
       {actual ? (
-        <EvaluacionComparador
-          item={actual}
-          onMark={onMark}
-          onDismiss={onDismiss}
-          onApplyParaphrase={onApplyParaphrase}
-          busy={busy}
-        />
+        <div key={actual.id} className="rev-item">
+          <EvaluacionComparador
+            item={actual}
+            onMark={onMark}
+            onDismiss={onDismiss}
+            onApplyParaphrase={onApplyParaphrase}
+            busy={busy}
+          />
+        </div>
       ) : (
         <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
           Este capítulo no tiene párrafos marcados.
