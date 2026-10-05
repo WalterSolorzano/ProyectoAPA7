@@ -191,15 +191,16 @@ describe('T17 — ExportView: acciones', () => {
     expect(useDocStore.getState().clearQuickExport).not.toHaveBeenCalled();
   });
 
-  it('“Descargar” avisa de las citas fantasma antes de exportar', () => {
+  it('“Descargar” exporta de inmediato aunque haya citas fantasma', () => {
     cargar({ citationAuditResult: TRES_CITAS_FANTASMA });
     render(<ExportView />);
 
     fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
 
-    /* La friccion se mantiene: primer clic avisa, no exporta. */
-    expect(useDocStore.getState().exportDocx).not.toHaveBeenCalled();
-    expect(screen.getByText(/sin referencia en la bibliograf/i)).toBeTruthy();
+    /* Un clic descarga: nada de avisos intermedios ni de paneles de friccion.
+       Las citas fantasma ya se revisaron antes; la pantalla final no frena. */
+    expect(useDocStore.getState().exportDocx).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/sin referencia en la bibliograf/i)).toBeNull();
   });
 
   it('el boton principal nombra el formato que se va a descargar', () => {

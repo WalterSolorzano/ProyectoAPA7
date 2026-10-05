@@ -10,12 +10,9 @@
  *  2. El panel tiene los cuatro grupos que nombra la spec. Afirmar los cuatro
  *     TEXTO por texto y no "que haya algo" es lo que hace que un grupo
  *     renombrado se caiga en vez de pasar.
- *  3. "Descargar igual" NO resetea la fricción al nivel de partida. Antes la decisión
- *     vivía en `useState` local: al remontar la vista volvía a `'idle'` y el
- *     aviso reaparecía en el siguiente clic. Se afirma apretando dos veces.
- *  4. Cada formato dice su extensión EN el botón, que es donde se elige. Antes
+ *  3. Cada formato dice su extensión EN el botón, que es donde se elige. Antes
  *     `ext` y `sublabel` solo aparecían en la línea de identidad.
- *  5. Lo que el panel DERIVA de Ajustes se declara como derivado: se lee, no
+ *  4. Lo que el panel DERIVA de Ajustes se declara como derivado: se lee, no
  *     se duplica. Un control editable aquí sería un segundo control sobre el
  *     mismo campo del store, que es el defecto que esta fase viene a quitar.
  */
@@ -39,13 +36,6 @@ vi.mock('../components/export/QuickReferenceSearch', () => ({
   QuickReferenceSearch: () => <div data-testid="crossref" />,
 }));
 
-const CITA_FANTASMA = {
-  ghost_citations: [
-    { marker: '(Smith, 2019)', page: 4 },
-    { marker: '(Jones et al., 2020)', page: 9 },
-  ],
-};
-
 const cargar = (extra: Record<string, unknown> = {}) => {
   useDocStore.setState({
     doc: { session_id: 's-panel', file_name: 'Tesis.docx', elements: [], referencias: [] } as never,
@@ -59,18 +49,11 @@ const cargar = (extra: Record<string, unknown> = {}) => {
     copyPdfToClipboard: vi.fn(),
     sayMascot: vi.fn(),
     showToast: vi.fn(),
-    friction: 'idle',
     ...extra,
   } as never);
 };
 
 const abrir = () => fireEvent.click(screen.getByRole('button', { name: /opciones/i }));
-
-/** El aviso de citas fantasma, si está en pantalla ahora. No se cuenta: lo que
- *  importa es si REAPARECE después de que la persona ya decidió, y eso se ve
- *  preguntando si está, no Bearer un contador. */
-const avisoVisible = () =>
-  document.querySelectorAll('[data-testid="aviso-citas-fantasma"]').length > 0;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -128,47 +111,6 @@ describe('el panel de ajustes', () => {
       expect(linea.getAttribute('data-solo-lectura')).toBe('true');
       expect(linea.textContent).toContain(d.leer());
     }
-  });
-});
-
-describe('la friccion que se redescubria', () => {
-  it('"Descargar igual" una vez no vuelve a mostrar el aviso', () => {
-    cargar({ citationAuditResult: CITA_FANTASMA });
-    render(<ExportView />);
-    abrir();
-
-    /* Primer clic: avisa, no exporta. */
-    fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
-    expect(avisoVisible()).toBe(true);
-
-    /* La persona decide: descarga igual. El aviso se va. */
-    fireEvent.click(screen.getByRole('button', { name: /Descargar igual/i }));
-    expect(avisoVisible()).toBe(false);
-
-    /* Segundo clic: la decisión ya está tomada. Con la fricción en `useState`
-       local, el estado se perdía al remontar y el aviso volvía. */
-    fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
-    expect(avisoVisible()).toBe(false);
-  });
-
-  it('"Resolver ahora" y luego "Ocultar" tambien dejan la decision tomada', () => {
-    /* El camino real: se pregunta, se entra al buscador de referencias, y de
-       ahí se sale con "Ocultar". Antes ese "Ocultar" ponía `idle`, que es lo
-       mismo que no haber preguntado: el aviso volvía al siguiente clic. */
-    cargar({ citationAuditResult: CITA_FANTASMA });
-    render(<ExportView />);
-    abrir();
-    fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
-    expect(avisoVisible()).toBe(true);
-
-    fireEvent.click(screen.getByRole('button', { name: /resolver ahora/i }));
-    expect(screen.getByTestId('crossref')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /ocultar/i }));
-    expect(avisoVisible()).toBe(false);
-
-    fireEvent.click(screen.getByRole('button', { name: /Descargar/ }));
-    expect(avisoVisible()).toBe(false);
   });
 });
 

@@ -232,28 +232,6 @@ export async function connectWord(path: string): Promise<{ ok: boolean }> {
   return res.json();
 }
 
-export interface ScopedApplyResult {
-  scopes: string[];
-  download_url: string;
-  tablas?: number;
-  figuras?: number;
-  refs_formateadas?: number;
-}
-
-/** Aplica SOLO los alcances pedidos sobre el original (sin regeneración). */
-export async function scopedApply(sessionId: string, scopes: string[]): Promise<ScopedApplyResult> {
-  const res = await fetchWithTrace(`${getApiBase()}/scoped-apply`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, scopes }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
 export async function bulkAcceptElements(  sessionId: string,
   elementIds: string[]
 ): Promise<DocumentModel> {

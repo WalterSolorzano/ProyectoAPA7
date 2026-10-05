@@ -3,8 +3,8 @@
    elementos del flujo — ícono de éxito → título → una línea de descripción →
    dos botones pegados (principal sólida + secundaria fantasma).
    - Sin listas, tarjetas, columnas ni scroll en el estado por defecto.
-   - Formato, opciones, aviso de citas fantasma y vista previa viven OCULTOS
-     tras el toggle "Opciones", que va DEBAJO de las dos acciones para no competir con ellas.
+   - Formato, opciones y vista previa viven OCULTOS tras el toggle
+     "Opciones", que va DEBAJO de las dos acciones para no competir con ellas.
    - El resumen de hallazgos/estadísticas se mostró en la vista de revisión:
      no se repite aquí. El espacio en blanco es intencional.
    Refactorizado a design tokens CSS — sin clases Tailwind, compatible light/dark. */
@@ -13,7 +13,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { ReactPDFPreview } from '../layout/ReactPDFPreview';
 import { PaperCanvas } from '../layout/PaperCanvas';
-import { QuickReferenceSearch } from './QuickReferenceSearch';
 import { resolveAssetUrl, connectWord } from '../../api/backend';
 import { getApiBase } from '../../api/http';
 import {
@@ -82,7 +81,7 @@ export const ExportView: React.FC = () => {
     doc, isLoading,
     exportDocx, exportPdf, exportLatex,
     setViewMode,
-    citationAuditResult, sayMascot, clearQuickExport,
+    sayMascot, clearQuickExport,
     zoomLevel, setZoomLevel,
     goHome, showToast,
   } = useDocStore();
@@ -101,16 +100,6 @@ export const ExportView: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<PreviewMode>('canvas');
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  /* LA FRICCIÓN DE CITAS FANTASMA, con un estado que el anterior no tenía.
-     `idle` no es "la persona ya decidió": es "todavía no se le preguntó". Con
-     solo esos tres estados, volver a `idle` después de "Descargar igual" hace
-     que el AVISO reaparezca en el siguiente clic, que es exactamente lo que se
-     quería quitar. `decidido` es la respuesta: se preguntó una vez y la persona
-     contestó, para bien o para mal, y no se le vuelve a preguntar.
-
-     Los cuatro estados: `idle` nadie preguntó · `ask` se está preguntando ·
-     `resolve` está buscando referencias · `decidido` ya contestó. */
-  const [friction, setFriction] = useState<'idle' | 'ask' | 'resolve' | 'decidido'>('idle');
   const [loadingPhase, setLoadingPhase] = useState<string>('Generando tipografía APA 7...');
   const [downloadedFile, setDownloadedFile] = useState<{ path: string; filename: string } | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -256,10 +245,8 @@ export const ExportView: React.FC = () => {
     };
   }, [isLoading]);
 
-  const ghostCount = citationAuditResult?.ghost_citations?.length || 0;
-
   // Ambos handlers van memoizados: el atajo de teclado depende de
-  // `handleDownloadClick`, y sin `useCallback` esa dependencia cambia en cada
+  // `doExport`, y sin `useCallback` esa dependencia cambia en cada
   // render, lo que devuelve el efecto a suscribirse en cada render.
   const doExport = useCallback(async () => {
     clearQuickExport();
@@ -308,17 +295,7 @@ export const ExportView: React.FC = () => {
     else exportDocx(tracked);
   }, [clearQuickExport, format, tracked, exportPdf, exportLatex, exportDocx, showToast]);
 
-  const handleDownloadClick = useCallback(() => {
-    /* Solo se pregunta UNA vez. `decidido` es la respuesta de la persona y no
-       se vuelve a preguntar: con `idle` como único estado de "ya contestado",
-       el aviso reaparece en cada clic siguiente. */
-    if (ghostCount > 0 && friction === 'idle') {
-      setOptionsOpen(true);
-      setFriction('ask');
-      return;
-    }
-    doExport();
-  }, [ghostCount, friction, doExport]);
+  const handleDownloadClick = doExport;
 
   // Atajo de teclado: Ctrl + S o Cmd + S para descargar
   useEffect(() => {
@@ -740,121 +717,6 @@ export const ExportView: React.FC = () => {
                 parámetro del generador no está en el panel, y su motivo está
                 en ese archivo y no en un comentario perdido acá. */}
             <PanelDeAjustes />
-
-            {/* Advertencia de Citas Fantasma */}
-            {ghostCount > 0 && friction === 'ask' && (
-              <div
-                data-testid="aviso-citas-fantasma"
-                style={{
-                  padding: '12px',
-                  borderRadius: 'var(--radius-lg)',
-                  backgroundColor: 'var(--color-accent-soft)',
-                  border: '1px solid var(--color-warning)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <AlertTriangle size={15} strokeWidth={1.75} style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: '2px' }} aria-hidden />
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)' }}>
-                    Hay <strong>{ghostCount}</strong> cita{ghostCount === 1 ? '' : 's'} sin referencia en la bibliografía.
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                  <button
-                    type="button"
-                    /* `friction` vuelve a 'idle' TAMBIÉN acá, y no solo en
-                       "Ocultar". Sin esto la decisión de la persona se perdía
-                       al remontar la vista —`friction` es `useState` local— y
-                       el aviso reaparecía en el siguiente clic, como si nadie
-                       hubiera contestado nada. */
-                    /* `decidido`, no `idle`: con `idle` el aviso reaparece en
-                       el siguiente clic, que es el defecto que esto arregla.
-                       Antes solo "Ocultar" lo cambiaba, y tampoco. */
-                    onClick={() => { setFriction('decidido'); doExport(); }}
-                    style={{
-                      flex: 1,
-                      padding: '5px 10px',
-                      backgroundColor: 'var(--color-bg-surface)',
-                      color: 'var(--color-text-primary)',
-                      border: '1px solid var(--color-border-strong)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Descargar igual
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFriction('resolve')}
-                    style={{
-                      flex: 1,
-                      padding: '5px 10px',
-                      backgroundColor: 'var(--color-accent)',
-                      color: 'var(--color-text-on-accent)',
-                      border: 'none',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Resolver ahora
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Búsqueda rápida de referencias (flujo de fricción) */}
-            {friction === 'resolve' && (
-              <div
-                style={{
-                  borderRadius: 'var(--radius-xl)',
-                  border: '1px solid var(--color-accent)',
-                  backgroundColor: 'var(--color-accent-soft)',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--space-2)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingBottom: 'var(--space-2)',
-                    borderBottom: '1px solid var(--color-border-subtle)',
-                  }}
-                >
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--font-bold)', color: 'var(--color-text-primary)' }}>
-                    Vincular Referencias Faltantes (Crossref / DOI)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setFriction('decidido')}
-                    style={{
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--color-text-tertiary)',
-                      fontWeight: 'var(--font-semibold)',
-                      cursor: 'pointer',
-                      background: 'none',
-                      border: 'none',
-                    }}
-                  >
-                    Ocultar
-                  </button>
-                </div>
-                <QuickReferenceSearch
-                  onDone={() => {
-                    setFriction('idle');
-                    sayMascot('Referencias vinculadas correctamente. Todo listo.', 'success');
-                  }}
-                />
-              </div>
-            )}
 
             {/* Acción secundaria: Copiar PDF físico al portapapeles para WhatsApp */}
             {format === 'pdf' && (
