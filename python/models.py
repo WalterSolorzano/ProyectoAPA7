@@ -63,6 +63,12 @@ class TableBorderStyle(str, Enum):
     GRID = "grid"   # cuadrícula completa (revistas científicas / manuales)
 
 
+class CellSpan(BaseModel):
+    """Extensión de una celda de tabla (combinación horizontal/vertical)."""
+    col: int = 1
+    row: int = 1
+
+
 class CitationType(str, Enum):
     PARENTETICA = "parentetica"    # (García, 2023)
     NARRATIVA   = "narrativa"      # García (2023)
@@ -440,6 +446,11 @@ class TableModel(BaseModel):
     caption: str = ""
     note: Optional[str] = None
     table_number: int = 1
+    header_spans: Optional[list[CellSpan]] = None
+    row_spans: Optional[list[list[CellSpan]]] = None
+    style: str = "apa"            # TableStylePreset de la UI
+    orientation: str = "auto"     # auto | portrait | landscape
+    column_widths: Optional[list[float]] = None
 
 
 class ElementModel(BaseModel):
