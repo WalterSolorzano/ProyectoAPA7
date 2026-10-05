@@ -165,6 +165,11 @@ def build_apa_segments(ref: Any) -> List[Any]:
         return [_seg(limpiar_artefactos(raw))] if raw else []
 
     author_str = formatear_autores(authors)
+    # APA 7: un autor corporativo (sin iniciales) cierra con punto antes del
+    # año: "Instituto Nicaragüense de Energía. (2026)." Un autor personal ya
+    # termina en punto por su inicial ("García, A."), así que no se duplica.
+    if author_str and not author_str.endswith("."):
+        author_str = author_str + "."
     prefix = f"{author_str} ({year}). " if author_str else f"({year}). "
     segs: List[Any] = [_seg(prefix)]
     url = url_segura(d.get("doi_or_url"), tipo)

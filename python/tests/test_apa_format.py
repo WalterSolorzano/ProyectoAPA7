@@ -103,3 +103,13 @@ def test_otro_replica_salida_plana():
     ref = {"authors": ["A, B."], "year": "2000", "title": "T", "source": "S",
            "doi_or_url": "https://x.com", "tipo": "otro"}
     assert format_apa_plain(ref) == "A, B. (2000). T. S. https://x.com"
+
+
+def test_autor_corporativo_lleva_punto_antes_del_anio():
+    ref = {"authors": ["Instituto Nicaragüense de Energía [INE]"], "year": "2026",
+           "title": "", "source": "", "doi_or_url": None, "tipo": "otro"}
+    assert format_apa_plain(ref).startswith("Instituto Nicaragüense de Energía. (2026)")
+
+    _only = {"authors": ["Instituto Nicaragüense de Energía"], "year": "2026",
+            "title": "", "source": "", "doi_or_url": None, "tipo": "otro"}
+    assert format_apa_plain(_only).startswith("Instituto Nicaragüense de Energía. (2026)")
