@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarSpans, matrizDeTabla, estiloDePreset, PRESETS_TABLA, BORDE_EXPORT_DE_PRESET } from '../lib/tablaRender';
+import { normalizarSpans, matrizDeTabla, estiloDePreset, PRESETS_TABLA, BORDE_EXPORT_DE_PRESET, rebanadaDeTabla } from '../lib/tablaRender';
 import type { TableModel } from '../types';
 
 const tabla = (extra: Partial<TableModel> = {}): TableModel => ({
@@ -98,5 +98,32 @@ describe('PRESETS_TABLA', () => {
     expect(BORDE_EXPORT_DE_PRESET.expanded).toBe('apa');
     expect(BORDE_EXPORT_DE_PRESET.grid).toBe('grid');
     expect(BORDE_EXPORT_DE_PRESET.zebra).toBe('grid');
+  });
+});
+
+const baseRebanada: TableModel = {
+  element_id: 't1', headers: ['A', 'B'], rows: [['1', '2'], ['3', '4'], ['5', '6']],
+  caption: 'Datos', table_number: 1, style: 'apa',
+  header_spans: [{ col: 2, row: 1 }],
+  row_spans: [[{ col: 1, row: 1 }, { col: 1, row: 1 }], [{ col: 1, row: 1 }, { col: 1, row: 2 }], [{ col: 1, row: 1 }, { col: 1, row: 1 }]],
+};
+
+describe('rebanadaDeTabla', () => {
+  it('conserva encabezado y spans de encabezado', () => {
+    const r = rebanadaDeTabla(baseRebanada, 1, 3);
+    expect(r.headers).toEqual(['A', 'B']);
+    expect(r.header_spans).toEqual([{ col: 2, row: 1 }]);
+    expect(r.rows).toEqual([['3', '4'], ['5', '6']]);
+    expect(r.row_spans).toEqual([baseRebanada.row_spans![1], baseRebanada.row_spans![2]]);
+    expect(r.caption).toBe('Datos');
+    expect(r.style).toBe('apa');
+  });
+  it('clampa índices fuera de rango', () => {
+    const r = rebanadaDeTabla(baseRebanada, -5, 99);
+    expect(r.rows).toHaveLength(3);
+  });
+  it('preserva row_spans con row>1 en la primera fila rebanada', () => {
+    const r = rebanadaDeTabla(baseRebanada, 1, 3);
+    expect(r.row_spans![0][1]).toEqual({ col: 1, row: 2 });
   });
 });

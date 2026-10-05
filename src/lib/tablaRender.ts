@@ -149,3 +149,15 @@ export const BORDE_EXPORT_DE_PRESET: Record<TableStylePreset, 'apa' | 'grid'> = 
   grid: 'grid',
   zebra: 'grid',
 };
+
+/** Una rebanada de filas mantiene el encabezado completo y los spans alineados. */
+export function rebanadaDeTabla(tabla: TableModel, inicio: number, fin: number): TableModel {
+  const n = tabla.rows.length;
+  const desde = Math.min(Math.max(0, Math.floor(inicio)), n);
+  const hasta = Math.min(Math.max(desde, Math.floor(fin)), n);
+  return {
+    ...tabla,
+    rows: tabla.rows.slice(desde, hasta),
+    row_spans: tabla.row_spans ? tabla.row_spans.slice(desde, hasta) : tabla.row_spans,
+  };
+}
