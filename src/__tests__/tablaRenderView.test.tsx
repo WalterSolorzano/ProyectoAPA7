@@ -44,4 +44,15 @@ describe('TablaRender', () => {
     fireEvent.blur(input);
     expect(onEditarCelda).toHaveBeenCalledWith(1, 0, 'Participación');
   });
+
+  it('oculta la leyenda cuando mostrarLeyenda=false', () => {
+    render(<TablaRender tabla={tabla()} mostrarLeyenda={false} />);
+    expect(screen.queryByText('Estadísticos descriptivos')).toBeNull();
+    expect(screen.queryByText(/Tabla 3\./)).toBeNull();
+  });
+
+  it('marca la continuación del fragmento', () => {
+    render(<TablaRender tabla={tabla()} esContinuacion />);
+    expect(screen.getByText(/Continúa/)).toBeTruthy();
+  });
 });

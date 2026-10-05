@@ -22,6 +22,10 @@ export interface TablaRenderProps {
   editable?: boolean;
   /** `fila` = 0 encabezado / 1..n cuerpo; `col` = índice lógico de la celda. */
   onEditarCelda?: (fila: number, col: number, texto: string) => void;
+  /** Muestra el rótulo «Tabla N.» + leyenda (default true; false en fragmentos continuados). */
+  mostrarLeyenda?: boolean;
+  /** Marca este fragmento como continuación de una tabla partida entre páginas. */
+  esContinuacion?: boolean;
 }
 
 /** Quita un prefijo «Tabla N.» del caption para no repetir el rótulo. */
@@ -35,6 +39,8 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
   estilo,
   editable = false,
   onEditarCelda,
+  mostrarLeyenda = true,
+  esContinuacion = false,
 }) => {
   const est = estilo ?? estiloDePreset(tabla.style ?? 'apa');
   const filas = matrizDeTabla(tabla);
@@ -51,19 +57,21 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
 
   return (
     <figure style={{ margin: 0, color: 'var(--paper-ink)' }} data-testid="tabla-render">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          gap: 'var(--space-1)',
-          marginBottom: 'var(--space-2)',
-          fontSize: 'var(--text-xs)',
-        }}
-      >
-        <Table2 size={13} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-        <span style={{ fontWeight: 700 }}>Tabla {tabla.table_number}.</span>
-        <span>{sinRotulo(tabla.caption || '', tabla.table_number)}</span>
-      </div>
+      {mostrarLeyenda ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 'var(--space-1)',
+            marginBottom: 'var(--space-2)',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
+          <Table2 size={13} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+          <span style={{ fontWeight: 700 }}>Tabla {tabla.table_number}.</span>
+          <span>{sinRotulo(tabla.caption || '', tabla.table_number)}</span>
+        </div>
+      ) : null}
 
       <div data-testid="tabla-scroll" style={{ overflowX: 'auto' }}>
         <table
@@ -165,6 +173,19 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
           </tbody>
         </table>
       </div>
+
+      {esContinuacion ? (
+        <div
+          style={{
+            marginTop: 'var(--space-1)',
+            fontSize: 'var(--text-xs)',
+            fontStyle: 'italic',
+            color: 'var(--color-text-tertiary)',
+          }}
+        >
+          Continúa
+        </div>
+      ) : null}
 
       {tabla.note ? (
         <div style={{ marginTop: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
