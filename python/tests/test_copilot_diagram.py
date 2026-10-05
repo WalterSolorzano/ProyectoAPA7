@@ -54,3 +54,12 @@ def test_resolve_diagram_actions_renders_png(tmp_path):
     assert act["image"]["design_style"] == "standard"
     assert act["image"]["caption"] == "Flujo"
     assert Path(act["image"]["file_path"]).exists()
+
+
+def test_deterministic_fallback_asks_for_dsl():
+    from modules.ai_document_editor import _deterministic_chat_fallback
+
+    doc = DocumentModel(session_id="x", file_name="d.docx")
+    res = _deterministic_chat_fallback(doc, "agrega un diagrama de flujo")
+    assert res["actions"] == []
+    assert "DSL" in res["reply"]

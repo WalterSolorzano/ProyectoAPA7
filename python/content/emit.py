@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from models import DocumentModel, PortadaData
@@ -13,31 +14,48 @@ def _portada(doc: DocumentModel) -> PortadaData:
     return PortadaData(**valid)
 
 
+def _safe_unlink(path: Path) -> None:
+    try:
+        Path(path).unlink()
+    except OSError:
+        pass
+
+
 def emit_docx(doc: DocumentModel, out_path: Path, try_com: bool = True) -> Path:
+    """Construye el .docx con python-docx y, si hay Word disponible, aplica el
+    MISMO post-proceso COM que usa `/api/generate` (calidad), entregando el
+    resultado en `out_path`. Sin Word, entrega el rebuild puro. Nunca lanza por
+    ausencia de COM.
+
+    Se escribe primero en un archivo temporal para que `process_and_convert`
+    pueda copiar a `out_path` sin chocar consigo mismo (`SameFileError`)."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    generate_apa7_docx(doc, out_path, doc.apa_rules, _portada(doc), doc.referencias)
+    tmp_path = out_path.with_name(f".{out_path.stem}.gen{out_path.suffix}")
+    generate_apa7_docx(doc, tmp_path, doc.apa_rules, _portada(doc), doc.referencias)
 
-    if not try_com:
-        return out_path
-    try:
-        from services.doc_converter import get_doc_converter
+    if try_com:
+        try:
+            from services.doc_converter import get_doc_converter
 
-        converter = get_doc_converter()
-        if converter.get_active_engine() != "COM":
-            return out_path
-        ok, final = converter.process_and_convert(
-            original_path=out_path,
-            generated_path=out_path,
-            final_path=out_path,
-            preserve_cover=False,
-            generate_pdf=False,
-            rules=doc.apa_rules,
-        )
-        if ok and final:
-            return Path(final)
-    except RuntimeError:
-        return out_path
-    except Exception:
-        return out_path
+            converter = get_doc_converter()
+            if converter.get_active_engine() == "COM":
+                ok, final = converter.process_and_convert(
+                    original_path=tmp_path,
+                    generated_path=tmp_path,
+                    final_path=out_path,
+                    preserve_cover=False,
+                    generate_pdf=False,
+                    rules=doc.apa_rules,
+                )
+                if ok and final and Path(final).exists():
+                    _safe_unlink(tmp_path)
+                    return Path(final)
+        except RuntimeError:
+            pass
+        except Exception:
+            pass
+
+    if tmp_path != out_path and tmp_path.exists():
+        os.replace(tmp_path, out_path)
     return out_path

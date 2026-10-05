@@ -1,5 +1,7 @@
 import uuid
 
+import pytest
+
 from content.builder import build_content_document
 from models import ElementType
 
@@ -36,10 +38,28 @@ def test_empty_content_is_valid(tmp_path):
     assert result.document.elements == []
 
 
-def test_unknown_kind_warns_but_still_builds(tmp_path):
+def test_unknown_kind_omits_diagram_and_warns(tmp_path):
     result = build_content_document(
         {"content": [{"diagram": {"kind": "sequence", "dsl": "A -> B"}}]},
         tmp_path, session_id=_sid(),
     )
     assert result.warnings
-    assert any(e.type == ElementType.IMAGE for e in result.document.elements)
+    assert not any(e.type == ElementType.IMAGE for e in result.document.elements)
+
+
+def test_invalid_style_falls_back_to_standard(tmp_path):
+    result = build_content_document(
+        {"content": [{"diagram": {"kind": "flow", "dsl": "A > B", "style": "fancy"}}]},
+        tmp_path, session_id=_sid(),
+    )
+    fig = next(e for e in result.document.elements if e.type == ElementType.IMAGE)
+    assert fig.image_info.design_style == "standard"
+    assert any("fancy" in w for w in result.warnings)
+
+
+def test_rejects_too_many_blocks(tmp_path):
+    from content.builder import MAX_CONTENT_BLOCKS
+
+    payload = {"content": [{"p": "x"} for _ in range(MAX_CONTENT_BLOCKS + 1)]}
+    with pytest.raises(ValueError):
+        build_content_document(payload, tmp_path, session_id=_sid())

@@ -1,3 +1,5 @@
+import pytest
+
 from content.schema import parse_content_document
 
 
@@ -34,3 +36,13 @@ def test_long_form_is_normalized():
 def test_unknown_key_is_ignored_not_crashing():
     doc = parse_content_document({"content": [{"p": "ok", "zzz": 1}]})
     assert doc.content[0].p == "ok"
+
+
+def test_item_rejects_two_types():
+    with pytest.raises(ValueError):
+        parse_content_document({"content": [{"h1": "A", "p": "B"}]})
+
+
+def test_item_rejects_empty_block():
+    with pytest.raises(ValueError):
+        parse_content_document({"content": [{}]})

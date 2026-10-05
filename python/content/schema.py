@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MetaSpec(BaseModel):
@@ -47,6 +47,29 @@ class ContentItem(BaseModel):
     table: Optional[TableSpec] = None
     diagram: Optional[DiagramPayload] = None
     page_break: bool = False
+
+    @model_validator(mode="after")
+    def _exactly_one_type(self) -> "ContentItem":
+        fields = {
+            "h1": self.h1,
+            "h2": self.h2,
+            "h3": self.h3,
+            "p": self.p,
+            "bullets": self.bullets,
+            "numbered": self.numbered,
+            "table": self.table,
+            "diagram": self.diagram,
+            "page_break": self.page_break,
+        }
+        present = [k for k, v in fields.items() if v]
+        if len(present) != 1:
+            raise ValueError(
+                "Cada bloque debe tener exactamente un tipo de contenido "
+                f"(encontrados: {', '.join(present) if present else 'ninguno'})."
+            )
+        if self.cite and not self.p:
+            raise ValueError("'cite' solo acompaña a un párrafo ('p').")
+        return self
 
 
 class ContentDocument(BaseModel):

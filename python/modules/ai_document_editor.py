@@ -264,6 +264,17 @@ def _deterministic_chat_fallback(
     instruction_lower = user_instruction.lower()
     actions: List[Dict[str, Any]] = []
 
+    # 0. Petición de diagrama: sin LLM no hay DSL que interpretar.
+    if any(w in instruction_lower for w in ["diagrama", "esquema", "flujo", "organigrama", "árbol", "arbol", "mermaid", "flowchart", "mindmap"]):
+        return {
+            "reply": (
+                "Para insertar un diagrama necesito el lenguaje compacto (DSL). "
+                "Por ejemplo: 'flow\\nInicio > Proceso > Fin' o 'tree\\nRaíz\\n- Hijo'. "
+                "Pásame el DSL y el tipo (flow, tree o net)."
+            ),
+            "actions": [],
+        }
+
     # 1. Rotulación de tablas / figuras
     if any(w in instruction_lower for w in ["rotular", "caption", "tabla", "figura"]):
         t_count = 1

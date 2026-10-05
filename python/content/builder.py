@@ -15,8 +15,20 @@ from models import (
 )
 
 from content.schema import ContentDocument, ContentItem, parse_content_document
+from diagrams.parser import SUPPORTED_KINDS, parse_dsl
 from diagrams.render import render_diagram
 from modules.captions import scan_existing
+
+MAX_CONTENT_BLOCKS = 500
+MAX_DIAGRAMS = 100
+SUPPORTED_STYLES = (
+    "standard",
+    "sidebar",
+    "scientific",
+    "corner",
+    "full_width",
+    "multipanel",
+)
 
 
 @dataclass
@@ -51,9 +63,19 @@ def _paragraph(text: str) -> ElementModel:
     return ElementModel(id=_new_id(), type=ElementType.PARAGRAPH, text=text)
 
 
-def _diagram_element(item: ContentItem, doc: DocumentModel, images_dir: Path, figure_number: int) -> tuple[ElementModel, list[str]]:
+def _diagram_element(item: ContentItem, doc: DocumentModel, images_dir: Path, figure_number: int) -> tuple[Optional[ElementModel], list[str]]:
     payload = item.diagram
-    warnings: list[str] = []
+    spec = parse_dsl(payload.kind, payload.dsl)
+    warnings: list[str] = list(spec.warnings)
+    if payload.kind not in SUPPORTED_KINDS or not spec.nodes:
+        warnings.append(
+            f"Diagrama omitido: kind '{payload.kind}' no soportado o DSL sin nodos."
+        )
+        return None, warnings
+    style = payload.style
+    if style not in SUPPORTED_STYLES:
+        warnings.append(f"Estilo de figura '{style}' no válido; se usa 'standard'.")
+        style = "standard"
     result = render_diagram(payload.kind, payload.dsl)
     warnings.extend(result.warnings)
     filename = f"diagrama_{figure_number}_{_new_id()[:8]}.png"
@@ -68,7 +90,7 @@ def _diagram_element(item: ContentItem, doc: DocumentModel, images_dir: Path, fi
         caption=payload.caption,
         note=payload.note,
         figure_number=figure_number,
-        design_style=payload.style,
+        design_style=style,
         width_cm=payload.width_cm,
         height_cm=payload.height_cm,
     )
@@ -105,6 +127,10 @@ def build_content_document(
     session_id: Optional[str] = None,
 ) -> BuildResult:
     spec: ContentDocument = parse_content_document(payload)
+    if len(spec.content) > MAX_CONTENT_BLOCKS:
+        raise ValueError(
+            f"El contenido excede el límite de {MAX_CONTENT_BLOCKS} bloques."
+        )
     sid = session_id or _new_id()
     images_dir = Path(storage_dir) / "sessions" / sid / "images"
 
@@ -126,6 +152,7 @@ def build_content_document(
     counters = scan_existing(_collect_existing_texts(doc))
     figure_number = counters["max_figure"] + 1
     table_number = counters["max_table"] + 1
+    diagram_count = 0
 
     for item in spec.content:
         if item.page_break:
@@ -147,10 +174,16 @@ def build_content_document(
             doc.elements.append(_table_element(item, table_number))
             table_number += 1
         if item.diagram is not None:
+            diagram_count += 1
+            if diagram_count > MAX_DIAGRAMS:
+                raise ValueError(
+                    f"El contenido excede el límite de {MAX_DIAGRAMS} diagramas."
+                )
             element, w = _diagram_element(item, doc, images_dir, figure_number)
             warnings.extend(w)
-            doc.elements.append(element)
-            figure_number += 1
+            if element is not None:
+                doc.elements.append(element)
+                figure_number += 1
 
     doc.referencias = _references(spec.references)
     return BuildResult(document=doc, warnings=warnings)
