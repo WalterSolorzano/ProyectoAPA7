@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarSpans, matrizDeTabla, estiloDePreset } from '../lib/tablaRender';
+import { normalizarSpans, matrizDeTabla, estiloDePreset, PRESETS_TABLA, BORDE_EXPORT_DE_PRESET } from '../lib/tablaRender';
 import type { TableModel } from '../types';
 
 const tabla = (extra: Partial<TableModel> = {}): TableModel => ({
@@ -82,5 +82,21 @@ describe('estiloDePreset', () => {
     expect(estiloDePreset('apa')).toMatchObject({ esAPA: true, zebra: false, sombreadoEncabezado: false });
     expect(estiloDePreset('grid')).toMatchObject({ esAPA: false });
     expect(estiloDePreset('zebra')).toMatchObject({ esAPA: false, zebra: true, sombreadoEncabezado: true });
+  });
+});
+
+describe('PRESETS_TABLA', () => {
+  it('expone los cinco presets en orden', () => {
+    expect(PRESETS_TABLA.map((p) => p.id)).toEqual(['apa', 'compact', 'expanded', 'grid', 'zebra']);
+  });
+  it('marca grid y zebra como no-APA', () => {
+    expect(PRESETS_TABLA.filter((p) => !p.esAPA).map((p) => p.id)).toEqual(['grid', 'zebra']);
+  });
+  it('mapea presets a borde de export', () => {
+    expect(BORDE_EXPORT_DE_PRESET.apa).toBe('apa');
+    expect(BORDE_EXPORT_DE_PRESET.compact).toBe('apa');
+    expect(BORDE_EXPORT_DE_PRESET.expanded).toBe('apa');
+    expect(BORDE_EXPORT_DE_PRESET.grid).toBe('grid');
+    expect(BORDE_EXPORT_DE_PRESET.zebra).toBe('grid');
   });
 });

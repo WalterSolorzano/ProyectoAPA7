@@ -124,3 +124,28 @@ export function estiloDePreset(preset: TableStylePreset = 'apa'): EstiloTabla {
       return { preset: 'apa', paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, esAPA: true };
   }
 }
+
+export interface PresetTablaInfo {
+  id: TableStylePreset;
+  etiqueta: string;
+  descripcion: string;
+  /** APA-safe: sin rejilla, sin sombreado, sin zebra. */
+  esAPA: boolean;
+}
+
+export const PRESETS_TABLA: PresetTablaInfo[] = [
+  { id: 'apa', etiqueta: 'APA', descripcion: 'Bordes horizontales, sin rejilla', esAPA: true },
+  { id: 'compact', etiqueta: 'Compacto', descripcion: 'Menos aire, misma estructura', esAPA: true },
+  { id: 'expanded', etiqueta: 'Expandido', descripcion: 'Más aire entre celdas', esAPA: true },
+  { id: 'grid', etiqueta: 'Cuadrícula', descripcion: 'Bordes en todas las celdas', esAPA: false },
+  { id: 'zebra', etiqueta: 'Cebra', descripcion: 'Filas alternadas sombreadas', esAPA: false },
+];
+
+/** El export solo entiende "apa"/"grid"; los presets de acento colapsan al borde. */
+export const BORDE_EXPORT_DE_PRESET: Record<TableStylePreset, 'apa' | 'grid'> = {
+  apa: 'apa',
+  compact: 'apa',
+  expanded: 'apa',
+  grid: 'grid',
+  zebra: 'grid',
+};
