@@ -7,7 +7,7 @@
  * 4. Conexión segura con cerrojo de aplicación o copiado al portapapeles.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -78,7 +78,7 @@ export function AiHierarchy({
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [editedProposals, setEditedProposals] = useState<Record<string, string>>({});
+  const proposalRef = useRef<HTMLTextAreaElement>(null);
 
   // Filtrar hallazgos de categoría 'ai'
   const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
@@ -258,10 +258,6 @@ export function AiHierarchy({
     currentSub?.findings[0] ||
     currentChapter?.subsections.flatMap((s) => s.findings)[0];
 
-  const activeProposal = currentFinding
-    ? editedProposals[currentFinding.id] ?? (currentFinding.suggestedText || currentFinding.originalText || '')
-    : '';
-
   // Métricas macro
   const totalParagraphsEstimated = useMemo(() => {
     if (!elements) return 0;
@@ -291,7 +287,7 @@ export function AiHierarchy({
   };
 
   const handleApply = async (finding: AuditItem, proposal: string) => {
-    if (busy || !onApplyParaphrase) return;
+    if (busy || !onApplyParaphrase || !proposal.trim()) return;
     await onApplyParaphrase(finding, proposal);
     setAppliedIds((prev) => [...prev, finding.id]);
   };
@@ -822,13 +818,9 @@ export function AiHierarchy({
                           </div>
 
                           <textarea
-                            value={activeProposal}
-                            onChange={(e) =>
-                              setEditedProposals((prev) => ({
-                                ...prev,
-                                [currentFinding.id]: e.target.value,
-                              }))
-                            }
+                            key={currentFinding.id}
+                            ref={proposalRef}
+                            defaultValue={currentFinding.suggestedText || currentFinding.originalText || ''}
                             rows={5}
                             aria-label="Propuesta con Voz de Autor Humano"
                             style={{
@@ -887,7 +879,7 @@ export function AiHierarchy({
 
                         <button
                           type="button"
-                          onClick={() => handleCopy(activeProposal, currentFinding.id)}
+                          onClick={() => handleCopy(proposalRef.current?.value ?? '', currentFinding.id)}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -963,8 +955,8 @@ export function AiHierarchy({
                         {onApplyParaphrase && (
                           <button
                             type="button"
-                            disabled={busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()}
-                            onClick={() => handleApply(currentFinding, activeProposal)}
+                            disabled={busy || appliedIds.includes(currentFinding.id)}
+                            onClick={() => handleApply(currentFinding, proposalRef.current?.value ?? '')}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
@@ -978,10 +970,7 @@ export function AiHierarchy({
                               color: 'var(--color-text-on-accent)',
                               fontSize: 'var(--text-xs)',
                               fontWeight: 700,
-                              cursor:
-                                busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()
-                                  ? 'default'
-                                  : 'pointer',
+                              cursor: busy || appliedIds.includes(currentFinding.id) ? 'default' : 'pointer',
                               opacity: busy ? 0.6 : 1,
                             }}
                           >
