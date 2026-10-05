@@ -235,7 +235,7 @@ describe('InspectorActivoTabs', () => {
     expect(screen.getByLabelText(/Nota al pie/i)).toHaveValue('Nota de la tabla');
   });
 
-  it('en una tabla solo ofrece Texto y Calidad: sin controles exclusivos de imagen', () => {
+  it('en una tabla ofrece Texto, Estilo y Calidad, sin el Formato exclusivo de imagen', () => {
     const elemTabla: ElementModel = {
       id: 'tbl_1',
       type: 'table',
@@ -259,7 +259,7 @@ describe('InspectorActivoTabs', () => {
     );
 
     expect(screen.queryByRole('tab', { name: /Formato/i })).toBeNull();
-    expect(screen.queryByRole('tab', { name: /Estilo/i })).toBeNull();
+    expect(screen.getByRole('tab', { name: /Estilo/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Texto/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Calidad/i })).toBeInTheDocument();
   });

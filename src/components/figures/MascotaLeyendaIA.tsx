@@ -150,7 +150,7 @@ export const MascotaLeyendaIA: React.FC<MascotaLeyendaIAProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
           {botonGenerar}
           {error && (
-            <span style={{ fontSize: '11px', color: 'var(--color-danger, var(--accent-primary))' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-danger)' }}>
               {error}
             </span>
           )}
