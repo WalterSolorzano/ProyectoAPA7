@@ -1363,9 +1363,19 @@ async def resolve_ghost_citation_endpoint(req: ResolveGhostCitationRequest):
     from modules.referencias_module import search_academic_metadata_cascade
     query = f"{' '.join(req.authors)} {req.year}".strip()
     result = await search_academic_metadata_cascade(query, authors=req.authors, year=req.year)
-    if result:
-        return {"found": True, "candidates": [result], "total_results": 1}
-    return {"found": False, "candidates": [], "total_results": 0}
+    if not result:
+        return {"found": False, "candidates": [], "total_results": 0}
+    # La cascada por autor+año ya devuelve un sobre {candidates, found,
+    # total_results}. Envolverlo otra vez mandaba al cliente un único candidato
+    # que ERA el sobre: sin autores ni título, y se creaba una ficha en blanco.
+    if isinstance(result, dict) and "candidates" in result:
+        cands = result.get("candidates") or []
+        return {
+            "found": bool(cands),
+            "candidates": cands,
+            "total_results": result.get("total_results", len(cands)),
+        }
+    return {"found": True, "candidates": [result], "total_results": 1}
 
 
 @app.post("/api/references/import-file")

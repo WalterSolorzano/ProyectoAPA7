@@ -4,6 +4,13 @@ import type { ReferenciaModel } from '../../types';
 
 export interface ReferenceCatalogItemProps {
   reference: ReferenciaModel;
+  /* Verdad de la auditoría para esta referencia: `true` huérfana, `false`
+     citada, `null`/`undefined` = no se pasó / no hay auditoría. Cuando el
+     llamador no lo pasa, cae a `never_cited`/`cited_count` del modelo. */
+  huerfana?: boolean | null;
+  /* Menciones contadas por la MISMA fuente que la auditoría. Si no se pasa, cae
+     a `cited_count`, que en el store llega con el default 0. */
+  mentionedCount?: number;
   isSelected?: boolean;
   isActive?: boolean;
   onSelect?: () => void;
@@ -14,6 +21,8 @@ export interface ReferenceCatalogItemProps {
 
 export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
   reference,
+  huerfana: huerfanaProp,
+  mentionedCount,
   isSelected,
   isActive,
   onSelect,
@@ -29,8 +38,13 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
   const yearText = reference.year && reference.year.trim() ? reference.year.trim() : 's.f.';
 
   const isVerified = Boolean(reference.verificada);
-  const isOrphan = Boolean(reference.never_cited || reference.cited_count === 0);
-  const mentionsCount = reference.cited_count ?? 0;
+  /* La auditoría manda: `undefined` = no se pasó (fallback al modelo), `null` =
+     nadie auditó todavía (no se afirma nada), `true`/`false` = el dato. */
+  const esHuerfana =
+    huerfanaProp === undefined
+      ? Boolean(reference.never_cited || reference.cited_count === 0)
+      : huerfanaProp === true;
+  const mentionsCount = mentionedCount ?? reference.cited_count ?? 0;
   const hasDoi = Boolean(reference.doi_or_url);
 
   return (
@@ -140,7 +154,7 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
               <CheckCircle2 size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
               <span>Verificada</span>
             </span>
-          ) : isOrphan ? (
+          ) : esHuerfana ? (
             <span
               style={{
                 fontSize: '10px',

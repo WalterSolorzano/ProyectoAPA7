@@ -241,6 +241,51 @@ describe('los grupos de la lista', () => {
   });
 });
 
+/* ── El badge y las menciones de la FILA salen de la auditoría ─────────────── */
+
+describe('el estado de la fila del catálogo', () => {
+  /* La fila y el detalle tienen que decir lo mismo. La versión vieja leía
+     `never_cited`/`cited_count` del modelo, que llegan con los defaults del
+     store (`cited_count: 0`), así que TODA la bibliografía salía "Sin citar" y
+     "0 menciones" mientras el panel de al lado contaba bien. */
+  const pendiente = (extra: Record<string, unknown> = {}) => ({
+    ...REF, id: 'rp', verificada: false, cited_count: 0, ...extra,
+  });
+
+  const abrirPendientes = () =>
+    fireEvent.click(screen.getByRole('tab', { name: /pendientes/i }));
+
+  const fila = (container: HTMLElement) => container.querySelector('.card-source') as HTMLElement;
+
+  it('una referencia citada NO se marca "Sin citar" aunque cited_count sea 0', () => {
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [{ id: 'otra' }] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).not.toMatch(/Sin citar/);
+  });
+
+  it('una referencia huérfana sí se marca "Sin citar"', () => {
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [{ id: 'rp' }] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).toMatch(/Sin citar/);
+  });
+
+  it('la fila cuenta las menciones del texto, no el cited_count obsoleto', () => {
+    /* DOC trae "Garcia (2021) lo demonstró": una mención real de García. */
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).toMatch(/1 mención/);
+  });
+});
+
 /* ── La mascota: la cara sale del estado de la fase ────────────────────────── */
 
 describe('la mascota de la fase', () => {

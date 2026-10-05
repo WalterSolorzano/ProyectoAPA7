@@ -240,6 +240,12 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
         const result = await api.resolveGhostCitation([author], year);
         if (result?.found && result.candidates?.[0]) {
           const ref = result.candidates[0];
+          /* Un candidato sin autores NI título es un sobre mal formado, no una
+             referencia: agregarlo fabrica la ficha "Autor (s.f.) / Sin título". */
+          const tieneDatos = Boolean(
+            (Array.isArray(ref.authors) && ref.authors.length > 0) || ref.title,
+          );
+          if (!tieneDatos) continue;
           get().addReference({
             id: `ghost-auto-${Date.now()}-${i}`,
             authors: ref.authors, year: ref.year, title: ref.title,

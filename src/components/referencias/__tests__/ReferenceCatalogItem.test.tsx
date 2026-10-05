@@ -152,6 +152,75 @@ describe('ReferenceCatalogItem', () => {
     expect(screen.getByText(/Sin citar/i)).toBeDefined();
   });
 
+  /* La auditoría es la única verdad de "sin citar"/"menciones". El modelo que
+     llega del store conserva los defaults (`cited_count: 0`), y leerlos cuando
+     el llamador ya calculó el dato pinta "Sin citar" en toda la bibliografía y
+     "0 menciones" en cada fila citada. */
+  it('no marca "Sin citar" cuando la auditoría dice que está citada, aunque cited_count sea 0', () => {
+    const citedRef: ReferenciaModel = {
+      ...mockRef,
+      id: 'ref-cited',
+      cited_count: 0,
+      never_cited: false,
+      verificada: false,
+    };
+
+    render(
+      <ReferenceCatalogItem
+        reference={citedRef}
+        huerfana={false}
+        isSelected={false}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Sin citar/i)).toBeNull();
+  });
+
+  it('sin auditoría (huerfana null) no afirma que la referencia esté sin citar', () => {
+    const pendingRef: ReferenciaModel = {
+      ...mockRef,
+      id: 'ref-pending',
+      cited_count: 0,
+      verificada: false,
+    };
+
+    render(
+      <ReferenceCatalogItem
+        reference={pendingRef}
+        huerfana={null}
+        isSelected={false}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Sin citar/i)).toBeNull();
+  });
+
+  it('usa mentionedCount cuando se pasa, ignorando cited_count obsoleto', () => {
+    const countedRef: ReferenciaModel = {
+      ...mockRef,
+      id: 'ref-count',
+      cited_count: 0,
+      verificada: false,
+    };
+
+    render(
+      <ReferenceCatalogItem
+        reference={countedRef}
+        huerfana={false}
+        mentionedCount={2}
+        isSelected={false}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/2 menciones/i)).toBeDefined();
+  });
+
   it('cumple la regla de CERO emojis en el render', () => {
     const { container } = render(
       <ReferenceCatalogItem

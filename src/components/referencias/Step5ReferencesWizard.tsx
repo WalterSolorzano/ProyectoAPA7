@@ -341,6 +341,18 @@ export const Step5ReferencesWizard: React.FC = () => {
     [doc, selectedRef],
   );
 
+  /* Las menciones de cada fila salen de la MISMA función que el detalle, así que
+     la fila y el panel no pueden contradecirse. Se calcula una vez para todo el
+     catálogo —no por render de cada fila— y no lee `cited_count`, que en el
+     store conserva el default 0. */
+  const mencionesPorRef = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const r of references) {
+      mapa.set(r.id, parrafosQueCitan(r, doc?.elements).length);
+    }
+    return mapa;
+  }, [references, doc]);
+
   const copyInTextCitation = (refItem: ReferenciaModel) => {
     const main = (refItem.authors?.[0] || 'Autor').split(',')[0].trim();
     const yr = refItem.year || 's.f.';
@@ -615,6 +627,8 @@ export const Step5ReferencesWizard: React.FC = () => {
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
+                    huerfana={huerfanas ? huerfanas.has(refItem.id) : null}
+                    mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}
@@ -631,6 +645,8 @@ export const Step5ReferencesWizard: React.FC = () => {
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
+                    huerfana={huerfanas ? huerfanas.has(refItem.id) : null}
+                    mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}
