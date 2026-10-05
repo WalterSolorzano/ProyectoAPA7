@@ -263,6 +263,17 @@ export const ConexionTab: React.FC = () => {
           producción ni de las que cobren: se comparten entre todos los que
           tengan el programa.
         </p>
+        {/* El aviso que faltaba: la nota de arriba habla de cifrado, no de que el
+            texto del documento sale de la máquina. Son dos cosas distintas y esta
+            es la que la persona necesita saber ANTES de usar IA. */}
+        <p
+          data-testid="aviso-envio-externo"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}
+        >
+          {aiProviderConfig.useLocal
+            ? 'Con el servidor local activo, el texto de tu documento no sale de tu equipo: se procesa en la dirección que figura arriba.'
+            : 'Al usar una función con IA, el texto de tu documento sale de tu equipo y se envía al proveedor que consultes. Revisá las políticas en docs/politicas-proveedores.md antes de trabajar con datos sensibles.'}
+        </p>
         {/* Sin ninguna clave no se muestran los catorce campos: se dice que no
             hay ninguna y se deja la del proveedor principal, que es el camino
             de entrada. Catorce casillas vacías no informa nada.
