@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AiHierarchy } from '../components/review/AiHierarchy';
+import { AiHeatmap } from '../components/review/AiHeatmap';
 import type { ElementModel } from '../types';
 import type { AuditItem } from '../lib/auditItems';
 
@@ -86,5 +87,20 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
     const applyBtn = screen.getByRole('button', { name: /Reemplazar en Manuscrito/i });
     fireEvent.click(applyBtn);
     expect(onApplyParaphrase).toHaveBeenCalledWith(mockAiItems[0], mockAiItems[0].suggestedText);
+  });
+
+  it('el heatmap pinta una fila por capítulo y cuatro columnas de rango', () => {
+    render(
+      <AiHeatmap
+        filas={[
+          { h1Id: 'a', titulo: 'Intro', counts: [1, 0, 2, 0], total: 3, sinMedir: 0 },
+          { h1Id: 'b', titulo: 'Método', counts: [0, 0, 0, 1], total: 1, sinMedir: 1 },
+        ]}
+        max={2}
+      />,
+    );
+    expect(screen.getByText('Intro')).toBeTruthy();
+    expect(screen.getByText('Método')).toBeTruthy();
+    expect(screen.getAllByTestId('heatmap-col')).toHaveLength(4);
   });
 });

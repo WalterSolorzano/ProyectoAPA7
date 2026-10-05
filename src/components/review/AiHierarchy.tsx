@@ -21,6 +21,8 @@ import {
 import type { ElementModel } from '../../types';
 import type { AuditItem } from '../../lib/auditItems';
 import { construirJerarquia, type NodoJerarquia } from '../../lib/jerarquia';
+import { construirHeatmap } from '../../lib/aiHeatmap';
+import { AiHeatmap } from './AiHeatmap';
 import { EditorialMascot } from '../layout/EditorialMascot';
 
 export interface AiHierarchyProps {
@@ -238,7 +240,20 @@ export function AiHierarchy({
         subsections: subs,
       };
     });
-  }, [elements, itemsByElemId]);
+  }, [elements, itemsByElemId, aiItems]);
+
+  // Mapa de calor H1 × rango de índice IA (mismo motor que alimenta el hero)
+  const { filas: heatFila, max: heatMax } = useMemo(
+    () =>
+      construirHeatmap(
+        chapters.map((c) => ({
+          id: c.id,
+          titulo: c.title,
+          findings: c.subsections.flatMap((s) => s.findings),
+        })),
+      ),
+    [chapters],
+  );
 
   // Selección activa
   const effectiveH1Id = selectedH1Id || chapters[0]?.id || '';
@@ -377,6 +392,9 @@ export function AiHierarchy({
               : 'sin picos'}
           </span>
         </div>
+
+        {/* Mapa de calor H1 × rango */}
+        <AiHeatmap filas={heatFila} max={heatMax} />
 
         {/* Criterio ético APA 7 */}
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
@@ -725,7 +743,7 @@ export function AiHierarchy({
                             borderRadius: 'var(--radius-full)',
                           }}
                         >
-                          Confianza: {currentFinding.aiScore ? `${Math.round(currentFinding.aiScore)}%` : 'Alta'}
+                          Confianza: {currentFinding.aiScore ? `${Math.round(currentFinding.aiScore * 100)}%` : 'Alta'}
                         </span>
                       </div>
 
