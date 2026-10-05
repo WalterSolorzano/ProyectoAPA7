@@ -23,29 +23,11 @@ _current_dir = str(Path(__file__).resolve().parent)
 if _current_dir not in sys.path:
     sys.path.insert(0, _current_dir)
 
-from dotenv import load_dotenv
+from key_loader import load_all_key_sources
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
-# Restaurar claves de IA guardadas por el usuario (sobreviven a reinicios del backend)
-try:
-    from persistence.ai_keys import load_provider_keys_into_env
-    _restored = load_provider_keys_into_env()
-    if _restored:
-        print(f"[AI] {_restored} claves de IA restauradas desde almacenamiento persistente")
-except Exception as _e:
-    print(f"[WARN] No se pudieron restaurar claves persistidas de IA: {_e}")
-
-# Fallback: claves de IA embebidas (ofuscadas) que viajan en el instalador,
-# para que funcione sin que el usuario configure nada. Prioridad menor a las
-# anteriores (solo se usan las que ya no esten definidas en os.environ).
-try:
-    from embedded_secrets import load_embedded_into_env
-    _emb = load_embedded_into_env()
-    if _emb:
-        print(f"[AI] {_emb} claves de IA cargadas desde paquete embebido (ofuscadas)")
-except Exception as _e2:
-    print(f"[WARN] No se pudieron cargar las claves embebidas de IA: {_e2}")
+# Cascada unica de claves (dotenv raiz -> ai_keys.json usuario -> embedded).
+# La comparte con core_server.py para que ningun proceso quede sin claves.
+load_all_key_sources()
 
 from fastapi import (
     FastAPI,

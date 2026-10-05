@@ -305,7 +305,7 @@ def test_inferir_tipo():
     assert inferir_tipo({"title": "Tesis de grado", "source": "", "raw_text": "", "doi_or_url": None}) == "tesis"
     assert inferir_tipo({"title": "X", "source": "Revista, 45(2), 1-2", "raw_text": "", "doi_or_url": None}) == "articulo"
     assert inferir_tipo({"title": "X", "source": "(12th ed.) McGraw", "raw_text": "", "doi_or_url": None}) == "libro"
-    assert inferir_tipo({"title": "X", "source": "", "raw_text": "", "doi_or_url": "10.1/x"}) == "articulo"
+    assert inferir_tipo({"title": "X", "source": "", "raw_text": "", "doi_or_url": "10.1234/x"}) == "articulo"
     assert inferir_tipo({"title": "X", "source": "McGraw-Hill", "raw_text": "", "doi_or_url": None}) == "libro"
     assert inferir_tipo({"title": "X", "source": "", "raw_text": "", "doi_or_url": "https://a.com"}) == "web"
 

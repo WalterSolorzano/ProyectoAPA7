@@ -13,6 +13,12 @@ from typing import List
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
+from key_loader import load_all_key_sources
+
+# Sin esto, el core queda sin ninguna key (el NSIS lo registra en autostart) y
+# la IA del complemento arrancaria muda. Misma cascada que main.py.
+load_all_key_sources()
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn

@@ -1,8 +1,8 @@
 # Separar Revisión de Mapa IA + dashboard del mapa de IA — diseño
 
 Fecha: 2026-10-04
-Estado: aprobado — Revisión («Modo lectura») y Mapa IA (dashboard); listo para plan
-Precede a: `docs/superpowers/plans/2026-10-04-fusion-fase5-revision.md`
+Estado: **implementado** (2026-10-04) — Revisión («Modo lectura») y Mapa IA (dashboard) en 4 pantallas `gate|informe|reader|ai`; verificado (npm test 1852 verde, tsc limpio, build OK). Anexo A del plan: leyes de metodología por fase van primero.
+Plan ejecutado: `docs/superpowers/plans/2026-10-04-modo-lectura-mapa-ia.md` (12 tareas). No confundir con `2026-10-04-fusion-fase5-revision.md`, que describe el flujo viejo «Recorrido por categorías» retirado.
 
 ## Contexto y problema
 
