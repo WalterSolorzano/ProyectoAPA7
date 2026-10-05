@@ -299,6 +299,11 @@ from routers import ai as ai_scheduler_router
 
 app.include_router(ai_scheduler_router.router)
 
+# ── API DE CONTENIDO (IA externa -> .docx APA 7) ─────────────────────────────
+from routers import content as content_router
+
+app.include_router(content_router.router)
+
 # ── F8: endpoints de archivo y carpetas (proyecto_manager) ────────────────────
 from modules.proyecto_manager import (
     configurar_raiz,
