@@ -571,6 +571,11 @@ export interface ReferencesElement {
   items: Array<ReferenceItem>
 }
 
+export interface ApaSegment {
+  text: string
+  italic: boolean
+}
+
 export interface ReferenciaModel {
   id: string
   authors?: Array<string>
@@ -586,6 +591,8 @@ export interface ReferenciaModel {
   duplicate_count?: number
   verificada?: boolean
   fuente_verificacion?: string | null
+  tipo?: string | null
+  apa_segments?: Array<ApaSegment>
 }
 
 export interface ReorderElementsRequest {

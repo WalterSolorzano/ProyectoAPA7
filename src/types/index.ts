@@ -420,6 +420,10 @@ export interface ReferenciaModel {
   verificada?: boolean;
   /** De dónde salió la verificación: "doi", "cruzada", "isbn". */
   fuente_verificacion?: string;
+  /** Tipo de fuente APA 7; el backend lo infiere si queda en "otro". */
+  tipo?: 'articulo' | 'libro' | 'capitulo' | 'tesis' | 'web' | 'informe' | 'otro';
+  /** La línea APA ya segmentada (texto + cursiva). Si falta, usar formatted_apa. */
+  apa_segments?: { text: string; italic: boolean }[];
 }
 
 // ── CITATIONS ─────────────────────────────────────────────────────────────────

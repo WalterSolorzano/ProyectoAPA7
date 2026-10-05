@@ -737,6 +737,30 @@ class CitationModel(BaseModel):
     end_offset: int = 0
 
 
+class ApaSegment(BaseModel):
+    """Un tramo de la línea de referencia con su tipografía.
+
+    La cursiva es un hecho del dato, no del render: el backend decide qué va
+    en cursiva (título de libro, nombre de revista) y cada superficie se limita
+    a dibujar el segmento como venga.
+    """
+    text: str
+    italic: bool = False
+
+
+# Mapa tipo APA 7 → tipo CSL-JSON. `otro` conserva la salida histórica para no
+# romper exportadores que ya contaban con `article-journal`.
+_CSL_TYPE_BY_TIPO = {
+    "articulo": "article-journal",
+    "libro": "book",
+    "capitulo": "chapter",
+    "tesis": "thesis",
+    "web": "webpage",
+    "informe": "report",
+    "otro": "article-journal",
+}
+
+
 class ReferenciaModel(BaseModel):
     id: str
     authors: list[str] = Field(default_factory=list)
@@ -770,6 +794,12 @@ class ReferenciaModel(BaseModel):
     # una palabra que nadie puede auditar.
     fuente_verificacion: Optional[str] = None
 
+    # Tipo de fuente APA 7, y la línea ya segmentada. `formatted_apa` sigue
+    # existiendo como texto plano derivado (copiar, LaTeX, panel del add-in).
+    # articulo | libro | capitulo | tesis | web | informe | otro
+    tipo: str = "otro"
+    apa_segments: list[ApaSegment] = Field(default_factory=list)
+
     # FASE 3.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S3)
     def to_csl_json(self) -> dict:
         """Conversión CSL-JSON estándar (interoperabilidad Zotero/Mendeley).
@@ -791,7 +821,7 @@ class ReferenciaModel(BaseModel):
         issued = {"date-parts": [[int(self.year[:4])]]} if (self.year or "").strip()[:4].isdigit() else {"raw": self.year or "s.f."}
         csl: dict = {
             "id": self.id,
-            "type": "article-journal",
+            "type": _CSL_TYPE_BY_TIPO.get(self.tipo or "otro", "article-journal"),
             "title": self.title or self.raw_text[:120],
             "author": authors,
             "issued": issued,
