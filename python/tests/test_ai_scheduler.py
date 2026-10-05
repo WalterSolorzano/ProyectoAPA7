@@ -149,3 +149,28 @@ def test_copiloto_se_despacha_antes_que_un_lote(cache_aislada):
 
     asyncio.run(flujo())
     assert orden[0] == "copilot"
+
+
+def test_cancel_session_drena_la_cola_y_no_reejecuta(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    llamadas = []
+
+    async def runner(job):
+        llamadas.append(job.element_id)
+        await asyncio.sleep(0.05)
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+
+    async def flujo():
+        for i in range(5):
+            await sched.enqueue("s1", "proofread", f"p{i}", f"texto {i}")
+        cancelados = await sched.cancel_session("s1")
+        await asyncio.sleep(0.2)
+        estados = [j["state"] for j in sched.status("s1")["jobs"]]
+        return cancelados, estados
+
+    cancelados, estados = asyncio.run(flujo())
+    assert cancelados >= 1
+    assert "queued" not in estados
+    assert len(llamadas) < 5
