@@ -106,6 +106,17 @@ export const Step5AuditIAWizard: React.FC = () => {
     showToast('Alerta descartada. Texto original conservado.', 'info');
   };
 
+  /* Aplicar una alternativa de Bloom reescribe SOLO el verbo del objetivo; el
+     texto nuevo lo arma el panel en el frontend, sin gastar una llamada a la IA. */
+  const handleApplyBloom = async (elementId: string, texto: string) => {
+    try {
+      await updateElementText(elementId, texto);
+      showToast('Objetivo actualizado', 'success');
+    } catch {
+      showToast('Error al aplicar la alternativa', 'error');
+    }
+  };
+
   /* El detector de IA es probabilístico (AGENTS.md §1): "Reemplazar en
      Manuscrito" escribe lo que la persona editó en la propuesta, y marca el
      hallazgo para que quede trazable; nunca aplica una sugerencia a ciegas. */
@@ -149,6 +160,7 @@ export const Step5AuditIAWizard: React.FC = () => {
           title={doc?.file_name ?? ''}
           onStart={(capId) => { setCapInicial(capId ?? null); setPantalla('reader'); }}
           onBack={() => setPantalla('gate')}
+          onAplicar={handleApplyBloom}
         />
       </div>
     );
@@ -174,6 +186,7 @@ export const Step5AuditIAWizard: React.FC = () => {
     <div className="revision-phase" style={PHASE_WRAP}>
       <ReviewGate
         items={items}
+        elements={elements}
         aiScore={aiScore}
         isScanning={isScanning}
         onScan={handleScan}

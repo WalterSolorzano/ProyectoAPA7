@@ -121,4 +121,36 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
     fireEvent.click(screen.getByText('Método'));
     expect(onOpen).toHaveBeenCalledWith('b');
   });
+
+  it('el heatmap trae la leyenda de la rampa', () => {
+    render(
+      <AiHeatmap
+        filas={[{ h1Id: 'a', titulo: 'Intro', counts: [1, 0, 2, 0], total: 3, sinMedir: 0 }]}
+        max={2}
+      />,
+    );
+    expect(screen.getByText('Nada')).toBeTruthy();
+    expect(screen.getByText('Muy alta')).toBeTruthy();
+  });
+
+  it('el capítulo con score dibuja su porcentaje y su rectángulo proporcional', () => {
+    render(
+      <AiChapterGrid
+        chapters={[{ id: 'a', titulo: 'Intro', findings: [], score: 72 }]}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('72%')).toBeTruthy();
+  });
+
+  it('el mapa ofrece Siguiente con IA', () => {
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    expect(screen.getByRole('button', { name: /Siguiente con IA/i })).toBeTruthy();
+  });
+
+  it('el botón de volver del capítulo aislado dice «‹ Mapa IA»', () => {
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
+    expect(screen.getByText('‹ Mapa IA')).toBeTruthy();
+  });
 });

@@ -1,6 +1,7 @@
 import type { ElementModel } from '../types';
 import type { AuditItem } from './auditItems';
 import { PHASE_ORDER, phaseLabel } from './auditItems';
+import { faseDeTitulo } from './jerarquia';
 
 export interface TerminoRepetido {
   termino: string;
@@ -71,4 +72,116 @@ export function leyesPorFase(items: readonly AuditItem[]): LeyPorFase[] {
   return [...mapa.entries()]
     .sort((a, b) => indiceFase(a[0]) - indiceFase(b[0]))
     .map(([phase, lista]) => ({ phase, label: phaseLabel(phase), items: lista }));
+}
+
+/* ── La puerta de estado: cumplimiento, matriz fase × motor ──────────────── */
+
+/**
+ * El porcentaje «LISTO PARA PUBLICAR». Es la ÚNICA definición del número: el
+ * workbench publicaba `100 - total*3` inline y la puerta publicaría otra si se
+ * dejara escrita dos veces. `total` son los hallazgos del documento; tres o
+ * más bajan un punto porcentual cada uno, y el piso es cero.
+ */
+export function cumplimiento(total: number): number {
+  return Math.max(0, Math.min(100, 100 - total * 3));
+}
+
+/** Los motores con columna en la matriz. Citas vive en su fase (paso 4). */
+export type MotorMatriz = 'spelling' | 'structure' | 'style' | 'ai';
+
+export const MOTORES_MATRIZ: readonly MotorMatriz[] = ['spelling', 'structure', 'style', 'ai'];
+
+export interface FilaMatriz {
+  phase: string;
+  label: string;
+  counts: Record<MotorMatriz, number>;
+  total: number;
+  /** La portada se mide pero no se escribe: su fila lo dice, no ofrece acción. */
+  protegida: boolean;
+}
+
+/** 0 = sin hallazgos; 1..3 = intensidad relativa al máximo de su columna. */
+export function nivelCelda(count: number, max: number): 0 | 1 | 2 | 3 {
+  if (count <= 0 || max <= 0) return 0;
+  const ratio = count / max;
+  if (ratio <= 1 / 3) return 1;
+  if (ratio <= 2 / 3) return 2;
+  return 3;
+}
+
+/**
+ * Resuelve la fase de cualquier elemento por el H1 que lo contiene.
+ *
+ * Antes del primer H1 el ámbito es `portada` (spec D1). Un H1 que no abre fase
+ * alguna deja a sus hijos en `sin_fase`, que es una respuesta honesta y no una
+ * inventada.
+ *
+ * `items` es la costura con el backend: un hallazgo que ya trae `phase`
+ * —`match_phase` corrió sobre el vocabulario COMPLETO— la presta a toda su
+ * rama. Sin ella, «Metodología» caería en `sin_fase` porque el espejo local
+ * solo conoce el rótulo «Metodo», y la matriz partiría un capítulo en dos filas.
+ */
+export function fasePorElemento(
+  elements: readonly ElementModel[],
+  items: readonly AuditItem[] = [],
+): (elementId: string) => string | null {
+  const h1De = new Map<string, string>();
+  let h1Actual = '';
+  for (const el of elements) {
+    if (el.type === 'heading' && (el.heading_level ?? 1) === 1) h1Actual = el.id;
+    h1De.set(el.id, h1Actual);
+  }
+
+  const faseLocal = new Map<string, string | null>();
+  for (const el of elements) {
+    if (el.type === 'heading' && (el.heading_level ?? 1) === 1) {
+      faseLocal.set(el.id, faseDeTitulo(el.text || '', false));
+    }
+  }
+
+  const faseAprendida = new Map<string, string>();
+  for (const it of items) {
+    if (!it.phase || it.phase === 'global') continue;
+    const h1 = h1De.get(it.element_id);
+    if (h1 && !faseAprendida.has(h1)) faseAprendida.set(h1, it.phase);
+  }
+
+  return (elementId: string): string | null => {
+    if (!h1De.has(elementId)) return null;
+    const h1 = h1De.get(elementId) as string;
+    if (!h1) return 'portada';
+    return faseAprendida.get(h1) ?? faseLocal.get(h1) ?? 'sin_fase';
+  };
+}
+
+/**
+ * Matriz de calor fase × motor: una fila por fase con al menos un hallazgo.
+ * La fase de cada hallazgo sale de su elemento (o de la que el backend ya le
+ * puso), nunca de buscar palabras en su texto.
+ */
+export function matrizFaseMotor(
+  items: readonly AuditItem[],
+  faseDe: (elementId: string) => string | null = () => null,
+): FilaMatriz[] {
+  const mapa = new Map<string, FilaMatriz>();
+  for (const it of items) {
+    if (!(MOTORES_MATRIZ as readonly string[]).includes(it.category)) continue;
+    const motor = it.category as MotorMatriz;
+    const cruda = faseDe(it.element_id) ?? (it.phase && it.phase !== 'global' ? it.phase : null);
+    const phase = cruda && cruda !== 'global' ? cruda : 'sin_fase';
+    let fila = mapa.get(phase);
+    if (!fila) {
+      fila = {
+        phase,
+        label: phaseLabel(phase),
+        counts: { spelling: 0, structure: 0, style: 0, ai: 0 },
+        total: 0,
+        protegida: phase === 'portada',
+      };
+      mapa.set(phase, fila);
+    }
+    fila.counts[motor] += 1;
+    fila.total += 1;
+  }
+  return [...mapa.values()].sort((a, b) => indiceFase(a.phase) - indiceFase(b.phase));
 }

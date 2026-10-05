@@ -1,6 +1,6 @@
 // src/components/review/AiChapterFocus.tsx
 import React from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { AuditItem } from '../../lib/auditItems';
 import { EvaluacionComparador } from './EvaluacionComparador';
 
@@ -12,6 +12,9 @@ export interface AiChapterFocusProps {
   onApplyParaphrase?: (item: AuditItem, newText: string) => Promise<void>;
   busy?: boolean;
   onBack: () => void;
+  onNext?: () => void;
+  onAnterior?: () => void;
+  contador?: string;
 }
 
 export function AiChapterFocus({
@@ -22,6 +25,9 @@ export function AiChapterFocus({
   onApplyParaphrase,
   busy,
   onBack,
+  onNext,
+  onAnterior,
+  contador,
 }: AiChapterFocusProps) {
   const [sel, setSel] = React.useState(0);
   const actual = findings[Math.min(sel, Math.max(0, findings.length - 1))] ?? null;
@@ -47,7 +53,7 @@ export function AiChapterFocus({
             color: 'var(--color-text-secondary)',
           }}
         >
-          <ArrowLeft size={14} aria-hidden /> Mapa IA
+          <ArrowLeft size={14} aria-hidden /> ‹ Mapa IA
         </button>
         <h3 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800 }}>{titulo}</h3>
       </div>
@@ -87,6 +93,62 @@ export function AiChapterFocus({
         <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
           Este capítulo no tiene párrafos marcados.
         </p>
+      )}
+
+      {(onAnterior || onNext) && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            flexWrap: 'wrap',
+            marginTop: 'var(--space-2)',
+          }}
+        >
+          {onAnterior && (
+            <button
+              type="button"
+              onClick={onAnterior}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'transparent',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              <ArrowLeft size={14} aria-hidden /> Anterior con IA
+            </button>
+          )}
+          {contador && (
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{contador}</span>
+          )}
+          {onNext && (
+            <button
+              type="button"
+              onClick={onNext}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginLeft: 'auto',
+                background: 'var(--color-accent)',
+                border: '1px solid var(--color-accent)',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                color: 'var(--color-text-on-accent)',
+                fontWeight: 700,
+              }}
+            >
+              Siguiente con IA <ArrowRight size={14} aria-hidden />
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

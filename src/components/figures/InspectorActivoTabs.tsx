@@ -205,7 +205,7 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   const caption = infoTexto.caption || '';
   const note = infoTexto.note || '';
   const altText = esTabla ? '' : imgInfo.alt_text || '';
-  const numeroActivo = esTabla ? tablaInfo.table_number || 1 : imgInfo.figure_number || 1;
+  const numeroActivo = esTabla ? tablaInfo.table_number ?? null : imgInfo.figure_number ?? null;
   const currentStyle: DesignStyle = imgInfo.design_style || 'standard';
   const constrain = imgInfo.constrain_proportions !== false;
   const border: BordeActivo = imgInfo.border || 'none';

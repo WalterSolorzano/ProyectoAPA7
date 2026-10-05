@@ -112,6 +112,15 @@ export interface ImageModel {
   anchor_pos_v?: string | null;
 }
 
+export type TableStylePreset = 'apa' | 'compact' | 'expanded' | 'grid' | 'zebra';
+export type TableOrientation = 'auto' | 'portrait' | 'landscape';
+
+/** Metadata de combinación de una celda. `col`/`row` en unidades de grid. */
+export interface CellSpan {
+  col: number;
+  row: number;
+}
+
 export interface TableModel {
   element_id: string;
   headers: string[];
@@ -119,6 +128,16 @@ export interface TableModel {
   caption: string;
   note?: string;
   table_number: number;
+  /** Spans paralelos a `headers`. Vacío = todo `{col:1,row:1}`. */
+  header_spans?: CellSpan[];
+  /** Spans paralelos a `rows`. Vacío = todo `{col:1,row:1}`. */
+  row_spans?: CellSpan[][];
+  /** Preset de estilo. Default `apa` en la UI. */
+  style?: TableStylePreset;
+  /** Orientación de la tabla. Default `auto`. */
+  orientation?: TableOrientation;
+  /** Fracciones que suman 1; vacío = ancho automático. */
+  column_widths?: number[];
 }
 
 // ── ELEMENT MODEL ─────────────────────────────────────────────────────────────

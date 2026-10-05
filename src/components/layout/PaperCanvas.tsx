@@ -2426,7 +2426,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2px 0' }}>
                               <p style={{ fontWeight: 'bold', margin: 0 }}>
-                                Tabla {elem.table_info.table_number || 1}
+                                Tabla {elem.table_info.table_number ? elem.table_info.table_number : ''}
                                 <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
                                   · estilo {styleLabel}
                                 </span>

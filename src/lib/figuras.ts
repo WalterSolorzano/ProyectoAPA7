@@ -219,10 +219,16 @@ export function contextosDeFiguras(elementos: readonly ElementModel[]): Contexto
       tipo: esImagen ? 'image' : esTabla ? 'table' : 'equation',
       numero,
       rotulo: esImagen
-        ? `Figura ${numero}`
+        ? numero
+          ? `Figura ${numero}`
+          : 'Figura'
         : esTabla
-        ? `Tabla ${numero}`
-        : `Ecuación ${numero || ''}`.trim(),
+        ? numero
+          ? `Tabla ${numero}`
+          : 'Tabla'
+        : numero
+        ? `Ecuación ${numero}`
+        : 'Ecuación',
       leyenda,
       tieneLeyenda: esEcuacion ? true : leyenda.length > 0,
 

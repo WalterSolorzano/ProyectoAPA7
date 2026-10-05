@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { ArrowLeft, ArrowRight, PenLine } from 'lucide-react';
+import { ArrowLeft, PenLine } from 'lucide-react';
 import type { AuditItem } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
 import { construirCapitulos, contarPorCapitulo } from '../../lib/capitulosRevision';
 import { repeticionCuerpo, leyesPorFase } from '../../lib/informeRevision';
 import { objetivosBloom, type ElementLike } from '../../lib/contentReview';
+import { BloomPanel } from './BloomPanel';
 
 export interface ReviewInformeProps {
   items: readonly AuditItem[];
@@ -13,6 +14,8 @@ export interface ReviewInformeProps {
   embedded?: boolean;
   onStart: (capituloId?: string) => void;
   onBack: () => void;
+  /** Aplica una alternativa de Bloom al documento (paso a `updateElementText`). */
+  onAplicar?: (elementId: string, texto: string) => void;
 }
 
 const panel: React.CSSProperties = {
@@ -29,15 +32,17 @@ const titulo: React.CSSProperties = {
   textTransform: 'uppercase',
   color: 'var(--color-text-tertiary)',
 };
+/** Tope de puntos del recuento de repeticiones: por encima, el sobrante se
+ *  resume en «+N» en vez de vomitar una fila de marcas. */
+const MAX_PUNTOS = 12;
 
-export function ReviewInforme({ items, elements, title, embedded, onStart, onBack }: ReviewInformeProps) {
+export function ReviewInforme({ items, elements, title, embedded, onStart, onBack, onAplicar }: ReviewInformeProps) {
   const objetivos = useMemo(() => objetivosBloom(elements as unknown as ElementLike[]), [elements]);
   const repetidos = useMemo(() => repeticionCuerpo(elements), [elements]);
   const leyes = useMemo(() => leyesPorFase(items), [items]);
   const caps = useMemo(() => construirCapitulos(elements), [elements]);
   const porCap = useMemo(() => contarPorCapitulo(items, caps), [items, caps]);
-  const maxRep = repetidos[0]?.conteo ?? 1;
-  const maxCap = Math.max(1, ...caps.map((c) => porCap[c.id] ?? 0));
+  const maxElems = Math.max(1, ...caps.map((c) => c.elementIds.length));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxWidth: 880, margin: '0 auto' }}>
@@ -71,20 +76,9 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
-        <section style={panel} aria-label="Objetivos y validación Bloom">
+        <section style={{ ...panel, gridColumn: '1 / -1' }} aria-label="Objetivos y validación Bloom">
           <h3 style={titulo}>Objetivos · validación Bloom</h3>
-          {objetivos.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>No se detectaron objetivos.</p>
-          ) : (
-            objetivos.map((o) => (
-              <div key={o.elementId} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '6px 0', borderTop: '1px solid var(--color-border-subtle)' }}>
-                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={o.texto}>{o.texto}</span>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-warning)' }}>{o.verboActual}</span>
-                <ArrowRight size={13} aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-bg-surface-alt)', color: 'var(--color-success)' }}>{o.verboPropuesto}</span>
-              </div>
-            ))
-          )}
+          <BloomPanel objetivos={objetivos} onAplicar={onAplicar} />
         </section>
 
         <section style={panel} aria-label="Repetición del cuerpo completo">
@@ -95,8 +89,13 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
             repetidos.map((t) => (
               <div key={t.termino} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '4px 0', fontSize: 'var(--text-sm)' }}>
                 <span style={{ width: 130, color: 'var(--color-text-secondary)', fontWeight: 600 }}>{t.termino}</span>
-                <span style={{ flex: 1, height: 9, borderRadius: 'var(--radius-xs)', backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
-                  <span style={{ display: 'block', height: '100%', width: `${Math.round((t.conteo / maxRep) * 100)}%`, backgroundColor: 'var(--color-warning)' }} />
+                <span aria-hidden style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {Array.from({ length: Math.min(t.conteo, MAX_PUNTOS) }).map((_, i) => (
+                    <span key={i} style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-warning)' }} />
+                  ))}
+                  {t.conteo > MAX_PUNTOS && (
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>+{t.conteo - MAX_PUNTOS}</span>
+                  )}
                 </span>
                 <span style={{ width: 32, textAlign: 'right', color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{t.conteo}</span>
               </div>
@@ -108,17 +107,25 @@ export function ReviewInforme({ items, elements, title, embedded, onStart, onBac
       {caps.length > 0 && (
         <section style={panel} aria-label="Salud por capítulo">
           <h3 style={titulo}>Capítulos · pendientes por fase</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--space-3)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 'var(--space-2)' }}>
             {caps.map((c) => {
               const n = porCap[c.id] ?? 0;
+              const span = Math.min(6, Math.max(2, 2 + Math.round(2 * (c.elementIds.length / maxElems))));
               return (
                 <button key={c.id} type="button" onClick={() => onStart(c.id)}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)', backgroundColor: n === 0 ? 'var(--color-bg-surface-alt)' : 'var(--color-bg-surface)', cursor: 'pointer', textAlign: 'left' }}>
+                  aria-label={`Capítulo ${c.titulo}${n === 0 ? '' : ` · ${n} pendiente${n === 1 ? '' : 's'}`}`}
+                  style={{
+                    gridColumn: `span ${span}`,
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
+                    minHeight: 64, padding: 'var(--space-3)', cursor: 'pointer', textAlign: 'left',
+                    borderRadius: 'var(--radius-sm)',
+                    border: n === 0 ? '1px solid var(--color-border-subtle)' : '1px solid var(--color-warning-a40)',
+                    backgroundColor: n === 0 ? 'var(--color-bg-surface-alt)' : 'var(--color-bg-surface)',
+                  }}>
                   <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{c.titulo}</span>
-                  <span style={{ height: 5, width: '100%', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
-                    <span style={{ display: 'block', height: '100%', width: `${Math.round((n / maxCap) * 100)}%`, backgroundColor: 'var(--color-danger)' }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: n === 0 ? 'var(--color-text-tertiary)' : 'var(--color-warning)' }}>
+                    {n === 0 ? 'sin pendientes' : `${n} pendiente${n === 1 ? '' : 's'}`}
                   </span>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{n === 0 ? 'sin pendientes' : `${n} pendiente${n === 1 ? '' : 's'}`}</span>
                 </button>
               );
             })}

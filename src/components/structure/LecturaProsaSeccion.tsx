@@ -18,6 +18,7 @@
 import React, { useMemo } from 'react';
 import { BookOpen, FileText, Image as ImageIcon } from 'lucide-react';
 import { resolveAssetUrl } from '../../api/backend';
+import { TablaRender } from '../figures/TablaRender';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 import type { ElementModel } from '../../types';
 
@@ -111,6 +112,7 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   const tieneContenido = cuerpo.some(
     (e) =>
       (ES_PROSA_CON_TEXTO.has(e.type) && String(e.text ?? '').trim()) ||
+      (e.type === 'table' && Boolean(e.table_info)) ||
       e.type === 'image' ||
       e.type === 'heading',
   );
@@ -266,6 +268,13 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
                     {caption || 'Sin leyenda asignada'}
                   </figcaption>
                 </figure>
+              );
+            }
+            if (el.type === 'table' && el.table_info) {
+              return (
+                <div key={el.id ?? `t-${i}`} style={{ margin: 'var(--space-5) 0' }}>
+                  <TablaRender tabla={el.table_info} />
+                </div>
               );
             }
             return (

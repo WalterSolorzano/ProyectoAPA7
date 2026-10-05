@@ -21,6 +21,13 @@ export function EvaluacionComparador({
   const [proposal, setProposal] = useState(item.suggestedText ?? '');
   const [copiado, setCopiado] = useState(false);
 
+  /* La confianza viaja en `aiScore` como fracción (0..1); la insignia la lee
+     como porcentaje. Sin score no hay insignia: nunca se inventa un número. */
+  const crudo = item.aiScore;
+  const confianza = typeof crudo === 'number'
+    ? Math.min(100, Math.round(crudo <= 1 ? crudo * 100 : crudo))
+    : null;
+
   const aplicar = async () => {
     if (busy || !onApplyParaphrase || !proposal.trim()) return;
     await onApplyParaphrase(item, proposal);
@@ -33,8 +40,34 @@ export function EvaluacionComparador({
           <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)' }}>
             Texto Original (Fórmula LLM Detectada)
           </span>
-          <p style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>
-            {item.originalText}
+          <p style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+            <mark
+              data-testid="ia-fragmento"
+              style={{
+                backgroundColor: 'var(--color-engine-ia-a30)',
+                borderBottom: '2px solid var(--color-engine-ia-a65)',
+                color: 'inherit',
+                padding: '0 2px',
+                borderRadius: 'var(--radius-xs)',
+              }}
+            >
+              {item.originalText}
+            </mark>
+            {confianza !== null && (
+              <span
+                data-testid="ia-confianza"
+                aria-label={`Confianza ${confianza}%`}
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  color: 'var(--color-engine-ia)',
+                  verticalAlign: 'super',
+                  marginLeft: 2,
+                }}
+              >
+                {confianza}%
+              </span>
+            )}
           </p>
         </div>
         <div>

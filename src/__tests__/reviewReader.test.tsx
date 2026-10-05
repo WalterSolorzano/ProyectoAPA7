@@ -34,4 +34,16 @@ describe('ReviewReader', () => {
     fireEvent.click(screen.getByLabelText('Informe'));
     expect(screen.getByText('Informe general')).toBeTruthy();
   });
+
+  it('la cinta de capítulos ofrece el filtro Citas de la fase de Referencias', () => {
+    render(<ReviewReader elements={elements} items={[item('1', 'p')]} onAccept={vi.fn()} onMark={vi.fn()} onDismiss={vi.fn()} onBack={vi.fn()} />);
+    fireEvent.click(screen.getByText('Citas'));
+    expect(screen.getByText('0 de 0')).toBeTruthy();
+  });
+
+  it('la cinta marca con un punto los capítulos con pendientes', () => {
+    render(<ReviewReader elements={elements} items={[item('1', 'p')]} onAccept={vi.fn()} onMark={vi.fn()} onDismiss={vi.fn()} onBack={vi.fn()} />);
+    // El único hallazgo cuelga del capítulo 1. Introducción.
+    expect(screen.getByLabelText(/1. Introducción.*1 pendiente/)).toBeTruthy();
+  });
 });

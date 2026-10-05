@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BarChart3, Check, CheckCheck, X } from 'lucide-react';
 import type { AuditItem } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
-import { construirCapitulos, type CapituloRevision } from '../../lib/capitulosRevision';
+import { construirCapitulos, contarPorCapitulo, type CapituloRevision } from '../../lib/capitulosRevision';
 import { ReadingText } from './ReadingText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ENGINE_META } from '../../hooks/useReviewWorkbench';
@@ -49,8 +49,9 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
     [items, cat, cap],
   );
   const actual = itemsCap[Math.min(cursor, Math.max(0, itemsCap.length - 1))] ?? null;
+  const porCap = useMemo(() => contarPorCapitulo(items, caps), [items, caps]);
 
-  const motores: (AuditItem['category'] | 'all')[] = ['all', 'spelling', 'style', 'structure'];
+  const motores: (AuditItem['category'] | 'all')[] = ['all', 'spelling', 'style', 'structure', 'citations'];
 
   const irA = (capituloId: string) => { setCapId(capituloId); setCursor(0); };
   const siguiente = () => setCursor((c) => (itemsCap.length === 0 ? 0 : (c + 1) % itemsCap.length));
@@ -65,11 +66,19 @@ export function ReviewReader({ elements, items, initialCapId, onAccept, onDismis
         <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>
           Revisión <span style={{ color: 'var(--color-text-tertiary)' }}>· {cap?.titulo ?? 'Sin capítulo'}</span>
         </span>
-        <span style={{ flex: 1, display: 'flex', gap: 4, minWidth: 80 }}>
-          {caps.map((c) => (
-            <button key={c.id} type="button" aria-label={c.titulo} title={c.titulo} onClick={() => irA(c.id)}
-              style={{ flex: Math.max(1, c.elementIds.length), height: 6, border: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: c.id === cap?.id ? 'var(--color-accent)' : 'var(--color-bg-surface-alt)' }} />
-          ))}
+        <span style={{ flex: 1, display: 'flex', gap: 4, minWidth: 80, alignItems: 'center' }}>
+          {caps.map((c) => {
+            const pend = porCap[c.id] ?? 0;
+            return (
+              <span key={c.id} style={{ flex: Math.max(1, c.elementIds.length), display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                <button type="button" aria-label={`${c.titulo}${pend === 0 ? '' : ` · ${pend} pendiente${pend === 1 ? '' : 's'}`}`} title={c.titulo} onClick={() => irA(c.id)}
+                  style={{ width: '100%', height: 6, border: 0, borderRadius: 'var(--radius-sm)', cursor: 'pointer', backgroundColor: c.id === cap?.id ? 'var(--color-accent)' : 'var(--color-bg-surface-alt)' }} />
+                {pend > 0 && (
+                  <span aria-hidden style={{ alignSelf: 'center', width: 5, height: 5, borderRadius: 'var(--radius-full)', backgroundColor: 'var(--color-danger)' }} />
+                )}
+              </span>
+            );
+          })}
         </span>
         {motores.map((m) => (
           <button key={m} type="button" onClick={() => { setCat(m); setCursor(0); }}

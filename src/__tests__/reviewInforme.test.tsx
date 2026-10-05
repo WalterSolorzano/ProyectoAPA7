@@ -33,4 +33,28 @@ describe('ReviewInforme', () => {
     expect(headings.indexOf('Leyes de metodología')).toBeLessThan(headings.indexOf('Objetivos · validación Bloom'));
     expect(screen.getByText('cabe destacar')).toBeTruthy();
   });
+
+  it('dibuja el eje de Bloom, etiqueta General/Específico y aplica la alternativa elegida', () => {
+    const onAplicar = vi.fn();
+    const els = [
+      el('h1', 'heading', 1, 'Objetivos'),
+      el('g', 'paragraph', null, 'Desarrollar un sistema de gestión.'),
+      el('e1', 'paragraph', null, 'Identificar los tiempos muertos.'),
+    ];
+    render(<ReviewInforme items={[]} elements={els} title="Tesis" onStart={vi.fn()} onBack={vi.fn()} onAplicar={onAplicar} />);
+    expect(screen.getByText('Recordar')).toBeTruthy();
+    expect(screen.getByText('Crear')).toBeTruthy();
+    expect(screen.getByText(/^General/)).toBeTruthy();
+    expect(screen.getByText(/^Específico 1/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'analizar' }));
+    fireEvent.click(screen.getByText(/Aplicar la alternativa elegida/i));
+    expect(onAplicar).toHaveBeenCalledWith('e1', expect.stringContaining('Analizar'));
+  });
+
+  it('los capítulos se tocan como mosaico y abren su capítulo', () => {
+    const onStart = vi.fn();
+    render(<ReviewInforme items={[item('1', 'p')]} elements={elements} title="Tesis" onStart={onStart} onBack={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Capítulo Metodología/ }));
+    expect(onStart).toHaveBeenCalledWith('h2');
+  });
 });

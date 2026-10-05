@@ -295,6 +295,24 @@ export function AiHierarchy({
     return maxChap;
   }, [chapters]);
 
+  /* Navegación «Siguiente con IA»: recorre solo las secciones que tienen algo
+     marcado, que es lo que el mapa existe para recorrer. Salta de capítulo en
+     capítulo y abre su lectura en el mismo gesto. */
+  const capitulosConIa = useMemo(() => chapters.filter((c) => c.flaggedCount > 0), [chapters]);
+  const posicionIa = Math.max(1, capitulosConIa.findIndex((c) => c.id === effectiveH1Id) + 1);
+  const contadorIa =
+    capitulosConIa.length > 0 ? `Sección ${posicionIa} de ${capitulosConIa.length} con IA` : '';
+  const navegarConIa = (paso: 1 | -1) => {
+    if (capitulosConIa.length === 0) return;
+    const actual = capitulosConIa.findIndex((c) => c.id === effectiveH1Id);
+    const base = actual < 0 ? (paso > 0 ? -1 : 0) : actual;
+    const destino = capitulosConIa[(base + paso + capitulosConIa.length) % capitulosConIa.length];
+    setSelectedH1Id(destino.id);
+    setSelectedSubId(null);
+    setSelectedFindingId(null);
+    setCapAbierto(destino.id);
+  };
+
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -394,6 +412,31 @@ export function AiHierarchy({
               ? `${criticalPeakChapter.h1Number} (${criticalPeakChapter.iaScore}%)`
               : 'sin picos'}
           </span>
+          <button
+            type="button"
+            onClick={() => navegarConIa(1)}
+            disabled={capitulosConIa.length === 0}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'transparent',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '4px 10px',
+              cursor: capitulosConIa.length === 0 ? 'default' : 'pointer',
+              color: 'var(--color-text-secondary)',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 700,
+            }}
+          >
+            Siguiente con IA <ChevronRight size={14} aria-hidden />
+          </button>
+          {contadorIa && (
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+              {contadorIa}
+            </span>
+          )}
         </div>
 
         {/* Mapa de calor H1 × rango */}
@@ -418,6 +461,9 @@ export function AiHierarchy({
             onApplyParaphrase={onApplyParaphrase}
             busy={busy}
             onBack={() => setCapAbierto(null)}
+            onNext={capitulosConIa.length > 0 ? () => navegarConIa(1) : undefined}
+            onAnterior={capitulosConIa.length > 0 ? () => navegarConIa(-1) : undefined}
+            contador={contadorIa}
           />
         </div>
       ) : (
@@ -427,6 +473,7 @@ export function AiHierarchy({
               id: c.id,
               titulo: c.title,
               findings: c.subsections.flatMap((s) => s.findings),
+              score: c.iaScore,
             }))}
             onOpen={setCapAbierto}
           />

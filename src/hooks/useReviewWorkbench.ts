@@ -43,6 +43,7 @@ import {
 import { useReviewActions } from './useReviewActions';
 import { collectAuditItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 import { rotuloDeSubtipo } from '../lib/rotulos';
+import { cumplimiento } from '../lib/informeRevision';
 
 /* La tabla de rótulos y la de reglas viven en `lib/rotulos`, y no acá. Este hook
    las consumía y las declaraba a la vez, que es lo que dejó al slice del store sin
@@ -879,7 +880,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     isApplying,
     metrics: {
       total,
-      compliance: threeEnginesRan ? Math.max(0, Math.min(100, 100 - total * 3)) : null,
+      compliance: threeEnginesRan ? cumplimiento(total) : null,
     },
     viewMode,
     setViewMode,

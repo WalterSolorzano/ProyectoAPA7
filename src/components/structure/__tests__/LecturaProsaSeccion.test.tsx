@@ -341,4 +341,31 @@ describe('LecturaProsaSeccion', () => {
     render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
     expect(screen.getByText('El objetivo específico es medir.')).toBeTruthy();
   });
+
+  it('previsualiza las tablas de la sección en vez de omitirlas (Anexos)', () => {
+    const nodo = {
+      id: 'h1-t', elementoId: 'h1-t', titulo: 'Anexos', nivel: 1,
+      palabras: 6, figuras: 0, tablas: 1, citas: 0, hijos: [], fase: 'anexos',
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'h1-t', type: 'heading', text: 'Anexos', heading_level: 1 },
+      {
+        id: 'tbl1',
+        type: 'table',
+        text: '',
+        table_info: {
+          element_id: 'tbl1',
+          headers: ['Variable', 'M'],
+          rows: [['Asistencia', '4.6']],
+          caption: 'Datos recopilados',
+          table_number: 2,
+        },
+      },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.queryByText(/no contiene párrafos de prosa/i)).toBeNull();
+    expect(screen.getByText(/Tabla 2\./)).toBeTruthy();
+    expect(screen.getByText('Datos recopilados')).toBeTruthy();
+    expect(screen.getByText('Asistencia')).toBeTruthy();
+  });
 });

@@ -205,7 +205,8 @@ describe('InspectorActivoTabs', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Texto/i }));
 
     const preview = screen.getByTestId('texto-preview');
-    expect(preview.textContent).toContain('Figura 1');
+    // Sin `figure_number` en el dato, el rótulo no inventa «Figura 1».
+    expect(preview.textContent).not.toMatch(/Figura \d/);
     expect(preview.textContent).toContain('Figura de prueba');
     expect(screen.getByText(/16 caracteres/i)).toBeDefined();
   });

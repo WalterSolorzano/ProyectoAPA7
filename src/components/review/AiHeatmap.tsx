@@ -9,6 +9,7 @@ export interface AiHeatmapProps {
 
 const RANGOS = ['45–59', '60–74', '75–89', '90–100'];
 const NIVEL = ['var(--ia-nivel-1)', 'var(--ia-nivel-2)', 'var(--ia-nivel-3)', 'var(--ia-nivel-4)'];
+const LEYENDA = ['Nada', 'Media', 'Alta', 'Muy alta'];
 
 /** Color por intensidad relativa al máximo (no degradado continuo: 4 escalones). */
 function fondo(n: number, max: number): string {
@@ -42,6 +43,39 @@ export function AiHeatmap({ filas, max }: AiHeatmapProps) {
           {filas.reduce((s, f) => s + f.sinMedir, 0)} párrafos sin medición numérica (clasificados sin score).
         </p>
       )}
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-3)',
+          flexWrap: 'wrap',
+          marginTop: 'var(--space-2)',
+        }}
+      >
+        {LEYENDA.map((t, i) => (
+          <span
+            key={t}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-tertiary)',
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: NIVEL[i],
+                display: 'inline-block',
+              }}
+            />
+            {t}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

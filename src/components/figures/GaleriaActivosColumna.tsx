@@ -11,6 +11,50 @@ interface Props {
   onSelectIndice: (idx: number) => void;
 }
 
+/** Miniatura de tabla: una rejilla que insinúa filas y columnas sin inventar
+ *  cifras. Lee los mismos `headers`/`rows` que la vista grande del activo. */
+const MiniaturaTabla: React.FC<{ headers: string[]; rows: string[][] }> = ({ headers, rows }) => {
+  const cols = Math.max(
+    1,
+    Math.min(4, headers.length || Math.max(0, ...rows.map((r) => r.length)) || 1)
+  );
+  const cuerpo = rows.slice(0, 2);
+  const celdas: Array<string | null> = [
+    ...headers.slice(0, cols),
+    ...cuerpo.flatMap((r) => r.slice(0, cols)),
+  ];
+  const total = cols * 3;
+  while (celdas.length < total) celdas.push(null);
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="asset-thumbnail-tabla"
+      style={{
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
+        padding: '2px',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridAutoRows: '1fr',
+        gap: '1px',
+        background: 'var(--color-border-subtle)',
+      }}
+    >
+      {celdas.slice(0, total).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            background: i < cols ? 'var(--color-text-tertiary)' : 'var(--color-bg-surface)',
+            opacity: i < cols ? 0.4 : 1,
+            borderRadius: 'var(--radius-xs)',
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 export const GaleriaActivosColumna: React.FC<Props> = ({
   contextos,
   indiceActivo,
@@ -150,6 +194,8 @@ export const GaleriaActivosColumna: React.FC<Props> = ({
                       display: 'block',
                     }}
                   />
+                ) : ctx.tipo === 'table' && ctx.tabla && (ctx.tabla.headers.length > 0 || ctx.tabla.rows.length > 0) ? (
+                  <MiniaturaTabla headers={ctx.tabla.headers} rows={ctx.tabla.rows} />
                 ) : ctx.tipo === 'table' ? (
                   <IconoTabla size={20} color="var(--color-text-tertiary)" />
                 ) : ctx.tipo === 'equation' ? (

@@ -129,4 +129,24 @@ describe('GaleriaActivosColumna', () => {
     expect(screen.getByText('Método')).toBeDefined();
     expect(screen.getByText('Resultados')).toBeDefined();
   });
+
+  it('previsualiza la tabla con una rejilla, no con un icono', () => {
+    const ctxTabla: ContextoFigura[] = [
+      {
+        ...contextosMock[0],
+        tipo: 'table',
+        rotulo: 'Tabla 1',
+        url: null,
+        tabla: { headers: ['Grupo', 'n'], rows: [['Control', '30'], ['Ensayo', '30']] },
+      },
+    ];
+    const { container } = render(
+      <GaleriaActivosColumna
+        contextos={ctxTabla}
+        indiceActivo={null}
+        onSelectIndice={vi.fn()}
+      />
+    );
+    expect(container.querySelector('[data-testid="asset-thumbnail-tabla"]')).toBeTruthy();
+  });
 });
