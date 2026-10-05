@@ -1,0 +1,28 @@
+/* WordAPA7 — Fase Revisión (paso 5): foco visible y estados de control.
+ *
+ * El reset global de `design-system.css` apaga el anillo de foco
+ * (`:focus-visible { outline: none }`) y solo lo restituye en las figuras.
+ * Aquí se restituye con tokens, acotado a la fase, sin tocar el resto de la app.
+ * Los componentes de la fase usan estilos inline, que no pueden expresar
+ * `:focus-visible` ni `:disabled`: esto cubre ese hueco. */
+
+.revision-phase :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.revision-phase button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.revision-phase button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revision-phase button:not(:disabled):active {
+    transform: none;
+  }
+}

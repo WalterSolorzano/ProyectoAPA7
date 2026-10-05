@@ -15,10 +15,7 @@ import {
   ChevronRight,
   Copy,
   Flag,
-  FolderTree,
   Layers,
-  RotateCcw,
-  Sparkles,
   X,
 } from 'lucide-react';
 import type { ElementModel } from '../../types';

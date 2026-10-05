@@ -8,8 +8,11 @@ import { ReviewGate } from '../review/ReviewGate';
 import { ReviewPhaseJourney } from '../review/ReviewPhaseJourney';
 import { AiRoom } from '../review/AiRoom';
 import * as api from '../../api/backend';
+import '../../styles/revision.css';
 
 type Pantalla = 'gate' | 'journey' | 'ai';
+
+const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
 
 export const Step5AuditIAWizard: React.FC = () => {
   const doc = useDocStore((s) => s.doc);
@@ -122,40 +125,46 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   if (pantalla === 'ai') {
     return (
-      <AiRoom
-        reviewResult={reviewResult}
-        elements={elements}
-        aiItems={aiItems}
-        onMark={(id) => handleMark({ element_id: id } as AuditItem)}
-        onReplace={handleReplace}
-        onExit={() => setPantalla('gate')}
-      />
+      <div className="revision-phase" style={PHASE_WRAP}>
+        <AiRoom
+          reviewResult={reviewResult}
+          elements={elements}
+          aiItems={aiItems}
+          onMark={(id) => handleMark({ element_id: id } as AuditItem)}
+          onReplace={handleReplace}
+          onExit={() => setPantalla('gate')}
+        />
+      </div>
     );
   }
 
   if (pantalla === 'journey') {
     return (
-      <ReviewPhaseJourney
-        items={items}
-        phaseLabel="Recorrido de revisión"
-        onAccept={handleAccept}
-        onMark={handleMark}
-        onDismiss={handleDismiss}
-        onBack={() => setPantalla('gate')}
-        onOpenAiRoom={() => setPantalla('ai')}
-      />
+      <div className="revision-phase" style={PHASE_WRAP}>
+        <ReviewPhaseJourney
+          items={items}
+          phaseLabel="Recorrido de revisión"
+          onAccept={handleAccept}
+          onMark={handleMark}
+          onDismiss={handleDismiss}
+          onBack={() => setPantalla('gate')}
+          onOpenAiRoom={() => setPantalla('ai')}
+        />
+      </div>
     );
   }
 
   return (
-    <ReviewGate
-      items={items}
-      aiScore={aiScore}
-      isScanning={isScanning}
-      onScan={handleScan}
-      onStart={() => setPantalla('journey')}
-      onOpenAiRoom={() => setPantalla('ai')}
-    />
+    <div className="revision-phase" style={PHASE_WRAP}>
+      <ReviewGate
+        items={items}
+        aiScore={aiScore}
+        isScanning={isScanning}
+        onScan={handleScan}
+        onStart={() => setPantalla('journey')}
+        onOpenAiRoom={() => setPantalla('ai')}
+      />
+    </div>
   );
 };
 
