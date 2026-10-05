@@ -446,6 +446,7 @@ class ElementModel(BaseModel):
     id: str
     type: ElementType = ElementType.UNKNOWN
     heading_level: Optional[int] = 1
+    outline_level: Optional[int] = None
     list_level: Optional[int] = 1
     is_cover_section: bool = False
     text: str = ""

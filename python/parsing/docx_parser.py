@@ -1070,6 +1070,22 @@ def parse_docx_bytes(
             if font_name is None:
                 font_name = "Times New Roman"
 
+            # Outline real de Word (`w:outlineLvl` en pPr): 0 = nivel 1, hasta 8.
+            # Un documento puede marcar sus titulos SOLO con esto (sin estilo
+            # Heading ni negrita), asi que es una senal que el clasificador por
+            # formato no ve. None si el parrafo no lo declara.
+            outline_level = None
+            try:
+                pPr = p._element.find(f'{{{W_NS}}}pPr')
+                if pPr is not None:
+                    ol = pPr.find(f'{{{W_NS}}}outlineLvl')
+                    if ol is not None:
+                        val = ol.get(f'{{{W_NS}}}val')
+                        if val is not None and val.isdigit():
+                            outline_level = int(val)
+            except Exception:
+                outline_level = None
+
             # Determinar alineacion
             align_str: str = "left"
             if p.alignment is not None:
@@ -1368,6 +1384,7 @@ def parse_docx_bytes(
                     number_style=detected_number_style,
                     list_level=(num_level + 1) if num_level is not None else 1,
                     heading_level=None,
+                    outline_level=outline_level,
                     has_math=p_has_math,
                     has_fields=p_has_fields,
                     has_shading_residue=p_has_shading,
