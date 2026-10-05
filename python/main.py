@@ -310,6 +310,13 @@ from routers import proyectos as proyectos_router
 
 app.include_router(proyectos_router.router)
 
+# ── SCHEDULER DE IA POR DEMANDA (Fase 1) ─────────────────────────────────────
+# La unica verdad de concurrencia y tiempos del trabajo LLM interno. El
+# frontend reporta visibilidad y lee el estado real; no ejecuta LLM aqui.
+from routers import ai as ai_scheduler_router
+
+app.include_router(ai_scheduler_router.router)
+
 # ── F8: endpoints de archivo y carpetas (proyecto_manager) ────────────────────
 from modules.proyecto_manager import (
     configurar_raiz,
