@@ -39,4 +39,15 @@ describe('aviso de cumplimiento en la pestana Conexion', () => {
     // El copy local debe aclarar que no sale nada.
     expect(fuente.toLowerCase()).toContain('no sale');
   });
+
+  it('ofrece la URL de Ollama local como opcion explicita', () => {
+    expect(fuente).toContain('localhost:11434');
+    expect(fuente).toContain('Ollama');
+  });
+
+  it('desambigua ollama_cloud de Ollama local', () => {
+    // "Ollama cloud" es un proveedor de nube aparte del Ollama instalado.
+    // Si la UI nombra uno, tiene que desambiguar el otro.
+    expect(fuente.toLowerCase()).toContain('ollama cloud');
+  });
 });

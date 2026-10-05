@@ -247,6 +247,23 @@ export const ConexionTab: React.FC = () => {
             Solo se usa con "Servidor local" activado. Un servidor compatible con
             la API de OpenAI sirve: no tiene que ser NIM.
           </span>
+          <button
+            type="button"
+            data-testid="usar-ollama-local"
+            onClick={() => setAiProviderConfig({ useLocal: true, nimUrl: 'http://localhost:11434/v1' })}
+            style={{
+              alignSelf: 'flex-start', padding: 'var(--space-1) var(--space-2)',
+              fontSize: 'var(--text-xs)', background: 'var(--bg-base)',
+              color: 'var(--color-text-primary)', border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+            }}
+          >
+            Usar Ollama en este equipo (localhost:11434)
+          </button>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+            "Ollama cloud" es un proveedor de nube aparte; este botón usa el Ollama
+            instalado en tu equipo, que no envía nada afuera.
+          </span>
         </div>
       </Seccion>
 
