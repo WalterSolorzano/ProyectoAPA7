@@ -33,6 +33,10 @@ import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
+import { TablaRender } from '../figures/TablaRender';
+import { MascotaLeyendaIA } from '../figures/MascotaLeyendaIA';
+import { TablaEstiloSelector } from '../figures/TablaEstiloSelector';
+import { rebanadaDeTabla } from '../../lib/tablaRender';
 
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
@@ -589,6 +593,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
   const [brokenFigureIds, setBrokenFigureIds] = useState<Record<string, string>>({});
+  const [leyendaSugerida, setLeyendaSugerida] = useState<Record<string, string>>({});
+  const [leyendaCargando, setLeyendaCargando] = useState<Record<string, boolean>>({});
+  const [leyendaError, setLeyendaError] = useState<Record<string, string>>({});
   const [resizeState, setResizeState] = useState<{
     id: string;
     startX: number;
@@ -696,6 +703,30 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     } finally {
       setAiLoadingId(null);
       setContextMenuElemId(null);
+    }
+  };
+
+  const generarLeyendaTabla = async (elem: ElementModel) => {
+    if (!doc) return;
+    setLeyendaCargando((p) => ({ ...p, [elem.id]: true }));
+    setLeyendaError((p) => ({ ...p, [elem.id]: '' }));
+    try {
+      const idx = doc.elements.findIndex((e) => e.id === elem.id);
+      const ctx: string[] = [];
+      for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+        const e = doc.elements[i];
+        if (e.id === elem.id) continue;
+        if (e.type === 'paragraph' || e.type === 'heading' || e.type === 'bullet' || e.type === 'numbered_list') {
+          const t = (e.text || '').trim();
+          if (t) ctx.push(t);
+        }
+      }
+      const texto = await suggestCaption(doc.session_id, elem.id, ctx.join('\n'), useDocStore.getState().apiKey);
+      setLeyendaSugerida((p) => ({ ...p, [elem.id]: texto }));
+    } catch (err: any) {
+      setLeyendaError((p) => ({ ...p, [elem.id]: err?.message || 'No se pudo generar la leyenda' }));
+    } finally {
+      setLeyendaCargando((p) => ({ ...p, [elem.id]: false }));
     }
   };
 
@@ -1243,6 +1274,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               }}>
               <Wand2 size={11} /> Sugerir leyenda IA
             </button>
+            {!isImage && selElem.table_info && (
+              <TablaEstiloSelector
+                valor={selElem.table_info.style}
+                onChange={(p) => useDocStore.getState().updateElementTable(selElem.id, { ...selElem.table_info!, style: p })}
+              />
+            )}
             {/* C5: Panel de edición completo — solo para imágenes */}
             {isImage && (
             <button
@@ -2425,93 +2462,31 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         )}
 
                         {elem.type === 'table' && elem.table_info && (() => {
-                          const isCompact = tableStyle === 'compact';
-                          const isExpanded = tableStyle === 'expanded';
-                          const borderW = isExpanded ? '2px' : '1px';
-                          const cellPad = isCompact ? '3px' : isExpanded ? '10px' : '6px';
-                          const cellFont = isCompact ? '9pt' : isExpanded ? '12pt' : '11pt';
-                          const styleLabel = tableStyle === 'compact' ? 'Compacto' : tableStyle === 'expanded' ? 'Expandido' : 'Estándar';
+                          const tabla = elem.table_slice
+                            ? rebanadaDeTabla(elem.table_info, elem.table_slice.start, elem.table_slice.end)
+                            : elem.table_info;
+                          const esContinuacion = (elem.table_slice?.start ?? 0) > 0;
+                          const mostrandoLeyenda = (elem.table_slice?.start ?? 0) === 0;
                           return (
-                          <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2px 0' }}>
-                              <p style={{ fontWeight: 'bold', margin: 0 }}>
-                                Tabla {elem.table_info.table_number ? elem.table_info.table_number : ''}
-                                <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
-                                  · estilo {styleLabel}
-                                </span>
-                              </p>
-                              {(!elem.table_info.caption || elem.table_info.caption.trim() === '') && (
-                                <button
-                                  className="btn btn-xs"
-                                  title="Generar leyenda APA 7 para esta tabla"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    padding: '4px 12px',
-                                    borderRadius: 'var(--radius-sm)',
-                                    backgroundColor: 'var(--accent-primary)',
-                                    color: 'var(--color-text-on-accent)',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    fontFamily: 'inherit',
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSuggestCaption(elem);
-                                  }}
-                                >
-                                  <Wand2 size={11} />
-                                  Generar leyenda
-                                </button>
+                            <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                              <TablaRender
+                                tabla={tabla}
+                                mostrarLeyenda={mostrandoLeyenda}
+                                esContinuacion={esContinuacion}
+                              />
+                              {mostrandoLeyenda && !elem.table_info.caption && (
+                                <div style={{ marginTop: 'var(--space-2)' }}>
+                                  <MascotaLeyendaIA
+                                    sugerida={leyendaSugerida[elem.id] ? { titulo: leyendaSugerida[elem.id] } : undefined}
+                                    cargando={!!leyendaCargando[elem.id]}
+                                    error={leyendaError[elem.id] || undefined}
+                                    onGenerar={() => generarLeyendaTabla(elem)}
+                                    onAplicar={(s) => updateElementTable(elem.id, { ...elem.table_info!, caption: s.titulo })}
+                                    onRegenerar={() => generarLeyendaTabla(elem)}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption.replace(/\*/g, '')}</p>}
-                            <table style={{
-                              width: '100%',
-                              maxWidth: '100%',
-                              borderCollapse: 'collapse',
-                              tableLayout: 'auto',
-                              borderTop: `${borderW} solid var(--paper-ink)`,
-                              borderBottom: `${borderW} solid var(--paper-ink)`,
-                              margin: '8px 0',
-                              wordBreak: 'break-word',
-                              overflowWrap: 'break-word',
-                            }}>
-                              {elem.table_info.headers && (
-                                <thead>
-                                  <tr style={{ borderBottom: `${borderW} solid var(--paper-ink)` }}>
-                                    {elem.table_info.headers.map((h, i) => (
-                                      <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{h}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                              )}
-                              <tbody>
-                                {elem.table_info.rows.map((row, rIdx) => (
-                                  <tr key={rIdx}>
-                                    {row.map((cell, cIdx) => (
-                                      <td key={cIdx} style={{ padding: cellPad, fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{cell}</td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            {elem.table_info.note && (
-                              <p style={{ fontSize: '11px', marginTop: '6px', color: 'var(--paper-slate)' }}>
-                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
-                              </p>
-                            )}
-                            {/* Floating AI caption badge for table — when no caption yet */}
-                            {!elem.table_info.caption && (
-                              <CaptionSuggestionBadge
-                                elementId={elem.id}
-                                onApply={(cap) => updateElementTable(elem.id, { ...elem.table_info, caption: cap })}
-                              />
-                            )}
-                          </div>
                           );
                         })()}
 
