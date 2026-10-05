@@ -75,6 +75,9 @@ class StyleFingerprint:
 
         indent_left = getattr(elem, 'left_indent_cm', 0) * 28.35
 
+        outline_raw = getattr(elem, 'outline_level', None)
+        outline_level = float(outline_raw) if isinstance(outline_raw, int) else 9.0
+
         return StyleFingerprint(
             font_size=float(font_size or median_font),
             is_bold=is_bold,
@@ -85,7 +88,7 @@ class StyleFingerprint:
             spacing_before=0.0,
             spacing_after=0.0,
             indent_left=float(indent_left),
-            outline_level=9.0,
+            outline_level=outline_level,
             has_number_prefix=1.0 if _has_number_prefix(text) else 0.0,
         )
 

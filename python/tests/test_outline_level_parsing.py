@@ -45,3 +45,31 @@ def test_parrafo_sin_outline_tiene_none(tmp_path):
     modelo = parse_docx_bytes(data, "sin.docx", "s1", tmp_path)
     p = next(e for e in modelo.elements if (e.text or "").strip() == "Texto normal")
     assert p.outline_level is None
+
+
+def test_outline_cero_clasifica_como_h1_sin_formato(tmp_path):
+    """Un titulo marcado SOLO por outline (sin negrita ni estilo) es H1.
+
+    Este es el caso que hoy cae a parrafo: el autor uso la vista de esquema de
+    Word y no el estilo Heading, asi que no hay formato que mirar. El outline
+    real (w:outlineLvl=0) es la senal que lo delata.
+    """
+    doc = Document()
+    _parrafo_con_outline(doc, "Resultados de la investigacion", 0)
+    data = _guardar(doc, tmp_path, "o0.docx")
+
+    modelo = parse_docx_bytes(data, "o0.docx", "s1", tmp_path)
+    p = next(e for e in modelo.elements if (e.text or "").strip() == "Resultados de la investigacion")
+    assert p.type == "heading"
+    assert p.heading_level == 1
+
+
+def test_outline_uno_clasifica_como_h2_sin_formato(tmp_path):
+    doc = Document()
+    _parrafo_con_outline(doc, "Antecedentes teoricos", 1)
+    data = _guardar(doc, tmp_path, "o1.docx")
+
+    modelo = parse_docx_bytes(data, "o1.docx", "s1", tmp_path)
+    p = next(e for e in modelo.elements if (e.text or "").strip() == "Antecedentes teoricos")
+    assert p.type == "heading"
+    assert p.heading_level == 2

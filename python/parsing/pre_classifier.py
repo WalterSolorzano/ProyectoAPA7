@@ -587,6 +587,23 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 first_heading_idx = idx
             continue
 
+        # --- CERTEZA 0.9: outlineLvl real de Word ---
+        # Si el docx trae `w:outlineLvl` (0..8) el autor YA declaro que ese
+        # parrafo es un titulo de ese nivel, sin importar el estilo ni el
+        # formato directo. Es la unica senal que sobrevive a documentos que no
+        # usan estilos Heading. 0 -> H1 .. 4 -> H5. No se decide por palabras del
+        # cuerpo: la senal es un dato del XML, no el texto.
+        outline_lvl = getattr(elem, "outline_level", None)
+        if isinstance(outline_lvl, int) and 0 <= outline_lvl <= 4:
+            if _apply_native_heading_length_guard(elem, word_count):
+                elem.type = ElementType.HEADING
+                elem.heading_level = outline_lvl + 1
+                elem.confidence = 0.90
+                elem.pre_classifier_rule = "outline_level"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
+
         if "list bullet" in style_name:
             elem.type = ElementType.BULLET
             lvl_match = re.search(r'list bullet\s*(\d)', style_name)
@@ -1430,6 +1447,15 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.needs_review = False
             if _apply_native_heading_length_guard(elem, len(words)):
                 highest_level_seen = max(highest_level_seen, 5)
+            continue
+
+        # Caso B: outlineLvl real de Word (Confianza alta, dato declarado).
+        # El autor marco el parrafo como titulo en el esquema de Word. El nivel
+        # 0..4 -> H1..H5 y se preserva, igual que los estilos nativos: las
+        # pasadas posteriores no lo re-inferieren por formato.
+        if elem.pre_classifier_rule == "outline_level" and elem.heading_level:
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, elem.heading_level)
             continue
 
         # Preservar elementos clasificados con alta confianza en Pasada 1 (bullets, tablas, etc.)
