@@ -21,7 +21,7 @@ def test_table_model_extras_roundtrip():
 
 def test_table_model_defaults():
     t = TableModel(element_id="t")
-    assert t.style == "apa"
+    assert t.style is None
     assert t.orientation == "auto"
     assert t.header_spans is None
     assert t.row_spans is None

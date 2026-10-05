@@ -2465,12 +2465,16 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             : elem.table_info;
                           const esContinuacion = (elem.table_slice?.start ?? 0) > 0;
                           const mostrandoLeyenda = (elem.table_slice?.start ?? 0) === 0;
+                          const esUltima =
+                            !elem.table_slice ||
+                            elem.table_slice.end >= (elem.table_info.rows?.length ?? 0);
                           return (
                             <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', ...reviewHighlightStyle(elem.id) }}>
                               <TablaRender
                                 tabla={tabla}
                                 mostrarLeyenda={mostrandoLeyenda}
                                 esContinuacion={esContinuacion}
+                                esUltima={esUltima}
                               />
                               {mostrandoLeyenda && !elem.table_info.caption && (
                                 <div style={{ marginTop: 'var(--space-2)' }}>

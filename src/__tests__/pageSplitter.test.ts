@@ -181,4 +181,14 @@ describe('applyPageFlow tablas', () => {
       expect(out[i].table_slice!.start).toBe(out[i - 1].table_slice!.end);
     }
   });
+
+  it('no parte una tabla de la portada (portada indivisible)', () => {
+    const tablaPortada = { ...tabla, is_cover_section: true } as unknown as ElementModel;
+    const heights = new Map<string, number>([['t1', 600]]);
+    const out = applyPageFlow([[tablaPortada]], heights, geomTabla)
+      .flat()
+      .filter((e) => e.id === 't1');
+    expect(out).toHaveLength(1);
+    expect(out[0].table_slice).toBeUndefined();
+  });
 });

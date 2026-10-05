@@ -55,4 +55,22 @@ describe('TablaRender', () => {
     render(<TablaRender tabla={tabla()} esContinuacion />);
     expect(screen.getByText(/Continúa/)).toBeTruthy();
   });
+
+  it('pinta los bordes verticales de rejilla solo en grid/zebra', () => {
+    const grid = render(<TablaRender tabla={tabla({ style: 'grid' })} />);
+    const tdGrid = grid.container.querySelectorAll('td')[0] as HTMLTableCellElement;
+    expect(tdGrid.style.borderLeft).not.toBe('');
+
+    const apa = render(<TablaRender tabla={tabla({ style: 'apa' })} />);
+    const tdApa = apa.container.querySelectorAll('td')[0] as HTMLTableCellElement;
+    expect(tdApa.style.borderLeft).toBe('');
+  });
+
+  it('muestra la nota solo en el último fragmento', () => {
+    const ultima = render(<TablaRender tabla={tabla({ note: 'Fuente propia' })} />);
+    expect(ultima.container.textContent).toContain('Nota.');
+
+    const continuacion = render(<TablaRender tabla={tabla({ note: 'Fuente propia' })} esUltima={false} />);
+    expect(continuacion.container.textContent).not.toContain('Nota.');
+  });
 });

@@ -101,6 +101,8 @@ export interface EstiloTabla {
   pesoBorde: string;
   sombreadoEncabezado: boolean;
   zebra: boolean;
+  /** Bordes en todas las celdas (rejilla completa), no solo horizontales. */
+  rejilla: boolean;
   /** APA-safe: sin rejilla, sin sombreado, sin zebra. */
   esAPA: boolean;
 }
@@ -112,16 +114,16 @@ export interface EstiloTabla {
 export function estiloDePreset(preset: TableStylePreset = 'apa'): EstiloTabla {
   switch (preset) {
     case 'compact':
-      return { preset, paddingY: 'var(--space-1)', paddingX: 'var(--space-2)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, esAPA: true };
+      return { preset, paddingY: 'var(--space-1)', paddingX: 'var(--space-2)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, rejilla: false, esAPA: true };
     case 'expanded':
-      return { preset, paddingY: 'var(--space-3)', paddingX: 'var(--space-4)', fontSize: 'var(--text-sm)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, esAPA: true };
+      return { preset, paddingY: 'var(--space-3)', paddingX: 'var(--space-4)', fontSize: 'var(--text-sm)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, rejilla: false, esAPA: true };
     case 'grid':
-      return { preset, paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, esAPA: false };
+      return { preset, paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, rejilla: true, esAPA: false };
     case 'zebra':
-      return { preset, paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: true, zebra: true, esAPA: false };
+      return { preset, paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: true, zebra: true, rejilla: true, esAPA: false };
     case 'apa':
     default:
-      return { preset: 'apa', paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, esAPA: true };
+      return { preset: 'apa', paddingY: 'var(--space-2)', paddingX: 'var(--space-3)', fontSize: 'var(--text-xs)', pesoBorde: '1px', sombreadoEncabezado: false, zebra: false, rejilla: false, esAPA: true };
   }
 }
 

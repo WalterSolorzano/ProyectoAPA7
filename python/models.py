@@ -448,7 +448,7 @@ class TableModel(BaseModel):
     table_number: int = 1
     header_spans: Optional[list[CellSpan]] = None
     row_spans: Optional[list[list[CellSpan]]] = None
-    style: str = "apa"            # TableStylePreset de la UI
+    style: Optional[str] = None   # TableStylePreset de la UI; None = usar la regla global
     orientation: str = "auto"     # auto | portrait | landscape
     column_widths: Optional[list[float]] = None
 

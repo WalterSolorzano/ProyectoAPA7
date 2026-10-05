@@ -101,7 +101,7 @@ export function applyPageFlow(
       const filas = elem.type === 'table' ? (elem.table_info?.rows?.length ?? 0) : 0;
       const altoTabla = heights.get(elem.id) ?? null;
       const tableRows =
-        elem.type === 'table' && filas > 0 && altoTabla !== null && altoTabla > geom.contentH
+        elem.type === 'table' && !isCover && filas > 0 && altoTabla !== null && altoTabla > geom.contentH
           ? (() => {
               const headerHeightPx = Math.min(altoTabla, geom.lineHeightPx * 1.5);
               const altoFilas = (altoTabla - headerHeightPx) / filas;

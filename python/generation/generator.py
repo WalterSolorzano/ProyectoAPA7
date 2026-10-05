@@ -52,7 +52,7 @@ from generation.style_engine import (
     set_run_font,
 )
 from generation.table_engine import (
-    borde_de_preset,
+    borde_efectivo,
     fit_table_to_page,
     format_apa_table,
     set_table_borders,
@@ -1472,7 +1472,7 @@ def generate_apa7_docx(
                 curr_tbl = existing_tables[matched_tbl_idx]
                 table_count_processed += 1
                 used_table_indices.add(matched_tbl_idx)
-                set_table_borders(curr_tbl, borde_de_preset(getattr(elem.table_info, 'style', None)))
+                set_table_borders(curr_tbl, borde_efectivo(getattr(elem.table_info, 'style', None), getattr(rules.table_border_style, 'value', None)))
                 fit_table_to_page(
                     curr_tbl,
                     rules,

@@ -83,6 +83,13 @@ describe('estiloDePreset', () => {
     expect(estiloDePreset('grid')).toMatchObject({ esAPA: false });
     expect(estiloDePreset('zebra')).toMatchObject({ esAPA: false, zebra: true, sombreadoEncabezado: true });
   });
+  it('expone la bandera de rejilla solo en los presets con bordes en todas las celdas', () => {
+    expect(estiloDePreset('apa')).toMatchObject({ rejilla: false });
+    expect(estiloDePreset('compact')).toMatchObject({ rejilla: false });
+    expect(estiloDePreset('expanded')).toMatchObject({ rejilla: false });
+    expect(estiloDePreset('grid')).toMatchObject({ rejilla: true });
+    expect(estiloDePreset('zebra')).toMatchObject({ rejilla: true });
+  });
 });
 
 describe('PRESETS_TABLA', () => {

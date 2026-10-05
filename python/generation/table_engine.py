@@ -216,6 +216,13 @@ def borde_de_preset(style: Optional[str]) -> str:
     return "grid" if style in ("grid", "zebra") else "apa"
 
 
+def borde_efectivo(style: Optional[str], rule_border: Optional[str] = "apa") -> str:
+    """Si la tabla declara un estilo, manda; si no, cae a la regla global del perfil."""
+    if style:
+        return borde_de_preset(style)
+    return rule_border or "apa"
+
+
 def set_table_borders(table, style: str = "apa") -> None:
     """
     Modifica el XML de la tabla para establecer bordes según el estilo del perfil:

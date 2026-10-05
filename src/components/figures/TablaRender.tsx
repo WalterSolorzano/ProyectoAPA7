@@ -26,6 +26,8 @@ export interface TablaRenderProps {
   mostrarLeyenda?: boolean;
   /** Marca este fragmento como continuación de una tabla partida entre páginas. */
   esContinuacion?: boolean;
+  /** Este fragmento es el último de la tabla; solo ahí se pinta la nota (default true). */
+  esUltima?: boolean;
 }
 
 /** Quita un prefijo «Tabla N.» del caption para no repetir el rótulo. */
@@ -41,6 +43,7 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
   onEditarCelda,
   mostrarLeyenda = true,
   esContinuacion = false,
+  esUltima = true,
 }) => {
   const est = estilo ?? estiloDePreset(tabla.style ?? 'apa');
   const filas = matrizDeTabla(tabla);
@@ -104,10 +107,13 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
                 {fila.celdas.map((celda, ci) => {
                   const esCeldaEditando =
                     puedeEditar && editando && editando.fila === celda.filaIndice && editando.col === celda.celdaIndice;
+                  const borde = `${est.pesoBorde} solid var(--color-border-strong)`;
                   const comun: React.CSSProperties = {
                     padding: `${est.paddingY} ${est.paddingX}`,
-                    borderBottom: `${est.pesoBorde} solid var(--color-border-strong)`,
-                    borderTop: fila.esHeader ? `${est.pesoBorde} solid var(--color-border-strong)` : undefined,
+                    borderBottom: borde,
+                    borderTop: fila.esHeader || est.rejilla ? borde : undefined,
+                    borderLeft: est.rejilla ? borde : undefined,
+                    borderRight: est.rejilla ? borde : undefined,
                     verticalAlign: 'top',
                     textAlign: 'left',
                     fontWeight: fila.esHeader ? 700 : 400,
@@ -187,7 +193,7 @@ export const TablaRender: React.FC<TablaRenderProps> = ({
         </div>
       ) : null}
 
-      {tabla.note ? (
+      {tabla.note && esUltima ? (
         <div style={{ marginTop: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
           <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {tabla.note}
         </div>
