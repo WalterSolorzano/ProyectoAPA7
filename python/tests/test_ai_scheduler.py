@@ -1,0 +1,86 @@
+import asyncio
+import time
+
+import pytest
+
+import modules.ai_client as ai_client
+import modules.ai_scheduler as ai_scheduler
+
+
+async def _esperar(sched, session_id, timeout=2.0):
+    """Espera a que no haya jobs queued/running de la sesion."""
+    fin = time.time() + timeout
+    while time.time() < fin:
+        jobs = sched.status(session_id)["jobs"]
+        if not any(j["state"] in ("queued", "running") for j in jobs):
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("el scheduler no drena")
+
+
+@pytest.fixture
+def cache_aislada(tmp_path, monkeypatch):
+    """Aisla la cache durable en un archivo temporal y sin cargar del disco."""
+    monkeypatch.setattr(ai_client, "CACHE_FILE_PATH", tmp_path / "ai_cache.json")
+    monkeypatch.setattr(ai_client, "_cache", {})
+    monkeypatch.setattr(ai_client, "_cache_cargada", True)
+    monkeypatch.setattr(ai_client, "_profundidad_de_lote", 0)
+    yield
+    ai_scheduler._RUNNERS.clear()
+
+
+def test_hash_estable_ignora_espacios_y_distingue_motor_y_fase():
+    a = ai_scheduler.content_hash("captions", "Hola   mundo\n")
+    b = ai_scheduler.content_hash("captions", "Hola mundo")
+    assert a == b
+    assert a != ai_scheduler.content_hash("proofread", "Hola mundo")
+    assert a != ai_scheduler.content_hash("captions", "Hola mundo", phase="resultados")
+
+
+def test_segundo_encolado_del_mismo_contenido_no_reejecuta(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    llamadas = []
+
+    async def runner(job):
+        llamadas.append(job.element_id)
+        return {"valor": job.element_id}
+
+    ai_scheduler.register_runner("captions", runner)
+
+    async def flujo():
+        j1 = await sched.enqueue("s1", "captions", "p1", "texto uno")
+        await _esperar(sched, "s1")
+        j2 = await sched.enqueue("s1", "captions", "p1", "texto uno")
+        await _esperar(sched, "s1")
+        return j1, j2
+
+    j1, j2 = asyncio.run(flujo())
+    assert llamadas == ["p1"]
+    assert sched.status("s1")["jobs"][0]["state"] == "done"
+
+
+def test_reabrir_en_otra_sesion_reusa_la_cache_y_solo_reejecuta_lo_cambiado(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    llamadas = []
+
+    async def runner(job):
+        llamadas.append(job.element_id)
+        return {"valor": job.element_id}
+
+    ai_scheduler.register_runner("captions", runner)
+
+    async def flujo():
+        await sched.enqueue("s1", "captions", "p1", "parrafo uno")
+        await sched.enqueue("s1", "captions", "p2", "parrafo dos")
+        await _esperar(sched, "s1")
+        # Reabrir en sesion nueva: p1 igual, p2 cambiado.
+        await sched.enqueue("s2", "captions", "p1", "parrafo uno")
+        await sched.enqueue("s2", "captions", "p2", "parrafo dos CAMBIADO")
+        await _esperar(sched, "s2")
+
+    asyncio.run(flujo())
+    # p1 no se reejecuta (cache), p2 si (contenido distinto).
+    assert llamadas == ["p1", "p2", "p2"]
+    estados_s2 = {j["element_id"]: j["state"] for j in sched.status("s2")["jobs"]}
+    assert estados_s2 == {"p1": "done", "p2": "done"}
+    assert sched.status("s2")["jobs"][0]["result"] == {"valor": "p1"}
