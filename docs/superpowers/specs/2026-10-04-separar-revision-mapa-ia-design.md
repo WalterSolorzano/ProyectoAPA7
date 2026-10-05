@@ -198,9 +198,9 @@ motor) es texto. La rampa ya existe como tokens:
 
 ## Archivos previstos
 
-- `src/components/review/ReviewInforme.tsx` (nombre a definir) — **nuevo**: R1 Informe
+- `src/components/review/ReviewInforme.tsx` — **nuevo**: R1 Informe
   general (Bloom + repetición + salud por capítulo + CTA «Leer y corregir»).
-- `src/components/review/ReviewReader.tsx` (nombre a definir) — **nuevo**: R2 Modo lectura
+- `src/components/review/ReviewReader.tsx` — **nuevo**: R2 Modo lectura
   (hoja tipo libro + cinta de progreso de capítulos + dock de hallazgo + hoja de informe
   encima).
 - `src/components/wizard/Step5AuditIAWizard.tsx` — la ruta `journey` pasa a
@@ -210,10 +210,10 @@ motor) es texto. La rampa ya existe como tokens:
   se eliminan si nadie más los usa.
 - `src/components/review/AiHierarchy.tsx` — hero + heatmap + rectángulos de capítulo.
 - `src/components/review/AiHeatmap.tsx` — nuevo (SVG/CSS + tokens).
-- `src/components/review/AiMosaicRectangulos.tsx` (nombre a definir) — nuevo: franja de
-  rectángulos por H1; al tocar, abre la vista aislada.
-- `src/components/review/CapituloAislado.tsx` (nombre a definir) — nuevo: revisión de un
-  solo capítulo.
+- `src/components/review/AiChapterGrid.tsx` — nuevo: grid de rectángulos por H1; al tocar,
+  abre la vista aislada.
+- `src/components/review/AiChapterFocus.tsx` — nuevo: revisión aislada de un solo
+  capítulo.
 - `src/lib/aiHeatmap.ts` — nuevo (puro, con test).
 - Tests.
 
