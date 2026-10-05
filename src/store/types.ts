@@ -448,6 +448,8 @@ export interface DocState {
    *  commit de `before` al párrafo actual (updateElementType) + inserción
    *  del párrafo `after` (insertElement). */
   splitParagraphAt: (elementId: string, before: string, after: string) => Promise<void>;
+  /** API de contenido / copiloto — inserta una figura ya renderizada tras `afterId`. */
+  insertImageElement: (afterId: string, image: Partial<import('../types').ImageModel>) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
   /** La presentación de una ecuación: número, formato, alineación y tipografía de

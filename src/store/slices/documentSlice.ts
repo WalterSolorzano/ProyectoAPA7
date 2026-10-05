@@ -885,6 +885,21 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       get().showToast(err?.message || 'Error al insertar párrafo', 'error');
     }
   },
+  insertImageElement: async (afterId, image) => {
+    const { doc, pushHistory } = get();
+    if (!doc) return;
+    const c = globalThis.crypto as Crypto | undefined;
+    const newId = c && typeof c.randomUUID === 'function'
+      ? c.randomUUID()
+      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+    try {
+      const updated = await api.insertImageElement(doc.session_id, afterId, newId, image);
+      pushHistory(updated);
+      set({ doc: updated });
+    } catch (err: any) {
+      get().showToast(err?.message || 'Error al insertar la figura', 'error');
+    }
+  },
   updateElementImage: async (elementId, imageInfo) => {
     const { doc, pushHistory } = get();
     if (!doc) return;

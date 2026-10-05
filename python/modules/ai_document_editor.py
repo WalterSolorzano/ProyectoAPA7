@@ -52,9 +52,27 @@ ESTRUCTURA DEL JSON:
       "type": "set_note",
       "element_id": "elem_id_aqui",
       "note": "Nota. Elaboración propia a partir de los datos."
+    },
+    {
+      "type": "add_diagram",
+      "element_id": "elem_id_aqui",
+      "diagram": {
+        "kind": "flow" | "tree" | "net",
+        "dsl": "A > B\\nB >|sí| C",
+        "caption": "Título breve de la figura",
+        "note": "Nota. Elaboración propia.",
+        "style": "standard"
+      }
     }
   ]
 }
+
+DIAGRAMAS: cuando el usuario pida un diagrama, flujo, árbol, red o esquema, usa la acción
+"add_diagram" con el DSL compacto (una regla por línea):
+- flow: "A > B" (flecha) y "A >|etiqueta| B" (flecha etiquetada).
+- tree: primera línea la raíz, luego "- Hijo", "-- Nieto" (guiones = profundidad).
+- net: "A -- B" (no dirigido) y "A -> B" (dirigido).
+Nunca dibujes el diagrama tú: solo describe el DSL y el backend lo renderiza.
 
 Si el usuario solo hace una pregunta teórica de APA 7 o no solicita cambios en el texto, el array "actions" debe estar vacío [].
 Cuando modifiques un texto, conserva rigurosamente las citas existentes a menos que el usuario pida explícitamente cambiarlas.
@@ -178,10 +196,59 @@ async def process_live_document_chat(
                         except Exception:
                             pass
 
+        from config import STORAGE_DIR
+        _resolve_diagram_actions(document, parsed, STORAGE_DIR)
         return parsed
     except Exception as e:
         logger.warning(f"[LiveChat] Motor LLM externo no disponible ({e}). Activando fallback editorial determinista.")
         return _deterministic_chat_fallback(document, user_instruction, selected_element_id)
+
+
+def _resolve_diagram_actions(
+    document: DocumentModel,
+    result: Dict[str, Any],
+    storage_dir,
+) -> Dict[str, Any]:
+    """Resuelve las acciones `add_diagram` del LLM: renderiza el DSL a PNG en
+    `sessions/<sid>/images/` y reemplaza la acción por una `add_diagram` con la
+    imagen ya lista (mismos campos que `ImageModel`). La numeración continúa la
+    serie de figuras existente (`captions.scan_existing`), nunca reinicia."""
+    from diagrams.render import render_diagram
+    from modules.captions import scan_existing
+
+    texts: List[str] = []
+    for e in document.elements:
+        if e.text:
+            texts.append(e.text)
+        if e.image_info and e.image_info.caption:
+            texts.append(e.image_info.caption)
+        if e.table_info and e.table_info.caption:
+            texts.append(e.table_info.caption)
+    figure_number = scan_existing(texts)["max_figure"] + 1
+
+    for action in result.get("actions", []):
+        if action.get("type") != "add_diagram":
+            continue
+        spec = action.get("diagram") or {}
+        rendered = render_diagram(spec.get("kind", "flow"), spec.get("dsl", ""))
+        filename = f"diagrama_{figure_number}_{document.session_id[:8]}.png"
+        images_dir = storage_dir / "sessions" / document.session_id / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        (images_dir / filename).write_bytes(rendered.png)
+        action.pop("diagram", None)
+        action["image"] = {
+            "file_path": str(images_dir / filename),
+            "filename": filename,
+            "relative_url": f"/api/images/{document.session_id}/{filename}",
+            "caption": spec.get("caption", ""),
+            "note": spec.get("note"),
+            "figure_number": figure_number,
+            "design_style": spec.get("style", "standard"),
+            "width_cm": spec.get("width_cm", 12.0),
+            "height_cm": spec.get("height_cm", 8.0),
+        }
+        figure_number += 1
+    return result
 
 
 def _deterministic_chat_fallback(

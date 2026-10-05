@@ -323,6 +323,30 @@ export async function updateElement(
 }
 
 /**
+ * API de contenido / copiloto — inserta una figura ya renderizada por el
+ * backend tras `afterElementId` (párrafo con imagen inline + elemento image).
+ */
+export async function insertImageElement(
+  sessionId: string,
+  afterElementId: string,
+  newElementId: string,
+  image: Partial<import('../types').ImageModel>,
+): Promise<DocumentModel> {
+  const res = await fetchWithTrace(`${getApiBase()}/elements/insert-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      after_element_id: afterElementId,
+      new_element_id: newElementId,
+      image,
+    }),
+  });
+  if (!res.ok) throw new Error('Error al insertar la figura');
+  return res.json();
+}
+
+/**
  * Fase 3 — inserta un párrafo físico en el docx y un elemento en el modelo,
  * tras `afterElementId` (división de párrafo con Enter en el editor inline).
  */
@@ -1365,7 +1389,7 @@ export async function depurarCache(): Promise<ResultadoDeLimpieza> {
 // ── LIVE AI CHAT & PROACTIVE CAPTIONS ────────────────────────────────────────
 
 export interface LiveChatAction {
-  type: 'update_text' | 'set_type' | 'insert_citation' | 'add_reference' | 'set_caption' | 'set_note' | 'split_paragraph' | 'delete_element';
+  type: 'update_text' | 'set_type' | 'insert_citation' | 'add_reference' | 'set_caption' | 'set_note' | 'split_paragraph' | 'delete_element' | 'add_diagram';
   element_id?: string;
   text?: string;
   element_type?: string;
@@ -1375,6 +1399,8 @@ export interface LiveChatAction {
   caption?: string;
   note?: string;
   paragraphs?: string[];
+  /** API de contenido / copiloto — figura ya renderizada por el backend. */
+  image?: Partial<import('../types').ImageModel>;
 }
 
 export interface LiveChatResponse {
