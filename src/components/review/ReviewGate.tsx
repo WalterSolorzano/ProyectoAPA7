@@ -44,7 +44,7 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '40px 48px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(20px, 4vw, 48px)' }}>
       <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--text-main)' }}>Estado de tu documento</h1>
 
       <div role="status" aria-atomic="true" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
@@ -69,7 +69,7 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
       {/* Slot de mascota — componente futuro. Placeholder sin emoji. */}
       <div aria-hidden="true" data-slot="mascot" style={{ height: 0 }} />
 
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
         <button type="button" onClick={onStart} style={solidBtn}>
           Empezar revisión <ArrowRight size={14} aria-hidden />
         </button>

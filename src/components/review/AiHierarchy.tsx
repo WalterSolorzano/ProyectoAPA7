@@ -341,7 +341,7 @@ export function AiHierarchy({
           backgroundColor: 'var(--color-bg-surface)',
           borderBottom: '1px solid var(--color-border-subtle)',
           display: 'grid',
-          gridTemplateColumns: '260px 1fr 280px',
+          gridTemplateColumns: 'minmax(210px, 260px) minmax(0, 1fr) minmax(220px, 280px)',
           gap: 'var(--space-6)',
           alignItems: 'center',
           flexShrink: 0,
@@ -462,7 +462,7 @@ export function AiHierarchy({
       </section>
 
       {/* ── CUERPO JERÁRQUICO INFERIOR ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '440px minmax(0, 1fr)', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(300px, 440px) minmax(0, 1fr)', minHeight: 0 }}>
         {/* SUB-PANEL IZQUIERDO: EXPLORADOR JERÁRQUICO */}
         <aside
           aria-label="Jerarquía Capitular"

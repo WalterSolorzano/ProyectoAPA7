@@ -87,6 +87,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: quickMode ? 440 : 1200,
     height: quickMode ? 600 : 768,
+    minWidth: quickMode ? 440 : 1024,
+    minHeight: quickMode ? 600 : 640,
     resizable: !quickMode,
     center: true,
     titleBarStyle: 'hidden',
