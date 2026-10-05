@@ -84,3 +84,68 @@ def test_reabrir_en_otra_sesion_reusa_la_cache_y_solo_reejecuta_lo_cambiado(cach
     estados_s2 = {j["element_id"]: j["state"] for j in sched.status("s2")["jobs"]}
     assert estados_s2 == {"p1": "done", "p2": "done"}
     assert sched.status("s2")["jobs"][0]["result"] == {"valor": "p1"}
+
+
+def test_deadline_deja_el_job_pendiente_no_colgado(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+
+    async def lento(job):
+        await asyncio.sleep(5)
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", lento)
+
+    async def flujo():
+        await sched.enqueue("s1", "proofread", "p1", "texto", deadline_s=0.05)
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    job = sched.status("s1")["jobs"][0]
+    assert job["state"] == "pending"
+
+
+def test_resume_pending_reejecuta(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    intentos = {"n": 0}
+
+    async def falla_una_vez(job):
+        intentos["n"] += 1
+        if intentos["n"] == 1:
+            return None
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", falla_una_vez)
+
+    async def flujo():
+        await sched.enqueue("s1", "proofread", "p1", "texto")
+        await _esperar(sched, "s1")
+        assert sched.status("s1")["jobs"][0]["state"] == "pending"
+        reencolados = await sched.resume_pending("s1")
+        assert reencolados == 1
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    assert sched.status("s1")["jobs"][0]["state"] == "done"
+    assert intentos["n"] == 2
+
+
+def test_copiloto_se_despacha_antes_que_un_lote(cache_aislada):
+    sched = ai_scheduler.Scheduler()
+    orden = []
+
+    async def runner(job):
+        orden.append(job.motor)
+        return {"ok": True}
+
+    ai_scheduler.register_runner("proofread", runner)
+    ai_scheduler.register_runner("copilot", runner)
+
+    async def flujo():
+        for i in range(4):
+            await sched.enqueue("s1", "proofread", f"p{i}", f"texto {i}")
+        await sched.enqueue("s1", "copilot", "sel", "instruccion",
+                            priority=ai_scheduler.PRIORITY_COPILOT)
+        await _esperar(sched, "s1")
+
+    asyncio.run(flujo())
+    assert orden[0] == "copilot"
