@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
-from modules.ai_budget import backoff_con_jitter, cooldown_para
+from modules.ai_budget import PresupuestoDiario, backoff_con_jitter, cooldown_para
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,11 @@ class RateLimiterRegistry:
 _limiter_registry = RateLimiterRegistry()
 _provider_cooldowns: Dict[str, float] = {}
 _provider_health: Dict[str, Dict[str, Any]] = {}
+
+# Presupuesto diario por proveedor: raciona el free tier entre usuarios. Cuando
+# el cupo del proveedor se agota, el router lo salta como si estuviera en
+# cooldown. Ver modules/ai_budget.py.
+_presupuesto = PresupuestoDiario()
 
 # --- Circuit breaker por proveedor ---
 # Sustituye a `_provider_cooldowns` como fuente de decisión del enrutado. Los
@@ -411,6 +416,9 @@ async def execute_with_specialty(
         if not _breaker_allows(p_id):
             logger.info(f"[Router] {p['name']} con breaker abierto. Saltando.")
             continue
+        if not _presupuesto.puede(p_id):
+            logger.info(f"[Router] {p['name']} sin presupuesto diario. Saltando.")
+            continue
         capacity = PROVIDER_CAPACITY.get(p_id, {"timeout": 25, "requests_per_minute": 10})
         timeout = capacity.get("timeout", 25)
         rpm = capacity.get("requests_per_minute", 10)
@@ -450,6 +458,7 @@ async def execute_with_specialty(
                 cache[prompt_hash] = content
                 _save_cache(cache)
 
+            _presupuesto.registrar(p_id, max_tokens)
             return (content, p["name"], p["id"]) if return_provider_info else content
 
     # Si todos están ocupados predictivamente o fallaron, forzamos un intento con el primero disponible
@@ -457,6 +466,8 @@ async def execute_with_specialty(
     candidato = None
     for c in routing_queue:
         if not _breaker_allows(c["id"]):
+            continue
+        if not _presupuesto.puede(c["id"]):
             continue
         c_cap = PROVIDER_CAPACITY.get(c["id"], {"timeout": 25, "requests_per_minute": 10})
         c_bucket = _limiter_registry.get_bucket(c["id"], c_cap.get("requests_per_minute", 10))
@@ -488,6 +499,7 @@ async def execute_with_specialty(
             if use_cache:
                 cache[prompt_hash] = content
                 _save_cache(cache)
+            _presupuesto.registrar(p["id"], max_tokens)
             return (content, p["name"], p["id"]) if return_provider_info else content
 
     raise RuntimeError("La infraestructura LLM colapsó (Rate limit, Timeout, o Errores).")

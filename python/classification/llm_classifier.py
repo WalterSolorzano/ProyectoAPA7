@@ -53,7 +53,7 @@ PROVIDER_CAPACITY = {
     "nvidia_nim": {"timeout": 25, "max_tokens_per_request": 4000, "requests_per_minute": 30, "typical_latency_s": 8},
     "groq": {"timeout": 10, "max_tokens_per_request": 4000, "requests_per_minute": 30, "typical_latency_s": 1.5},
     "openrouter": {"timeout": 20, "max_tokens_per_request": 4000, "requests_per_minute": 20, "typical_latency_s": 6},
-    "cerebras": {"timeout": 15, "max_tokens_per_request": 4000, "requests_per_minute": 15, "typical_latency_s": 3},
+    "cerebras": {"timeout": 15, "max_tokens_per_request": 4000, "requests_per_minute": 5, "typical_latency_s": 3},
     "mistral": {"timeout": 20, "max_tokens_per_request": 2000, "requests_per_minute": 10, "typical_latency_s": 5},
     "opencodezen": {"timeout": 25, "max_tokens_per_request": 2000, "requests_per_minute": 10, "typical_latency_s": 8},
     "zenmux": {"timeout": 25, "max_tokens_per_request": 2000, "requests_per_minute": 10, "typical_latency_s": 8},
