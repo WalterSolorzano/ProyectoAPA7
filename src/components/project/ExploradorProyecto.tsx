@@ -282,46 +282,26 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
           <EstadoVacio
             motivo="proyecto-vacio"
             accion={
+              /* Las dos acciones usan el botón COMPARTIDO (.btn): hover,
+                 active, focus y disabled ya están definidos una sola vez en el
+                 sistema para todas las superficies. Escribirlos a mano acá
+                 creaba una copia que no tenía ninguno de esos estados. */
               <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button
                   type="button"
+                  className="btn btn-primary btn-md"
                   onClick={() => folderInputRef.current?.click()}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--accent-primary)',
-                    backgroundColor: 'var(--accent-primary)',
-                    color: 'var(--color-text-on-accent)',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
                 >
-                  <Folder size={14} strokeWidth="var(--icon-stroke)" />
-                  <span>Vincular carpeta</span>
+                  <Folder />
+                  <span>Vincular carpeta...</span>
                 </button>
                 <button
                   type="button"
+                  className="btn btn-ghost btn-md"
                   onClick={() => fileDocxRef.current?.click()}
                   disabled={isLoading}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
-                    backgroundColor: 'transparent',
-                    color: 'var(--text-main)',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: 600,
-                    cursor: isLoading ? 'default' : 'pointer',
-                  }}
                 >
-                  <Plus size={14} strokeWidth="var(--icon-stroke)" />
+                  <Plus />
                   <span>Agregar .docx</span>
                 </button>
               </div>
@@ -497,7 +477,7 @@ export const ExploradorProyecto: React.FC<ExploradorProyectoProps> = ({ onOpenMe
           }}
         >
           <Folder size={13} strokeWidth="var(--icon-stroke)" />
-          <span>Vincular carpeta completa...</span>
+          <span>Vincular carpeta...</span>
         </button>
 
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>

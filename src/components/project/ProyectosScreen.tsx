@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FolderOpen, Sparkles, FileDown } from 'lucide-react';
+import { FolderOpen, Sparkles, FileDown, ChevronRight } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { VersionTimeline } from './VersionTimeline';
 import { ExploradorProyecto } from './ExploradorProyecto';
@@ -97,37 +97,44 @@ export const ProyectosScreen: React.FC = () => {
           </p>
         </header>
 
+        {/* Los pasos son una SECUENCIA, no controles. Vestirlos de pill
+            (borde + radius-full + fondo) los hacía idénticos a los chips
+            clickeables del propio proyecto y el usuario iba a intentar
+            pulsarlos. Acá van como flujo plano: ícono + texto separados por un
+            chevron, sin caja, con el peso de una línea de contexto. El chevron
+            no es decoración: dice que hay un orden, y el orden es el contenido. */}
         {nadaAun && (
-          <div
+          <ol
+            aria-label="Cómo se trabaja el proyecto"
             style={{
               display: 'flex',
-              gap: 'var(--space-3)',
+              alignItems: 'center',
               justifyContent: 'center',
               flexWrap: 'wrap',
+              gap: 'var(--space-3)',
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
             }}
           >
-            {PASOS_DE_USO.map(({ Icon, texto }) => (
-              <div
-                key={texto}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: 'var(--space-2) var(--space-3)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--surface-subtle)',
-                }}
-              >
-                <span aria-hidden style={{ display: 'inline-flex', color: 'var(--accent-primary)' }}>
-                  <Icon size={14} strokeWidth="var(--icon-stroke)" />
-                </span>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  {texto}
-                </span>
-              </div>
+            {PASOS_DE_USO.map(({ Icon, texto }, i) => (
+              <React.Fragment key={texto}>
+                <li style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span aria-hidden style={{ display: 'inline-flex', color: 'var(--accent-primary)' }}>
+                    <Icon size={15} strokeWidth="var(--icon-stroke)" />
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    {texto}
+                  </span>
+                </li>
+                {i < PASOS_DE_USO.length - 1 && (
+                  <li aria-hidden style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--color-text-tertiary)' }}>
+                    <ChevronRight size={14} strokeWidth="var(--icon-stroke)" />
+                  </li>
+                )}
+              </React.Fragment>
             ))}
-          </div>
+          </ol>
         )}
 
         <ExploradorProyecto />
