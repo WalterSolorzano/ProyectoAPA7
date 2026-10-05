@@ -14,7 +14,7 @@ export interface CategoryMeta {
    'citations' existe en ToolWindowId pero es dueño de la fase 4 de Referencias; se excluye acá. */
 export const CATEGORY_META: CategoryMeta[] = [
   { id: 'ai', label: 'Voz sintética', Icon: Bot },
-  { id: 'style', label: 'Estilo y redacción', Icon: PenTool },
+  { id: 'style', label: 'Redacción y estilo', Icon: PenTool },
   { id: 'spelling', label: 'Ortografía y formato', Icon: SpellCheck },
   { id: 'structure', label: 'Estructura', Icon: Layout },
 ];

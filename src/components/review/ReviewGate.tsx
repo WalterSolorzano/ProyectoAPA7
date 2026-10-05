@@ -1,8 +1,9 @@
 /* WordAPA7 — Capa 1: puerta de estado. Cifra principal, sub-cifras y matriz de calor fase × motor.
    Placeholder de mascota reservado (componente futuro); sin emoji, slot vacío. */
 import React, { useMemo } from 'react';
-import { ShieldCheck, Sparkles, ArrowRight, Bot, PenTool, SpellCheck, Layout } from 'lucide-react';
+import { ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
 import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
+import { CATEGORY_META } from './CategoryRail';
 
 /** Matriz de calor: cuenta hallazgos por motor/categoría. Función pura. */
 export function heatMatrix(items: AuditItem[]): Record<ToolWindowId, number> {
@@ -11,12 +12,7 @@ export function heatMatrix(items: AuditItem[]): Record<ToolWindowId, number> {
   return m;
 }
 
-const MOTORES: { id: ToolWindowId; label: string; Icon: React.ElementType }[] = [
-  { id: 'ai', label: 'Voz sintética', Icon: Bot },
-  { id: 'style', label: 'Redacción y voz', Icon: PenTool },
-  { id: 'spelling', label: 'Formato y estilo', Icon: SpellCheck },
-  { id: 'structure', label: 'Estructura', Icon: Layout },
-];
+/* Etiquetas de motor: única fuente de verdad en CategoryRail.CATEGORY_META. */
 
 interface Props {
   items: AuditItem[];
@@ -49,28 +45,23 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '40px 48px' }}>
-      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)' }}>
-        Paso 5 · Revisión & IA
-      </span>
-      <h1 style={{ margin: '4px 0 24px', fontSize: '28px', fontWeight: 900, color: 'var(--text-main)' }}>Estado de tu documento</h1>
+      <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--text-main)' }}>Estado de tu documento</h1>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-        <span data-testid="review-gate-total" style={{ fontSize: '56px', fontWeight: 900, lineHeight: 1, color: 'var(--accent-primary)' }}>{total}</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
+        <span data-testid="review-gate-total" style={{ fontSize: '40px', fontWeight: 900, lineHeight: 1, color: 'var(--accent-primary)' }}>{total}</span>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>observaciones por revisar</span>
       </div>
 
-      <div style={{ display: 'flex', gap: '40px', margin: '28px 0' }}>
-        <SubCifra valor={Math.round(aiScore * 100) + '%'} etiqueta="voz sintética" />
-        <SubCifra valor={String(aiCount)} etiqueta="fragmentos con IA" />
-        <SubCifra valor={String(new Set(items.map((i) => i.category)).size)} etiqueta="categorías con hallazgos" />
-      </div>
+      <p style={{ margin: '6px 0 28px', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+        Voz sintética {Math.round(aiScore * 100)}% · {aiCount} fragmentos con IA
+      </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '520px', marginBottom: '28px' }}>
-        {MOTORES.map(({ id, label, Icon }) => (
+        {CATEGORY_META.map(({ id, label, Icon }) => (
           <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
             <Icon size={16} />
             <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--text-main)' }}>{label}</span>
-            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: matrix[id] > 0 ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>{matrix[id]}</span>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: matrix[id] > 0 ? 'var(--text-main)' : 'var(--text-secondary)' }}>{matrix[id]}</span>
           </div>
         ))}
       </div>
@@ -91,13 +82,6 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
     </div>
   );
 };
-
-const SubCifra: React.FC<{ valor: string; etiqueta: string }> = ({ valor, etiqueta }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-    <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{valor}</span>
-    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{etiqueta}</span>
-  </div>
-);
 
 const solidBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '8px',

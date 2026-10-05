@@ -75,7 +75,7 @@ export const FindingAccordion: React.FC<Props> = ({
           <div
             style={{
               padding: '8px 10px',
-              borderLeft: '2px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--sidebar-bg)',
               fontSize: 'var(--text-xs)',
               color: 'var(--text-main)',
@@ -88,7 +88,7 @@ export const FindingAccordion: React.FC<Props> = ({
             <div
               style={{
                 padding: '8px 10px',
-                borderLeft: '2px solid var(--accent-primary)',
+                borderRadius: 'var(--radius-sm)',
                 backgroundColor: 'var(--color-accent-soft)',
                 fontSize: 'var(--text-xs)',
                 color: 'var(--text-main)',

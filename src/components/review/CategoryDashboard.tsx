@@ -71,13 +71,7 @@ export const CategoryDashboard: React.FC<Props> = ({
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
       <header style={{ marginBottom: '16px' }}>
-        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
-          {meta?.label}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-          <span style={{ fontSize: '44px', fontWeight: 900, lineHeight: 1, color: 'var(--accent-primary)' }}>{items.length}</span>
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>observaciones en esta categoría</span>
-        </div>
+        <h2 style={{ margin: 0, fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-main)' }}>{meta?.label}</h2>
       </header>
 
       {temas.map((tema) => (
