@@ -25,10 +25,10 @@ interface Props {
 
 export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan, onStart, onOpenAiRoom }) => {
   const matrix = useMemo(() => heatMatrix(items), [items]);
-  const total = items.length;
+  const total = items.filter((it) => it.category !== 'ai').length;
   const aiCount = matrix.ai;
 
-  if (total === 0) {
+  if (items.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '40px' }}>
         <div style={{ color: 'var(--color-accent)' }}><ShieldCheck size={32} aria-hidden /></div>
@@ -57,7 +57,7 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '520px', marginBottom: '28px' }}>
-        {CATEGORY_META.map(({ id, label, Icon }) => (
+        {CATEGORY_META.filter((c) => c.id !== 'ai').map(({ id, label, Icon }) => (
           <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
             <Icon size={16} aria-hidden />
             <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{label}</span>
