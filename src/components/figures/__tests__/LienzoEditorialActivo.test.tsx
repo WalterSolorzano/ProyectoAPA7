@@ -89,7 +89,7 @@ describe('LienzoEditorialActivo', () => {
       <LienzoEditorialActivo {...defaultProps} onApplyCaption={onApplyCaption} />
     );
 
-    expect(screen.getByTestId('figura-mascota')).toBeInTheDocument();
+    expect(screen.getByTestId('mascota-leyenda-ia')).toBeInTheDocument();
     expect(screen.getByText(/¿Uso esta leyenda\?/i)).toBeInTheDocument();
     expect(screen.getByText(/Distribución porcentual por estratos/i)).toBeInTheDocument();
 
@@ -116,11 +116,42 @@ describe('LienzoEditorialActivo', () => {
     expect(onRegenerateSuggestion).toHaveBeenCalledTimes(1);
   });
 
-  it('no dibuja la mascota cuando no hay sugerencia', () => {
-    render(<LienzoEditorialActivo {...defaultProps} aiSuggestion={undefined} />);
+  it('sin sugerencia muestra el botón de generar leyenda con IA (opt-in)', () => {
+    const onGenerarSuggestion = vi.fn();
+    render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        aiSuggestion={undefined}
+        onGenerarSuggestion={onGenerarSuggestion}
+      />
+    );
 
-    expect(screen.queryByTestId('figura-mascota')).toBeNull();
     expect(screen.queryByText(/¿Uso esta leyenda\?/i)).toBeNull();
+    const generarBtn = screen.getByRole('button', { name: /generar leyenda con ia/i });
+    fireEvent.click(generarBtn);
+    expect(onGenerarSuggestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('edita una celda de tabla y emite el patch de filas', () => {
+    const onEditarCeldaTabla = vi.fn();
+    render(
+      <LienzoEditorialActivo
+        {...defaultProps}
+        imageUrl={undefined}
+        tipo="table"
+        tabla={{
+          headers: ['Grupo'],
+          rows: [['A']],
+        }}
+        onEditarCeldaTabla={onEditarCeldaTabla}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar celda 1-0' }));
+    const input = screen.getByRole('textbox', { name: 'Editar celda 1-0' });
+    fireEvent.change(input, { target: { value: 'B' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onEditarCeldaTabla).toHaveBeenCalledWith({ rows: [['B']] });
   });
 
   it('previsualiza una tabla APA 7 a partir de sus encabezados y filas', () => {

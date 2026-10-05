@@ -179,12 +179,13 @@ describe('TallerFigurasView', () => {
     expect(updateElementImage).not.toHaveBeenCalled();
   });
 
-  it('oculta los controles exclusivos de imagen cuando el activo es una tabla', () => {
+  it('muestra el estilo y oculta el formato exclusivo de imagen cuando el activo es una tabla', () => {
     render(<TallerFigurasView />);
 
     fireEvent.click(screen.getByTitle(/Tablas \(1\)/i));
 
-    expect(screen.queryByRole('tab', { name: /Estilo/i })).toBeNull();
+    expect(screen.getByRole('tab', { name: /Estilo/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Formato/i })).toBeNull();
     expect(screen.getByRole('tab', { name: /Texto/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Calidad/i })).toBeInTheDocument();
   });

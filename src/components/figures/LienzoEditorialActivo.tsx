@@ -1,9 +1,10 @@
 import React from 'react';
-import { RotateCw, Image as ImageIcon, ImagePlus, Check, RefreshCw } from 'lucide-react';
+import { RotateCw, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import { IconoLeyenda } from './IconosFiguras';
-import { DocumentMascot } from '../layout/DocumentMascot';
+import { TablaRender } from './TablaRender';
+import { MascotaLeyendaIA } from './MascotaLeyendaIA';
 import { medidaDeFigura, type TipoFigura } from '../../lib/figuras';
-import type { DesignStyle } from '../../types';
+import type { DesignStyle, TableModel, CellSpan, TableStylePreset } from '../../types';
 
 export interface AISuggestionData {
   suggestedTitle: string;
@@ -21,7 +22,13 @@ export interface LienzoEditorialActivoProps {
   /** El tipo de activo. Decide el rótulo (Figura/Tabla) y qué cuerpo se pinta. */
   tipo?: TipoFigura;
   /** Datos de la tabla cuando `tipo` es `'table'`. */
-  tabla?: { headers: string[]; rows: string[][] } | null;
+  tabla?: {
+    headers: string[];
+    rows: string[][];
+    header_spans?: CellSpan[];
+    row_spans?: CellSpan[][];
+    style?: TableStylePreset;
+  } | null;
   /** Tamaño DECLARADO en el `.docx`, para pintar la imagen a escala real. */
   anchoCm?: number | null;
   altoCm?: number | null;
@@ -31,8 +38,12 @@ export interface LienzoEditorialActivoProps {
   onRotate?: () => void;
   onReplaceImage?: () => void;
   onApplyCaption?: (caption: { title: string; note: string }) => void;
+  /** Edición de una celda de tabla: devuelve el patch de encabezados o filas. */
+  onEditarCeldaTabla?: (patch: { headers?: string[]; rows?: string[][] }) => void;
   /** Vuelve a pedir la sugerencia al motor de IA para el activo actual. */
   onRegenerateSuggestion?: () => void;
+  /** Genera la sugerencia bajo demanda (opt-in; sin gasto automático de tokens). */
+  onGenerarSuggestion?: () => void;
   /** Presentación del marco (tokens, no valores crudos). */
   border?: 'none' | 'subtle' | 'strong';
   shadow?: boolean;
@@ -82,7 +93,9 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   onRotate,
   onReplaceImage,
   onApplyCaption,
+  onEditarCeldaTabla,
   onRegenerateSuggestion,
+  onGenerarSuggestion,
   border = 'none',
   shadow = false,
   cornerRadius = 'none',
@@ -98,8 +111,19 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
     Array.isArray(tabla?.headers) &&
     Array.isArray(tabla?.rows) &&
     (tabla!.headers.length > 0 || tabla!.rows.length > 0);
-  const encabezados = esTabla ? tabla!.headers : [];
-  const filas = esTabla ? tabla!.rows : [];
+  const tablaCompleta: TableModel | null =
+    esTabla && tabla
+      ? {
+          element_id: 'lienzo-activo',
+          headers: tabla.headers,
+          rows: tabla.rows,
+          caption: figureTitle,
+          table_number: figureNumber,
+          header_spans: tabla.header_spans,
+          row_spans: tabla.row_spans,
+          style: tabla.style,
+        }
+      : null;
   const rotulo = tipo === 'table' ? 'Tabla' : tipo === 'equation' ? 'Ecuación' : 'Figura';
   const medida = medidaDeFigura({ width_cm: anchoCm ?? undefined, height_cm: altoCm ?? undefined });
   // Multipanel: la imagen principal ocupa (a) y los demás paneles se importan.
@@ -194,57 +218,23 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           {figureTitle}
         </div>
 
-        {esTabla ? (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: '12px',
-              color: 'var(--paper-ink)',
-              marginBottom: 'var(--space-3)',
+        {esTabla && tablaCompleta ? (
+          <TablaRender
+            tabla={tablaCompleta}
+            editable
+            mostrarLeyenda={false}
+            onEditarCelda={(fila, col, texto) => {
+              if (fila === 0) {
+                const headers = [...tablaCompleta.headers];
+                headers[col] = texto;
+                onEditarCeldaTabla?.({ headers });
+              } else {
+                const rows = tablaCompleta.rows.map((r) => [...r]);
+                if (rows[fila - 1]) rows[fila - 1][col] = texto;
+                onEditarCeldaTabla?.({ rows });
+              }
             }}
-          >
-            {encabezados.length > 0 && (
-              <thead>
-                <tr>
-                  {encabezados.map((h, i) => (
-                    <th
-                      key={i}
-                      style={{
-                        textAlign: 'left',
-                        padding: '6px 10px',
-                        borderTop: '2px solid var(--paper-ink)',
-                        borderBottom: '1px solid var(--paper-ink)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {filas.map((fila, ri) => (
-                <tr key={ri}>
-                  {fila.map((celda, ci) => (
-                    <td
-                      key={ci}
-                      style={{
-                        padding: '6px 10px',
-                        borderBottom:
-                          ri === filas.length - 1
-                            ? '2px solid var(--paper-ink)'
-                            : '1px solid var(--color-border-subtle)',
-                      }}
-                    >
-                      {celda}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          />
         ) : (
           <>
         {/* Marco de imagen plano con controles flotantes */}
@@ -371,109 +361,25 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
         )}
       </figure>
 
-      {/* Sugerencia IA — la mascota propone la leyenda, no una banda anónima */}
-      {aiSuggestion && (
-        <div
-          data-testid="figura-mascota"
-          style={{
-            marginTop: 'var(--space-4)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: 'var(--space-3)',
-          }}
-        >
-          <DocumentMascot size={64} kind="reference" expression="curious" />
-          <div
-            style={{
-              position: 'relative',
-              flex: 1,
-              minWidth: 0,
-              backgroundColor: 'var(--color-bg-surface)',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 'var(--space-3) var(--space-4)',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 'var(--space-2)',
-                marginBottom: 'var(--space-2)',
-              }}
-            >
-              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                ¿Uso esta leyenda?
-              </span>
-              {typeof aiSuggestion.confidence === 'number' && (
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 500,
-                    color: 'var(--color-text-tertiary)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {Math.round(aiSuggestion.confidence * 100)}%
-                </span>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gap: 'var(--space-1)',
-                fontSize: '12px',
-                color: 'var(--color-text-secondary)',
-                marginBottom:
-                  onApplyCaption || onRegenerateSuggestion ? 'var(--space-3)' : 0,
-              }}
-            >
-              <p style={{ margin: 0 }}>
-                <span className="fig-kicker">Título</span>{' '}
-                <span className="italic">{aiSuggestion.suggestedTitle}</span>
-              </p>
-              {aiSuggestion.suggestedNote && (
-                <p style={{ margin: 0 }}>
-                  <span className="fig-kicker">Nota</span> {aiSuggestion.suggestedNote}
-                </p>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-              {onApplyCaption && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onApplyCaption({
-                      title: aiSuggestion.suggestedTitle,
-                      note: aiSuggestion.suggestedNote,
-                    })
-                  }
-                  className="fig-apply-btn"
-                  aria-label="Aplicar sugerencia"
-                >
-                  <Check size={13} />
-                  <span>Aplicar sugerencia</span>
-                </button>
-              )}
-              {onRegenerateSuggestion && (
-                <button
-                  type="button"
-                  onClick={onRegenerateSuggestion}
-                  aria-label="Regenerar sugerencia"
-                  className="fig-regenerate-btn"
-                >
-                  <RefreshCw size={13} />
-                  <span>Regenerar</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Leyenda IA — la mascota propone; el botón es la única puerta (D-8) */}
+      <MascotaLeyendaIA
+        sugerida={
+          aiSuggestion
+            ? {
+                titulo: aiSuggestion.suggestedTitle,
+                nota: aiSuggestion.suggestedNote,
+                confianza: aiSuggestion.confidence,
+              }
+            : undefined
+        }
+        onGenerar={onGenerarSuggestion ?? (() => {})}
+        onAplicar={
+          onApplyCaption
+            ? (s) => onApplyCaption({ title: s.titulo, note: s.nota ?? '' })
+            : undefined
+        }
+        onRegenerar={onRegenerateSuggestion}
+      />
 
       {/* Párrafo posterior */}
       {nextParagraph && (
