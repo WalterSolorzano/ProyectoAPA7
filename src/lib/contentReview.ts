@@ -33,7 +33,7 @@ const BLOOM_FORBIDDEN = new Set([
 ]);
 
 // Verbos medibles por nivel de Bloom (para variedad y jerarquía)
-const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
+export const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
   { level: 1, verbs: ['recordar', 'identificar', 'definir', 'listar', 'mencionar', 'nombrar', 'reconocer'] },
   { level: 2, verbs: ['comprender', 'explicar', 'describir', 'resumir', 'interpretar', 'clasificar', 'comparar'] },
   { level: 3, verbs: ['aplicar', 'usar', 'utilizar', 'implementar', 'ejecutar', 'resolver', 'demostrar'] },
@@ -42,7 +42,7 @@ const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
   { level: 6, verbs: ['crear', 'diseñar', 'desarrollar', 'planear', 'proponer', 'construir', 'elaborar', 'formular'] },
 ];
 
-function bloomLevel(verb: string): number | null {
+export function bloomLevel(verb: string): number | null {
   const v = verb.toLowerCase().replace(/^(me |te |se |le |nos )?/, '');
   for (const lv of BLOOM_LEVELS) {
     if (lv.verbs.some((x) => v.startsWith(x))) return lv.level;
@@ -532,3 +532,52 @@ export const CONTENT_SECTION_LABELS: Record<string, string> = {
   resumen: 'Resumen / Abstract',
   conclusiones: 'Conclusiones y recomendaciones',
 };
+
+// ── Objetivos con nivel Bloom actual y propuesto (para el Informe general) ────
+
+export interface ObjetivoBloom {
+  elementId: string;
+  texto: string;
+  verboActual: string;
+  nivelActual: number | null;
+  nivelPropuesto: number;
+  verboPropuesto: string;
+}
+
+/** Nivel mínimo que debería alcanzar un objetivo de tesis. */
+const NIVEL_OBJETIVO = 4;
+
+function verboDeNivel(nivel: number): string {
+  const fila = BLOOM_LEVELS.find((l) => l.level === nivel);
+  return fila ? fila.verbs[0] : '';
+}
+
+/**
+ * Objetivos del documento con su verbo actual y una propuesta de nivel superior.
+ * Reutiliza la misma separación general/específicos que `reviewContent`, para
+ * que el informe y las reglas no cuenten objetivos distintos.
+ */
+export function objetivosBloom(elements: ElementLike[]): ObjetivoBloom[] {
+  if (!elements || elements.length === 0) return [];
+  const objetivos = collectSections(elements)['objetivos'] || [];
+  if (objetivos.length === 0) return [];
+  const { general, especificos } = separarGeneralDeEspecificos(elements, objetivos);
+
+  return [...general, ...especificos]
+    .map((e) => {
+      const texto = (e.text || '').trim();
+      const verboActual = firstWord(texto);
+      if (!verboActual) return null;
+      const nivelActual = bloomLevel(verboActual);
+      const nivelPropuesto = nivelActual === null || nivelActual < NIVEL_OBJETIVO ? NIVEL_OBJETIVO : nivelActual;
+      return {
+        elementId: e.id,
+        texto,
+        verboActual,
+        nivelActual,
+        nivelPropuesto,
+        verboPropuesto: nivelPropuesto === nivelActual ? verboActual : verboDeNivel(nivelPropuesto),
+      };
+    })
+    .filter((x): x is ObjetivoBloom => x !== null);
+}

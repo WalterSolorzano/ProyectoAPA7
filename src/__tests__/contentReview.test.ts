@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reviewContent } from '../lib/contentReview';
+import { reviewContent, objetivosBloom } from '../lib/contentReview';
 
 function el(id: string, text: string, type = 'paragraph'): any {
   return { id, text, type, heading_level: type === 'heading' ? 2 : 1 };
@@ -139,5 +139,41 @@ describe('reviewContent — general y específicos salen del documento, no de la
     const hit = f.find((x) => x.rule === 'objetivos_cantidad');
     expect(hit?.message).toContain('2 objetivos específicos');
     expect(hit?.elementIds).toEqual(['e1', 'e2']);
+  });
+});
+
+describe('objetivosBloom — nivel actual y propuesto para el informe', () => {
+  it('usa la misma separación general/específicos y propone nivel 4 al específico bajo', () => {
+    const r = objetivosBloom([
+      el('h1', 'Objetivos', 'heading'),
+      el('g', 'Desarrollar un sistema de gestión.'),
+      el('e1', 'Identificar los tiempos muertos.'),
+      el('e2', 'Analizar las causas.'),
+    ] as any);
+    expect(r.map((x) => x.elementId)).toEqual(['g', 'e1', 'e2']);
+    const general = r.find((x) => x.elementId === 'g')!;
+    expect(general.nivelActual).toBe(6);
+    expect(general.nivelPropuesto).toBe(6);
+    expect(general.verboPropuesto).toBe('desarrollar');
+    const e1 = r.find((x) => x.elementId === 'e1')!;
+    expect(e1.nivelActual).toBe(1);
+    expect(e1.nivelPropuesto).toBe(4);
+    expect(e1.verboPropuesto.length).toBeGreaterThan(0);
+  });
+
+  it('marca nivelActual null y propone el mínimo cuando el verbo no es medible', () => {
+    const r = objetivosBloom([
+      el('h1', 'Objetivos', 'heading'),
+      el('g', 'Desarrollar un sistema.'),
+      el('e1', 'Conocer los tiempos muertos.'),
+    ] as any);
+    const e1 = r.find((x) => x.elementId === 'e1')!;
+    expect(e1.verboActual).toBe('conocer');
+    expect(e1.nivelActual).toBeNull();
+    expect(e1.nivelPropuesto).toBe(4);
+  });
+
+  it('devuelve lista vacía cuando no hay sección de objetivos', () => {
+    expect(objetivosBloom([el('p', 'Solo texto sin objetivos.')] as any)).toEqual([]);
   });
 });
