@@ -355,6 +355,22 @@ def _normalize_multiline_field(value: str) -> str:
     return '\n'.join(deduped)
 
 
+# Leyendas numeradas de figuras/tablas: NUNCA son campos de portada.
+# Bug reportado: "Figura 9. Recepcion de la materia prima..." se colaba como
+# asignatura (la subcadena "materia" esta en COURSE_KW) y "Figura 1. ..." como
+# titulo (era el texto no asignado mas largo).
+_CAPTION_RE = re.compile(
+    r'^\s*(?:fig(?:ura)?\.?|tabla|gr[áa]fic[oa]|imagen|cuadro|ilustraci[óo]n|anexo)'
+    r'[\s.:º°]*\d',
+    re.IGNORECASE,
+)
+
+
+def _is_caption_text(text: str) -> bool:
+    """True si el texto es una leyenda numerada (Figura/Tabla/Grafico N...)."""
+    return bool(text and _CAPTION_RE.match(text.strip()))
+
+
 def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     """
     Analiza el texto extraido de cuadros de texto/shapes de Word e infiere
@@ -378,8 +394,9 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     if not textbox_texts:
         return fields
 
-    # Normalizar: eliminar textos vacios y limpiar whitespace
-    cleaned = [t.strip() for t in textbox_texts if t.strip()]
+    # Normalizar: eliminar textos vacios, leyendas de figura/tabla y limpiar
+    # whitespace. Las leyendas nunca son datos de portada.
+    cleaned = [t.strip() for t in textbox_texts if t.strip() and not _is_caption_text(t)]
     if not cleaned:
         return fields
 
@@ -676,7 +693,7 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
             # Si ya tenemos autores, no necesitamos procesar parrafos
             if fields.get("author"):
                 # Aun buscar titulo e institution en parrafos
-                cover_elems = [e for e in elements[:15] if e.text and e.text.strip()]
+                cover_elems = [e for e in elements[:15] if e.text and e.text.strip() and not _is_caption_text(e.text)]
                 for e in cover_elems:
                     txt = e.text.strip()
                     txt_lower = txt.lower()
@@ -691,7 +708,7 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
                 return fields
 
     # PRIORIDAD 2: No hay textboxes, inferir desde parrafos
-    cover_elems = [e for e in elements[:20] if e.text and e.text.strip()]
+    cover_elems = [e for e in elements[:20] if e.text and e.text.strip() and not _is_caption_text(e.text)]
     if not cover_elems:
         return fields
 

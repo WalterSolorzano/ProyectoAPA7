@@ -187,15 +187,23 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
         # ("Br. A Carnet: 2021-0251UBr. B Carnet: 2023-0366U..."): se parte
         # por cada título personal y el carnet se NORMALIZA a \d{4}-\d{2,6}
         # (la letra basura pegada al carnet rompía el dedupe → duplicados).
-        if t_lower.startswith('br.') or ('br.' in t_lower and 'carnet:' in t_lower):
+        if (t_lower.startswith('br.')
+                or ('br.' in t_lower and 'carnet:' in t_lower)
+                or ('br.' in t_lower and re.search(r'\(\s*\d{4}[-.]\d{2,6}', t))):
             import re as _re
             segments = [s.strip() for s in _re.split(r"(?=Br\.)", t) if s.strip()]
             if not segments:
                 segments = [t]
             for seg in segments:
-                m_car = _re.search(r'carnet:\s*(\d{4}-\d{2,6})', seg, _re.IGNORECASE)
+                # Carnet en formato "Carnet: 2021-0251" o entre paréntesis
+                # "(2023-0296U)" — el original del usuario usa paréntesis.
+                m_car = _re.search(r'carnet\s*:\s*(\d{4}-\d{2,6})', seg, _re.IGNORECASE)
+                if not m_car:
+                    m_car = _re.search(r'\(\s*(\d{4}[-.]\d{2,6})\s*[A-Za-z]?\s*\)', seg)
                 cid = m_car.group(1) if m_car else ''
-                name = _re.sub(r'carnet:\s*\S+', '', seg, flags=_re.IGNORECASE).strip(' .,;')
+                cid = cid.replace('.', '-')
+                name = _re.sub(r'carnet\s*:\s*\S+', '', seg, flags=_re.IGNORECASE)
+                name = _re.sub(r'\(\s*\d{4}[-.]\d{2,6}\s*[A-Za-z]?\s*\)', '', name).strip(' .,;')
                 if not name:
                     continue
                 # Cerrar el miembro en curso antes de abrir uno nuevo.
