@@ -248,6 +248,17 @@ def test_h2_hereda_y_no_abre_ambito_propio():
     assert phase_by_id["a"] == "metodo"
 
 
+def test_h2_atipico_hereda_ambito_del_h1():
+    # Un H2 que el clasificador reconocio por una senal atipica (outlineLvl de
+    # Word, mayusculas cortas, etc.) hereda igual que cualquier H2. El nivel
+    # manda, no el estilo que lo delato: aunque su texto sea una fase conocida
+    # ("Referencias"), NO abre ambito propio porque es nivel 2.
+    els = [_h("h1", "Metodo"), _h("h2", "Referencias", level=2),
+           _p("a", "Hermenéutica, M. (2020).")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "metodo"
+
+
 def test_h1_desconocido_abre_sin_fase():
     # Review Focus: un H1 fuera del vocabulario es una seccion cualquiera.
     els = [_h("h1", "Agradecimientos"), _p("a", "Gracias a mi familia")]
