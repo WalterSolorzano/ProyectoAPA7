@@ -62,7 +62,8 @@ PHASES: Tuple[PhaseConfig, ...] = (
                  "objetivo general", "objetivos generales", "objetivo especifico",
                  "objetivos especificos", "objetivos especificos de la investigacion",
                  "objetivos especificos de la investigacion"),
-                criteria=("bloom_verb", "objetivo_sin_variable")),
+                criteria=("bloom_verb", "objetivo_sin_variable",
+                          "objetivo_sin_infinitivo", "objetivo_multi_verbo")),
     PhaseConfig("introduccion", "Introduccion",
                 ("introduccion", "introduccion al problema", "planteamiento del problema"),
                 criteria=("paragraph_words",), paragraph_words=(80, 200)),
@@ -246,6 +247,8 @@ RULE_SCOPES: Dict[str, str] = {
     # "el umbral depende de la fase", no una fase en concreto.
     "bloom_vague": "objetivos",
     "objetivo_sin_variable": "objetivos",
+    "objetivo_sin_infinitivo": "objetivos",
+    "objetivo_multi_verbo": "objetivos",
     "metodo_sin_detalle": "metodo",
     "paragraph_words": "fase",
     "verbo_pasado": "fase",
@@ -361,6 +364,73 @@ def _check_objetivo_sin_variable(eid: str, text: str, cfg: PhaseConfig, mk) -> L
                phase=cfg.key, read_only=cfg.read_only)]
 
 
+# Verbos de accion que un objetivo de investigacion puede usar como verbo
+# rector. Es una lista BLANCA a proposito: contar cualquier palabra terminada
+# en -ar/-er/-ir daria falsos positivos con sustantivos ("lugar", "mujer",
+# "taller"), y una ley que dispara de mas deja de ser una ley.
+_OBJETIVO_VERBOS: frozenset = frozenset((
+    "identificar", "definir", "listar", "mencionar", "nombrar", "reconocer",
+    "comprender", "explicar", "describir", "interpretar", "resumir",
+    "clasificar", "comparar", "aplicar", "usar", "implementar", "demostrar",
+    "calcular", "analizar", "diferenciar", "organizar", "relacionar",
+    "examinar", "contrastar", "evaluar", "justificar", "argumentar",
+    "valorar", "criticar", "crear", "diseñar", "desarrollar", "construir",
+    "proponer", "formular", "elaborar", "planificar", "determinar", "medir",
+    "cuantificar", "establecer", "optimizar", "mejorar", "reducir",
+    "incrementar", "generar", "validar", "verificar", "diagnosticar",
+    "caracterizar", "seleccionar", "escoger", "modelar", "simular",
+    "estimar", "comprobar", "corroborar", "sustentar", "fundamentar",
+    "presentar", "redactar", "plantear",
+))
+
+# Palabras que terminan en -ar/-er/-ir pero NO son verbos: si abren el
+# objetivo, no lo hacen con un verbo, y la ley tiene que verlo.
+_NO_VERBO_INFINITIVO: frozenset = frozenset((
+    "lugar", "lugares", "familiar", "familiares", "escolar", "escolares",
+    "profesional", "profesionales", "principal", "principales", "general",
+    "generales", "particular", "particulares", "similar", "similares",
+    "celular", "hogar", "lunar", "militar", "nuclear", "angular", "mujer",
+    "mujeres", "taller", "talleres", "mayor", "mayores", "mejor", "mejores",
+    "poder", "deber",
+))
+
+
+def _limpiar_palabra(raw: str) -> str:
+    return re.sub(r"[^a-záéíóúñü]", "", (raw or "").lower())
+
+
+def _es_infinitivo(palabra: str) -> bool:
+    return (len(palabra) >= 4
+            and palabra.endswith(("ar", "er", "ir"))
+            and palabra not in _NO_VERBO_INFINITIVO)
+
+
+def _check_objetivo_sin_infinitivo(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    palabras = [p for p in (_limpiar_palabra(w) for w in _WORD_SPLIT.findall(text or "")) if p]
+    if len(palabras) < 2:
+        return []
+    if _es_infinitivo(palabras[0]):
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_sin_infinitivo", "warn",
+               "El objetivo debe abrir con un verbo en infinitivo "
+               "(determinar, evaluar, analizar), y empieza con "
+               f'"{palabras[0]}".',
+               suggestion="Determinar...", phase=cfg.key,
+               read_only=cfg.read_only)]
+
+
+def _check_objetivo_multi_verbo(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    verbos = [p for p in (_limpiar_palabra(w) for w in _WORD_SPLIT.findall(text or ""))
+              if p in _OBJETIVO_VERBOS]
+    if len(verbos) <= 1:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_multi_verbo", "warn",
+               f"El objetivo encadena {len(verbos)} verbos de accion "
+               f"({', '.join(verbos)}); la regla pide uno solo.",
+               suggestion="Elegí un unico verbo rector para el objetivo.",
+               phase=cfg.key, read_only=cfg.read_only)]
+
+
 def _check_metodo_sin_detalle(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
     low = (text or "").lower()
     if not low.strip():
@@ -471,6 +541,8 @@ _CHECKS = {
     "parafrasis_vs_cita": _check_parafrasis_vs_cita,
     "bloom_verb": _check_bloom_verb,
     "objetivo_sin_variable": _check_objetivo_sin_variable,
+    "objetivo_sin_infinitivo": _check_objetivo_sin_infinitivo,
+    "objetivo_multi_verbo": _check_objetivo_multi_verbo,
     "metodo_sin_detalle": _check_metodo_sin_detalle,
     "paragraph_words": _check_paragraph_words,
     "verbo_pasado": _check_verbo_pasado,

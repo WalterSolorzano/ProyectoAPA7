@@ -338,6 +338,28 @@ def test_objetivo_sin_variable_se_reporta():
     assert "objetivo_sin_variable" in {f["kind"] for f in out}
 
 
+# ── Leyes de objetivos en infinitivo y verbo unico (T12) ─────────────────────
+
+def test_objetivo_sin_infinitivo_se_reporta():
+    out = _f("objetivos", "La mejora del proceso de produccion.")
+    assert "objetivo_sin_infinitivo" in {f["kind"] for f in out}
+
+
+def test_objetivo_con_infinitivo_no_dispara_sin_infinitivo():
+    kinds = {f["kind"] for f in _f("objetivos", "Determinar el efecto de X sobre Y.")}
+    assert "objetivo_sin_infinitivo" not in kinds
+
+
+def test_objetivo_multi_verbo_se_reporta():
+    out = _f("objetivos", "Determinar y evaluar el efecto de X sobre Y.")
+    assert "objetivo_multi_verbo" in {f["kind"] for f in out}
+
+
+def test_objetivo_de_un_solo_verbo_no_dispara_multi_verbo():
+    kinds = {f["kind"] for f in _f("objetivos", "Analizar las causas de los tiempos improductivos.")}
+    assert "objetivo_multi_verbo" not in kinds
+
+
 def test_metodo_genérico_se_reporta():
     out = _f("metodo", "Se realizó el estudio.")
     assert "metodo_sin_detalle" in {f["kind"] for f in out}

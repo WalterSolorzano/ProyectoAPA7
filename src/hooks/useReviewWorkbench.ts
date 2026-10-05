@@ -228,6 +228,7 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
      propone la variable que falta o el detalle que falta, y escribirlo es
      decidir por el autor qué van a medir. */
   objetivo_generico: 'mark',
+  objetivo_verbo: 'mark',
   metodo_generico: 'mark',
   /* Las ocho universales del spec §12. 'mark' todas: el motor detecta y la
      persona corrige. Una reescritura automática de prosa argumental sería

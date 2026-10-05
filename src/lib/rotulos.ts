@@ -61,6 +61,7 @@ export const SUBTYPE_LABELS: Record<string, string> = {
   oracion_larga: 'Oración extensa',
   idea_incompleta: 'Idea incompleta',
   objetivo_generico: 'Objetivo sin variable medible',
+  objetivo_verbo: 'Verbo del objetivo (infinitivo único)',
   metodo_generico: 'Método sin detalle',
   otro: 'Otro hallazgo del corrector',
   cita_fantasma: 'Cita ausente en bibliografía',
@@ -218,6 +219,12 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
      como "Otro hallazgo del corrector", que es un nombre honesto para un
      hallazgo del que no sabemos qué es. No es el caso. */
   objetivo_sin_variable: { category: 'style', subtype: 'objetivo_generico', severity: 'medium', summary: DEL_MOTOR },
+  /* Las dos leyes de objetivos de T12 son de FASE: el ambito `objetivos` las
+     declara en `RULE_SCOPES`. Comparten subtipo `objetivo_verbo`, que
+     `SUBTYPE_ACTION` manda a 'mark': el motor sabe que el verbo esta mal, no
+     cual poner. */
+  objetivo_sin_infinitivo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
+  objetivo_multi_verbo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
   metodo_sin_detalle: { category: 'style', subtype: 'metodo_generico', severity: 'low', summary: DEL_MOTOR },
   /* Los dos de portada son de SOLO LECTURA: sin `suggestedText` y con subtipo
      `portada`, que `SUBTYPE_ACTION` manda a 'mark'. Que un hallazgo se informe
