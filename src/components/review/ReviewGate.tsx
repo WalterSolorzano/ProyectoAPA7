@@ -45,10 +45,10 @@ export const ReviewGate: React.FC<Props> = ({ items, aiScore, isScanning, onScan
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(20px, 4vw, 48px)' }}>
-      <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Estado de tu documento</h1>
+      <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Estado de tu documento</h1>
 
       <div role="status" aria-atomic="true" style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginTop: '8px' }}>
-        <span data-testid="review-gate-total" style={{ fontSize: '40px', fontWeight: 900, lineHeight: 1, color: 'var(--color-accent)' }}>{total}</span>
+        <span data-testid="review-gate-total" style={{ fontSize: 'var(--text-3xl)', fontWeight: 800, lineHeight: 1, color: 'var(--color-accent)' }}>{total}</span>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>observaciones por revisar</span>
       </div>
 

@@ -102,8 +102,9 @@ export const CategoryDashboard: React.FC<Props> = ({
 
       {temas.map((tema) => (
         <section key={tema.key} style={{ marginBottom: '16px' }}>
-          <h3 style={{ margin: '0 0 6px', fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-secondary)' }}>
-            {tema.title} · {tema.items.length}
+          <h3 style={{ margin: '0 0 6px', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            {tema.title}
+            <span style={{ marginLeft: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{tema.items.length}</span>
           </h3>
           <div style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
             {tema.items.map((it) => (

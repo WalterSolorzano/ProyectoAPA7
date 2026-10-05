@@ -340,123 +340,53 @@ export function AiHierarchy({
           padding: 'var(--space-4) var(--space-6)',
           backgroundColor: 'var(--color-bg-surface)',
           borderBottom: '1px solid var(--color-border-subtle)',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(210px, 260px) minmax(0, 1fr) minmax(220px, 280px)',
-          gap: 'var(--space-6)',
-          alignItems: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-2)',
           flexShrink: 0,
         }}
       >
-        {/* Termómetro de Integridad Global */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div
+        {/* Voz autoral: cifra y contexto, sin anillo */}
+        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-4)' }}>
+          <span
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: humanIntegrityPct >= 80 ? 'var(--color-success-a12)' : 'var(--color-warning-a12)',
-              border: `3px solid ${humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)'}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
+              fontSize: 'var(--text-2xl)',
+              fontWeight: 800,
+              lineHeight: 1,
+              color: humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)',
             }}
           >
-            <span
-              style={{
-                fontSize: 'var(--text-sm)',
-                fontWeight: 900,
-                color: humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)',
-              }}
-            >
-              {humanIntegrityPct}%
-            </span>
-          </div>
-          <div>
-            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              Voz Autoral Humana
-            </div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              {syntheticPct}% rigidez sintética detectada
-            </div>
-          </div>
-        </div>
-
-        {/* Micro tarjetas de métricas macro */}
-        <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-          <div
+            {humanIntegrityPct}%
+          </span>
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+            Voz Autoral Humana
+          </span>
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            {syntheticPct}% rigidez sintética detectada
+          </span>
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            {totalParagraphsEstimated} párrafos ·{' '}
+            {Math.max(0, totalParagraphsEstimated - flaggedParagraphsCount)} con autoría nítida
+          </span>
+          <span
             style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: '1px solid var(--color-border-subtle)',
-              flex: 1,
+              fontSize: 'var(--text-sm)',
+              fontWeight: flaggedParagraphsCount > 0 ? 700 : 400,
+              color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-secondary)',
             }}
           >
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Total Párrafos
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              {totalParagraphsEstimated}
-            </div>
-            <span style={{ fontSize: '10px', color: 'var(--color-success)' }}>
-              {Math.max(0, totalParagraphsEstimated - flaggedParagraphsCount)} con autoría nítida
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: flaggedParagraphsCount > 0 ? 'var(--color-danger-a08)' : 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: `1px solid ${flaggedParagraphsCount > 0 ? 'var(--color-danger-a12)' : 'var(--color-border-subtle)'}`,
-              flex: 1,
-            }}
-          >
-            <span style={{ fontSize: '10px', color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Párrafos en Alerta
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>
-              {flaggedParagraphsCount}
-            </div>
-            <span style={{ fontSize: '10px', color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-tertiary)' }}>
-              Fórmulas LLM detectadas
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: '1px solid var(--color-border-subtle)',
-              flex: 1,
-            }}
-          >
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Pico Crítico
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-engine-ia)' }}>
-              {criticalPeakChapter ? `${criticalPeakChapter.h1Number} (${criticalPeakChapter.iaScore}%)` : '—'}
-            </div>
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
-              {criticalPeakChapter?.title ?? 'Sin picos'}
-            </span>
-          </div>
+            {flaggedParagraphsCount} <span>Párrafos en Alerta</span>
+          </span>
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            Pico crítico:{' '}
+            {criticalPeakChapter
+              ? `${criticalPeakChapter.h1Number} (${criticalPeakChapter.iaScore}%)`
+              : 'sin picos'}
+          </span>
         </div>
 
         {/* Criterio ético APA 7 */}
-        <div
-          style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--color-text-secondary)',
-            backgroundColor: 'var(--color-bg-surface-alt)',
-            padding: 'var(--space-2) var(--space-3)',
-            borderRadius: 'var(--radius-xs)',
-            lineHeight: 1.4,
-          }}
-        >
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
           <strong>Criterio APA 7:</strong> El motor probabilístico propone redacciones con voz de autor humano; jamás muta el documento a ciegas.
         </div>
       </section>
@@ -542,7 +472,7 @@ export function AiHierarchy({
                         <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
                           {ch.h1Number}: {ch.title}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
                           {ch.words.toLocaleString()} palabras · {ch.flaggedCount} alertas
                         </div>
                       </div>
@@ -616,7 +546,7 @@ export function AiHierarchy({
                               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                                 <span
                                   style={{
-                                    fontSize: '9px',
+                                    fontSize: 'var(--text-xs)',
                                     fontWeight: 800,
                                     backgroundColor: 'var(--color-border-subtle)',
                                     padding: '1px 4px',
@@ -627,7 +557,7 @@ export function AiHierarchy({
                                 </span>
                                 <span
                                   style={{
-                                    fontSize: '11.5px',
+                                    fontSize: 'var(--text-sm)',
                                     fontWeight: isSubActive ? 700 : 500,
                                     color: 'var(--color-text-primary)',
                                   }}
@@ -635,7 +565,7 @@ export function AiHierarchy({
                                   {sub.number} {sub.title}
                                 </span>
                               </div>
-                              <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
                                 {sub.paragraphsCount} párrafos · {sub.flaggedCount} alertas
                               </div>
                             </div>
@@ -676,7 +606,6 @@ export function AiHierarchy({
                         fontSize: 'var(--text-xs)',
                         fontWeight: 700,
                         color: 'var(--color-engine-ia)',
-                        textTransform: 'uppercase',
                       }}
                     >
                       {currentChapter?.h1Number} · {currentSub.level} {currentSub.number}
@@ -708,7 +637,7 @@ export function AiHierarchy({
                   >
                     Densidad de IA: {currentSub.iaScore}%
                   </span>
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 3 }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: 3 }}>
                     {currentSub.flaggedCount} párrafos en alerta
                   </div>
                 </div>
@@ -825,7 +754,7 @@ export function AiHierarchy({
                         >
                           <span
                             style={{
-                              fontSize: '10px',
+                              fontSize: 'var(--text-xs)',
                               fontWeight: 700,
                               color: 'var(--color-danger)',
                               textTransform: 'uppercase',
@@ -836,7 +765,7 @@ export function AiHierarchy({
                           </span>
                           <div
                             style={{
-                              fontSize: '13.5px',
+                              fontSize: 'var(--text-sm)',
                               lineHeight: 1.75,
                               color: 'var(--color-text-primary)',
                               marginTop: 'var(--space-2)',
@@ -878,7 +807,7 @@ export function AiHierarchy({
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span
                               style={{
-                                fontSize: '10px',
+                                fontSize: 'var(--text-xs)',
                                 fontWeight: 700,
                                 color: 'var(--color-success)',
                                 textTransform: 'uppercase',
@@ -887,7 +816,7 @@ export function AiHierarchy({
                             >
                               Propuesta con Voz de Autor Humano
                             </span>
-                            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
+                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
                               Editable
                             </span>
                           </div>
@@ -911,7 +840,7 @@ export function AiHierarchy({
                               backgroundColor: 'var(--color-bg-surface)',
                               color: 'var(--color-text-primary)',
                               fontFamily: 'inherit',
-                              fontSize: '13px',
+                              fontSize: 'var(--text-sm)',
                               lineHeight: 1.6,
                               resize: 'vertical',
                               boxSizing: 'border-box',
