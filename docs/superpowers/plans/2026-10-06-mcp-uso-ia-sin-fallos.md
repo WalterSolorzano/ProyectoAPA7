@@ -102,6 +102,17 @@ Archivos: `build/installer.nsh`, `electron-builder.yml`, `requirements.txt`, doc
 - Test e2e: **Word + Excel → docx con portada UNI** y aserciones de sangría/doble espacio/tablas/referencias.
 - Corrida del CLI `--no-com` y con COM.
 
+### F6 — Traductor de Rúbrica (motor oculto)
+
+Capacidad sin UI, expuesta por MCP/CLI/API como los demás motores.
+
+- **Entrada**: rúbrica en **Word (.docx) y Excel (.xlsx)** primero (PDF después) + documento `.docx`.
+- **Salida**: informe JSON de cumplimiento — `criterio → peso(%) → puntaje(0-100) → evidencia (sección/párrafo) → qué falta` — más un `.docx` anotado opcional.
+- **Extracción de criterios/pesos** de la rúbrica; **mapeo** de cada criterio a secciones/evidencia del documento.
+- **Determinista donde se pueda (0 tokens)**; IA solo para criterios ambiguos.
+- **Exposición**: tool MCP `analyze_rubric` + CLI.
+- Tests focalizados con una rúbrica de ejemplo.
+
 ## Paralelización (por propiedad de archivo)
 
 Conflictos reales: `content/builder.py` lo tocan F0 y F3; `generation/generator.py` lo toca F3.
