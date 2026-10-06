@@ -46,4 +46,24 @@ describe('AiSectionDetail (IA-L1)', () => {
     fireEvent.click(screen.getByText('Marcar para revisar'));
     expect(onMark).toHaveBeenCalledWith('p1');
   });
+
+  it('resuelve el detalle por identidad cuando el arreglo compacto está desalineado', () => {
+    /* El backend emite `paragraphs` COMPACTA (salta títulos cortos, imágenes,
+       tablas y párrafos breves), mientras `parrafo.index` es el índice del
+       elemento en `doc.elements`. Con `paragraphs[parrafo.index]` el panel leía
+       `compactos[2]` (undefined) y caía al estado vacío. */
+    const filaDesalineada: FilaPerfilIA = {
+      h1Id: 'h1', titulo: 'Desarrollo', fase: null, rigidezMedia: 82, porBanda: [0, 0, 0, 1],
+      parrafos: [
+        { elementId: 'p2', index: 2, score: 82, categoria: 'HIGH', excerpt: 'La transformación digital', carril: 0, h2Id: null, h2Titulo: null },
+      ],
+    };
+    const compactos = [
+      { element_id: 'p2', index: 2, type: 'paragraph', text: 'La transformación digital ha redefinido', ai_score: 82, ai_category: 'HIGH', findings: [{ phrase: 'La transformación digital', detail: 'Apertura genérica', severity: 'HIGH' }], spelling: [] },
+      { element_id: 'p9', index: 9, type: 'paragraph', text: 'Otra idea', ai_score: 60, ai_category: 'HIGH', findings: [{ phrase: 'Otra idea', detail: 'Conector formulario', severity: 'MEDIUM' }], spelling: [] },
+    ] as AIReviewParagraph[];
+    render(<AiSectionDetail fila={filaDesalineada} paragraphs={compactos} onBack={vi.fn()} onMark={vi.fn()} />);
+    expect(screen.getByText(/Apertura genérica/)).toBeTruthy();
+    expect(screen.queryByText(/Conector formulario/)).toBeNull();
+  });
 });

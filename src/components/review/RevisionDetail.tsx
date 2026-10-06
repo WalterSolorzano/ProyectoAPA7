@@ -1,15 +1,22 @@
 /* WordAPA7 — Sala de Revisión, corrección (REV-L1). Texto delante, corrección al
-   lado. La acción se deriva de `accionDeItem`: objetivo ⇒ aceptar; IA ⇒ marcar;
-   portada (readOnly) ⇒ sin acción. El subrayado inline lo pinta `ReadingText`,
-   dueño único de los dos canales (AGENTS.md §2); aquí no se normaliza nada.
+   lado. La acción se deriva de `accionDeItem` y cada acción tiene su control:
+   aceptar / aceptar todas (corrección objetiva por hallazgo), marcar para
+   revisar (el motor detecta y la persona decide), resolver citas y rotular (los
+   dos mecanismos de documento del motor objetivo) y «sin acción» para la
+   portada, que se mide y no se escribe. La fase del foco se resuelve con
+   `fasePorElemento`, la MISMA regla que cuenta la columna de REV-L0, para que el
+   conteo de la columna y la lista del detalle no se contradigan. El subrayado
+   inline lo pinta `ReadingText`, dueño único de los dos canales (AGENTS.md §2);
+   aquí no se normaliza nada.
    Fidelidad visual: `docs/superpowers/mockups/2026-10-05-revision-ia-dos-salas/
    ui-5-sala-rev-l1.html`. */
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Check, CheckCheck, Copy, Flag } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
-import { useReviewWorkbench, accionDeItem, ENGINE_META } from '../../hooks/useReviewWorkbench';
+import { useReviewWorkbench, accionDeItem, ENGINE_META, MASS_LABELS } from '../../hooks/useReviewWorkbench';
 import { rotuloDeSubtipo } from '../../lib/rotulos';
 import { phaseLabel, type EngineId, type Severity } from '../../lib/auditItems';
+import { fasePorElemento } from '../../lib/informeRevision';
 import { ReadingText } from './ReadingText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { MascotaFrase } from './MascotaFrase';
@@ -31,13 +38,30 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   const { items, acceptOne, acceptMany, markForReview, isApplying } = useReviewWorkbench();
   const base = useMarkSourceBase();
   const elements = useDocStore((s) => s.doc?.elements ?? []);
+  const autoResolveGhosts = useDocStore((s) => s.autoResolveGhosts);
+  const autoCaptionAll = useDocStore((s) => s.autoCaptionAll);
   const [sub, setSub] = useState<string | 'todas'>('todas');
   const [idx, setIdx] = useState(0);
   const [aceptados, setAceptados] = useState(0);
 
+  /* La fase del foco se resuelve con la MISMA regla que `calificacionPorFase`
+     (REV-L0): un hallazgo que trae su `phase` la conserva, y los de estructura y
+     citas —que `collectAuditItems` emite con `phase: null`— se cuentan en la fase
+     del H1 que los contiene. Filtrar por el `phase` crudo dejaba fuera de la
+     columna abierta exactamente los hallazgos que la columna contaba. La IA no
+     participa de las fases (spec D2): su detalle nunca aparece en un filtro de
+     fase. */
+  const faseDe = useMemo(() => fasePorElemento(elements, items), [elements, items]);
   const delFoco = useMemo(
-    () => items.filter((it) => (foco.motor ? it.category === foco.motor : true) && (foco.phase ? (it.phase ?? 'global') === foco.phase : true)),
-    [items, foco],
+    () =>
+      items.filter((it) => {
+        if (foco.motor && it.category !== foco.motor) return false;
+        if (!foco.phase) return true;
+        if (it.category === 'ai') return false;
+        const fase = it.phase && it.phase !== 'global' ? it.phase : faseDe(it.element_id);
+        return fase === foco.phase;
+      }),
+    [items, foco, faseDe],
   );
   const subtipos = useMemo(() => [...new Set(delFoco.map((it) => it.subtype))], [delFoco]);
   const visibles = sub === 'todas' ? delFoco : delFoco.filter((it) => it.subtype === sub);
@@ -45,7 +69,9 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   const actual = visibles[pos] ?? null;
   const accion = actual ? accionDeItem(actual) : 'none';
   const motor = foco.motor;
-  const aplicables = visibles.filter((it) => !it.readOnly);
+  /* El lote solo incluye lo que `accionDeItem` declara `accept`: un motor
+     objetivo mezcla subtipos corregibles con subtipos que solo se marcan. */
+  const aplicables = visibles.filter((it) => accionDeItem(it) === 'accept');
   const titulo = motor ? ENGINE_META[motor].title : foco.phase ? phaseLabel(foco.phase) : 'Revisión';
   /** Secciones = elementos distintos con hallazgo en el foco (mockup: «en M secciones»). */
   const secciones = useMemo(() => new Set(delFoco.map((it) => it.element_id).filter(Boolean)).size, [delFoco]);
@@ -125,7 +151,19 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
                 </>
               )}
               {accion === 'mark' && <button type="button" onClick={() => markForReview(actual)} style={primario}><Flag size={13} aria-hidden /> Marcar para revisar</button>}
-              {accion === 'none' && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>Solo lectura: la portada se mide, no se escribe.</span>}
+              {accion === 'resolveGhosts' && (
+                <button type="button" onClick={() => void autoResolveGhosts()} style={primario}><Flag size={13} aria-hidden /> {MASS_LABELS.resolveGhosts}</button>
+              )}
+              {accion === 'autoCaption' && (
+                <button type="button" onClick={() => void autoCaptionAll()} style={primario}><Flag size={13} aria-hidden /> {MASS_LABELS.autoCaption}</button>
+              )}
+              {/* `none` sin `readOnly` no es la portada: es un hallazgo sin
+                  corrección automática (referencia huérfana, jerarquía de
+                  encabezado). Se ofrece marcarlo; el texto de «solo lectura»
+                  queda reservado para la portada, que de verdad no se escribe. */}
+              {accion === 'none' && (actual.readOnly
+                ? <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>Solo lectura: la portada se mide, no se escribe.</span>
+                : <button type="button" onClick={() => markForReview(actual)} style={primario}><Flag size={13} aria-hidden /> Marcar para revisar</button>)}
               {actual.suggestedText && <button type="button" onClick={() => copiar(actual.suggestedText!)} style={fantasma}><Copy size={13} aria-hidden /> Copiar</button>}
             </div>
 

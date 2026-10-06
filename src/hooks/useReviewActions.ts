@@ -46,6 +46,12 @@ export interface ReviewActionStore {
    *  contar distinto. */
   dismissFinding: (id: string) => void;
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void;
+  /** Resuelve la acción declarada de un hallazgo. La deriva el hook de
+   *  derivación (`accionDeItem`, con la tabla `SUBTYPE_ACTION`); se recibe por
+   *  parámetro para que ESTA capa —la que escribe— pueda volver a comprobar que
+   *  un lote solo acepta lo aceptable sin importar el módulo de derivación (que
+   *  ya la importa a ella: sería un ciclo). */
+  accionDeItem: (item: AuditItem) => SubtypeAction;
 }
 
 /** El estado de la vista que la capa de efecto muta. El descarte NO vive acá:
@@ -65,7 +71,7 @@ export interface ReviewActions {
 }
 
 export function useReviewActions(store: ReviewActionStore, state: ReviewActionState): ReviewActions {
-  const { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast } = store;
+  const { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast, accionDeItem } = store;
   const { setMarkedIds, setSelectedId } = state;
 
   /* Hay UNA escritura en curso a la vez. `acceptMany` recorre los hallazgos de
@@ -164,7 +170,13 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
 
   const acceptMany = useCallback(
     async (lista: AuditItem[]) => {
-      const targets = lista.filter((i) => i.element_id && aceptaDeIA(i));
+      /* El lote solo acepta lo que la tabla declara `accept`. El filtro de
+         categoría no basta: dentro de un mismo motor objetivo conviven subtipos
+         `accept` (primera persona, verbo Bloom) y `mark` (voz pasiva, palabra
+         repetida), y `aplicar` habría escrito prosa generada en el documento
+         para los segundos. La comprobación se repite acá —y no solo en quien
+         arma la lista— porque esta es la capa que escribe. */
+      const targets = lista.filter((i) => i.element_id && aceptaDeIA(i) && accionDeItem(i) === 'accept');
       if (!targets.length) return;
       await conCerrojo(async () => {
         let ok = 0;
@@ -175,7 +187,7 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
         else showToast('No se pudieron aplicar las correcciones', 'error');
       });
     },
-    [aplicar, conCerrojo, showToast],
+    [aplicar, conCerrojo, showToast, accionDeItem],
   );
 
   const markMany = useCallback(

@@ -276,7 +276,7 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
  * El MECANISMO lo elige `runGroupAction` (autoResolveGhosts, autoCaptionAll,
  * updateElementText); aquí vive solo la palabra.
  */
-const MASS_LABELS: Record<Exclude<SubtypeAction, 'none'>, string> = {
+export const MASS_LABELS: Record<Exclude<SubtypeAction, 'none'>, string> = {
   accept: 'Aceptar todas',
   mark: 'Marcar todos',
   resolveGhosts: 'Resolver citas del documento',
@@ -735,7 +735,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
      quien importa este hook no tiene que saber que ahora hay dos archivos. */
   const { acceptOne, acceptMany, markForReview, runGroupAction, dismiss, isApplying } =
     useReviewActions(
-      { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast },
+      { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast, accionDeItem },
       { setMarkedIds, setSelectedId },
     );
 

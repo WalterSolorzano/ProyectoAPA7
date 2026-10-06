@@ -46,7 +46,17 @@ export const AiSectionDetail: React.FC<AiSectionDetailProps> = ({ fila, paragrap
   /* El panel derecho se resuelve SIEMPRE desde la banda activa: si la selección
      quedó fuera del filtro, cae al primer párrafo visible (índice 0). */
   const parrafo = (sel ? visibles.find((p) => p.elementId === sel) : undefined) ?? visibles[0] ?? null;
-  const detalle = parrafo ? paragraphs[parrafo.index] : null;
+  /* El detalle se resuelve por IDENTIDAD, no por posición. `paragraphs` es la
+     lista COMPACTA del backend (`python/main.py` salta títulos cortos, imágenes,
+     tablas y párrafos de menos de 15 caracteres), mientras `parrafo.index` es el
+     índice del elemento en `doc.elements`. `paragraphs[parrafo.index]` leía otro
+     párrafo —o ninguno— casi siempre. El `index` queda solo como respaldo para un
+     revisor que no haya traído `element_id`. */
+  const detalle = parrafo
+    ? paragraphs.find((p) => p.element_id === parrafo.elementId) ??
+      paragraphs.find((p) => p.index === parrafo.index) ??
+      null
+    : null;
   const contar = (b: IndiceBanda) => fila.parrafos.filter((p) => bandaDe(p.score) === b).length;
 
   return (

@@ -55,8 +55,10 @@ export function calificacionPorFase(
 ): CalificacionFase[] {
   const faseDe = fasePorElemento(elements, items);
   // Se cuentan TODOS los motores objetivos (incluidas las citas), no solo los
-  // cuatro de la matriz de calor: la columna de una fase debe reflejar todo lo
-  // que REV-L1 va a mostrar al abrirla.
+  // cuatro de la matriz de calor: la columna de una fase refleja todo lo que
+  // REV-L1 muestra al abrirla, porque las dos superficies resuelven la fase con
+  // esta MISMA función (`fasePorElemento`): un hallazgo con `phase` propia la
+  // conserva y los de estructura/citas —`phase: null`— caen en la fase de su H1.
   const porFase = new Map<string, number>();
   for (const it of items) {
     if (it.category === 'ai') continue;
