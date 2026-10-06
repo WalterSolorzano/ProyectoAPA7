@@ -7,6 +7,7 @@ from models import CitationModel, CitationType, DocumentModel, ElementType
 
 from parsing.pre_classifier import REGEX_CITATION_NARRATIVA, REGEX_CITATION_PARENTETICA
 from modules.citation_engine import REGEX_ORG_ACRONIMO
+from modules.phase_scope import is_references_title
 
 
 def _normalize_text(text: str) -> str:
@@ -26,6 +27,19 @@ REGEX_ACRONIMO_PARENTETICA = re.compile(
 
 # Palabras que no aportan inicial a una sigla organizacional.
 _STOPWORDS_SIGLA = {"de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "&"}
+
+# Citas encadenadas dentro de un mismo paréntesis: "(García, 2020; López,
+# 2021)". El patrón base de `pre_classifier` ancla el cierre justo tras el año,
+# así que la primera se perdía por el `;` y la segunda por no ir tras el `(`.
+# Y una cita a media frase —"(como recomienda la metodología; Hirano, 1995)"—
+# no empieza tras el `(`, así que también se escapaba.
+_AUTOR_APA = r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+et\s+al\.?)?"
+REGEX_CITA_ANTES_DE_PUNTO_Y_COMA = re.compile(
+    r"\(\s*(" + _AUTOR_APA + r")\s*,\s*(\d{4}[a-z]?)\s*;"
+)
+REGEX_CITA_TRAS_PUNTO_Y_COMA = re.compile(
+    r";\s*(" + _AUTOR_APA + r")\s*,\s*(\d{4}[a-z]?)"
+)
 
 
 def _es_acronimo(texto: str) -> bool:
@@ -99,6 +113,9 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
     citations: List[CitationModel] = []
 
     for elem in doc.elements:
+        if elem.type == ElementType.HEADING and is_references_title(elem.text or ""):
+            break
+
         if elem.type not in (ElementType.PARAGRAPH, ElementType.HEADING, ElementType.BULLET, ElementType.NUMBERED_LIST, ElementType.BLOCK_QUOTE):
             continue
 
@@ -139,6 +156,26 @@ def extract_all_citations(doc: DocumentModel) -> List[CitationModel]:
                     start_offset=match.start(),
                     end_offset=match.end()
                 ))
+
+        # Citas encadenadas y citas a media frase dentro del paréntesis. Se
+        # leen los grupos directamente: el separador (`;` o `(`) no forma parte
+        # del autor, y `_extract_authors_and_year` lo dejaría pegado.
+        for regex in (REGEX_CITA_ANTES_DE_PUNTO_Y_COMA, REGEX_CITA_TRAS_PUNTO_Y_COMA):
+            for match in regex.finditer(text):
+                authors = [
+                    a.strip() for a in re.split(r'\s+(?:y|&)\s+', match.group(1))
+                    if a.strip()
+                ]
+                if authors and match.group(2):
+                    citations.append(CitationModel(
+                        raw_text=match.group(0),
+                        authors=authors,
+                        year=match.group(2),
+                        citation_type=CitationType.PARENTETICA,
+                        element_id=elem.id,
+                        start_offset=match.start(),
+                        end_offset=match.end()
+                    ))
 
         # Siglas parentéticas solas: "(OIT, 2007)". Se salta la que ya forma
         # parte de "Nombre completo (SIGLA, año)".
@@ -210,23 +247,45 @@ def cross_check_citations_and_references(doc: DocumentModel) -> Dict[str, Any]:
 
             ref_authors_norm = [_normalize_text(a) for a in ref.authors]
 
-            # Fuzzy match de primer autor y año
             if not cit_authors_norm:
                 continue
 
-            first_author_cit = cit_authors_norm[0]
-            first_author_ref = ref_authors_norm[0] if ref_authors_norm else ""
+            # La cita matchea si CUALQUIERA de sus autores matchea CUALQUIERA
+            # de los de la ficha: un trabajo de tres autores se cita a veces por
+            # el segundo ("Grandjean", en Kroemer y Grandjean). Mirar solo el
+            # primer apellido marcaba como fantasma una cita que sí tenía ficha.
+            author_match = False
+            for cita_autor in cit_authors_norm:
+                for ref_autor in ref_authors_norm:
+                    if not cita_autor or not ref_autor:
+                        continue
+                    if cita_autor in ref_autor or ref_autor in cita_autor:
+                        author_match = True
+                        break
+                    if SequenceMatcher(None, cita_autor, ref_autor).ratio() > 0.8:
+                        author_match = True
+                        break
+                    # La sigla y el nombre completo de la misma organización son
+                    # el mismo autor ("OIT" ↔ "Organización Internacional del
+                    # Trabajo").
+                    if _acronimo_de_organizacion(cita_autor, ref_autor):
+                        author_match = True
+                        break
+                if author_match:
+                    break
 
-            # Revisar si el primer autor de la cita esta en el primer autor de la ref
-            author_match = (first_author_cit in first_author_ref) or (first_author_ref in first_author_cit)
-            if not author_match and first_author_cit and first_author_ref:
-                ratio = SequenceMatcher(None, first_author_cit, first_author_ref).ratio()
-                if ratio > 0.8:
-                    author_match = True
-            # La sigla y el nombre completo de la misma organización son el
-            # mismo autor ("OIT" ↔ "Organización Internacional del Trabajo").
+            # El nombre citado puede ser el TEMA de la obra, que vive en el
+            # título y no en la lista de autores ("Fisher" en Campbell, 2008).
+            # Si el apellido aparece como palabra completa en el texto de la
+            # ficha y el año coincide, la referencia existe.
             if not author_match:
-                author_match = _acronimo_de_organizacion(first_author_cit, first_author_ref)
+                ref_text_norm = _normalize_text(ref.raw_text or ref.title or "")
+                for cita_autor in cit_authors_norm:
+                    if cita_autor and re.search(
+                        r"(?<![a-z])" + re.escape(cita_autor) + r"(?![a-z])", ref_text_norm
+                    ):
+                        author_match = True
+                        break
 
             year_match = str(cit.year) == str(ref.year)
 

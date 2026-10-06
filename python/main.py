@@ -2287,8 +2287,27 @@ async def validate_citations_endpoint(session_id: str) -> dict:
             # For year mismatch, we can add a new field or just format it as ghost citation
             result['ghost_citations'].extend([iss["message"] for iss in graph_issues if iss["type"] == "year_mismatch"])
 
-            # Deduplicate just in case
-            result['ghost_citations'] = list(set(result['ghost_citations']))
+            # Deduplicate just in case. `set()` a secas revienta con las citas
+            # fantasma que `citation_matcher` devuelve como dict: son
+            # unhashables, y el endpoint solo no caía porque hasta ahora el
+            # cruce base devolvía cero fantasmas en los casos con grafo.
+            vistos = set()
+            deduplicadas = []
+            for fantasma in result['ghost_citations']:
+                if isinstance(fantasma, str):
+                    clave = ('str', fantasma)
+                else:
+                    clave = (
+                        'dict',
+                        fantasma.get('raw_text'),
+                        tuple(fantasma.get('authors') or []),
+                        str(fantasma.get('year') or ''),
+                    )
+                if clave in vistos:
+                    continue
+                vistos.add(clave)
+                deduplicadas.append(fantasma)
+            result['ghost_citations'] = deduplicadas
 
     # Save the doc since we mutated `doc.citas_intext`
     save_session_state(doc, STORAGE_DIR)

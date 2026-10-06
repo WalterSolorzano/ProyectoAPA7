@@ -28,6 +28,27 @@ def _iniciales(texto: str) -> str:
     return "".join(p[0] for p in palabras if p and p not in _STOPWORDS_SIGLA)
 
 
+def _surnames_de_autores(author_part: str) -> List[str]:
+    """Todos los apellidos de una lista de autores APA.
+
+    "Kroemer, K. H. E., & Grandjean, E." -> ["Kroemer", "Grandjean"].
+    Las iniciales ("K. H. E.") se quitan ANTES de partir por comas: su punto
+    partía el nombre y dejaba apellidos falsos. Un apellido compuesto
+    ("Gutiérrez Pulido") o una organización sin comas quedan enteros.
+    """
+    sin_iniciales = re.sub(r'\b[A-ZÁÉÍÓÚÑ]\.(?:\s*[A-ZÁÉÍÓÚÑ]\.)*', ' ', author_part)
+    crudos = re.split(r'\s*(?:&|,|\by\b)\s*', sin_iniciales)
+    surnames: List[str] = []
+    for c in crudos:
+        c = c.strip().strip('.').strip()
+        if not c:
+            continue
+        if _normaliza(c) in _STOPWORDS_SIGLA:
+            continue
+        surnames.append(c)
+    return surnames
+
+
 def build_citation_graph(references: List[str]) -> nx.DiGraph:
     """
     Builds a directed graph representing the bibliographic knowledge base.
@@ -56,27 +77,53 @@ def build_citation_graph(references: List[str]) -> nx.DiGraph:
             # Internacional del Trabajo (OIT). (2007). ...") se descarta: su
             # coma interior partía el nombre en dos y dejaba un autor falso.
             author_part = re.sub(r'\s*\([^)]*\)\s*$', '', author_part).strip()
-            # Extract main surname
-            surname = author_part.split(',')[0].strip().rstrip('.')
+            # TODOS los apellidos, no solo el primero: un trabajo de tres
+            # autores se cita a veces por el segundo, y con un solo nodo esa
+            # cita se reportaba como sin referencia.
+            surnames = _surnames_de_autores(author_part)
             # The rest is work title (after year)
             work = ref_clean[year_match.end():].strip('. ')
         else:
-            surname = "Unknown"
+            surnames = _surnames_de_autores(ref_clean)
             work = ref_clean
 
-        # Add to graph
-        author_node = f"AUTHOR:{surname}"
-        year_node = f"YEAR:{year}_{surname}"
-        work_node = f"WORK:{work[:30]}..."
+        if not surnames:
+            surnames = ["Unknown"]
 
-        G.add_node(author_node, type="author", label=surname)
-        G.add_node(year_node, type="year", label=year)
+        work_node = f"WORK:{work[:30]}..."
         G.add_node(work_node, type="work", original=ref_clean)
 
-        G.add_edge(author_node, year_node)
-        G.add_edge(year_node, work_node)
+        for surname in surnames:
+            author_node = f"AUTHOR:{surname}"
+            year_node = f"YEAR:{year}_{surname}"
+            G.add_node(author_node, type="author", label=surname)
+            G.add_node(year_node, type="year", label=year)
+            G.add_edge(author_node, year_node)
+            G.add_edge(year_node, work_node)
 
     return G
+
+
+def _work_text_has_surname_for_year(graph: nx.DiGraph, surname: str, year: str) -> bool:
+    """¿Alguna obra de ese año menciona el apellido en su texto?
+
+    Cubre el caso en que el nombre citado es el TEMA de la obra y no un autor
+    ("Fisher" en "Campbell, G. (2008). Fisher, Alexander"): la referencia SÍ
+    está en la bibliografía, solo que el apellido vive en el título.
+    """
+    sn = _normaliza(surname)
+    if not sn:
+        return False
+    for node, data in graph.nodes(data=True):
+        if data.get("type") != "work":
+            continue
+        if sn not in _normaliza(data.get("original", "")):
+            continue
+        for pred in graph.predecessors(node):
+            pd = graph.nodes[pred]
+            if pd.get("type") == "year" and pd.get("label") == year:
+                return True
+    return False
 
 def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[Dict[str, str]]:
     """
@@ -99,32 +146,36 @@ def validate_citations_against_graph(doc_text: str, graph: nx.DiGraph) -> List[D
         year = match.group(2) or match.group(3)
 
         author_node = f"AUTHOR:{author_raw}"
+        acro = _normaliza(author_raw)
 
-        if author_node not in graph:
-            acro = _normaliza(author_raw)
-            # Maybe slight mismatch? Check if it exists as substring, by
-            # normalized text, or as the initials of the graph's full name.
-            found = False
+        # El apellido citado se resuelve contra CUALQUIER autor del grafo: una
+        # obra de tres autores se cita a veces por el segundo o el tercero.
+        matched_label = author_raw if author_node in graph else None
+        if matched_label is None:
             for ag in authors_in_graph:
                 label = ag.split('AUTHOR:', 1)[-1]
                 if _normaliza(author_raw) in _normaliza(ag) or _normaliza(label) in _normaliza(author_raw):
-                    found = True
+                    matched_label = label
                     break
                 # "OIT" ↔ "Organización Internacional del Trabajo".
                 if _iniciales(label) == acro:
-                    found = True
+                    matched_label = label
                     break
 
-            if not found:
-                issues.append({
-                    "type": "missing_reference",
-                    "citation": f"{author_raw}, {year}",
-                    "message": f"Cita '{author_raw}' no encontrada en el Grafo de Referencias Bibliográficas."
-                })
+        if matched_label is None:
+            # El nombre citado puede ser el TEMA de la obra, que vive en el
+            # título y no en la lista de autores.
+            if _work_text_has_surname_for_year(graph, author_raw, year):
+                continue
+            issues.append({
+                "type": "missing_reference",
+                "citation": f"{author_raw}, {year}",
+                "message": f"Cita '{author_raw}' no encontrada en el Grafo de Referencias Bibliográficas."
+            })
         else:
             # Author exists, check if year is connected
-            year_node = f"YEAR:{year}_{author_raw}"
-            if year_node not in graph or not graph.has_edge(author_node, year_node):
+            year_node = f"YEAR:{year}_{matched_label}"
+            if year_node not in graph or not graph.has_edge(f"AUTHOR:{matched_label}", year_node):
                 issues.append({
                     "type": "year_mismatch",
                     "citation": f"{author_raw}, {year}",

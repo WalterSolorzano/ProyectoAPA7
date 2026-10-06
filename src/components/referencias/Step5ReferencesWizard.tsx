@@ -6,7 +6,7 @@
    - Badges accionables con tooltip ("Insertar en pág. X").
    - Paleta oficial WordAPA7 (tokens CSS, blanco papel) y cero emojis. */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
@@ -33,6 +33,9 @@ import { ReferenceEditModal } from './ReferenceEditModal';
 import { ReferenciaLinea } from './ReferenciaLinea';
 import { APA_LISTA, APA_ENTRADA } from '../../lib/apaLayout';
 import { formatearReferencia } from '../../lib/apaApi';
+import { getPageGeometry, PT_TO_PX } from '../../lib/pageGeometry';
+import type { PageRules } from '../layout/PaperCanvas';
+import { estimarAltoReferencia, paginarReferencias } from '../../lib/paginarBibliografia';
 
 /** Los tres grupos del catálogo, como pestañas cerradas: una lista a la vez. */
 type GroupTab = 'verificadas' | 'pendientes' | 'texto';
@@ -69,12 +72,118 @@ function porQueDeLaReferencia(
   return 'Nadie la contrastó contra una fuente: tiene los datos, pero su exactitud está sin comprobar.';
 }
 
+/** El texto completo de una entrada, en el mismo orden que la hoja. */
+function textoDeReferencia(r: ReferenciaModel): string {
+  if (r.formatted_apa) return r.formatted_apa;
+  if (r.raw_text) return r.raw_text;
+  return [r.authors?.join(', '), r.year ? `(${r.year})` : '', r.title]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * La bibliografía como la página que va al documento: hojas carta reales.
+ *
+ * Antes era una tarjeta de 720px sin alto de página ni saltos: no se veía ni
+ * que fuera carta ni dónde terminaba una hoja. Aquí cada hoja usa la geometría
+ * del propio documento (`getPageGeometry`: 8.5x11in, margen de 1in, doble
+ * espacio) y el contenido se reparte sin partir una entrada; cuando pasa de una
+ * hoja, el salto se dibuja.
+ */
+const HojaBibliografia: React.FC<{
+  referencias: ReferenciaModel[];
+  rules?: PageRules;
+}> = ({ referencias, rules }) => {
+  const geom = useMemo(() => getPageGeometry(rules || {}), [rules]);
+  const [alturas, setAlturas] = useState<number[]>([]);
+  const medidorRef = useRef<HTMLDivElement | null>(null);
+
+  /* Se miden las entradas de verdad a la anchura útil de la hoja. En las
+     pruebas (jsdom) la medida es 0 y entra la estimación determinista, así que
+     el reparto no depende del navegador. */
+  useLayoutEffect(() => {
+    const nodos = medidorRef.current?.children;
+    if (!nodos || nodos.length === 0) return;
+    setAlturas(
+      Array.from(nodos).map((n) => (n as HTMLElement).getBoundingClientRect().height),
+    );
+  }, [referencias, geom.contentW]);
+
+  const fontPx = PT_TO_PX(rules?.font_size_pt ?? 12);
+  const alturasEfectivas = useMemo(
+    () =>
+      referencias.map((r, i) => {
+        const medida = alturas[i];
+        if (medida && medida > 0) return medida;
+        return estimarAltoReferencia(textoDeReferencia(r), geom.contentW, geom.lineHeightPx, fontPx);
+      }),
+    [referencias, alturas, geom, fontPx],
+  );
+
+  const paginas = useMemo(
+    () => paginarReferencias(referencias, alturasEfectivas, geom.contentH),
+    [referencias, alturasEfectivas, geom.contentH],
+  );
+
+  return (
+    <>
+      {/* Capa de medición: invisible, a la anchura útil real. */}
+      <div
+        ref={medidorRef}
+        aria-hidden="true"
+        style={{
+          position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+          left: '-99999px', top: 0, width: geom.contentW,
+        }}
+      >
+        <div style={{ ...APA_LISTA }}>
+          {referencias.map((r) => <ReferenciaLinea key={r.id} referencia={r} />)}
+        </div>
+      </div>
+
+      {paginas.map((pagina, idx) => (
+        <React.Fragment key={idx}>
+          {idx > 0 && (
+            <div
+              data-testid="salto-de-pagina"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                width: '100%', color: 'var(--color-text-tertiary)',
+                fontSize: 'var(--text-xs)', fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+              }}
+            >
+              <span style={{ flex: 1, height: '1px', background: 'var(--color-border-subtle)' }} />
+              <span>Salto de página</span>
+              <span style={{ flex: 1, height: '1px', background: 'var(--color-border-subtle)' }} />
+            </div>
+          )}
+          <article
+            data-testid="bibliografia-hoja"
+            style={{
+              width: geom.pageW, maxWidth: '100%', minHeight: geom.pageH,
+              boxSizing: 'border-box', padding: geom.marginPx,
+              backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)',
+              border: '1px solid var(--color-border-strong)',
+              borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            <div style={{ ...APA_LISTA }}>
+              {pagina.map((r) => <ReferenciaLinea key={r.id} referencia={r} />)}
+            </div>
+          </article>
+        </React.Fragment>
+      ))}
+    </>
+  );
+};
+
 export const Step5ReferencesWizard: React.FC = () => {
   const {
     doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
     addReference, removeReference, updateReferences, resolveDoiReference, resolveDoisBlock, isLoading,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
-    setScrollTargetId,
+    setScrollTargetId, rules,
   } = useDocStore();
 
   const [doiQuery, setDoiQuery] = useState('');
@@ -773,8 +882,11 @@ export const Step5ReferencesWizard: React.FC = () => {
                referencias de verdad —todas, en orden— como la página que va al
                documento, no un tablero de cifras. Elegir una en la lista enfoca
                esa sola y el estado del lienzo cambia a la ficha. */
-            <div style={{ maxWidth: '720px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)' }}>
+            <div
+              data-testid="bibliografia-completa"
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)' }}
+            >
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', alignSelf: 'flex-start' }}>
                 Bibliografía completa
               </span>
 
@@ -789,20 +901,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                   }
                 />
               ) : (
-                <article
-                  data-testid="bibliografia-completa"
-                  style={{
-                    backgroundColor: 'var(--paper-white)', color: 'var(--paper-ink)',
-                    borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)',
-                    boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
-                  }}
-                >
-                  <div style={{ ...APA_LISTA }}>
-                    {referenciasOrdenadas.map((refItem) => (
-                      <ReferenciaLinea key={refItem.id} referencia={refItem} />
-                    ))}
-                  </div>
-                </article>
+                <HojaBibliografia referencias={referenciasOrdenadas} rules={rules} />
               )}
             </div>
           ) : (
