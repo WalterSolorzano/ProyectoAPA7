@@ -8,6 +8,7 @@ import { reviewItems, type AuditItem, type EngineId } from '../../lib/auditItems
 import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
 import { RevisionRoom } from '../review/RevisionRoom';
+import { RevisionDetail } from '../review/RevisionDetail';
 import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
 import { AiDocumentPreview } from '../review/AiDocumentPreview';
@@ -171,6 +172,14 @@ export const Step5AuditIAWizard: React.FC = () => {
           onOpenObjetivos={() => setPantalla('rev-l2')}
           onBack={volverAPuerta}
         />
+      </div>
+    );
+  }
+
+  if (pantalla === 'rev-l1' && foco) {
+    return (
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+        <RevisionDetail foco={foco} onBack={() => setPantalla('rev-l0')} />
       </div>
     );
   }
