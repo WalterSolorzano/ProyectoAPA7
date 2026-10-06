@@ -204,6 +204,17 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
 El instalador generado se guardará en `dist-electron-builder/WordAPA7 Setup X.X.X.exe`.
 
+### 6. Servidor MCP y CLI sin tokens
+
+WordAPA7 expone un servidor MCP (`python/mcp_server.py`, transporte stdio) para que asistentes de IA generen `.docx` APA 7 vía herramientas, y un CLI local sin dependencias de IA:
+
+```bash
+cd python
+python -m content payload.json -o salida.docx --no-com
+```
+
+Registro en clientes MCP con `PYTHONPATH`, descripción de herramientas y formato del payload: ver [docs/MCP.md](docs/MCP.md). Plantilla lista para copiar: `mcp.example.json`.
+
 ---
 
 ## 🛡️ Seguridad y Privacidad

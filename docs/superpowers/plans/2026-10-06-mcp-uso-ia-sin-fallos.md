@@ -24,7 +24,7 @@ El MCP `wordapa7-content` (`python/mcp_server.py`) es una superficie **JSON-only
 | G5 | `cover_mode` **no expuesto** en MetaSpec/builder/spec/MCP | `content/schema.py:8-16`, `content/builder.py:143-149`, `spec_dsl.py:41-49` | Portada UNI inalcanzable por API |
 | G6 | Generator **fuerza APA** si no hay `original.docx` | `generation/generator.py:962-963` | Aun con G5, sin original no hay UNI |
 | G7 | MCP **no registrable**: sin `mcp.json`, `mcp` fuera de `requirements`, falta PYTHONPATH | `mcp_server.py:46-47`; docs solo en plan | "usable con IA" falla al instalar |
-| G8 | CLI documentado **no existe** | docs: `python -m content.build`; real: `python -m content` (`content/__main__.py:12`) | Comando documentado revienta |
+| G8 | CLI documentado **no existe** | docs decían un módulo inexistente; real: `python -m content` (`content/__main__.py:12`) | Comando documentado revienta |
 | G9 | Installer **solo trae el add-in de Word** | `build/installer.nsh`, `electron-builder.yml` | MCP/CLI no descargables |
 | G10 | `/api/generate` **exige COM (Word)** | `main.py:2036-2041` | "sin fallos" falso sin Word |
 
@@ -94,7 +94,7 @@ Archivos: `build/installer.nsh`, `electron-builder.yml`, `requirements.txt`, doc
 
 - Empaquetar MCP + CLI en el installer; `mcp` como dependencia opcional documentada.
 - Ejemplo de registro `mcpServers` con comando exacto y `PYTHONPATH`.
-- Corregir docs CLI: `python -m content.build` → `python -m content`.
+- Corregir docs CLI: uso correcto `python -m content`.
 - Documentar el camino sin Word (`--no-com`).
 
 ### F5 — Verificación end-to-end

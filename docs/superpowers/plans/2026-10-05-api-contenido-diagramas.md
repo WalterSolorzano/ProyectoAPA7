@@ -1263,7 +1263,7 @@ cmd /c git commit -m "feat(api-contenido): endpoint REST POST /api/content/build
 
 **Interfaces:**
 - Consumes: `build_content_document` (Task 5), `emit_docx` (Task 6).
-- Produces: `python -m content.build payload.json -o salida.docx` (equivalente `python -m content`), exit code 0 en éxito, 2 si el archivo de entrada no existe, 1 si falla el parseo JSON. Imprime la ruta final.
+- Produces: `python -m content payload.json -o salida.docx`, exit code 0 en éxito, 2 si el archivo de entrada no existe, 1 si falla el parseo JSON. Imprime la ruta final.
 
 - [ ] **Step 1: Write the failing test**
 

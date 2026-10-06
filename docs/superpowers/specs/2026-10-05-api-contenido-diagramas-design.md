@@ -201,7 +201,7 @@ conserva como salida de preview del MCP y, si algún día se quiere, para el fro
   `_artifact_url` (`main.py:214`) y `_write_export_manifest` (`:205`).
 - **MCP** `python/mcp_server.py`: tools `content_schema()`, `build_document(payload)`,
   `render_diagram(kind, dsl, style)` (devuelve SVG/PNG de preview), `list_styles()`.
-- **CLI** `python -m content.build payload.json -o salida.docx`.
+- **CLI** `python -m content payload.json -o salida.docx`.
 
 Los tres llaman a `content.builder` + `content.emit`; ninguno reimplementa formato.
 
@@ -403,7 +403,7 @@ Reglas de error (todas producen `warnings`, nunca excepción):
 
 **Comportamiento**
 
-- `python -m content.build payload.json -o salida.docx [--no-com]`.
+- `python -m content payload.json -o salida.docx [--no-com]`.
 - `--no-com` fuerza emisión pura (útil en CI/headless).
 
 **Archivos**
