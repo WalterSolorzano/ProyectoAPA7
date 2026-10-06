@@ -41,6 +41,12 @@ export const Step5AuditIAWizard: React.FC = () => {
      sin filtro. */
   const [foco, setFoco] = useState<FocoRevision | null>(null);
 
+  /* Estado de la Sala de IA: L0 (tablero general), L1 (detalle de un H1) y la
+     vista previa del documento. Vive acá porque el nivel reemplaza a la sala
+     completa al navegar, y volver a la puerta lo limpia. */
+  const [iaNivel, setIaNivel] = useState<'l0' | 'l1' | 'preview'>('l0');
+  const [iaH1, setIaH1] = useState<string | null>(null);
+
   const volverAPuerta = () => {
     setFoco(null);
     setPantalla('gate');
@@ -113,9 +119,8 @@ export const Step5AuditIAWizard: React.FC = () => {
         <AiRoom
           reviewResult={reviewResult}
           elements={elements}
-          aiItems={aiItems}
-          onMark={(id) => handleMark({ element_id: id } as AuditItem)}
-          onReplace={handleReplace}
+          onOpenSection={(id) => { setIaH1(id); setIaNivel('l1'); }}
+          onOpenPreview={() => setIaNivel('preview')}
           onExit={volverAPuerta}
         />
       </div>
