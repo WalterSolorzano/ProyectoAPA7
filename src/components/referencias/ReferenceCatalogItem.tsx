@@ -61,11 +61,12 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         }}
         className={`card-source ${active ? 'active' : ''} ${className}`.trim()}
         style={{
-          /* SIN CAJA. Ni radio, ni fondo, ni sombra, ni relleno lateral: una fila
-             de lista, no una tarjeta. La caja dentro de caja fue el defecto que
-             se retiró dos veces; si reaparece el `borderRadius`, reaparece. */
-          padding: '7px 8px',
-          borderRadius: 0,
+          padding: '10px 12px',
+          borderRadius: 'var(--radius-md)',
+          /* Sin caja en reposo: la lista respira y solo el elemento activo lleva
+             caja de acento. El hover insinúa una fila —borde izquierdo tenue—
+             sin convertir cada renglón en una tarjeta; el contenedor de tarjetas
+             dentro de tarjetas fue justo lo que se retiró. */
           border: 'none',
           borderLeft: active
             ? '2px solid var(--color-accent)'
@@ -78,8 +79,8 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             : 'transparent',
           cursor: 'pointer',
           position: 'relative',
-          overflow: 'visible',
-          transition: 'border-color var(--transition-fast), background-color var(--transition-fast)',
+          overflow: 'hidden',
+          transition: 'border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast)',
           ...style,
         }}
       >
@@ -136,39 +137,39 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
             {mainAuthor} ({yearText})
           </span>
 
-          {/* MARCA DE ESTADO NEUTRA. Antes era una pastilla verde "Verificada" o
-              ámbar "Sin citar": dos colores de estado que competían con el acento
-              del elemento activo y pintaban la lista de semáforo. El estado se
-              dice en palabras, con un icono tenue del mismo gris que el texto
-              secundario —sin relleno, sin color de estado—, y la distinción de
-              grupo ya la hace el encabezado. */}
           {isVerified ? (
             <span
               style={{
                 fontSize: '10px',
                 fontWeight: 700,
-                color: 'var(--color-text-tertiary)',
+                padding: '2px 7px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-success-a12)',
+                color: 'var(--color-success)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
-                flexShrink: 0,
               }}
             >
-              <CheckCircle2 size={11} strokeWidth="var(--icon-stroke)" aria-label="Verificada" />
+              <CheckCircle2 size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+              <span>Verificada</span>
             </span>
           ) : esHuerfana ? (
             <span
               style={{
                 fontSize: '10px',
                 fontWeight: 700,
-                color: 'var(--color-text-tertiary)',
+                padding: '2px 7px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: 'var(--color-warning-a12)',
+                color: 'var(--color-warning)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
-                flexShrink: 0,
               }}
             >
-              <AlertTriangle size={11} strokeWidth="var(--icon-stroke)" aria-label="Sin citar" />
+              <AlertTriangle size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+              <span>Sin citar</span>
             </span>
           ) : null}
         </div>

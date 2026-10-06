@@ -126,7 +126,7 @@ describe('ReferenceCatalogItem', () => {
       />
     );
 
-    expect(screen.getByLabelText(/Verificada/i)).toBeDefined();
+    expect(screen.getByText(/Verificada/i)).toBeDefined();
     expect(screen.getByText(/3 menciones/i)).toBeDefined();
     expect(screen.getByText(/DOI/i)).toBeDefined();
   });
@@ -149,7 +149,7 @@ describe('ReferenceCatalogItem', () => {
       />
     );
 
-    expect(screen.getByLabelText(/Sin citar/i)).toBeDefined();
+    expect(screen.getByText(/Sin citar/i)).toBeDefined();
   });
 
   /* La auditoría es la única verdad de "sin citar"/"menciones". El modelo que
