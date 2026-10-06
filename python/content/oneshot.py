@@ -35,15 +35,16 @@ def _blank_document(sid: str, title: str = "") -> DocumentModel:
     return doc
 
 
-def _apply_cover(doc: DocumentModel, cover_mode: str) -> None:
-    """Fija el modo de portada en ``doc.portada`` (dict)."""
-    if not cover_mode:
-        return
+def _apply_cover(doc: DocumentModel, cover_mode: str, title: str = "") -> None:
+    """Fija el modo de portada y, si se indica, el titulo en ``doc.portada``."""
     data = dict(doc.portada or {})
-    data["cover_mode"] = cover_mode
-    # Un modo que GENERA portada nunca conserva la original.
-    if cover_mode not in MODOS_QUE_CONSERVAN:
-        data["use_original_cover"] = False
+    if cover_mode:
+        data["cover_mode"] = cover_mode
+        # Un modo que GENERA portada nunca conserva la original.
+        if cover_mode not in MODOS_QUE_CONSERVAN:
+            data["use_original_cover"] = False
+    if title:
+        data["title"] = title
     doc.portada = data
 
 
@@ -113,7 +114,7 @@ def build_from_files(
     else:
         doc = _blank_document(sid, title)
 
-    _apply_cover(doc, cover_mode)
+    _apply_cover(doc, cover_mode, title)
 
     if xlsx_path:
         warnings.extend(
