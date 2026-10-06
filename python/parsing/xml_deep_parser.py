@@ -177,6 +177,10 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
     import re
     members: List[dict] = []
     current: dict = {}
+    # Último miembro ya agregado. En portadas con columnas, el carnet o el
+    # grupo suelen venir en un textbox SEPARADO de su nombre; sin esta
+    # referencia se descartaban (4 de 5 carnets perdidos).
+    last_member: dict | None = None
 
     for text in textbox_texts:
         t = text.strip()
@@ -210,7 +214,9 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
                 if current.get('name'):
                     members.append(current)
                     current = {}
-                members.append({'name': name, 'id': cid, 'role': 'br.', 'group': ''})
+                new_member = {'name': name, 'id': cid, 'role': 'br.', 'group': ''}
+                members.append(new_member)
+                last_member = new_member
             current = {}
             continue
 
@@ -223,7 +229,9 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             if current.get('name'):
                 members.append(current)
                 current = {}
-            members.append({'name': tutor_name, 'id': '', 'role': 'tutor', 'group': ''})
+            new_member = {'name': tutor_name, 'id': '', 'role': 'tutor', 'group': ''}
+            members.append(new_member)
+            last_member = new_member
             current = {}
             continue
 
@@ -232,17 +240,29 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             if current.get('name'):
                 members.append(current)
                 current = {}
-            # Es un tutor/docente - guardar separadamente
-            members.append({'name': t, 'id': '', 'role': 'tutor', 'group': ''})
+            # Es un tutor/docente - guardar separadamente, extrayendo grupo si viene pegado
+            tutor_str = t
+            tutor_group = ''
+            m_grp = re.search(r'\bgrupo\s*:\s*([^,\n]+)', t, re.IGNORECASE)
+            if m_grp:
+                tutor_group = m_grp.group(1).strip()
+                tutor_str = t[:m_grp.start()].strip()
+            members_new = {'name': tutor_str, 'id': '', 'role': 'tutor', 'group': tutor_group}
+            members.append(members_new)
+            last_member = members_new
             current = {}
 
         # Detectar "Carnet: XXXX" o número de carnet
         elif 'carnet:' in t_lower:
             import re as _re2
-            _m_id = _re2.search(r'\d{4}-\d{2,6}', t)
-            carnet_val = _m_id.group(0) if _m_id else (t.split(':', 1)[-1].strip() if ':' in t else t)
+            _m_id = _re2.search(r'\d{4}[-.]\d{2,6}[A-Za-z]?', t)
+            carnet_val = _m_id.group(0).replace('.', '-') if _m_id else (t.split(':', 1)[-1].strip() if ':' in t else t)
             if current.get('name') and not current['name'].startswith(('ing.', 'm.sc.', 'dr.')):
                 current['id'] = carnet_val
+            elif last_member is not None and last_member.get('role') == 'br.' and not last_member.get('id'):
+                # El carnet viene en su propio textbox, justo después del
+                # nombre: pegarlo al último estudiante en vez de descartarlo.
+                last_member['id'] = carnet_val
             else:
                 # Si no hay nombre actual, guardar como suplemento
                 current['carnet_raw'] = carnet_val
@@ -252,6 +272,10 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             group_val = t.split(':', 1)[-1].strip() if ':' in t else t
             if current.get('name'):
                 current['group'] = group_val
+            elif last_member is not None and not last_member.get('group'):
+                # "Grupo: X" suele venir en su propio textbox, tras el docente
+                # o el último integrante: pegarlo al miembro previo.
+                last_member['group'] = group_val
             else:
                 current = {'name': '', 'id': '', 'role': '', 'group': group_val}
 
@@ -262,6 +286,7 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
                 members.append(current)
             members.append({'name': t, 'id': '', 'role': 'date', 'group': ''})
             current = {}
+            last_member = None
 
         else:
             # Texto sin clasificar - puede ser continuación del nombre
@@ -270,6 +295,7 @@ def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
             elif current.get('name'):
                 members.append(current)
                 current = {}
+            last_member = None
 
     # Finalizar último miembro
     if current.get('name'):

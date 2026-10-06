@@ -445,6 +445,11 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
             tutor_names = [m['name'] for m in tutor_members if m.get('name')]
             if tutor_names:
                 fields["instructor"] = _normalize_multiline_field("\n".join(tutor_names))
+            # Si el tutor traía grupo y no teníamos grupo asignado
+            for m in tutor_members:
+                if m.get('group') and not fields.get('grupo'):
+                    fields['grupo'] = m['group']
+                    break
 
         # Si ya tenemos miembros, quitar esos textos de 'cleaned' para no re-asignarlos
         used_texts = set()
@@ -699,10 +704,14 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
                     txt_lower = txt.lower()
                     if any(kw in txt_lower for kw in ["universidad", "facultad", "escuela", "instituto"]):
                         fields["institution"] = txt
-                    elif (len(txt.split()) <= 15
-                          and not any(kw in txt_lower for kw in ["universidad", "facultad", "elaborado por", "tutor", "carnet", "br."])
-                          and not txt_lower.startswith("area de")):
-                        if e.alignment == "center" or e.is_bold or (e.font_size and e.font_size >= 14):
+                    elif (len(txt.split()) <= 45
+                          and not any(kw in txt_lower for kw in [
+                              "universidad", "facultad", "elaborado por", "tutor", "carnet", "br.",
+                              "ing.", "dr.", "dra.", "lic.", "m.sc.", "mgtr.", "docente", "profesor",
+                              "asesor", "grupo", "managua", "nicaragua"
+                          ])
+                          and not txt_lower.startswith(("area de", "área de", "recinto", "proyecto de"))):
+                        if e.alignment == "center" or e.is_bold or (e.font_size and e.font_size >= 13):
                             if not fields.get("title") or len(txt) > len(fields["title"]):
                                 fields["title"] = txt
                 return fields
@@ -713,9 +722,14 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
         return fields
 
     # --- Institucion ---
+    INST_KEYWORDS = [
+        "universidad", "facultad", "escuela", "instituto", "colegio",
+        "área de conocimiento", "area de conocimiento", "departamento",
+        "recinto", "unan", "uni"
+    ]
     for e in cover_elems:
         txt = e.text.strip()
-        if any(kw in txt.lower() for kw in ["universidad", "facultad", "escuela", "instituto"]):
+        if any(kw in txt.lower() for kw in INST_KEYWORDS):
             fields["institution"] = txt
             break
 
@@ -725,9 +739,9 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
         txt = e.text.strip()
         txt_lower = txt.lower()
         if (2 <= len(txt.split()) <= 20
-                and not any(kw in txt_lower for kw in ["universidad", "facultad", "elaborado por", "tutor", "carnet", "br.", "ing.", "grupo:", "proyecto de", "area de"])
+                and not any(kw in txt_lower for kw in ["universidad", "facultad", "elaborado por", "tutor", "carnet", "br.", "ing.", "grupo:", "proyecto de", "area de conocimiento", "área de conocimiento"])
                 and not txt_lower.startswith(("managua", "nicaragua"))):
-            if e.alignment == "center" or (e.font_size and e.font_size >= 14):
+            if e.alignment == "center" or e.is_bold or (e.font_size and e.font_size >= 13):
                 title_candidates.append((len(txt), txt))
     if title_candidates:
         # Elegir el mas largo (tipicamente el titulo real)
@@ -735,34 +749,46 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
         fields["title"] = title_candidates[0][1]
 
     # --- Autor/es y Tutor (desde parrafos, con manejo de texto concatenado) ---
-    # Los parrafos pueden tener texto concatenado porque python-docx incluye
-    # texto de shapes/textboxes dentro del parrafo.
-    # Estrategia: buscar patrones "Br." y "Carnet:" para dividir.
     autores = []
     tutor = ""
     for e in cover_elems:
         txt = e.text.strip()
         txt_lower = txt.lower()
 
-        # Detectar si el texto contiene multiple "Br." -> dividir
-        br_matches = list(re.finditer(r'\bBr\.\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+', txt))
+        # Detectar si el texto contiene multiple "Br." (insensible a mayúsculas) -> dividir
+        br_matches = list(re.finditer(r'\bBr\.\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+)+', txt, re.IGNORECASE))
         if len(br_matches) >= 1:
             for m in br_matches:
                 member_text = m.group(0).strip()
                 # Buscar carnet cercano
-                carnet_match = re.search(r'Carnet:\s*(\S+)', txt[m.end():m.end()+100])
+                carnet_match = re.search(r'Carnet:\s*(\S+)', txt[m.end():m.end()+100], re.IGNORECASE)
                 if carnet_match:
                     member_text += f" | Carnet: {carnet_match.group(1)}"
                 autores.append(member_text)
-        elif "elaborado por" in txt_lower:
-            pass  # No extraer como autor (es cabecera)
+        elif txt_lower == "elaborado por" or txt_lower.startswith("elaborado por:"):
+            # Si en la misma línea viene contenido además de "Elaborado por:"
+            resto = re.sub(r'^\s*elaborado\s+por\s*:?\s*', '', txt, flags=re.IGNORECASE).strip()
+            if resto and ("br." in resto.lower() or "carnet:" in resto.lower()):
+                autores.append(resto)
         elif "tutor" in txt_lower or "docente" in txt_lower or "profesor" in txt_lower or "asesor" in txt_lower:
             m_tut = re.sub(r'^\s*(?:docente|tutor(?:a)?|profesor(?:a)?|asesor(?:a)?)\b\s*:?\s*', '', txt, flags=re.IGNORECASE).strip()
-            tutor = m_tut or txt
+            # Si trae grupo incluido en la misma línea
+            m_grp = re.search(r'\bgrupo\s*:\s*([^,\n]+)', m_tut or txt, re.IGNORECASE)
+            if m_grp and not fields.get("grupo"):
+                fields["grupo"] = m_grp.group(1).strip()
+                tutor = (m_tut or txt)[:m_grp.start()].strip()
+            else:
+                tutor = m_tut or txt
         elif "br." in txt_lower or "carnet:" in txt_lower:
             autores.append(txt)
-        elif "ing." in txt_lower or "dr." in txt_lower or "lic." in txt_lower:
-            tutor = txt
+        elif "ing." in txt_lower or "dr." in txt_lower or "lic." in txt_lower or "msc." in txt_lower:
+            # Es docente/tutor
+            m_grp = re.search(r'\bgrupo\s*:\s*([^,\n]+)', txt, re.IGNORECASE)
+            if m_grp and not fields.get("grupo"):
+                fields["grupo"] = m_grp.group(1).strip()
+                tutor = txt[:m_grp.start()].strip()
+            else:
+                tutor = txt
 
     if autores:
         fields["author"] = _normalize_multiline_field("\n".join(autores))
@@ -1002,8 +1028,41 @@ def parse_docx_bytes(
 
         # --- CASO A: PARRAFO (<w:p>) ---
         if tag.endswith("p"):
-            element_counter += 1
             p = docx.text.paragraph.Paragraph(child, doc)
+
+            # Detectar si este párrafo contiene múltiples textboxes/shapes independientes con contenido
+            # (típico en portadas con cajas flotantes de autores y docentes).
+            # En ese caso, separamos cada textbox en un sub-elemento para no aplastar al docente con el autor.
+            choice_runs_with_text: list[tuple[str, list[int]]] = []
+            runs_in_p = child.findall(f'.//{{{W_NS}}}r')
+            for r_el in runs_in_p:
+                if any(x.tag.endswith('txbxContent') for x in r_el.iter()):
+                    r_text, r_fns = _extract_paragraph_text_with_footnotes(r_el)
+                    if r_text and r_text.strip():
+                        choice_runs_with_text.append((r_text.strip(), r_fns))
+
+            if len(choice_runs_with_text) > 1:
+                # Emitir cada textbox como su propio elemento de párrafo
+                for tb_text, tb_fns in choice_runs_with_text:
+                    element_counter += 1
+                    elem_tb = ElementModel(
+                        id=f"elem_{element_counter}",
+                        type=ElementType.PARAGRAPH,
+                        text=tb_text,
+                        original_text=tb_text,
+                        style_name=p.style.name if p.style else "Normal",
+                        alignment="center",
+                        font_name="Times New Roman",
+                        font_size=12.0,
+                        is_bold=False,
+                        is_italic=False,
+                        confidence=0.5,
+                        footnote_ids=tb_fns,
+                    )
+                    elements.append(elem_tb)
+                continue
+
+            element_counter += 1
             # Extracción de texto propia que respeta Track Changes (omite w:del,
             # incluye w:ins) y preserva la posición de las notas al pie.
             raw_text, footnote_ids = _extract_paragraph_text_with_footnotes(child)
@@ -1656,6 +1715,28 @@ def parse_docx_bytes(
     if not inferred_portada_fields or not inferred_portada_fields.get("title"):
         para_fields = _infer_portada_from_paragraphs(elements, textbox_texts if textbox_has_content else None)
         inferred_portada_fields = {**para_fields, **inferred_portada_fields}
+
+    # La fecha de portada suele ser un párrafo normal (no un textbox): si las
+    # inferencias anteriores no la capturaron, buscarla en los primeros
+    # elementos del documento.
+    if not inferred_portada_fields.get("date"):
+        _date_pats = [
+            re.compile(r'\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b[^\d]{0,15}(20\d{2})\b', re.IGNORECASE),
+            re.compile(r'\b(20\d{2})\b'),
+        ]
+        _body_kws = ("resumen", "abstract", "introduccion", "introducción", "indice", "índice", "marco teorico", "marco teórico", "metodolog", "conclusiones", "referencias", "bibliograf")
+        # `elements` aún incluye párrafos vacíos (se filtran al final), así que
+        # la fecha puede estar bastante después del índice 20; recorremos hasta
+        # topar el inicio del cuerpo.
+        for _e in elements[:80]:
+            _etxt = (_e.text or "").strip()
+            if _etxt.lower().startswith(_body_kws):
+                break
+            if not _etxt or re.search(r'\d{4}[-.]\d{2,6}', _etxt):
+                continue
+            if any(_p.search(_etxt) for _p in _date_pats):
+                inferred_portada_fields["date"] = _etxt
+                break
 
     # Detectar inicio del cuerpo usando el parser ultra-rápido en memoria C-binding
     # (evita recorrer todos los elementos extraídos y regex lento)

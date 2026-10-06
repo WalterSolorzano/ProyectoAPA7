@@ -57,6 +57,19 @@ const campoDeInstitucion = () => screen.getByPlaceholderText('Universidad o inst
 const chipDeCarrera = (label: string) =>
   screen.getAllByRole('button').find((b) => (b.textContent || '').trim() === label)!;
 
+/* El editor ahora agrupa todo en secciones plegables y arranca cerrado: para
+   llegar a los chips hay que abrir "Institución y carrera" y, cuando el campo
+   está vacío, pedir explícitamente el control con "Agregar institución /
+   carrera". Esto NO cambia lo que el archivo prueba —que el estado de selección
+   es de un solo valor—, solo el camino para llegar a él. */
+const abrirInstitucionYCarrera = () => {
+  fireEvent.click(screen.getByRole('button', { name: /Institución y carrera/i }));
+  const agregarInstitucion = screen.queryByRole('button', { name: /Agregar institución/i });
+  if (agregarInstitucion) fireEvent.click(agregarInstitucion);
+  const agregarCarrera = screen.queryByRole('button', { name: /Agregar carrera/i });
+  if (agregarCarrera) fireEvent.click(agregarCarrera);
+};
+
 const montarPanel = (institution = '') => {
   useDocStore.setState({
     portada: { ...defaultPortada, institution },
@@ -65,7 +78,9 @@ const montarPanel = (institution = '') => {
     wizardStep: 1,
   } as never);
   useRosterStore.setState({ integrantes: [], profesores: [], grupos: [] } as never);
-  return render(<CoverEditorPanel />);
+  const rendered = render(<CoverEditorPanel />);
+  abrirInstitucionYCarrera();
+  return rendered;
 };
 
 describe('seleccion de institucion', () => {
@@ -208,10 +223,19 @@ describe('el formulario se agrupa en secciones plegables', () => {
     expect(screen.getByPlaceholderText('Nombre de la asignatura')).toBeTruthy();
   });
 
-  it('la institución y la carrera arrancan abiertas: son el trabajo del paso', () => {
-    montarPanel();
+  it('la institución y la carrera arrancan cerradas y se abren con su disparador', () => {
+    /* Antes arrancaban abiertas porque eran "el trabajo del paso". El usuario
+       pidió que TODO arranque cerrado: el editor deja de ser un muro de campos y
+       el que sabe qué falta lo abre. */
+    useDocStore.setState({ portada: { ...defaultPortada }, acta: { ...defaultActa } } as never);
+    render(<CoverEditorPanel />);
     const disparador = screen.getByRole('button', { name: /Institución y carrera/i });
+    expect(disparador.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByPlaceholderText('Universidad o institución')).toBeNull();
+
+    fireEvent.click(disparador);
     expect(disparador.getAttribute('aria-expanded')).toBe('true');
-    expect(chipUNI()).toBeTruthy();
+    // Y con el campo vacío, el control se pide: no se dibuja solo.
+    expect(screen.getByRole('button', { name: /Agregar institución/i })).toBeTruthy();
   });
 });

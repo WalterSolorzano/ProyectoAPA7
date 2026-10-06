@@ -34,6 +34,51 @@ def _w(tag: str) -> str:
     return f"{{{_W}}}{tag}"
 
 
+def _paragraph_index_of_body_start(
+    docx_path: str | Path,
+    doc_model: Any,
+    first_body_idx: Optional[int],
+) -> Optional[int]:
+    """Índice de PÁRRAFO (python-docx) del primer párrafo del cuerpo.
+
+    `portada["body_start_paragraph_idx"]` se consume como índice de
+    `doc.paragraphs` (generator borra `doc.paragraphs[:idx]`; inplace_editor
+    protege ese prefijo). Por eso NO sirve reutilizar ni el índice de elemento
+    filtrado ni el nodo XML: hay que ubicar el párrafo real. Un valor inflado
+    aquí borraba el cuerpo entero al regenerar la portada.
+    """
+    try:
+        import docx  # python-docx
+        d = docx.Document(str(docx_path))
+    except Exception:
+        return None
+
+    paras = d.paragraphs
+
+    # 1) Anclar en el texto del primer elemento de cuerpo detectado por keyword.
+    target = ""
+    if first_body_idx is not None and 0 <= first_body_idx < len(doc_model.elements):
+        target = (doc_model.elements[first_body_idx].text or "").strip()
+    target_norm = re.sub(r"\s+", " ", target).strip().lower()
+    if target_norm:
+        for i, p in enumerate(paras):
+            if re.sub(r"\s+", " ", (p.text or "").strip()).lower() == target_norm:
+                return i
+
+    # 2) Fallback: primer Heading/Título real o párrafo largo/cita.
+    for i, p in enumerate(paras[:80]):
+        if i == 0:
+            continue
+        txt = (p.text or "").strip()
+        style = (p.style.name or "").lower() if p.style is not None else ""
+        if "heading" in style or "título" in style or "titulo" in style:
+            return i
+        if len(txt) > 180 or re.search(r"\([A-Z][^)]{2,40},\s*(19|20)\d{2}\)", txt):
+            return i
+
+    return None
+
+
 def detect_cover_ooxml(doc_model: Any, docx_path: str | Path) -> Dict[str, Any]:
     """
     Detecta la portada en el .docx sin usar COM/Word.
@@ -75,11 +120,11 @@ def detect_cover_ooxml(doc_model: Any, docx_path: str | Path) -> Dict[str, Any]:
     # Actualizar el modelo
     if doc_model.portada is None:
         doc_model.portada = {}
-    doc_model.portada["body_start_paragraph_idx"] = effective_end
     doc_model.portada["cover_ooxml_detected"] = True
     doc_model.portada["cover_ooxml_method"] = diag.get("method", "ooxml")
 
-    # Marcar elementos is_cover_section
+    # Marcar elementos is_cover_section (effective_end vive en espacio de
+    # ELEMENTO filtrado)
     corrected = 0
     body_start_kws = ("resumen", "abstract", "introduccion", "introducción", "indice", "índice", "tabla de contenido", "desarrollo", "marco teorico", "conclusiones", "justificacion", "antecedentes", "objetivo")
     first_body_idx = None
@@ -95,6 +140,15 @@ def detect_cover_ooxml(doc_model: Any, docx_path: str | Path) -> Dict[str, Any]:
 
     if first_body_idx is not None and effective_end > first_body_idx:
         effective_end = first_body_idx
+
+    # body_start_paragraph_idx se consume como índice de doc.paragraphs, así
+    # que debe guardarse en espacio de PÁRRAFO (no de elemento/nodo XML).
+    # Guardar el índice de elemento borraba el cuerpo al regenerar la portada.
+    para_start = _paragraph_index_of_body_start(docx_path, doc_model, first_body_idx)
+    if para_start is None or para_start <= 0:
+        para_start = existing_start if (existing_start and existing_start > 0) else effective_end
+    doc_model.portada["body_start_paragraph_idx"] = para_start
+    doc_model.portada["body_start_source"] = "ooxml_paragraph"
 
     for i, elem in enumerate(doc_model.elements):
         if first_body_idx is not None and i >= first_body_idx:
@@ -116,6 +170,7 @@ def detect_cover_ooxml(doc_model: Any, docx_path: str | Path) -> Dict[str, Any]:
 
     diag["cover_corrected"] = True
     diag["cover_new_start"] = effective_end
+    diag["cover_body_paragraph"] = para_start
     diag["cover_elements_corrected"] = corrected
     return diag
 

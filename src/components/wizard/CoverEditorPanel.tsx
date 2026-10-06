@@ -18,7 +18,7 @@ import { useDocStore } from '../../store/useDocStore';
 import { useRosterStore } from '../../store/useRosterStore';
 import {
   School, FileText, Check, ChevronRight, ChevronDown, Users, Calendar,
-  GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical, Search,
+  GraduationCap, X, Hash, Cpu, Laptop, Building2, Factory, FlaskConical, Search, Plus,
 } from 'lucide-react';
 import {
   CATALOGO_DE_CARRERAS as CARRERAS_PRESETS,
@@ -153,6 +153,17 @@ const removeBtn: React.CSSProperties = {
   color: 'var(--color-text-secondary)', padding: 0, flexShrink: 0,
 };
 
+/* Afirmación para un dato que el sistema NO conoce: en vez de dibujar un campo
+   vacío con chips (lo que el usuario llamó "vomitar"), se ofrece agregarlo. */
+const addFieldBtn: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '6px', width: '100%',
+  padding: '9px 12px', fontSize: '12px', fontWeight: 700,
+  color: 'var(--color-accent)', background: 'var(--color-bg-surface-alt)',
+  borderWidth: '1px', borderStyle: 'dashed', borderColor: 'var(--color-border-subtle)',
+  borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit',
+  textAlign: 'left',
+};
+
 /* ── Sub-componente: Chip genérico ──────────────────────────────────────── */
 
 interface ChipProps {
@@ -263,6 +274,11 @@ export const CoverEditorPanel: React.FC = () => {
   const [logosQueNoCargan, setLogosQueNoCargan] = useState<Set<string>>(new Set());
   const { integrantes, profesores, grupos } = useRosterStore();
   const [busquedaRoster, setBusquedaRoster] = useState('');
+  /* El editor no dibuja lo que no sabe. Institución y carrera arrancan plegadas
+     detrás de una afirmación, y se abren cuando el usuario las pide o cuando el
+     documento ya las trae. */
+  const [mostrarInstitucion, setMostrarInstitucion] = useState(false);
+  const [mostrarCarrera, setMostrarCarrera] = useState(false);
 
   const integrantesFiltrados = useMemo(() => {
     if (!busquedaRoster.trim()) return integrantes;
@@ -373,7 +389,10 @@ export const CoverEditorPanel: React.FC = () => {
     const raw = portada.date || '';
     if (!raw) return '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    const m = raw.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+    /* "25 de junio de 2025" y también "25 de junio del año 2025": el backend
+       escribe la fecha con "del año" en medio, y el regex viejo exigía "mes de
+       año", así que el selector quedaba vacío con el dato presente. */
+    const m = raw.match(/(\d{1,2})\s+de\s+(\w+)\s+(?:del?\s+)?(?:año\s+)?(\d{4})/i);
     if (m) {
       const day = m[1].padStart(2, '0');
       const monthIdx = MESES_ES.indexOf(m[2].toLowerCase());
@@ -398,6 +417,10 @@ export const CoverEditorPanel: React.FC = () => {
     updateCoverField('date', iso ? formatFechaES(iso) : '');
     requestCoverFieldHighlight('date');
   };
+
+  /* Un dato que existe se muestra; uno que no, se pide. */
+  const tieneInstitucion = Boolean((portada.institution || '').trim() || portada.institucionSeleccionada);
+  const tieneCarrera = Boolean((portada.departamento || '').trim() || portada.carreraSeleccionada);
 
   /* ── Render ──────────────────────────────────────────────────────────── */
 
@@ -426,7 +449,7 @@ export const CoverEditorPanel: React.FC = () => {
         <div style={{
           display: 'flex', flexDirection: 'column', gap: '16px',
         }}>
-          <Seccion titulo="Identificación" icono={<FileText size={12} color="var(--color-accent)" />} abiertaPorDefecto>
+          <Seccion titulo="Identificación" icono={<FileText size={12} color="var(--color-accent)" />}>
 
           {/* ── Título del trabajo ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -462,11 +485,15 @@ export const CoverEditorPanel: React.FC = () => {
               </div>
             </div>
           </div>
+          </Seccion>
 
-          {/* ── Nombre del autor + Integrantes (Editor Estructurado) ── */}
+          {/* ── Integrantes / Autores: su propia sección plegable, cerrada ── */}
+          <Seccion
+            titulo={`Integrantes / Autores (${authorEntries.length})`}
+            icono={<Users size={12} color="var(--color-accent)" />}
+          >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label style={fieldLabel}>Integrantes / Autores ({authorEntries.length})</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={handleAddAuthorEntry}
@@ -617,8 +644,13 @@ export const CoverEditorPanel: React.FC = () => {
           </div>
           </Seccion>
 
-          <Seccion titulo="Institución y carrera" icono={<School size={12} color="var(--color-accent)" />} abiertaPorDefecto>
+          <Seccion titulo="Institución y carrera" icono={<School size={12} color="var(--color-accent)" />}>
           {/* ── Institución / Universidad con Logos e Insignias Rápidas ─── */}
+          {!tieneInstitucion && !mostrarInstitucion ? (
+            <button type="button" style={addFieldBtn} onClick={() => setMostrarInstitucion(true)}>
+              <Plus size={13} strokeWidth="var(--icon-stroke)" /> Agregar institución
+            </button>
+          ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <label style={fieldLabel}>Institución / Universidad</label>
@@ -713,8 +745,14 @@ export const CoverEditorPanel: React.FC = () => {
               style={baseInput}
             />
           </div>
+          )}
 
           {/* ── Carrera / Facultad / Área con Avatares de Carrera ───────── */}
+          {!tieneCarrera && !mostrarCarrera ? (
+            <button type="button" style={addFieldBtn} onClick={() => setMostrarCarrera(true)}>
+              <Plus size={13} strokeWidth="var(--icon-stroke)" /> Agregar carrera
+            </button>
+          ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={fieldLabel}>Carrera / Facultad / Área</label>
             <input
@@ -749,10 +787,14 @@ export const CoverEditorPanel: React.FC = () => {
               })}
             </div>
           </div>
+          )}
 
           </Seccion>
 
-          <Seccion titulo="Docente y entrega" icono={<GraduationCap size={12} color="var(--color-accent)" />}>
+          <Seccion
+            titulo="Docente y entrega"
+            icono={<GraduationCap size={12} color="var(--color-accent)" />}
+          >
           {/* ── Asignatura / Curso ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={fieldLabel}>Asignatura / Curso</label>
