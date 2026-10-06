@@ -41,4 +41,19 @@ describe('RevisionDetail (REV-L1)', () => {
     expect(screen.queryByText('Aceptar')).toBeNull();
     expect(screen.getByText(/Solo lectura/)).toBeTruthy();
   });
+
+  it('replica el mockup: severidad, propuesta antigua→nueva, Copiar y puntos del motor', () => {
+    useDocStore.setState({
+      proofreadFindings: [hallazgo({ suggestion: 'ha evolucionado' })],
+    });
+    render(<RevisionDetail foco={{ motor: 'spelling' }} onBack={() => {}} />);
+    expect(screen.getByText('severidad alta')).toBeTruthy();
+    expect(screen.getByText('Propuesta')).toBeTruthy();
+    expect(screen.getByText('ha evolucionado')).toBeTruthy();
+    expect(screen.getByText('Puntos de este motor')).toBeTruthy();
+    expect(screen.getByText(/motor objetivo/)).toBeTruthy();
+    const copiar = screen.getByText('Copiar');
+    expect(copiar).toBeTruthy();
+    fireEvent.click(copiar);
+  });
 });

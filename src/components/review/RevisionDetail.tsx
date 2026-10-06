@@ -1,16 +1,26 @@
 /* WordAPA7 — Sala de Revisión, corrección (REV-L1). Texto delante, corrección al
    lado. La acción se deriva de `accionDeItem`: objetivo ⇒ aceptar; IA ⇒ marcar;
    portada (readOnly) ⇒ sin acción. El subrayado inline lo pinta `ReadingText`,
-   dueño único de los dos canales (AGENTS.md §2); aquí no se normaliza nada. */
+   dueño único de los dos canales (AGENTS.md §2); aquí no se normaliza nada.
+   Fidelidad visual: `docs/superpowers/mockups/2026-10-05-revision-ia-dos-salas/
+   ui-5-sala-rev-l1.html`. */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, Flag } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, Copy, Flag } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useReviewWorkbench, accionDeItem, ENGINE_META } from '../../hooks/useReviewWorkbench';
 import { rotuloDeSubtipo } from '../../lib/rotulos';
-import { phaseLabel, type EngineId } from '../../lib/auditItems';
+import { phaseLabel, type EngineId, type Severity } from '../../lib/auditItems';
 import { ReadingText } from './ReadingText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { MascotaFrase } from './MascotaFrase';
+
+/** La píldora de severidad del mockup («severidad media»): tono por nivel. */
+const SEVERIDAD_PILL: Record<Severity, { label: string; color: string; bg: string }> = {
+  critical: { label: 'severidad crítica', color: 'var(--color-danger)', bg: 'var(--severity-critical-soft)' },
+  high: { label: 'severidad alta', color: 'var(--color-danger)', bg: 'var(--severity-critical-soft)' },
+  medium: { label: 'severidad media', color: 'var(--color-warning)', bg: 'var(--severity-warning-soft)' },
+  low: { label: 'severidad baja', color: 'var(--color-text-tertiary)', bg: 'var(--color-bg-surface-alt)' },
+};
 
 export interface RevisionDetailProps {
   foco: { motor?: EngineId; phase?: string };
@@ -22,6 +32,8 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   const base = useMarkSourceBase();
   const elements = useDocStore((s) => s.doc?.elements ?? []);
   const [sub, setSub] = useState<string | 'todas'>('todas');
+  const [idx, setIdx] = useState(0);
+  const [aceptados, setAceptados] = useState(0);
 
   const delFoco = useMemo(
     () => items.filter((it) => (foco.motor ? it.category === foco.motor : true) && (foco.phase ? (it.phase ?? 'global') === foco.phase : true)),
@@ -29,12 +41,30 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   );
   const subtipos = useMemo(() => [...new Set(delFoco.map((it) => it.subtype))], [delFoco]);
   const visibles = sub === 'todas' ? delFoco : delFoco.filter((it) => it.subtype === sub);
-  const [idx, setIdx] = useState(0);
-  const actual = visibles[Math.min(idx, visibles.length - 1)] ?? null;
+  const pos = visibles.length ? Math.min(idx, visibles.length - 1) : 0;
+  const actual = visibles[pos] ?? null;
   const accion = actual ? accionDeItem(actual) : 'none';
   const motor = foco.motor;
   const aplicables = visibles.filter((it) => !it.readOnly);
   const titulo = motor ? ENGINE_META[motor].title : foco.phase ? phaseLabel(foco.phase) : 'Revisión';
+  /** Secciones = elementos distintos con hallazgo en el foco (mockup: «en M secciones»). */
+  const secciones = useMemo(() => new Set(delFoco.map((it) => it.element_id).filter(Boolean)).size, [delFoco]);
+  const elActual = actual ? elements.find((e) => e.id === actual.element_id) : undefined;
+  const severidad = actual ? SEVERIDAD_PILL[actual.severity] : null;
+
+  const frase = !visibles.length
+    ? ''
+    : `Vas bien: ${pos + 1} de ${visibles.length}.` +
+      (accion === 'accept'
+        ? ` Cierra ${titulo.toLowerCase()} de un golpe.`
+        : accion === 'mark'
+          ? ' El detector propone: marca lo que quieras revisar.'
+          : '');
+
+  const copiar = (texto: string) => {
+    const clip = (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+    void clip?.writeText(texto).catch(() => undefined);
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--color-bg-canvas)' }}>
@@ -43,7 +73,10 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
           <button type="button" onClick={onBack} style={fantasma}><ArrowLeft size={14} aria-hidden /> Menú general</button>
           <div>
             <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{titulo}</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{delFoco.length} puntos · {motor === 'ai' ? 'motor probabilístico' : 'motor objetivo'}</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+              {delFoco.length} {delFoco.length === 1 ? 'punto' : 'puntos'} en {secciones} {secciones === 1 ? 'sección' : 'secciones'}
+              {motor ? ` · ${motor === 'ai' ? 'motor probabilístico' : 'motor objetivo'}` : ''}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
@@ -58,35 +91,55 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 360px', minHeight: 0 }}>
           <div style={{ overflowY: 'auto', padding: 'var(--space-5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-3)' }}>
-              <span style={eyebrow}>{actual.phase ?? 'Todo el documento'} · {actual.pageNumber ? `página ${actual.pageNumber}` : 'sin página'}</span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>punto {idx + 1} de {visibles.length}</span>
+              <span style={eyebrow}>{phaseLabel(actual.phase)} · {actual.pageNumber ? `página ${actual.pageNumber}` : 'sin página'}</span>
             </div>
             <p style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 'var(--text-lg)', lineHeight: 1.85, color: 'var(--color-text-primary)' }}>
-              <ReadingText text={actual.originalText || elements.find((e) => e.id === actual.element_id)?.text || ''} source={buildMarkSource(base, elements.find((e) => e.id === actual.element_id))} />
+              <ReadingText text={actual.originalText || elActual?.text || ''} source={buildMarkSource(base, elActual)} />
             </p>
           </div>
 
           <div style={{ overflowY: 'auto', borderLeft: '1px solid var(--color-border-subtle)', padding: 'var(--space-4)', background: 'var(--color-bg-surface-alt)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <span style={eyebrow}>Qué pasa</span>
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>{actual.detail || actual.summary}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {severidad && <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 8px', borderRadius: 'var(--radius-full)', color: severidad.color, background: severidad.bg }}>{severidad.label}</span>}
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>punto {pos + 1} de {visibles.length}</span>
+            </div>
+
+            <div style={fixBlock}>
+              <span style={eyebrow}>Qué pasa</span>
+              <p style={{ margin: 0, fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>{actual.detail || actual.summary}</p>
+            </div>
+
             {actual.suggestedText && (
-              <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--color-bg-surface)' }}>
+              <div style={fixBlock}>
                 <span style={eyebrow}>Propuesta</span>
-                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{actual.suggestedText}</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', textDecoration: 'line-through' }}>{actual.originalText}</div>
+                <div style={{ fontSize: 'var(--text-base)', fontWeight: 650, color: 'var(--color-success)' }}>{actual.suggestedText}</div>
               </div>
             )}
+
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
               {accion === 'accept' && (
                 <>
-                  <button type="button" disabled={isApplying} onClick={() => acceptOne(actual)} style={exito}><Check size={13} aria-hidden /> Aceptar</button>
-                  {aplicables.length > 0 && <button type="button" disabled={isApplying} onClick={() => acceptMany(aplicables)} style={primario}><CheckCheck size={13} aria-hidden /> Aceptar todas ({aplicables.length})</button>}
+                  <button type="button" disabled={isApplying} onClick={() => { setAceptados((n) => n + 1); void acceptOne(actual); }} style={exito}><Check size={13} aria-hidden /> Aceptar</button>
+                  {aplicables.length > 0 && <button type="button" disabled={isApplying} onClick={() => { setAceptados((n) => n + aplicables.length); void acceptMany(aplicables); }} style={primario}><CheckCheck size={13} aria-hidden /> Aceptar todas ({aplicables.length})</button>}
                 </>
               )}
               {accion === 'mark' && <button type="button" onClick={() => markForReview(actual)} style={primario}><Flag size={13} aria-hidden /> Marcar para revisar</button>}
               {accion === 'none' && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>Solo lectura: la portada se mide, no se escribe.</span>}
+              {actual.suggestedText && <button type="button" onClick={() => copiar(actual.suggestedText!)} style={fantasma}><Copy size={13} aria-hidden /> Copiar</button>}
             </div>
+
+            <div style={fixBlock}>
+              <span style={eyebrow}>Puntos de este motor</span>
+              <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
+                {visibles.map((it, i) => (
+                  <button key={it.id} type="button" onClick={() => setIdx(i)} aria-current={i === pos ? 'true' : undefined} style={dot(i === pos, i < pos)}>{i + 1}</button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ marginTop: 'auto' }}>
-              <MascotaFrase frase={visibles.length ? `Vas bien: ${idx + 1} de ${visibles.length}.` : ''} kind="ruler" expression="neutral" size={44} />
+              <MascotaFrase frase={frase} kind="ruler" expression="neutral" size={44} />
             </div>
           </div>
         </div>
@@ -96,17 +149,19 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-3) var(--space-5)', borderTop: '1px solid var(--color-border-subtle)' }}>
         <button type="button" disabled={idx === 0} onClick={() => setIdx((i) => Math.max(0, i - 1))} style={fantasma}>‹ Punto anterior</button>
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{visibles.length ? idx + 1 : 0} de {visibles.length}</span>
-        <button type="button" disabled={idx >= visibles.length - 1} onClick={() => setIdx((i) => Math.min(visibles.length - 1, i + 1))} style={fantasma}>Punto siguiente ›</button>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{visibles.length ? pos + 1 : 0} de {visibles.length} · {aceptados} aceptado{aceptados === 1 ? '' : 's'}</span>
+        <button type="button" disabled={pos >= visibles.length - 1} onClick={() => setIdx((i) => Math.min(visibles.length - 1, i + 1))} style={fantasma}>Punto siguiente ›</button>
       </div>
     </div>
   );
 };
 
 const eyebrow: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600 };
+const fixBlock: React.CSSProperties = { border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', background: 'var(--color-bg-surface)', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' };
 const chip = (on: boolean): React.CSSProperties => ({ fontSize: 'var(--text-xs)', fontWeight: 600, padding: '3px 9px', borderRadius: 'var(--radius-full)', border: `1px solid ${on ? 'var(--color-accent)' : 'var(--color-border-subtle)'}`, background: on ? 'var(--color-accent-soft)' : 'transparent', color: on ? 'var(--color-accent)' : 'var(--color-text-secondary)', cursor: 'pointer' });
 const primario: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--color-accent)', color: 'var(--color-text-on-accent)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer' };
 const exito: React.CSSProperties = { ...primario, background: 'var(--color-success)' };
 const fantasma: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-subtle)', background: 'transparent', color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' };
+const dot = (on: boolean, done: boolean): React.CSSProperties => ({ width: 26, height: 26, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', border: `1px solid ${on ? 'var(--color-accent)' : done ? 'var(--color-success)' : 'var(--color-border-strong)'}`, color: on ? 'var(--color-text-on-accent)' : done ? 'var(--color-success)' : 'var(--color-text-secondary)', background: on ? 'var(--color-accent)' : done ? 'var(--color-success-a12)' : 'var(--color-bg-surface)' });
 
 export default RevisionDetail;

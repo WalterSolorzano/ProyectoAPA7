@@ -82,7 +82,7 @@ function isHeading(e: ElementLike): boolean {
   return e.type === 'heading' || e.type === 'title';
 }
 
-function collectSections(elements: ElementLike[]): Record<string, ElementLike[]> {
+function collectSections(elements: readonly ElementLike[]): Record<string, ElementLike[]> {
   const sections: Record<string, ElementLike[]> = {};
   let current: string | null = null;
   for (const e of elements) {
@@ -112,8 +112,8 @@ function collectSections(elements: ElementLike[]): Record<string, ElementLike[]>
  * general), que es lo que hace un estudiante cuando escribe una lista sola.
  */
 function separarGeneralDeEspecificos(
-  elements: ElementLike[],
-  planos: ElementLike[],
+  elements: readonly ElementLike[],
+  planos: readonly ElementLike[],
 ): { general: ElementLike[]; especificos: ElementLike[] } {
   const general: ElementLike[] = [];
   const especificos: ElementLike[] = [];
@@ -636,7 +636,7 @@ export function reemplazarVerbo(texto: string, nuevo: string): string {
  * Reutiliza la misma separación general/específicos que `reviewContent`, para
  * que el informe y las reglas no cuenten objetivos distintos.
  */
-export function objetivosBloom(elements: ElementLike[]): ObjetivoBloom[] {
+export function objetivosBloom(elements: readonly ElementLike[]): ObjetivoBloom[] {
   if (!elements || elements.length === 0) return [];
   const objetivos = collectSections(elements)['objetivos'] || [];
   if (objetivos.length === 0) return [];
