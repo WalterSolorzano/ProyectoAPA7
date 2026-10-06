@@ -101,6 +101,22 @@ if ((Test-Path $runtimeExe) -and (Test-Path $runtimeW) -and (Test-Path $runtimeL
 if ($runtimeReady) {
     Write-Output "=== STEP 0.5b: Runtime presente y verificado; refrescando código fuente ==="
     & python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; print('Fuente y payload sincronizados en dist-python/python-runtime/python.')"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "ERROR: sincronización del código fuente al runtime falló (exit $LASTEXITCODE). Aborting installer build."
+        exit 1
+    }
+
+    # ── Sincronizar DEPENDENCIAS declaradas en requirements.txt ─────────────
+    # Antes esta rama solo refrescaba el código fuente y daba por hecho que el
+    # runtime ya tenía TODAS las dependencias. Agregar un paquete nuevo (p.ej.
+    # mcp o openpyxl) no llegaba nunca al runtime embebido y el instalador se
+    # enviaba roto. pip install -r es idempotente: solo instala lo que falta.
+    Write-Output "=== STEP 0.5c: Sincronizando dependencias (requirements.txt) en el runtime ==="
+    & $runtimeExe -m pip install -r "$projectDir\requirements.txt" --no-warn-script-location --disable-pip-version-check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Output "ERROR: pip install -r requirements.txt falló en el runtime embebido (exit $LASTEXITCODE). Aborting installer build."
+        exit 1
+    }
 } else {
     Write-Output "=== STEP 0.5b: Runtime ausente/incompleto; build completo (build_embedded.py) ==="
     & python "$projectDir\python\build_embedded.py"
@@ -144,6 +160,16 @@ if ($runtimeMissing.Count -gt 0) {
     exit 1
 }
 Write-Output "Runtime verificado: python.exe + pythonw.exe + $pyTag.dll + site-packages + main.py"
+
+# Dependencias críticas (fail-closed): si falta un paquete que el runtime debe
+# traer (mcp para el servidor MCP, openpyxl para ingerir Excel), el instalador
+# saldría roto. Abortamos antes de empaquetar en lugar de enviarlo.
+& $runtimeExe -c "import mcp, openpyxl" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: faltan dependencias críticas (mcp/openpyxl) en el runtime embebido. Abortando."
+    exit 1
+}
+Write-Output "Dependencias críticas verificadas: mcp + openpyxl importables."
 
 # El payload embebido puede existir pero estar vacío ({}): en ese caso el
 # instalador arrancaría sin ninguna clave. Presencia no basta, hay que
