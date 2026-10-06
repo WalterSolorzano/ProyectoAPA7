@@ -3,9 +3,10 @@
    botón de más acciones y avatar. Todo lo demas vive en ToolbarOverflowMenu. */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Check, Loader2, MoreHorizontal, Sparkles } from 'lucide-react';
+import { BookOpen, Check, History, Loader2, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
+import { SnapshotHistory } from './SnapshotHistory';
 import { WordLiveChip } from './WordLiveChip';
 import { AppBrandLogo } from '../shared/AppBrandLogo';
 
@@ -66,6 +67,10 @@ export function UnifiedToolbar() {
   const setLiveChatOpen = useDocStore((s) => s.setLiveChatOpen);
   const setSettingsHubOpen = useDocStore((s) => s.setSettingsHubOpen);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  /* El historial de versiones vive en la barra, junto al chip "Guardado": el
+     lugar donde la app ya dice "está guardado" es donde tiene que poder
+     mostrar DESDE CUÁNDO y volver atrás. */
+  const [historialOpen, setHistorialOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
   const overflowButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -199,6 +204,30 @@ export function UnifiedToolbar() {
             {esGuardando ? 'Guardando…' : 'Guardado'}
             {!esGuardando && haceCuanto && <span>{` · hace ${haceCuanto}`}</span>}
           </span>
+          <div style={{ position: 'relative', pointerEvents: 'auto', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setHistorialOpen((v) => !v)}
+              aria-label="Historial de versiones"
+              aria-expanded={historialOpen}
+              title="Historial de versiones"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '3px 6px', borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border-subtle)',
+                background: 'transparent', color: 'var(--color-text-tertiary)',
+                fontSize: 'var(--text-xs)', cursor: 'pointer',
+              }}
+            >
+              <History size={12} strokeWidth={1.75} aria-hidden />
+              Versiones
+            </button>
+            {historialOpen && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 'var(--z-dropdown)' }}>
+                <SnapshotHistory />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
