@@ -13,12 +13,19 @@ def test_content_schema_lists_kinds_and_styles():
 
 
 def test_build_document_tool(tmp_path, monkeypatch):
+    import os
+
     import config
 
     monkeypatch.setattr(config, "STORAGE_DIR", tmp_path)
-    out = build_document({"content": [{"h1": "H"}, {"diagram": {"kind": "flow", "dsl": "A > B"}}]})
+    out = build_document(
+        {"content": [{"h1": "H"}, {"diagram": {"kind": "flow", "dsl": "A > B"}}]},
+        try_com=False,
+    )
     assert out["elements"] == 2
     assert out["session_id"]
+    assert out["path"].endswith(".docx")
+    assert os.path.exists(out["path"])
 
 
 def test_render_diagram_png_tool():
