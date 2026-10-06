@@ -4,14 +4,17 @@
    es la entrada; el workbench de columna única es la revisión. */
 import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
-import { reviewItems, type AuditItem } from '../../lib/auditItems';
+import { reviewItems, type AuditItem, type EngineId } from '../../lib/auditItems';
 import { usePageIndex } from '../../hooks/usePageIndex';
-import { ReviewGate, type FocoRevision } from '../review/ReviewGate';
+import { ReviewGate } from '../review/ReviewGate';
 import { ReviewWorkbench } from '../review/ReviewWorkbench';
 import { AiRoom } from '../review/AiRoom';
 import '../../styles/revision.css';
 
 type Pantalla = 'gate' | 'review' | 'ai';
+
+/** El foco con el que una sala abre su detalle: un motor y/o una fase. */
+type FocoRevision = { phase?: string; engine?: EngineId; motor?: EngineId };
 
 const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
 
@@ -136,13 +139,10 @@ export const Step5AuditIAWizard: React.FC = () => {
       <ReviewGate
         items={items}
         elements={elements}
-        aiScore={aiScore}
+        paragraphs={reviewResult?.paragraphs ?? []}
         isScanning={isScanning}
         onScan={handleScan}
-        onStart={(destino) => {
-          setFoco(destino ?? null);
-          setPantalla('review');
-        }}
+        onStartRevision={() => setPantalla('review')}
         onOpenAiRoom={() => setPantalla('ai')}
       />
     </div>

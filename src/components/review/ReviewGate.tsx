@@ -1,286 +1,147 @@
-/* WordAPA7 — Capa 1: puerta de estado. Cumplimiento, sub-cifras y matriz de
-   calor fase × motor.
-   Sin emoji: los iconos son de lucide-react y la mascota es `EditorialMascot`.
-   Todo el color sale de tokens; ninguna celda escribe un hex. */
+/* WordAPA7 — UI 0: la puerta de Fase 5.
+   Un solo % combinado 70/30 (el ÚNICO lugar donde revisión e IA se juntan) y dos
+   entradas sin cards. El % de IA sale de `construirPerfilIA`; el de revisión, de
+   `cumplimiento(hallazgos, contarParrafos)`. Sin emojis; todo color por token. */
 import React, { useMemo } from 'react';
-import { ShieldCheck, Sparkles, ArrowRight, ChevronRight, Lock, ListChecks, Bot, Layers } from 'lucide-react';
-import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
-import { phaseLabel } from '../../lib/auditItems';
+import { CheckCircle2, Sparkles } from 'lucide-react';
+import type { AuditItem } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
-import {
-  contarParrafos,
-  cumplimiento,
-  matrizFaseMotor,
-  fasePorElemento,
-  nivelCelda,
-  MOTORES_MATRIZ,
-  type MotorMatriz,
-} from '../../lib/informeRevision';
-import { EditorialMascot } from '../layout/EditorialMascot';
+import type { AIReviewParagraph } from '../../api/backend';
+import { contarParrafos, cumplimiento } from '../../lib/informeRevision';
+import { construirPerfilIA } from '../../lib/aiPerfil';
+import { fraseDeRevision, colorDeRevision } from '../../lib/mascotaFrases';
+import { HumanMascot } from '../layout/HumanMascot';
 
-/** Matriz de calor: cuenta hallazgos por motor/categoría. Función pura. */
-export function heatMatrix(items: AuditItem[]): Record<ToolWindowId, number> {
-  const m: Record<ToolWindowId, number> = { ai: 0, style: 0, spelling: 0, citations: 0, structure: 0 };
-  items.forEach((it) => { m[it.category] += 1; });
-  return m;
-}
-
-/* Las cuatro columnas de la matriz. Citas queda fuera: vive en su fase (paso 4)
-   y un documento que solo tiene citas no debe abrir la puerta con filas. */
-const COLUMNA: Record<MotorMatriz, { label: string; marca: string; relleno: [string, string, string] }> = {
-  spelling: {
-    label: 'Ortografía',
-    marca: 'var(--color-accent)',
-    relleno: ['var(--color-accent-a20)', 'var(--color-accent-a40)', 'var(--color-accent-a65)'],
-  },
-  structure: {
-    label: 'Estructura',
-    marca: 'var(--color-accent)',
-    relleno: ['var(--color-accent-a20)', 'var(--color-accent-a40)', 'var(--color-accent-a65)'],
-  },
-  style: {
-    label: 'Redacción',
-    marca: 'var(--color-warning)',
-    relleno: ['var(--color-warning-a08)', 'var(--color-warning-a30)', 'var(--color-warning-a40)'],
-  },
-  ai: {
-    label: 'IA',
-    marca: 'var(--color-engine-ia)',
-    relleno: ['var(--ia-nivel-1)', 'var(--ia-nivel-2)', 'var(--ia-nivel-3)'],
-  },
-};
-
-const rellenoDe = (motor: MotorMatriz, nivel: 0 | 1 | 2 | 3): string =>
-  nivel === 0 ? 'transparent' : COLUMNA[motor].relleno[nivel - 1];
-
-/** Foco con el que la puerta abre la revisión: una fase y, si la celda es de un
- *  motor concreto, también ese motor. El drill-down va de lo general (la matriz
- *  entera) a lo específico (una fase y un motor). */
-export interface FocoRevision {
-  phase?: string;
-  engine?: MotorMatriz;
-}
-
-/* La matriz agrupa las reglas generales como `sin_fase`, pero el workbench las
-   filtra por `global` (`it.phase ?? 'global'`). Sin traducir, abrir esa fila
-   dejaría la revisión vacía: la celda prometería hallazgos que la superficie no
-   abre. Es la única clave que la matriz y el hook nombran distinto. */
-const faseDeFiltro = (phase: string): string => (phase === 'sin_fase' ? 'global' : phase);
-
-interface Props {
+export interface ReviewGateProps {
   items: AuditItem[];
-  aiScore: number;
+  elements: readonly ElementModel[];
+  paragraphs: readonly AIReviewParagraph[];
   isScanning: boolean;
   onScan: () => void;
-  /** Abre la revisión. Sin argumento, sin filtro (la matriz entera). Con
-   *  `{ phase, engine }`, ya acotada a esa fila y esa celda. */
-  onStart: (foco?: FocoRevision) => void;
+  onStartRevision: () => void;
   onOpenAiRoom: () => void;
-  /** El documento, para resolver la fase de cada elemento por su H1 ancestro. */
-  elements?: readonly ElementModel[];
 }
 
-export const ReviewGate: React.FC<Props> = ({
-  items,
-  aiScore,
-  isScanning,
-  onScan,
-  onStart,
-  onOpenAiRoom,
-  elements = [],
+export const ReviewGate: React.FC<ReviewGateProps> = ({
+  items, elements, paragraphs, isScanning, onScan, onStartRevision, onOpenAiRoom,
 }) => {
-  const matrix = useMemo(() => heatMatrix(items), [items]);
-  const total = items.filter((it) => it.category !== 'ai').length;
-  const aiCount = matrix.ai;
+  const perfil = useMemo(() => construirPerfilIA(paragraphs, elements), [paragraphs, elements]);
+  const parrafos = useMemo(() => contarParrafos(elements), [elements]);
+  const revisionItems = useMemo(() => items.filter((it) => it.category !== 'ai'), [items]);
+  const calificacion = cumplimiento(revisionItems.length, parrafos);
+  const ia = perfil.vozHumana;
+  const combinado = Math.round(0.7 * calificacion + 0.3 * ia);
+  const motores = new Set(revisionItems.map((it) => it.category)).size;
 
-  const filas = useMemo(
-    () => matrizFaseMotor(items, fasePorElemento(elements, items)),
-    [items, elements],
-  );
-
-  const maxPorMotor = useMemo(() => {
-    const m: Record<MotorMatriz, number> = { spelling: 0, structure: 0, style: 0, ai: 0 };
-    for (const fila of filas) for (const motor of MOTORES_MATRIZ) m[motor] = Math.max(m[motor], fila.counts[motor]);
-    return m;
-  }, [filas]);
-
-  if (items.length === 0) {
+  if (items.length === 0 && paragraphs.length === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '40px' }}>
-        <div style={{ color: 'var(--color-accent)' }}><ShieldCheck size={32} aria-hidden /></div>
-        <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Aún no hay una revisión</h2>
-        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-          Ejecutá el escaneo para medir ortografía, voz, estructura y voz sintética.
-        </p>
-        <button type="button" onClick={onScan} disabled={isScanning} aria-busy={isScanning} style={solidBtn}>
-          <Sparkles size={14} aria-hidden /> Escanear documento
-        </button>
+      <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 'var(--space-8)' }}>
+        <div style={{ textAlign: 'center', maxWidth: '42ch' }}>
+          <CheckCircle2 size={32} color="var(--color-accent)" aria-hidden />
+          <h2 style={{ margin: 'var(--space-3) 0 0', fontSize: 'var(--text-lg)', color: 'var(--color-text-primary)' }}>Aún no hay una revisión</h2>
+          <p style={{ margin: 'var(--space-2) 0 var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            Ejecutá el escaneo para medir ortografía, estructura, citas y voz sintética.
+          </p>
+          <button type="button" onClick={onScan} disabled={isScanning} style={primario}>Analizar documento</button>
+        </div>
       </div>
     );
   }
 
-  const porcentaje = cumplimiento(total, contarParrafos(elements));
+  const color = colorDeRevision(combinado);
+  const voz = fraseDeRevision(combinado, 'gate');
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ flex: 1, minHeight: '100%', width: '100%', maxWidth: '860px', margin: '0 auto', padding: 'clamp(20px, 4vw, 48px)', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={eyebrow}>Paso 5 · Revisión &amp; IA</div>
-            <h1 style={{ margin: '6px 0 0', fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Estado de tu documento</h1>
-            <p style={{ margin: '6px 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', maxWidth: '46ch' }}>
-              Todavía no revisaste este borrador. Esto es lo que encontramos.
-            </p>
-          </div>
-          <EditorialMascot kind="reference" size={64} />
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-bg-canvas)' }}>
+      <div style={{ maxWidth: '860px', margin: '0 auto', padding: 'clamp(20px, 4vw, 48px)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        <header style={{ textAlign: 'center' }}>
+          <div style={eyebrow}>Paso 5 · Revisión &amp; IA</div>
+          <p style={{ margin: 'var(--space-1) 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            Revisión e IA se combinan solo aquí. Cada una tiene su propia sala.
+          </p>
         </header>
 
-        <div style={{ marginTop: '28px' }}>
-          <div style={{ fontSize: 'clamp(34px, 5vw, 44px)', fontWeight: 800, lineHeight: 1, color: 'var(--color-accent)', fontVariantNumeric: 'tabular-nums' }}>{porcentaje}%</div>
-          <div style={{ marginTop: '6px', fontSize: 'var(--text-sm)', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--color-text-secondary)' }}>
-            LISTO PARA PUBLICAR
+        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 'var(--space-6)', alignItems: 'center', paddingBottom: 'var(--space-5)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+          <div>
+            <div style={eyebrow}>Salud del documento</div>
+            <div data-testid="gate-combinado" style={{ fontSize: 'clamp(38px, 6vw, 56px)', fontWeight: 800, lineHeight: 1, color, fontVariantNumeric: 'tabular-nums' }}>
+              {combinado}<span style={{ fontSize: 'var(--text-xl)', color: 'var(--color-text-tertiary)' }}>%</span>
+            </div>
+            <div style={{ marginTop: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxWidth: '360px' }}>
+              <Barra etiqueta="Revisión · 70%" valor={calificacion} color="var(--color-accent)" />
+              <Barra etiqueta="IA · 30%" valor={ia} color="var(--color-engine-ia)" />
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>0,7 · {calificacion} + 0,3 · {ia} = {combinado}</div>
+            </div>
           </div>
-        </div>
-
-        <div role="status" aria-atomic="true" style={{ display: 'flex', flexWrap: 'wrap', marginTop: '24px' }}>
-          <Cifra valor={total} etiqueta="por revisar" testId="review-gate-total" icono={<ListChecks size={14} />} />
-          <Cifra valor={`${Math.round(aiScore * 100)}%`} etiqueta="voz sintética" icono={<Bot size={14} />} />
-          <Cifra valor={filas.length} etiqueta={filas.length === 1 ? 'fase' : 'fases'} icono={<Layers size={14} />} />
-        </div>
-
-        <section aria-label="Hallazgos por fase y motor" style={{ marginTop: '28px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1fr) repeat(4, 60px)', gap: '4px', alignItems: 'center' }}>
-            <div />
-            {MOTORES_MATRIZ.map((motor) => (
-              <div key={motor} style={colHeader}>{COLUMNA[motor].label}</div>
-            ))}
-
-            {filas.map((fila) => (
-              <React.Fragment key={fila.phase}>
-                {/* La fila abre la fase entera; cada celda con hallazgos abre la
-                    fase acotada además a su motor. Botones reales, con nombre
-                    accesible: la matriz deja de ser un cartel y pasa a ser la
-                    puerta de entrada al detalle. */}
-                <button
-                  type="button"
-                  onClick={() => onStart({ phase: faseDeFiltro(fila.phase) })}
-                  aria-label={`Revisar la fase ${fila.label}`}
-                  style={filaBtn}
-                >
-                  <ChevronRight size={12} aria-hidden style={{ flexShrink: 0, color: 'var(--color-text-tertiary)' }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fila.label}</span>
-                  {fila.protegida && <Lock size={12} aria-label="Portada protegida" style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />}
-                </button>
-                {MOTORES_MATRIZ.map((motor) => {
-                  const n = fila.counts[motor];
-                  const nivel = nivelCelda(n, maxPorMotor[motor]);
-                  const abrible = n > 0;
-                  return (
-                    <button
-                      key={motor}
-                      type="button"
-                      disabled={!abrible}
-                      onClick={() => onStart({ phase: faseDeFiltro(fila.phase), engine: motor })}
-                      aria-label={`Revisar ${fila.label}: ${n} hallazgo${n === 1 ? '' : 's'} de ${COLUMNA[motor].label}`}
-                      title={`${fila.label} · ${COLUMNA[motor].label}: ${n}`}
-                      style={{
-                        height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 'var(--radius-sm)', background: rellenoDe(motor, nivel),
-                        fontSize: 'var(--text-xs)', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-                        color: n > 0 ? 'var(--color-text-primary)' : 'transparent',
-                        border: 'none', fontFamily: 'inherit', padding: 0,
-                        cursor: abrible ? 'pointer' : 'default',
-                      }}
-                    >
-                      {n > 0 ? n : ''}
-                    </button>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-
-            <div />
-            {MOTORES_MATRIZ.map((motor) => (
-              <div key={motor} style={{ height: '4px', borderRadius: 'var(--radius-sm)', background: COLUMNA[motor].marca }} />
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', marginTop: '12px' }}>
-            <Leyenda color="var(--color-accent)" texto="Ortografía y estructura" />
-            <Leyenda color="var(--color-warning)" texto="Redacción" />
-            <Leyenda color="var(--color-engine-ia)" texto="IA" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+            <HumanMascot size={64} />
+            <p style={{ margin: 0, maxWidth: '20ch', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{voz}</p>
           </div>
         </section>
 
-        <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--color-border-subtle)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => onStart()} style={solidBtn}>
-            Empezar revisión <ArrowRight size={14} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={onOpenAiRoom}
-            disabled={aiCount === 0}
-            title={aiCount === 0 ? 'Todavía no hay fragmentos con voz sintética' : undefined}
-            style={{ ...ghostBtn, opacity: aiCount === 0 ? 0.5 : 1, cursor: aiCount === 0 ? 'not-allowed' : 'pointer' }}
-          >
-            <Sparkles size={14} aria-hidden /> Ver mapa de IA
-          </button>
+        <section aria-label="Entradas de revisión e IA" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+          <Entrada
+            icono={<CheckCircle2 size={26} aria-hidden />} tono="var(--color-accent)" titulo="Empezar revisión"
+            chips={[`${revisionItems.length} por revisar`, `${calificacion}% calificación`, `${motores} motores`]}
+            onClick={onStartRevision}
+          />
+          <Entrada
+            icono={<Sparkles size={26} aria-hidden />} tono="var(--color-engine-ia)" titulo="Ver mapa de IA"
+            chips={[`${perfil.enAlerta} marcados`, `${perfil.vozHumana}% voz humana`, `${perfil.total} párrafos`]}
+            onClick={onOpenAiRoom} disabled={perfil.enAlerta === 0}
+            borde
+          />
+        </section>
+
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <button type="button" onClick={onScan} disabled={isScanning} style={fantasma}>Reanalizar documento</button>
         </div>
       </div>
     </div>
   );
 };
 
-const Cifra: React.FC<{ valor: number | string; etiqueta: string; testId?: string; icono?: React.ReactNode }> = ({ valor, etiqueta, testId, icono }) => (
-  <div style={{ flex: '1 1 90px', padding: '0 18px', borderLeft: '1px solid var(--color-border-subtle)' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      {icono && (
-        <span aria-hidden style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)' }}>
-          {icono}
-        </span>
-      )}
-      <div data-testid={testId} style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, lineHeight: 1.1, color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
-    </div>
-    <div style={{ marginTop: '2px', fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-tertiary)' }}>{etiqueta}</div>
+const Barra: React.FC<{ etiqueta: string; valor: number; color: string }> = ({ etiqueta, valor, color }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 40px', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-xs)' }}>
+    <span style={{ color: 'var(--color-text-secondary)' }}>{etiqueta}</span>
+    <span style={{ height: 8, borderRadius: 'var(--radius-full)', background: 'var(--color-bg-surface-alt)', overflow: 'hidden' }}>
+      <span style={{ display: 'block', height: '100%', width: `${valor}%`, background: color }} />
+    </span>
+    <span style={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
   </div>
 );
 
-const Leyenda: React.FC<{ color: string; texto: string }> = ({ color, texto }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-    <span aria-hidden style={{ width: '10px', height: '10px', borderRadius: 'var(--radius-sm)', background: color }} />
-    {texto}
-  </span>
+const Entrada: React.FC<{
+  icono: React.ReactNode; tono: string; titulo: string; chips: string[];
+  onClick: () => void; disabled?: boolean; borde?: boolean;
+}> = ({ icono, tono, titulo, chips, onClick, disabled, borde }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    style={{
+      display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr) auto', alignItems: 'center', gap: 'var(--space-4)',
+      textAlign: 'left', background: 'transparent', border: 'none', color: 'inherit',
+      padding: 'var(--space-4) var(--space-2)', cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? 0.5 : 1, fontFamily: 'inherit',
+      borderLeft: borde ? '1px solid var(--color-border-subtle)' : 'none',
+      paddingLeft: borde ? 'var(--space-5)' : 'var(--space-2)',
+    }}
+  >
+    <span aria-hidden style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)', display: 'grid', placeItems: 'center', background: 'var(--color-bg-surface-alt)', color: tono }}>{icono}</span>
+    <span>
+      <span style={{ display: 'block', fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{titulo}</span>
+      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1)', marginTop: 'var(--space-2)' }}>
+        {chips.map((c) => <span key={c} style={chip}>{c}</span>)}
+      </span>
+    </span>
+    <span aria-hidden style={{ color: tono, fontSize: 'var(--text-xl)' }}>›</span>
+  </button>
 );
 
-const eyebrow: React.CSSProperties = {
-  fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '1.4px', color: 'var(--color-text-tertiary)',
-};
+const eyebrow: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.2px', color: 'var(--color-text-tertiary)' };
+const chip: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-full)', border: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-surface-alt)', color: 'var(--color-text-secondary)' };
+const primario: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--color-accent)', color: 'var(--color-text-on-accent)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer' };
+const fantasma: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-subtle)', background: 'transparent', color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer' };
 
-const colHeader: React.CSSProperties = {
-  fontSize: '10px', color: 'var(--color-text-tertiary)',
-  textAlign: 'center', lineHeight: 1.1, overflowWrap: 'anywhere',
-};
-
-/* La etiqueta de fase es un botón, no un rótulo: reset de botón y el foco
-   visible lo aporta `.revision-phase :focus-visible` (revision.css). */
-const filaBtn: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '6px',
-  fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
-  minWidth: 0, background: 'transparent', border: 'none',
-  padding: 0, fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer',
-};
-
-const solidBtn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: '8px',
-  padding: '10px 18px', borderRadius: 'var(--radius-sm)',
-  border: 'none', background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
-  fontSize: 'var(--text-sm)', fontWeight: 800, cursor: 'pointer',
-};
-
-const ghostBtn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: '8px',
-  padding: '10px 18px', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--color-border-subtle)', background: 'transparent',
-  color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer',
-};
+export default ReviewGate;

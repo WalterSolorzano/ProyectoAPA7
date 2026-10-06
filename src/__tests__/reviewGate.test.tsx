@@ -2,114 +2,66 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ReviewGate } from '../components/review/ReviewGate';
 import type { AuditItem } from '../lib/auditItems';
-import { phaseLabel } from '../lib/auditItems';
-import type { ElementModel } from '../types';
+import type { AIReviewParagraph } from '../api/backend';
 
 const item = (id: string, category: AuditItem['category']): AuditItem =>
-  ({ id, element_id: 'e', category, subtype: 'x', severity: 'medium', summary: 's', detail: '', originalText: '', pageNumber: 1, phase: null, readOnly: false }) as AuditItem;
+  ({ id, element_id: `e${id}`, category, subtype: 'x', severity: 'medium', summary: 's', detail: '', originalText: '', pageNumber: 1, phase: null, readOnly: false }) as AuditItem;
 
-const itemConFase = (id: string, category: AuditItem['category'], phase: string): AuditItem =>
-  ({ ...item(id, category), phase }) as AuditItem;
+const par = (index: number, score: number): AIReviewParagraph =>
+  ({ element_id: `e${index}`, index, type: 'paragraph', text: 'x', ai_score: score, ai_category: 'MEDIUM', findings: [], spelling: [] }) as AIReviewParagraph;
 
-const encabezado = (id: string, text: string): ElementModel =>
-  ({ id, type: 'heading', heading_level: 1, text } as ElementModel);
-const parrafo = (id: string): ElementModel => ({ id, type: 'paragraph', heading_level: null, text: 'x' } as ElementModel);
+const el = (id: string): { id: string; type: string; text: string } => ({ id, type: 'paragraph', text: 'x' });
 
-describe('ReviewGate', () => {
-  it('no cuenta la IA en el total ni la muestra como fila', () => {
-    render(
-      <ReviewGate
-        items={[item('1', 'style'), item('2', 'spelling'), item('3', 'ai')]}
-        aiScore={0.8}
-        isScanning={false}
-        onScan={vi.fn()}
-        onStart={vi.fn()}
-        onOpenAiRoom={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId('review-gate-total').textContent).toBe('2');
-    expect(screen.queryByText('Voz sintética')).toBeNull();
+const props = (over = {}) => ({
+  items: [item('1', 'style')],
+  elements: [el('e1')] as never,
+  paragraphs: [par(0, 10)] as never,
+  isScanning: false,
+  onScan: vi.fn(),
+  onStartRevision: vi.fn(),
+  onOpenAiRoom: vi.fn(),
+  ...over,
+});
+
+describe('ReviewGate — puerta limpia 70/30', () => {
+  it('combina revisión (70) e IA (30) en un solo % coloreado por banda', () => {
+    // 1 hallazgo en 1 párrafo => revisión 0; IA voz humana 90 => 0.7*0 + 0.3*90 = 27
+    render(<ReviewGate {...props()} />);
+    expect(screen.getByTestId('gate-combinado').textContent).toBe('27%');
   });
 
-  it('el botón de Mapa IA aparece cuando hay IA y usa su etiqueta', () => {
-    render(
-      <ReviewGate items={[item('3', 'ai')]} aiScore={0.8} isScanning={false}
-        onScan={vi.fn()} onStart={vi.fn()} onOpenAiRoom={vi.fn()} />,
-    );
+  it('tiene dos entradas sin cards y separadas', () => {
+    render(<ReviewGate {...props()} />);
+    expect(screen.getByText('Empezar revisión')).toBeTruthy();
     expect(screen.getByText('Ver mapa de IA')).toBeTruthy();
+    expect(screen.queryByTestId('gate-matrix')).toBeNull();
   });
 
-  it('la matriz abre una fila por fase y aprende la fase del backend', () => {
-    render(
-      <ReviewGate
-        items={[itemConFase('1', 'spelling', 'metodo')]}
-        elements={[encabezado('h1', 'Sección propia'), parrafo('e')]}
-        aiScore={0}
-        isScanning={false}
-        onScan={vi.fn()}
-        onStart={vi.fn()}
-        onOpenAiRoom={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(phaseLabel('metodo'))).toBeTruthy();
-    expect(screen.getByText('Ortografía')).toBeTruthy();
-  });
-
-  it('ofrece el Mapa IA aunque todavía no haya voz sintética', () => {
-    render(
-      <ReviewGate
-        items={[item('1', 'spelling')]}
-        aiScore={0}
-        isScanning={false}
-        onScan={vi.fn()}
-        onStart={vi.fn()}
-        onOpenAiRoom={vi.fn()}
-      />,
-    );
+  it('«Ver mapa de IA» se deshabilita sin párrafos en alerta', () => {
+    render(<ReviewGate {...props({ paragraphs: [par(0, 10)] })} />);
     const boton = screen.getByText('Ver mapa de IA').closest('button') as HTMLButtonElement;
     expect(boton.disabled).toBe(true);
   });
 
-  /* Drill-down: la matriz deja de ser un cartel y abre la revisión ya acotada. */
-  const gateConFase = (onStart: (foco?: { phase?: string; engine?: string }) => void) =>
-    render(
-      <ReviewGate
-        items={[itemConFase('1', 'spelling', 'metodo')]}
-        elements={[encabezado('h1', 'Metodo'), parrafo('e')]}
-        aiScore={0}
-        isScanning={false}
-        onScan={vi.fn()}
-        onStart={onStart}
-        onOpenAiRoom={vi.fn()}
-      />,
-    );
-
-  it('una celda con hallazgos abre la revisión filtrada por fase y motor', () => {
-    const onStart = vi.fn();
-    gateConFase(onStart);
-    fireEvent.click(screen.getByRole('button', { name: /Revisar Metodo: 1 hallazgo de Ortografía/i }));
-    expect(onStart).toHaveBeenCalledWith({ phase: 'metodo', engine: 'spelling' });
+  it('las entradas navegan a cada sala', () => {
+    const onStartRevision = vi.fn();
+    const onOpenAiRoom = vi.fn();
+    render(<ReviewGate {...props({ paragraphs: [par(0, 80)], onStartRevision, onOpenAiRoom })} />);
+    fireEvent.click(screen.getByText('Empezar revisión'));
+    fireEvent.click(screen.getByText('Ver mapa de IA'));
+    expect(onStartRevision).toHaveBeenCalled();
+    expect(onOpenAiRoom).toHaveBeenCalled();
   });
 
-  it('la etiqueta de fase abre la revisión filtrada solo por esa fase', () => {
-    const onStart = vi.fn();
-    gateConFase(onStart);
-    fireEvent.click(screen.getByRole('button', { name: 'Revisar la fase Metodo' }));
-    expect(onStart).toHaveBeenCalledWith({ phase: 'metodo' });
+  it('sin revisión ni análisis muestra el estado vacío', () => {
+    render(<ReviewGate {...props({ items: [], paragraphs: [] })} />);
+    expect(screen.getByText('Aún no hay una revisión')).toBeTruthy();
   });
 
-  it('una celda sin hallazgos no es un botón accionable', () => {
-    gateConFase(vi.fn());
-    // Ortografía tiene 1; Estructura tiene 0: su celda no abre nada.
-    expect(
-      screen.getByRole('button', { name: /Revisar Metodo: 0 hallazgos de Estructura/i }).hasAttribute('disabled'),
-    ).toBe(true);
-  });
-
-  it('el botón global abre sin filtro: la matriz entera', () => {
-    const onStart = vi.fn();
-    gateConFase(onStart);
-    fireEvent.click(screen.getByRole('button', { name: /Empezar revisión/i }));
-    expect(onStart).toHaveBeenCalledWith();
+  it('«Reanalizar documento» dispara el escaneo', () => {
+    const onScan = vi.fn();
+    render(<ReviewGate {...props({ paragraphs: [par(0, 80)], onScan })} />);
+    fireEvent.click(screen.getByText('Reanalizar documento'));
+    expect(onScan).toHaveBeenCalled();
   });
 });
