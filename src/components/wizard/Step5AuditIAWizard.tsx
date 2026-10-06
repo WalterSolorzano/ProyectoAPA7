@@ -14,6 +14,7 @@ import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
 import { AiDocumentPreview } from '../review/AiDocumentPreview';
 import { construirPerfilIA } from '../../lib/aiPerfil';
+import { reformulateText } from '../../api/backend';
 import '../../styles/revision.css';
 
 type Pantalla = 'gate' | 'rev-l0' | 'rev-l1' | 'rev-l2' | 'ai';
@@ -131,6 +132,7 @@ export const Step5AuditIAWizard: React.FC = () => {
               paragraphs={reviewResult?.paragraphs ?? []}
               onBack={() => setIaNivel('l0')}
               onMark={(id) => handleMark({ element_id: id } as AuditItem)}
+              onReformular={(texto) => reformulateText(texto)}
             />
           </div>
         );

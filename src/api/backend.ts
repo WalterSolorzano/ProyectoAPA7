@@ -705,6 +705,21 @@ export async function rewriteText(
   return data.rewritten;
 }
 
+/** Reformular con IA: devuelve una propuesta EDITABLE; nunca escribe el doc. */
+export async function reformulateText(text: string, apiKey?: string): Promise<string> {
+  const res = await fetchWithTrace(`${getApiBase()}/ai/reformulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, api_key: apiKey, provider_id: proveedorElegido() }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al reformular con IA');
+  }
+  const data = await res.json();
+  return data.proposal;
+}
+
 export interface RewriteVariationsResult {
   variations: string[];
   provider: string;

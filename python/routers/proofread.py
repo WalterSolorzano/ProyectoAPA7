@@ -152,3 +152,33 @@ async def proofread_batch(req: ProofreadRequest) -> dict:
     ai_indices = _compute_ai_indices(para_texts, findings)
 
     return {"findings": findings, "used_llm": used_llm, "ai_indices": ai_indices}
+
+
+class ReformulateRequest(BaseModel):
+    text: str
+    api_key: Optional[str] = None
+    provider_id: Optional[str] = None
+
+
+# Instrucción fija: la persona pide «reformular» y el motor propone una versión
+# con voz de autor; nada se aplica solo (la vista la deja editable).
+_REFORMULATE_INSTRUCTION = (
+    "Reescribe el párrafo en español académico natural, conservando el "
+    "significado y las citas, reduciendo las muletillas y la rigidez sintética."
+)
+
+
+@router.post("/api/ai/reformulate")
+async def ai_reformulate(req: ReformulateRequest) -> dict:
+    """Propone una reescritura editable de un párrafo. No toca el documento."""
+    if not (req.text or "").strip():
+        raise HTTPException(status_code=400, detail="Texto vacío.")
+    from modules.ai_assistant import rewrite_text_suggestion
+
+    try:
+        propuesta = await rewrite_text_suggestion(
+            req.text, _REFORMULATE_INSTRUCTION, req.api_key, req.provider_id
+        )
+    except Exception as exc:  # pragma: no cover - depende del proveedor
+        raise HTTPException(status_code=502, detail=str(exc))
+    return {"proposal": propuesta}
