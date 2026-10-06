@@ -1548,8 +1548,42 @@ html, body {
 .editorial-mascot-face {
   animation: editorial-face-pop 200ms ease-out;
 }
+/* Movimiento por expresión: cada estado tiene su propio gesto, además del idle
+   del cuerpo (que vive en el svg). Se anima un grupo interno con `transform-box:
+   fill-box` para girar sobre su propia caja sin tocar la posición de la cara. */
+.editorial-mascot-motion {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.editorial-mascot-motion-happy { animation: editorial-motion-happy 1.6s ease-in-out infinite; }
+.editorial-mascot-motion-worried { animation: editorial-motion-worried 1.1s ease-in-out infinite; }
+.editorial-mascot-motion-curious { animation: editorial-motion-curious 2.4s ease-in-out infinite; }
+.editorial-mascot-motion-excited { animation: editorial-motion-excited 0.9s ease-in-out infinite; }
+.editorial-mascot-motion-neutral { animation: editorial-motion-neutral 3.2s ease-in-out infinite; }
+@keyframes editorial-motion-happy {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-1.5px) scale(1.06); }
+}
+@keyframes editorial-motion-worried {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.2px); }
+  75% { transform: translateX(1.2px); }
+}
+@keyframes editorial-motion-curious {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+@keyframes editorial-motion-excited {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.14); }
+}
+@keyframes editorial-motion-neutral {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .editorial-mascot-face {
+  .editorial-mascot-face,
+  .editorial-mascot-motion {
     animation: none;
   }
 }

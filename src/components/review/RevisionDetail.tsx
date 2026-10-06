@@ -15,7 +15,7 @@ import { ArrowLeft, Check, CheckCheck, Copy, Flag } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useReviewWorkbench, accionDeItem, ENGINE_META, MASS_LABELS } from '../../hooks/useReviewWorkbench';
 import { rotuloDeSubtipo } from '../../lib/rotulos';
-import { phaseLabel, type EngineId, type Severity } from '../../lib/auditItems';
+import { phaseLabel, type AuditItem, type EngineId, type Severity } from '../../lib/auditItems';
 import { fasePorElemento } from '../../lib/informeRevision';
 import { ReadingText } from './ReadingText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
@@ -75,6 +75,21 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   const titulo = motor ? ENGINE_META[motor].title : foco.phase ? phaseLabel(foco.phase) : 'Revisión';
   /** Secciones = elementos distintos con hallazgo en el foco (mockup: «en M secciones»). */
   const secciones = useMemo(() => new Set(delFoco.map((it) => it.element_id).filter(Boolean)).size, [delFoco]);
+  /* La lista de puntos se agrupa por subtipo y se lee como una lista con
+     scroll: 125 botones numerados sueltos no eran legibles. Cada fila conserva
+     su índice global (`i`) para que «punto X de Y» y los botones anterior /
+     siguiente sigan apuntando a la MISMA posición. */
+  const gruposPuntos = useMemo(
+    () =>
+      subtipos
+        .filter((s) => visibles.some((it) => it.subtype === s))
+        .map((s) => ({
+          subtype: s,
+          label: rotuloDeSubtipo(s),
+          filas: visibles.map((it, i) => ({ it, i })).filter(({ it }) => it.subtype === s),
+        })),
+    [subtipos, visibles],
+  );
   const elActual = actual ? elements.find((e) => e.id === actual.element_id) : undefined;
   const severidad = actual ? SEVERIDAD_PILL[actual.severity] : null;
 
@@ -169,9 +184,25 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
 
             <div style={fixBlock}>
               <span style={eyebrow}>Puntos de este motor</span>
-              <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
-                {visibles.map((it, i) => (
-                  <button key={it.id} type="button" onClick={() => setIdx(i)} aria-current={i === pos ? 'true' : undefined} style={dot(i === pos, i < pos)}>{i + 1}</button>
+              <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {gruposPuntos.map((g) => (
+                  <div key={g.subtype} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)' }}>{g.label} · {g.filas.length}</span>
+                    {g.filas.map(({ it, i }) => (
+                      <button
+                        key={it.id}
+                        type="button"
+                        onClick={() => setIdx(i)}
+                        aria-current={i === pos ? 'true' : undefined}
+                        title={fragmento(it)}
+                        style={filaPunto(i === pos, i < pos)}
+                      >
+                        <span aria-hidden style={{ width: 8, height: 8, borderRadius: 'var(--radius-full)', background: puntoSeveridad(it.severity), flex: '0 0 auto' }} />
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{fragmento(it)}</span>
+                        <span style={{ flex: '0 0 auto', opacity: 0.7 }}>{i + 1}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -200,6 +231,12 @@ const chip = (on: boolean): React.CSSProperties => ({ fontSize: 'var(--text-xs)'
 const primario: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--color-accent)', color: 'var(--color-text-on-accent)', fontSize: 'var(--text-sm)', fontWeight: 700, cursor: 'pointer' };
 const exito: React.CSSProperties = { ...primario, background: 'var(--color-success)' };
 const fantasma: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-subtle)', background: 'transparent', color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' };
-const dot = (on: boolean, done: boolean): React.CSSProperties => ({ width: 26, height: 26, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', border: `1px solid ${on ? 'var(--color-accent)' : done ? 'var(--color-success)' : 'var(--color-border-strong)'}`, color: on ? 'var(--color-text-on-accent)' : done ? 'var(--color-success)' : 'var(--color-text-secondary)', background: on ? 'var(--color-accent)' : done ? 'var(--color-success-a12)' : 'var(--color-bg-surface)' });
+const filaPunto = (on: boolean, done: boolean): React.CSSProperties => ({ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', width: '100%', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: `1px solid ${on ? 'var(--color-accent)' : done ? 'var(--color-success)' : 'var(--color-border-subtle)'}`, background: on ? 'var(--color-accent-soft)' : done ? 'var(--color-success-a12)' : 'transparent', color: on ? 'var(--color-accent)' : done ? 'var(--color-success)' : 'var(--color-text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' });
+const puntoSeveridad = (sev: Severity): string => (sev === 'critical' || sev === 'high' ? 'var(--color-danger)' : sev === 'medium' ? 'var(--color-warning)' : 'var(--color-text-tertiary)');
+/** Fragmento legible de una fila: el texto tocado, o el resumen si no hay. */
+const fragmento = (it: AuditItem): string => {
+  const t = (it.originalText || it.summary || '').replace(/\s+/g, ' ').trim();
+  return t.length > 64 ? `${t.slice(0, 63)}…` : t || 'Sin texto';
+};
 
 export default RevisionDetail;

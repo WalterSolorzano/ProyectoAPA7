@@ -25,17 +25,23 @@ interface FaceProps {
 
 const Face: React.FC<FaceProps> = ({ expression, x, y, scale = 1 }) => (
   <g key={expression} transform={`translate(${x} ${y}) scale(${scale})`} className={`editorial-mascot-face editorial-mascot-face-${expression}`}>
-    <path className="editorial-mascot-brow" d="M-8 -5 C-5 -7 -3 -7 -1 -5" />
-    <path className="editorial-mascot-brow" d="M5 -5 C7 -7 9 -7 12 -5" />
-    <circle className="editorial-mascot-eye" cx="-5" cy="1" r="2.5" />
-    <circle className="editorial-mascot-eye" cx="8" cy="1" r="2.5" />
-    <circle className="editorial-mascot-glint" cx="-4.2" cy="0.2" r="0.7" />
-    <circle className="editorial-mascot-glint" cx="8.8" cy="0.2" r="0.7" />
-    {expression === 'excited' && <ellipse className="editorial-mascot-mouth-open" cx="1.5" cy="12" rx="5" ry="4" />}
-    {expression === 'happy' && <path className="editorial-mascot-mouth" d="M-5 10 C-2 15 4 15 8 10" />}
-    {expression === 'curious' && <path className="editorial-mascot-mouth" d="M-2 11 C1 9 4 12 7 10" />}
-    {expression === 'worried' && <path className="editorial-mascot-mouth" d="M-5 15 C-1 11 4 11 8 15" />}
-    {expression === 'neutral' && <path className="editorial-mascot-mouth" d="M-4 11 H7" />}
+    {/* El movimiento por expresión vive en un grupo interno: el `transform` de
+        arriba posiciona la cara, y una animación de `transform` en el mismo
+        elemento lo pisaría (CSS gana al atributo) y la cara saltaría al origen.
+        El grupo interno anima su propia caja, no la posición. */}
+    <g className={`editorial-mascot-motion editorial-mascot-motion-${expression}`}>
+      <path className="editorial-mascot-brow" d="M-8 -5 C-5 -7 -3 -7 -1 -5" />
+      <path className="editorial-mascot-brow" d="M5 -5 C7 -7 9 -7 12 -5" />
+      <circle className="editorial-mascot-eye" cx="-5" cy="1" r="2.5" />
+      <circle className="editorial-mascot-eye" cx="8" cy="1" r="2.5" />
+      <circle className="editorial-mascot-glint" cx="-4.2" cy="0.2" r="0.7" />
+      <circle className="editorial-mascot-glint" cx="8.8" cy="0.2" r="0.7" />
+      {expression === 'excited' && <ellipse className="editorial-mascot-mouth-open" cx="1.5" cy="12" rx="5" ry="4" />}
+      {expression === 'happy' && <path className="editorial-mascot-mouth" d="M-5 10 C-2 15 4 15 8 10" />}
+      {expression === 'curious' && <path className="editorial-mascot-mouth" d="M-2 11 C1 9 4 12 7 10" />}
+      {expression === 'worried' && <path className="editorial-mascot-mouth" d="M-5 15 C-1 11 4 11 8 15" />}
+      {expression === 'neutral' && <path className="editorial-mascot-mouth" d="M-4 11 H7" />}
+    </g>
   </g>
 );
 
