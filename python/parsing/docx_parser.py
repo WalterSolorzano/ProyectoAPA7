@@ -158,6 +158,31 @@ def _extract_comments(file_bytes: bytes) -> list[dict]:
     return comments
 
 
+_WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+
+
+def _textbox_anchor_pos_h(p_element) -> Optional[str]:
+    """Posición horizontal del cuadro de texto flotante de un párrafo.
+
+    Lee ``wp:positionH/wp:posOffset`` (EMU) del ``wp:anchor`` que contiene un
+    ``txbxContent``. Se ignora cualquier ancla que no sea un cuadro de texto
+    (p. ej. una imagen flotante). Devuelve ``None`` si no hay tal ancla.
+    """
+    try:
+        for anchor in p_element.findall(f'.//{{{_WP_NS}}}anchor'):
+            if not any(el.tag.endswith('txbxContent') for el in anchor.iter()):
+                continue
+            pos_h = anchor.find(f'.//{{{_WP_NS}}}positionH')
+            if pos_h is None:
+                continue
+            offset = pos_h.find(f'.//{{{_WP_NS}}}posOffset')
+            if offset is not None and offset.text is not None:
+                return offset.text
+        return None
+    except Exception:
+        return None
+
+
 def _extract_paragraph_text_with_footnotes(p_element) -> tuple[str, list[int]]:
     """
     Extrae el texto plano de un w:p recorriendo su XML en orden.
@@ -1037,20 +1062,24 @@ def parse_docx_bytes(
         if tag.endswith("p"):
             p = docx.text.paragraph.Paragraph(child, doc)
 
+            # Posición horizontal del cuadro de texto flotante (si lo hay), para
+            # reconstruir las columnas de la portada. None en párrafos normales.
+            textbox_anchor_h = _textbox_anchor_pos_h(child)
+
             # Detectar si este párrafo contiene múltiples textboxes/shapes independientes con contenido
             # (típico en portadas con cajas flotantes de autores y docentes).
             # En ese caso, separamos cada textbox en un sub-elemento para no aplastar al docente con el autor.
-            choice_runs_with_text: list[tuple[str, list[int]]] = []
+            choice_runs_with_text: list[tuple[str, list[int], object]] = []
             runs_in_p = child.findall(f'.//{{{W_NS}}}r')
             for r_el in runs_in_p:
                 if any(x.tag.endswith('txbxContent') for x in r_el.iter()):
                     r_text, r_fns = _extract_paragraph_text_with_footnotes(r_el)
                     if r_text and r_text.strip():
-                        choice_runs_with_text.append((r_text.strip(), r_fns))
+                        choice_runs_with_text.append((r_text.strip(), r_fns, r_el))
 
             if len(choice_runs_with_text) > 1:
                 # Emitir cada textbox como su propio elemento de párrafo
-                for tb_text, tb_fns in choice_runs_with_text:
+                for tb_text, tb_fns, tb_run in choice_runs_with_text:
                     element_counter += 1
                     elem_tb = ElementModel(
                         id=f"elem_{element_counter}",
@@ -1059,6 +1088,7 @@ def parse_docx_bytes(
                         original_text=tb_text,
                         style_name=p.style.name if p.style else "Normal",
                         alignment="center",
+                        anchor_pos_h=_textbox_anchor_pos_h(tb_run),
                         font_name="Times New Roman",
                         font_size=12.0,
                         is_bold=False,
@@ -1435,6 +1465,7 @@ def parse_docx_bytes(
                     original_text=text,
                     style_name=style_name,
                     alignment=align_str,
+                    anchor_pos_h=textbox_anchor_h,
                     font_name=font_name,
                     font_size=font_size,
                     is_bold=is_bold,

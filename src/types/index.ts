@@ -174,6 +174,12 @@ export interface ElementModel {
   original_text?: string;
   style_name: string;
   alignment: string;
+  /**
+   * Posición horizontal del cuadro de texto flotante original (EMU,
+   * `wp:positionH/wp:posOffset`). Permite reconstruir las columnas de la
+   * portada. `undefined`/`null` en elementos que no son cuadros de texto.
+   */
+  anchor_pos_h?: string | null;
   font_name: string;
   font_size: number;
   is_bold: boolean;

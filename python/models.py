@@ -464,6 +464,10 @@ class ElementModel(BaseModel):
     original_text: Optional[str] = None
     style_name: str = "Normal"
     alignment: str = "left"
+    # Posición horizontal del cuadro de texto flotante (wp:positionH/wp:posOffset,
+    # en EMU). Permite reconstruir las columnas originales de la portada (p. ej.
+    # el docente/tutor en su columna derecha). None si el elemento no es textbox.
+    anchor_pos_h: Optional[str] = None
     font_name: str = "Times New Roman"
     font_size: float = 12.0
     is_bold: bool = False

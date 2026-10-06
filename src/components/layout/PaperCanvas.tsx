@@ -38,6 +38,7 @@ import { TablaRender } from '../figures/TablaRender';
 import { MascotaLeyendaIA } from '../figures/MascotaLeyendaIA';
 import { TablaEstiloSelector } from '../figures/TablaEstiloSelector';
 import { rebanadaDeTabla } from '../../lib/tablaRender';
+import { buildCoverColumns, parseAnchorEmu } from '../../lib/coverColumns';
 
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
@@ -68,7 +69,11 @@ export function parseCoverAuthorCards(elem: ElementModel): CoverAuthorCard[] {
   let currentName = '';
   let currentMeta = '';
   lines.forEach((line) => {
-    if (/^(Br\.|Ing\.|Lic\.|Msc\.|Dr\.|Docente|Tutor|Prof\.)/i.test(line)) {
+    // Si la línea explícitamente es docente o tutor, no es autor estudiantil
+    if (/^(Docente|Tutor|Prof\.|Profesor|Asesor)/i.test(line)) {
+      return;
+    }
+    if (/^(Br\.|Est\.)/i.test(line)) {
       if (currentName) {
         cards.push({ name: currentName, meta: currentMeta, originalElemId: elem.id });
         currentMeta = '';
@@ -98,10 +103,19 @@ export function parseCoverAuthorCards(elem: ElementModel): CoverAuthorCard[] {
   return cards;
 }
 
+export function isCoverTutorElement(elem: ElementModel): boolean {
+  if (!elem.text) return false;
+  const t = elem.text.trim();
+  return /^(Docente|Tutor|Profesor|Prof\.|Asesor|Ing\.|Dr\.|Lic\.|MSc\.|Master)/i.test(t) ||
+    /\b(Docente|Tutor|Profesor|Asesor)\s*:/i.test(t);
+}
+
 export function isCoverAuthorElement(elem: ElementModel): boolean {
   if (!elem.text) return false;
   const t = elem.text.trim();
-  return /\b(Br\.|Ing\.|Lic\.|Carnet:)\b/i.test(t) || /Carnet:\s*\d+/i.test(t);
+  // Los docentes (Ing., Dr., Lic., Docente, Tutor, Profesor) NO son integrantes estudiantiles
+  if (isCoverTutorElement(elem)) return false;
+  return /\b(Br\.|Est\.|Carnet:)\b/i.test(t) || /Carnet:\s*\d+/i.test(t);
 }
 
 // ── Marcas de transparencia y auditoría (ChangeMark) ─────────────────────────
@@ -1524,34 +1538,212 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
                       type CoverGroup =
                         | { kind: 'single'; elem: ElementModel }
-                        | { kind: 'author_grid'; elems: ElementModel[]; cards: CoverAuthorCard[] };
+                        | { kind: 'author_grid'; elems: ElementModel[]; cards: CoverAuthorCard[] }
+                        | { kind: 'columns'; columns: ElementModel[][] };
 
                       const coverGroups: CoverGroup[] = [];
-                      let pendingAuthorElems: ElementModel[] = [];
+                      const authorElems: ElementModel[] = [];
+                      const tutorElems: ElementModel[] = [];
 
-                      const flushAuthors = () => {
-                        if (pendingAuthorElems.length > 0) {
-                          const allCards = pendingAuthorElems.flatMap(parseCoverAuthorCards);
-                          if (allCards.length > 1) {
-                            coverGroups.push({ kind: 'author_grid', elems: [...pendingAuthorElems], cards: allCards });
-                          } else {
-                            pendingAuthorElems.forEach((e) => coverGroups.push({ kind: 'single', elem: e }));
+                      const isCoverMember = (e: ElementModel): boolean =>
+                        isCoverAuthorElement(e) || isCoverTutorElement(e);
+                      const coverMembers = rawCoverElements.filter(isCoverMember);
+                      // Si el original traía cuadros de texto con posición horizontal,
+                      // reconstruimos sus columnas reales (p. ej. el tutor a la derecha).
+                      const hasColumnLayout = coverMembers.some(
+                        (e) => parseAnchorEmu(e.anchor_pos_h) !== null
+                      );
+
+                      if (hasColumnLayout) {
+                        let columnsPushed = false;
+                        rawCoverElements.forEach((elem) => {
+                          if (isCoverMember(elem)) {
+                            if (!columnsPushed) {
+                              coverGroups.push({ kind: 'columns', columns: buildCoverColumns(coverMembers) });
+                              columnsPushed = true;
+                            }
+                            return;
                           }
-                          pendingAuthorElems = [];
-                        }
-                      };
-
+                          coverGroups.push({ kind: 'single', elem });
+                        });
+                      } else {
+                      // 1. Separar autores y tutores para evitar fragmentación de la grilla
                       rawCoverElements.forEach((elem) => {
                         if (isCoverAuthorElement(elem)) {
-                          pendingAuthorElems.push(elem);
+                          authorElems.push(elem);
+                        } else if (isCoverTutorElement(elem)) {
+                          tutorElems.push(elem);
                         } else {
-                          flushAuthors();
+                          // Si ya teníamos autores acumulados y encontramos un separador (ej: fecha o pie de página), los volcamos
+                          if (authorElems.length > 0) {
+                            const allCards = authorElems.flatMap(parseCoverAuthorCards);
+                            if (allCards.length > 1) {
+                              coverGroups.push({ kind: 'author_grid', elems: [...authorElems], cards: allCards });
+                            } else {
+                              authorElems.forEach((e) => coverGroups.push({ kind: 'single', elem: e }));
+                            }
+                            authorElems.length = 0;
+                          }
+                          // Si hay docentes acumulados, los colocamos inmediatamente antes del pie de página
+                          if (tutorElems.length > 0) {
+                            tutorElems.forEach((t) => coverGroups.push({ kind: 'single', elem: t }));
+                            tutorElems.length = 0;
+                          }
                           coverGroups.push({ kind: 'single', elem });
                         }
                       });
-                      flushAuthors();
+
+                      // Volcar cualquier autor o tutor restante
+                      if (authorElems.length > 0) {
+                        const allCards = authorElems.flatMap(parseCoverAuthorCards);
+                        if (allCards.length > 1) {
+                          coverGroups.push({ kind: 'author_grid', elems: [...authorElems], cards: allCards });
+                        } else {
+                          authorElems.forEach((e) => coverGroups.push({ kind: 'single', elem: e }));
+                        }
+                        authorElems.length = 0;
+                      }
+
+                      if (tutorElems.length > 0) {
+                        tutorElems.forEach((t) => coverGroups.push({ kind: 'single', elem: t }));
+                        tutorElems.length = 0;
+                      }
+                      }
+
+                      const renderCoverSingle = (elem: ElementModel) => {
+                        /* Read-only (vista previa): la portada se mide, no se escribe.
+                           El editor no se abre ni aunque el doble clic fije el estado. */
+                        const isEditing = !readOnly && editingCoverElemId === elem.id;
+                        const isSelected = selectedElementId === elem.id;
+                        const align = (elem.alignment as any) || 'center';
+                        const bold = elem.is_bold || false;
+                        const fontSize = elem.font_size ? `${elem.font_size}pt` : '11pt';
+                        if (!elem.text?.trim()) return null;
+
+                        if (isEditing) {
+                          return (
+                            <div key={elem.id} style={{ width: '100%', margin: '1px 0' }}>
+                              <textarea
+                                autoFocus
+                                value={editingCoverText}
+                                onChange={(e) => setEditingCoverText(e.target.value)}
+                                onBlur={() => {
+                                  if (editingCoverText !== elem.text) {
+                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                  }
+                                  setEditingCoverElemId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    if (editingCoverText !== elem.text) {
+                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
+                                    }
+                                    setEditingCoverElemId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCoverElemId(null);
+                                  }
+                                }}
+                                style={{
+                                  width: '100%',
+                                  fontFamily: fontFamily,
+                                  fontSize,
+                                  fontWeight: bold ? 'bold' : 'normal',
+                                  textAlign: align,
+                                  border: '2px solid var(--accent-primary)',
+                                  borderRadius: 'var(--radius-xs)',
+                                  padding: '3px 8px',
+                                  background: 'var(--paper-white)',
+                                  color: 'var(--paper-ink)',
+                                  resize: 'vertical',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  boxShadow: '0 0 0 3px var(--color-accent-a20)',
+                                  minHeight: '28px',
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+
+                        // "Ing." termina en punto, así que un \b tras \. nunca casa
+                        // con el espacio siguiente; sin boundary el tutor sí se rotula.
+                        const isDocenteElem = /^(?:ing\.|lic\.|dr\.|dra\.|m\.sc\.|docente|tutor|profesor|asesor)/i.test(elem.text.trim());
+
+                        return (
+                          <div
+                            key={elem.id}
+                            id={`paper-elem-${elem.id}`}
+                            title="Doble clic para editar"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCoverElemId(elem.id);
+                              setEditingCoverText(elem.text || '');
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedElementId(elem.id);
+                              onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
+                            }}
+                            style={{
+                              margin: isDocenteElem ? '6px 0' : '2px 0',
+                              textAlign: align,
+                              cursor: 'pointer',
+                              padding: isDocenteElem ? '4px 8px' : '2px 6px',
+                              borderRadius: 'var(--radius-xs)',
+                              transition: 'background-color 0.12s ease, border-color 0.12s ease',
+                              backgroundColor: isSelected
+                                ? 'var(--color-accent-soft)'
+                                : (reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : (isDocenteElem ? 'var(--surface-subtle)' : 'transparent')),
+                              border: isSelected ? '1px dashed var(--accent-primary)' : (isDocenteElem ? '1px solid var(--border-subtle)' : '1px solid transparent'),
+                            }}
+                          >
+                            {isDocenteElem && (
+                              <div style={{ fontSize: '8pt', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-accent)', fontWeight: 700, marginBottom: '2px' }}>
+                                Docente / Tutor
+                              </div>
+                            )}
+                            <div style={{
+                              fontWeight: bold || isDocenteElem ? 'bold' : 'normal',
+                              fontSize,
+                              color: 'var(--paper-ink)',
+                              whiteSpace: 'pre-line',
+                              lineHeight: 1.4,
+                            }}>
+                              {elem.text}
+                            </div>
+                          </div>
+                        );
+                      };
 
                       return coverGroups.map((group, gIdx) => {
+                        if (group.kind === 'columns') {
+                          const cols = group.columns;
+                          return (
+                            <div
+                              key={`cover-columns-${gIdx}`}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))`,
+                                gap: '16px',
+                                width: '100%',
+                                margin: '8px 0',
+                                padding: '4px 0',
+                                alignItems: 'start',
+                              }}
+                            >
+                              {cols.map((col, ci) => (
+                                <div
+                                  key={`cover-col-${gIdx}-${ci}`}
+                                  style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}
+                                >
+                                  {col.map((colElem) => renderCoverSingle(colElem))}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
                         if (group.kind === 'author_grid') {
                           const editingElem = group.elems.find((e) => e.id === editingCoverElemId);
                           if (editingElem) {
@@ -1598,7 +1790,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                             );
                           }
 
-                          const colCount = Math.min(group.cards.length, 4);
+                          // Distribución equilibrada: 4 autores -> 2 cols; 5 o 6 -> 3 cols; <=3 -> N cols
+                          const count = group.cards.length;
+                          const colCount = count <= 3 ? count : count === 4 ? 2 : 3;
                           return (
                             <div
                               key={`author-group-${gIdx}`}
@@ -1655,98 +1849,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                           );
                         }
 
-                        const elem = group.elem;
-                        /* Read-only (vista previa): la portada se mide, no se escribe.
-                           El editor no se abre ni aunque el doble clic fije el estado. */
-                        const isEditing = !readOnly && editingCoverElemId === elem.id;
-                        const isSelected = selectedElementId === elem.id;
-                        const align = (elem.alignment as any) || 'center';
-                        const bold = elem.is_bold || false;
-                        const fontSize = elem.font_size ? `${elem.font_size}pt` : '11pt';
-                        if (!elem.text?.trim()) return null;
-
-                        if (isEditing) {
-                          return (
-                            <div key={elem.id} style={{ width: '100%', margin: '1px 0' }}>
-                              <textarea
-                                autoFocus
-                                value={editingCoverText}
-                                onChange={(e) => setEditingCoverText(e.target.value)}
-                                onBlur={() => {
-                                  if (editingCoverText !== elem.text) {
-                                    useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                  }
-                                  setEditingCoverElemId(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    if (editingCoverText !== elem.text) {
-                                      useDocStore.getState().updateElementText(elem.id, editingCoverText);
-                                    }
-                                    setEditingCoverElemId(null);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingCoverElemId(null);
-                                  }
-                                }}
-                                style={{
-                                  width: '100%',
-                                  fontFamily: fontFamily,
-                                  fontSize,
-                                  fontWeight: bold ? 'bold' : 'normal',
-                                  textAlign: align,
-                                  border: '2px solid var(--accent-primary)',
-                                  borderRadius: 'var(--radius-xs)',
-                                  padding: '3px 8px',
-                                  background: 'var(--paper-white)',
-                                  color: 'var(--paper-ink)',
-                                  resize: 'vertical',
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  boxShadow: '0 0 0 3px var(--color-accent-a20)',
-                                  minHeight: '28px',
-                                }}
-                              />
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <p
-                            key={elem.id}
-                            id={`paper-elem-${elem.id}`}
-                            title="Doble clic para editar"
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCoverElemId(elem.id);
-                              setEditingCoverText(elem.text || '');
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedElementId(elem.id);
-                              onElementClick?.(elem.id, (e.currentTarget as HTMLElement).getBoundingClientRect(), elem);
-                            }}
-                            style={{
-                              margin: '2px 0',
-                              textAlign: align,
-                              fontWeight: bold ? 'bold' : 'normal',
-                              fontSize,
-                              color: 'var(--paper-ink)',
-                              cursor: 'pointer',
-                              padding: '2px 6px',
-                              borderRadius: 'var(--radius-xs)',
-                              whiteSpace: 'pre-line',
-                              lineHeight: 1.4,
-                              transition: 'background-color 0.12s ease, border-color 0.12s ease',
-                              backgroundColor: isSelected
-                                ? 'var(--color-accent-soft)'
-                                : (reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent'),
-                              border: isSelected ? '1px dashed var(--accent-primary)' : '1px solid transparent',
-                            }}
-                          >
-                            {elem.text}
-                          </p>
-                        );
+                        return renderCoverSingle(group.elem);
                       });
                     })()}
                     </div>
