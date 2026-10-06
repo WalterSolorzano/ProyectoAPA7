@@ -874,7 +874,7 @@ export const ImageEditPanel: React.FC<{ elem: any; totalFiguras?: number }> = ({
                         { id: `sub_${Date.now()}_c`, label: '(c)', title: 'Tratamiento B', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
                         { id: `sub_${Date.now()}_d`, label: '(d)', title: 'Resultados comparados', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },
                       ];
-                      updateElementImage(elem.id, { design_style: 'multipanel', subfigures: initialSubs });
+                      updateElementImage(elem.id, { design_style: 'corner', subfigures: initialSubs });
                     } else if (style.value === 'vertical_stack' && (!img.subfigures || img.subfigures.length === 0)) {
                       const initialSubs: SubfigureItem[] = [
                         { id: `sub_${Date.now()}_a`, label: '(a)', title: 'Fase inicial', relative_url: img.relative_url || '', file_path: img.file_path || '', filename: img.filename || '' },

@@ -666,6 +666,69 @@ class TestEquationGeneration:
         full = "\n".join(p.text for p in result.paragraphs)
         assert "(1)" in full, f"El número de ecuación debería aparecer. Texto: {full!r}"
 
+    def test_omml_se_preserva_y_no_duplica(self, rules, tmp_path):
+        """La ecuación OMML no se pierde y el párrafo siguiente no se duplica.
+
+        Regresión del hallazgo #1 del reporte: generar sobre un docx con
+        ecuaciones (m:oMath) devolvía 0 ecuaciones y párrafos posteriores
+        repetidos. Aquí el modelo y el original tienen la MISMA secuencia
+        (párrafo, ecuación, párrafo)."""
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+        from models import DocumentMeta, EquationConfig
+
+        orig = docx.Document()
+        orig.add_paragraph("Intro del ejercicio.")
+        p_eq = orig.add_paragraph()  # sin texto: solo la ecuación
+        p_eq._element.append(parse_xml(
+            '<m:oMath %s><m:r><m:t>a+b=c</m:t></m:r></m:oMath>' % nsdecls("m")
+        ))
+        orig.add_paragraph("Parrafo posterior unico.")
+        (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
+
+        doc_model = DocumentModel(
+            session_id="ommltest",
+            file_name="orig.docx",
+            elements=[
+                ElementModel(id="p1", type=ElementType.PARAGRAPH, text="Intro del ejercicio."),
+                ElementModel(
+                    id="eq1", type=ElementType.EQUATION, text="a+b=c",
+                    style_name="Normal", font_size=12.0, has_math=True,
+                    equation=EquationConfig(show_number=False),
+                ),
+                ElementModel(id="p2", type=ElementType.PARAGRAPH, text="Parrafo posterior unico."),
+            ],
+            meta=DocumentMeta(session_id="ommltest", file_name="orig.docx", wordapa7_version="1.0.0"),
+            rules=rules,
+            references=[],
+        )
+        out = tmp_path / "out.docx"
+        generate_apa7_docx(doc_model, str(out), rules, None, [])
+
+        import zipfile
+        with zipfile.ZipFile(str(out)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "ignore")
+        assert "oMath" in xml, "la ecuación OMML se perdió en generate_apa7_docx"
+        assert xml.count("Parrafo posterior unico.") == 1, "el párrafo siguiente se duplicó"
+
+
+class TestExistingCaptionDetection:
+    """El generador no debe duplicar un caption que ya existe (hallazgo #4)."""
+
+    def test_caption_below_is_detected(self):
+        from generation.generator import _detect_existing_figure_caption
+        doc = docx.Document()
+        img_p = doc.add_paragraph()  # párrafo sin texto (donde iría la imagen)
+        doc.add_paragraph("Figura 1. Diagrama del sistema")
+        assert _detect_existing_figure_caption(img_p, list(doc.paragraphs)) == "Figura 1. Diagrama del sistema"
+
+    def test_caption_above_is_detected(self):
+        from generation.generator import _detect_existing_figure_caption
+        doc = docx.Document()
+        doc.add_paragraph("Figura 2. Otra figura")
+        img_p = doc.add_paragraph()
+        assert _detect_existing_figure_caption(img_p, list(doc.paragraphs)) == "Figura 2. Otra figura"
+
 
 def _docx_bytes(doc) -> bytes:
     """Serializa un objeto python-docx a bytes (sin tocar disco)."""
@@ -673,3 +736,168 @@ def _docx_bytes(doc) -> bytes:
     buf = _io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+# ── NUMERACIÓN MANUAL (no duplicar) ──────────────────────────────────────────
+
+def test_manual_numbering_se_strip_cuando_hay_prefijo_automatico(rules, test_output_dir):
+    """Un heading que ya viene numerado a mano ("9.1 Metodología") NO debe salir
+    doble numerado cuando la auto-numeración decimal está encendida: el generador
+    quita la manual y escribe SOLO la suya."""
+    rules = rules.model_copy(update={
+        "heading_numbering_style_lvl1": "decimal",
+        "heading_numbering_style_lvl2": "decimal",
+        "heading_numbering_style_lvl3": "none",
+    })
+    elements = [
+        ElementModel(id="h1", type=ElementType.HEADING, text="9.1 Metodología", heading_level=1),
+        ElementModel(id="h2", type=ElementType.HEADING, text="9.1.1 Subsección", heading_level=2),
+        ElementModel(id="h3", type=ElementType.HEADING, text="9.2 Resultados", heading_level=1),
+    ]
+    doc_model = DocumentModel(
+        session_id="test_manual_numbering",
+        file_name="manual_numbering.docx",
+        elements=elements,
+    )
+    out = test_output_dir / "manual_numbering_output.docx"
+    generate_apa7_docx(doc_model, out, rules)
+
+    all_text = "\n".join(p.text for p in docx.Document(str(out)).paragraphs)
+    assert "9.1" not in all_text, f"numeración manual conservada: {all_text!r}"
+    assert "9.2" not in all_text
+    assert "Metodología" in all_text
+    assert "Resultados" in all_text
+    assert "1. Metodología" in all_text
+
+
+def test_numeracion_manual_intacta_si_auto_numeracion_apagada(rules, test_output_dir):
+    """Con estilo 'none' la numeración manual del autor se respeta tal cual."""
+    rules = rules.model_copy(update={"heading_numbering_style_lvl1": "none"})
+    elements = [
+        ElementModel(id="h1", type=ElementType.HEADING, text="9.1 Metodología", heading_level=1),
+    ]
+    doc_model = DocumentModel(
+        session_id="test_none_numbering",
+        file_name="none_numbering.docx",
+        elements=elements,
+    )
+    out = test_output_dir / "none_numbering_output.docx"
+    generate_apa7_docx(doc_model, out, rules)
+
+    all_text = "\n".join(p.text for p in docx.Document(str(out)).paragraphs)
+    assert "9.1 Metodología" in all_text
+
+
+# ── PORTADA UNI: no descoloca tablas/figuras del cuerpo ─────────────────────
+
+def _png_1x1() -> bytes:
+    """PNG 1x1 válido mínimo, para incrustar una imagen real en el .docx."""
+    import struct
+    import zlib
+
+    def _chunk(tag: bytes, data: bytes) -> bytes:
+        body = tag + data
+        crc = zlib.crc32(body) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", crc)
+
+    header = _chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+    idat = _chunk(b"IDAT", zlib.compress(b"\x00\xff\xff\xff"))
+    return b"\x89PNG\r\n\x1a\n" + header + idat + _chunk(b"IEND", b"")
+
+
+class TestPortadaUniNoDescolocaElCuerpo:
+    """Regresión #3 y #5: la portada UNI sintética inserta su logo y su tabla de
+    integrantes al INICIO. Esos nodos NO son cuerpo y no deben consumir los
+    índices de figuras/tablas reales (si no, el logo se rotula "Figura 1" y la
+    tabla de portada se rotula "Tabla 1")."""
+
+    def _portada_uni(self):
+        return PortadaData(
+            apa_format=APAFormat.STUDENT,
+            title="Trabajo UNI",
+            institution="UNI",
+            course="Asignatura",
+            cover_mode="generate_uni_cover",
+            use_original_cover=False,
+        )
+
+    def _meta(self, session):
+        from models import DocumentMeta
+        # El autor dispara la tabla de integrantes de la portada UNI, que es la
+        # que antes desplazaba el matching de tablas del cuerpo.
+        return DocumentMeta(
+            session_id=session,
+            file_name="original.docx",
+            wordapa7_version="1.0.0",
+            autor="Br. Juan Pérez | Carnet: 2023-0001U",
+        )
+
+    def test_tabla_de_portada_no_captura_la_etiqueta_tabla1(self, rules, tmp_path):
+        orig = docx.Document()
+        orig.add_heading("Introducción", level=1)
+        orig.add_paragraph("Párrafo de cuerpo antes de la tabla.")
+        tbl = orig.add_table(rows=2, cols=2)
+        tbl.cell(0, 0).text = "Encabezado A"
+        tbl.cell(0, 1).text = "Encabezado B"
+        tbl.cell(1, 0).text = "dato1"
+        tbl.cell(1, 1).text = "dato2"
+        (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
+
+        doc_model = DocumentModel(
+            session_id="uni_tabla",
+            file_name="original.docx",
+            elements=[
+                ElementModel(id="h1", type=ElementType.HEADING, text="Introducción", heading_level=1),
+                ElementModel(id="p1", type=ElementType.PARAGRAPH, text="Párrafo de cuerpo antes de la tabla."),
+                ElementModel(id="t1", type=ElementType.TABLE),
+            ],
+            meta=self._meta("uni_tabla"),
+            rules=rules,
+            references=[],
+        )
+        out = tmp_path / "out.docx"
+        generate_apa7_docx(doc_model, str(out), rules, self._portada_uni(), [])
+
+        import zipfile
+        with zipfile.ZipFile(str(out)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "ignore")
+        assert "dato1" in xml, "se perdió la tabla del cuerpo"
+        assert "Tabla 1" in xml
+        assert xml.find("Introducción") < xml.find("Tabla 1"), (
+            "la etiqueta 'Tabla 1' quedó sobre la tabla de la portada"
+        )
+
+    def test_logo_de_portada_no_captura_la_etiqueta_figura1(self, rules, tmp_path):
+        from docx.shared import Inches
+
+        png = tmp_path / "fig.png"
+        png.write_bytes(_png_1x1())
+
+        orig = docx.Document()
+        orig.add_heading("Introducción", level=1)
+        orig.add_paragraph("Párrafo de cuerpo antes de la figura.")
+        orig.add_paragraph().add_run().add_picture(str(png), width=Inches(0.5))
+        (tmp_path / "original.docx").write_bytes(_docx_bytes(orig))
+
+        doc_model = DocumentModel(
+            session_id="uni_fig",
+            file_name="original.docx",
+            elements=[
+                ElementModel(id="h1", type=ElementType.HEADING, text="Introducción", heading_level=1),
+                ElementModel(id="p1", type=ElementType.PARAGRAPH, text="Párrafo de cuerpo antes de la figura."),
+                ElementModel(id="img1", type=ElementType.IMAGE),
+            ],
+            meta=self._meta("uni_fig"),
+            rules=rules,
+            references=[],
+        )
+        out = tmp_path / "out.docx"
+        generate_apa7_docx(doc_model, str(out), rules, self._portada_uni(), [])
+
+        import zipfile
+        with zipfile.ZipFile(str(out)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "ignore")
+        assert "Figura 1" in xml
+        assert xml.find("Introducción") < xml.find("Figura 1"), (
+            "la etiqueta 'Figura 1' quedó sobre el logo de la portada"
+        )

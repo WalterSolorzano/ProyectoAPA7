@@ -9,9 +9,8 @@
  */
 
 import React from 'react';
-import { TriangleAlert } from 'lucide-react';
 import type { DiagnosticoRama, NodoJerarquia } from '../../lib/jerarquia';
-import { BarraBalance, miles } from './BarraBalance';
+import { BarraBalance } from './BarraBalance';
 
 export interface NodoIndiceProps {
   nodo: NodoJerarquia;
@@ -36,7 +35,8 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
   seleccionado = false,
 }) => {
   const balance = diagnostico?.balance ?? null;
-  const motivo = diagnostico?.motivo ?? null;
+  const motivo = diagnostico?.motivo ?? 'Rama desbalanceada';
+  const problema = (diagnostico?.salud ?? 'completa') !== 'completa';
 
   return (
     <div
@@ -87,58 +87,35 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
         >
           {nodo.titulo}
         </span>
-        <span
-          style={{
-            flex: '0 0 auto',
-            marginLeft: 'auto',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            color: 'var(--color-text-tertiary)',
-          }}
-        >
-          {miles(nodo.palabras)}
-        </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        {balance ? (
-          <BarraBalance
-            palabras={nodo.palabras}
-            escala={balance.mayor}
-            laMasLarga={balance.laMasLarga}
-            nombre={nodo.titulo}
-          />
-        ) : (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-            sin comparar
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-          {nodo.figuras + nodo.tablas + nodo.citas > 0
-            ? `${nodo.figuras} fig · ${nodo.tablas} tab · ${nodo.citas} cit`
-            : 'sin elementos'}
-        </span>
-        {motivo ? (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 'var(--space-1)',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--color-warning)',
-              background: 'var(--severity-warning-soft)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '0 var(--space-1)',
-            }}
-          >
-            <TriangleAlert size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
-            {motivo}
-          </span>
-        ) : null}
-      </div>
+      {balance || problema ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          {balance ? (
+            <BarraBalance
+              palabras={nodo.palabras}
+              escala={balance.mayor}
+              laMasLarga={balance.laMasLarga}
+              nombre={nodo.titulo}
+            />
+          ) : null}
+          {problema ? (
+            <span
+              role="img"
+              aria-label={motivo}
+              title={motivo}
+              style={{
+                flex: '0 0 auto',
+                display: 'inline-block',
+                width: 7,
+                height: 7,
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--color-warning)',
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 };

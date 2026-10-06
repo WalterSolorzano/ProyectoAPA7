@@ -45,6 +45,19 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // No watchear salidas de build: si un build de electron-builder corre en
+    // paralelo, un .dll bloqueado dispara EBUSY y mata el dev server.
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/dist/**',
+        '**/dist-electron/**',
+        '**/dist-electron-builder/**',
+        '**/word-addin/dist/**',
+        '**/graphify-out/**',
+      ],
+    },
     proxy: {
       '/api': {
         target: 'https://127.0.0.1:8742',

@@ -77,15 +77,15 @@ describe('T6 — AppShell', () => {
     }
   });
 
-  it('el flyout NO lo abre ningún hover, y lo abre el clic de la MISMA fase', () => {
-    /* La mitad de "quitar el hover no deja sin disparador": el clic de un
-       destino abre su detalle, navega y ancla. Es un superconjunto de lo que
-       hacía el hover, así que no se perdió ninguna capacidad — se perdió el
-       pedido implícito. */
+  it('el clic en una fase sin panel (Estructura, Figuras) no abre el flyout; Portada sí lo abre', () => {
+    /* El rediseño quitó el panel flotante del rail en Estructura y Figuras: esas
+       fases ya no ofrecen flyout, así que su clic solo navega. Portada lo conserva. */
     render(<AppShell><div>x</div></AppShell>);
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Estructura' }));
-    expect(screen.queryByTestId('rail-flyout')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Estructura' }));
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Figuras' }));
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Portada' }));
     expect(screen.getByTestId('rail-flyout')).toBeTruthy();
   });
 
@@ -95,8 +95,8 @@ describe('T6 — AppShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Figuras' }));
     expect(useDocStore.getState().wizardStep).toBe(3);
     expect(useDocStore.getState().railPinned).toBe(true);
-    // El clic también abre el detalle: con teclado no hay hover que lo abra.
-    expect(screen.getByTestId('rail-flyout')).toBeTruthy();
+    // Figuras ya no ofrece panel flotante: el clic solo navega.
+    expect(screen.queryByTestId('rail-flyout')).toBeNull();
   });
 
   it('el bloque contenedor del flyout es `.app-main`, positioned: el panel arranca en el primer botón', () => {

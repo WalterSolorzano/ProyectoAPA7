@@ -1,18 +1,152 @@
-/* WordAPA7 — review: punto de entrada del paso 5.
-   La implementación vive en src/components/review/. Este archivo sobrevive
-   para no cambiar el import desde App.tsx ni los tests que lo referencian.
-
-   Aquí murió también la segunda fuente de paginas: el mapa de caracteres por
-   elemento que este archivo llevaba contra la paginacion real del lienzo.
-   Un hallazgo caia en una hoja que el minimapa no marcaba; ahora las tres
-   cosas que nombran una pagina (la cuenta de la tira, las marcas del minimapa
-   y la etiqueta del bloque) salen de `usePageIndex`. */
-
-import React from 'react';
+/* WordAPA7 — Paso 5: orquestador de Revisión & IA.
+   Tres pantallas: la puerta de estado (`gate`), la superficie secuencial de
+   revisión (`review`, un hallazgo a la vez) y la sala de IA (`ai`). La puerta
+   es la entrada; el workbench de columna única es la revisión. */
+import React, { useMemo, useState } from 'react';
+import { useDocStore } from '../../store/useDocStore';
+import { reviewItems, type AuditItem } from '../../lib/auditItems';
+import { usePageIndex } from '../../hooks/usePageIndex';
+import { ReviewGate, type FocoRevision } from '../review/ReviewGate';
 import { ReviewWorkbench } from '../review/ReviewWorkbench';
+import { AiRoom } from '../review/AiRoom';
+import '../../styles/revision.css';
 
-export function Step5AuditIAWizard() {
-  return <ReviewWorkbench />;
-}
+type Pantalla = 'gate' | 'review' | 'ai';
+
+const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
+
+export const Step5AuditIAWizard: React.FC = () => {
+  const doc = useDocStore((s) => s.doc);
+  const reviewResult = useDocStore((s) => s.reviewResult);
+  const proofreadFindings = useDocStore((s) => s.proofreadFindings || []);
+  const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const runAIReview = useDocStore((s) => s.runAIReview);
+  const runProofreadBatch = useDocStore((s) => s.runProofreadBatch);
+  const runCitationAudit = useDocStore((s) => s.runCitationAudit);
+  const updateElementText = useDocStore((s) => s.updateElementText);
+  const showToast = useDocStore((s) => s.showToast);
+  const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
+  const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
+  const dismissedFindingIds = useDocStore((s) => s.dismissedFindingIds || []);
+  const dismissFinding = useDocStore((s) => s.dismissFinding);
+
+  const [pantalla, setPantalla] = useState<Pantalla>('gate');
+  const [isScanning, setIsScanning] = useState(false);
+  /* El foco elegido en la puerta (fase y/o motor). Vive acá porque la puerta se
+     desmonta al abrir la revisión; la superficie secuencial lo recibe al
+     montar. Volver a la puerta lo limpia: el próximo "Empezar revisión" arranca
+     sin filtro. */
+  const [foco, setFoco] = useState<FocoRevision | null>(null);
+
+  const volverAPuerta = () => {
+    setFoco(null);
+    setPantalla('gate');
+  };
+
+  const elements = useMemo(() => doc?.elements || [], [doc]);
+
+  const { pageOf } = usePageIndex();
+
+  /* `reviewItems` es la MISMA lista que cuenta el rail: todos los hallazgos
+     menos los que la persona ya descartó. No se filtra por categoría —ni citas
+     ni leyendas— porque el rail las cuenta y la pantalla tiene que mostrarlas:
+     si escondiera un motor, el rail prometería trabajo que la pantalla no abre
+     (AGENTS.md §1). */
+  const items = useMemo(
+    () =>
+      reviewItems(
+        { elements, reviewResult, proofreadFindings, citationAuditResult },
+        pageOf,
+        dismissedFindingIds,
+      ),
+    [elements, reviewResult, proofreadFindings, citationAuditResult, pageOf, dismissedFindingIds],
+  );
+
+  const aiScore = reviewResult?.ai_indices?.score ?? 0;
+
+  const handleScan = async () => {
+    setIsScanning(true);
+    showToast('Iniciando escaneo integral con IA y heurística local…', 'info');
+    try {
+      await Promise.allSettled([runAIReview(), runProofreadBatch(), runCitationAudit()]);
+      showToast('Auditoría integral completada', 'success');
+    } catch {
+      showToast('Error al ejecutar el escaneo completo', 'error');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleMark = (item: AuditItem) => {
+    if (item.element_id) {
+      setSelectedElementId(item.element_id);
+      setScrollTargetId(item.element_id);
+    }
+    showToast('Marcado para revisar', 'info');
+  };
+
+  /* El detector de IA es probabilístico (AGENTS.md §1): "Reemplazar en
+     Manuscrito" escribe lo que la persona editó en la propuesta, y marca el
+     hallazgo para que quede trazable; nunca aplica una sugerencia a ciegas. */
+  const handleReplace = async (id: string, text: string) => {
+    const item = items.find((it) => it.id === id);
+    if (!doc || !item?.element_id || item.readOnly) return;
+    try {
+      await updateElementText(item.element_id, text);
+      setSelectedElementId(item.element_id);
+      setScrollTargetId(item.element_id);
+      dismissFinding(id);
+      showToast('Propuesta insertada en el manuscrito', 'success');
+    } catch {
+      showToast('Error al reemplazar en el manuscrito', 'error');
+    }
+  };
+
+  const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
+
+  if (pantalla === 'ai') {
+    return (
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+        <AiRoom
+          reviewResult={reviewResult}
+          elements={elements}
+          aiItems={aiItems}
+          onMark={(id) => handleMark({ element_id: id } as AuditItem)}
+          onReplace={handleReplace}
+          onExit={volverAPuerta}
+        />
+      </div>
+    );
+  }
+
+  if (pantalla === 'review') {
+    return (
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+        <ReviewWorkbench
+          onExit={volverAPuerta}
+          initialPhase={foco?.phase ?? null}
+          initialEngine={foco?.engine ?? null}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+      <ReviewGate
+        items={items}
+        elements={elements}
+        aiScore={aiScore}
+        isScanning={isScanning}
+        onScan={handleScan}
+        onStart={(destino) => {
+          setFoco(destino ?? null);
+          setPantalla('review');
+        }}
+        onOpenAiRoom={() => setPantalla('ai')}
+      />
+    </div>
+  );
+};
 
 export default Step5AuditIAWizard;

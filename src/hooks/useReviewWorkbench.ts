@@ -41,8 +41,9 @@ import {
   type ScanEngineId,
 } from '../components/wizard/scanOutcome';
 import { useReviewActions } from './useReviewActions';
-import { collectAuditItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
+import { reviewItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 import { rotuloDeSubtipo } from '../lib/rotulos';
+import { cumplimiento } from '../lib/informeRevision';
 
 /* La tabla de rótulos y la de reglas viven en `lib/rotulos`, y no acá. Este hook
    las consumía y las declaraba a la vez, que es lo que dejó al slice del store sin
@@ -228,6 +229,7 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
      propone la variable que falta o el detalle que falta, y escribirlo es
      decidir por el autor qué van a medir. */
   objetivo_generico: 'mark',
+  objetivo_verbo: 'mark',
   metodo_generico: 'mark',
   /* Las ocho universales del spec §12. 'mark' todas: el motor detecta y la
      persona corrige. Una reescritura automática de prosa argumental sería
@@ -248,6 +250,7 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   verbo_bloom: 'accept',
   ortografia: 'accept',
   texto_pegado: 'accept',
+  forma_apa: 'accept',
   cita_fantasma: 'resolveGhosts',
   referencia_huerfana: 'none',
   encabezado: 'none',
@@ -420,6 +423,19 @@ function accionDeItems(items: AuditItem[]): SubtypeAction {
   return 'accept';
 }
 
+/**
+ * La acción de UN hallazgo, con la MISMA tabla que agrupa los subtipos
+ * (`SUBTYPE_ACTION` + `engineAction`). Es la puerta que usa la superficie
+ * secuencial para decidir qué botón ofrece el hallazgo seleccionado, y existe
+ * para que la vista no re-derive el predicado: si el subtipo no está en la
+ * tabla, cae en la acción del motor (nunca `accept` para IA). Un hallazgo de
+ * solo lectura no ofrece acción —la portada no se muta (AGENTS.md §1)—.
+ */
+export function accionDeItem(item: AuditItem): SubtypeAction {
+  if (item.readOnly) return 'none';
+  return SUBTYPE_ACTION[item.subtype] || engineAction(item.category);
+}
+
 export function agruparHallazgosPorFase(items: AuditItem[]): PhaseGroup[] {
   const porFase = new Map<string, AuditItem[]>();
   for (const it of items) {
@@ -467,10 +483,15 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const aiIndices = useDocStore((s) => s.aiIndices);
   const setSelectedElementId = useDocStore((s) => s.setSelectedElementId);
   const setScrollTargetId = useDocStore((s) => s.setScrollTargetId);
-  /* El canal de descarte del LIENZO. `dismiss` de esta vista y esta función
-     tienen que ir juntos: uno saca la fila del rack, el otro la burbuja y su
-     subrayado, y son el mismo hallazgo. */
+  /* Los DOS canales de descarte. `dismiss` de esta vista y estas dos funciones
+     tienen que ir juntos: una saca el hallazgo de la lista, la otra la burbuja y
+     su subrayado, y son el mismo hallazgo. Los descartes viven en el STORE —no
+     en un `useState` local— porque el rail cuenta la MISMA lista (`reviewItems`
+     con `dismissedFindingIds`): si vivieran acá, la pantalla y el rail podrían
+     discrepar. */
   const dismissComment = useDocStore((s) => s.dismissComment);
+  const dismissedFindingIds = useDocStore((s) => s.dismissedFindingIds);
+  const dismissFinding = useDocStore((s) => s.dismissFinding);
   const runAIReview = useDocStore((s) => s.runAIReview);
   const runProofreadBatch = useDocStore((s) => s.runProofreadBatch);
   const runCitationAudit = useDocStore((s) => s.runCitationAudit);
@@ -487,7 +508,6 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const [openSubtypes, setOpenSubtypes] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [markedIds, setMarkedIds] = useState<string[]>([]);
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isScanning, setIsScanning] = useState(false);
   /* Los GLOBOS no se miden acá: se miden en el store, porque se disparan al
@@ -514,17 +534,19 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
 
-  /* La lista la construye `lib/auditItems` — la MISMA función que cuenta el
-     rail: lo que esta vista abre y lo que el rail promete tienen que ser el
-     mismo conjunto, o el punto verde de Revisión & IA miente. `pageOf` es lo
-     único que esta vista le aporta. Los descartes (`dismissedIds`) son estado
-     de la vista, así que se aplican acá y no en el módulo compartido. */
+  /* La lista la construye `reviewItems` de `lib/auditItems` — la MISMA función
+     que cuenta el rail: lo que esta vista abre y lo que el rail promete tienen
+     que ser el mismo conjunto, o el punto verde de Revisión & IA miente.
+     `pageOf` y los descartes del store son lo único que esta vista le aporta:
+     los descartes son del documento, no de la vista, y por eso viven en el
+     store y no en un `useState` que se perdía al desmontar. */
   const items = useMemo<AuditItem[]>(
-    () => collectAuditItems(
+    () => reviewItems(
       { elements, reviewResult, proofreadFindings, citationAuditResult },
       pageOf,
-    ).filter((it) => !dismissedIds.includes(it.id)),
-    [reviewResult, proofreadFindings, citationAuditResult, elements, dismissedIds, pageOf],
+      dismissedFindingIds,
+    ),
+    [reviewResult, proofreadFindings, citationAuditResult, elements, dismissedFindingIds, pageOf],
   );
 
   /* El resumen COMPLETO, sin filtro: es lo que pinta los chips. El conjunto
@@ -579,15 +601,13 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const sessionId = doc?.session_id;
   useEffect(() => {
     seeded.current = false;
-    /* Los descartes y las marcas SON de un documento. Un id de hallazgo es
-       estable dentro de una sesión (id de elemento + tipo + rango, el texto
-       citado, la referencia), así que sobreviven a un reescaneo del MISMO
-       documento —que es lo que deben hacer— pero no tienen nada que ver con los
-       hallazgos de otro: sin este reinicio, abrir una segunda tesis cuyos
-       hallazgos caen sobre las mismas claves escondía los suyos detrás de
-       descartes que la persona nunca hizo aquí. La lista de findings y la de
-       descartes son del MISMO documento o no son nada. */
-    setDismissedIds([]);
+    /* Las marcas SON de un documento. Un id de hallazgo es estable dentro de
+       una sesión (id de elemento + tipo + rango, el texto citado, la
+       referencia), así que sobreviven a un reescaneo del MISMO documento —que es
+       lo que deben hacer— pero no tienen nada que ver con los hallazgos de otro.
+       Los descartes NO se reinician acá: viven en el store (`dismissedFindingIds`)
+       porque son la lista que también cuenta el rail, y un id de otra sesión no
+       colisiona con el de ésta. */
     setMarkedIds([]);
     /* El filtro de FASE también es de un documento. Un chip de "Objetivos"
        activo en la tesis anterior deja el rack vacío al abrir la siguiente, y
@@ -745,8 +765,8 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
      quien importa este hook no tiene que saber que ahora hay dos archivos. */
   const { acceptOne, acceptMany, markForReview, runGroupAction, dismiss, isApplying } =
     useReviewActions(
-      { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, showToast },
-      { setDismissedIds, setMarkedIds, setSelectedId },
+      { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast },
+      { setMarkedIds, setSelectedId },
     );
 
   const scanAll = useCallback(async () => {
@@ -878,7 +898,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     isApplying,
     metrics: {
       total,
-      compliance: threeEnginesRan ? Math.max(0, Math.min(100, 100 - total * 3)) : null,
+      compliance: threeEnginesRan ? cumplimiento(total) : null,
     },
     viewMode,
     setViewMode,

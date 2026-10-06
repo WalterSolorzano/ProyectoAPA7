@@ -1112,6 +1112,13 @@ un control decorativo con la etiqueta de uno funcional.
 
 ### 12.3 `provider_id` en los diecisiete
 
+> **Corrección, 2026-10-04 (motor anti-ban).** Se migró el motor de visión,
+> `visual_auditor.audit_pdf_with_multimodal_llm`, que hacía HTTP directo a
+> NVIDIA y por eso evadía el rate limiting. Ahora pasa por
+> `execute_with_specialty` con la imagen como bloque multimodal. El inventario
+> sube a **19 llamadas, 18 endpoints**: el motor de visión cuenta como los
+> demás aunque hoy no tenga llamadores (igual que `check_spelling_with_ia`).
+>
 > **Corrección, 2026-09-29 (F8).** Este apartado decía **dieciocho** y está
 > mal. El número real, verificado greppeando `execute_with_specialty` en `python/`:
 > **18 llamadas, 17 endpoints**. La decimoctava es `execute_with_fallback`

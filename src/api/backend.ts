@@ -232,28 +232,6 @@ export async function connectWord(path: string): Promise<{ ok: boolean }> {
   return res.json();
 }
 
-export interface ScopedApplyResult {
-  scopes: string[];
-  download_url: string;
-  tablas?: number;
-  figuras?: number;
-  refs_formateadas?: number;
-}
-
-/** Aplica SOLO los alcances pedidos sobre el original (sin regeneración). */
-export async function scopedApply(sessionId: string, scopes: string[]): Promise<ScopedApplyResult> {
-  const res = await fetchWithTrace(`${getApiBase()}/scoped-apply`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, scopes }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
 export async function bulkAcceptElements(  sessionId: string,
   elementIds: string[]
 ): Promise<DocumentModel> {
@@ -319,6 +297,30 @@ export async function updateElement(
   });
 
   if (!res.ok) throw new Error('Error al actualizar el elemento');
+  return res.json();
+}
+
+/**
+ * API de contenido / copiloto — inserta una figura ya renderizada por el
+ * backend tras `afterElementId` (párrafo con imagen inline + elemento image).
+ */
+export async function insertImageElement(
+  sessionId: string,
+  afterElementId: string,
+  newElementId: string,
+  image: Partial<import('../types').ImageModel>,
+): Promise<DocumentModel> {
+  const res = await fetchWithTrace(`${getApiBase()}/elements/insert-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      after_element_id: afterElementId,
+      new_element_id: newElementId,
+      image,
+    }),
+  });
+  if (!res.ok) throw new Error('Error al insertar la figura');
   return res.json();
 }
 
@@ -440,6 +442,8 @@ export interface ResultadoDeProbarProveedor {
   ms: number;
   model: string | null;
   motivo: string;
+  /** Segundos hasta poder reintentar. Solo viene en un 429 (cuota agotada). */
+  retry_after?: number | null;
 }
 
 /** Le pregunta a UN proveedor si su clave funciona, y dice cuanto costo.
@@ -557,6 +561,30 @@ export async function validateCitations(
   });
 
   if (!res.ok) throw new Error('Error al validar citas');
+  return res.json();
+}
+
+/** Reordena la bibliografía con la clave APA del backend (apellido sin tildes). */
+export async function sortReferences(sessionId: string): Promise<ReferenciaModel[]> {
+  const res = await fetchWithTrace(`${getApiBase()}/references/sort/${sessionId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Error al reordenar las referencias');
+  const data = await res.json();
+  return data.referencias || [];
+}
+
+export interface CitationStyleReport {
+  mixed: boolean;
+  ieee: number;
+  vancouver: number;
+  apa: number;
+}
+
+/** Estilo de cita detectado en el cuerpo: APA, numérica o ambos. */
+export async function detectCitationStyle(sessionId: string): Promise<CitationStyleReport> {
+  const res = await fetchWithTrace(`${getApiBase()}/citation-style/${sessionId}`);
+  if (!res.ok) throw new Error('Error al detectar el estilo de citas');
   return res.json();
 }
 
@@ -1363,7 +1391,7 @@ export async function depurarCache(): Promise<ResultadoDeLimpieza> {
 // ── LIVE AI CHAT & PROACTIVE CAPTIONS ────────────────────────────────────────
 
 export interface LiveChatAction {
-  type: 'update_text' | 'set_type' | 'insert_citation' | 'add_reference' | 'set_caption' | 'set_note' | 'split_paragraph' | 'delete_element';
+  type: 'update_text' | 'set_type' | 'insert_citation' | 'add_reference' | 'set_caption' | 'set_note' | 'split_paragraph' | 'delete_element' | 'add_diagram';
   element_id?: string;
   text?: string;
   element_type?: string;
@@ -1373,6 +1401,8 @@ export interface LiveChatAction {
   caption?: string;
   note?: string;
   paragraphs?: string[];
+  /** API de contenido / copiloto — figura ya renderizada por el backend. */
+  image?: Partial<import('../types').ImageModel>;
 }
 
 export interface LiveChatResponse {

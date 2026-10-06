@@ -89,7 +89,7 @@ def crossref_to_reference(work: Dict[str, Any]) -> Dict[str, Any]:
     este modulo: dos formateadores de APA divergen solos, que es exactamente lo
     que pasó con el `BLOOM_VERBS` que tenía verbos duplicados entre niveles.
     """
-    from modules.addin_references_store import _format_apa_reference
+    from modules.apa_format import format_apa_plain
 
     autores = _autores_apa(work.get("author") or [])
     if len(autores) > _APA_MAX_AUTORES:
@@ -117,7 +117,7 @@ def crossref_to_reference(work: Dict[str, Any]) -> Dict[str, Any]:
         "raw_text": "",
         "is_draft": False,
     }
-    ref["formatted_apa"] = _format_apa_reference(ref)
+    ref["formatted_apa"] = format_apa_plain(ref)
     return ref
 
 
@@ -145,7 +145,7 @@ def normalize_web_url(entrada: str) -> Optional[str]:
 async def resolve_web_metadata(url: str) -> Dict[str, Any]:
     """Extrae metadatos APA 7 desde HTML (OpenGraph, meta tags, schema.org, Dublin Core)."""
     from bs4 import BeautifulSoup
-    from modules.addin_references_store import _format_apa_reference
+    from modules.apa_format import format_apa_plain
     from urllib.parse import urlparse
 
     headers = {
@@ -272,5 +272,5 @@ async def resolve_web_metadata(url: str) -> Dict[str, Any]:
         "raw_text": "",
         "is_draft": False,
     }
-    ref["formatted_apa"] = _format_apa_reference(ref)
+    ref["formatted_apa"] = format_apa_plain(ref)
     return ref

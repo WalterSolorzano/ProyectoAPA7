@@ -11,7 +11,7 @@ llamador ya lee. Cambiar el consumidor para que calce con un backend nuevo es al
 reves: el que manda el contrato es el que ya esta en uso.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -200,4 +200,38 @@ async def resolve_doi(req: ResolveDoiRequest) -> Dict[str, Any]:
         "apa_formatted": ref["formatted_apa"],
         "guardada": guardada,
         "tipo": "doi",
+    }
+
+
+class FormatReferenceRequest(BaseModel):
+    authors: List[str] = []
+    year: Optional[str] = None
+    title: str = ""
+    source: str = ""
+    doi_or_url: Optional[str] = None
+    raw_text: str = ""
+    tipo: Optional[str] = None
+
+
+@router.post("/api/references/format")
+async def format_reference(req: FormatReferenceRequest) -> Dict[str, Any]:
+    """Devuelve la línea APA 7 segmentada. El backend es el único autor.
+
+    Lo consumen los formularios manuales (agregar/editar referencia) para dejar
+    de componer APA en TypeScript: lo que la persona ve es lo que el documento
+    recibe, con la misma cursiva y la misma limpieza.
+    """
+    from models import ReferenciaModel
+    from modules.apa_format import build_apa_segments
+
+    ref = ReferenciaModel(
+        id="format", authors=req.authors, year=req.year, title=req.title,
+        source=req.source, doi_or_url=req.doi_or_url, raw_text=req.raw_text,
+        tipo=req.tipo or "otro",
+    )
+    segs = build_apa_segments(ref)
+    return {
+        "formatted_apa": "".join(s.text for s in segs).strip(),
+        "apa_segments": [s.model_dump() for s in segs],
+        "tipo": ref.tipo,
     }

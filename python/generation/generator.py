@@ -36,6 +36,12 @@ from parsing.pre_classifier import (
 )
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.heading_numbering import (  # noqa: F401
+    _detect_heading_numbering_style,
+    _extract_numbering_style_marker,
+    _resolver_estilo_de_nivel,
+    _strip_existing_numbering,
+)
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
@@ -46,6 +52,7 @@ from generation.style_engine import (
     set_run_font,
 )
 from generation.table_engine import (
+    borde_efectivo,
     fit_table_to_page,
     format_apa_table,
     set_table_borders,
@@ -76,27 +83,33 @@ def _strip_inline_footnote_markers(text: str) -> str:
     return re.sub(r'\s*\(nota\s+\d+\)', '', text).strip()
 
 
-def _detect_heading_numbering_style(heading_text: str) -> str:
-    """
-    Detecta si el texto del heading usa numeración romana (I., II., III.)
-    o decimal (1., 2., 3.) basado en el prefijo original.
-    Retorna 'roman' o 'decimal'.
-    """
-    import re
-    text_stripped = heading_text.strip()
-    first_word = text_stripped.split()[0] if text_stripped else ""
-    if re.match(r'^(?:X{0,3})(?:I[XV]|V?I{1,3})\.$', first_word):
-        return 'roman'
-    return 'decimal'
+def _format_numero(n: int, estilo: str) -> str:
+    """Formatea un contador según la notación de título elegida por nivel."""
+    if estilo in ("upperRoman", "roman"):
+        return _to_roman(n)
+    if estilo == "lowerRoman":
+        return _to_roman(n).lower()
+    if estilo == "upperLetter":
+        return chr(64 + ((n - 1) % 26) + 1)
+    if estilo == "lowerLetter":
+        return chr(96 + ((n - 1) % 26) + 1)
+    return str(n)
 
 
 def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style: str = 'decimal') -> str:
     """Construye el prefijo numérico para un heading según su nivel y estilo.
 
     Estilos:
-    - 'decimal': 1., 1.1., 1.1.1. (numeros arabigos)
-    - 'roman': I., II., III. para nivel 1, seguido de decimal para subniveles
-    - 'none': sin prefijo numerico
+    - 'decimal': 1., 1.1. (números arábigos)
+    - 'upperRoman'/'roman': I., II., III.
+    - 'lowerRoman': i., ii., iii.
+    - 'upperLetter': A., B., C.
+    - 'lowerLetter': a., b., c.
+    - 'none': sin prefijo numérico
+
+    La notación elegida se aplica al componente DEL PROPIO NIVEL. En un H2 el
+    componente del padre (nivel 1) se mantiene decimal para no perder la lectura
+    jerárquica "2.5"; solo el componente del hijo usa la notación elegida.
     """
     # Solo numerar H1 y H2. Niveles 3+ no llevan numeracion (APA 7 no lo requiere
     # y resulta visualmente cargado con demasiados digitos).
@@ -115,10 +128,9 @@ def _build_heading_prefix(counters: dict[int, int], level: int, numbering_style:
     for l in range(1, level + 1):
         c = counters.get(l, 0)
         if c > 0:
-            if numbering_style == 'roman' and l == 1:
-                parts.append(_to_roman(c))
-            else:
-                parts.append(str(c))
+            # El estilo solo manda en el nivel propio; los padres van decimales.
+            estilo_componente = numbering_style if l == level else 'decimal'
+            parts.append(_format_numero(c, estilo_componente))
     if parts:
         return ".".join(parts) + ". "
     return ""
@@ -270,42 +282,6 @@ def _generate_toc_from_headings(
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 
-def _strip_existing_numbering(text: str) -> str:
-    """Remove existing numbering prefix from heading text to avoid double prefixes.
-
-    Handles patterns like 'I. Title', 'II. Title', 'A. Title', '1. Title',
-    '0.1 Title', '1.1 Title', '1.1.1 Title' (multi-level decimal numbering
-    with or without a trailing dot).
-    """
-    if not text:
-        return text
-    import re
-    t = text.strip()
-    # Roman prefixes: I. II. III. IV. V. VI. VII. VIII. IX. X.
-    m = re.match(
-        r'^(M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))\.\s+(.*)',
-        t, re.IGNORECASE
-    )
-    if m:
-        return m.group(2)
-    # Multi-level decimal prefixes: 0.1, 1.1, 1.1.1, etc. followed by a space.
-    # The optional trailing dot also covers build-style prefixes like "1.1. ".
-    # Checked before the single-level decimal so that '1.1 Title' is stripped as
-    # a whole rather than leaving the '.1 Title' remainder behind.
-    m_multi = re.match(r'^(\d+(?:\.\d+)+)\.?\s+(.*)', t)
-    if m_multi:
-        return m_multi.group(2)
-    # Decimal prefixes: 1. 2. 10.
-    m2 = re.match(r'^(\d+)\.\s+(.*)', t)
-    if m2:
-        return m2.group(2)
-    # Letter prefixes: A. B. a. b.
-    m3 = re.match(r'^([A-Za-z])\.\s+(.*)', t)
-    if m3:
-        return m3.group(2)
-    return text
-
-
 
 # ─── DEDUPLICACIÓN DE LA SECCIÓN DE REFERENCIAS (F3) ──────────────────────────
 # El vocabulario NO vive acá. Antes vivía en una lista propia que era copia de
@@ -373,47 +349,60 @@ def _is_table_too_wide(table_info) -> tuple[bool, bool]:
     return too_many, too_wide
 
 
-def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str | None:
-    """Detecta si ya existe un caption de figura en el texto del parrafo de
-    la imagen o en el parrafo inmediatamente anterior. Retorna el texto del
-    caption encontrado o None. Usa la MISMA semantica de deteccion que el
-    parser (REGEX_FIGURE_CAPTION: Figura|Figure|Fig. + digito) para que las
-    etiquetas detectadas en parseo no queden huerfanas aqui."""
+def _existing_caption_paragraph(img_paragraph, all_paragraphs: list):
+    """Devuelve el parrafo que YA contiene el caption de la figura, o None.
+
+    APA 7 deja el caption arriba de la figura, pero un .docx hecho a mano
+    suele traerlo debajo. Se revisan el propio parrafo de la imagen, el
+    anterior y el siguiente. Antes solo se miraban el propio y el anterior:
+    con un caption DEBAJO el generador no lo veia y añadia un segundo caption
+    encima (el "Figura 1" duplicado). Usa la MISMA semantica que el parser
+    (REGEX_FIGURE_CAPTION)."""
     fig_pattern = REGEX_FIGURE_CAPTION
-    # Revisar el propio parrafo de la imagen
-    img_text = img_paragraph.text.strip()
-    if fig_pattern.match(img_text):
-        return img_text
-    # Revisar el parrafo inmediatamente anterior
-    prev_elem = img_paragraph._element.getprevious()
-    if prev_elem is not None:
+    if fig_pattern.match(img_paragraph.text.strip()):
+        return img_paragraph
+    for sibling in (
+        img_paragraph._element.getprevious(),
+        img_paragraph._element.getnext(),
+    ):
+        if sibling is None:
+            continue
         for p in all_paragraphs:
-            if p._element is prev_elem:
-                prev_text = p.text.strip()
-                if fig_pattern.match(prev_text):
-                    return prev_text
+            if p._element is sibling:
+                if fig_pattern.match(p.text.strip()):
+                    return p
                 break
     return None
 
 
-def _update_existing_caption_text(img_paragraph, new_caption: str, rules: APARuleSet) -> None:
-    """Actualiza el texto del caption existente en el parrafo (sin duplicar el parrafo)."""
+def _detect_existing_figure_caption(img_paragraph, all_paragraphs: list) -> str | None:
+    """Detecta si ya existe un caption de figura en el parrafo de la imagen,
+    el anterior o el siguiente. Retorna el texto encontrado o None."""
+    para = _existing_caption_paragraph(img_paragraph, all_paragraphs)
+    return para.text.strip() if para is not None else None
+
+
+def _update_existing_caption_text(
+    img_paragraph, new_caption: str, rules: APARuleSet, all_paragraphs: list | None = None
+) -> None:
+    """Actualiza el texto del caption existente (sin duplicar el parrafo)."""
     from docx.shared import Pt
-    # Buscar si el caption esta en el parrafo de la imagen o en el anterior
-    for para in [img_paragraph]:
-        text = para.text.strip()
-        if text:
-            # Preservar el prefijo "Figura X." si existe, solo reemplazar la descripcion
-            import re
-            m = re.match(r'^(.*?\d+[\.:)]\s*)', text)
-            prefix = m.group(1) if m else ""
-            para.text = ""
-            r = para.add_run(prefix + new_caption)
-            r.italic = True
-            r.font.name = rules.font_family
-            r.font.size = Pt(rules.font_size_pt)
-            r.font.color.rgb = RGBColor(0, 0, 0)
-            return
+    para = None
+    if all_paragraphs:
+        para = _existing_caption_paragraph(img_paragraph, all_paragraphs)
+    if para is None:
+        para = img_paragraph
+    text = para.text.strip()
+    # Preservar el prefijo "Figura X." si existe, solo reemplazar la descripcion
+    import re
+    m = re.match(r'^(.*?\d+[\.:)]\s*)', text)
+    prefix = m.group(1) if m else ""
+    para.text = ""
+    r = para.add_run(prefix + new_caption)
+    r.italic = True
+    r.font.name = rules.font_family
+    r.font.size = Pt(rules.font_size_pt)
+    r.font.color.rgb = RGBColor(0, 0, 0)
 
 
 def _wrap_in_landscape_section(doc: docx.Document, element) -> None:
@@ -1104,6 +1093,7 @@ def generate_apa7_docx(
                     grupo=doc_model.meta.grupo or "",
                     fecha=portada.date or "",
                     departamento=getattr(portada, 'departamento', '') or "",
+                    incluir_logo=getattr(portada, 'mostrar_logo', True),
                 )
             except Exception as err:
                 print(f"[WARN] Error creando portada UNI: {err}")
@@ -1113,6 +1103,26 @@ def generate_apa7_docx(
     for table in doc.tables:
         _tbl_style = getattr(rules, 'table_border_style', None)
         set_table_borders(table, _tbl_style.value if _tbl_style else "apa")
+
+    # 5.5 FRONTERA DE LA PORTADA SINTÉTICA (UNI/APA).
+    # La portada se inserta SIEMPRE en las primeras posiciones del cuerpo (ver
+    # `_UniCoverBuilder`) y puede traer un logo y la tabla de integrantes. Esos
+    # nodos NO son cuerpo: si entran en los coleccionables de más abajo, el logo
+    # se empareja como "Figura 1" y la tabla de integrantes como "Tabla 1", y
+    # todas las figuras/tablas reales se corren una posición. Se cuentan los
+    # hijos que insertó la portada para excluirlos por POSICIÓN (no por
+    # identidad: los proxies de lxml no son `is`-estables).
+    # Con portada original (`use_orig_cover`) no se excluye nada: sus imágenes
+    # son elementos is_cover_section que el bucle consume aparte.
+    _cover_para_count = 0
+    _cover_table_count = 0
+    if not use_orig_cover and paragraphs_before_body > 0:
+        _W_P = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'
+        for _child in list(doc.element.body)[:paragraphs_before_body]:
+            if _child.tag == _W_P:
+                _cover_para_count += 1
+            else:
+                _cover_table_count += 1
 
     # 6. Mapear y aplicar estilos sobre los párrafos existentes del documento
     elem_map: dict[str, ElementModel] = {}
@@ -1198,8 +1208,12 @@ def generate_apa7_docx(
                             img_count_at_start = para_idx + 1
                     cover_paragraph_count = img_count_at_start
     else:
-        # Al reemplazar portada con la plantilla UNI, los parrafos de cuerpo empiezan despues de la nueva portada
-        cover_paragraph_count = paragraphs_before_body
+        # Al reemplazar portada con la plantilla UNI, los parrafos de cuerpo
+        # empiezan despues de la nueva portada. Se usa el conteo de PÁRRAFOS de
+        # la portada (no `paragraphs_before_body`, que cuenta tambien la tabla de
+        # integrantes): si no, `p_idx` arrancaba uno de más y se saltaba el
+        # primer parrafo del cuerpo.
+        cover_paragraph_count = _cover_para_count
 
     # SAFETY NET: Si cover_paragraph_count sigue siendo 0 pero el modelo
     # tiene elementos marcados como is_cover_section, usar ese count.
@@ -1235,7 +1249,11 @@ def generate_apa7_docx(
         except Exception as err:
             print(f"[WARN] No se pudo escribir el acta del documento: {err}")
 
-    existing_tables = list(doc.tables)
+    # Excluir las tablas que insertó la portada sintética (p.ej. la de
+    # integrantes UNI): son las PRIMERAS del documento, así que basta con
+    # saltarse las primeras `_cover_table_count`. Si no, el fallback de
+    # matching ponía "Tabla 1" sobre la portada.
+    existing_tables = list(doc.tables)[_cover_table_count:]
     table_count_processed = 0
 
     # Construir fingerprint de tablas existentes (hash de primera celda) para matching robusto
@@ -1250,9 +1268,14 @@ def generate_apa7_docx(
         table_fingerprints.append((tbl_idx, first_cell_text))
     used_table_indices: set[int] = set()
 
-    # Coleccionar imágenes existentes en el documento para formateo in-place
+    # Coleccionar imágenes existentes para formateo in-place. Se saltan los
+    # párrafos de la portada sintética (el logo): su imagen no es una figura del
+    # documento y, si entra, el logo se empareja como "Figura 1" y corre todas
+    # las figuras reales una posición.
     existing_drawings = []
-    for p in doc.paragraphs:
+    for _pi, p in enumerate(doc.paragraphs):
+        if _pi < _cover_para_count:
+            continue
         if p._element.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip') or p._element.findall('.//{urn:schemas-microsoft-com:vml}imagedata'):
             existing_drawings.append(p)
     image_count_processed = 0
@@ -1324,15 +1347,6 @@ def generate_apa7_docx(
         """Verifica si el texto contiene el marcador [FORCE_PAGE_BREAK]."""
         return text and '[FORCE_PAGE_BREAK]' in text
 
-    def _extract_numbering_style_marker(text: str) -> str:
-        """Extrae el marcador de estilo de numeración: [ROMAN] o [DECIMAL]. Retorna 'decimal' por defecto."""
-        if not text:
-            return 'decimal'
-        upper = text.upper()
-        if '[ROMAN]' in upper:
-            return 'roman'
-        return 'decimal'
-
     def _strip_markers(text: str) -> str:
         """Elimina marcadores internos como [FORCE_PAGE_BREAK], [ROMAN], [DECIMAL] del texto."""
         if not text:
@@ -1375,8 +1389,16 @@ def generate_apa7_docx(
         if elem_type == ElementType.EMPTY:
             continue
 
-        # No formatear párrafos pertenecientes a la sección de portada (pero avanzar contadores de elementos de portada)
+        # No formatear párrafos pertenecientes a la sección de portada.
         if elem.is_cover_section or elem_type == ElementType.PORTADA_BLOCK:
+            if not use_orig_cover:
+                # Portada sintética: la portada original (con sus imágenes y
+                # tablas) se ELIMINÓ. Los elementos de portada del modelo son
+                # restos que ya no existen en el docx, así que no deben consumir
+                # drawings ni tablas del cuerpo.
+                continue
+            # Portada original conservada: avanzar contadores de elementos de
+            # portada para que el cuerpo empiece alineado.
             if elem_type == ElementType.IMAGE and image_count_processed < len(existing_drawings):
                 image_count_processed += 1
             elif elem_type == ElementType.TABLE:
@@ -1422,11 +1444,15 @@ def generate_apa7_docx(
 
         # ── CASO ESPECIAL: TABLA EXISTENTE (FORMATO ATÓMICO IN-PLACE + ETIQUETA PEGUERA) ──
         if elem_type == ElementType.TABLE:
-            # 🆕 LANDSCAPE: Check if table needs landscape orientation
+            # LANDSCAPE: la orientación declarada manda; en "auto" decide el ancho.
             table_needs_landscape = False
             if elem.table_info:
-                too_many, too_wide = _is_table_too_wide(elem.table_info)
-                table_needs_landscape = too_many or too_wide
+                _orient = getattr(elem.table_info, 'orientation', 'auto') or 'auto'
+                if _orient == 'landscape':
+                    table_needs_landscape = True
+                elif _orient == 'auto':
+                    too_many, too_wide = _is_table_too_wide(elem.table_info)
+                    table_needs_landscape = too_many or too_wide
             # Intentar matching por contenido (fingerprint de primera celda) en vez de solo índice
             matched_tbl_idx = -1
             elem_first_cell = ""
@@ -1446,9 +1472,13 @@ def generate_apa7_docx(
                 curr_tbl = existing_tables[matched_tbl_idx]
                 table_count_processed += 1
                 used_table_indices.add(matched_tbl_idx)
-                _tbl_style = getattr(rules, 'table_border_style', None)
-                set_table_borders(curr_tbl, _tbl_style.value if _tbl_style else "apa")
-                fit_table_to_page(curr_tbl, rules, landscape=table_needs_landscape)
+                set_table_borders(curr_tbl, borde_efectivo(getattr(elem.table_info, 'style', None), getattr(rules.table_border_style, 'value', None)))
+                fit_table_to_page(
+                    curr_tbl,
+                    rules,
+                    landscape=table_needs_landscape,
+                    column_widths=getattr(elem.table_info, 'column_widths', None),
+                )
 
                 tbl_num = elem.table_info.table_number if (elem.table_info and elem.table_info.table_number > 0) else table_count_processed
                 caption_text = elem.table_info.caption if elem.table_info else ""
@@ -1523,7 +1553,7 @@ def generate_apa7_docx(
                     # caption nuevo en el UI, actualizar el texto existente en vez
                     # de crear otro parrafo.
                     if caption_text and caption_text != existing_caption:
-                        _update_existing_caption_text(img_p, caption_text, rules)
+                        _update_existing_caption_text(img_p, caption_text, rules, existing_paragraphs)
                 else:
                     # No hay caption previo — crear parrafo de etiqueta APA 7
                     new_p_xml = parse_xml(f'<w:p {nsdecls("w")}/>')
@@ -1616,20 +1646,19 @@ def generate_apa7_docx(
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
 
             orig_text = elem.original_text or elem.text or ""
-            if lvl == 1:
-                marker_style = _extract_numbering_style_marker(orig_text)
-                detected_style = _detect_heading_numbering_style(orig_text)
-                if marker_style:
-                    level_style = marker_style
-                elif detected_style == 'roman':
-                    level_style = 'roman'
+            level_style = _resolver_estilo_de_nivel(lvl, level_style, orig_text)
 
             # Construir prefijo numerico (vacío para el heading de Referencias)
             number_prefix = "" if _is_refs_h else _build_heading_prefix(heading_counters, lvl, level_style)
 
-            # Strip existing numbering from text before adding programmatic prefix
+            # Strip existing numbering from text before adding programmatic prefix.
+            # Si el heading recibira un prefijo automatico, hay que quitar el
+            # manual primero o sale DOBLE numerado ("1. 9.1 Metodología"). El
+            # limpiador ya existia; estaba cableado solo para el romano de H1.
+            # Con estilo 'none' no hay prefijo que añadir: la numeracion manual
+            # se respeta tal cual.
             raw_text = elem.text or p.text
-            if level_style == 'roman' and lvl == 1:
+            if number_prefix:
                 raw_text = _strip_existing_numbering(raw_text)
 
             # Limpiar marcadores del texto y construir heading final

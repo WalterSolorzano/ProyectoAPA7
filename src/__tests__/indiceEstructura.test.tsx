@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { IndiceEstructura } from '../components/structure/IndiceEstructura';
 import {
   balanceDe,
@@ -185,7 +185,7 @@ describe('el estado de salud sale de reglas, no de heurísticas', () => {
 });
 
 describe('el esquema dibujado', () => {
-  it('una fila por encabezado, con el nivel y el nombre a la vista', () => {
+  it('una fila por H1, plegada; al desplegar aparece el H2 con su nivel y su nombre', () => {
     render(
       <IndiceEstructura
         elementos={[
@@ -197,28 +197,36 @@ describe('el esquema dibujado', () => {
         ]}
       />,
     );
-    const filas = screen.getAllByRole('listitem');
-    expect(filas.length).toBe(3);
+    expect(screen.getAllByRole('listitem').length).toBe(2);
     expect(screen.getAllByText('H1').length).toBe(2);
+    // El H2 arranca oculto: la H1 manda.
+    expect(screen.queryByText('H2')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Expandir 2\. Metodolog/i }));
     expect(screen.getByText('H2')).toBeTruthy();
-    expect(screen.getByText('1. Introducción')).toBeTruthy();
+    expect(screen.getByText('2.1 Instrumentos')).toBeTruthy();
   });
 
-  it('el número de la rama está en pantalla, con los miles separados', () => {
-    render(<IndiceEstructura elementos={[h1('1. Introducción'), parrafo(12000)]} />);
-    expect(screen.getByText(/12\.000/)).toBeTruthy();
+  it('el conteo exacto vive en la barra (nombre accesible), no como texto suelto en la fila', () => {
+    render(
+      <IndiceEstructura
+        elementos={[h1('1. Introducción'), parrafo(12000), h1('2. Metodología'), parrafo(80)]}
+      />,
+    );
+    expect(screen.getAllByRole('img', { name: /12\.000/ }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^12\.000$/)).toBeNull();
   });
 
-  it('el motivo del estado se DICE en la fila, no es un punto de color', () => {
+  it('el estado problemático se marca con un punto accesible, no con texto largo', () => {
     render(<IndiceEstructura elementos={[h1('1. Metodología'), h2('1.1 Resultados'), parrafo(300)]} />);
-    const motivos = screen.getAllByText(/En duda: el encabezado dice/i);
-    expect(motivos.length).toBe(2);
-    expect(motivos[0].textContent).toContain('1.1 Resultados');
+    fireEvent.click(screen.getByRole('button', { name: /Expandir 1\. Metodolog/i }));
+    expect(screen.getAllByRole('img', { name: /En duda/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/En duda/i)).toBeNull();
   });
 
-  it('con una sola rama, la fila dice que no hay con qué comparar', () => {
+  it('con una sola rama no se inventa una comparación', () => {
     render(<IndiceEstructura elementos={[h1('1. Introducción'), parrafo(500)]} />);
-    expect(screen.getByText('sin comparar')).toBeTruthy();
+    expect(screen.queryByText('sin comparar')).toBeNull();
+    expect(screen.queryByText(/no hay con qué/i)).toBeNull();
   });
 
   it('sin documento, el hueco se dice', () => {

@@ -14,7 +14,7 @@
  * el usuario busca el panel que no existe.
  */
 import type { ReactNode } from 'react';
-import { FileQuestion, Inbox, FilterX, MousePointerClick, Loader, BellOff } from 'lucide-react';
+import { FileQuestion, Inbox, FilterX, MousePointerClick, Loader, BellOff, FolderPlus } from 'lucide-react';
 
 export type MotivoVacio =
   | 'sin-documento'
@@ -22,7 +22,8 @@ export type MotivoVacio =
   | 'sin-resultados'
   | 'sin-seleccion'
   | 'corriendo'
-  | 'sugerencias-apagadas';
+  | 'sugerencias-apagadas'
+  | 'proyecto-vacio';
 
 export interface EstadoVacioProps {
   motivo: MotivoVacio;
@@ -86,6 +87,12 @@ const TEXTOS: Record<MotivoVacio, Texto> = {
     titulo: 'Las sugerencias proactivas estan apagadas',
     detalle:
       'Los motores siguen corriendo, pero sus hallazgos se descartan y por eso esta pantalla queda vacía. Enciende "Sugerencias proactivas" en Ajustes, pestaña Revisión, y vuelve a escanear.',
+  },
+  'proyecto-vacio': {
+    Icon: FolderPlus,
+    titulo: 'Tu proyecto todavia no tiene nada',
+    detalle:
+      'Vinculá una carpeta o agregá un archivo .docx para empezar. WordAPA7 reconoce versiones, figuras y tablas de forma automática.',
   },
 };
 

@@ -29,16 +29,11 @@ import pytest
 RAIZ_PYTHON = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ_PYTHON))
 
-VARIABLES_DE_ENTORNO = [
-    "NVIDIA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY",
-    "MISTRAL_API_KEY", "OPENCODEZEN_API_KEY", "ZENMUX_API_KEY", "GEMINI_API_KEY",
-    "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "AION_API_KEY",
-    "KILOCODE_API_KEY", "OLLAMA_API_KEY", "HUGGINGFACE_API_KEY",
-    "NVIDIA_NIM_MODEL", "GROQ_MODEL", "OPENROUTER_MODEL", "CEREBRAS_MODEL",
-    "MISTRAL_MODEL", "OPENCODEZEN_MODEL", "ZENMUX_MODEL", "GEMINI_MODEL",
-    "CLOUDFLARE_AI_MODEL", "AION_MODEL", "KILOCODE_MODEL", "OLLAMA_MODEL",
-    "HUGGINGFACE_MODEL",
-]
+# Se deriva del catalogo, no de una lista fija: una lista a mano se queda
+# desactualizada en cuanto se agrega un proveedor, y entonces la "instalacion
+# limpia" deja de estar limpia sin que nadie lo note (paso con las claves de
+# modelscope/sambanova/dashscope/agnes_ai, que vivian en el .env del dev).
+from persistence.ai_keys import PROVIDER_ENV_VARS as VARIABLES_DE_ENTORNO
 
 
 @pytest.fixture

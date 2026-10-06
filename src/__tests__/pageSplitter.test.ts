@@ -155,3 +155,40 @@ describe('applyPageFlow', () => {
     expect(texts).toContain(' def');
   });
 });
+
+describe('applyPageFlow tablas', () => {
+  const geomTabla = { contentH: 200, lineHeightPx: 20, contentW: 500 } as any;
+  const tabla = {
+    id: 't1',
+    type: 'table' as ElementType,
+    table_info: {
+      element_id: 't1',
+      headers: ['A'],
+      rows: Array.from({ length: 12 }, (_, i) => [String(i)]),
+      table_number: 1,
+    },
+  } as unknown as ElementModel;
+
+  it('parte una tabla alta en rebanadas de filas', () => {
+    const heights = new Map<string, number>([['t1', 600]]);
+    const out = applyPageFlow([[tabla]], heights, geomTabla)
+      .flat()
+      .filter((e) => e.id === 't1');
+    expect(out.length).toBeGreaterThan(1);
+    expect(out[0].table_slice!.start).toBe(0);
+    expect(out[out.length - 1].table_slice!.end).toBe(12);
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i].table_slice!.start).toBe(out[i - 1].table_slice!.end);
+    }
+  });
+
+  it('no parte una tabla de la portada (portada indivisible)', () => {
+    const tablaPortada = { ...tabla, is_cover_section: true } as unknown as ElementModel;
+    const heights = new Map<string, number>([['t1', 600]]);
+    const out = applyPageFlow([[tablaPortada]], heights, geomTabla)
+      .flat()
+      .filter((e) => e.id === 't1');
+    expect(out).toHaveLength(1);
+    expect(out[0].table_slice).toBeUndefined();
+  });
+});

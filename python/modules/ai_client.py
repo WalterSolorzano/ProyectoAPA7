@@ -7,10 +7,11 @@ import time
 from contextlib import contextmanager
 from asyncio import Lock
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from classification.llm_classifier import PROVIDER_CAPACITY, _get_active_providers
+from modules.ai_budget import PresupuestoDiario, backoff_con_jitter, cooldown_para
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,48 @@ class RateLimiterRegistry:
 _limiter_registry = RateLimiterRegistry()
 _provider_cooldowns: Dict[str, float] = {}
 _provider_health: Dict[str, Dict[str, Any]] = {}
+
+# Presupuesto diario por proveedor: raciona el free tier entre usuarios. Cuando
+# el cupo del proveedor se agota, el router lo salta como si estuviera en
+# cooldown. Ver modules/ai_budget.py.
+_presupuesto = PresupuestoDiario()
+
+# --- Circuit breaker por proveedor ---
+# Sustituye a `_provider_cooldowns` como fuente de decisión del enrutado. Los
+# cooldowns se siguen escribiendo para el indicador de salud y por compatibilidad
+# con los tests existentes, pero quien decide saltarse un proveedor es el breaker:
+# un 401/404/410 lo abre tras `_BREAKER_THRESHOLD` fallos y solo se vuelve a
+# probar en `half_open` pasado el cooldown.
+_BREAKER_THRESHOLD = int(os.getenv("AI_BREAKER_THRESHOLD", "3"))
+_BREAKER_COOLDOWN_S = float(os.getenv("AI_BREAKER_COOLDOWN_S", "60"))
+_provider_breaker: Dict[str, Dict[str, Any]] = {}
+
+
+def _breaker_estado(p_id: str) -> Dict[str, Any]:
+    b = _provider_breaker.setdefault(
+        p_id, {"state": "closed", "failures": 0, "opened_at": 0.0}
+    )
+    if b["state"] == "open" and time.time() - b["opened_at"] >= _BREAKER_COOLDOWN_S:
+        b["state"] = "half_open"
+    return b
+
+
+def _breaker_allows(p_id: str) -> bool:
+    return _breaker_estado(p_id)["state"] != "open"
+
+
+def _breaker_record(p_id: str, ok: bool) -> None:
+    b = _provider_breaker.setdefault(
+        p_id, {"state": "closed", "failures": 0, "opened_at": 0.0}
+    )
+    if ok:
+        b["state"] = "closed"
+        b["failures"] = 0
+        return
+    b["failures"] += 1
+    if b["failures"] >= _BREAKER_THRESHOLD or b["state"] == "half_open":
+        b["state"] = "open"
+        b["opened_at"] = time.time()
 
 # --- Cache ---
 # El archivo es UNO, pero lo usan dos capas con claves distintas: las respuestas
@@ -284,15 +327,16 @@ async def _try_provider(
                 return resp.json()
 
             elif resp.status_code == 429:
-                _provider_cooldowns[provider["id"]] = time.time() + 30
+                cd = cooldown_para(429, getattr(resp, "headers", None) or {})
+                _provider_cooldowns[provider["id"]] = time.time() + cd
                 _provider_health[provider["id"]] = {"status": "rate_limited", "checked_at": time.time()}
-                wait_time = 1.5 ** attempt
-                logger.warning(f"[AI] {provider['name']} devolvió 429. Reintentando en {wait_time}s...")
+                wait_time = min(cd, backoff_con_jitter(attempt))
+                logger.warning(f"[AI] {provider['name']} devolvió 429. Cooldown {cd}s, espera {wait_time:.1f}s.")
                 await asyncio.sleep(wait_time)
                 continue
 
             else:
-                cooldown = 600 if resp.status_code in (401, 403, 404, 410) else 15
+                cooldown = cooldown_para(resp.status_code, getattr(resp, "headers", None) or {})
                 _provider_cooldowns[provider["id"]] = time.time() + cooldown
                 _provider_health[provider["id"]] = {
                     "status": "unavailable",
@@ -311,6 +355,25 @@ async def _try_provider(
 
     return None
 
+def _construir_messages(system_prompt: str, prompt: str,
+                        image_b64: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Arma los mensajes del payload. Con `image_b64` el turno del usuario lleva
+    un bloque multimodal (texto + imagen), que es lo que consume el modelo de
+    visión. Sin imagen, es texto plano como siempre."""
+    if not image_b64:
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url",
+             "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+        ]},
+    ]
+
 async def execute_with_specialty(
     prompt: str,
     system_prompt: str,
@@ -324,6 +387,9 @@ async def execute_with_specialty(
     return_provider_info: bool = False,
     json_mode: bool = False,
     provider_id: Optional[str] = None,
+    cancel_token: Optional[Any] = None,
+    deadline_s: Optional[float] = None,
+    image_b64: Optional[str] = None,
 ) -> Any:
     """
     Ejecuta un prompt enrutando predictivamente según la especialidad solicitada.
@@ -358,12 +424,20 @@ async def execute_with_specialty(
 
     routing_queue = preferred_providers + fallback_providers
     is_json = json_mode or "json" in system_prompt.lower() or "json" in prompt.lower()
+    inicio = time.time()
 
     # 3. Enrutamiento Predictivo
     for p in routing_queue:
         p_id = p["id"]
-        if _provider_cooldowns.get(p_id, 0) > time.time():
-            logger.info(f"[Router] {p['name']} en enfriamiento tras un fallo reciente.")
+        if cancel_token is not None and cancel_token.is_set():
+            raise asyncio.CancelledError()
+        if deadline_s is not None and time.time() - inicio > deadline_s:
+            break
+        if not _breaker_allows(p_id):
+            logger.info(f"[Router] {p['name']} con breaker abierto. Saltando.")
+            continue
+        if not _presupuesto.puede(p_id):
+            logger.info(f"[Router] {p['name']} sin presupuesto diario. Saltando.")
             continue
         capacity = PROVIDER_CAPACITY.get(p_id, {"timeout": 25, "requests_per_minute": 10})
         timeout = capacity.get("timeout", 25)
@@ -377,10 +451,7 @@ async def execute_with_specialty(
 
         payload: Dict[str, Any] = {
             "model": p["model"],
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": _construir_messages(system_prompt, prompt, image_b64),
             "temperature": temperature,
             "max_tokens": max_tokens
         }
@@ -389,6 +460,7 @@ async def execute_with_specialty(
 
         logger.info(f"[Router] Asignando tarea {specialty} a {p['name']}")
         result = await _try_provider(p, payload, timeout)
+        _breaker_record(p_id, result is not None)
 
         if result and "choices" in result and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
@@ -403,19 +475,28 @@ async def execute_with_specialty(
                 cache[prompt_hash] = content
                 _save_cache(cache)
 
+            _presupuesto.registrar(p_id, max_tokens)
             return (content, p["name"], p["id"]) if return_provider_info else content
 
     # Si todos están ocupados predictivamente o fallaron, forzamos un intento con el primero disponible
     logger.warning("[Router] Todos los proveedores están ocupados o fallaron. Forzando fallback global.")
-    if routing_queue:
-        p = routing_queue[0]
+    candidato = None
+    for c in routing_queue:
+        if not _breaker_allows(c["id"]):
+            continue
+        if not _presupuesto.puede(c["id"]):
+            continue
+        c_cap = PROVIDER_CAPACITY.get(c["id"], {"timeout": 25, "requests_per_minute": 10})
+        c_bucket = _limiter_registry.get_bucket(c["id"], c_cap.get("requests_per_minute", 10))
+        if await c_bucket.consume(1):
+            candidato = c
+            break
+    if candidato is not None:
+        p = candidato
         capacity = PROVIDER_CAPACITY.get(p["id"], {"timeout": 25})
         payload = {
             "model": p["model"],
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": _construir_messages(system_prompt, prompt, image_b64),
             "temperature": temperature,
             "max_tokens": max_tokens
         }
@@ -432,6 +513,7 @@ async def execute_with_specialty(
             if use_cache:
                 cache[prompt_hash] = content
                 _save_cache(cache)
+            _presupuesto.registrar(p["id"], max_tokens)
             return (content, p["name"], p["id"]) if return_provider_info else content
 
     raise RuntimeError("La infraestructura LLM colapsó (Rate limit, Timeout, o Errores).")
@@ -471,14 +553,16 @@ def get_ai_system_health() -> Dict[str, Any]:
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": percentage,
-                "status": status
+                "status": status,
+                "breaker": _breaker_estado(primary_id)["state"],
             }
         else:
             observed = _provider_health.get(primary_id, {}).get("status")
             health_data[specialty] = {
                 "provider": primary_id,
                 "percentage": 100, # Si nunca se usó, está lleno
-                "status": observed or "unknown"
+                "status": observed or "unknown",
+                "breaker": _breaker_estado(primary_id)["state"],
             }
 
     return health_data

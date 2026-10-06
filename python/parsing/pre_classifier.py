@@ -209,6 +209,42 @@ def _apply_native_heading_length_guard(elem: ElementModel, word_count: int) -> b
     return True
 
 
+def _contiene_multiples_oraciones(text: str) -> bool:
+    """True si hay varias oraciones reales (punto + espacio + mayúscula).
+
+    Las abreviaturas tipo "S.C.E.M." tienen varios puntos pero no son
+    oraciones distintas, así que NO cuentan.
+    """
+    if not text:
+        return False
+    return bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', text))
+
+
+def _debe_degradar_heading(text: str, style_name: str) -> bool:
+    """Decide si un heading heurístico que cayó en la rama de bajo score debe
+    volver a ser párrafo.
+
+    Un `style_name` presente no absuelve la heurística: 'Normal' es el estilo
+    por defecto de TODO el cuerpo, así que un heading marcado como tal por las
+    heurísticas de formato (o heredado de un estilo que no es de Word) tiene que
+    degradarse igual cuando su score no alcanza. Se degrada ante cualquiera de
+    estas señales:
+      - no tiene `style_name` (nunca lo tuvo),
+      - el texto es largo (>25 palabras), o
+      - el texto tiene varias oraciones reales.
+
+    El heading inline («Título corto. Sigue el cuerpo…», que ES multi-oración)
+    no llega a esta rama: la Pasada 1 lo marca con `pre_classifier_rule =
+    "inline_heading"` y la rama de scoring lo deja pasar.
+    """
+    words = (text or "").split()
+    return (
+        not style_name
+        or len(words) > 25
+        or _contiene_multiples_oraciones(text)
+    )
+
+
 def _flag_numbering_skips(elements: List[ElementModel]) -> None:
     """
     Valida la cadena de numeracion decimal de headings (1, 1.1, 1.1.1).
@@ -551,6 +587,23 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 first_heading_idx = idx
             continue
 
+        # --- CERTEZA 0.9: outlineLvl real de Word ---
+        # Si el docx trae `w:outlineLvl` (0..8) el autor YA declaro que ese
+        # parrafo es un titulo de ese nivel, sin importar el estilo ni el
+        # formato directo. Es la unica senal que sobrevive a documentos que no
+        # usan estilos Heading. 0 -> H1 .. 4 -> H5. No se decide por palabras del
+        # cuerpo: la senal es un dato del XML, no el texto.
+        outline_lvl = getattr(elem, "outline_level", None)
+        if isinstance(outline_lvl, int) and 0 <= outline_lvl <= 4:
+            if _apply_native_heading_length_guard(elem, word_count):
+                elem.type = ElementType.HEADING
+                elem.heading_level = outline_lvl + 1
+                elem.confidence = 0.90
+                elem.pre_classifier_rule = "outline_level"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
+
         if "list bullet" in style_name:
             elem.type = ElementType.BULLET
             lvl_match = re.search(r'list bullet\s*(\d)', style_name)
@@ -705,7 +758,8 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             continue
 
         # Heading 4: sangria + negrita + termina en punto (inline)
-        if has_indent and all_bold and has_period_end and word_count <= 18 and not is_italic:
+        if (has_indent and all_bold and has_period_end and word_count <= 18
+                and not is_italic and not _contiene_multiples_oraciones(text)):
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.82
@@ -718,6 +772,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # entre parentesis) NO son headings aunque el formato coincida.
         if (
             has_indent and all_bold and is_italic and has_period_end and word_count <= 18
+            and not _contiene_multiples_oraciones(text)
             and not re.search(r"\(\d{4}[a-z]?\)", text)
             and not re.search(r"https?://|doi\.org|Recuperado de", text, re.IGNORECASE)
         ):
@@ -743,11 +798,15 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # MISMO parrafo (negrita + punto + texto normal). Patron definido pero
         # nunca activado antes. Solo si el inicio es negrita y es corto.
         inline_match = REGEX_INLINE_HEADING.match(text)
-        if inline_match and is_bold and word_count <= 20 and not is_centered and ":" not in inline_match.group(1) and not text.rstrip().endswith(":"):
+        if (inline_match and is_bold and word_count <= 20 and not is_centered
+                and ":" not in inline_match.group(1)
+                and len(inline_match.group(1).split()) <= 6
+                and not text.rstrip().endswith(":")):
             elem.type = ElementType.HEADING
             elem.heading_level = 4
             elem.confidence = 0.80
             elem.needs_review = True
+            elem.pre_classifier_rule = "inline_heading"
             if first_heading_idx == -1:
                 first_heading_idx = idx
             continue
@@ -777,6 +836,39 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             if first_heading_idx == -1:
                 first_heading_idx = idx
             continue
+
+        # --- CERTEZA 0.78: Titulos atipicos que el formato tipico no cubre ---
+        # Un documento real no siempre marca sus titulos como "Heading N" ni con
+        # negrita+centrado. Estos casos caian a parrafo (o a un nivel equivocado)
+        # y la revision no los veia como titulos.
+        text_stripped = text.strip()
+        if "\n" not in text and word_count <= 8:
+            # CAPITULO <romano> sin punto ("CAPITULO I", "CAPÍTULO IV").
+            _cap = text_stripped.upper()
+            if re.match(r"^(CAP[IÍ]TULO|CAPITULO)\s+[IVXLC]+\b", _cap) \
+                    and not _cap.rstrip().endswith("."):
+                elem.type = ElementType.HEADING
+                elem.heading_level = 1
+                elem.confidence = 0.78
+                elem.pre_classifier_rule = "capitulo_romano_sin_punto"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
+            # MAYUSCULAS cortas sin negrita, sin centrado, sin numero.
+            # No arranca con digito (seria lista) y no termina en punto (seria
+            # oracion). Guard: solo si es corto (<=8 palabras) y sin minusculas.
+            _sin_minusculas = text_stripped == text_stripped.upper() \
+                and any(c.isalpha() for c in text_stripped)
+            _arranca_con_digito = bool(re.match(r"^\d", text_stripped))
+            if _sin_minusculas and not _arranca_con_digito \
+                    and not text_stripped.endswith("."):
+                elem.type = ElementType.HEADING
+                elem.heading_level = 1
+                elem.confidence = 0.78
+                elem.pre_classifier_rule = "mayusculas_cortas"
+                if first_heading_idx == -1:
+                    first_heading_idx = idx
+                continue
 
         # --- CERTEZA 0.75: Parrafo normal por defecto ---
         elem.type = ElementType.PARAGRAPH
@@ -1390,6 +1482,15 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
                 highest_level_seen = max(highest_level_seen, 5)
             continue
 
+        # Caso B: outlineLvl real de Word (Confianza alta, dato declarado).
+        # El autor marco el parrafo como titulo en el esquema de Word. El nivel
+        # 0..4 -> H1..H5 y se preserva, igual que los estilos nativos: las
+        # pasadas posteriores no lo re-inferieren por formato.
+        if elem.pre_classifier_rule == "outline_level" and elem.heading_level:
+            elem.needs_review = False
+            highest_level_seen = max(highest_level_seen, elem.heading_level)
+            continue
+
         # Preservar elementos clasificados con alta confianza en Pasada 1 (bullets, tablas, etc.)
         if elem.confidence >= 0.85 and elem.type not in (ElementType.PARAGRAPH, ElementType.HEADING):
             elem.needs_review = False
@@ -1432,7 +1533,7 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
         # mayuscula). Las abreviaturas tipo "S.C.E.M." tienen varios puntos
         # pero NO son multiples oraciones — antes esto degradaba titulos con
         # acronimos (p.ej. "Aplicación del Método S.C.E.M.").
-        multi_sentence = bool(re.search(r'\.\s+[A-ZÁÉÍÓÚÑ]', txt)) if txt else False
+        multi_sentence = _contiene_multiples_oraciones(txt)
         if len(words) > 25 or multi_sentence:
             score -= 0.5
 
@@ -1456,7 +1557,15 @@ def pre_classify_elements(elements: List[ElementModel]) -> List[ElementModel]:
             elem.confidence = 0.65
             elem.needs_review = True
         else:
-            if elem.type == ElementType.HEADING and not elem.style_name:
+            # Un heading heurístico de bajo score se degrada aunque traiga un
+            # `style_name` ('Normal' es tan común que no absuelve la heurística).
+            # El heading inline ya validado en Pasada 1 queda exento: es
+            # multi-oración por forma pero es un título legítimo.
+            if (
+                elem.type == ElementType.HEADING
+                and elem.pre_classifier_rule != "inline_heading"
+                and _debe_degradar_heading(txt, elem.style_name)
+            ):
                 elem.type = ElementType.PARAGRAPH
                 elem.confidence = 0.75
                 elem.needs_review = True

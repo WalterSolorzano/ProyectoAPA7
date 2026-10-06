@@ -240,6 +240,12 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
         const result = await api.resolveGhostCitation([author], year);
         if (result?.found && result.candidates?.[0]) {
           const ref = result.candidates[0];
+          /* Un candidato sin autores NI título es un sobre mal formado, no una
+             referencia: agregarlo fabrica la ficha "Autor (s.f.) / Sin título". */
+          const tieneDatos = Boolean(
+            (Array.isArray(ref.authors) && ref.authors.length > 0) || ref.title,
+          );
+          if (!tieneDatos) continue;
           get().addReference({
             id: `ghost-auto-${Date.now()}-${i}`,
             authors: ref.authors, year: ref.year, title: ref.title,
@@ -248,6 +254,18 @@ export const createAuditSlice: StateCreator<DocState, [], [], Partial<DocState>>
           });
           added += 1;
           get().pushActivityEvent('success', `Referencia agregada automáticamente: ${ref.authors?.[0] ?? ''} (${ref.year ?? ''})`, author);
+        } else {
+          /* No está en las bases externas, pero la cita trae autor y año. Se
+             crea la ficha con eso —queda Pendiente, falta título y fuente— en
+             vez de dejar la cita sin ficha. El DOI no es requisito. */
+          const rawText = `${author} (${year}).`;
+          get().addReference({
+            id: `ghost-auto-${Date.now()}-${i}`,
+            authors: [author], year, title: '', source: '', doi_or_url: '',
+            raw_text: rawText, formatted_apa: rawText,
+          });
+          added += 1;
+          get().pushActivityEvent('info', `Ficha creada con lo disponible: ${author} (${year})`, author);
         }
       } catch { /* seguir con la siguiente */ }
     }

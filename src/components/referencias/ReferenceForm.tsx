@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { Check, X, Trash2, Link2, BookOpen, Wand2 } from 'lucide-react';
+import { formatearReferencia } from '../../lib/apaApi';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', fontSize: '12px', padding: '6px 8px', boxSizing: 'border-box',
@@ -36,20 +37,30 @@ export const ReferenceForm: React.FC = () => {
     );
   }
 
-  const save = () => {
+  const save = async () => {
     const authorsArr = authors.split(/,|&|;/).map((a) => a.trim()).filter(Boolean);
-    const formatted = [authors, `(${year}).`, title && `${title}.`, source].filter(Boolean).join(' ');
+    const titleTrim = title.trim();
+    const sourceTrim = source.trim();
+    const doiTrim = doi.trim();
+    const formato = await formatearReferencia({
+      authors: authorsArr, year: year.trim(), title: titleTrim, source: sourceTrim,
+      doi_or_url: doiTrim || undefined, tipo: ref.tipo ?? 'otro',
+    });
+    const formatted = formato?.formatted_apa
+      ?? [authors, `(${year}).`, title && `${title}.`, source].filter(Boolean).join(' ');
     updateReferences(references.map((r) => {
       if (r.id !== ref.id) return r;
       return {
         ...r,
         authors: authorsArr.length ? authorsArr : [authors || 'Autor'],
         year: year.trim(),
-        title: title.trim(),
-        source: source.trim(),
-        doi_or_url: doi.trim() || undefined,
+        title: titleTrim,
+        source: sourceTrim,
+        doi_or_url: doiTrim || undefined,
         formatted_apa: formatted,
         raw_text: formatted,
+        apa_segments: formato?.apa_segments,
+        tipo: formato?.tipo,
       };
     }));
     showToast('Referencia guardada', 'success');

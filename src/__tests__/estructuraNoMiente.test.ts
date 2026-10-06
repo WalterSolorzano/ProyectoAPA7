@@ -34,6 +34,12 @@ const FUENTES = import.meta.glob('../components/structure/*.tsx', {
 }) as Record<string, string>;
 
 describe('la estructura no miente', () => {
+  /* El rail es una barra de íconos por diseño (spec §5.1, patrón `RailTipoActivos`):
+   * su nombre accesible vive, por necesidad, en el `title`/`aria-label` del botón.
+   * No es un nodo del esquema, así que la guarda de «nombre en pantalla» no aplica.
+   * Se lista acá una por una, no se silencia la guarda en general. */
+  const RAIL_ICON_ONLY = new Set(['../components/structure/RailEstructura.tsx']);
+
   it('la guarda tiene archivos que mirar', () => {
     /* Sin esta cuenta, un `glob` que no matchea nada hace que las dos pruebas de
      * abajo pasen sin mirar un solo archivo: es el modo de fallo más barato que
@@ -45,11 +51,21 @@ describe('la estructura no miente', () => {
     /* Ni en el `title`, ni en el `aria-label`, ni en un hover: EN PANTALLA. Un
      * nombre que solo vive en un `title` es un nombre que no existe. */
     for (const [ruta, fuente] of Object.entries(FUENTES)) {
+      if (RAIL_ICON_ONLY.has(ruta)) continue;
       expect(fuente, `${ruta}: un nombre solo en el title`).not.toMatch(/title=\{[^}]*label/i);
       expect(fuente, `${ruta}: un nombre solo en el aria-label`).not.toMatch(
         /aria-label=\{[^}]*label/i,
       );
     }
+  });
+
+  it('el rail exento es de verdad solo íconos', () => {
+    /* La exención de arriba vale solo mientras el rail pinte un ícono y ningún
+     * texto visible. Si alguien le mete un `<span>{nombre}</span>` visible, deja
+     * de ser icon-only y la exención miente. */
+    const rail = FUENTES['../components/structure/RailEstructura.tsx'];
+    expect(rail, 'el rail no está entre los fuentes').toBeTruthy();
+    expect(rail, 'el rail no pinta un ícono').toMatch(/<Icon\b/);
   });
 
   it('el mapa pinta el nombre de cada nodo, no solo lo esconde en un <title>', () => {

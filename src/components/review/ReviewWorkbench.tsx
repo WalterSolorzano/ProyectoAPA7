@@ -1,112 +1,74 @@
-/* WordAPA7 — review: el workbench.
-   Tres columnas: minimapa de páginas, tarjeta de lectura y rack de hallazgos
-   agrupados por motor. La tira de arriba es la única barra. El grid retira el
-   rack en ventana estrecha para que el centro siga siendo legible.
+/* WordAPA7 — review: el workbench, una sola superficie secuencial.
+   Un hallazgo a la vez: la tira de arriba y la tarjeta de lectura. Sin minimapa
+   ni rack de motores: la lectura secuencial es la decisión de diseño
+   (AGENTS.md §1), no un descuido, y por eso el grid es de UNA columna.
 
    Lo que esta vista hace y lo que NO hace:
 
-   - NO decide qué acción tiene un motor ni cómo se ejecuta. Pinta el rótulo
-     que trae el grupo y se lo devuelve a `runGroupAction`. Re-derivar eso acá
-     fue exactamente el bug que un `EngineGroup` con un subtipo 'mark' entre
-     subtipos 'accept' producía: un "Aceptar todas" que escribía prosa
-     generada en el documento de la persona.
+   - NO decide qué acción tiene un motor ni cómo se ejecuta. La lógica de
+     acciones vive en `useReviewActions`; esta vista pinta la lectura y navega.
    - NO re-deriva `hasFindings` ni los grupos: los usa como vienen. `groups` es
-     el resumen FILTRADO (el rack y la semilla de apertura lo quieren estrecho)
-     y `allGroups` el completo (los chips lo necesitan entero).
-   - SÍ dice lo que los números no dicen solos: hasta dónde llega una acción en
-     masa, y por qué un botón encendido no hace nada.
-   - Las páginas salen de `usePageIndex` para las TRES cosas que las nombran
-     (la cuenta de la tira, las marcas del minimapa y la etiqueta del
-     bloque). Esas páginas base no son las del lienzo medido —una limitación
-     medida y documentada de `usePageIndex`—, así que el número lleva un
-     `title` que lo dice, en vez de aparecer al lado de un minimapa con el que
-     parece discrepar. */
+     el resumen FILTRADO (el estado vacío lo quiere estrecho) y `allGroups` el
+     completo (los chips lo necesitan entero).
+   - NO escribe las reglas del filtro: consume `visibleCount` del hook para no
+     dejar "Siguiente hallazgo" encendido sin destino.
+   - Las páginas salen de `usePageIndex` para las cosas que las nombran (la
+     cuenta de la tira y la etiqueta de la tarjeta). */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  useReviewWorkbench,
-  type AuditItem,
-  type EngineGroup,
-  type SubtypeGroup,
-} from '../../hooks/useReviewWorkbench';
-import { ReviewMinimap, MINIMAP_WIDTH, MINIMAP_ANCHO_MINIMO } from './ReviewMinimap';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useReviewWorkbench, accionDeItem, type EngineFilter } from '../../hooks/useReviewWorkbench';
 import { PaperCanvas } from '../layout/PaperCanvas';
 import { ReviewStrip } from './ReviewStrip';
 import { FocusReadingCard } from './FocusReadingCard';
-import { EngineGroupCard, SubtypeRow } from './EngineGroupCard';
-import { FindingDetail } from './FindingDetail';
-import { AiMosaic } from './AiMosaic';
 import { AiHierarchy } from './AiHierarchy';
 import { EstadoVacio } from '../shared/EstadoVacio';
 import { useDocStore } from '../../store/useDocStore';
 import { ScanLine } from 'lucide-react';
 
-/** Por debajo de este ancho, el rack de 400px deja el centro inservible. */
-const RACK_BREAKPOINT = 1180;
-const RACK_WIDTH = 400;
-
-const alternar = <T,>(lista: T[], valor: T): T[] =>
-  lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor];
-
-/**
- * La REDACCIÓN del aviso de alcance. Lo que llega ya está contado: `covered` y
- * `count` los publica el hook, que es quien aplica la regla de "la cabecera
- * actúa solo sobre los subtipos que comparten su acción". Acá solo se traduce a
- * palabras — y el hook no lo dice porque la redacción es de la vista.
- */
-function coberturaDeMotor(group: EngineGroup): string | undefined {
-  if (!group.massLabel) return undefined;
-  if (group.covered === 0) {
-    return 'Este motor no tiene nada que aplicar en bloque: revisa sus hallazgos uno por uno.';
-  }
-  if (group.covered < group.count) {
-    return `${group.count - group.covered} de ${group.count} hallazgos de este motor no tienen corrección automática.`;
-  }
-  return undefined;
+export interface ReviewWorkbenchProps {
+  /** Volver a la puerta de Revisión. Sin esto, el control no se pinta. */
+  onExit?: () => void;
+  /** Fase con la que abre la revisión (drill-down desde la puerta). `null` o
+   *  ausente = sin filtro de fase. Se aplica UNA sola vez, al montar: si el
+   *  usuario cambia el filtro después, su elección manda. */
+  initialPhase?: string | null;
+  /** Motor con el que abre la revisión. Misma regla de una sola vez. */
+  initialEngine?: EngineFilter | null;
 }
 
-export function ReviewWorkbench() {
+export function ReviewWorkbench({ onExit, initialPhase, initialEngine }: ReviewWorkbenchProps) {
   const wb = useReviewWorkbench();
   const doc = useDocStore((s) => s.doc);
+  /* Los párrafos medidos por el revisor IA. El perfil del mapa se construye de
+     acá, no de los hallazgos: es la fuente única que comparten hero y mapa. */
+  const reviewResult = useDocStore((s) => s.reviewResult);
   /* El interruptor que descarta los hallazgos sin decir nada. La vista lo lee
      para NOMBRARLO cuando la pantalla queda vacía: apagado, los motores corren,
      sus resultados se tiran, y sin esta lectura el motivo sería "no corrió
      ningún motor", que es exactamente lo contrario de lo que pasó. */
   const sugerenciasProactivas = useDocStore((s) => s.sugerenciasProactivas);
-  /* La calibración de la rampa la escribe la pestaña Revisión de Ajustes. El
-     mosaico no lee el store: se la pasa quien lo monta, como los hallazgos. */
-  const iaCortes = useDocStore((s) => s.iaCortes);
-  const [ancho, setAncho] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth));
 
+  /* El foco elegido en la puerta se aplica UNA vez, al montar. El hook reinicia
+     el filtro de fase por sesión de documento, así que este efecto corre
+     DESPUÉS del suyo y el foco gana en el arranque; a partir de ahí el usuario
+     manda: un `useEffect` que re-aplicara el foco en cada render le pisaría el
+     filtro que acaba de elegir. */
+  const focoAplicado = useRef(false);
   useEffect(() => {
-    const onResize = () => setAncho(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    if (focoAplicado.current) return;
+    focoAplicado.current = true;
+    if (initialPhase) wb.setPhaseFilter(initialPhase);
+    if (initialEngine) wb.setFilter(initialEngine);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rackVisible = ancho >= RACK_BREAKPOINT;
-  /* El ancho de la columna del minimapa y el corte por debajo del cual desaparece
-     los DECIDE el componente (`ReviewMinimap`), no esta vista. Duplicar el número
-     acá es exactamente la clase de acuerdo que este hook ya no quiere: dos
-     números en dos archivos que se desincronizan, y una grilla que reserva una
-     columna que nadie pintó. La grilla guarda la columna con la MISMA regla que
-     la esconde, y por eso no queda un hueco vacío en su lugar. */
-  const minimapVisible = ancho >= MINIMAP_ANCHO_MINIMO;
-
-  /* `nextFinding` recorre lo que el FILTRO deja ver, y `hasFindings` cuenta el
-     documento entero: con un filtro que ya no tiene hallazgos propios, el
-     botón quedaría encendido y sin destino. La cuenta la publica el hook
-     (`visibleCount`) porque el predicado del filtro es suyo: repetirlo acá
-     sería la misma regla en dos archivos, y es exactamente el modo de fallo
-     que esta comprobación evita. */
-
-  /* El motor y la acción los DECLARA el grupo. La vista pinta y ejecuta; no
-     resuelve. El `catch` no informa: el hook ya publica el resultado de cada
-     mecanismo con su propio toast, y lo que no debe quedar es un rechazo sin
-     manejar en la consola de la persona. */
-  const correrAccion = (grupo: EngineGroup | SubtypeGroup) => {
-    Promise.resolve(wb.runGroupAction(grupo)).catch(() => undefined);
-  };
+  /* La fase activa, como línea de contexto de la superficie secuencial. El
+     `label` sale de `allPhases` (el mismo que pinta el chip): la tarjeta no
+     re-deriva el nombre de una fase. Sin fase activa, la línea no existe. */
+  const faseActiva =
+    wb.phaseFilter === 'all'
+      ? null
+      : wb.allPhases.find((f) => f.key === wb.phaseFilter)?.label ?? null;
 
   /* El "Escanear" del estado vacío es el MISMO verbo que el de la tira, con el
      mismo guardián de rechazo: el hook ya publica el resultado de cada motor
@@ -114,13 +76,6 @@ export function ReviewWorkbench() {
      manejar en la consola. */
   const escanear = () => {
     Promise.resolve(wb.scanAll()).catch(() => undefined);
-  };
-
-  /* Desplazarse entre apariciones del MISMO subtipo, con envoltura: el delta
-     lo manda el detalle, y el destino es el hallazgo, no el índice. */
-  const pasoEn = (items: AuditItem[], i: number) => (delta: number) => {
-    if (!items.length) return;
-    wb.select(items[(i + delta + items.length) % items.length].id);
   };
 
   /* "N hallazgos en este bloque": los que caen en el MISMO elemento. Un
@@ -134,15 +89,17 @@ export function ReviewWorkbench() {
     return wb.items.filter((i) => i.element_id === sel.element_id).length;
   }, [wb.selected, wb.items]);
 
-  const esFoco = wb.viewMode === 'focus';
-  const mostrarMinimap = minimapVisible && wb.viewMode !== 'ia';
-  const mostrarRack = rackVisible && esFoco;
-
-  const columnas = [
-    ...(mostrarMinimap ? [`${MINIMAP_WIDTH}px`] : []),
-    'minmax(0, 1fr)',
-    ...(mostrarRack ? [`${RACK_WIDTH}px`] : []),
-  ].join(' ');
+  /* La acción del hallazgo SELECCIONADO y el grupo del que sale. La tarjeta no
+     re-deriva qué botón existe: lee `accionDeItem` (la misma tabla que agrupa
+     los subtipos) y el grupo lo aporta `allGroups`. "Aceptar todas" actúa sobre
+     el subtipo, que es el alcance que el propio hook declara en su `action`. */
+  const sel = wb.selected;
+  const selAction = sel ? accionDeItem(sel) : undefined;
+  const selEngineGroup = sel ? wb.allGroups.find((g) => g.engine === sel.category) : undefined;
+  const selSubtype = sel && selEngineGroup
+    ? selEngineGroup.groups.find((g) => g.key === `${sel.category}:${sel.subtype}`)
+    : undefined;
+  const bulkCount = selSubtype ? selSubtype.items.length : 0;
 
   return (
     <div
@@ -186,6 +143,7 @@ export function ReviewWorkbench() {
         hasFindings={wb.hasFindings}
         onScan={wb.scanAll}
         isScanning={wb.isScanning}
+        onExit={onExit}
       />
 
       {/* La pista de la grilla va ACOTADA (`minmax(0, 1fr)`) a propósito: la
@@ -193,12 +151,14 @@ export function ReviewWorkbench() {
           `scrollHeight` contra `clientHeight` de un hijo con `flex: 1` y
           `minHeight: 0`, y las dos cosas son inertes sin un padre de alto
           definido. Sin esta pista, el auto-ajuste mediría contra una caja que
-          crece con el texto y "cabe" sería siempre cierto. */}
+          crece con el texto y "cabe" sería siempre cierto.
+
+          UNA sola columna: la revisión es un hallazgo a la vez (AGENTS.md §1). */}
       <div
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: columnas,
+          gridTemplateColumns: 'minmax(0, 1fr)',
           gridTemplateRows: 'minmax(0, 1fr)',
           gap: 'var(--space-5)',
           padding: 'var(--space-5) var(--space-6)',
@@ -206,19 +166,10 @@ export function ReviewWorkbench() {
           minHeight: 0,
         }}
       >
-        {/* El minimapa se monta solo si la grilla reservó su columna y no estamos en modo IA. */}
-        {mostrarMinimap && (
-          <ReviewMinimap
-            totalPages={wb.totalPages}
-            marks={wb.marks}
-            currentPage={wb.currentPage}
-            onPageClick={wb.goToPage}
-          />
-        )}
-
         {wb.viewMode === 'ia' ? (
           <AiHierarchy
             elements={doc?.elements ?? null}
+            paragraphs={reviewResult?.paragraphs ?? []}
             items={wb.items}
             activa={wb.phaseFilter}
             onSelectPhase={(key) => {
@@ -250,11 +201,9 @@ export function ReviewWorkbench() {
             <PaperCanvas reviewHighlightIds={wb.highlightIds} />
           </div>
         ) : doc ? (
-          /* El estado vacío vive AQUÍ, en la grilla principal, y no adentro del
-             `<aside>` del rack. Esa es la diferencia entre un estado vacío y un
-             texto que aparece solo si un panel está abierto: el rack se retira
-             bajo 1180 px, y con él se retiraba el mensaje — pantalla vacía sin
-             explicación. La grilla principal se renderiza siempre. */
+          /* El estado vacío vive AQUÍ, en la grilla principal. La grilla se
+             renderiza siempre, así que el mensaje no depende de un panel que se
+             pueda retirar. */
           wb.groups.length === 0 ? (
             <EstadoVacio
               /* El motivo NO es un único campo: es una decisión, y su orden es el
@@ -319,85 +268,41 @@ export function ReviewWorkbench() {
               }
             />
           ) : (
-            <FocusReadingCard item={wb.selected} totalFindings={enElBloque} />
+            <FocusReadingCard
+              key={wb.selected?.id ?? 'sin-hallazgo'}
+              item={wb.selected}
+              phaseLabel={faseActiva}
+              totalFindings={enElBloque}
+              action={selAction}
+              marked={sel ? wb.markedIds.includes(sel.id) : false}
+              busy={wb.isApplying}
+              bulkCount={bulkCount}
+              onAccept={(it) => {
+                void wb.acceptOne(it);
+              }}
+              onAcceptAll={
+                selSubtype
+                  ? () => {
+                      void wb.runGroupAction(selSubtype);
+                    }
+                  : undefined
+              }
+              onMark={(it) => wb.markForReview(it)}
+              onDismiss={(it) => wb.dismiss(it)}
+              onEngineAction={
+                selEngineGroup
+                  ? () => {
+                      void wb.runGroupAction(selEngineGroup);
+                    }
+                  : undefined
+              }
+            />
           )
         ) : (
           /* Sin documento no hay elemento que resolver, y una tarjeta con el
              párrafo limpio y sin una sola marca es indistinguible de "el motor
              no encontró nada". El hueco se dice. */
           <EstadoVacio motivo="sin-documento" />
-        )}
-
-        {mostrarRack && (
-          <aside
-            aria-label="Hallazgos por motor"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-3)',
-              minWidth: 0,
-              minHeight: 0,
-              overflowY: 'auto',
-            }}
-          >
-            {wb.groups.map((group) => (
-              <EngineGroupCard
-                key={group.engine}
-                group={group}
-                open={wb.openEngines.includes(group.engine)}
-                onToggle={() => wb.setOpenEngines((prev) => alternar(prev, group.engine))}
-                onMassAction={correrAccion}
-                massNote={coberturaDeMotor(group)}
-                busy={wb.isApplying}
-              >
-                {group.groups.map((sub) => (
-                  <SubtypeRow
-                    key={sub.key}
-                    group={sub}
-                    open={wb.openSubtypes.includes(sub.key)}
-                    onToggle={() => wb.setOpenSubtypes((prev) => alternar(prev, sub.key))}
-                    onMassAction={correrAccion}
-                    busy={wb.isApplying}
-                  >
-                    {sub.items.map((it, i) => (
-                      <FindingDetail
-                        key={it.id}
-                        item={it}
-                        /* El estado de "marcado para revisar" se PINTA. Sin
-                           esto, la única acción del motor probabilístico —la
-                           que AGENTS.md §1 le concede y no le concede ninguna
-                           más— no dejaba rastro: se aprieta, sale un toast y el
-                           botón queda igual, así que se vuelve a apretar. */
-                        marked={wb.markedIds.includes(it.id)}
-                        /* La acción la DECLARA el subtipo, no el texto que
-                           traiga el hallazgo: estructura trae `suggestedText`
-                           (una leyenda genérica) y su mecanismo es rotular, no
-                           pegar ese texto en el elemento. */
-                        action={sub.action}
-                        index={i}
-                        total={sub.items.length}
-                        onStep={pasoEn(sub.items, i)}
-                        onAccept={wb.acceptOne}
-                        onMark={wb.markForReview}
-                        onDismiss={wb.dismiss}
-                        onEngineAction={() => correrAccion(sub)}
-                        isSelected={wb.selected?.id === it.id}
-                        onSelect={() => wb.select(it.id)}
-                        /* El cerrojo de la acción en masa, no un `false`
-                           constante. `acceptMany` recorre los hallazgos de uno en
-                           uno con una llamada de red cada uno: sin esto, apretar
-                           "Aceptar todas" dos veces dispara las MISMAS llamadas
-                           sobre los MISMOS elementos y el documento queda con
-                           una de las dos correcciones, elegida por quién
-                           escribió último. */
-                        busy={wb.isApplying}
-                      />
-                    ))}
-                  </SubtypeRow>
-                ))}
-              </EngineGroupCard>
-            ))}
-          </aside>
         )}
       </div>
     </div>

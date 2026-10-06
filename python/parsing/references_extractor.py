@@ -69,6 +69,14 @@ _RETRIEVAL_PREFIX = re.compile(
     r"(?:recuperado|obtenido|disponible|consultado|extraído|retrieved|available)\s+(?:el\s+\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+\d{4},?\s+)?(?:de|en|from|at)?\s*:?\s*$",
     re.IGNORECASE,
 )
+# Artefactos de exportación automática (Vancouver/IEEE) que APA 7 no usa y que
+# pueden aparecer en cualquier posición, no solo al final del campo.
+_ACCESSED_BRACKET = re.compile(
+    r"[\[(]\s*(?:accessed|consultado|recuperado)(?:\s+[^\])]*)?[\])]", re.IGNORECASE
+)
+_AVAILABLE_PREFIX = re.compile(
+    r"\bavailable\s*(?:from|at)?\s*:?\s*", re.IGNORECASE
+)
 
 # Prefijo de lista numerada manual al inicio de una entrada de bibliografia:
 # "6. Hirano, H. (1995)..." / "10. Juran, J. M. (1999)...". El numeral NO es
@@ -197,6 +205,14 @@ def _parse_single_reference(raw: str) -> dict:
         source = _RETRIEVAL_PREFIX.sub("", source).strip(" .,;")
     elif title:
         title = _RETRIEVAL_PREFIX.sub("", title).strip(" .,;")
+
+    # Limpieza de artefactos de exportación automática en cualquier posición.
+    title = _ACCESSED_BRACKET.sub(" ", title)
+    source = _ACCESSED_BRACKET.sub(" ", source)
+    title = _AVAILABLE_PREFIX.sub(" ", title)
+    source = _AVAILABLE_PREFIX.sub(" ", source)
+    title = re.sub(r"\s+", " ", title).strip(" .,;:")
+    source = re.sub(r"\s+", " ", source).strip(" .,;:")
 
     return {
         "authors": authors_list,

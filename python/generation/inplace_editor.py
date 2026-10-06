@@ -221,8 +221,26 @@ def apply_inplace(
             # Preservar saltos de pÃ¡gina manuales (rendered como w:br con type="page" o lastRenderedPageBreak)
             has_page_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br[@{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type="page"]'))
             has_rendered_break = bool(para._element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}lastRenderedPageBreak'))
-            
-            if "texto" in active and not (has_page_break or has_rendered_break):
+
+            # Preservar contenido NO textual. `.text` de python-docx solo
+            # concatena `w:t`, asi que una ecuacion OMML (`m:oMath`/`m:oMathPara`
+            # solo tienen `m:t`), una imagen (`w:drawing`/`a:blip`) o un objeto
+            # VML (`w:pict`/`v:imagedata`) dan `text == ""`. Sin este guard el
+            # purge los borraba y el .docx salia sin ecuaciones ni figuras.
+            _M = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
+            _A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+            _V = "{urn:schemas-microsoft-com:vml}"
+            _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+            has_no_textual = bool(
+                para._element.findall(f".//{_M}oMath")
+                or para._element.findall(f".//{_M}oMathPara")
+                or para._element.findall(f".//{_W}drawing")
+                or para._element.findall(f".//{_W}object")
+                or para._element.findall(f".//{_A}blip")
+                or para._element.findall(f".//{_V}imagedata")
+            )
+
+            if "texto" in active and not (has_page_break or has_rendered_break or has_no_textual):
                 para._element.getparent().remove(para._element)
             continue
         style_name = (para.style.name or "").lower() if para.style is not None else ""

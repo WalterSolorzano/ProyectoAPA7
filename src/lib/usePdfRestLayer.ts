@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { exportLayoutPdf, type LayoutPdfExportResult } from '../api/layout';
+import { resolveAssetUrl } from '../api/http';
 
 export type RestLayerStatus = 'idle' | 'loading' | 'ready' | 'hidden';
 
@@ -61,7 +62,9 @@ export function usePdfRestLayer(sessionId: string | null): { restLayerState: Res
         if (result.available && result.pdf_url) {
           setRestLayerState({
             status: 'ready',
-            pdfUrl: result.pdf_url,
+            /* `pdf_url` es root-relative; en Electron hay que apuntarlo al
+               backend (`app://` no lo sirve) o pdf.js no encuentra el archivo. */
+            pdfUrl: resolveAssetUrl(result.pdf_url),
             pageCount: result.page_count ?? null,
             reason: result.reason ?? null,
           });

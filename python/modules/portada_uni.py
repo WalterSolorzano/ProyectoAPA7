@@ -417,6 +417,7 @@ def generate_uni_cover(
     page_size: str | None = "carta",
     logos: list | None = None,
     institucion: str | None = None,
+    incluir_logo: bool = True,
 ) -> int:
     """
     Inserta al inicio del documento una portada institucional UNI fiel al
@@ -500,38 +501,39 @@ def generate_uni_cover(
     # El ancho es una FRACCIÓN del ancho útil de la hoja, no `Cm(5.2)`. Es el
     # cambio que hace que el mismo logo se vea igual en Carta y en A4, y el
     # motivo está escrito arriba, en `FRACCION_DE_ANCHO_DEL_LOGO`.
-    pedido = [
+    pedido = [] if not incluir_logo else [
         lg for lg in (logos or [])
         if getattr(lg, "asset", None)
     ]
-    if not pedido:
+    if incluir_logo and not pedido:
         # Sin logos pedidos: el de la institucion elegida, y si no se sabe cual
         # es, el de UNI, que es lo que se hizo siempre.
         asset = asset_de_institucion(institucion) or LOGO_UNI_ASSET
         pedido = [_LogoPedido(asset, FRACCION_DE_ANCHO_DEL_LOGO)]
 
-    fila = builder.add_paragraph()
-    fila.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _set_paragraph_spacing(fila, before=0, after=6)
-    for lg in pedido:
-        asset = getattr(lg, "asset", "")
-        frac = float(
-            getattr(lg, "ancho_fraccion", FRACCION_DE_ANCHO_DEL_LOGO) or FRACCION_DE_ANCHO_DEL_LOGO
-        )
-        ancho_mm = ancho_util_mm(page_size) * frac
-        ruta_logo = _resolve_logo_path(asset)
-        if not ruta_logo.exists():
-            # Se pidio un logo y no llego. ANTES esto saltaba en silencio y el
-            # documento salia sin el, que es la forma peor de fallar: no hay
-            # error, hay un documento equivocado. Ahora avisa, y NO sustituye
-            # el logo de otro: un asset que falta es un dato faltante, no una
-            # excuse para poner algo que el autor no pidio.
-            print(
-                f"[PORTADA-UNI] El logo '{asset}' no se encontro en "
-                f"{ruta_logo.parent}; se omite."
+    if pedido:
+        fila = builder.add_paragraph()
+        fila.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _set_paragraph_spacing(fila, before=0, after=6)
+        for lg in pedido:
+            asset = getattr(lg, "asset", "")
+            frac = float(
+                getattr(lg, "ancho_fraccion", FRACCION_DE_ANCHO_DEL_LOGO) or FRACCION_DE_ANCHO_DEL_LOGO
             )
-            continue
-        fila.add_run().add_picture(str(ruta_logo), width=Mm(ancho_mm))
+            ancho_mm = ancho_util_mm(page_size) * frac
+            ruta_logo = _resolve_logo_path(asset)
+            if not ruta_logo.exists():
+                # Se pidio un logo y no llego. ANTES esto saltaba en silencio y el
+                # documento salia sin el, que es la forma peor de fallar: no hay
+                # error, hay un documento equivocado. Ahora avisa, y NO sustituye
+                # el logo de otro: un asset que falta es un dato faltante, no una
+                # excuse para poner algo que el autor no pidio.
+                print(
+                    f"[PORTADA-UNI] El logo '{asset}' no se encontro en "
+                    f"{ruta_logo.parent}; se omite."
+                )
+                continue
+            fila.add_run().add_picture(str(ruta_logo), width=Mm(ancho_mm))
 
     # ── 2. Departamento (Butler 20pt, centrado) ──────────────────────────────
     dept_p = builder.add_paragraph()

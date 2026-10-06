@@ -43,6 +43,9 @@ export function parseAuthorEntries(raw: string | undefined | null): AuthorEntry[
       entries.push({ nombre, carnet: carnetPart });
       continue;
     }
+    // Nombre nuevo: si había uno pendiente, es una persona distinta (nombres
+    // consecutivos sin "|" ni "Carnet:" = autores separados, no continuación).
+    if (pendingName) entries.push({ nombre: pendingName, carnet: '' });
     pendingName = line;
   }
   if (pendingName) entries.push({ nombre: pendingName, carnet: '' });

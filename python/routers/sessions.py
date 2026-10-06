@@ -144,7 +144,7 @@ def run_background_analysis(session_id: str, storage_dir: Path):
 class UpdateElementRequest(BaseModel):
     session_id: str
     element_id: str
-    type: str
+    type: Optional[str] = None
     heading_level: Optional[int] = None
     text: Optional[str] = None
     image_info: Optional[dict] = None
@@ -161,6 +161,16 @@ class InsertElementRequest(BaseModel):
     text: str
     type: str = "paragraph"
     heading_level: int = 1
+
+
+class InsertImageRequest(BaseModel):
+    """API de contenido / copiloto — inserta una figura ya renderizada por el
+    backend (párrafo físico con imagen inline + ElementModel tipo image) tras
+    `after_element_id`. Nunca inserta en la zona de portada."""
+    session_id: str
+    after_element_id: str
+    new_element_id: str
+    image: dict
 
 
 class DetectSimilarRequest(BaseModel):
@@ -713,10 +723,22 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
     for elem in doc.elements:
         elem_id: str = elem.id if hasattr(elem, 'id') else elem.get('id', '')
         if elem_id == req.element_id:
-            if hasattr(elem, 'type'):
-                elem.type = req.type
-            else:
-                elem['type'] = req.type
+            # El tipo del request es una pista del cliente, no una orden:
+            # si viene junto a un payload que contradice el tipo real
+            # del elemento (image_info sobre una tabla o viceversa), el tipo
+            # existente manda para no convertir el elemento por accidente.
+            current_type = elem.type if hasattr(elem, 'type') else elem.get('type')
+            new_type = req.type
+            if new_type is not None:
+                if req.image_info is not None and current_type == 'table':
+                    new_type = None
+                elif req.table_info is not None and current_type == 'image':
+                    new_type = None
+            if new_type is not None:
+                if hasattr(elem, 'type'):
+                    elem.type = new_type
+                else:
+                    elem['type'] = new_type
 
             if req.heading_level is not None:
                 if hasattr(elem, 'heading_level'):
@@ -799,6 +821,35 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
     return doc
 
 
+@router.post("/api/references/sort/{session_id}")
+async def sort_references_endpoint(session_id: str) -> DocumentModel:
+    """Reordena la bibliografia por apellido APA 7 y persiste el orden.
+
+    No reescribe el .docx: la seccion exportada se genera desde
+    `doc.referencias` con la misma funcion (`format_apa_referencias_section`),
+    asi que este endpoint alinea el modelo con lo que se va a escribir.
+    """
+    from modules.referencias_module import sort_referencias_alphabetically
+
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+    doc.referencias = sort_referencias_alphabetically(list(doc.referencias or []))
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
+@router.get("/api/citation-style/{session_id}")
+async def citation_style_endpoint(session_id: str) -> dict:
+    """Estilo de las citas del cuerpo: APA, numerica (IEEE/Vancouver) o mezcla."""
+    from parsing.citation_matcher import detect_citation_style
+
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+    return detect_citation_style(doc)
+
+
 @router.post("/api/elements/insert")
 async def insert_element(req: InsertElementRequest) -> DocumentModel:
     """FASE 3 — Inserta un párrafo físico en original.docx y un elemento en
@@ -876,6 +927,89 @@ async def insert_element(req: InsertElementRequest) -> DocumentModel:
         confidence=1.0,
     )
     doc.elements.insert(idx + 1, new_elem)
+    save_session_snapshot(doc, STORAGE_DIR)
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
+@router.post("/api/elements/insert-image")
+async def insert_image_element(req: InsertImageRequest) -> DocumentModel:
+    """API de contenido / copiloto — Inserta una imagen física (párrafo con
+    imagen inline) y su ElementModel tipo image tras `after_element_id`. Si no
+    hay `original.docx` la inserción física se omite (documento aún sintético)
+    pero el elemento entra al modelo. Nunca inserta en la zona de portada.
+    """
+    from docx import Document
+    from docx.shared import Cm
+    from docx.oxml import OxmlElement
+    from docx.text.paragraph import Paragraph
+    from models import ImageModel
+    from persistence.session_manager import save_session_snapshot
+
+    doc: Optional[DocumentModel] = load_session_state(req.session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada.")
+
+    idx = next(
+        (i for i, e in enumerate(doc.elements)
+         if (e.id if hasattr(e, "id") else e.get("id", "")) == req.after_element_id),
+        None,
+    )
+    if idx is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Elemento con ID '{req.after_element_id}' no encontrado.",
+        )
+
+    target = doc.elements[idx]
+    if getattr(target, "is_cover_section", False):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede insertar una figura en la portada.",
+        )
+
+    image_data = {k: v for k, v in req.image.items() if k in ImageModel.model_fields}
+    image_data.setdefault("element_id", req.new_element_id)
+    image = ImageModel(**image_data)
+
+    original = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
+    if original.exists():
+        d = Document(str(original))
+        paragraphs = d.paragraphs
+
+        # Índice del párrafo físico: misma convención que apply_inplace.
+        phys = 0
+        for i, elem in enumerate(doc.elements):
+            if i == idx:
+                break
+            et = getattr(elem, "type", None)
+            ets = et.value if hasattr(et, "value") else str(et)
+            if ets in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
+                phys += 1
+        if phys < len(paragraphs):
+            src = paragraphs[phys]
+            new_p = OxmlElement("w:p")
+            src._p.addnext(new_p)
+            new_para = Paragraph(new_p, src._parent)
+            new_para.style = src.style
+            try:
+                if image.file_path:
+                    new_para.add_run().add_picture(
+                        image.file_path, width=Cm(image.width_cm or 12.0)
+                    )
+            except Exception:
+                new_para.add_run("[imagen]")
+            d.save(str(original))
+
+    element = ElementModel(
+        id=req.new_element_id,
+        type=ElementType.IMAGE,
+        image_info=image,
+        is_user_modified=True,
+        confidence=1.0,
+    )
+    image.element_id = element.id
+    doc.elements.insert(idx + 1, element)
     save_session_snapshot(doc, STORAGE_DIR)
     save_session_state(doc, STORAGE_DIR)
     return doc

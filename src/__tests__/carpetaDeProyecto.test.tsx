@@ -142,3 +142,31 @@ describe('la galería muestra todas las imágenes', () => {
     expect(img.style.objectFit).toBe('contain');
   });
 });
+
+describe('el vacío total del explorador guía a empezar', () => {
+  it('sin documentos ni imágenes muestra un estado vacío con sus acciones', () => {
+    // Antes había DOS cajas punteadas apiladas ("Todavía no hay documentos",
+    // "No hay imágenes"), que leen como cupos en blanco. En su lugar, un
+    // estado vacío que dice la causa y ofrece la salida.
+    render(<ExploradorProyecto onOpenMerge={() => {}} />);
+    expect(screen.getByTestId('estado-vacio')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /vincular carpeta/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /agregar \.docx/i })).toBeTruthy();
+    expect(screen.queryByText(/Todavía no hay documentos/i)).toBeNull();
+    expect(screen.queryByText(/No hay imágenes registradas/i)).toBeNull();
+  });
+
+  it('con documentos pero sin imágenes, no tapa la lista con el vacío total', () => {
+    // El vacío guiado es para "no hay NADA", no para esconder la mitad que sí
+    // existe: con documentos cargados, se ve la lista y solo la caja de
+    // imágenes queda punteada.
+    useDocStore.setState({
+      proyecto: proyectoDePrueba(),
+      tabs: [{ session_id: 's1', file_name: 'Capitulo_v1.docx' }] as never,
+      activeTabIndex: 0,
+    });
+    render(<ExploradorProyecto onOpenMerge={() => {}} />);
+    expect(screen.queryByTestId('estado-vacio')).toBeNull();
+    expect(screen.getByText(/No hay imágenes registradas/i)).toBeTruthy();
+  });
+});

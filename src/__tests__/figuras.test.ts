@@ -165,7 +165,7 @@ describe('contextosDeFiguras — la POSICION es la identidad', () => {
     const sinNumero = [h1('1. Uno'), el({ type: 'image', text: '', image_info: { caption: 'X', relative_url: '' } as never })];
     const c = contextosDeFiguras(sinNumero)[0];
     expect(c.numero).toBe(0);
-    expect(c.rotulo).toBe('Figura 0');
+    expect(c.rotulo).toBe('Figura');
   });
 });
 

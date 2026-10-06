@@ -123,7 +123,7 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <BookOpen size={18} strokeWidth="var(--icon-stroke)" color="var(--color-accent)" aria-hidden="true" />
+          <BookOpen size={18} strokeWidth="var(--icon-stroke)" color="var(--color-accent-deep)" aria-hidden="true" />
           <div
             style={{
               fontSize: 'var(--text-sm)',
@@ -143,8 +143,8 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
               fontWeight: 700,
               padding: '3px 8px',
               borderRadius: 'var(--radius-full)',
-              backgroundColor: 'var(--color-accent-soft)',
-              color: 'var(--color-accent)',
+              backgroundColor: 'var(--mark-citation-bg)',
+              color: 'var(--mark-citation-ink)',
             }}
           >
             {countBadgeText}
@@ -278,8 +278,8 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                       style={{
                         fontSize: '12px',
                         fontWeight: 700,
-                        color: 'var(--color-accent)',
-                        backgroundColor: 'var(--color-accent-soft)',
+                        color: 'var(--mark-citation-ink)',
+                        backgroundColor: 'var(--mark-citation-bg)',
                         padding: '3px 10px',
                         borderRadius: 'var(--radius-full)',
                         display: 'inline-flex',
@@ -324,7 +324,8 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         fontFamily: "'Newsreader', 'Georgia', serif",
                         fontSize: '72px',
                         lineHeight: 1,
-                        color: 'var(--color-accent-a20)',
+                        color: 'var(--color-accent-deep)',
+                        opacity: 0.22,
                         userSelect: 'none',
                         pointerEvents: 'none',
                       }}
@@ -348,9 +349,9 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                             key={sIdx}
                             data-testid="citation-highlight"
                             style={{
-                              backgroundColor: 'var(--color-accent-a12)',
-                              color: 'var(--color-accent)',
-                              borderBottom: '2px solid var(--color-accent)',
+                              backgroundColor: 'var(--mark-citation-bg)',
+                              color: 'var(--mark-citation-ink)',
+                              borderBottom: '1px solid var(--color-accent-deep)',
                               padding: '1px 4px',
                               borderRadius: 'var(--radius-xs)',
                               fontWeight: 600,
@@ -394,8 +395,8 @@ export const ManuscriptMentionsAccordion: React.FC<ManuscriptMentionsAccordionPr
                         padding: '5px 12px',
                         fontSize: 'var(--text-xs)',
                         fontWeight: 600,
-                        color: 'var(--color-accent)',
-                        backgroundColor: 'var(--color-accent-soft)',
+                        color: 'var(--color-accent-deep)',
+                        backgroundColor: 'var(--mark-citation-bg)',
                         border: '1px solid var(--color-border-subtle)',
                         borderRadius: 'var(--radius-sm)',
                         cursor: 'pointer',

@@ -271,6 +271,35 @@ def is_electron_running() -> bool:
     return _is_process_running("WordAPA7.exe")
 
 
+def user_word_running() -> bool:
+    """True si hay un WINWORD abierto por el USUARIO (no de automatizacion).
+
+    `is_word_running()` ve cualquier WINWORD. Un Word de COM huerfano —de un
+    backend que murio— haria creer que el usuario tiene un documento abierto y
+    dispararia CASO 1 (rearranque del backend) en bucle, justo despues de que
+    `reap_orphan_word()` lo mato. Se filtra por `/Automation`, igual que
+    `automation_word_pids()`: el Word del usuario nunca lleva ese flag.
+    """
+    if sys.platform != "win32":
+        return is_word_running()
+    try:
+        res = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                "(Get-CimInstance Win32_Process -Filter \"Name='WINWORD.EXE'\" | "
+                "Where-Object { $_.CommandLine -notlike '*Automation*' }).ProcessId",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+        return any(tok.strip().isdigit() for tok in res.stdout.split())
+    except Exception:
+        # Ante la duda, no barrer: se conserva el comportamiento previo.
+        return True
+
+
 # ── WORD DE AUTOMATIZACION HUERFANO ──────────────────────────────────────────
 
 
@@ -701,6 +730,16 @@ def run_watcher() -> None:
             # abre, es porque se cayo (crash) o nunca pudo arrancar. Se
             # reintenta el arranque.
             if word_open and not backend_up:
+                if not user_word_running():
+                    # El único Word vivo es de automatización (huérfano de un
+                    # backend muerto). No es un documento del usuario: se barre
+                    # y NO se rearranca el núcleo, que era lo que alimentaba el
+                    # bucle (barrer el huérfano liberaba `word_open`, el ciclo
+                    # lo volvía a leer como Word abierto y resucitaba el backend).
+                    reap_orphan_word()
+                    reap_cooldown = REAP_COOLDOWN_TICKS
+                    shutdown_timer = 0
+                    continue
                 log.warning(
                     "Word detectado pero el backend no responde — "
                     "recuperacion (posible crash del backend)..."

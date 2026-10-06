@@ -135,6 +135,10 @@ const montarFase = () => montarCon(ELEMENTOS);
 
 beforeEach(() => {
   secuencia = 0;
+  /* jsdom no es una pantalla: su `innerWidth` por defecto (1024) cae bajo el
+   * umbral responsive y colapsaría el panel derecho. Acá se declara un
+   * escritorio ancho, que es el entorno que estas pruebas describen. */
+  window.innerWidth = 1440;
 });
 
 describe('la fase de Estructura está montada', () => {

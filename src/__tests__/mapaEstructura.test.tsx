@@ -14,14 +14,16 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import {
   MapaEstructura,
   posicionesDe,
   etiquetaCortada,
+  esDescendiente,
   ANCHO_NODO,
   ALTO_NODO,
 } from '../components/structure/MapaEstructura';
-import { construirJerarquia } from '../lib/jerarquia';
+import { construirJerarquia, type NodoJerarquia } from '../lib/jerarquia';
 import type { ElementModel } from '../types';
 
 let secuencia = 0;
@@ -114,7 +116,7 @@ describe('el mapa dibujado', () => {
      * al `title` y dentro del botón había un porcentaje. */
     const { container } = render(<MapaEstructura raices={ARBOL} />);
     const grupos = container.querySelectorAll('g[data-nodo]');
-    expect(grupos.length).toBe(4);
+    expect(grupos.length).toBe(5);
     for (const g of grupos) {
       const texto = g.querySelector('text')?.textContent ?? '';
       expect(texto.length, 'un nodo sin nombre en pantalla').toBeGreaterThan(0);
@@ -152,6 +154,86 @@ describe('el mapa dibujado', () => {
     const { container } = render(<MapaEstructura raices={[]} />);
     expect(container.querySelector('svg')).toBeNull();
     expect(screen().textContent).toMatch(/no hay nodos/i);
+  });
+
+  it('la raíz sintética Documento encabeza el mapa', () => {
+    /* El mapa ya no arranca en la primera H1: arranca en el documento, y de la
+     * raíz cuelgan las H1. Sin esa raíz el diagrama no dice a qué pertenece
+     * todo, que es justamente lo que el usuario pidió agregar. */
+    const { container } = render(<MapaEstructura raices={ARBOL} />);
+    const raiz = container.querySelector('g[data-nodo="__documento__"]');
+    expect(raiz, 'no hay nodo raíz Documento').toBeTruthy();
+    expect(raiz?.querySelector('text')?.textContent ?? '').toContain('Documento');
+  });
+
+  it('el nodo del mapa ya no muestra el conteo de palabras', () => {
+    /* El dato vive en la fila del árbol y en el panel, no en el diagrama:
+     * `palabras` es conteo de lectura, no jerarquía. */
+    const { container } = render(<MapaEstructura raices={ARBOL} />);
+    expect(container.textContent).not.toMatch(/pal\./);
+    expect(container.textContent).not.toMatch(/palabras/i);
+  });
+
+  it('el grupo de zoom existe para escalar y desplazar', () => {
+    const { container } = render(<MapaEstructura raices={ARBOL} />);
+    expect(container.querySelector('[data-testid="mapa-zoom"]')).toBeTruthy();
+  });
+
+  it('los controles de zoom están en la barra', () => {
+    const { getByLabelText } = render(<MapaEstructura raices={ARBOL} />);
+    expect(getByLabelText('Acercar')).toBeTruthy();
+    expect(getByLabelText('Alejar')).toBeTruthy();
+    expect(getByLabelText('Ajustar')).toBeTruthy();
+  });
+
+  it('arrastrar una rama a otra la reubica, y no dentro de sí misma', () => {
+    /* El arrastre mueve la rama entera por el árbol. La guarda importante es
+     * que una rama no pueda caer dentro de sí misma: eso partiría el árbol en
+     * dos y el documento perdería su orden. */
+    const llamadas: Array<[string, string]> = [];
+    const { container } = render(
+      <MapaEstructura raices={ARBOL} onReubicar={(o, d) => llamadas.push([o, d])} />,
+    );
+    const grupos = [...container.querySelectorAll('g[data-nodo]')];
+    const porTitulo = (t: string) => grupos.find((g) => g.querySelector('text')?.textContent?.startsWith(t));
+    const introduccion = porTitulo('1. Introducción');
+    const metodologia = porTitulo('2. Metodología');
+    const instrumentos = porTitulo('2.1');
+
+    /* Un ancestro soltado sobre su propio descendiente no llama nada: la rama
+     * no puede caer dentro de sí misma. */
+    if (metodologia && instrumentos) {
+      fireEvent.pointerDown(metodologia, { clientX: 1, clientY: 1 });
+      fireEvent.pointerUp(instrumentos);
+    }
+    expect(llamadas).toHaveLength(0);
+
+    /* Una rama soltada sobre otra se reubica, con el id de origen y el destino. */
+    if (introduccion && metodologia) {
+      fireEvent.pointerDown(introduccion, { clientX: 1, clientY: 1 });
+      fireEvent.pointerUp(metodologia);
+    }
+    expect(llamadas).toEqual([['e1', 'e3']]);
+  });
+});
+
+describe('esDescendiente', () => {
+  const arbol = [
+    { id: 'a', hijos: [{ id: 'b', hijos: [{ id: 'c', hijos: [] }] }] },
+  ] as unknown as NodoJerarquia[];
+
+  it('reconoce un descendiente a cualquier profundidad', () => {
+    expect(esDescendiente(arbol, 'a', 'b')).toBe(true);
+    expect(esDescendiente(arbol, 'a', 'c')).toBe(true);
+    expect(esDescendiente(arbol, 'b', 'c')).toBe(true);
+  });
+
+  it('no confunde el sentido de la relación', () => {
+    /* Reubicar una rama dentro de sí misma es la operación que rompería el
+     * árbol; el helper existe para rechazarla. */
+    expect(esDescendiente(arbol, 'b', 'a')).toBe(false);
+    expect(esDescendiente(arbol, 'c', 'a')).toBe(false);
+    expect(esDescendiente(arbol, 'a', 'a')).toBe(false);
   });
 });
 

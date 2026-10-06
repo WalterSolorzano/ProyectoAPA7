@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { ContextoFigura } from '../../lib/figuras';
+import { ROTULO_DE_PREAMBULO } from '../../lib/figuras';
 import { resolveAssetUrl } from '../../api/backend';
 import { IconoFigura, IconoTabla, IconoEcuacion, IconoConformidad } from './IconosFiguras';
 
@@ -10,16 +11,73 @@ interface Props {
   onSelectIndice: (idx: number) => void;
 }
 
+/** Miniatura de tabla: una rejilla que insinúa filas y columnas sin inventar
+ *  cifras. Lee los mismos `headers`/`rows` que la vista grande del activo. */
+const MiniaturaTabla: React.FC<{ headers: string[]; rows: string[][] }> = ({ headers, rows }) => {
+  const cols = Math.max(
+    1,
+    Math.min(4, headers.length || Math.max(0, ...rows.map((r) => r.length)) || 1)
+  );
+  const cuerpo = rows.slice(0, 2);
+  const celdas: Array<string | null> = [
+    ...headers.slice(0, cols),
+    ...cuerpo.flatMap((r) => r.slice(0, cols)),
+  ];
+  const total = cols * 3;
+  while (celdas.length < total) celdas.push(null);
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="asset-thumbnail-tabla"
+      style={{
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
+        padding: '2px',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridAutoRows: '1fr',
+        gap: '1px',
+        background: 'var(--color-border-subtle)',
+      }}
+    >
+      {celdas.slice(0, total).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            background: i < cols ? 'var(--color-text-tertiary)' : 'var(--color-bg-surface)',
+            opacity: i < cols ? 0.4 : 1,
+            borderRadius: 'var(--radius-xs)',
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 export const GaleriaActivosColumna: React.FC<Props> = ({
   contextos,
   indiceActivo,
   onSelectIndice,
 }) => {
+  // Agrupar por fase (H1) y subsección (H2) para que los activos no queden
+  // "dispersos": el autor lee a qué encabezado pertenece cada figura o tabla.
+  let grupoPrev: string | null = null;
+  let subPrev: string | null = null;
+  const filasGaleria = contextos.map((ctx, idx) => {
+    const grupo = ctx.h1 ?? ROTULO_DE_PREAMBULO;
+    const sub = ctx.h2 || null;
+    const mostrarGrupo = grupo !== grupoPrev;
+    const mostrarSub = !!sub && sub !== subPrev;
+    grupoPrev = grupo;
+    subPrev = sub;
+    return { ctx, idx, mostrarGrupo, mostrarSub };
+  });
   return (
     <aside
       aria-label="Galería de activos"
       style={{
-        width: '320px',
+        width: '100%',
         backgroundColor: 'var(--color-bg-surface)',
         borderRight: '1px solid var(--color-border-subtle)',
         display: 'flex',
@@ -52,13 +110,39 @@ export const GaleriaActivosColumna: React.FC<Props> = ({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {contextos.map((ctx, idx) => {
+        {filasGaleria.map(({ ctx, idx, mostrarGrupo, mostrarSub }) => {
           const isSelected = indiceActivo === ctx.indice;
           const isConforme = ctx.tieneLeyenda && !!ctx.leyenda.trim();
 
           return (
+            <React.Fragment key={ctx.id || ctx.indice}>
+              {mostrarGrupo && (
+                <div
+                  style={{
+                    padding: '12px 14px 4px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  {ctx.h1 ?? ROTULO_DE_PREAMBULO}
+                </div>
+              )}
+              {mostrarSub && (
+                <div
+                  style={{
+                    padding: '2px 14px 6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                >
+                  {ctx.h2}
+                </div>
+              )}
             <div
-              key={ctx.id || ctx.indice}
               className="fig-row"
               role="button"
               tabIndex={0}
@@ -110,6 +194,8 @@ export const GaleriaActivosColumna: React.FC<Props> = ({
                       display: 'block',
                     }}
                   />
+                ) : ctx.tipo === 'table' && ctx.tabla && (ctx.tabla.headers.length > 0 || ctx.tabla.rows.length > 0) ? (
+                  <MiniaturaTabla headers={ctx.tabla.headers} rows={ctx.tabla.rows} />
                 ) : ctx.tipo === 'table' ? (
                   <IconoTabla size={20} color="var(--color-text-tertiary)" />
                 ) : ctx.tipo === 'equation' ? (
@@ -204,6 +290,7 @@ export const GaleriaActivosColumna: React.FC<Props> = ({
                 )}
               </div>
             </div>
+            </React.Fragment>
           );
         })}
       </div>

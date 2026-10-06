@@ -9,19 +9,100 @@
    defecto llega a la pantalla por un solo lado. */
 
 import React, { useMemo } from 'react';
+import { Check, CheckCheck, Flag, Layers, Quote, Tags, X, type LucideIcon } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { useAutoFitText } from '../../hooks/useAutoFitText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText } from './ReadingText';
-import { ENGINE_META, type AuditItem } from '../../hooks/useReviewWorkbench';
+import { ENGINE_META, type AuditItem, type SubtypeAction } from '../../hooks/useReviewWorkbench';
 import { EditorialMascot, type MascotExpression, type MascotKind } from '../layout/EditorialMascot';
 
 export interface FocusReadingCardProps {
   item: AuditItem | null;
   totalFindings: number;
+  /** La fase activa del documento, como línea de contexto. El `label` lo aporta
+   *  el hook (`allPhases`); la tarjeta no lo inventa. Sin fase, no se pinta. */
+  phaseLabel?: string | null;
+  /** Acción declarada para el hallazgo seleccionado (`accionDeItem`). Sin ella
+   *  la tarjeta solo lee: no ofrece ningún botón. */
+  action?: SubtypeAction;
+  /** La persona ya marcó este hallazgo para revisión manual. */
+  marked?: boolean;
+  busy?: boolean;
+  /** Cuántos hallazgos objetivos abarcaría "Aceptar todas". Con 1 o menos, el
+   *  botón no aparece: no hay lote que ofrecer. */
+  bulkCount?: number;
+  onAccept?: (item: AuditItem) => void;
+  onAcceptAll?: () => void;
+  onMark?: (item: AuditItem) => void;
+  onDismiss?: (item: AuditItem) => void;
+  /** Mecanismo del motor que trabaja sobre TODO el documento (rotular figuras,
+   *  resolver citas). Lo cablea la vista a `runGroupAction`. */
+  onEngineAction?: () => void;
 }
 
-export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps) {
+/** Botón de la barra de acciones. La que CAMBIA el documento va sólida; la que
+ *  solo lo anota, fantasma (mismo criterio que el detalle del rack). */
+function Accion({ label, Icon, onClick, disabled, primary, title }: {
+  label: string;
+  Icon: LucideIcon;
+  onClick: () => void;
+  disabled: boolean;
+  primary: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '6px 12px',
+        border: primary ? 'none' : '1px solid var(--color-border-subtle)',
+        borderRadius: 'var(--radius-sm)',
+        background: primary ? 'var(--color-accent)' : 'transparent',
+        color: primary ? 'var(--color-text-on-accent)' : 'var(--color-text-primary)',
+        font: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 600,
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
+        transition: 'background-color 0.15s ease, border-color 0.15s ease',
+      }}
+    >
+      <Icon size={13} strokeWidth="var(--icon-stroke)" aria-hidden />
+      {label}
+    </button>
+  );
+}
+
+/** Los mecanismos que el motor ejecuta sobre el DOCUMENTO, no sobre este texto. */
+const ACCION_MOTOR: Partial<Record<SubtypeAction, { label: string; Icon: LucideIcon; title: string }>> = {
+  autoCaption: {
+    label: 'Rotular todo',
+    Icon: Tags,
+    title: 'Redacta la leyenda de todas las figuras y tablas del documento, no solo de esta.',
+  },
+  resolveGhosts: {
+    label: 'Resolver citas',
+    Icon: Quote,
+    title: 'Resuelve las citas ausentes en la bibliografía de todo el documento.',
+  },
+};
+
+export function FocusReadingCard({
+  item,
+  totalFindings,
+  phaseLabel = null,
+  action,
+  marked = false,
+  busy = false,
+  bulkCount = 0,
+  onAccept,
+  onAcceptAll,
+  onMark,
+  onDismiss,
+  onEngineAction,
+}: FocusReadingCardProps) {
   const doc = useDocStore((s) => s.doc);
   const markBase = useMarkSourceBase();
 
@@ -61,9 +142,18 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
           ? 'curious'
           : 'neutral';
 
+  const esIA = item?.category === 'ai';
+  const conSugerencia = Boolean(item?.suggestedText);
+  const motor =
+    item && action && action !== 'none' && action !== 'accept' && action !== 'mark'
+      ? ACCION_MOTOR[action]
+      : undefined;
+  const hayAcciones = Boolean(item && (onAccept || onMark || onDismiss || onEngineAction));
+
   return (
     <section
       aria-label="Párrafo en revisión"
+      className="rev-item"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -89,6 +179,21 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <EditorialMascot size={24} kind={mascotKind} expression={mascotExpression} />
+          {/* Línea de contexto de fase (AGENTS.md §2): de qué parte del documento
+              es este hallazgo. Icono, una palabra, sin más. */}
+          {phaseLabel && (
+            <span
+              data-testid="review-phase-context"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)',
+                color: 'var(--color-text-secondary)', fontWeight: 600,
+                maxWidth: '28ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}
+            >
+              <Layers size={12} strokeWidth="var(--icon-stroke)" aria-hidden />
+              {phaseLabel}
+            </span>
+          )}
           {pagina !== null && <span style={{ fontWeight: 600 }}>{`${seccion}${pagina}`}</span>}
         </div>
         <span>{totalFindings} {totalFindings === 1 ? 'hallazgo en este bloque' : 'hallazgos en este bloque'}</span>
@@ -126,6 +231,70 @@ export function FocusReadingCard({ item, totalFindings }: FocusReadingCardProps)
           </p>
         )}
       </div>
+
+      {hayAcciones && item && (
+        <footer
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-2) var(--space-6)',
+            borderTop: '1px solid var(--color-border-subtle)',
+            backgroundColor: 'var(--color-bg-surface-alt)',
+          }}
+        >
+          {esIA && (
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+              Motor probabilístico: solo marcar
+            </span>
+          )}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              marginLeft: 'auto',
+              flexWrap: 'wrap',
+            }}
+          >
+            {action === 'accept' && conSugerencia && !item.readOnly && onAccept && (
+              <Accion label="Aceptar" Icon={Check} onClick={() => onAccept(item)} disabled={busy} primary />
+            )}
+            {action === 'accept' && onAcceptAll && bulkCount > 1 && (
+              <Accion
+                label="Aceptar todas"
+                Icon={CheckCheck}
+                onClick={onAcceptAll}
+                disabled={busy}
+                primary={false}
+                title={`Aplica la corrección a los ${bulkCount} hallazgos de este tipo.`}
+              />
+            )}
+            {action === 'mark' && onMark && (
+              <Accion
+                label={marked ? 'Marcado para revisar' : 'Marcar para revisar'}
+                Icon={Flag}
+                onClick={() => onMark(item)}
+                disabled={busy || marked}
+                primary={false}
+              />
+            )}
+            {motor && onEngineAction && (
+              <Accion
+                label={motor.label}
+                Icon={motor.Icon}
+                onClick={onEngineAction}
+                disabled={busy}
+                primary={false}
+                title={motor.title}
+              />
+            )}
+            {onDismiss && (
+              <Accion label="Descartar" Icon={X} onClick={() => onDismiss(item)} disabled={busy} primary={false} />
+            )}
+          </div>
+        </footer>
+      )}
     </section>
   );
 }

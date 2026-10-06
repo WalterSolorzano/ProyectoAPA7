@@ -148,7 +148,10 @@ const ALINEACIONES_DE_TITULO: OpcionDeAjuste[] = [
 const NUMERACIONES_DE_TITULO: OpcionDeAjuste[] = [
   { valor: 'none', etiqueta: 'Sin numerar', nota: 'lo que pide APA 7' },
   { valor: 'decimal', etiqueta: '1. 2. 3.' },
-  { valor: 'roman', etiqueta: 'I. II. III.' },
+  { valor: 'upperRoman', etiqueta: 'I. II. III.' },
+  { valor: 'lowerRoman', etiqueta: 'i. ii. iii.' },
+  { valor: 'upperLetter', etiqueta: 'A. B. C.' },
+  { valor: 'lowerLetter', etiqueta: 'a. b. c.' },
 ];
 
 const VIÑETAS: OpcionDeAjuste[] = [

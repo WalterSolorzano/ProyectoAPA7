@@ -4,7 +4,7 @@ import {
   RotateCcw, Loader2, AlertCircle,
 } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
-import { generatePreviewPdf } from '../../api/backend';
+import { generatePreviewPdf, resolveAssetUrl } from '../../api/backend';
 import * as pdfjsLib from 'pdfjs-dist';
 
 /* ── Iconos ──
@@ -63,7 +63,10 @@ export const PDFPreview: React.FC = () => {
     try {
       const res = await generatePreviewPdf(doc.session_id, rules, portada, references);
       if (res.status === 'ok' && res.download_url) {
-        const newUrl = `${res.download_url}?t=${Date.now()}`;
+        /* `download_url` es root-relative (`/api/preview-pdf/...`). En Electron
+           el renderer vive en `app://`, así que esa URL apuntaría al bundle y no
+           al backend: hay que prefijar el host, igual que con las imágenes. */
+        const newUrl = `${resolveAssetUrl(res.download_url)}?t=${Date.now()}`;
         setPdfUrl(newUrl);
         setPdfPreviewCache({ hash: stateHash, url: newUrl });
       } else {

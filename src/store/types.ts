@@ -63,9 +63,6 @@ export interface DocState {
   /** El detalle del rail de iconos está anclado (flyout abierto) en vez de abrirse al hover. */
   railPinned: boolean;
   setRailPinned: (pinned: boolean) => void;
-  /** Estilo de tabla APA por elemento (solo preview; no afecta la generación del .docx) */
-  tableStyles: Record<string, 'standard' | 'compact' | 'expanded'>;
-  setTableStyle: (elementId: string, style: 'standard' | 'compact' | 'expanded') => void;
   nimLogs: any[];
   isNIMDiagnosticsOpen: boolean;
 
@@ -205,6 +202,11 @@ export interface DocState {
   dismissedCommentIds: string[];
   dismissComment: (id: string) => void;
   restoreComment: (id: string) => void;
+  /** Hallazgos de la fase Revisión & IA descartados por el usuario. El id es la
+   *  clave de contenido que produce `collectAuditItems` (no la posición). */
+  dismissedFindingIds: string[];
+  dismissFinding: (id: string) => void;
+  restoreFinding: (id: string) => void;
   imagePanelOpen: boolean;
   setImagePanelOpen: (open: boolean) => void;
   tabs: {
@@ -443,6 +445,8 @@ export interface DocState {
    *  commit de `before` al párrafo actual (updateElementType) + inserción
    *  del párrafo `after` (insertElement). */
   splitParagraphAt: (elementId: string, before: string, after: string) => Promise<void>;
+  /** API de contenido / copiloto — inserta una figura ya renderizada tras `afterId`. */
+  insertImageElement: (afterId: string, image: Partial<import('../types').ImageModel>) => Promise<void>;
   updateElementImage: (elementId: string, imageInfo: Partial<ImageModel>) => Promise<void>;
   updateElementTable: (elementId: string, tableInfo: Partial<import('../types').TableModel>) => Promise<void>;
   /** La presentación de una ecuación: número, formato, alineación y tipografía de

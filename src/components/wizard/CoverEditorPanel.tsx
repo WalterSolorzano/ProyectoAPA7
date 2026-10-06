@@ -91,20 +91,20 @@ const ICONO_DE_CARRERA: Record<string, React.ReactNode> = {
 
 const sectionHeader: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: '7px',
-  fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)',
+  fontSize: '11px', fontWeight: 800, color: 'var(--color-text-secondary)',
   textTransform: 'uppercase', letterSpacing: '0.4px',
   marginBottom: '2px',
 };
 
 const baseInput: React.CSSProperties = {
-  width: '100%', fontFamily: 'inherit', fontSize: '13px', color: 'var(--text-main)',
-  background: 'var(--color-bg-surface-alt)', border: '1px solid var(--border-subtle)',
+  width: '100%', fontFamily: 'inherit', fontSize: '13px', color: 'var(--color-text-primary)',
+  background: 'var(--color-bg-surface-alt)', border: '1px solid var(--color-border-subtle)',
   borderRadius: 'var(--radius-md)', padding: '9px 12px', outline: 'none', boxSizing: 'border-box',
   transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
 };
 
 const fieldLabel: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)',
+  fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)',
   display: 'block', marginBottom: '5px',
 };
 
@@ -116,9 +116,12 @@ const chipWrap: React.CSSProperties = {
 /* Estilo base de un chip. */
 const chipBase: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '5px',
-  fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
+  fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)',
   background: 'var(--surface-subtle)',
-  border: '1px solid var(--border-subtle)',
+  /* Longhand y no `border`: el chip seleccionado y el hover cambian solo
+     `borderColor`, y mezclar el atajo con una propiedad larga hace que React
+     avise por rerender (y el orden de aplicación deje de ser predecible). */
+  borderWidth: '1px', borderStyle: 'solid', borderColor: 'var(--color-border-subtle)',
   borderRadius: 'var(--radius-full)', padding: '5px 10px',
   cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
   transition: 'border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.1s ease',
@@ -128,16 +131,16 @@ const chipBase: React.CSSProperties = {
 /* Estilo de chip seleccionado (accent). */
 const chipSelected: React.CSSProperties = {
   background: 'var(--color-accent-soft)',
-  borderColor: 'var(--accent-primary)',
-  color: 'var(--accent-primary)',
+  borderColor: 'var(--color-accent)',
+  color: 'var(--color-accent)',
 };
 
 /* Tag removible (integrante ya añadido al campo autor). */
 const removableTag: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
-  fontSize: '11px', fontWeight: 600, color: 'var(--text-main)',
+  fontSize: '11px', fontWeight: 600, color: 'var(--color-text-primary)',
   background: 'var(--color-accent-soft)',
-  border: '1px solid var(--accent-primary)',
+  border: '1px solid var(--color-accent)',
   borderRadius: 'var(--radius-full)', padding: '5px 4px 5px 10px',
   fontFamily: 'inherit', lineHeight: 1, maxWidth: '100%',
 };
@@ -147,7 +150,7 @@ const removeBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: '16px', height: '16px', borderRadius: 'var(--radius-full)',
   border: 'none', background: 'var(--color-ink-a08)', cursor: 'pointer',
-  color: 'var(--text-secondary)', padding: 0, flexShrink: 0,
+  color: 'var(--color-text-secondary)', padding: 0, flexShrink: 0,
 };
 
 /* ── Sub-componente: Chip genérico ──────────────────────────────────────── */
@@ -175,15 +178,15 @@ const Chip: React.FC<ChipProps> = ({ label, selected, onClick, title, icon }) =>
     }}
     onMouseEnter={(e) => {
       if (!selected) {
-        e.currentTarget.style.borderColor = 'var(--accent-primary)';
-        e.currentTarget.style.color = 'var(--accent-primary)';
+        e.currentTarget.style.borderColor = 'var(--color-accent)';
+        e.currentTarget.style.color = 'var(--color-accent)';
         e.currentTarget.style.transform = 'translateY(-1px)';
       }
     }}
     onMouseLeave={(e) => {
       if (!selected) {
-        e.currentTarget.style.borderColor = 'var(--border-subtle)';
-        e.currentTarget.style.color = 'var(--text-secondary)';
+        e.currentTarget.style.borderColor = 'var(--color-border-subtle)';
+        e.currentTarget.style.color = 'var(--color-text-secondary)';
         e.currentTarget.style.transform = 'translateY(0)';
       }
     }}
@@ -221,8 +224,8 @@ const Seccion: React.FC<SeccionProps> = ({ titulo, icono, abiertaPorDefecto = fa
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
           width: '100%', padding: '8px 10px',
           background: 'var(--color-bg-surface-alt)',
-          border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)',
-          color: 'var(--text-main)', fontFamily: 'inherit', cursor: 'pointer',
+          border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)',
+          color: 'var(--color-text-primary)', fontFamily: 'inherit', cursor: 'pointer',
         }}
       >
         <span style={{
@@ -401,15 +404,15 @@ export const CoverEditorPanel: React.FC = () => {
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column', height: '100%',
-      overflow: 'hidden', backgroundColor: 'var(--sidebar-bg)',
+      overflow: 'hidden', backgroundColor: 'var(--color-bg-surface)',
     }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0,
-        padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)',
+        padding: '12px 14px', borderBottom: '1px solid var(--color-border-subtle)',
       }}>
-        <School size={15} color="var(--accent-primary)" />
-        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+        <School size={15} color="var(--color-accent)" />
+        <span style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
           Editor de portada
         </span>
       </div>
@@ -423,13 +426,13 @@ export const CoverEditorPanel: React.FC = () => {
         <div style={{
           display: 'flex', flexDirection: 'column', gap: '16px',
         }}>
-          <Seccion titulo="Identificación" icono={<FileText size={12} color="var(--accent-primary)" />} abiertaPorDefecto>
+          <Seccion titulo="Identificación" icono={<FileText size={12} color="var(--color-accent)" />} abiertaPorDefecto>
 
           {/* ── Título del trabajo ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <label style={fieldLabel}>Título del trabajo</label>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tab para ir a autores</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>Tab para ir a autores</span>
             </div>
             <textarea
               value={portada.title || ''}
@@ -445,13 +448,13 @@ export const CoverEditorPanel: React.FC = () => {
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
                 padding: '3px 8px', borderRadius: 'var(--radius-full)',
                 backgroundColor: 'var(--surface-subtle)',
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border-subtle)',
                 fontSize: '11px', fontWeight: 600, fontFamily: 'inherit',
               }}>
                 <span style={{
                   width: '6px', height: '6px', borderRadius: 'var(--radius-full)',
-                  backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--text-muted)' : 'var(--accent-primary)',
+                  backgroundColor: ((portada.title || '').trim().split(/\s+/).filter(Boolean).length > 12) ? 'var(--color-text-tertiary)' : 'var(--color-accent)',
                 }} />
                 <span>
                   {(portada.title || '').length} caracteres · {(portada.title || '').trim().split(/\s+/).filter(Boolean).length} palabras (APA recomienda máx 12)
@@ -473,7 +476,7 @@ export const CoverEditorPanel: React.FC = () => {
                   gap: '4px',
                   fontSize: '11px',
                   fontWeight: 700,
-                  color: 'var(--accent-primary)',
+                  color: 'var(--color-accent)',
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
@@ -494,7 +497,7 @@ export const CoverEditorPanel: React.FC = () => {
                   gap: '6px',
                   padding: '8px',
                   backgroundColor: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
+                  border: '1px solid var(--color-border-subtle)',
                   borderRadius: 'var(--radius-md)',
                 }}
               >
@@ -513,7 +516,7 @@ export const CoverEditorPanel: React.FC = () => {
                     onChange={(e) => handleUpdateAuthorEntry(idx, 'carnet', e.target.value)}
                     onFocus={focusHighlight('author')}
                     placeholder="Carnet: 202X-XXXXU"
-                    style={{ ...baseInput, padding: '5px 8px', fontSize: '11px', color: 'var(--text-secondary)' }}
+                    style={{ ...baseInput, padding: '5px 8px', fontSize: '11px', color: 'var(--color-text-secondary)' }}
                   />
                 </div>
                 <button
@@ -540,7 +543,7 @@ export const CoverEditorPanel: React.FC = () => {
             ))}
 
             {authorEntries.length === 0 && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', fontStyle: 'italic', padding: '6px 0' }}>
                 No hay integrantes agregados. Haz clic en "+ Agregar Integrante" o selecciona del roster.
               </div>
             )}
@@ -550,11 +553,11 @@ export const CoverEditorPanel: React.FC = () => {
               <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={sectionHeader}>
-                    <Users size={12} color="var(--accent-primary)" /> Integrantes del Roster ({integrantesFiltrados.length})
+                    <Users size={12} color="var(--color-accent)" /> Integrantes del Roster ({integrantesFiltrados.length})
                   </div>
                 </div>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Search size={12} color="var(--text-muted)" style={{ position: 'absolute', left: '8px', pointerEvents: 'none' }} />
+                  <Search size={12} color="var(--color-text-tertiary)" style={{ position: 'absolute', left: '8px', pointerEvents: 'none' }} />
                   <input
                     type="text"
                     value={busquedaRoster}
@@ -573,7 +576,7 @@ export const CoverEditorPanel: React.FC = () => {
                       onClick={() => setBusquedaRoster('')}
                       style={{
                         position: 'absolute', right: '6px', background: 'none', border: 'none',
-                        cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0,
+                        cursor: 'pointer', color: 'var(--color-text-tertiary)', display: 'flex', padding: 0,
                       }}
                     >
                       <X size={12} />
@@ -589,8 +592,8 @@ export const CoverEditorPanel: React.FC = () => {
                         icon={
                           <span style={{
                             width: '18px', height: '18px', borderRadius: 'var(--radius-full)',
-                            backgroundColor: selected ? 'var(--color-text-on-accent)' : 'var(--accent-primary)',
-                            color: selected ? 'var(--accent-primary)' : 'var(--color-text-on-accent)',
+                            backgroundColor: selected ? 'var(--color-text-on-accent)' : 'var(--color-accent)',
+                            color: selected ? 'var(--color-accent)' : 'var(--color-text-on-accent)',
                             fontSize: '9px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             {getInitials(intg.nombre)}
@@ -604,7 +607,7 @@ export const CoverEditorPanel: React.FC = () => {
                     );
                   })}
                   {integrantesFiltrados.length === 0 && (
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', fontStyle: 'italic', padding: '4px 0' }}>
                       No se encontraron integrantes que coincidan con &quot;{busquedaRoster}&quot;
                     </span>
                   )}
@@ -614,7 +617,7 @@ export const CoverEditorPanel: React.FC = () => {
           </div>
           </Seccion>
 
-          <Seccion titulo="Institución y carrera" icono={<School size={12} color="var(--accent-primary)" />} abiertaPorDefecto>
+          <Seccion titulo="Institución y carrera" icono={<School size={12} color="var(--color-accent)" />} abiertaPorDefecto>
           {/* ── Institución / Universidad con Logos e Insignias Rápidas ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -650,8 +653,8 @@ export const CoverEditorPanel: React.FC = () => {
                         alignItems: 'center',
                         gap: '6px',
                         background: isSelected ? 'var(--color-accent-soft)' : 'var(--color-bg-surface-alt)',
-                        color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
-                        border: isSelected ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                        color: isSelected ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                        border: isSelected ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
                         boxShadow: isSelected ? '0 1px 4px var(--shadow-sm)' : 'none',
                         transition: 'all 0.15s ease',
                       }}
@@ -694,7 +697,7 @@ export const CoverEditorPanel: React.FC = () => {
                       )}
                       <span>{u.codigo}</span>
                       {isSelected && (
-                        <Check size={12} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--accent-primary)' }} />
+                        <Check size={12} strokeWidth="var(--icon-stroke)" style={{ color: 'var(--color-accent)' }} />
                       )}
                     </button>
                   );
@@ -749,7 +752,7 @@ export const CoverEditorPanel: React.FC = () => {
 
           </Seccion>
 
-          <Seccion titulo="Docente y entrega" icono={<GraduationCap size={12} color="var(--accent-primary)" />}>
+          <Seccion titulo="Docente y entrega" icono={<GraduationCap size={12} color="var(--color-accent)" />}>
           {/* ── Asignatura / Curso ──────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <label style={fieldLabel}>Asignatura / Curso</label>
@@ -777,7 +780,7 @@ export const CoverEditorPanel: React.FC = () => {
             {grupos.length > 0 && (
               <div style={{ marginTop: '4px' }}>
                 <div style={{ ...sectionHeader, fontSize: '9px' }}>
-                  <Hash size={11} color="var(--accent-primary)" /> Grupos guardados
+                  <Hash size={11} color="var(--color-accent)" /> Grupos guardados
                 </div>
                 <div style={chipWrap}>
                   {grupos.map((g) => {
@@ -812,7 +815,7 @@ export const CoverEditorPanel: React.FC = () => {
             {acta.profesor_asesor.length > 0 && (
               <div style={{ display: 'flex', marginTop: '6px' }}>
                 <span style={removableTag}>
-                  <GraduationCap size={12} color="var(--accent-primary)" />
+                  <GraduationCap size={12} color="var(--color-accent)" />
                   <span style={{
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     maxWidth: '200px',
@@ -834,7 +837,7 @@ export const CoverEditorPanel: React.FC = () => {
             {profesores.length > 0 && (
               <div style={{ marginTop: '4px' }}>
                 <div style={{ ...sectionHeader, fontSize: '9px' }}>
-                  <GraduationCap size={11} color="var(--accent-primary)" /> Profesores guardados
+                  <GraduationCap size={11} color="var(--color-accent)" /> Profesores guardados
                 </div>
                 <div style={chipWrap}>
                   {profesores.map((prof) => {
@@ -861,7 +864,7 @@ export const CoverEditorPanel: React.FC = () => {
             <div style={{ position: 'relative' }}>
               <Calendar
                 size={14}
-                color="var(--text-muted)"
+                color="var(--color-text-tertiary)"
                 style={{
                   position: 'absolute', left: '12px', top: '50%',
                   transform: 'translateY(-50%)', pointerEvents: 'none',
@@ -883,7 +886,7 @@ export const CoverEditorPanel: React.FC = () => {
             {formattedDate && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '5px',
-                fontSize: '11px', color: 'var(--accent-primary)', fontWeight: 600,
+                fontSize: '11px', color: 'var(--color-accent)', fontWeight: 600,
                 marginTop: '2px',
               }}>
                 <Calendar size={11} /> {formattedDate}
@@ -896,8 +899,8 @@ export const CoverEditorPanel: React.FC = () => {
 
       {/* CTA fijo al pie */}
       <div style={{
-        flexShrink: 0, padding: '12px 14px', borderTop: '1px solid var(--border-subtle)',
-        backgroundColor: 'var(--sidebar-bg)',
+        flexShrink: 0, padding: '12px 14px', borderTop: '1px solid var(--color-border-subtle)',
+        backgroundColor: 'var(--color-bg-surface)',
       }}>
         <button
           type="button"
@@ -908,7 +911,7 @@ export const CoverEditorPanel: React.FC = () => {
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '7px', padding: '11px 14px', fontSize: '13px', fontWeight: 700,
-            background: 'var(--accent-primary)', color: 'var(--color-text-on-accent)',
+            background: 'var(--color-accent)', color: 'var(--color-text-on-accent)',
             border: 'none', borderRadius: 'var(--radius-lg)', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -923,7 +926,7 @@ export const CoverEditorPanel: React.FC = () => {
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '7px', marginTop: '8px', padding: '10px 14px', fontSize: '12px', fontWeight: 700,
-            background: 'transparent', color: 'var(--accent-primary)',
+            background: 'transparent', color: 'var(--color-accent)',
             border: '1px solid var(--color-accent-a65)', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
             fontFamily: 'inherit',
           }}

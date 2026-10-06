@@ -50,6 +50,48 @@
   stroke-width: 2;
 }
 
+/* El arrastre: la caja de destino válida se enciende, la inválida se tacha en
+ * rojo, la línea de inserción marca dónde cae la rama y el fantasma sigue al
+ * cursor. Mientras se arrastra, todo lo demás se atenúa para que el destino se
+ * lea de un golpe. */
+.mapa-estructura .mapa-destino {
+  fill: none;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+.mapa-estructura .mapa-destino.valido { stroke: var(--color-accent); }
+.mapa-estructura .mapa-destino.invalido { stroke: var(--color-danger); }
+
+.mapa-estructura .mapa-insercion {
+  fill: var(--color-accent);
+  pointer-events: none;
+}
+
+.mapa-estructura .mapa-fantasma rect {
+  fill: var(--color-accent-soft);
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.7;
+}
+.mapa-estructura .mapa-fantasma text {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  fill: var(--color-text-primary);
+  opacity: 0.8;
+}
+
+/* `animation: none` libera la opacidad: la entrada del nodo deja el último
+ * keyframe aplicado y con él la atenuación del arrastre nunca se vería. */
+.mapa-estructura.arrastrando .mapa-nodo {
+  animation: none;
+  opacity: 0.5;
+  transition: opacity 160ms ease;
+}
+.mapa-estructura.arrastrando .mapa-nodo.origen { opacity: 0.3; }
+.mapa-estructura.arrastrando .mapa-nodo.destino { opacity: 1; }
+
 .mapa-estructura .mapa-nodo {
   animation: mapa-nodo-in 320ms ease-out both;
 }
@@ -95,5 +137,8 @@
   .mapa-estructura .mapa-arista,
   .mapa-estructura .mapa-anillo {
     animation: none;
+  }
+  .mapa-estructura.arrastrando .mapa-nodo {
+    transition: none;
   }
 }

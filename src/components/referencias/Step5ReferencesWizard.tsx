@@ -11,8 +11,9 @@ import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
   Trash2, Copy, Check, Pencil,
-  ArrowRight, X, ChevronDown, HelpCircle, FileText
+  ArrowRight, ArrowDownAZ, X, HelpCircle, FileText
 } from 'lucide-react';
+import { sortReferences, detectCitationStyle } from '../../api/backend';
 import { ReferenciaModel } from '../../types';
 import {
   ROTULO_DE_ESTADO,
@@ -29,19 +30,12 @@ import { ReferenceRailFilter, ReferenceFilterType } from './ReferenceRailFilter'
 import { ReferenceCatalogItem } from './ReferenceCatalogItem';
 import { ManuscriptMentionsAccordion } from './ManuscriptMentionsAccordion';
 import { ReferenceEditModal } from './ReferenceEditModal';
+import { ReferenciaLinea } from './ReferenciaLinea';
+import { APA_LISTA, APA_ENTRADA } from '../../lib/apaLayout';
+import { formatearReferencia } from '../../lib/apaApi';
 
-/**
- * El texto que va al documento. Sin último recurso que INVENTE: si no hay
- * `formatted_apa` ni `raw_text`, se devuelve cadena vacía y el bloque lo dice.
- * La alternativa —componer `Autor (s.f.). Título.` en el render— es la que la
- * vista previa tenía, y está conectada al mismo motivo por el que este archivo
- * no la tiene: la elipsis de APA de 21+ autores y el
- * DOI normalizado sólo los sabe armar el backend, y lo que la persona lee tiene
- * que ser lo que el documento recibe.
- */
-function textoDeLaReferencia(ref: ReferenciaModel | null): string {
-  return (ref?.formatted_apa || '').trim() || (ref?.raw_text || '').trim();
-}
+/** Los tres grupos del catálogo, como pestañas cerradas: una lista a la vez. */
+type GroupTab = 'verificadas' | 'pendientes' | 'texto';
 
 /**
  * POR QUÉ esta referencia está en el estado en que está.
@@ -91,16 +85,19 @@ export const Step5ReferencesWizard: React.FC = () => {
 
   // Formulario manual guiado dentro de Modal
   const [refType, setRefType] = useState<'journal' | 'book' | 'thesis' | 'web'>('journal');
+  const tipoSeleccionado =
+    refType === 'journal' ? 'articulo' : refType === 'book' ? 'libro' : refType === 'thesis' ? 'tesis' : 'web';
   const [formAuthors, setFormAuthors] = useState('');
   const [formYear, setFormYear] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formSource, setFormSource] = useState('');
   const [formDoi, setFormDoi] = useState('');
 
-  // Estado de colapso de secciones en lista de la izquierda
-  const [openValid, setOpenValid] = useState(true);
-  const [openUnverified, setOpenUnverified] = useState(true);
-  const [openGhosts, setOpenGhosts] = useState(true);
+  /* Pestaña activa del catálogo. Los tres grupos —Verificadas, Pendientes y
+     "En texto, no en biblio"— dejaron de ser encabezados plegables apilados
+     (donde todo el texto competía a la vez) para ser pestañas cerradas: se lee
+     UNA lista a la vez y la categoría se elige, no se adivina. */
+  const [activeGroup, setActiveGroup] = useState<GroupTab>('verificadas');
 
   // Filtro de rail, buscador del directorio y modal de edición
   const [railFilter, setRailFilter] = useState<ReferenceFilterType>('all');
@@ -120,6 +117,36 @@ export const Step5ReferencesWizard: React.FC = () => {
       runCitationAudit();
     }
   }, [citationAuditResult, doc, runCitationAudit]);
+
+  /* Estilo de cita del cuerpo. Es un AVISO, no una conversión: unificar estilos
+     exige los metadatos de cada fuente y eso no vive acá. Si la consulta falla,
+     el aviso simplemente no aparece: es accesorio, no bloquea la pantalla. */
+  const [estiloMezclado, setEstiloMezclado] = useState(false);
+  useEffect(() => {
+    if (!doc?.session_id) return;
+    let activo = true;
+    detectCitationStyle(doc.session_id)
+      .then((r) => { if (activo) setEstiloMezclado(Boolean(r?.mixed)); })
+      .catch(() => { if (activo) setEstiloMezclado(false); });
+    return () => { activo = false; };
+  }, [doc?.session_id]);
+
+  const [reordering, setReordering] = useState(false);
+  /* Reordenar es una operación de LISTA: el orden lo calcula el backend con la
+     clave APA y acá solo se pide y se refleja en el store. */
+  const handleReorder = async () => {
+    if (!doc?.session_id || reordering) return;
+    setReordering(true);
+    try {
+      const ordenadas = await sortReferences(doc.session_id);
+      updateReferences(ordenadas);
+      showToast('Bibliografía reordenada alfabéticamente', 'success');
+    } catch {
+      showToast('No se pudo reordenar la bibliografía', 'warning');
+    } finally {
+      setReordering(false);
+    }
+  };
 
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
@@ -181,6 +208,35 @@ export const Step5ReferencesWizard: React.FC = () => {
     ? ghosts.filter((g: unknown) => ghostText(g).toLowerCase().includes(queryNorm))
     : ghosts;
 
+  /* Las tres pestañas con su conteo. Una sola está activa: la lista lee UNA
+     categoría a la vez, y el rail decide cuáles están disponibles. Las
+     etiquetas y los conteos son los mismos del rail y del vacío de cada
+     grupo: una verdad, no tres copias. */
+  const tabs: { id: GroupTab; titulo: string; detalle: string; conteo: number; Icon: typeof CheckCircle2 }[] = [
+    { id: 'verificadas', titulo: 'Verificadas', detalle: 'Contrastadas contra una fuente real.', conteo: validFiltradas.length, Icon: CheckCircle2 },
+    { id: 'pendientes', titulo: 'Pendientes', detalle: 'Faltan datos o falta contrastarlas contra una fuente.', conteo: pendientesFiltradas.length, Icon: HelpCircle },
+    { id: 'texto', titulo: 'En texto, no en biblio', detalle: 'Citas que aparecen en el cuerpo y no tienen ficha.', conteo: ghostsFiltrados.length, Icon: AlertTriangle },
+  ];
+  const tabsVisibles = tabs.filter(
+    (t) =>
+      railFilter === 'all' ||
+      (railFilter === 'verified' && t.id === 'verificadas') ||
+      (railFilter === 'issues' && t.id !== 'verificadas'),
+  );
+  const tabActiva: GroupTab = tabsVisibles.some((t) => t.id === activeGroup)
+    ? activeGroup
+    : tabsVisibles[0]?.id ?? 'verificadas';
+
+  /* La bibliografía completa es la página del documento, y en APA 7 va en
+     orden alfabético por el apellido del primer autor (o por el título si no
+     hay autor). El catálogo ya ordena cada grupo con `particionarReferencias`;
+     acá el orden es el del documento, que es otra verdad. */
+  const referenciasOrdenadas = useMemo(() => {
+    const clave = (r: ReferenciaModel) =>
+      ((r.authors?.[0] || '').split(',')[0] || r.title || '').trim().toLowerCase();
+    return [...references].sort((a, b) => clave(a).localeCompare(clave(b), 'es'));
+  }, [references]);
+
   const handleResolveDoi = async () => {
     if (!doiQuery.trim()) return;
     const query = doiQuery.trim();
@@ -209,24 +265,34 @@ export const Step5ReferencesWizard: React.FC = () => {
     setShowAddModal(false);
   };
 
-  const handleAddManual = () => {
+  const handleAddManual = async () => {
     if (!formTitle.trim() && !formAuthors.trim()) {
       showToast('Ingresa al menos autor o título', 'warning');
       return;
     }
     const authorsArr = formAuthors.split(/,|&|;/).map((a) => a.trim()).filter(Boolean);
     const yr = formYear.trim() || 's.f.';
-    const formatted = `${formAuthors.trim()} (${yr}). ${formTitle.trim()}.${formSource.trim() ? ' ' + formSource.trim() : ''}${formDoi.trim() ? ' ' + formDoi.trim() : ''}`;
+    const title = formTitle.trim();
+    const source = formSource.trim();
+    const doi = formDoi.trim();
+    const formato = await formatearReferencia({
+      authors: authorsArr, year: yr, title, source, doi_or_url: doi || undefined,
+      tipo: tipoSeleccionado,
+    });
+    const formatted = formato?.formatted_apa
+      ?? `${formAuthors.trim()} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
 
     const newRef: ReferenciaModel = {
       id: `ref-${Date.now()}`,
       authors: authorsArr.length > 0 ? authorsArr : [formAuthors.trim() || 'Autor'],
       year: yr,
-      title: formTitle.trim(),
-      source: formSource.trim(),
-      doi_or_url: formDoi.trim() || undefined,
+      title,
+      source,
+      doi_or_url: doi || undefined,
       formatted_apa: formatted,
       raw_text: formatted,
+      apa_segments: formato?.apa_segments,
+      tipo: formato?.tipo,
     };
 
     addReference(newRef);
@@ -240,15 +306,19 @@ export const Step5ReferencesWizard: React.FC = () => {
     showToast('Referencia agregada exitosamente', 'success');
   };
 
-  const handleSaveModalRef = (updated: Partial<ReferenciaModel>) => {
+  const handleSaveModalRef = async (updated: Partial<ReferenciaModel>) => {
     if (!editingRef) return;
     const authorsArr = updated.authors || editingRef.authors || [];
     const yr = updated.year?.trim() || editingRef.year || 's.f.';
     const title = updated.title !== undefined ? updated.title.trim() : editingRef.title;
     const source = updated.source !== undefined ? updated.source.trim() : (editingRef.source || '');
     const doi = updated.doi_or_url !== undefined ? updated.doi_or_url.trim() : (editingRef.doi_or_url || '');
-    const authorsStr = authorsArr.join(', ');
-    const formatted = `${authorsStr} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
+    const tipo = updated.tipo ?? editingRef.tipo ?? 'otro';
+    const formato = await formatearReferencia({
+      authors: authorsArr, year: yr, title, source, doi_or_url: doi || undefined, tipo,
+    });
+    const formatted = formato?.formatted_apa
+      ?? `${authorsArr.join(', ')} (${yr}). ${title}.${source ? ' ' + source : ''}${doi ? ' ' + doi : ''}`;
 
     updateReferences(references.map((r) => {
       if (r.id !== editingRef.id) return r;
@@ -262,6 +332,8 @@ export const Step5ReferencesWizard: React.FC = () => {
         doi_or_url: doi || undefined,
         formatted_apa: formatted,
         raw_text: formatted,
+        apa_segments: formato?.apa_segments,
+        tipo: formato?.tipo,
       };
     }));
     setEditingRef(null);
@@ -299,6 +371,18 @@ export const Step5ReferencesWizard: React.FC = () => {
     () => (selectedRef ? parrafosQueCitan(selectedRef, doc?.elements) : []),
     [doc, selectedRef],
   );
+
+  /* Las menciones de cada fila salen de la MISMA función que el detalle, así que
+     la fila y el panel no pueden contradecirse. Se calcula una vez para todo el
+     catálogo —no por render de cada fila— y no lee `cited_count`, que en el
+     store conserva el default 0. */
+  const mencionesPorRef = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const r of references) {
+      mapa.set(r.id, parrafosQueCitan(r, doc?.elements).length);
+    }
+    return mapa;
+  }, [references, doc]);
 
   const copyInTextCitation = (refItem: ReferenciaModel) => {
     const main = (refItem.authors?.[0] || 'Autor').split(',')[0].trim();
@@ -508,26 +592,93 @@ export const Step5ReferencesWizard: React.FC = () => {
             />
           </div>
 
-          {/* LOS TRES GRUPOS, EN LOS DOS MODOS.
-              En "Todas" se ven los tres, separados por un divisor con rótulo: la
-              lista mezclada no decía dónde terminaba lo verificado y empezaba lo
-              pendiente, y el autor no podía ver de un golpe qué le falta. Elegir
-              un destino del rail reduce la lista a ESE grupo —no es un filtro de
-              búsqueda, es quedarse con una categoría. Las categorías no cambian:
-              Verificadas, Pendientes y En texto-no-en-biblio son las mismas en el
-              rail, en la lista y en el conteo. */}
-          {(railFilter === 'all' || railFilter === 'verified') && (
-            <Grupo
-              titulo="Verificadas"
-              detalle="Contrastadas contra una fuente real."
-              conteo={validFiltradas.length}
-              Icon={CheckCircle2}
-              tono="var(--color-text-secondary)"
-              abierto={openValid}
-              alAlternar={() => setOpenValid(!openValid)}
-              primero
+          {/* Operación de LISTA, no de fila: reordenar aplica a la bibliografía
+              completa. El orden lo calcula el backend con la clave APA (apellido
+              sin tildes); acá solo se pide y se refleja. */}
+          {references.length > 1 && (
+            <button
+              type="button"
+              onClick={handleReorder}
+              disabled={reordering}
+              style={{ ...botonInline(), opacity: reordering ? 0.6 : 1 }}
             >
-              {validFiltradas.length === 0 ? (
+              {reordering
+                ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                : <ArrowDownAZ size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />}
+              <span>Reordenar alfabéticamente</span>
+            </button>
+          )}
+
+          {/* Aviso de estilo mezclado: solo informa. Convertir una cita numérica
+              a APA exige los metadatos de la fuente, que es otro trabajo. */}
+          {estiloMezclado && (
+            <div
+              role="status"
+              style={{
+                display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start',
+                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-warning)',
+                backgroundColor: 'var(--color-warning-a08)',
+                fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+              }}
+            >
+              <AlertTriangle size={14} strokeWidth="var(--icon-stroke)" aria-hidden="true"
+                style={{ flexShrink: 0, color: 'var(--color-warning)' }} />
+              <span>Hay citas con más de un estilo en el texto. Unifica APA o numérica antes de exportar.</span>
+            </div>
+          )}
+
+          {/* PESTAÑAS: UNA CATEGORÍA A LA VEZ.
+              Antes los tres grupos eran encabezados plegables apilados y el
+              texto de los tres competía de un golpe; la categoría se elige, no
+              se adivina. Las etiquetas y los conteos son los mismos del rail y
+              de cada vacío: Verificadas, Pendientes y En texto-no-en-biblio. */}
+          <div
+            role="tablist"
+            aria-label="Grupos de la bibliografía"
+            style={{
+              display: 'flex', gap: 'var(--space-1)', padding: 'var(--space-1)',
+              backgroundColor: 'var(--color-bg-surface-alt)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
+            {tabsVisibles.map((t) => {
+              const activa = tabActiva === t.id;
+              const Icon = t.Icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activa}
+                  onClick={() => setActiveGroup(t.id)}
+                  title={t.detalle}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                    padding: '6px 6px', border: 'none', borderRadius: 'var(--radius-sm)',
+                    fontFamily: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 800,
+                    letterSpacing: '0.03em', textTransform: 'uppercase', cursor: 'pointer',
+                    background: activa ? 'var(--color-bg-surface)' : 'transparent',
+                    color: activa ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                    boxShadow: activa ? 'var(--shadow-sm)' : 'none',
+                    transition: 'background-color var(--transition-fast), color var(--transition-fast)',
+                  }}
+                >
+                  <Icon size={13} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.titulo}</span>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, opacity: 0.75 }}>{t.conteo}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* LA LISTA DE LA PESTAÑA ACTIVA. El separador entre filas lo pone
+              cada fila (`ReferenceCatalogItem`) y las citas sin fuente. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {tabActiva === 'verificadas' && (
+              validFiltradas.length === 0 ? (
                 <EstadoVacio
                   motivo="sin-resultados"
                   filtroActivo="el grupo de verificadas"
@@ -543,57 +694,36 @@ export const Step5ReferencesWizard: React.FC = () => {
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
+                    huerfana={huerfanas ? huerfanas.has(refItem.id) : null}
+                    mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}
                   />
                 ))
-              )}
-            </Grupo>
-          )}
+              )
+            )}
 
-          {/* GRUPO 2: PENDIENTES. Antes decía "metadatos incompletos" para todo lo
-              que no fuera válida, y ese rótulo mentía: una referencia con todos
-              sus campos y jamás contrastada no tiene un metadato incompleto. */}
-          {(railFilter === 'all' || railFilter === 'issues') && (
-            <Grupo
-              titulo="Pendientes"
-              detalle="Faltan datos o falta contrastarlas contra una fuente."
-              conteo={pendientesFiltradas.length}
-              Icon={HelpCircle}
-              tono="var(--color-text-secondary)"
-              abierto={openUnverified}
-              alAlternar={() => setOpenUnverified(!openUnverified)}
-              primero={railFilter === 'issues'}
-            >
-              {pendientesFiltradas.length === 0 ? (
+            {tabActiva === 'pendientes' && (
+              pendientesFiltradas.length === 0 ? (
                 <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de pendientes" />
               ) : (
                 pendientesFiltradas.map((refItem) => (
                   <ReferenceCatalogItem
                     key={refItem.id}
                     reference={refItem}
+                    huerfana={huerfanas ? huerfanas.has(refItem.id) : null}
+                    mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}
                   />
                 ))
-              )}
-            </Grupo>
-          )}
+              )
+            )}
 
-          {/* GRUPO 3: CITAS SIN FUENTE ("En texto, no en biblio") */}
-          {(railFilter === 'all' || railFilter === 'issues') && (
-            <Grupo
-              titulo="En texto, no en biblio"
-              detalle="Citas que aparecen en el cuerpo y no tienen ficha."
-              conteo={ghostsFiltrados.length}
-              Icon={AlertTriangle}
-              tono="var(--color-text-secondary)"
-              abierto={openGhosts}
-              alAlternar={() => setOpenGhosts(!openGhosts)}
-            >
-              {ghostsFiltrados.length === 0 ? (
+            {tabActiva === 'texto' && (
+              ghostsFiltrados.length === 0 ? (
                 <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de citas sin fuente" />
               ) : (
                 ghostsFiltrados.map((g: unknown, i: number) => {
@@ -602,8 +732,9 @@ export const Step5ReferencesWizard: React.FC = () => {
                     <div
                       key={i}
                       style={{
-                        padding: '7px 8px',
-                        borderLeft: '2px solid var(--color-border-strong)',
+                        padding: '9px 12px',
+                        borderLeft: '2px solid var(--color-warning)',
+                        borderBottom: '1px solid var(--color-border-subtle)',
                         backgroundColor: 'transparent',
                         display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                       }}
@@ -626,9 +757,9 @@ export const Step5ReferencesWizard: React.FC = () => {
                     </div>
                   );
                 })
-              )}
-            </Grupo>
-          )}
+              )
+            )}
+          </div>
         </div>
 
         {/* ══ COLUMNA 2: Canvas editorial (Flex 1) ══ */}
@@ -666,26 +797,9 @@ export const Step5ReferencesWizard: React.FC = () => {
                     boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
                   }}
                 >
-                  <div
-                    style={{
-                      fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
-                      wordBreak: 'break-word', whiteSpace: 'normal',
-                    }}
-                  >
-                    {references.map((refItem) => (
-                      <p
-                        key={refItem.id}
-                        style={{
-                          margin: 0,
-                          paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
-                        }}
-                      >
-                        {textoDeLaReferencia(refItem) || (
-                          <em style={{ opacity: 0.55, fontStyle: 'normal' }}>
-                            Esta referencia no tiene texto para escribir en el documento.
-                          </em>
-                        )}
-                      </p>
+                  <div style={{ ...APA_LISTA }}>
+                    {referenciasOrdenadas.map((refItem) => (
+                      <ReferenciaLinea key={refItem.id} referencia={refItem} />
                     ))}
                   </div>
                 </article>
@@ -768,22 +882,16 @@ export const Step5ReferencesWizard: React.FC = () => {
                   boxShadow: 'var(--shadow-lg)', padding: 'var(--space-8)',
                 }}
               >
-                <div
-                  data-testid="vista-previa-apa"
-                  style={{
-                    fontFamily: "'Times New Roman', serif", fontSize: 'var(--text-base)', lineHeight: 2.0,
-                    paddingLeft: 'var(--space-8)', textIndent: 'calc(var(--space-8) * -1)',
-                    wordBreak: 'break-word', whiteSpace: 'normal',
-                  }}
-                >
-                  {textoDeLaReferencia(selectedRef) || (
-                    /* Sin `formatted_apa` ni `raw_text` no hay nada que escribir.
-                       Componer `Autor (s.f.). Título.` acá sería pintar una
-                       referencia que el backend nunca produjo. */
-                    <em style={{ color: 'var(--paper-ink)', opacity: 0.55, fontStyle: 'normal' }}>
-                      Esta referencia no tiene texto para escribir en el documento.
-                    </em>
-                  )}
+                <div style={{ ...APA_LISTA }}>
+                  {selectedRef && (selectedRef.formatted_apa || selectedRef.raw_text)
+                    ? <ReferenciaLinea referencia={selectedRef} as="div" data-testid="vista-previa-apa" />
+                    : (
+                      <div data-testid="vista-previa-apa" style={{ ...APA_ENTRADA }}>
+                        <em style={{ color: 'var(--paper-ink)', opacity: 0.55, fontStyle: 'normal' }}>
+                          Esta referencia no tiene texto para escribir en el documento.
+                        </em>
+                      </div>
+                    )}
                 </div>
               </article>
 
@@ -989,74 +1097,6 @@ export const Step5ReferencesWizard: React.FC = () => {
 };
 
 // Estilos auxiliares
-
-/**
- * Un grupo de la lista, sobre el molde `Seccion`.
- *
- * Antes eran DOS estilos escritos a mano —`groupCardStyle` y
- * `groupHeaderStyle`— que reimplementaban el mismo molde de Ajustes con otros
- * radios y otros fondos. Dos copias del mismo borde divergen en la primera
- * corrección de estilo, y entonces el paso se ve como si fuera de otra
- * aplicación. El molde va con un encabezado que además es botón de plegado: la
- * sección sabe que su título se abre y se cierra, y por eso usa un `<button>`
- * de verdad y no un `<div onClick>` que no se puede abrir con el teclado.
- */
-const Grupo: React.FC<{
-  titulo: string;
-  detalle?: string;
-  conteo: number;
-  Icon: typeof CheckCircle2;
-  tono: string;
-  abierto: boolean;
-  alAlternar: () => void;
-  primero?: boolean;
-  children: React.ReactNode;
-}> = ({ titulo, detalle, conteo, Icon, tono, abierto, alAlternar, primero, children }) => (
-  <section
-    style={{
-      display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-      /* Sin caja, pero CON SEPARACIÓN REAL entre grupos. El defecto era que dos
-         encabezados pegados se leían como una sola lista continua; el divisor es
-         lo que dice "acá termina un grupo y empieza otro". El primero no lleva
-         línea: arriba tiene el buscador, no otro grupo. */
-      padding: primero ? 0 : 'var(--space-4) 0 0',
-      borderTop: primero ? 'none' : '1px solid var(--color-border-subtle)',
-    }}
-  >
-    <button
-      type="button"
-      onClick={alAlternar}
-      aria-expanded={abierto}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)',
-        width: '100%', padding: 'var(--space-1) 0', cursor: 'pointer', fontFamily: 'inherit',
-        background: 'transparent', border: 'none', textAlign: 'left',
-      }}
-    >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
-        <Icon size={15} strokeWidth="var(--icon-stroke)" color={tono} />
-        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>
-          {titulo}
-        </span>
-        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', opacity: 0.7 }}>
-          {conteo}
-        </span>
-        {detalle && (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', opacity: 0.8 }}>
-            · {detalle}
-          </span>
-        )}
-      </span>
-      <ChevronDown
-        size={15}
-        strokeWidth="var(--icon-stroke)"
-        color="var(--color-text-secondary)"
-        style={{ transform: abierto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
-      />
-    </button>
-    {abierto && <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>{children}</div>}
-  </section>
-);
 
 /**
  * Una opción del menú que despliega el FAB de "Nueva referencia".

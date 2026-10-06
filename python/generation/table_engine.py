@@ -11,6 +11,7 @@ Aplica el formato estricto de tablas APA 7:
 
 
 import docx
+from typing import Optional
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
@@ -126,6 +127,7 @@ def fit_table_to_page(
     rules: APARuleSet,
     landscape: bool = False,
     section=None,
+    column_widths: Optional[list[float]] = None,
 ) -> None:
     """Force a table to stay within the available text width."""
     try:
@@ -155,14 +157,18 @@ def fit_table_to_page(
     tbl_width.set(qn('w:w'), str(int(target_width.twips)))
 
     widths = []
-    try:
-        existing_widths = [col.width.inches for col in table.columns if col.width]
-        total_existing = sum(existing_widths)
-        if total_existing > 0:
-            scale = available_width / total_existing
-            widths = [max(0.75, w * scale) for w in existing_widths]
-    except Exception:
-        widths = []
+    if column_widths and len(column_widths) == column_count and sum(column_widths) > 0:
+        _suma = sum(column_widths)
+        widths = [max(0.75, available_width * (w / _suma)) for w in column_widths]
+    else:
+        try:
+            existing_widths = [col.width.inches for col in table.columns if col.width]
+            total_existing = sum(existing_widths)
+            if total_existing > 0:
+                scale = available_width / total_existing
+                widths = [max(0.75, w * scale) for w in existing_widths]
+        except Exception:
+            widths = []
 
     if not widths:
         widths = [available_width / column_count for _ in range(column_count)]
@@ -203,6 +209,18 @@ def validate_table_widths(doc: docx.Document, rules: APARuleSet) -> list[str]:
         if total and total > (max_width + 0.05):
             warnings.append(f"Tabla {idx} supera el ancho utilizable ({total:.2f}in > {max_width:.2f}in).")
     return warnings
+
+
+def borde_de_preset(style: Optional[str]) -> str:
+    """Los presets de acento (compact/expanded/zebra) colapsan al borde que el export entiende."""
+    return "grid" if style in ("grid", "zebra") else "apa"
+
+
+def borde_efectivo(style: Optional[str], rule_border: Optional[str] = "apa") -> str:
+    """Si la tabla declara un estilo, manda; si no, cae a la regla global del perfil."""
+    if style:
+        return borde_de_preset(style)
+    return rule_border or "apa"
 
 
 def set_table_borders(table, style: str = "apa") -> None:

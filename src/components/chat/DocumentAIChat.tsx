@@ -318,6 +318,12 @@ export const DocumentAIChat: React.FC<{ onClose?: () => void; onMinimize?: () =>
           formatted_apa: act.reference,
         });
         appliedCount++;
+      } else if (act.type === 'add_diagram' && act.image) {
+        const afterId = act.element_id || doc?.elements[doc.elements.length - 1]?.id;
+        if (afterId) {
+          void useDocStore.getState().insertImageElement(afterId, act.image);
+          appliedCount++;
+        }
       }
     });
     if (appliedCount > 0) {

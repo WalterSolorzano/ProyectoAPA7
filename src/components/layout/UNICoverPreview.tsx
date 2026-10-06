@@ -33,6 +33,26 @@ const BLACK = 'var(--paper-ink)';
  *  sale de la escala que este numero produce. */
 export const ANCHO_HOJA_PX = 680;
 
+/** Separa el acta en estudiantes y docente por DATO, no por el prefijo del
+ *  nombre. La heuristica anterior (`/^(ing\.|dr\.|m\.sc\.|lic\.)/`) clasificaba
+ *  a un estudiante con titulo como docente y a un docente sin titulo como
+ *  estudiante, asi que la preview podia mostrar (u ocultar) al tutor distinto de
+ *  lo que escribia `portada_uni.py`. El criterio real es el mismo que usa el
+ *  `.docx`: el docente es quien esta en `profesor_asesor` (alli viaja el flag
+ *  `es_tutor`). Si ademas viene en la lista de autores, se excluye de
+ *  estudiantes para no duplicarlo. */
+export function clasificarAutoresDePortada(
+  autores: { nombre: string; carnet: string }[],
+  profesorAsesor: string[],
+): { estudiantes: { nombre: string; carnet: string }[]; tutor: string } {
+  const docentes = new Set((profesorAsesor || []).map((d) => d.toLowerCase().trim()));
+  const esDocente = (nombre: string) => docentes.has(nombre.toLowerCase().trim());
+  return {
+    estudiantes: autores.filter((a) => !esDocente(a.nombre)),
+    tutor: (profesorAsesor && profesorAsesor[0]) || '',
+  };
+}
+
 export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   hoja = 'carta',
   anchoPx = ANCHO_HOJA_PX,
@@ -91,10 +111,10 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   };
 
   const autores = parseAuthorEntries(acta.autor);
-  const tutores = autores.filter((a) => /^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
-  const estudiantes = autores.filter((a) => !/^(ing\.|dr\.|m\.sc\.|lic\.)/i.test(a.nombre.trim()));
-
-  const tutorName = acta.profesor_asesor[0] || (tutores.length > 0 ? tutores[0].nombre : '');
+  const { estudiantes, tutor: tutorName } = clasificarAutoresDePortada(
+    autores,
+    acta.profesor_asesor || [],
+  );
   const grupo = acta.grupo || '';
 
   // Columnas de estudiantes dinámicas adaptativas:
@@ -111,10 +131,23 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
   estudiantes.forEach((a, i) => {
     studentCols[i % nStudentCols].push({ nombre: a.nombre, carnet: a.carnet });
   });
-  const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: `Grupo: ${grupo}` }] : []].filter((c) => c.length > 0);
+  const cols = [...studentCols, tutorName ? [{ nombre: tutorName, carnet: grupo ? `Grupo: ${grupo}` : '' }] : []].filter((c) => c.length > 0);
+
+  // Anchos de columna en centimetros, identicos a los del .docx
+  // (`portada_uni.py`): 3 estudiantes -> 3.5 cm, 2 -> 5.0 cm, 1 -> 7.0 cm;
+  // el docente siempre 5.0 cm. Asi la preview y el Word miden lo mismo.
+  const studentColWidthCm = { 3: 3.5, 2: 5.0, 1: 7.0 }[nStudentCols] ?? 3.5;
+  const tutorColWidthCm = 5.0;
+  const colWidthsCm = [
+    ...Array.from({ length: nStudentCols }, () => studentColWidthCm),
+    ...(tutorName ? [tutorColWidthCm] : []),
+  ];
 
   const cellStyle: React.CSSProperties = {
-    flex: 1,
+    // Ancho fijo (box-sizing border-box = el padding queda DENTRO del ancho,
+    // igual que en Word); no se estira para llenar la hoja.
+    flex: '0 0 auto',
+    boxSizing: 'border-box',
     minWidth: 0,
     padding: `${px(1.6)}px ${px(2)}px`,
     fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
@@ -240,13 +273,13 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
       <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: px(1) }}>
         {cols.map((col, ci) => (
           <React.Fragment key={ci}>
-            <div style={{ ...cellStyle, borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
+            <div style={{ ...cellStyle, width: px(colWidthsCm[ci] * 10), borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
               {col.map((a, ai) => (
                 <div key={ai} style={{ marginBottom: px(2.5), fontFamily: 'Montserrat, sans-serif' }}>
                   <div
                     style={{
                       fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
-                      fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                      fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
                       wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2,
                     }}
                   >
@@ -256,7 +289,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
                     <div
                       style={{
                         fontSize: `${pt(PT_PORTADA_UNI.carnet)}px`,
-                        fontWeight: ci === cols.length - 1 ? 700 : 400, color: BLACK,
+                        fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
                         wordBreak: 'break-word', overflowWrap: 'break-word',
                         marginTop: px(0.5), lineHeight: 1.2,
                       }}

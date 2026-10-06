@@ -131,8 +131,24 @@ describe('ReferenceEditModal', () => {
       title: 'AI in Higher Education',
       source: 'Journal of AI',
       doi_or_url: 'https://doi.org/10.1000/182',
+      tipo: 'otro',
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('guarda el tipo elegido', () => {
+    const onSave = vi.fn();
+    render(
+      <ReferenceEditModal
+        reference={mockReference}
+        isOpen={true}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.change(screen.getByTestId('modal-edit-tipo'), { target: { value: 'libro' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'libro' }));
   });
 
   it('no contiene emojis en los textos del modal', () => {

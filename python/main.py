@@ -23,29 +23,11 @@ _current_dir = str(Path(__file__).resolve().parent)
 if _current_dir not in sys.path:
     sys.path.insert(0, _current_dir)
 
-from dotenv import load_dotenv
+from key_loader import load_all_key_sources
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
-# Restaurar claves de IA guardadas por el usuario (sobreviven a reinicios del backend)
-try:
-    from persistence.ai_keys import load_provider_keys_into_env
-    _restored = load_provider_keys_into_env()
-    if _restored:
-        print(f"[AI] {_restored} claves de IA restauradas desde almacenamiento persistente")
-except Exception as _e:
-    print(f"[WARN] No se pudieron restaurar claves persistidas de IA: {_e}")
-
-# Fallback: claves de IA embebidas (ofuscadas) que viajan en el instalador,
-# para que funcione sin que el usuario configure nada. Prioridad menor a las
-# anteriores (solo se usan las que ya no esten definidas en os.environ).
-try:
-    from embedded_secrets import load_embedded_into_env
-    _emb = load_embedded_into_env()
-    if _emb:
-        print(f"[AI] {_emb} claves de IA cargadas desde paquete embebido (ofuscadas)")
-except Exception as _e2:
-    print(f"[WARN] No se pudieron cargar las claves embebidas de IA: {_e2}")
+# Cascada unica de claves (dotenv raiz -> ai_keys.json usuario -> embedded).
+# La comparte con core_server.py para que ningun proceso quede sin claves.
+load_all_key_sources()
 
 from fastapi import (
     FastAPI,
@@ -309,6 +291,18 @@ app.include_router(assets_router.router)
 from routers import proyectos as proyectos_router
 
 app.include_router(proyectos_router.router)
+
+# ── SCHEDULER DE IA POR DEMANDA (Fase 1) ─────────────────────────────────────
+# La unica verdad de concurrencia y tiempos del trabajo LLM interno. El
+# frontend reporta visibilidad y lee el estado real; no ejecuta LLM aqui.
+from routers import ai as ai_scheduler_router
+
+app.include_router(ai_scheduler_router.router)
+
+# ── API DE CONTENIDO (IA externa -> .docx APA 7) ─────────────────────────────
+from routers import content as content_router
+
+app.include_router(content_router.router)
 
 # ── F8: endpoints de archivo y carpetas (proyecto_manager) ────────────────────
 from modules.proyecto_manager import (
@@ -1369,9 +1363,19 @@ async def resolve_ghost_citation_endpoint(req: ResolveGhostCitationRequest):
     from modules.referencias_module import search_academic_metadata_cascade
     query = f"{' '.join(req.authors)} {req.year}".strip()
     result = await search_academic_metadata_cascade(query, authors=req.authors, year=req.year)
-    if result:
-        return {"found": True, "candidates": [result], "total_results": 1}
-    return {"found": False, "candidates": [], "total_results": 0}
+    if not result:
+        return {"found": False, "candidates": [], "total_results": 0}
+    # La cascada por autor+año ya devuelve un sobre {candidates, found,
+    # total_results}. Envolverlo otra vez mandaba al cliente un único candidato
+    # que ERA el sobre: sin autores ni título, y se creaba una ficha en blanco.
+    if isinstance(result, dict) and "candidates" in result:
+        cands = result.get("candidates") or []
+        return {
+            "found": bool(cands),
+            "candidates": cands,
+            "total_results": result.get("total_results", len(cands)),
+        }
+    return {"found": True, "candidates": [result], "total_results": 1}
 
 
 @app.post("/api/references/import-file")
@@ -2054,7 +2058,10 @@ async def generate_docx(req: GenerateRequest) -> dict:
         if original_path_ip.exists():
             try:
                 from generation.inplace_editor import apply_inplace
-                apply_inplace(
+                from starlette.concurrency import run_in_threadpool
+                # apply_inplace es bloqueante (lxml + IO): fuera del event loop.
+                await run_in_threadpool(
+                    apply_inplace,
                     original_path_ip, out_file, doc, rules, scopes=None,
                     language=getattr(portada, "language", None),
                     acta=meta,
@@ -2105,23 +2112,33 @@ async def generate_docx(req: GenerateRequest) -> dict:
 
         is_com = doc_converter.get_active_engine() == "COM"
 
-        generated_path: Path = generate_apa7_docx(
+        from starlette.concurrency import run_in_threadpool
+        generated_path: Path = await run_in_threadpool(
+            generate_apa7_docx,
             doc, out_file, rules, portada, references,
-            remove_cover_paragraphs=preserve_cover and is_com
+            remove_cover_paragraphs=preserve_cover and is_com,
         )
 
         original_path = STORAGE_DIR / "sessions" / req.session_id / "original.docx"
 
-        # Inyectar Post-Processor Dual Engine
+        # Inyectar Post-Processor Dual Engine. Va en threadpool porque COM es
+        # bloqueante y NO debe correr en el event loop (congelaba el servidor
+        # mientras Word trabajaba). Y si el post-proceso revienta, NO se pierde
+        # el .docx ya generado: se devuelve sin post-procesar.
         final_path = out_dir / f"Final_{artifact_id}_{doc.file_name}"
-        success, pdf_path = doc_converter.process_and_convert(
-            original_path=original_path,
-            generated_path=generated_path,
-            final_path=final_path,
-            preserve_cover=preserve_cover,
-            generate_pdf=True,
-            rules=rules
-        )
+        try:
+            success, pdf_path = await run_in_threadpool(
+                doc_converter.process_and_convert,
+                original_path=original_path,
+                generated_path=generated_path,
+                final_path=final_path,
+                preserve_cover=preserve_cover,
+                generate_pdf=True,
+                rules=rules,
+            )
+        except Exception as _post_exc:
+            print(f"[WARN] Post-proceso falló; se devuelve el .docx sin post-procesar: {_post_exc}")
+            success, pdf_path = False, None
 
         if success and final_path.exists():
             generated_path = final_path

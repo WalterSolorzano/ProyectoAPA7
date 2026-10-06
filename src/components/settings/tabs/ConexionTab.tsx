@@ -36,6 +36,7 @@ import {
   type ProveedorIA,
 } from '../../../lib/proveedoresIA';
 import { getSideloadStatus, repairSideload, type SideloadStatus } from '../../../api/backend';
+import { formatearCuota } from '../../../lib/cuotaProveedor';
 import { ConexionProviderField } from './word/ConexionProviderField';
 import { ProbarProveedor } from './word/ProbarProveedor';
 import { Seccion } from './word/Seccion';
@@ -175,6 +176,16 @@ export const ConexionTab: React.FC = () => {
             </option>
           ))}
         </select>
+        {/* Cuota del proveedor elegido. El backend todavía no expone un cupo
+            por proveedor, así que cuando no hay dato el formateador dice
+            "sin dato de cuota" en vez de inventar un número: un medidor que
+            miente es peor que uno ausente. */}
+        <p
+          data-testid="cuota-proveedor"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
+        >
+          {formatearCuota(null, null, null)}
+        </p>
         <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
           {aiProviderConfig.useLocal
             ? 'Con el servidor local activado, el proveedor de la nube no se usa.'
@@ -236,6 +247,23 @@ export const ConexionTab: React.FC = () => {
             Solo se usa con "Servidor local" activado. Un servidor compatible con
             la API de OpenAI sirve: no tiene que ser NIM.
           </span>
+          <button
+            type="button"
+            data-testid="usar-ollama-local"
+            onClick={() => setAiProviderConfig({ useLocal: true, nimUrl: 'http://localhost:11434/v1' })}
+            style={{
+              alignSelf: 'flex-start', padding: 'var(--space-1) var(--space-2)',
+              fontSize: 'var(--text-xs)', background: 'var(--bg-base)',
+              color: 'var(--color-text-primary)', border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+            }}
+          >
+            Usar Ollama en este equipo (localhost:11434)
+          </button>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+            "Ollama cloud" es un proveedor de nube aparte; este botón usa el Ollama
+            instalado en tu equipo, que no envía nada afuera.
+          </span>
         </div>
       </Seccion>
 
@@ -262,6 +290,17 @@ export const ConexionTab: React.FC = () => {
           que están ofuscadas, no cifradas: se pueden leer. No pongas claves de
           producción ni de las que cobren: se comparten entre todos los que
           tengan el programa.
+        </p>
+        {/* El aviso que faltaba: la nota de arriba habla de cifrado, no de que el
+            texto del documento sale de la máquina. Son dos cosas distintas y esta
+            es la que la persona necesita saber ANTES de usar IA. */}
+        <p
+          data-testid="aviso-envio-externo"
+          style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}
+        >
+          {aiProviderConfig.useLocal
+            ? 'Con el servidor local activo, el texto de tu documento no sale de tu equipo: se procesa en la dirección que figura arriba.'
+            : 'Al usar una función con IA, el texto de tu documento sale de tu equipo y se envía al proveedor que consultes. Revisá las políticas en docs/politicas-proveedores.md antes de trabajar con datos sensibles.'}
         </p>
         {/* Sin ninguna clave no se muestran los catorce campos: se dice que no
             hay ninguna y se deja la del proveedor principal, que es el camino

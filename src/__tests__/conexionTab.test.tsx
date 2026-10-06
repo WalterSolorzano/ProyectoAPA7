@@ -163,22 +163,22 @@ describe('Conexión — la pestaña no está muda', () => {
     expect(worried).not.toBeNull();
   });
 
-  it('con una clave puesta aparecen las otras trece, y los modelos', async () => {
+  it('con una clave puesta aparecen las otras, y los modelos', async () => {
     ponerClave('NVIDIA_API_KEY', CLAVE_NVIDIA);
     await montar();
     expect(screen.getByTestId('conexion-estado').textContent).toMatch(/1 clave puesta/);
-    /* Catorce claves: trece proveedores y el id de cuenta de Cloudflare, que sin
+    /* Dieciocho claves: diecisiete proveedores y el id de cuenta de Cloudflare, que sin
        él su endpoint no se puede construir. */
-    expect(camposDeClave()).toHaveLength(14);
-    expect(camposDeModelo()).toHaveLength(13);
+    expect(camposDeClave()).toHaveLength(18);
+    expect(camposDeModelo()).toHaveLength(17);
     expect(document.querySelector('.editorial-mascot-expression-worried')).toBeNull();
   });
 
-  it('las variables de modelo del backend tienen campo: las trece', async () => {
+  it('las variables de modelo del backend tienen campo: las diecisiete', async () => {
     ponerClave('NVIDIA_API_KEY', CLAVE_NVIDIA);
     await montar();
     const conModelo = PROVEEDORES_IA.filter((p) => p.variableModelo);
-    /* Trece, una por proveedor. Nueve ya las leía el backend; las otras cuatro
+    /* Diecisiete, una por proveedor. Nueve ya las leía el backend; cuatro
        —OpenRouter, Cerebras, Mistral y OpenCodeZen— las tenía quemadas en el
        `.py` y salen a leerlas con default. Un `variableModelo: null` hoy
        significaría "esto no se puede cambiar", y eso ya es falso para nadie. */
@@ -186,7 +186,8 @@ describe('Conexión — la pestaña no está muda', () => {
       'NVIDIA_NIM_MODEL', 'GROQ_MODEL', 'OPENROUTER_MODEL', 'CEREBRAS_MODEL',
       'MISTRAL_MODEL', 'OPENCODEZEN_MODEL', 'ZENMUX_MODEL', 'GEMINI_MODEL',
       'CLOUDFLARE_AI_MODEL', 'AION_MODEL', 'KILOCODE_MODEL', 'OLLAMA_MODEL',
-      'HUGGINGFACE_MODEL',
+      'HUGGINGFACE_MODEL', 'MODELSCOPE_MODEL', 'SAMBANOVA_MODEL',
+      'DASHSCOPE_MODEL', 'AGNES_AI_MODEL',
     ]);
     for (const p of conModelo) {
       const id = `campo-${(p.variableModelo as string).toLowerCase().replace(/_/g, '-')}`;
@@ -221,7 +222,7 @@ describe('Conexión — autoguardado que mira, y ningún botón de guardar', () 
     expect(screen.getByText('Guardado en este equipo')).toBeTruthy();
     expect(syncAllProviderKeys).toHaveBeenCalled();
     /* Y con la clave ya escrita, la pestaña dejó de estar muda. */
-    expect(camposDeClave()).toHaveLength(14);
+    expect(camposDeClave()).toHaveLength(18);
   });
 
   it('si el almacenamiento no guarda, el indicador lo DICE', async () => {

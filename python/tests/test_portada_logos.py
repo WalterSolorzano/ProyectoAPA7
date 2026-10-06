@@ -331,3 +331,22 @@ class TestElModeloDeLogos:
         assert PortadaData().logos == []
         con_dos = PortadaData(logos=[logo("logo_uni.png"), logo("logo_unan.png", 0.1)])
         assert len(con_dos.logos) == 2
+
+
+class TestSuprimirElLogo:
+    """El hallazgo #6: la portada UNI ponía SIEMPRE un logo y el API no tenía cómo
+    pedir una portada sin él. `mostrar_logo=False` lo omite por completo."""
+
+    def test_mostrar_logo_false_no_inserta_imagen(self, tmp_path):
+        portada = PortadaData(
+            use_original_cover=False,
+            cover_mode="generate_uni_cover",
+            institution="UNI",
+            title="Titulo",
+            course="Asignatura",
+            mostrar_logo=False,
+        )
+        doc = generar(tmp_path, portada)
+        assert _imagenes_del_docx(doc) == [], (
+            f"mostrar_logo=False no debe insertar el logo: {_assets_de_imagen(doc)}"
+        )

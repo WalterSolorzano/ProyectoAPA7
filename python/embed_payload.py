@@ -40,10 +40,15 @@ def load_env(path: Path) -> dict:
     return env
 
 
-def main() -> int:
+def build_payload(env: dict, *, allow_empty: bool = False) -> dict:
+    """Ofusca las claves presentes en `env` y devuelve el payload del instalador.
+
+    Separa la logica de `main()` para poder probarla sin tocar disco. Si no hay
+    ninguna clave y `allow_empty` es False, aborta con SystemExit: un payload
+    vacio deja el instalador sin IA y no puede pasar el build en silencio.
+    """
     from embedded_secrets import SEED
 
-    env = load_env(ROOT / ".env")
     key = hashlib.sha256(SEED.encode("utf-8")).digest()
 
     payload = {}
@@ -57,6 +62,16 @@ def main() -> int:
         enc = bytes(c ^ key[i % len(key)] for i, c in enumerate(data))
         payload[name] = base64.b64encode(enc).decode("ascii")
 
+    if not payload and not allow_empty:
+        print("ERROR: _embedded_payload.json saldria vacio. Revisa .env antes de construir el instalador.")
+        raise SystemExit(1)
+    return payload
+
+
+def main() -> int:
+    env = load_env(ROOT / ".env")
+    payload = build_payload(env)
+
     # Siempre se escribe el archivo (aunque sea vacio) para que PyInstaller
     # no falle por un datas que apunta a un archivo inexistente.
     OUT.write_text(json.dumps(payload), encoding="utf-8")
@@ -64,7 +79,7 @@ def main() -> int:
     if payload:
         print(f"[embed_payload] [OK] {len(payload)} claves ofuscadas -> {OUT.name} (ilegibles en el binario)")
     else:
-        print(f"[embed_payload] [WARN] No hay claves en .env; el instalador usara solo heuristica ({', '.join(missing)})")
+        print(f"[embed_payload] [WARN] No hay claves en .env; el instalador usara solo heuristica")
     return 0
 
 

@@ -22,6 +22,18 @@ export function toRoman(num: number): string {
 }
 
 /**
+ * Formatea un contador de título según la notación elegida por nivel.
+ * Espejo de `_format_numero` del backend, para que preview y .docx coincidan.
+ */
+export function aNumero(n: number, estilo: string): string {
+  if (estilo === 'upperRoman' || estilo === 'roman') return toRoman(n);
+  if (estilo === 'lowerRoman') return toRoman(n).toLowerCase();
+  if (estilo === 'upperLetter') return String.fromCharCode(64 + ((n - 1) % 26) + 1);
+  if (estilo === 'lowerLetter') return String.fromCharCode(96 + ((n - 1) % 26) + 1);
+  return String(n);
+}
+
+/**
  * Limpia prefijos numéricos o marcadores de encabezados como [ROMAN], [DECIMAL], 'I.', '1.', etc.
  */
 export function cleanHeadingPrefix(text: string): string {

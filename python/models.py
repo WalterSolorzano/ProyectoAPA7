@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 try:
     from config import APP_VERSION
@@ -61,6 +61,12 @@ class APAFormat(str, Enum):
 class TableBorderStyle(str, Enum):
     APA  = "apa"    # solo bordes horizontales (estilo APA 7)
     GRID = "grid"   # cuadrícula completa (revistas científicas / manuales)
+
+
+class CellSpan(BaseModel):
+    """Extensión de una celda de tabla (combinación horizontal/vertical)."""
+    col: int = 1
+    row: int = 1
 
 
 class CitationType(str, Enum):
@@ -163,9 +169,9 @@ class APARuleSet(BaseModel):
     # APA 7 does NOT require numbered headings: the 5 levels are distinguished
     # purely by formatting (bold, centered, italic, indented). The default is
     # therefore "none" so no spurious numbering (e.g. "0.1") is injected.
-    heading_numbering_style_lvl1: str = "none"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl2: str = "none"  # "decimal" | "roman" | "none"
-    heading_numbering_style_lvl3: str = "none"  # "decimal" | "roman" | "none"
+    heading_numbering_style_lvl1: str = "none"  # "none" | "decimal" | "upperRoman" | "lowerRoman" | "lowerLetter" | "upperLetter"
+    heading_numbering_style_lvl2: str = "none"  # mismo dominio; se aplica al componente propio del nivel
+    heading_numbering_style_lvl3: str = "none"  # mismo dominio (H3 no se numera hoy)
 
     # Referencias
     reference_hanging_indent_cm: float = 1.27
@@ -421,6 +427,11 @@ class ImageModel(BaseModel):
     design_style: str = "standard"            # "standard" | "sidebar" | "scientific" | "corner" | "full_width" | "multipanel"
     rotation: int = 0                          # grados de rotacion (0, 90, 180, 270)
     alt_text: str = ""                         # texto alternativo / accesibilidad
+    border: str = "none"                        # "none" | "subtle" | "strong"
+    shadow: bool = False                        # sombra sutil del marco
+    corner_radius: str = "none"                # "none" | "sm" | "md" | "lg"
+    flip_h: bool = False                        # espejo horizontal
+    flip_v: bool = False                        # espejo vertical
 
     # Nuevos atributos flotantes (anchor)
     is_anchor: bool = False
@@ -435,12 +446,18 @@ class TableModel(BaseModel):
     caption: str = ""
     note: Optional[str] = None
     table_number: int = 1
+    header_spans: Optional[list[CellSpan]] = None
+    row_spans: Optional[list[list[CellSpan]]] = None
+    style: Optional[str] = None   # TableStylePreset de la UI; None = usar la regla global
+    orientation: str = "auto"     # auto | portrait | landscape
+    column_widths: Optional[list[float]] = None
 
 
 class ElementModel(BaseModel):
     id: str
     type: ElementType = ElementType.UNKNOWN
     heading_level: Optional[int] = 1
+    outline_level: Optional[int] = None
     list_level: Optional[int] = 1
     is_cover_section: bool = False
     text: str = ""
@@ -613,6 +630,11 @@ class PortadaData(BaseModel):
     author_note: Optional[str] = None
     departamento: Optional[str] = None  # Área de Conocimiento / Departamento (portada UNI)
     logos: list[LogoPortada] = Field(default_factory=list)
+    # La portada UNI dibuja su logo por defecto. `mostrar_logo=False` construye
+    # la portada SIN la fila de logos (útil cuando el autor arma la portada a
+    # medida). No confundir con `logos=[]`: vacío significa "usá el logo de la
+    # institución", que es justo lo contrario de suprimirlo.
+    mostrar_logo: bool = True
 
     # QUÉ SALIÓ DE AQUÍ Y POR QUÉ.
     #
@@ -732,6 +754,30 @@ class CitationModel(BaseModel):
     end_offset: int = 0
 
 
+class ApaSegment(BaseModel):
+    """Un tramo de la línea de referencia con su tipografía.
+
+    La cursiva es un hecho del dato, no del render: el backend decide qué va
+    en cursiva (título de libro, nombre de revista) y cada superficie se limita
+    a dibujar el segmento como venga.
+    """
+    text: str
+    italic: bool = False
+
+
+# Mapa tipo APA 7 → tipo CSL-JSON. `otro` conserva la salida histórica para no
+# romper exportadores que ya contaban con `article-journal`.
+_CSL_TYPE_BY_TIPO = {
+    "articulo": "article-journal",
+    "libro": "book",
+    "capitulo": "chapter",
+    "tesis": "thesis",
+    "web": "webpage",
+    "informe": "report",
+    "otro": "article-journal",
+}
+
+
 class ReferenciaModel(BaseModel):
     id: str
     authors: list[str] = Field(default_factory=list)
@@ -765,6 +811,12 @@ class ReferenciaModel(BaseModel):
     # una palabra que nadie puede auditar.
     fuente_verificacion: Optional[str] = None
 
+    # Tipo de fuente APA 7, y la línea ya segmentada. `formatted_apa` sigue
+    # existiendo como texto plano derivado (copiar, LaTeX, panel del add-in).
+    # articulo | libro | capitulo | tesis | web | informe | otro
+    tipo: str = "otro"
+    apa_segments: list[ApaSegment] = Field(default_factory=list)
+
     # FASE 3.2 (evidencia: docs/evaluacion-tecnologica/EVALUACION_TECNOLOGICA.md S3)
     def to_csl_json(self) -> dict:
         """Conversión CSL-JSON estándar (interoperabilidad Zotero/Mendeley).
@@ -786,7 +838,7 @@ class ReferenciaModel(BaseModel):
         issued = {"date-parts": [[int(self.year[:4])]]} if (self.year or "").strip()[:4].isdigit() else {"raw": self.year or "s.f."}
         csl: dict = {
             "id": self.id,
-            "type": "article-journal",
+            "type": _CSL_TYPE_BY_TIPO.get(self.tipo or "otro", "article-journal"),
             "title": self.title or self.raw_text[:120],
             "author": authors,
             "issued": issued,
@@ -798,6 +850,15 @@ class ReferenciaModel(BaseModel):
             csl["URL"] = None if str(self.doi_or_url).lower().startswith("10.") else str(self.doi_or_url)
             csl = {k: v for k, v in csl.items() if v is not None}
         return csl
+
+    @model_validator(mode="after")
+    def _normalizar_apa(self) -> "ReferenciaModel":
+        # Import diferido: evita cargar el formateador (y potenciales ciclos)
+        # durante el arranque de Pydantic. Nunca pisa un `apa_segments` ya
+        # presente ni un `formatted_apa` ya presente.
+        from modules.apa_format import normalizar_referencia
+        normalizar_referencia(self)
+        return self
 
 
 class ValidationIssueModel(BaseModel):

@@ -33,10 +33,9 @@ from config import STORAGE_DIR
 # ── RUTA DEL STORE ────────────────────────────────────────────────────────────
 
 _REFS_DIR = STORAGE_DIR / "references"
-# Sentinel de la elipsis de APA 7 (21+ autores: los primeros 19, "...", el
-# ultimo). No es la palabra "et al." justamente para que el formateador no la
-# trate como un apellido mas.
-APA_ELLIPSIS = "..."
+# La elipsis de APA 7 vive en el formateador canónico; se re-exporta para no
+# romper a los consumidores históricos (doi_resolver, tests).
+from modules.apa_format import APA_ELLIPSIS  # noqa: F401
 _REFS_FILE = _REFS_DIR / "addin_references.json"
 
 _LOCK = threading.Lock()
@@ -255,76 +254,15 @@ _AUTHORS_RE_LAST_FIRST = re.compile(r"^\s*([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?
 
 
 def _format_authors_apa(authors: List[str]) -> str:
-    """
-    Formatea una lista de apellidos a estilo APA 7 (Apellido, A., & Apellido, B.).
-    Si los autores ya vienen con formato completo (Apellido, Nombre), respeta.
-    """
-    if not authors:
-        return ""
-    cleaned: List[str] = []
-    for a in authors:
-        a = (a or "").strip().rstrip(",")
-        if not a:
-            continue
-        cleaned.append(a)
-
-    if not cleaned:
-        return ""
-
-    if len(cleaned) == 1:
-        return cleaned[0]
-    if len(cleaned) == 2:
-        return f"{cleaned[0]}, & {cleaned[1]}"
-    # Elipsis de APA 7 (21+ autores): la marca el resolvedor con un sentinel,
-    # no con la palabra "et al.", que se comia el "&" que esta misma funcion
-    # pone antes del ultimo y producia "A., & et al.".
-    if APA_ELLIPSIS in cleaned:
-        # Se INCLUYE la elipsis: APA 7 la muestra, no la omite. Y sin "&" antes
-        # del ultimo, que es lo que produce el "& et al." que se vio.
-        return ", ".join(cleaned)
-    # 3+
-    return ", ".join(cleaned[:-1]) + ", & " + cleaned[-1]
+    """Delega en el formateador canónico (una sola regla de autores en el proyecto)."""
+    from modules.apa_format import formatear_autores
+    return formatear_autores(authors)
 
 
 def _format_apa_reference(ref: Dict[str, Any]) -> str:
-    """Construye una cadena APA 7 a partir de los campos de la referencia."""
-    authors = ref.get("authors") or []
-    year = ref.get("year") or "s.f."
-    title = (ref.get("title") or "").strip()
-    source = (ref.get("source") or "").strip()
-    doi = (ref.get("doi_or_url") or "").strip()
-
-    # Si ya viene un texto formateado crudo válido, usarlo.
-    raw = (ref.get("raw_text") or "").strip()
-    if raw and not authors and not title:
-        return raw
-
-    parts: List[str] = []
-    author_str = _format_authors_apa(authors)
-    if author_str:
-        parts.append(f"{author_str} ({year}).")
-    else:
-        parts.append(f"({year}).")
-
-    if title:
-        parts.append(f" {title}.")
-    if source:
-        parts.append(f" {source}.")
-    if doi:
-        doi_clean = doi.strip()
-        if doi_clean.startswith("http://") or doi_clean.startswith("https://"):
-            parts.append(f" {doi_clean}")
-        elif doi_clean.lower().startswith("doi:"):
-            raw_doi = re.sub(r"^doi:\s*", "", doi_clean, flags=re.IGNORECASE).strip()
-            parts.append(f" https://doi.org/{raw_doi}")
-        elif re.match(r"^10\.\d{4,9}/\S+", doi_clean):
-            parts.append(f" https://doi.org/{doi_clean}")
-        elif doi_clean.lower().startswith("www."):
-            parts.append(f" https://{doi_clean}")
-        else:
-            parts.append(f" https://doi.org/{doi_clean}")
-
-    return "".join(parts).strip()
+    """Wrapper del formateador canónico: devuelve la línea como texto plano."""
+    from modules.apa_format import format_apa_plain
+    return format_apa_plain(ref)
 
 
 def _draft_apa(authors: List[str], year: Optional[str], page: Optional[str]) -> str:

@@ -248,6 +248,17 @@ def test_h2_hereda_y_no_abre_ambito_propio():
     assert phase_by_id["a"] == "metodo"
 
 
+def test_h2_atipico_hereda_ambito_del_h1():
+    # Un H2 que el clasificador reconocio por una senal atipica (outlineLvl de
+    # Word, mayusculas cortas, etc.) hereda igual que cualquier H2. El nivel
+    # manda, no el estilo que lo delato: aunque su texto sea una fase conocida
+    # ("Referencias"), NO abre ambito propio porque es nivel 2.
+    els = [_h("h1", "Metodo"), _h("h2", "Referencias", level=2),
+           _p("a", "Hermenéutica, M. (2020).")]
+    phase_by_id, _ = build_phase_map(els)
+    assert phase_by_id["a"] == "metodo"
+
+
 def test_h1_desconocido_abre_sin_fase():
     # Review Focus: un H1 fuera del vocabulario es una seccion cualquiera.
     els = [_h("h1", "Agradecimientos"), _p("a", "Gracias a mi familia")]
@@ -336,6 +347,28 @@ def test_objetivos_sigue_pudiendo_sugerir():
 def test_objetivo_sin_variable_se_reporta():
     out = _f("objetivos", "Determinar el proceso.")
     assert "objetivo_sin_variable" in {f["kind"] for f in out}
+
+
+# ── Leyes de objetivos en infinitivo y verbo unico (T12) ─────────────────────
+
+def test_objetivo_sin_infinitivo_se_reporta():
+    out = _f("objetivos", "La mejora del proceso de produccion.")
+    assert "objetivo_sin_infinitivo" in {f["kind"] for f in out}
+
+
+def test_objetivo_con_infinitivo_no_dispara_sin_infinitivo():
+    kinds = {f["kind"] for f in _f("objetivos", "Determinar el efecto de X sobre Y.")}
+    assert "objetivo_sin_infinitivo" not in kinds
+
+
+def test_objetivo_multi_verbo_se_reporta():
+    out = _f("objetivos", "Determinar y evaluar el efecto de X sobre Y.")
+    assert "objetivo_multi_verbo" in {f["kind"] for f in out}
+
+
+def test_objetivo_de_un_solo_verbo_no_dispara_multi_verbo():
+    kinds = {f["kind"] for f in _f("objetivos", "Analizar las causas de los tiempos improductivos.")}
+    assert "objetivo_multi_verbo" not in kinds
 
 
 def test_metodo_genérico_se_reporta():

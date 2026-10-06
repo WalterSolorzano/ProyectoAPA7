@@ -180,6 +180,13 @@ describe('la vista previa de la referencia', () => {
     montar([{ ...REF, formatted_apa: '', raw_text: '' }]);
     expect(screen.getByTestId('vista-previa-apa').textContent).toMatch(/no tiene texto/i);
   });
+
+  it('la vista previa aplica sangría francesa y no se centra', () => {
+    montar([REF]);
+    const el = screen.getByTestId('vista-previa-apa');
+    expect(el.style.textIndent).toBe('-0.5in');
+    expect(el.style.paddingLeft).toBe('0.5in');
+  });
 });
 
 /* ── El formulario sigue editable: es el que arma formatted_apa ────────────── */
@@ -201,12 +208,13 @@ describe('el formulario sigue editable, ahora bajo demanda en el modal', () => {
     expect(nombres.join(' ')).not.toBe('');
   });
 
-  it('"Guardar Cambios" sigue llamando a la actualización de referencias', () => {
+  it('"Guardar Cambios" sigue llamando a la actualización de referencias', async () => {
     abrirEdicion();
     /* `fireEvent`, no `.click()`: el guardado pasa por el `onSubmit` del form y
-       el `.click()` nativo no lo envuelve en `act`. */
+       el `.click()` nativo no lo envuelve en `act`. El guardado es async porque
+       pide la línea APA al backend; por eso se espera. */
     fireEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
-    expect(updateReferences).toHaveBeenCalled();
+    await vi.waitFor(() => expect(updateReferences).toHaveBeenCalled());
   });
 });
 
@@ -230,6 +238,51 @@ describe('los grupos de la lista', () => {
     const { container } = montar([REF]);
     expect(container.textContent).not.toMatch(/Válidas/);
     expect(container.textContent).toMatch(/Verificadas/);
+  });
+});
+
+/* ── El badge y las menciones de la FILA salen de la auditoría ─────────────── */
+
+describe('el estado de la fila del catálogo', () => {
+  /* La fila y el detalle tienen que decir lo mismo. La versión vieja leía
+     `never_cited`/`cited_count` del modelo, que llegan con los defaults del
+     store (`cited_count: 0`), así que TODA la bibliografía salía "Sin citar" y
+     "0 menciones" mientras el panel de al lado contaba bien. */
+  const pendiente = (extra: Record<string, unknown> = {}) => ({
+    ...REF, id: 'rp', verificada: false, cited_count: 0, ...extra,
+  });
+
+  const abrirPendientes = () =>
+    fireEvent.click(screen.getByRole('tab', { name: /pendientes/i }));
+
+  const fila = (container: HTMLElement) => container.querySelector('.card-source') as HTMLElement;
+
+  it('una referencia citada NO se marca "Sin citar" aunque cited_count sea 0', () => {
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [{ id: 'otra' }] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).not.toMatch(/Sin citar/);
+  });
+
+  it('una referencia huérfana sí se marca "Sin citar"', () => {
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [{ id: 'rp' }] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).toMatch(/Sin citar/);
+  });
+
+  it('la fila cuenta las menciones del texto, no el cited_count obsoleto', () => {
+    /* DOC trae "Garcia (2021) lo demonstró": una mención real de García. */
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [] },
+    );
+    abrirPendientes();
+    expect(fila(container).textContent).toMatch(/1 mención/);
   });
 });
 
@@ -271,13 +324,14 @@ describe('la mascota de la fase', () => {
 /* ── Los vacíos son los compartidos ────────────────────────────────────────── */
 
 describe('los estados vacíos', () => {
-  it('los tres grupos vacíos usan EstadoVacio, no un div con texto a mano', () => {
-    /* Los tres textos viejos —"No hay fuentes válidas aún", "No hay entradas
+  it('el grupo activo vacío y el lienzo usan EstadoVacio, no un div con texto a mano', () => {
+    /* Los textos viejos —"No hay fuentes válidas aún", "No hay entradas
        pendientes", "No se detectaron citas huérfanas"— no decían SU CAUSA, que
-       es lo que el componente compartido exige. */
+       es lo que el componente compartido exige. Con las pestañas solo se pinta
+       UNA lista (la activa, vacía) más el vacío del lienzo: dos, no tres. */
     const { container } = montar([], null);
     expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
-      .toBeGreaterThanOrEqual(3);
+      .toBeGreaterThanOrEqual(2);
   });
 
   it('el vacío nombra el filtro que lo dejó así, que es lo único tocable', () => {
@@ -285,17 +339,20 @@ describe('los estados vacíos', () => {
     expect(container.textContent).toMatch(/filtro activo/i);
   });
 
-  it('el detalle sin selección es un vacío con motivo, no un tablero de números', () => {
+  it('sin selección con fuentes, el lienzo es la bibliografía, no un tablero de números', () => {
     /* El tablero de tres cifras que nadie pidió y que el §3 de la barra de
-       calidad prohíbe repetir como si fueran un resultado. */
+       calidad prohíbe repetir como si fueran un resultado. Con fuentes y sin
+       selección el lienzo muestra la página real; sin fuentes no hay página y
+       eso lo cubre el caso siguiente. */
     const { container } = montar([REF], null);
-    expect(container.querySelectorAll('[data-testid="estado-vacio"]').length)
-      .toBeGreaterThanOrEqual(1);
+    expect(container.querySelector('[data-testid="bibliografia-completa"]')).toBeTruthy();
     expect(container.textContent).not.toMatch(/Total Fuentes/);
   });
 
-  it('sin documento, el motivo es el de documento ausente', () => {
-    const { container } = montar([REF], 'r1', null, null);
+  it('sin documento y sin fuentes, el motivo es el de documento ausente', () => {
+    /* El vacío de "documento ausente" vive en el lienzo cuando no hay ni
+       documento ni fuentes que mostrar. */
+    const { container } = montar([], null, null, null);
     expect(container.textContent).toMatch(/documento/i);
   });
 });

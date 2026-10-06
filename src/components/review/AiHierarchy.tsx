@@ -7,27 +7,33 @@
  * 4. Conexión segura con cerrojo de aplicación o copiado al portapapeles.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
+  Activity,
   AlertCircle,
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
+  FileText,
   Flag,
-  FolderTree,
   Layers,
-  RotateCcw,
-  Sparkles,
+  TrendingUp,
   X,
 } from 'lucide-react';
 import type { ElementModel } from '../../types';
 import type { AuditItem } from '../../lib/auditItems';
+import type { AIReviewParagraph } from '../../api/backend';
 import { construirJerarquia, type NodoJerarquia } from '../../lib/jerarquia';
+import { construirPerfilIA } from '../../lib/aiPerfil';
+import { AiProfile } from './AiProfile';
+import { AiChapterFocus } from './AiChapterFocus';
 import { EditorialMascot } from '../layout/EditorialMascot';
 
 export interface AiHierarchyProps {
   elements: readonly ElementModel[] | null;
+  paragraphs: readonly AIReviewParagraph[];
   items: readonly AuditItem[];
   activa?: string | 'all';
   onSelectPhase?: (phaseKey: string) => void;
@@ -63,6 +69,7 @@ interface ChapterViewData {
 
 export function AiHierarchy({
   elements,
+  paragraphs,
   items,
   activa,
   onSelectPhase,
@@ -78,7 +85,8 @@ export function AiHierarchy({
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [appliedIds, setAppliedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [editedProposals, setEditedProposals] = useState<Record<string, string>>({});
+  const [capAbierto, setCapAbierto] = useState<string | null>(null);
+  const proposalRef = useRef<HTMLTextAreaElement>(null);
 
   // Filtrar hallazgos de categoría 'ai'
   const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
@@ -241,7 +249,10 @@ export function AiHierarchy({
         subsections: subs,
       };
     });
-  }, [elements, itemsByElemId]);
+  }, [elements, itemsByElemId, aiItems]);
+
+  // Perfil completo del documento (misma fuente que el hero y el mapa)
+  const perfil = useMemo(() => construirPerfilIA(paragraphs, elements), [paragraphs, elements]);
 
   // Selección activa
   const effectiveH1Id = selectedH1Id || chapters[0]?.id || '';
@@ -258,31 +269,30 @@ export function AiHierarchy({
     currentSub?.findings[0] ||
     currentChapter?.subsections.flatMap((s) => s.findings)[0];
 
-  const activeProposal = currentFinding
-    ? editedProposals[currentFinding.id] ?? (currentFinding.suggestedText || currentFinding.originalText || '')
-    : '';
+  // Métricas macro: leídas del perfil, sin re-derivar conteos.
+  const humanIntegrityPct = perfil.vozHumana;
+  const syntheticPct = perfil.rigidezMedia;
+  const flaggedParagraphsCount = perfil.enAlerta;
+  const totalParagraphsEstimated = perfil.total;
+  const criticalPeakChapter = perfil.filaMasRigida;
 
-  // Métricas macro
-  const totalParagraphsEstimated = useMemo(() => {
-    if (!elements) return 0;
-    return elements.filter((e) => e.type === 'paragraph' || e.type === 'block_quote').length || 1;
-  }, [elements]);
-
-  const flaggedParagraphsCount = aiItems.length;
-  const humanIntegrityPct =
-    totalParagraphsEstimated > 0
-      ? Math.max(0, Math.min(100, Math.round(((totalParagraphsEstimated - flaggedParagraphsCount) / totalParagraphsEstimated) * 100)))
-      : 100;
-  const syntheticPct = 100 - humanIntegrityPct;
-
-  const criticalPeakChapter = useMemo(() => {
-    if (!chapters.length) return null;
-    let maxChap = chapters[0];
-    for (const ch of chapters) {
-      if (ch.iaScore > maxChap.iaScore) maxChap = ch;
-    }
-    return maxChap;
-  }, [chapters]);
+  /* Navegación «Siguiente con IA»: recorre solo las secciones que tienen algo
+     marcado, que es lo que el mapa existe para recorrer. Salta de capítulo en
+     capítulo y abre su lectura en el mismo gesto. */
+  const capitulosConIa = useMemo(() => chapters.filter((c) => c.flaggedCount > 0), [chapters]);
+  const posicionIa = Math.max(1, capitulosConIa.findIndex((c) => c.id === effectiveH1Id) + 1);
+  const contadorIa =
+    capitulosConIa.length > 0 ? `Sección ${posicionIa} de ${capitulosConIa.length} con IA` : '';
+  const navegarConIa = (paso: 1 | -1) => {
+    if (capitulosConIa.length === 0) return;
+    const actual = capitulosConIa.findIndex((c) => c.id === effectiveH1Id);
+    const base = actual < 0 ? (paso > 0 ? -1 : 0) : actual;
+    const destino = capitulosConIa[(base + paso + capitulosConIa.length) % capitulosConIa.length];
+    setSelectedH1Id(destino.id);
+    setSelectedSubId(null);
+    setSelectedFindingId(null);
+    setCapAbierto(destino.id);
+  };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -291,9 +301,16 @@ export function AiHierarchy({
   };
 
   const handleApply = async (finding: AuditItem, proposal: string) => {
-    if (busy || !onApplyParaphrase) return;
+    if (busy || !onApplyParaphrase || !proposal.trim()) return;
     await onApplyParaphrase(finding, proposal);
     setAppliedIds((prev) => [...prev, finding.id]);
+  };
+
+  /* Un punto del perfil salta al hallazgo de ese párrafo en el workbench.
+     Si el párrafo no tiene hallazgo, el clic no tiene destino y no hace nada. */
+  const abrirParrafo = (elementId: string) => {
+    const it = itemsByElemId.get(elementId)?.[0];
+    if (it && onOpenInWorkbench) onOpenInWorkbench(it);
   };
 
   if (!elements || elements.length === 0) {
@@ -333,772 +350,205 @@ export function AiHierarchy({
         backgroundColor: 'var(--color-bg-canvas)',
       }}
     >
-      {/* ── MACRO DASHBOARD SUPERIOR ── */}
+      {/* ── HERO: general (score) → específico (chips) ── */}
       <section
         aria-label="Dashboard de Integridad Autoral"
         style={{
           padding: 'var(--space-4) var(--space-6)',
           backgroundColor: 'var(--color-bg-surface)',
           borderBottom: '1px solid var(--color-border-subtle)',
-          display: 'grid',
-          gridTemplateColumns: '260px 1fr 280px',
-          gap: 'var(--space-6)',
-          alignItems: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
           flexShrink: 0,
         }}
       >
-        {/* Termómetro de Integridad Global */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: humanIntegrityPct >= 80 ? 'var(--color-success-a12)' : 'var(--color-warning-a12)',
-              border: `3px solid ${humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)'}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 'var(--text-sm)',
-                fontWeight: 900,
-                color: humanIntegrityPct >= 80 ? 'var(--color-success)' : 'var(--color-warning)',
-              }}
-            >
-              {humanIntegrityPct}%
-            </span>
-          </div>
-          <div>
-            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              Voz Autoral Humana
-            </div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              {syntheticPct}% rigidez sintética detectada
-            </div>
-          </div>
-        </div>
-
-        {/* Micro tarjetas de métricas macro */}
-        <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: '1px solid var(--color-border-subtle)',
-              flex: 1,
-            }}
-          >
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Total Párrafos
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              {totalParagraphsEstimated}
-            </div>
-            <span style={{ fontSize: '10px', color: 'var(--color-success)' }}>
-              {Math.max(0, totalParagraphsEstimated - flaggedParagraphsCount)} con autoría nítida
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: flaggedParagraphsCount > 0 ? 'var(--color-danger-a08)' : 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: `1px solid ${flaggedParagraphsCount > 0 ? 'var(--color-danger-a12)' : 'var(--color-border-subtle)'}`,
-              flex: 1,
-            }}
-          >
-            <span style={{ fontSize: '10px', color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Párrafos en Alerta
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-primary)' }}>
-              {flaggedParagraphsCount}
-            </div>
-            <span style={{ fontSize: '10px', color: flaggedParagraphsCount > 0 ? 'var(--color-danger)' : 'var(--color-text-tertiary)' }}>
-              Fórmulas LLM detectadas
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: 'var(--space-2) var(--space-3)',
-              backgroundColor: 'var(--color-bg-surface-alt)',
-              borderRadius: 'var(--radius-xs)',
-              border: '1px solid var(--color-border-subtle)',
-              flex: 1,
-            }}
-          >
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
-              Pico Crítico
-            </span>
-            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-engine-ia)' }}>
-              {criticalPeakChapter ? `${criticalPeakChapter.h1Number} (${criticalPeakChapter.iaScore}%)` : '—'}
-            </div>
-            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
-              {criticalPeakChapter?.title ?? 'Sin picos'}
-            </span>
-          </div>
-        </div>
-
-        {/* Criterio ético APA 7 */}
         <div
           style={{
-            fontSize: 'var(--text-xs)',
-            color: 'var(--color-text-secondary)',
-            backgroundColor: 'var(--color-bg-surface-alt)',
-            padding: 'var(--space-2) var(--space-3)',
-            borderRadius: 'var(--radius-xs)',
-            lineHeight: 1.4,
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 'var(--space-5)',
+            flexWrap: 'wrap',
           }}
         >
+          {/* Score grande: la cifra manda, la etiqueta la nombra */}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
+              <span
+                style={{
+                  fontSize: 'clamp(30px, 4vw, 40px)',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: humanIntegrityPct >= 80 ? 'var(--success)' : 'var(--warning)',
+                }}
+              >
+                {humanIntegrityPct}%
+              </span>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Voz Autoral Humana
+              </span>
+            </div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 'var(--space-1)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
+              <Activity size={12} aria-hidden />
+              {syntheticPct}% rigidez sintética
+            </div>
+          </div>
+
+          {/* Chips: icono + cifra, sin frases */}
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <StatChip icon={<FileText size={14} aria-hidden />} valor={totalParagraphsEstimated} etiqueta="párrafos" />
+            <StatChip
+              icon={<AlertTriangle size={14} aria-hidden />}
+              valor={flaggedParagraphsCount}
+              etiqueta="Párrafos en Alerta"
+              tono={flaggedParagraphsCount > 0 ? 'danger' : 'neutral'}
+            />
+            <StatChip
+              icon={<TrendingUp size={14} aria-hidden />}
+              valor={criticalPeakChapter ? `${criticalPeakChapter.rigidezMedia}%` : '—'}
+              etiqueta="pico crítico"
+              titulo={criticalPeakChapter ? criticalPeakChapter.titulo : 'Sin picos de IA'}
+            />
+          </div>
+
+          {/* Acción primaria del mapa */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginLeft: 'auto' }}>
+            {contadorIa && (
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{contadorIa}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => navegarConIa(1)}
+              disabled={capitulosConIa.length === 0}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'var(--accent-bg)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '8px 12px',
+                cursor: capitulosConIa.length === 0 ? 'default' : 'pointer',
+                color: 'var(--color-text-primary)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 700,
+              }}
+            >
+              Siguiente con IA <ChevronRight size={14} aria-hidden />
+            </button>
+          </div>
+        </div>
+
+        {/* Perfil completo del documento */}
+
+        {/* Criterio ético APA 7 */}
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
           <strong>Criterio APA 7:</strong> El motor probabilístico propone redacciones con voz de autor humano; jamás muta el documento a ciegas.
         </div>
       </section>
 
-      {/* ── CUERPO JERÁRQUICO INFERIOR ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '440px minmax(0, 1fr)', minHeight: 0 }}>
-        {/* SUB-PANEL IZQUIERDO: EXPLORADOR JERÁRQUICO */}
-        <aside
-          aria-label="Jerarquía Capitular"
-          style={{
-            backgroundColor: 'var(--color-bg-surface)',
-            borderRight: '1px solid var(--color-border-subtle)',
-            overflowY: 'auto',
-            padding: 'var(--space-4)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              Jerarquía Capitular
-            </span>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-              Toca un nivel para desplegar
-            </span>
-          </div>
+      {/* ── CUERPO: rectángulos de capítulo o vista aislada del capítulo ── */}
+      {capAbierto ? (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)' }}>
+          <AiChapterFocus
+            titulo={chapters.find((c) => c.id === capAbierto)?.title ?? ''}
+            findings={
+              chapters.find((c) => c.id === capAbierto)?.subsections.flatMap((s) => s.findings) ?? []
+            }
+            onMark={onMark}
+            onDismiss={onDismiss}
+            onApplyParaphrase={onApplyParaphrase}
+            busy={busy}
+            onBack={() => setCapAbierto(null)}
+            onNext={capitulosConIa.length > 0 ? () => navegarConIa(1) : undefined}
+            onAnterior={capitulosConIa.length > 0 ? () => navegarConIa(-1) : undefined}
+            contador={contadorIa}
+          />
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)' }}>
+          <AiProfile
+            perfil={perfil}
+            activoH1Id={capAbierto}
+            onOpenPhase={setCapAbierto}
+            onSelectParrafo={abrirParrafo}
+          />
+        </div>
+      )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {chapters.map((ch) => {
-              const isH1Active = currentChapter?.id === ch.id;
-              const barColor =
-                ch.iaScore > 50
-                  ? 'var(--color-danger)'
-                  : ch.iaScore > 20
-                    ? 'var(--color-warning)'
-                    : 'var(--color-success)';
-
-              return (
-                <div
-                  key={ch.id}
-                  style={{
-                    border: isH1Active ? '1px solid var(--color-engine-ia)' : '1px solid var(--color-border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    overflow: 'hidden',
-                    backgroundColor: isH1Active ? 'var(--color-engine-ia-a08)' : 'var(--color-bg-surface)',
-                  }}
-                >
-                  {/* Fila del H1 */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedH1Id(ch.id);
-                      if (ch.subsections[0]) setSelectedSubId(ch.subsections[0].id);
-                      if (ch.phase && onSelectPhase) onSelectPhase(ch.phase);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setSelectedH1Id(ch.id);
-                        if (ch.subsections[0]) setSelectedSubId(ch.subsections[0].id);
-                      }
-                    }}
-                    style={{
-                      padding: 'var(--space-3) var(--space-4)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      backgroundColor: isH1Active ? 'var(--color-engine-ia-a12)' : 'var(--color-bg-surface)',
-                      borderBottom: isH1Active ? '1px solid var(--color-border-subtle)' : 'none',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                      {isH1Active ? (
-                        <ChevronDown size={15} style={{ color: 'var(--color-engine-ia)' }} />
-                      ) : (
-                        <ChevronRight size={15} style={{ color: 'var(--color-text-secondary)' }} />
-                      )}
-                      <div>
-                        <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                          {ch.h1Number}: {ch.title}
-                        </div>
-                        <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
-                          {ch.words.toLocaleString()} palabras · {ch.flaggedCount} alertas
-                        </div>
-                      </div>
-                    </div>
-
-                    <span
-                      style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 800,
-                        color: barColor,
-                        padding: '2px 6px',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor:
-                          ch.iaScore > 50
-                            ? 'var(--color-danger-a12)'
-                            : ch.iaScore > 20
-                              ? 'var(--color-warning-a12)'
-                              : 'var(--color-success-a12)',
-                      }}
-                    >
-                      {ch.iaScore}% IA
-                    </span>
-                  </div>
-
-                  {/* Subsecciones H2 / H3 */}
-                  {isH1Active && ch.subsections.length > 0 && (
-                    <div
-                      style={{
-                        padding: 'var(--space-2) var(--space-3)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 'var(--space-1)',
-                        backgroundColor: 'var(--color-bg-surface-alt)',
-                      }}
-                    >
-                      {ch.subsections.map((sub) => {
-                        const isSubActive = currentSub?.id === sub.id;
-                        const subColor =
-                          sub.iaScore > 50
-                            ? 'var(--color-danger)'
-                            : sub.iaScore > 20
-                              ? 'var(--color-warning)'
-                              : 'var(--color-success)';
-
-                        return (
-                          <div
-                            key={sub.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => setSelectedSubId(sub.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') setSelectedSubId(sub.id);
-                            }}
-                            style={{
-                              padding: '8px var(--space-3)',
-                              borderRadius: 'var(--radius-xs)',
-                              cursor: 'pointer',
-                              backgroundColor: isSubActive ? 'var(--color-bg-surface)' : 'transparent',
-                              border: isSubActive ? '1px solid var(--color-accent)' : '1px solid transparent',
-                              boxShadow: isSubActive ? 'var(--shadow-sm)' : 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}
-                          >
-                            <div style={{ paddingLeft: sub.level === 'H3' ? 14 : 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                                <span
-                                  style={{
-                                    fontSize: '9px',
-                                    fontWeight: 800,
-                                    backgroundColor: 'var(--color-border-subtle)',
-                                    padding: '1px 4px',
-                                    borderRadius: 'var(--radius-xs)',
-                                  }}
-                                >
-                                  {sub.level}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: '11.5px',
-                                    fontWeight: isSubActive ? 700 : 500,
-                                    color: 'var(--color-text-primary)',
-                                  }}
-                                >
-                                  {sub.number} {sub.title}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                                {sub.paragraphsCount} párrafos · {sub.flaggedCount} alertas
-                              </div>
-                            </div>
-
-                            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: subColor }}>
-                              {sub.iaScore}%
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-
-        {/* SUB-PANEL DERECHO: INSPECTOR QUIRÚRGICO DE HALLAZGOS */}
-        <section
-          aria-label="Inspector de Alertas"
-          style={{
-            overflowY: 'auto',
-            padding: 'var(--space-6)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-5)',
-          }}
-        >
-          {currentSub ? (
-            <>
-              {/* Cabecera de la subsección */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <span
-                      style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 700,
-                        color: 'var(--color-engine-ia)',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {currentChapter?.h1Number} · {currentSub.level} {currentSub.number}
-                    </span>
-                  </div>
-                  <h3
-                    style={{
-                      margin: '4px 0 0',
-                      fontSize: 'var(--text-lg)',
-                      fontWeight: 800,
-                      color: 'var(--color-text-primary)',
-                    }}
-                  >
-                    {currentSub.title}
-                  </h3>
-                </div>
-
-                <div style={{ textAlign: 'right' }}>
-                  <span
-                    style={{
-                      fontSize: 'var(--text-xs)',
-                      fontWeight: 800,
-                      color: currentSub.iaScore > 50 ? 'var(--color-danger)' : 'var(--color-warning)',
-                      backgroundColor:
-                        currentSub.iaScore > 50 ? 'var(--color-danger-a12)' : 'var(--color-warning-a12)',
-                      padding: '3px 10px',
-                      borderRadius: 'var(--radius-full)',
-                    }}
-                  >
-                    Densidad de IA: {currentSub.iaScore}%
-                  </span>
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 3 }}>
-                    {currentSub.flaggedCount} párrafos en alerta
-                  </div>
-                </div>
-              </div>
-
-              {/* LISTA COMPACTA DE PÁRRAFOS SOSPECHOSOS */}
-              {currentSub.findings.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                  {/* Selector tipo pastillas */}
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', overflowX: 'auto', paddingBottom: 4 }}>
-                    {currentSub.findings.map((finding, idx) => {
-                      const isSel = (currentFinding?.id || '') === finding.id;
-                      const isApp = appliedIds.includes(finding.id);
-
-                      return (
-                        <button
-                          key={finding.id}
-                          type="button"
-                          onClick={() => setSelectedFindingId(finding.id)}
-                          style={{
-                            padding: '6px var(--space-3)',
-                            borderRadius: 'var(--radius-xs)',
-                            border: isSel
-                              ? '1px solid var(--color-engine-ia)'
-                              : '1px solid var(--color-border-subtle)',
-                            backgroundColor: isSel ? 'var(--color-engine-ia)' : 'var(--color-bg-surface)',
-                            color: isSel ? 'var(--color-text-on-accent)' : 'var(--color-text-primary)',
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 'var(--space-2)',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <span>
-                            Alerta {idx + 1}
-                            {finding.pageNumber ? ` (Pág. ${finding.pageNumber})` : ''}
-                          </span>
-                          {isApp && (
-                            <Check
-                              size={12}
-                              style={{ color: isSel ? 'var(--color-text-on-accent)' : 'var(--color-success)' }}
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* COMPARADOR SPLIT VIEW */}
-                  {currentFinding && (
-                    <div
-                      style={{
-                        backgroundColor: 'var(--color-bg-surface)',
-                        border: '1px solid var(--color-border-subtle)',
-                        borderRadius: 'var(--radius-md)',
-                        overflow: 'hidden',
-                        boxShadow: 'var(--shadow-sm)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: 'var(--space-3) var(--space-4)',
-                          backgroundColor: 'var(--color-bg-surface-alt)',
-                          borderBottom: '1px solid var(--color-border-subtle)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                          <AlertCircle size={15} style={{ color: 'var(--color-danger)' }} />
-                          <span
-                            style={{
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 700,
-                              color: 'var(--color-text-primary)',
-                            }}
-                          >
-                            {currentFinding.summary || 'Fórmula sintética / Muletilla LLM'}
-                          </span>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 800,
-                            color: 'var(--color-danger)',
-                            backgroundColor: 'var(--color-danger-a12)',
-                            padding: '2px var(--space-2)',
-                            borderRadius: 'var(--radius-full)',
-                          }}
-                        >
-                          Confianza: {currentFinding.aiScore ? `${Math.round(currentFinding.aiScore)}%` : 'Alta'}
-                        </span>
-                      </div>
-
-                      {/* Cuadrícula Split: Texto Original vs Propuesta de Autor Humano */}
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          borderBottom: '1px solid var(--color-border-subtle)',
-                        }}
-                      >
-                        {/* Columna Izquierda: Original */}
-                        <div
-                          style={{
-                            padding: 'var(--space-4)',
-                            borderRight: '1px solid var(--color-border-subtle)',
-                            backgroundColor: 'var(--color-bg-surface)',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              color: 'var(--color-danger)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                            }}
-                          >
-                            Texto Original (Fórmula LLM Detectada)
-                          </span>
-                          <div
-                            style={{
-                              fontSize: '13.5px',
-                              lineHeight: 1.75,
-                              color: 'var(--color-text-primary)',
-                              marginTop: 'var(--space-2)',
-                            }}
-                          >
-                            <span
-                              style={{
-                                backgroundColor: 'var(--mark-ai-bg)',
-                                borderBottom: '2px dashed var(--color-text-secondary)',
-                                padding: '1px 2px',
-                              }}
-                            >
-                              {currentFinding.originalText}
-                            </span>
-                          </div>
-                          {currentFinding.detail && (
-                            <div
-                              style={{
-                                fontSize: 'var(--text-xs)',
-                                color: 'var(--color-text-tertiary)',
-                                marginTop: 'var(--space-3)',
-                                fontStyle: 'italic',
-                              }}
-                            >
-                              {currentFinding.detail}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Columna Derecha: Propuesta Humana */}
-                        <div
-                          style={{
-                            padding: 'var(--space-4)',
-                            backgroundColor: 'var(--color-success-a12)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span
-                              style={{
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                color: 'var(--color-success)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.04em',
-                              }}
-                            >
-                              Propuesta con Voz de Autor Humano
-                            </span>
-                            <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>
-                              Editable
-                            </span>
-                          </div>
-
-                          <textarea
-                            value={activeProposal}
-                            onChange={(e) =>
-                              setEditedProposals((prev) => ({
-                                ...prev,
-                                [currentFinding.id]: e.target.value,
-                              }))
-                            }
-                            rows={5}
-                            aria-label="Propuesta con Voz de Autor Humano"
-                            style={{
-                              marginTop: 'var(--space-2)',
-                              width: '100%',
-                              padding: 'var(--space-2) var(--space-3)',
-                              borderRadius: 'var(--radius-xs)',
-                              border: '1px solid var(--color-border-subtle)',
-                              backgroundColor: 'var(--color-bg-surface)',
-                              color: 'var(--color-text-primary)',
-                              fontFamily: 'inherit',
-                              fontSize: '13px',
-                              lineHeight: 1.6,
-                              resize: 'vertical',
-                              boxSizing: 'border-box',
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Barra de Acciones del Inspector */}
-                      <div
-                        style={{
-                          padding: 'var(--space-3) var(--space-4)',
-                          backgroundColor: 'var(--color-bg-surface-alt)',
-                          display: 'flex',
-                          justifyContent: 'flex-end',
-                          alignItems: 'center',
-                          gap: 'var(--space-2)',
-                        }}
-                      >
-                        {onOpenInWorkbench && (
-                          <button
-                            type="button"
-                            onClick={() => onOpenInWorkbench(currentFinding)}
-                            title="Abrir este hallazgo en la Mesa de Revisión por Lotes"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 'var(--space-1)',
-                              padding: '6px var(--space-3)',
-                              borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--color-border-subtle)',
-                              backgroundColor: 'var(--color-bg-surface)',
-                              color: 'var(--color-text-primary)',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              marginRight: 'auto',
-                            }}
-                          >
-                            <Layers size={13} strokeWidth={1.75} aria-hidden />
-                            Ver en Mesa
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(activeProposal, currentFinding.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 'var(--space-1)',
-                            padding: '6px var(--space-3)',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--color-border-subtle)',
-                            backgroundColor: 'var(--color-bg-surface)',
-                            color: 'var(--color-text-secondary)',
-                            fontSize: 'var(--text-xs)',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Copy size={13} strokeWidth={1.75} aria-hidden />
-                          {copiedId === currentFinding.id ? 'Copiado' : 'Copiar'}
-                        </button>
-
-                        {onMark && (
-                          <button
-                            type="button"
-                            disabled={busy || markedIds.includes(currentFinding.id)}
-                            onClick={() => onMark(currentFinding)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 'var(--space-1)',
-                              padding: '6px var(--space-3)',
-                              borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--color-border-subtle)',
-                              backgroundColor: 'var(--color-bg-surface)',
-                              color: markedIds.includes(currentFinding.id)
-                                ? 'var(--color-text-secondary)'
-                                : 'var(--color-text-primary)',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 600,
-                              cursor: busy || markedIds.includes(currentFinding.id) ? 'default' : 'pointer',
-                              opacity: busy ? 0.6 : 1,
-                            }}
-                          >
-                            <Flag size={13} strokeWidth={1.75} aria-hidden />
-                            {markedIds.includes(currentFinding.id)
-                              ? 'Marcado para revisar'
-                              : 'Marcar para revisar'}
-                          </button>
-                        )}
-
-                        {onDismiss && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => onDismiss(currentFinding)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 'var(--space-1)',
-                              padding: '6px var(--space-3)',
-                              borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--color-border-subtle)',
-                              backgroundColor: 'var(--color-bg-surface)',
-                              color: 'var(--color-text-primary)',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 600,
-                              cursor: busy ? 'default' : 'pointer',
-                              opacity: busy ? 0.6 : 1,
-                            }}
-                          >
-                            <X size={13} strokeWidth={1.75} aria-hidden />
-                            Descartar
-                          </button>
-                        )}
-
-                        {onApplyParaphrase && (
-                          <button
-                            type="button"
-                            disabled={busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()}
-                            onClick={() => handleApply(currentFinding, activeProposal)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 'var(--space-1)',
-                              padding: '6px var(--space-4)',
-                              borderRadius: 'var(--radius-sm)',
-                              border: 'none',
-                              backgroundColor: appliedIds.includes(currentFinding.id)
-                                ? 'var(--color-success)'
-                                : 'var(--color-accent)',
-                              color: 'var(--color-text-on-accent)',
-                              fontSize: 'var(--text-xs)',
-                              fontWeight: 700,
-                              cursor:
-                                busy || appliedIds.includes(currentFinding.id) || !activeProposal.trim()
-                                  ? 'default'
-                                  : 'pointer',
-                              opacity: busy ? 0.6 : 1,
-                            }}
-                          >
-                            <Check size={13} strokeWidth={1.75} aria-hidden />
-                            {appliedIds.includes(currentFinding.id)
-                              ? 'Insertada en Manuscrito'
-                              : 'Reemplazar en Manuscrito'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    padding: 'var(--space-8)',
-                    textAlign: 'center',
-                    backgroundColor: 'var(--color-bg-surface)',
-                    border: '1px solid var(--color-border-subtle)',
-                    borderRadius: 'var(--radius-md)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 'var(--space-2)',
-                  }}
-                >
-                  <EditorialMascot size={36} kind="highlighter" expression="happy" />
-                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                    Esta subsección presenta autoría nítida
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                    No se detectaron fórmulas sintéticas ni monotonía de perplejidad.
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div
-              style={{
-                padding: 'var(--space-8)',
-                textAlign: 'center',
-                color: 'var(--color-text-tertiary)',
-              }}
-            >
-              Selecciona un capítulo para inspeccionar.
-            </div>
-          )}
-        </section>
-      </div>
     </div>
   );
 }
+
+type TonoChip = 'neutral' | 'danger' | 'warning';
+
+const TONO_CHIP: Record<TonoChip, { fondo: string; tinta: string }> = {
+  neutral: { fondo: 'var(--accent-bg)', tinta: 'var(--color-accent)' },
+  warning: { fondo: 'var(--warning-bg)', tinta: 'var(--warning)' },
+  danger: { fondo: 'var(--danger-bg)', tinta: 'var(--danger)' },
+};
+
+/** Chip de una cifra: icono + número + etiqueta corta. Reemplaza las frases
+ *  sueltas del dashboard viejo; el detalle largo viaja en `title`. */
+const StatChip: React.FC<{
+  icon: React.ReactNode;
+  valor: number | string;
+  etiqueta: string;
+  tono?: TonoChip;
+  titulo?: string;
+}> = ({ icon, valor, etiqueta, tono = 'neutral', titulo }) => {
+  const t = TONO_CHIP[tono];
+  return (
+    <div
+      title={titulo}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-2) var(--space-3)',
+        borderRadius: 'var(--radius-md)',
+        background: t.fondo,
+        minWidth: 0,
+      }}
+    >
+      <span aria-hidden style={{ display: 'inline-flex', color: t.tinta, flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, minWidth: 0 }}>
+        <span
+          style={{
+            fontSize: 'var(--text-lg)',
+            fontWeight: 800,
+            color: 'var(--color-text-primary)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {valor}
+        </span>
+        <span
+          style={{
+            fontSize: 'var(--text-xs)',
+            color: 'var(--color-text-secondary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {etiqueta}
+        </span>
+      </span>
+    </div>
+  );
+};
 
 export default AiHierarchy;

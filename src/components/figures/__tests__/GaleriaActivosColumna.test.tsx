@@ -108,4 +108,45 @@ describe('GaleriaActivosColumna', () => {
     fireEvent.click(itemFigura2);
     expect(onSelect).toHaveBeenCalledWith(8);
   });
+
+  it('agrupa los activos por fase (H1) y subsección (H2)', () => {
+    const conSub: ContextoFigura[] = [
+      { ...contextosMock[0], h1: 'Capítulo 1', h2: 'Método' },
+      { ...contextosMock[1], h1: 'Capítulo 1', h2: 'Resultados' },
+    ];
+
+    render(
+      <GaleriaActivosColumna
+        contextos={conSub}
+        indiceActivo={null}
+        onSelectIndice={vi.fn()}
+      />
+    );
+
+    // Cabecera de fase (H1) aparece una sola vez aunque agrupe dos activos
+    expect(screen.getAllByText('Capítulo 1').length).toBe(1);
+    // Subsecciones (H2)
+    expect(screen.getByText('Método')).toBeDefined();
+    expect(screen.getByText('Resultados')).toBeDefined();
+  });
+
+  it('previsualiza la tabla con una rejilla, no con un icono', () => {
+    const ctxTabla: ContextoFigura[] = [
+      {
+        ...contextosMock[0],
+        tipo: 'table',
+        rotulo: 'Tabla 1',
+        url: null,
+        tabla: { headers: ['Grupo', 'n'], rows: [['Control', '30'], ['Ensayo', '30']] },
+      },
+    ];
+    const { container } = render(
+      <GaleriaActivosColumna
+        contextos={ctxTabla}
+        indiceActivo={null}
+        onSelectIndice={vi.fn()}
+      />
+    );
+    expect(container.querySelector('[data-testid="asset-thumbnail-tabla"]')).toBeTruthy();
+  });
 });

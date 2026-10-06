@@ -100,10 +100,25 @@ export interface ImageModel {
   design_style: DesignStyle;
   rotation?: number;
   alt_text?: string;
+  // Presentacion del marco (tokens del design-system, no valores crudos)
+  border?: 'none' | 'subtle' | 'strong';
+  shadow?: boolean;
+  corner_radius?: 'none' | 'sm' | 'md' | 'lg';
+  flip_h?: boolean;
+  flip_v?: boolean;
   // Floating (anchor) attributes
   is_anchor?: boolean;
   anchor_pos_h?: string | null;
   anchor_pos_v?: string | null;
+}
+
+export type TableStylePreset = 'apa' | 'compact' | 'expanded' | 'grid' | 'zebra';
+export type TableOrientation = 'auto' | 'portrait' | 'landscape';
+
+/** Metadata de combinación de una celda. `col`/`row` en unidades de grid. */
+export interface CellSpan {
+  col: number;
+  row: number;
 }
 
 export interface TableModel {
@@ -113,6 +128,16 @@ export interface TableModel {
   caption: string;
   note?: string;
   table_number: number;
+  /** Spans paralelos a `headers`. Vacío = todo `{col:1,row:1}`. */
+  header_spans?: CellSpan[];
+  /** Spans paralelos a `rows`. Vacío = todo `{col:1,row:1}`. */
+  row_spans?: CellSpan[][];
+  /** Preset de estilo. Default `apa` en la UI. */
+  style?: TableStylePreset;
+  /** Orientación de la tabla. Default `auto`. */
+  orientation?: TableOrientation;
+  /** Fracciones que suman 1; vacío = ancho automático. */
+  column_widths?: number[];
 }
 
 // ── ELEMENT MODEL ─────────────────────────────────────────────────────────────
@@ -165,6 +190,12 @@ export interface ElementModel {
    * 0 = primer fragmento; >0 = continuación. undefined = elemento completo.
    */
   split_chunk?: number;
+
+  /**
+   * Rebanada de filas de una tabla partida entre páginas (solo render).
+   * start/end son índices de fila (0-based, end exclusivo) sobre `table_info.rows`.
+   */
+  table_slice?: { start: number; end: number };
 
   // Classification
   needs_review: boolean;
@@ -261,9 +292,9 @@ export interface APARuleSet {
 
   // Headings
   heading_levels: Record<number, HeadingLevelConfig>;
-  heading_numbering_style_lvl1: 'decimal' | 'roman' | 'none';
-  heading_numbering_style_lvl2: 'decimal' | 'roman' | 'none';
-  heading_numbering_style_lvl3: 'decimal' | 'roman' | 'none';
+  heading_numbering_style_lvl1: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
+  heading_numbering_style_lvl2: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
+  heading_numbering_style_lvl3: 'none' | 'decimal' | 'upperRoman' | 'lowerRoman' | 'lowerLetter' | 'upperLetter';
 
   // References
   reference_hanging_indent_cm: number;
@@ -414,6 +445,10 @@ export interface ReferenciaModel {
   verificada?: boolean;
   /** De dónde salió la verificación: "doi", "cruzada", "isbn". */
   fuente_verificacion?: string;
+  /** Tipo de fuente APA 7; el backend lo infiere si queda en "otro". */
+  tipo?: 'articulo' | 'libro' | 'capitulo' | 'tesis' | 'web' | 'informe' | 'otro';
+  /** La línea APA ya segmentada (texto + cursiva). Si falta, usar formatted_apa. */
+  apa_segments?: { text: string; italic: boolean }[];
 }
 
 // ── CITATIONS ─────────────────────────────────────────────────────────────────

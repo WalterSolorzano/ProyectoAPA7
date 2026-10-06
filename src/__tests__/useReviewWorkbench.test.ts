@@ -85,6 +85,10 @@ describe('T12 — useReviewWorkbench', () => {
     runAIReview: useDocStore.getState().runAIReview,
     runProofreadBatch: useDocStore.getState().runProofreadBatch,
     runCitationAudit: useDocStore.getState().runCitationAudit,
+    /* Los descartes viven en el store desde que el workbench los comparte con
+       el rail: sin restaurarlos, el `dismiss` de un test escondería hallazgos
+       del siguiente (el store es global dentro del archivo). */
+    dismissedFindingIds: useDocStore.getState().dismissedFindingIds,
   };
 
   beforeEach(() => {
@@ -94,6 +98,7 @@ describe('T12 — useReviewWorkbench', () => {
       proofreadFindings: [],
       citationAuditResult: null,
       aiIndices: null,
+      dismissedFindingIds: [],
     });
   });
 

@@ -22,6 +22,13 @@
   --color-accent-hover: #3b66e0;
   --color-accent-pressed: #2b52cc;
   --color-accent-soft: rgba(79, 124, 255, 0.10);
+  /* La tinta PROFUNDA del acento y las piezas de la marca de cita del
+     manuscrito. El azul vivo `#4f7cff` sobre papel blanco se leía como un
+     resaltador fluorescente; estas son las tres piezas juntas —tinta, fondo de
+     la marca y subrayado— para que no divergan. */
+  --color-accent-deep: #2f4a94;
+  --mark-citation-bg: #dde4f2;
+  --mark-citation-ink: #22386e;
   --color-accent-secondary: var(--color-success);
   /* Verde APAGADO (sage) y no el esmeralda saturado anterior (#38a017): el
      estado de verificación no es una alerta, y un verde vivo competía con el
@@ -302,6 +309,17 @@
   --accent-secondary: var(--color-accent-secondary);
   /* Semánticos canónicos: --color-success / --color-warning / --color-danger
      (los alias --accent-success|warning|danger fueron eliminados). */
+  /* Alias cortos de ESTADO para las superficies de Revisión & IA. No abren una
+     paleta nueva: cada uno apunta al token canónico que ya existe y que se
+     declara en los dos temas, así que hereda el valor del tema activo. El
+     sufijo `-bg` es el paso de alfa de fondo de un chip; el color entero es la
+     tinta. */
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --danger-bg: var(--color-danger-a12);
+  --warning-bg: var(--color-warning-a12);
+  --accent-bg: var(--color-accent-a12);
   --font-family: var(--font-sans);
   --wizard-step-active: var(--color-accent);
   --wizard-step-complete: var(--color-accent-secondary);
@@ -346,6 +364,12 @@
   --color-accent-hover: #7ba0ff;
   --color-accent-pressed: #3b66e0;
   --color-accent-soft: rgba(79, 124, 255, 0.15);
+  /* En oscuro la tinta profunda se ACLARA: un `#2f4a94` sobre `#18181c` es
+     invisible. La marca conserva la misma jerarquía —tinte apagado, tinta
+     legible, subrayado tenue— sin el azul fluorescente. */
+  --color-accent-deep: #9fb4e6;
+  --mark-citation-bg: rgba(79, 124, 255, 0.18);
+  --mark-citation-ink: #cdd9f2;
   --mark-ai-bg: rgba(156, 163, 175, 0.22);
 
   /* ════════════ ESCALA DE ALFA (OSCURO) ════════════
@@ -428,6 +452,15 @@
   --color-warning: #e08a63;
   --color-danger: #ff4d4f;
   --color-info: #4f7cff;
+  /* Los alias cortos de estado, repetidos para que un token declarado en un
+     solo tema no sea la mitad de un bug. Apuntan a la familia canónica de
+     arriba, que ya cambia con el tema. */
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --danger-bg: var(--color-danger-a12);
+  --warning-bg: var(--color-warning-a12);
+  --accent-bg: var(--color-accent-a12);
   --color-navy-header: #0f172a;
   --color-navy-header-text: #ffffff;
   --color-paper: #ffffff;
@@ -1033,9 +1066,9 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 7px 12px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--color-text-on-accent);
   background: var(--color-accent);
@@ -1046,6 +1079,32 @@ html, body {
 }
 .fig-apply-btn:hover {
   background: var(--color-accent-hover);
+}
+
+/* Acción secundaria del globo de la mascota: regenerar la sugerencia */
+.fig-regenerate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+}
+.fig-regenerate-btn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-accent);
+  background: var(--color-bg-surface-hover);
+}
+.fig-regenerate-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 /* Etiqueta pequeña en versalitas para metadatos de la sugerencia */
@@ -1091,13 +1150,13 @@ html, body {
   background: var(--color-accent-soft);
 }
 .fig-preset-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.25;
   color: var(--color-text-primary);
 }
 .fig-preset-badge {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;

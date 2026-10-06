@@ -27,17 +27,17 @@
 ;
 ; ── Definiciones de texto MUI2 (Installer & Uninstaller) ─────────────────
 !define MUI_WELCOMEPAGE_TITLE "WordAPA7 · Edición Editorial"
-!define MUI_WELCOMEPAGE_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
+!define MUI_WELCOMEPAGE_TEXT "WordAPA7 integra el diagnóstico APA 7 y su complemento en la cinta de Word.$\r$\nCierra Word si está abierto; se reabrirá al terminar."
 
 !define MUI_TEXT_WELCOMEINFO_TITLE "WordAPA7 · Edición Editorial"
-!define MUI_TEXT_WELCOMEINFO_TEXT "Configuración e integración en Microsoft Word:$\r$\n$\r$\n• Aplicación de escritorio con diagnóstico APA 7 en vivo.$\r$\n• Complemento integrado en la cinta oficial de Word.$\r$\n$\r$\nNota: Si Word está abierto, se cerrará brevemente para vincular la pestaña."
+!define MUI_TEXT_WELCOMEINFO_TEXT "WordAPA7 integra el diagnóstico APA 7 y su complemento en la cinta de Word.$\r$\nCierra Word si está abierto; se reabrirá al terminar."
 
 ; ── Página de finalización ──────────────────────────────────────────────────
 !define MUI_FINISHPAGE_TITLE "Listo para usar"
-!define MUI_FINISHPAGE_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
+!define MUI_FINISHPAGE_TEXT "WordAPA7 y su complemento quedaron instalados.$\r$\nBusca la pestaña «WordAPA7» en la cinta de Word."
 
 !define MUI_TEXT_FINISH_TITLE "Listo para usar"
-!define MUI_TEXT_FINISH_INFO_TEXT "WordAPA7 y su complemento para Microsoft Word están listos.$\r$\n$\r$\n• Acceso directo disponible en tu Escritorio e Inicio.$\r$\n• La pestaña «WordAPA7» ya está disponible en la cinta de Word."
+!define MUI_TEXT_FINISH_INFO_TEXT "WordAPA7 y su complemento quedaron instalados.$\r$\nBusca la pestaña «WordAPA7» en la cinta de Word."
 
 !define MUI_ABORTWARNING_TEXT "¿Deseas cancelar la instalación de WordAPA7?"
 

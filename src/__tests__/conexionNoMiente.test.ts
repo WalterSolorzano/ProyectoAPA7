@@ -123,11 +123,11 @@ describe('la UI no dice que un control no llega cuando sí llega', () => {
 });
 
 describe('las tres fuentes coinciden con el catálogo', () => {
-  it('el catálogo tiene catorce claves y nueve modelos', () => {
+  it('el catálogo tiene dieciocho claves y diecisiete modelos', () => {
     // El catálogo es la fuente de verdad. Si el catálogo crece, las comparaciones
     // se rompen y el guardián dice que algo falta.
-    expect(VARIABLES_DE_CLAVE).toHaveLength(14);
-    expect(VARIABLES_DE_MODELO).toHaveLength(13);
+    expect(VARIABLES_DE_CLAVE).toHaveLength(18);
+    expect(VARIABLES_DE_MODELO).toHaveLength(17);
   });
 
   it('ninguna variable está repetida en el catálogo', () => {

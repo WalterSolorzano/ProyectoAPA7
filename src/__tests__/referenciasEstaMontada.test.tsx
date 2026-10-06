@@ -59,13 +59,14 @@ describe('la superficie de referencias está montada', () => {
        La primera version del archivo no la tenia, y se cazo mutando el glob a
        `{}`: seis pruebas se cayeron y dos de las ocho seguian verdes. Dos
        verdes sobre un glob vacio es un guardian que no vigila nada. */
-    expect(NOMBRES).toHaveLength(6);
+    expect(NOMBRES).toHaveLength(7);
     expect(NOMBRES.sort()).toEqual([
       'ManuscriptMentionsAccordion',
       'ReferenceCatalogItem',
       'ReferenceEditModal',
       'ReferenceForm',
       'ReferenceRailFilter',
+      'ReferenciaLinea',
       'Step5ReferencesWizard'
     ]);
   });

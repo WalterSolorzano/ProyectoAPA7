@@ -55,12 +55,14 @@ export const SUBTYPE_LABELS: Record<string, string> = {
   verbo_bloom: 'Verbo impreciso en objetivo (Bloom)',
   ortografia: 'Falta ortográfica o tilde',
   texto_pegado: 'Texto pegado sin espaciado',
+  forma_apa: 'Forma APA de la referencia',
   palabra_repetida: 'Palabra repetida',
   pronombre_ambiguo: 'Pronombre ambiguo',
   voz_pasiva: 'Voz pasiva',
   oracion_larga: 'Oración extensa',
   idea_incompleta: 'Idea incompleta',
   objetivo_generico: 'Objetivo sin variable medible',
+  objetivo_verbo: 'Verbo del objetivo (infinitivo único)',
   metodo_generico: 'Método sin detalle',
   otro: 'Otro hallazgo del corrector',
   cita_fantasma: 'Cita ausente en bibliografía',
@@ -150,6 +152,15 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
     summary: 'Texto pegado sin espaciado correcto',
   },
 
+  /* Lint APA 7 de la bibliografia: forma objetiva y determinista, asi que se
+     corrige con "Aceptar". El mensaje lo pone el motor (nombra el campo). */
+  apa_ampersand: { category: 'style', subtype: 'forma_apa', severity: 'medium', summary: DEL_MOTOR },
+  apa_doi_forma: { category: 'style', subtype: 'forma_apa', severity: 'medium', summary: DEL_MOTOR },
+  apa_edicion: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_et_al: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_espaciado: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_punto_final: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+
   // Redacción y Bloom.
   first_person: {
     category: 'style',
@@ -218,6 +229,12 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
      como "Otro hallazgo del corrector", que es un nombre honesto para un
      hallazgo del que no sabemos qué es. No es el caso. */
   objetivo_sin_variable: { category: 'style', subtype: 'objetivo_generico', severity: 'medium', summary: DEL_MOTOR },
+  /* Las dos leyes de objetivos de T12 son de FASE: el ambito `objetivos` las
+     declara en `RULE_SCOPES`. Comparten subtipo `objetivo_verbo`, que
+     `SUBTYPE_ACTION` manda a 'mark': el motor sabe que el verbo esta mal, no
+     cual poner. */
+  objetivo_sin_infinitivo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
+  objetivo_multi_verbo: { category: 'style', subtype: 'objetivo_verbo', severity: 'high', summary: DEL_MOTOR },
   metodo_sin_detalle: { category: 'style', subtype: 'metodo_generico', severity: 'low', summary: DEL_MOTOR },
   /* Los dos de portada son de SOLO LECTURA: sin `suggestedText` y con subtipo
      `portada`, que `SUBTYPE_ACTION` manda a 'mark'. Que un hallazgo se informe

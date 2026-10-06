@@ -17,6 +17,8 @@
 
 import React, { useMemo } from 'react';
 import { BookOpen, FileText, Image as ImageIcon } from 'lucide-react';
+import { resolveAssetUrl } from '../../api/backend';
+import { TablaRender } from '../figures/TablaRender';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 import type { ElementModel } from '../../types';
 
@@ -31,6 +33,25 @@ const hoja: React.CSSProperties = {
   fontFamily: 'var(--font-editorial)',
 };
 
+/** Recuadro de una figura: sólido si hay imagen, punteado si falta. */
+const marcoImagen = (conImagen: boolean): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--color-bg-surface-alt)',
+  border: conImagen
+    ? '1px solid var(--color-border-subtle)'
+    : '1px dashed var(--color-border-strong)',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-4)',
+});
+
+const imagenEditorial: React.CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: '420px',
+  objectFit: 'contain',
+};
+
 export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   seccionActiva,
   elementos,
@@ -38,9 +59,14 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   const deLaSeccion = useMemo(() => {
     if (!seccionActiva) return [];
     const idInicio = seccionActiva.elementoId || seccionActiva.id;
-    const idxInicio = elementos.findIndex(
-      (e) => e.id === idInicio || (e.type === 'heading' && e.text.trim() === seccionActiva.titulo.trim()),
-    );
+    let idxInicio = elementos.findIndex((e) => e.id === idInicio);
+    if (idxInicio === -1) {
+      const titulo = seccionActiva.titulo.trim();
+      for (let i = elementos.length - 1; i >= 0; i--) {
+        const e = elementos[i];
+        if (e.type === 'heading' && e.text.trim() === titulo) { idxInicio = i; break; }
+      }
+    }
     if (idxInicio === -1) return [];
     const nivelActual = seccionActiva.nivel || 1;
     const resultado: ElementModel[] = [elementos[idxInicio]];
@@ -82,9 +108,11 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
   const cuerpo = deLaSeccion
     .slice(1)
     .filter((e) => !(e.type === 'paragraph' && !String(e.text ?? '').trim()));
+  const ES_PROSA_CON_TEXTO = new Set(['paragraph', 'bullet', 'numbered_list', 'block_quote']);
   const tieneContenido = cuerpo.some(
     (e) =>
-      (e.type === 'paragraph' && String(e.text ?? '').trim()) ||
+      (ES_PROSA_CON_TEXTO.has(e.type) && String(e.text ?? '').trim()) ||
+      (e.type === 'table' && Boolean(e.table_info)) ||
       e.type === 'image' ||
       e.type === 'heading',
   );
@@ -172,23 +200,60 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
               );
             }
             if (el.type === 'image') {
-              const numero = el.image_info?.figure_number;
-              const caption = el.image_info?.caption;
+              const info = el.image_info;
+              const numero = info?.figure_number;
+              const caption = info?.caption;
+              const subfiguras = info?.subfigures ?? [];
+              const puedeRender = Boolean(info?.relative_url) && !info?.render_error;
               return (
                 <figure key={el.id ?? `f-${i}`} style={{ margin: 'var(--space-5) 0' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'var(--color-bg-surface-alt)',
-                      border: '1px dashed var(--color-border-strong)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 'var(--space-4)',
-                    }}
-                  >
-                    <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
-                  </div>
+                  {subfiguras.length > 0 ? (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${subfiguras.length}, minmax(0, 1fr))`,
+                        gap: 'var(--space-3)',
+                      }}
+                    >
+                      {subfiguras.map((sub, sIdx) => {
+                        const urlSub = sub.relative_url || info?.relative_url;
+                        return (
+                          <div
+                            key={sub.id || `sub-${sIdx}`}
+                            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}
+                          >
+                            <div style={marcoImagen(Boolean(urlSub))}>
+                              {urlSub ? (
+                                <img
+                                  src={resolveAssetUrl(urlSub)}
+                                  alt={sub.title || `Panel ${sub.label}`}
+                                  style={imagenEditorial}
+                                />
+                              ) : (
+                                <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+                              )}
+                            </div>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+                              {sub.label ? <span style={{ fontWeight: 600 }}>{sub.label} </span> : null}
+                              {sub.title}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={marcoImagen(puedeRender)}>
+                      {puedeRender ? (
+                        <img
+                          src={resolveAssetUrl(info!.relative_url)}
+                          alt={caption || 'Figura'}
+                          style={imagenEditorial}
+                        />
+                      ) : (
+                        <ImageIcon size={28} strokeWidth="var(--icon-stroke)" aria-hidden style={{ color: 'var(--color-text-tertiary)' }} />
+                      )}
+                    </div>
+                  )}
                   <figcaption
                     style={{
                       marginTop: 'var(--space-2)',
@@ -203,6 +268,13 @@ export const LecturaProsaSeccion: React.FC<LecturaProsaSeccionProps> = ({
                     {caption || 'Sin leyenda asignada'}
                   </figcaption>
                 </figure>
+              );
+            }
+            if (el.type === 'table' && el.table_info) {
+              return (
+                <div key={el.id ?? `t-${i}`} style={{ margin: 'var(--space-5) 0' }}>
+                  <TablaRender tabla={el.table_info} />
+                </div>
               );
             }
             return (

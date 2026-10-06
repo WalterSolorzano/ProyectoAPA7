@@ -1,12 +1,14 @@
 /**
  * WordAPA7 — el carrusel de portada: la activa SIEMPRE al centro.
  *
- * Cómo funciona: las cinco tarjetas se dibujan en una fila centrada y la fila
- * se corre un paso por cada paso de índice (`paso * (centro - indice)`). Así la
- * que está elegida ocupa el centro por construcción —no por casualidad de que
- * sean cinco— y las demás pasan por ahí al navegar. El índice es una sola fuente
- * de verdad: la tira no tiene su propio estado de "cuál está activa", y la
- * tarjeta, la flecha, el teclado y el arrastre escriben el mismo índice.
+ * Cómo funciona: NO hay marco central que se corra. Cada tarjeta se posiciona
+ * de forma absoluta con su borde izquierdo en el 50% de la pista y se desplaza
+ * con `translateX((i - indice) * paso)`: la activa cae en el centro por
+ * construcción —con cualquier número de tarjetas y sin depender del
+ * `justify-content`— y las vecinas se ordenan a los costados con escala y
+ * `rotateY` por distancia. El índice es una sola fuente de verdad: la tira no
+ * tiene su propio estado de "cuál está activa", y la tarjeta, la flecha, el
+ * teclado y el arrastre escriben el mismo índice.
  *
  * LO QUE ESTABA MAL Y NO VUELVE:
  * - `transform: undefined` para una tarjeta a más de `VECINAS_POR_LADO` puestos
@@ -315,16 +317,26 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
         >
           <EditorialMascot size={32} kind={mascotaActual.kind} expression={mascotaActual.expression} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
               {disenoActual.titulo}
             </span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.2 }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
               {mascotaActual.mensaje}
             </span>
           </div>
         </div>
 
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+        <span
+          style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: 'var(--space-1) var(--space-3)',
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--color-bg-surface)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+            fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+          }}
+        >
           {indice + 1} de {DISENOS_DE_PORTADA.length}
         </span>
       </div>
@@ -419,14 +431,14 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                     background: activa ? 'var(--color-bg-surface)' : 'var(--color-bg-surface-alt)',
                     opacity: activa ? 1 : isHovered ? 0.88 : 0.68,
                     border: activa
-                      ? '2px solid var(--accent-primary)'
+                      ? '2px solid var(--color-accent)'
                       : isHovered
-                        ? '1px solid var(--accent-primary)'
-                        : '1px solid var(--border-subtle)',
+                        ? '1px solid var(--color-accent)'
+                        : '1px solid var(--color-border-subtle)',
                     boxShadow: activa
-                      ? '0 24px 48px var(--shadow-card), 0 0 0 1px var(--accent-primary), 0 0 24px var(--color-accent-soft)'
+                      ? '0 24px 48px var(--shadow-card), 0 0 0 1px var(--color-accent), 0 0 24px var(--color-accent-soft)'
                       : isHovered
-                        ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--border-subtle)'
+                        ? '0 10px 24px var(--shadow-card), 0 0 0 1px var(--color-border-subtle)'
                         : 'var(--shadow-sm)',
                     transform: reducido
                       ? undefined
@@ -487,7 +499,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                       <span
                         style={{
                           display: 'flex', alignItems: 'center', gap: '6px',
-                          fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--text-main)',
+                          fontSize: 'var(--text-sm)', fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--color-text-primary)',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}
                       >
@@ -499,7 +511,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
                     </div>
                     <span
                       style={{
-                        fontSize: 'var(--text-xs)', color: 'var(--text-secondary)',
+                        fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
                         lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}
                     >
@@ -554,10 +566,11 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
             style={{
               padding: '12px 28px',
               borderRadius: 'var(--radius-lg)',
-              backgroundColor: 'var(--accent-primary)',
+              backgroundColor: 'var(--color-accent)',
               color: 'var(--color-text-on-accent)',
               border: 'none',
               fontSize: 'var(--text-sm)',
+              fontFamily: 'var(--font-display)',
               fontWeight: 800,
               cursor: 'pointer',
               display: 'inline-flex',

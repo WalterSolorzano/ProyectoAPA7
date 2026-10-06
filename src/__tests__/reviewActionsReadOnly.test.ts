@@ -35,12 +35,12 @@ const montar = (extra: Record<string, unknown> = {}) => {
     autoResolveGhosts: vi.fn(),
     autoCaptionAll: vi.fn(),
     dismissComment: vi.fn(),
+    dismissFinding: vi.fn(),
     showToast,
     api,
   } as never;
   const { result } = renderHook(() =>
     useReviewActions(store, {
-      setDismissedIds: vi.fn(),
       setMarkedIds: vi.fn(),
       setSelectedId: vi.fn(),
     } as never),

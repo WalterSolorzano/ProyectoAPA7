@@ -13,6 +13,12 @@ from typing import List
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
+from key_loader import load_all_key_sources
+
+# Sin esto, el core queda sin ninguna key (el NSIS lo registra en autostart) y
+# la IA del complemento arrancaria muda. Misma cascada que main.py.
+load_all_key_sources()
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
@@ -192,7 +198,11 @@ async def resolve_ghost(req: CiteReq) -> dict:
                     year = dp[0][0]; break
             src = (it.get("container-title") or [""])[0]
             doi = it.get("DOI", "")
-            apa = f"{', '.join(a for a in auths if a)} ({year}). {title}. {src}."
+            from modules.apa_format import format_apa_plain
+            apa = format_apa_plain({
+                "authors": auths, "year": year, "title": title,
+                "source": src, "doi_or_url": doi, "raw_text": "",
+            })
             cands.append({"authors": auths, "year": year, "title": title,
                           "source": src, "doi": doi, "formatted_apa": apa})
         return {"found": bool(cands), "candidates": cands}

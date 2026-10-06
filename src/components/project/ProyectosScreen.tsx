@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FolderOpen, Sparkles, FileDown, ChevronRight } from 'lucide-react';
 import { useDocStore } from '../../store/useDocStore';
 import { VersionTimeline } from './VersionTimeline';
 import { ExploradorProyecto } from './ExploradorProyecto';
@@ -27,11 +28,24 @@ const useStore = useDocStore as unknown as import('zustand').UseBoundStore<impor
  */
 const ANCHO_COLUMNA = 'min(860px, 100%)';
 
+/** Los tres momentos del trabajo, en una tira. Solo se dibuja cuando la
+ *  pantalla está realmente vacía: es lo que explica PARA QUÉ existe, en vez
+ *  de dejar el hueco sin causa. */
+const PASOS_DE_USO = [
+  { Icon: FolderOpen, texto: 'Cargá tus documentos' },
+  { Icon: Sparkles, texto: 'Revisá con la IA' },
+  { Icon: FileDown, texto: 'Exportá en APA 7' },
+] as const;
+
 export const ProyectosScreen: React.FC = () => {
   const proyectos = useStore(s => s.proyectos);
+  const tabs = useStore(s => s.tabs);
+  const projectImages = useStore(s => s.projectImages);
   const cerrarProyecto = useStore(s => s.cerrarProyecto);
   const marcarVersionActiva = useStore(s => s.marcarVersionActiva);
   const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
+
+  const nadaAun = proyectos.length === 0 && tabs.length === 0 && projectImages.length === 0;
 
   const seleccionado: Proyecto | undefined =
     proyectos.find((p: Proyecto) => p.id === seleccionadoId) ?? proyectos[0];
@@ -54,36 +68,73 @@ export const ProyectosScreen: React.FC = () => {
           gap: 'var(--space-6)',
         }}
       >
-        {/* Sin proyectos todavía: el encabezado orienta, y el explorador de
-            abajo es donde se configura la carpeta. Antes había un botón
-            "Configurar carpeta" que abría la ventana modal; esa ventana ya no
-            existe, y el explorador embebido es el mismo camino en el lugar. */}
-        {proyectos.length === 0 && (
-          <header style={{ textAlign: 'center', paddingTop: 'var(--space-4)' }}>
-            <h2
-              style={{
-                fontSize: 'var(--text-xl)',
-                fontWeight: 700,
-                color: 'var(--text-main)',
-                margin: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              Organizar mis documentos
-            </h2>
-            <p
-              style={{
-                fontSize: 'var(--text-sm)',
-                color: 'var(--text-muted)',
-                margin: 'var(--space-2) auto 0',
-                maxWidth: '46ch',
-                lineHeight: 1.55,
-              }}
-            >
-              Configurá una carpeta para organizar tus proyectos y versiones.
-              WordAPA7 va a crear subcarpetas automáticamente.
-            </p>
-          </header>
+        {/* El encabezado ya NO es condicional: es el ancla de la pantalla. Antes
+            solo aparecía sin proyectos, y con proyectos la pantalla arrancaba
+            directamente en la tarjeta, sin decir qué era todo esto. */}
+        <header style={{ textAlign: 'center', paddingTop: 'var(--space-4)' }}>
+          <h2
+            style={{
+              fontSize: 'var(--text-xl)',
+              fontWeight: 700,
+              color: 'var(--text-main)',
+              margin: 0,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            Organizar mis documentos
+          </h2>
+          <p
+            style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-muted)',
+              margin: 'var(--space-2) auto 0',
+              maxWidth: '52ch',
+              lineHeight: 1.55,
+            }}
+          >
+            Acá viven tus documentos, versiones e imágenes del proyecto.
+            WordAPA7 crea las subcarpetas por vos.
+          </p>
+        </header>
+
+        {/* Los pasos son una SECUENCIA, no controles. Vestirlos de pill
+            (borde + radius-full + fondo) los hacía idénticos a los chips
+            clickeables del propio proyecto y el usuario iba a intentar
+            pulsarlos. Acá van como flujo plano: ícono + texto separados por un
+            chevron, sin caja, con el peso de una línea de contexto. El chevron
+            no es decoración: dice que hay un orden, y el orden es el contenido. */}
+        {nadaAun && (
+          <ol
+            aria-label="Cómo se trabaja el proyecto"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: 'var(--space-3)',
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+            }}
+          >
+            {PASOS_DE_USO.map(({ Icon, texto }, i) => (
+              <React.Fragment key={texto}>
+                <li style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span aria-hidden style={{ display: 'inline-flex', color: 'var(--accent-primary)' }}>
+                    <Icon size={15} strokeWidth="var(--icon-stroke)" />
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    {texto}
+                  </span>
+                </li>
+                {i < PASOS_DE_USO.length - 1 && (
+                  <li aria-hidden style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--color-text-tertiary)' }}>
+                    <ChevronRight size={14} strokeWidth="var(--icon-stroke)" />
+                  </li>
+                )}
+              </React.Fragment>
+            ))}
+          </ol>
         )}
 
         <ExploradorProyecto />

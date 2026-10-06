@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { ElementModel, DesignStyle } from '../../types';
 import {
   Sliders,
@@ -11,15 +11,51 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
+  FlipHorizontal2,
+  FlipVertical2,
   LucideIcon,
 } from 'lucide-react';
+import { dpiEfectivo, ratioDeDimensiones, altoProporcional, esBajaResolucion, DPI_MIN } from '../../lib/imagenFormato';
+import { TablaEstiloSelector } from './TablaEstiloSelector';
+import { PRESETS_TABLA } from '../../lib/tablaRender';
 
 export type InspectorTabKey = 'formato' | 'texto' | 'estilo' | 'calidad';
+
+type BordeActivo = 'none' | 'subtle' | 'strong';
+type EsquinasActivas = 'none' | 'sm' | 'md' | 'lg';
+
+/** Ancho nativo en píxeles de una imagen, leído del propio archivo. */
+function useAnchoPixeles(url?: string): number | null {
+  const [ancho, setAncho] = useState<number | null>(null);
+  useEffect(() => {
+    if (!url) {
+      setAncho(null);
+      return;
+    }
+    let vivo = true;
+    const img = new Image();
+    img.onload = () => {
+      if (vivo) setAncho(img.naturalWidth || null);
+    };
+    img.onerror = () => {
+      if (vivo) setAncho(null);
+    };
+    img.src = url;
+    return () => {
+      vivo = false;
+    };
+  }, [url]);
+  return ancho;
+}
+
+/** Parche de un activo: campos de imagen y de tabla, según el tipo del elemento. */
+export type ActivoPatch = Partial<NonNullable<ElementModel['image_info']>> &
+  Partial<NonNullable<ElementModel['table_info']>>;
 
 export interface InspectorActivoTabsProps {
   elem: ElementModel;
   totalFiguras: number;
-  onUpdateImage: (id: string, patch: Partial<NonNullable<ElementModel['image_info']>>) => void;
+  onUpdate: (id: string, patch: ActivoPatch) => void;
   onApplyToAll: () => void;
 }
 
@@ -31,26 +67,30 @@ interface StylePreset {
   renderThumbnail: () => React.ReactNode;
 }
 
-/* Metadatos del inspector, una sola vez. La vista se apoya en estos estilos en
-   lugar de repetir la misma declaración en cada control. */
-const metaLabel: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 600,
+/* Escala tipográfica deliberada del inspector: tres roles, no una colección
+   de tamaños vecinos. El encabezado de sección retrocede (tertiary, versalitas),
+   la etiqueta de campo guía (secondary) y el valor de control es el
+   protagonista (primary, un paso mayor). */
+const sectionLabel: React.CSSProperties = {
+  fontSize: '10px',
+  fontWeight: 700,
   textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  color: 'var(--color-text-secondary)',
+  letterSpacing: '0.06em',
+  color: 'var(--color-text-tertiary)',
 };
 const fieldLabel: React.CSSProperties = {
   display: 'block',
-  fontSize: '10px',
+  fontSize: '11px',
+  fontWeight: 500,
   color: 'var(--color-text-secondary)',
-  marginBottom: '3px',
+  marginBottom: '4px',
 };
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  fontSize: '11px',
+  fontSize: '12px',
   fontFamily: 'var(--font-sans)',
+  fontVariantNumeric: 'tabular-nums',
   border: '1px solid var(--color-border-subtle)',
   borderRadius: 'var(--radius-sm)',
   backgroundColor: 'var(--color-bg-surface-alt)',
@@ -149,46 +189,75 @@ const STYLE_PRESETS: StylePreset[] = [
 export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   elem,
   totalFiguras,
-  onUpdateImage,
+  onUpdate,
   onApplyToAll,
 }) => {
   const [tabActiva, setTabActiva] = useState<InspectorTabKey>('formato');
   const [alcance, setAlcance] = useState<'esta' | 'todas'>('esta');
 
+  // Las tablas no tienen imagen: ocultar todo control exclusivo de figura.
+  const esTabla = elem.type === 'table';
+
   const imgInfo = (elem.image_info || {}) as Partial<NonNullable<ElementModel['image_info']>>;
+  const tablaInfo = (elem.table_info || {}) as Partial<NonNullable<ElementModel['table_info']>>;
+  const infoTexto = esTabla ? tablaInfo : imgInfo;
   const widthCm = typeof imgInfo.width_cm === 'number' ? imgInfo.width_cm : 14.5;
   const heightCm = typeof imgInfo.height_cm === 'number' ? imgInfo.height_cm : 9.0;
   const alignment = imgInfo.alignment || 'center';
-  const caption = imgInfo.caption || '';
-  const note = imgInfo.note || '';
-  const altText = imgInfo.alt_text || '';
+  const caption = infoTexto.caption || '';
+  const note = infoTexto.note || '';
+  const altText = esTabla ? '' : imgInfo.alt_text || '';
+  const numeroActivo = esTabla ? tablaInfo.table_number ?? null : imgInfo.figure_number ?? null;
   const currentStyle: DesignStyle = imgInfo.design_style || 'standard';
+  const constrain = imgInfo.constrain_proportions !== false;
+  const border: BordeActivo = imgInfo.border || 'none';
+  const shadow = Boolean(imgInfo.shadow);
+  const esquinas: EsquinasActivas = imgInfo.corner_radius || 'none';
+  const rotation = typeof imgInfo.rotation === 'number' ? imgInfo.rotation : 0;
+  const flipH = Boolean(imgInfo.flip_h);
+  const flipV = Boolean(imgInfo.flip_v);
+  const pixelesAncho = useAnchoPixeles(esTabla ? undefined : imgInfo.relative_url);
+  const dpi = pixelesAncho ? dpiEfectivo(pixelesAncho, widthCm) : null;
 
-  const checks = [
+  const checks: { id: string; passed: boolean; label: string; failMessage: string }[] = [
     {
       id: 'caption',
       passed: Boolean(caption && caption.trim().length > 0),
       label: 'Título breve y descriptivo en cursiva',
       failMessage: 'Falta título o leyenda en la figura.',
     },
-    {
-      id: 'width',
-      passed: widthCm <= 16.5,
-      label: 'Ancho dentro del margen útil (≤ 16.5 cm)',
-      failMessage: `Excede ancho de caja útil (${widthCm.toFixed(1)} cm > 16.5 cm).`,
-    },
-    {
-      id: 'alt',
-      passed: Boolean(altText && altText.trim().length > 0),
-      label: 'Texto alternativo para lectores de pantalla',
-      failMessage: 'Sin texto alternativo accesible.',
-    },
+    ...(!esTabla
+      ? [
+          {
+            id: 'width',
+            passed: widthCm <= 16.5,
+            label: 'Ancho dentro del margen útil (≤ 16.5 cm)',
+            failMessage: `Excede ancho de caja útil (${widthCm.toFixed(1)} cm > 16.5 cm).`,
+          },
+          {
+            id: 'alt',
+            passed: Boolean(altText && altText.trim().length > 0),
+            label: 'Texto alternativo para lectores de pantalla',
+            failMessage: 'Sin texto alternativo accesible.',
+          },
+          ...(dpi !== null
+            ? [
+                {
+                  id: 'dpi',
+                  passed: !esBajaResolucion(dpi),
+                  label: `Resolución suficiente (≥ ${DPI_MIN} ppp)`,
+                  failMessage: `Imagen de baja resolución (${dpi} ppp < ${DPI_MIN} ppp).`,
+                },
+              ]
+            : []),
+        ]
+      : []),
   ];
   const cumpidos = checks.filter((c) => c.passed).length;
   const todoConforme = cumpidos === checks.length;
 
-  const handleUpdate = (patch: Partial<NonNullable<ElementModel['image_info']>>) => {
-    onUpdateImage(elem.id, patch);
+  const handleUpdate = (patch: ActivoPatch) => {
+    onUpdate(elem.id, patch);
   };
 
   const handleAutocompletar = () => {
@@ -202,12 +271,45 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
     });
   };
 
+  // Al cambiar el ancho con proporción bloqueada, el alto acompaña.
+  const cambiarAncho = (v: number) => {
+    const patch: ActivoPatch = { width_cm: v };
+    const r = ratioDeDimensiones(widthCm, heightCm);
+    if (constrain && r) patch.height_cm = altoProporcional(v, r);
+    handleUpdate(patch);
+  };
+
+  const btnMarco: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    padding: '7px 4px',
+    fontSize: '11px',
+    cursor: 'pointer',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-border-subtle)',
+    backgroundColor: 'var(--color-bg-surface-alt)',
+    color: 'var(--color-text-secondary)',
+    transition: 'background-color var(--transition-fast), border-color var(--transition-fast)',
+  };
+  const activoMarco: React.CSSProperties = {
+    borderColor: 'var(--color-accent)',
+    backgroundColor: 'var(--color-accent-soft)',
+    color: 'var(--color-accent)',
+  };
+
   const tabs: { key: InspectorTabKey; label: string; icon: LucideIcon }[] = [
-    { key: 'formato', label: 'Formato', icon: Sliders },
+    ...(esTabla ? [] : [{ key: 'formato' as const, label: 'Formato', icon: Sliders }]),
     { key: 'texto', label: 'Texto', icon: Type },
     { key: 'estilo', label: 'Estilo', icon: Palette },
     { key: 'calidad', label: 'Calidad', icon: ShieldCheck },
   ];
+  // Si el cambio de activo deja la pestaña activa fuera de las disponibles
+  // (p. ej. estaba en Estilo y ahora es una tabla), caer a la primera válida.
+  const tabEfectiva: InspectorTabKey = tabs.some((t) => t.key === tabActiva)
+    ? tabActiva
+    : tabs[0].key;
 
   const alignBtn = (valor: 'left' | 'center' | 'right', label: string, Icon: LucideIcon) => {
     const activo = alignment === valor;
@@ -243,7 +345,8 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        width: '320px',
+        width: '100%',
+        minWidth: 0,
         flexShrink: 0,
         backgroundColor: 'var(--color-bg-surface)',
         borderLeft: '1px solid var(--color-border-subtle)',
@@ -257,14 +360,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         role="tablist"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: `repeat(${tabs.length}, 1fr)`,
           borderBottom: '1px solid var(--color-border-subtle)',
           backgroundColor: 'var(--color-bg-surface)',
         }}
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActiva = tabActiva === tab.key;
+          const isActiva = tabEfectiva === tab.key;
           return (
             <button
               key={tab.key}
@@ -276,19 +379,19 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '3px',
+                gap: '4px',
                 padding: '9px 4px',
                 border: 'none',
                 borderBottom: isActiva ? '2px solid var(--color-accent)' : '2px solid transparent',
-                backgroundColor: 'transparent',
+                backgroundColor: isActiva ? 'var(--color-accent-soft)' : 'transparent',
                 color: isActiva ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
                 fontWeight: isActiva ? 600 : 500,
-                fontSize: '10px',
+                fontSize: '11px',
                 cursor: 'pointer',
-                transition: 'color var(--transition-fast), border-color var(--transition-fast)',
+                transition: 'background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast)',
               }}
             >
-              <Icon size={15} />
+              <Icon size={16} />
               <span>{tab.label}</span>
             </button>
           );
@@ -307,12 +410,12 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         }}
       >
         {/* ── FORMATO ── */}
-        {tabActiva === 'formato' && (
+        {tabEfectiva === 'formato' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={metaLabel}>Dimensiones</span>
-                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
+                <span style={sectionLabel}>Dimensiones</span>
+                <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--color-accent)' }}>
                   {widthCm.toFixed(1)} × {heightCm.toFixed(1)} cm
                 </span>
               </div>
@@ -329,7 +432,10 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     min="3"
                     max="20"
                     value={widthCm}
-                    onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!Number.isNaN(v)) cambiarAncho(v);
+                    }}
                     style={fieldStyle}
                   />
                 </div>
@@ -344,8 +450,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     min="2"
                     max="25"
                     value={heightCm}
-                    onChange={(e) => handleUpdate({ height_cm: parseFloat(e.target.value) || 1 })}
-                    style={fieldStyle}
+                    readOnly={constrain}
+                    aria-readonly={constrain}
+                    title={constrain ? 'Se calcula desde el ancho (proporción bloqueada)' : undefined}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!Number.isNaN(v)) handleUpdate({ height_cm: v });
+                    }}
+                    style={{ ...fieldStyle, opacity: constrain ? 0.6 : 1, cursor: constrain ? 'not-allowed' : 'text' }}
                   />
                 </div>
               </div>
@@ -357,15 +469,26 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 max="17"
                 step="0.5"
                 value={widthCm}
-                onChange={(e) => handleUpdate({ width_cm: parseFloat(e.target.value) })}
+                onChange={(e) => cambiarAncho(parseFloat(e.target.value))}
                 style={{ width: '100%', accentColor: 'var(--color-accent)', marginTop: '2px' }}
               />
+
+              <label htmlFor="field-proporcion" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '2px' }}>
+                <input
+                  id="field-proporcion"
+                  type="checkbox"
+                  checked={constrain}
+                  onChange={(e) => handleUpdate({ constrain_proportions: e.target.checked })}
+                  style={{ accentColor: 'var(--color-accent)' }}
+                />
+                <span style={{ ...fieldLabel, marginBottom: 0 }}>Alto automático (conservar proporción)</span>
+              </label>
             </div>
 
             <div style={hairline} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={metaLabel}>Alineación</span>
+              <span style={sectionLabel}>Alineación</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                 {alignBtn('left', 'Izquierda', AlignLeft)}
                 {alignBtn('center', 'Centro', AlignCenter)}
@@ -375,8 +498,98 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
 
             <div style={hairline} />
 
+            {/* Marco: borde, sombra y esquinas */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <label htmlFor="select-alcance" style={metaLabel}>
+              <span style={sectionLabel}>Marco</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+                <div>
+                  <label htmlFor="field-borde" style={fieldLabel}>Borde</label>
+                  <select
+                    id="field-borde"
+                    value={border}
+                    onChange={(e) => handleUpdate({ border: e.target.value as BordeActivo })}
+                    style={fieldStyle}
+                  >
+                    <option value="none">Sin borde</option>
+                    <option value="subtle">Sutil</option>
+                    <option value="strong">Marcado</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="field-esquinas" style={fieldLabel}>Esquinas</label>
+                  <select
+                    id="field-esquinas"
+                    value={esquinas}
+                    onChange={(e) => handleUpdate({ corner_radius: e.target.value as EsquinasActivas })}
+                    style={fieldStyle}
+                  >
+                    <option value="none">Rectas</option>
+                    <option value="sm">Suaves</option>
+                    <option value="md">Redondeadas</option>
+                    <option value="lg">Muy redondeadas</option>
+                  </select>
+                </div>
+              </div>
+              <label htmlFor="field-sombra" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  id="field-sombra"
+                  type="checkbox"
+                  checked={shadow}
+                  onChange={(e) => handleUpdate({ shadow: e.target.checked })}
+                  style={{ accentColor: 'var(--color-accent)' }}
+                />
+                <span style={{ ...fieldLabel, marginBottom: 0 }}>Sombra</span>
+              </label>
+            </div>
+
+            <div style={hairline} />
+
+            {/* Rotación y espejo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={sectionLabel}>Rotación</span>
+                <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--color-accent)' }}>
+                  {rotation}°
+                </span>
+              </div>
+              <input
+                aria-label="Rotación (grados)"
+                type="range"
+                min="-180"
+                max="180"
+                step="1"
+                value={rotation}
+                onChange={(e) => handleUpdate({ rotation: parseInt(e.target.value, 10) })}
+                style={{ width: '100%', accentColor: 'var(--color-accent)' }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button
+                  type="button"
+                  aria-label="Voltear horizontal"
+                  aria-pressed={flipH}
+                  onClick={() => handleUpdate({ flip_h: !flipH })}
+                  style={{ ...btnMarco, ...(flipH ? activoMarco : {}) }}
+                >
+                  <FlipHorizontal2 size={13} />
+                  <span>Voltear H</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Voltear vertical"
+                  aria-pressed={flipV}
+                  onClick={() => handleUpdate({ flip_v: !flipV })}
+                  style={{ ...btnMarco, ...(flipV ? activoMarco : {}) }}
+                >
+                  <FlipVertical2 size={13} />
+                  <span>Voltear V</span>
+                </button>
+              </div>
+            </div>
+
+            <div style={hairline} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <label htmlFor="select-alcance" style={sectionLabel}>
                 Alcance
               </label>
               <select
@@ -401,12 +614,17 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         )}
 
         {/* ── TEXTO ── */}
-        {tabActiva === 'texto' && (
+        {tabEfectiva === 'texto' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div>
-              <label htmlFor="field-caption" style={{ ...fieldLabel, fontWeight: 600 }}>
-                Título / Leyenda
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                <label htmlFor="field-caption" style={{ ...fieldLabel, fontWeight: 600 }}>
+                  Título / Leyenda
+                </label>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-tertiary)' }}>
+                  {caption.length} caracteres
+                </span>
+              </div>
               <input
                 id="field-caption"
                 type="text"
@@ -417,9 +635,14 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
               />
             </div>
             <div>
-              <label htmlFor="field-note" style={{ ...fieldLabel, fontWeight: 600 }}>
-                Nota al pie
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                <label htmlFor="field-note" style={{ ...fieldLabel, fontWeight: 600 }}>
+                  Nota al pie
+                </label>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-tertiary)' }}>
+                  {note.length} caracteres
+                </span>
+              </div>
               <textarea
                 id="field-note"
                 rows={3}
@@ -429,26 +652,65 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                 style={{ ...fieldStyle, resize: 'vertical' }}
               />
             </div>
-            <div>
-              <label htmlFor="field-alt-text" style={{ ...fieldLabel, fontWeight: 600 }}>
-                Texto alternativo
-              </label>
-              <input
-                id="field-alt-text"
-                type="text"
-                value={altText}
-                onChange={(e) => handleUpdate({ alt_text: e.target.value })}
-                placeholder="Descripción para lectores de pantalla..."
-                style={fieldStyle}
-              />
+            {!esTabla && (
+              <div>
+                <label htmlFor="field-alt-text" style={{ ...fieldLabel, fontWeight: 600 }}>
+                  Texto alternativo
+                </label>
+                <input
+                  id="field-alt-text"
+                  type="text"
+                  value={altText}
+                  onChange={(e) => handleUpdate({ alt_text: e.target.value })}
+                  placeholder="Descripción para lectores de pantalla..."
+                  style={fieldStyle}
+                />
+              </div>
+            )}
+
+            {/* Mini vista previa: rótulo, título en cursiva y nota, como se leen en la hoja */}
+            <div
+              data-testid="texto-preview"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                padding: 'var(--space-3)',
+                border: '1px dashed var(--color-border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-bg-surface-alt)',
+              }}
+            >
+              <span style={sectionLabel}>Vista previa</span>
+              <span style={{ fontWeight: 700, fontSize: '12px', color: 'var(--color-text-primary)' }}>
+                {esTabla ? 'Tabla' : 'Figura'} {numeroActivo}
+              </span>
+              {caption ? (
+                <span style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--color-text-primary)' }}>{caption}</span>
+              ) : (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)' }}>Sin título todavía</span>
+              )}
+              {note && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Nota. {note}</span>
+              )}
             </div>
+
           </div>
         )}
 
         {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
-        {tabActiva === 'estilo' && (
+        {tabEfectiva === 'estilo' && esTabla && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <span style={metaLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
+            <span style={sectionLabel}>Estilo de tabla ({PRESETS_TABLA.length})</span>
+            <TablaEstiloSelector
+              valor={(tablaInfo.style as any) || 'apa'}
+              onChange={(p) => handleUpdate({ style: p } as ActivoPatch)}
+            />
+          </div>
+        )}
+        {tabEfectiva === 'estilo' && !esTabla && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <span style={sectionLabel}>Presets APA 7 ({STYLE_PRESETS.length})</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
               {STYLE_PRESETS.map((preset) => {
                 const isSelected = currentStyle === preset.value;
@@ -472,15 +734,15 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
         )}
 
         {/* ── CALIDAD: diagnóstico sin amarillos ── */}
-        {tabActiva === 'calidad' && (
+        {tabEfectiva === 'calidad' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={metaLabel}>Diagnóstico APA 7</span>
+              <span style={sectionLabel}>Diagnóstico APA 7</span>
               <span
                 style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 600,
-                  padding: '1px 6px',
+                  padding: '2px 8px',
                   borderRadius: 'var(--radius-full)',
                   backgroundColor: todoConforme ? 'var(--color-success-a12)' : 'var(--color-ink-a08)',
                   color: todoConforme ? 'var(--color-success)' : 'var(--color-text-secondary)',
@@ -508,9 +770,9 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
                     <AlertCircle size={15} style={{ color: 'var(--color-danger)', flexShrink: 0, marginTop: '1px' }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 500 }}>{chk.label}</p>
+                    <p style={{ margin: 0, fontSize: '12px', fontWeight: 500 }}>{chk.label}</p>
                     {!chk.passed && (
-                      <p style={{ margin: '2px 0 0', fontSize: '10px', color: 'var(--color-danger)' }}>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--color-danger)' }}>
                         {chk.failMessage}
                       </p>
                     )}
@@ -519,10 +781,12 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
               ))}
             </div>
 
-            <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
-              <Sparkles size={13} />
-              <span>Autocompletar recomendación APA</span>
-            </button>
+            {!esTabla && (
+              <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
+                <Sparkles size={13} />
+                <span>Autocompletar recomendación APA</span>
+              </button>
+            )}
           </div>
         )}
       </div>

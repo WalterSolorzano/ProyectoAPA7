@@ -1,50 +1,55 @@
 /**
- * WordAPA7 — la exportación por alcances no manda alcances inválidos.
+ * WordAPA7 — la descarga del DOCX no duplica el prefijo `/api`.
  *
- * `scoped_apply.apply_scopes` rechaza cualquier alcance fuera de
- * `VALID_SCOPES` con un `ValueError`. Un estado guardado con los módulos finos
- * viejos (`titulos`, `tablas`, `imagenes`) entraba tal cual y hacía que la
- * exportación por partes cayera al formato completo con un aviso: el usuario
- * elegía "solo bibliografía" y recibía todo formateado.
+ * `getApiBase()` ya termina en `/api` (Electron y dev) y el backend devuelve
+ * `download_url` root-relative (`/api/download-artifact/...`). Concatenar los
+ * dos producía `/api/api/download-artifact/...`, el backend respondía 404 y el
+ * navegador bajaba ese JSON en vez del `.docx`. El PDF ya hacía el recorte; el
+ * DOCX lo había perdido.
  *
- * Ahora el borde traduce con la fuente única (`alcancesDe`) antes de llamar al
- * motor, así que al backend solo llegan alcances que entiende.
+ * Esta prueba fija el borde exacto: con una base que SÍ termina en `/api`, la
+ * URL que se pide para el artefacto es la correcta, sin `/api/api/`.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../api/backend', () => ({
-  getApiBase: vi.fn().mockReturnValue('http://localhost:8742'),
-  getApiBaseAsync: vi.fn().mockResolvedValue('http://localhost:8742'),
+  getApiBase: vi.fn().mockReturnValue('http://localhost:8742/api'),
+  getApiBaseAsync: vi.fn().mockResolvedValue('http://localhost:8742/api'),
   resolveAssetUrl: vi.fn(),
   fetchWithTrace: vi.fn(),
-  scopedApply: vi.fn().mockResolvedValue({ status: 'ok' }),
 }));
 
 import { useDocStore } from '../store/useDocStore';
-import * as api from '../api/backend';
 
-const VALIDOS = ['texto', 'tablas_imagenes', 'bibliografia'];
+const ARTEFACTO = '/api/download-artifact/s1/abc';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  /* `triggerDownload` hace un fetch; sin esto el test dispara una descarga real. */
-  (globalThis as any).fetch = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob() });
+  /* `triggerDownload` hace un fetch del artefacto; la generación hace otro al
+     endpoint `/generate`. Se enrutan por URL. */
+  (globalThis as any).fetch = vi.fn((url: string) => {
+    if (url.includes('/generate')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ download_url: ARTEFACTO, filename: 'APA7_trabajo.docx' }),
+      });
+    }
+    return Promise.resolve({ ok: true, status: 200, blob: async () => new Blob() });
+  });
   useDocStore.setState({
     doc: { session_id: 's1', file_name: 'trabajo.docx', elements: [] } as never,
     isLoading: false,
   } as never);
 });
 
-describe('exportDocx normaliza los alcances antes de llamar al motor', () => {
-  it('un estado viejo con módulos finos no llega como alcance inválido', async () => {
-    useDocStore.setState({ sessionScopes: ['titulos', 'tablas', 'imagenes'] } as never);
-
+describe('exportDocx arma la URL de descarga sin duplicar /api', () => {
+  it('el artefacto se pide a /api/download-artifact, nunca a /api/api/...', async () => {
     await useDocStore.getState().exportDocx(false);
 
-    expect(api.scopedApply).toHaveBeenCalledTimes(1);
-    const scopes = (api.scopedApply as any).mock.calls[0][1] as string[];
-    for (const s of scopes) expect(VALIDOS).toContain(s);
-    expect(scopes).toContain('texto');
-    expect(scopes).toContain('tablas_imagenes');
+    const urls = (globalThis.fetch as any).mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u) => u.includes('/generate'))).toBe(true);
+    expect(urls).toContain(`http://localhost:8742${ARTEFACTO}`);
+    expect(urls.some((u) => u.includes('/api/api/'))).toBe(false);
   });
 });

@@ -37,15 +37,20 @@ export interface ReviewActionStore {
   autoResolveGhosts: () => Promise<void>;
   autoCaptionAll: () => Promise<void>;
   /** El canal de descarte del LIENZO. `dismiss` tiene que salir por los dos:
-   *  la fila del rack (estado de esta vista) y la burbuja con su subrayado
-   *  (este callback). AGENTS.md §2 los exige juntos. */
+   *  la lista del workbench y la burbuja con su subrayado (este callback).
+   *  AGENTS.md §2 los exige juntos. */
   dismissComment: (elementId: string) => void;
+  /** El descarte del WORKBENCH. Es la MISMA lista que cuenta el rail: el
+   *  hallazgo sale de `reviewItems` en cuanto el store lo registra. Antes esto
+   *  era un `useState` local de la vista, y por eso el rail y la pantalla podían
+   *  contar distinto. */
+  dismissFinding: (id: string) => void;
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void;
 }
 
-/** El estado de la vista que la capa de efecto muta. */
+/** El estado de la vista que la capa de efecto muta. El descarte NO vive acá:
+ *  vive en el store (`dismissFinding`), que es la fuente que comparte el rail. */
 export interface ReviewActionState {
-  setDismissedIds: (updater: (prev: string[]) => string[]) => void;
   setMarkedIds: (updater: (prev: string[]) => string[]) => void;
   setSelectedId: (updater: (prev: string | null) => string | null) => void;
 }
@@ -60,8 +65,8 @@ export interface ReviewActions {
 }
 
 export function useReviewActions(store: ReviewActionStore, state: ReviewActionState): ReviewActions {
-  const { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, showToast } = store;
-  const { setDismissedIds, setMarkedIds, setSelectedId } = state;
+  const { doc, updateElementText, autoResolveGhosts, autoCaptionAll, dismissComment, dismissFinding, showToast } = store;
+  const { setMarkedIds, setSelectedId } = state;
 
   /* Hay UNA escritura en curso a la vez. `acceptMany` recorre los hallazgos de
      uno en uno y `aplicar` hace una llamada de red por hallazgo sin sugerencia:
@@ -112,7 +117,10 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
           }
           await updateElementText(item.element_id, reescrito);
         }
-        setDismissedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+        /* El hallazgo aplicado sale de la lista por el mismo canal que un
+           descarte: el store. Un `useState` local habría dejado al rail
+           contando un hallazgo que la pantalla ya resolvió. */
+        dismissFinding(item.id);
         setSelectedId((prev) => (prev === item.id ? null : prev));
         showToast('Corrección aplicada al documento', 'success');
         return true;
@@ -121,7 +129,7 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
         return false;
       }
     },
-    [doc, updateElementText, setDismissedIds, setSelectedId, showToast],
+    [doc, updateElementText, dismissFinding, setSelectedId, showToast],
   );
 
   /** El cerrojo, envuelto. Toda escritura al documento pasa por acá: aceptar
@@ -271,19 +279,19 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
      vista. AGENTS.md §2: un hallazgo se anuncia en el subrayado inline y en la
      burbuja del gutter, y se descarta en los dos a la vez — el canal del lienzo
      es `dismissComment(elementId)` del store, que es lo que leen `ReadingText`
-     y `WhatsAppComment`. Filtrar solo `dismissedIds` sacaba la fila del rack y
-     dejaba la burbuja y su subrayado pegados a la página: la misma
+     y `WhatsAppComment`. Descartar solo en la lista sacaba el hallazgo del
+     workbench y dejaba la burbuja y su subrayado pegados a la página: la misma
      contradicción, al revés. Un hallazgo sin elemento (una referencia huérfana
      vive en la bibliografía) no tiene a qué anclarse en el lienzo, y por eso no
      hay nada que descartar ahí. */
   const dismiss = useCallback(
     (item: AuditItem) => {
-      setDismissedIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+      dismissFinding(item.id);
       setSelectedId((prev) => (prev === item.id ? null : prev));
       if (item.element_id) dismissComment(item.element_id);
       showToast('Alerta descartada. Texto original conservado.', 'info');
     },
-    [dismissComment, setDismissedIds, setSelectedId, showToast],
+    [dismissComment, dismissFinding, setSelectedId, showToast],
   );
 
   return { acceptOne, acceptMany, markForReview, runGroupAction, dismiss, isApplying };

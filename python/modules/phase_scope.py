@@ -62,7 +62,8 @@ PHASES: Tuple[PhaseConfig, ...] = (
                  "objetivo general", "objetivos generales", "objetivo especifico",
                  "objetivos especificos", "objetivos especificos de la investigacion",
                  "objetivos especificos de la investigacion"),
-                criteria=("bloom_verb", "objetivo_sin_variable")),
+                criteria=("bloom_verb", "objetivo_sin_variable",
+                          "objetivo_sin_infinitivo", "objetivo_multi_verbo")),
     PhaseConfig("introduccion", "Introduccion",
                 ("introduccion", "introduccion al problema", "planteamiento del problema"),
                 criteria=("paragraph_words",), paragraph_words=(80, 200)),
@@ -88,7 +89,9 @@ PHASES: Tuple[PhaseConfig, ...] = (
                 criteria=("verbo_pasado",)),
     PhaseConfig("referencias", "Referencias",
                 ("referencias", "referencias bibliograficas", "bibliografia",
-                 "bibliografia consultada", "works cited")),
+                 "bibliografia consultada", "works cited"),
+                criteria=("apa_ampersand", "apa_doi_forma", "apa_edicion",
+                          "apa_et_al", "apa_espaciado", "apa_punto_final")),
     PhaseConfig("anexos", "Anexos",
                 ("anexos", "anexo", "apendice", "apendices")),
 )
@@ -246,10 +249,19 @@ RULE_SCOPES: Dict[str, str] = {
     # "el umbral depende de la fase", no una fase en concreto.
     "bloom_vague": "objetivos",
     "objetivo_sin_variable": "objetivos",
+    "objetivo_sin_infinitivo": "objetivos",
+    "objetivo_multi_verbo": "objetivos",
     "metodo_sin_detalle": "metodo",
     "paragraph_words": "fase",
     "verbo_pasado": "fase",
     "parafrasis_vs_cita": "marco_teorico",
+    # Lint APA 7 de la seccion de Referencias: solo dentro de la bibliografia.
+    "apa_ampersand": "referencias",
+    "apa_doi_forma": "referencias",
+    "apa_edicion": "referencias",
+    "apa_et_al": "referencias",
+    "apa_espaciado": "referencias",
+    "apa_punto_final": "referencias",
     "portada_title_larga": PORTADA_KEY,
     "portada_punto_final": PORTADA_KEY,
     # Las ocho universales baratas del spec §12 NO se declaran todas aca: cada
@@ -361,6 +373,73 @@ def _check_objetivo_sin_variable(eid: str, text: str, cfg: PhaseConfig, mk) -> L
                phase=cfg.key, read_only=cfg.read_only)]
 
 
+# Verbos de accion que un objetivo de investigacion puede usar como verbo
+# rector. Es una lista BLANCA a proposito: contar cualquier palabra terminada
+# en -ar/-er/-ir daria falsos positivos con sustantivos ("lugar", "mujer",
+# "taller"), y una ley que dispara de mas deja de ser una ley.
+_OBJETIVO_VERBOS: frozenset = frozenset((
+    "identificar", "definir", "listar", "mencionar", "nombrar", "reconocer",
+    "comprender", "explicar", "describir", "interpretar", "resumir",
+    "clasificar", "comparar", "aplicar", "usar", "implementar", "demostrar",
+    "calcular", "analizar", "diferenciar", "organizar", "relacionar",
+    "examinar", "contrastar", "evaluar", "justificar", "argumentar",
+    "valorar", "criticar", "crear", "diseñar", "desarrollar", "construir",
+    "proponer", "formular", "elaborar", "planificar", "determinar", "medir",
+    "cuantificar", "establecer", "optimizar", "mejorar", "reducir",
+    "incrementar", "generar", "validar", "verificar", "diagnosticar",
+    "caracterizar", "seleccionar", "escoger", "modelar", "simular",
+    "estimar", "comprobar", "corroborar", "sustentar", "fundamentar",
+    "presentar", "redactar", "plantear",
+))
+
+# Palabras que terminan en -ar/-er/-ir pero NO son verbos: si abren el
+# objetivo, no lo hacen con un verbo, y la ley tiene que verlo.
+_NO_VERBO_INFINITIVO: frozenset = frozenset((
+    "lugar", "lugares", "familiar", "familiares", "escolar", "escolares",
+    "profesional", "profesionales", "principal", "principales", "general",
+    "generales", "particular", "particulares", "similar", "similares",
+    "celular", "hogar", "lunar", "militar", "nuclear", "angular", "mujer",
+    "mujeres", "taller", "talleres", "mayor", "mayores", "mejor", "mejores",
+    "poder", "deber",
+))
+
+
+def _limpiar_palabra(raw: str) -> str:
+    return re.sub(r"[^a-záéíóúñü]", "", (raw or "").lower())
+
+
+def _es_infinitivo(palabra: str) -> bool:
+    return (len(palabra) >= 4
+            and palabra.endswith(("ar", "er", "ir"))
+            and palabra not in _NO_VERBO_INFINITIVO)
+
+
+def _check_objetivo_sin_infinitivo(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    palabras = [p for p in (_limpiar_palabra(w) for w in _WORD_SPLIT.findall(text or "")) if p]
+    if len(palabras) < 2:
+        return []
+    if _es_infinitivo(palabras[0]):
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_sin_infinitivo", "warn",
+               "El objetivo debe abrir con un verbo en infinitivo "
+               "(determinar, evaluar, analizar), y empieza con "
+               f'"{palabras[0]}".',
+               suggestion="Determinar...", phase=cfg.key,
+               read_only=cfg.read_only)]
+
+
+def _check_objetivo_multi_verbo(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    verbos = [p for p in (_limpiar_palabra(w) for w in _WORD_SPLIT.findall(text or ""))
+              if p in _OBJETIVO_VERBOS]
+    if len(verbos) <= 1:
+        return []
+    return [mk(eid, text, 0, len(text or ""), "objetivo_multi_verbo", "warn",
+               f"El objetivo encadena {len(verbos)} verbos de accion "
+               f"({', '.join(verbos)}); la regla pide uno solo.",
+               suggestion="Elegí un unico verbo rector para el objetivo.",
+               phase=cfg.key, read_only=cfg.read_only)]
+
+
 def _check_metodo_sin_detalle(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
     low = (text or "").lower()
     if not low.strip():
@@ -454,6 +533,129 @@ def _check_parafrasis_vs_cita(eid: str, text: str, cfg: PhaseConfig, mk) -> List
     return []
 
 
+# ── Lint APA 7 de la seccion de Referencias ─────────────────────────────────
+#
+# Seis reglas de FORMA sobre el texto de una entrada de la bibliografia. Ninguna
+# decide si la referencia es correcta —eso lo dice la verificacion contra una
+# fuente—; dicen que una entrada no sigue la forma que APA 7 fija para ese
+# campo. Cada una trae el texto COMPLETO corregido en `suggestion` porque el
+# boton "Aceptar" escribe el elemento entero, no el fragmento.
+#
+# No corren sobre el encabezado de la seccion: `match_phase_exact` ya sabe cual
+# es, y sin esa guarda "Referencias" se reportaria a si misma.
+
+_APA_YEAR_RE = re.compile(r"\(\s*(?:1[89]|20)\d{2}[a-z]?\s*\)")
+_APA_EDICION_RE = re.compile(r"\(\s*(\d+)\s*(?:a|ª|\.ª|\.)?\s*ed\.?\s*\)", re.IGNORECASE)
+_APA_DOI_RE = re.compile(r"10\.\d{4,9}/[^\s,;)\]]+")
+_APA_DOI_PREFIJO_RE = re.compile(r"(?:doi\s*:\s*|https?://(?:dx\.)?doi\.org/)", re.IGNORECASE)
+_APA_ETAL_RE = re.compile(r"\bet\.?\s*al(?!\.)", re.IGNORECASE)
+_APA_DOBLE_ESPACIO_RE = re.compile(r"\S {2,}\S")
+_APA_ESPACIO_PUNTUACION_RE = re.compile(r"\s+[.,;:]")
+
+
+def _es_encabezado_referencias(text: str) -> bool:
+    """True si el texto ES el titulo de la seccion de Referencias."""
+    return match_phase_exact(text or "") == REFERENCES_PHASE
+
+
+def _check_apa_ampersand(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """Entre autores APA 7 usa ``&``, no la conjuncion en espanol."""
+    if _es_encabezado_referencias(text):
+        return []
+    ym = _APA_YEAR_RE.search(text or "")
+    if not ym:
+        return []
+    autores = text[:ym.start()]
+    m = re.search(r",?\s+y\s+", autores)
+    if not m:
+        return []
+    union = ", & " if m.group(0).strip().startswith(",") else " & "
+    nuevo = autores[:m.start()] + union + autores[m.end():] + text[ym.start():]
+    return [mk(eid, text, m.start(), m.end(), "apa_ampersand", "warn",
+               'En APA 7 la lista de autores se une con "&", no con "y".',
+               suggestion=nuevo, phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_apa_doi_forma(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """El DOI se escribe como URL canonica ``https://doi.org/...``."""
+    if _es_encabezado_referencias(text):
+        return []
+    m = _APA_DOI_RE.search(text or "")
+    if not m:
+        return []
+    doi = m.group(0).rstrip(".,;")
+    canon = "https://doi.org/" + doi
+    inicio = m.start()
+    for pm in _APA_DOI_PREFIJO_RE.finditer(text, 0, m.end()):
+        if pm.end() == m.start():
+            inicio = pm.start()
+    if text[inicio:m.end()].strip() == canon:
+        return []
+    nuevo = text[:inicio] + canon + text[m.end():]
+    return [mk(eid, text, inicio, m.end(), "apa_doi_forma", "info",
+               'El DOI se escribe como "https://doi.org/...", sin "doi:" ni "dx.doi.org".',
+               suggestion=nuevo, phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_apa_edicion(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """La edicion en espanol se escribe ``(2.ª ed.)``."""
+    if _es_encabezado_referencias(text):
+        return []
+    m = _APA_EDICION_RE.search(text or "")
+    if not m:
+        return []
+    canonico = f"({m.group(1)}.ª ed.)"
+    if m.group(0).strip() == canonico:
+        return []
+    nuevo = text[:m.start()] + canonico + text[m.end():]
+    return [mk(eid, text, m.start(), m.end(), "apa_edicion", "info",
+               f'La edicion en espanol se escribe "{canonico}".',
+               suggestion=nuevo, phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_apa_et_al(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """``et al.`` lleva punto."""
+    if _es_encabezado_referencias(text):
+        return []
+    m = _APA_ETAL_RE.search(text or "")
+    if not m:
+        return []
+    nuevo = text[:m.start()] + "et al." + text[m.end():]
+    return [mk(eid, text, m.start(), m.end(), "apa_et_al", "info",
+               '"et al." se escribe con punto.',
+               suggestion=nuevo, phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_apa_espaciado(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """Sin dobles espacios ni espacio antes de puntuacion."""
+    if _es_encabezado_referencias(text):
+        return []
+    m = _APA_DOBLE_ESPACIO_RE.search(text or "") or _APA_ESPACIO_PUNTUACION_RE.search(text or "")
+    if not m:
+        return []
+    nuevo = re.sub(r" {2,}", " ", text)
+    nuevo = re.sub(r"\s+([.,;:])", r"\1", nuevo)
+    if nuevo == text:
+        return []
+    return [mk(eid, text, m.start(), m.end(), "apa_espaciado", "info",
+               "La entrada tiene espacios de mas.",
+               suggestion=nuevo, phase=cfg.key, read_only=cfg.read_only)]
+
+
+def _check_apa_punto_final(eid: str, text: str, cfg: PhaseConfig, mk) -> List[Dict[str, Any]]:
+    """La entrada termina en punto, salvo si cierra en DOI o URL."""
+    if _es_encabezado_referencias(text):
+        return []
+    t = (text or "").rstrip()
+    if len(t) < 15 or t.endswith("."):
+        return []
+    if re.search(r"https?://\S+$", t) or _APA_DOI_RE.search(t[-80:]):
+        return []
+    return [mk(eid, text, len(t), len(text or ""), "apa_punto_final", "info",
+               "Las entradas de la bibliografia terminan en punto.",
+               suggestion=t + ".", phase=cfg.key, read_only=cfg.read_only)]
+
+
 # Criterios que solo tienen sentido sobre el TITULO de la portada, no sobre
 # cualquier elemento de ella.
 #
@@ -471,11 +673,19 @@ _CHECKS = {
     "parafrasis_vs_cita": _check_parafrasis_vs_cita,
     "bloom_verb": _check_bloom_verb,
     "objetivo_sin_variable": _check_objetivo_sin_variable,
+    "objetivo_sin_infinitivo": _check_objetivo_sin_infinitivo,
+    "objetivo_multi_verbo": _check_objetivo_multi_verbo,
     "metodo_sin_detalle": _check_metodo_sin_detalle,
     "paragraph_words": _check_paragraph_words,
     "verbo_pasado": _check_verbo_pasado,
     "portada_title_larga": _check_portada_title_larga,
     "portada_punto_final": _check_portada_punto_final,
+    "apa_ampersand": _check_apa_ampersand,
+    "apa_doi_forma": _check_apa_doi_forma,
+    "apa_edicion": _check_apa_edicion,
+    "apa_et_al": _check_apa_et_al,
+    "apa_espaciado": _check_apa_espaciado,
+    "apa_punto_final": _check_apa_punto_final,
     # `parafrasis_vs_cita` se vivio DOS TAREAS declarado en `marco_teorico`
     # y en RULE_SCOPES sin entrada aca, y `phase_findings` lo ignoraba en
     # silencio: la fase marco teorico tenia 1 criterio vivo de 2 y nadie lo

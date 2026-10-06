@@ -33,7 +33,7 @@ const BLOOM_FORBIDDEN = new Set([
 ]);
 
 // Verbos medibles por nivel de Bloom (para variedad y jerarquía)
-const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
+export const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
   { level: 1, verbs: ['recordar', 'identificar', 'definir', 'listar', 'mencionar', 'nombrar', 'reconocer'] },
   { level: 2, verbs: ['comprender', 'explicar', 'describir', 'resumir', 'interpretar', 'clasificar', 'comparar'] },
   { level: 3, verbs: ['aplicar', 'usar', 'utilizar', 'implementar', 'ejecutar', 'resolver', 'demostrar'] },
@@ -42,7 +42,7 @@ const BLOOM_LEVELS: { level: number; verbs: string[] }[] = [
   { level: 6, verbs: ['crear', 'diseñar', 'desarrollar', 'planear', 'proponer', 'construir', 'elaborar', 'formular'] },
 ];
 
-function bloomLevel(verb: string): number | null {
+export function bloomLevel(verb: string): number | null {
   const v = verb.toLowerCase().replace(/^(me |te |se |le |nos )?/, '');
   for (const lv of BLOOM_LEVELS) {
     if (lv.verbs.some((x) => v.startsWith(x))) return lv.level;
@@ -532,3 +532,139 @@ export const CONTENT_SECTION_LABELS: Record<string, string> = {
   resumen: 'Resumen / Abstract',
   conclusiones: 'Conclusiones y recomendaciones',
 };
+
+// ── Objetivos con nivel Bloom actual y propuesto (para el Informe general) ────
+
+export interface ObjetivoBloom {
+  elementId: string;
+  texto: string;
+  verboActual: string;
+  nivelActual: number | null;
+  nivelPropuesto: number;
+  verboPropuesto: string;
+  /** El general abre la sección; los específicos van después. */
+  esGeneral: boolean;
+  /** Verbos medibles alternativos del nivel propuesto, sin el actual. */
+  alternativas: string[];
+  /** Un segundo verbo medible dentro de la misma frase (p. ej. «… y describir…»). */
+  verboExtra: string | null;
+  tieneDosVerbos: boolean;
+  /** El objetivo se queda en el verbo sin decir sobre qué actúa. */
+  sinVariable: boolean;
+  /** Explicación breve, en una frase, de por qué está o no está bien. */
+  analisis: string;
+}
+
+/** Nivel mínimo que debería alcanzar un objetivo de tesis. */
+const NIVEL_OBJETIVO = 4;
+
+/** Verbos medibles que la taxonomía no lista pero el mockup sí ofrece en chips. */
+const BLOOM_EXTRA: Record<number, string[]> = { 5: ['determinar', 'establecer'] };
+
+const LEXICO_VERBOS = new Set(BLOOM_LEVELS.flatMap((l) => l.verbs));
+
+/** Palabras de enlace que no cuentan como el objeto de un objetivo. */
+const ENLACES = new Set([
+  'los', 'las', 'el', 'la', 'un', 'una', 'unos', 'unas', 'de', 'del', 'al',
+  'y', 'o', 'u', 'que', 'su', 'sus', 'para', 'por', 'con', 'en', 'se', 'lo',
+  'le', 'les', 'como', 'a', 'ante', 'bajo', 'contra', 'desde', 'entre',
+  'hacia', 'hasta', 'sin', 'sobre', 'tras', 'the', 'and',
+]);
+
+function palabras(texto: string): string[] {
+  return (texto.match(/[a-záéíóúñ]+/gi) || []).map((w) => w.toLowerCase());
+}
+
+function verboDeNivel(nivel: number): string {
+  const fila = BLOOM_LEVELS.find((l) => l.level === nivel);
+  return fila ? fila.verbs[0] : '';
+}
+
+/** Verbos medibles que aparecen DESPUÉS del primero (no cuentan los enlaces). */
+function verbosMedibles(texto: string): string[] {
+  return palabras(texto).filter((w, i) => i > 0 && LEXICO_VERBOS.has(w) && isInfinitive(w));
+}
+
+/** ¿El objetivo dice sobre qué o quién actúa, o es solo un verbo suelto? */
+function tieneObjeto(texto: string): boolean {
+  return palabras(texto)
+    .slice(1)
+    .some((w) => w.length > 3 && !ENLACES.has(w) && !LEXICO_VERBOS.has(w));
+}
+
+function alternativasDe(nivel: number, verboActual: string): string[] {
+  const base = BLOOM_LEVELS.find((l) => l.level === nivel)?.verbs ?? [];
+  const extra = BLOOM_EXTRA[nivel] ?? [];
+  return [...base, ...extra].filter((v) => v !== verboActual).slice(0, 3);
+}
+
+function analisisDe(o: {
+  verboActual: string;
+  nivelActual: number | null;
+  nivelPropuesto: number;
+  tieneDosVerbos: boolean;
+  verboExtra: string | null;
+  sinVariable: boolean;
+}): string {
+  if (o.sinVariable) {
+    return `«${o.verboActual}» no dice sobre qué actúa: sin objeto de estudio, el nivel no se puede medir.`;
+  }
+  if (o.tieneDosVerbos && o.verboExtra) {
+    return `Tiene dos verbos; «${o.verboExtra}» apunta a otro nivel. Dejá uno solo.`;
+  }
+  if (o.nivelActual === null) {
+    return `«${o.verboActual}» no es un verbo medible en Bloom; probá uno de nivel ${o.nivelPropuesto}.`;
+  }
+  if (o.nivelActual < o.nivelPropuesto) {
+    return `Arranca en nivel ${o.nivelActual}; para una tesis conviene apuntar al ${o.nivelPropuesto}.`;
+  }
+  return `Nivel ${o.nivelActual}: el verbo sostiene el objetivo.`;
+}
+
+/** Reemplaza SOLO el primer verbo, conservando la mayúscula inicial. */
+export function reemplazarVerbo(texto: string, nuevo: string): string {
+  const m = (texto || '').match(/^([a-zA-ZáéíóúñÁÉÍÓÚÑ]+)/);
+  if (!m) return nuevo ? `${nuevo} ${texto}`.trim() : texto;
+  const eraMayus = m[1][0] === m[1][0].toUpperCase();
+  const verbo = eraMayus ? nuevo.charAt(0).toUpperCase() + nuevo.slice(1) : nuevo;
+  return verbo + texto.slice(m[1].length);
+}
+
+/**
+ * Objetivos del documento con su verbo actual, una propuesta de nivel superior,
+ * el análisis de por qué y un set de alternativas para aplicar.
+ * Reutiliza la misma separación general/específicos que `reviewContent`, para
+ * que el informe y las reglas no cuenten objetivos distintos.
+ */
+export function objetivosBloom(elements: ElementLike[]): ObjetivoBloom[] {
+  if (!elements || elements.length === 0) return [];
+  const objetivos = collectSections(elements)['objetivos'] || [];
+  if (objetivos.length === 0) return [];
+  const { general, especificos } = separarGeneralDeEspecificos(elements, objetivos);
+  const generalIds = new Set(general.map((e) => e.id));
+
+  return [...general, ...especificos]
+    .map((e) => {
+      const texto = (e.text || '').trim();
+      const verboActual = firstWord(texto);
+      if (!verboActual) return null;
+      const nivelActual = bloomLevel(verboActual);
+      const nivelPropuesto = nivelActual === null || nivelActual < NIVEL_OBJETIVO ? NIVEL_OBJETIVO : nivelActual;
+      const verboExtra: string | null = verbosMedibles(texto)[0] ?? null;
+      const parcial: Omit<ObjetivoBloom, 'analisis'> = {
+        elementId: e.id,
+        texto,
+        verboActual,
+        nivelActual,
+        nivelPropuesto,
+        verboPropuesto: nivelPropuesto === nivelActual ? verboActual : verboDeNivel(nivelPropuesto),
+        esGeneral: generalIds.has(e.id),
+        alternativas: alternativasDe(nivelPropuesto, verboActual),
+        verboExtra,
+        tieneDosVerbos: verboExtra !== null,
+        sinVariable: !tieneObjeto(texto),
+      };
+      return { ...parcial, analisis: analisisDe(parcial) };
+    })
+    .filter((x): x is ObjetivoBloom => x !== null);
+}

@@ -7,8 +7,8 @@
  *   auto-ajuste no significa nada, y un texto que se pierde por el camino.
  */
 import React from 'react';
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useDocStore } from '../store/useDocStore';
 import { FocusReadingCard } from '../components/review/FocusReadingCard';
 import type { AuditItem } from '../hooks/useReviewWorkbench';
@@ -179,6 +179,16 @@ describe('T14 - FocusReadingCard', () => {
     expect(screen.getByText(/3 hallazgos en este bloque/)).toBeTruthy();
   });
 
+  it('pinta la fase activa como contexto, y no la inventa si no llega', () => {
+    // La fase la aporta el hook (`allPhases`); la tarjeta solo la muestra. Sin
+    // fase activa, la línea no existe: no se inventa un rótulo.
+    const { unmount } = montar({ phaseLabel: 'Metodo' });
+    expect(screen.getByTestId('review-phase-context').textContent).toBe('Metodo');
+    unmount();
+    montar();
+    expect(screen.queryByTestId('review-phase-context')).toBeNull();
+  });
+
   it('un solo hallazgo no se declara en plural', () => {
     montar({ totalFindings: 1 });
     expect(screen.getByText(/1 hallazgo en este bloque/)).toBeTruthy();
@@ -339,5 +349,60 @@ describe('T14 - tokens', () => {
     const radios = Array.from(SRC.matchAll(/borderRadius:\s*'([^']+)'/g)).map((m) => m[1]);
     expect(radios.length).toBeGreaterThan(0);
     for (const r of radios) expect(r).toMatch(/^var\(--radius-/);
+  });
+});
+
+describe('T14 - la barra de acciones del hallazgo', () => {
+  beforeEach(() => store({ doc: documento([elemento()]) }));
+
+  it('un hallazgo objetivo con sugerencia ofrece Aceptar y lo aplica', () => {
+    const onAccept = vi.fn();
+    montar({ item: item({ suggestedText: 'El diseño no fue tan vivido.' }), action: 'accept', onAccept });
+    fireEvent.click(screen.getByRole('button', { name: 'Aceptar' }));
+    expect(onAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it('con mas de un hallazgo del subtipo ofrece Aceptar todas', () => {
+    const onAcceptAll = vi.fn();
+    montar({ item: item({ suggestedText: 'x' }), action: 'accept', onAccept: vi.fn(), onAcceptAll, bulkCount: 4 });
+    fireEvent.click(screen.getByRole('button', { name: 'Aceptar todas' }));
+    expect(onAcceptAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('el motor probabilistico solo marca: no ofrece Aceptar', () => {
+    const onMark = vi.fn();
+    montar({ item: item({ category: 'ai', subtype: 'parrafo_ia' }), action: 'mark', onMark });
+    expect(screen.queryByRole('button', { name: /^Aceptar/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar para revisar' }));
+    expect(onMark).toHaveBeenCalledTimes(1);
+  });
+
+  it('la portada de solo lectura no ofrece Aceptar, pero si Descartar', () => {
+    montar({
+      item: item({ readOnly: true, category: 'structure', subtype: 'portada' }),
+      action: 'none',
+      onAccept: vi.fn(),
+      onDismiss: vi.fn(),
+    });
+    expect(screen.queryByRole('button', { name: /^Aceptar/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Descartar' })).toBeTruthy();
+  });
+
+  it('sin props de accion la tarjeta solo lee: no pinta la barra', () => {
+    montar({ item: item() });
+    expect(screen.queryByRole('button', { name: 'Descartar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Aceptar/ })).toBeNull();
+  });
+
+  it('los mecanismos de documento ofrecen su propio rotulo, no Aceptar', () => {
+    const onEngineAction = vi.fn();
+    montar({
+      item: item({ category: 'structure', subtype: 'figura' }),
+      action: 'autoCaption',
+      onEngineAction,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Rotular todo' }));
+    expect(onEngineAction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /^Aceptar/ })).toBeNull();
   });
 });

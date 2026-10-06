@@ -30,6 +30,10 @@ from parsing.pre_classifier import (
 )
 
 from generation.bullet_engine import format_bullet_item, format_numbered_item
+from generation.heading_numbering import (
+    _resolver_estilo_de_nivel,
+    _strip_existing_numbering,
+)
 from generation.document_structure import setup_apa_header
 from generation.image_handler import format_apa_figure
 from generation.style_engine import (
@@ -186,17 +190,29 @@ def generate_apa7_from_scratch(
                 num -= v
         return roman
 
+    def _format_numero(n: int, estilo: str) -> str:
+        if estilo in ("upperRoman", "roman"):
+            return _to_roman(n)
+        if estilo == "lowerRoman":
+            return _to_roman(n).lower()
+        if estilo == "upperLetter":
+            return chr(64 + ((n - 1) % 26) + 1)
+        if estilo == "lowerLetter":
+            return chr(96 + ((n - 1) % 26) + 1)
+        return str(n)
+
     def _build_prefix(counters, level: int, style: str) -> str:
         if style == 'none' or level > 2:
+            return ""
+        if level > 1 and counters.get(level - 1, 0) == 0:
             return ""
         parts = []
         for l in range(1, level + 1):
             c = counters.get(l, 0)
             if c > 0:
-                if style == 'roman' and l == 1:
-                    parts.append(_to_roman(c))
-                else:
-                    parts.append(str(c))
+                # El estilo solo manda en el nivel propio; los padres van decimales.
+                estilo_componente = style if l == level else 'decimal'
+                parts.append(_format_numero(c, estilo_componente))
         return ".".join(parts) + ". " if parts else ""
 
     # F3: estado de deduplicación de la sección de Referencias.
@@ -241,6 +257,9 @@ def generate_apa7_from_scratch(
                 heading_counters[lower] = 0
 
             level_style = getattr(rules, f'heading_numbering_style_lvl{lvl}', 'decimal')
+            level_style = _resolver_estilo_de_nivel(
+                lvl, level_style, elem.original_text or elem.text or ""
+            )
             prefix = _build_prefix(heading_counters, lvl, level_style)
 
             # Page break before H1 (skip once si la portada acaba de emitir
@@ -249,7 +268,12 @@ def generate_apa7_from_scratch(
                 doc.add_page_break()
 
             p = doc.add_paragraph()
-            format_heading_paragraph(p, lvl, prefix + (elem.text or ""), rules)
+            # Mismo criterio que `generator.py`: si hay prefijo automatico, se
+            # quita la numeracion manual para no duplicarla.
+            heading_text = elem.text or ""
+            if prefix:
+                heading_text = _strip_existing_numbering(heading_text)
+            format_heading_paragraph(p, lvl, prefix + heading_text, rules)
 
         elif elem_type == ElementType.PARAGRAPH:
             numbered_counters = {1: 0, 2: 0, 3: 0}

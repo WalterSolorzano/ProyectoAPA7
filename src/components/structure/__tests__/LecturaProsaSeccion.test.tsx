@@ -222,6 +222,20 @@ describe('LecturaProsaSeccion', () => {
     ).toBeNull();
   });
 
+  it('carga la imagen real de la figura, no un placeholder (bug: no se veían las figuras)', () => {
+    const { container } = render(
+      <LecturaProsaSeccion
+        seccionActiva={nodoIntro}
+        elementos={elementosMock}
+      />
+    );
+
+    // Debe existir un <img> con el asset resuelto de la figura de la sección.
+    const imagenes = container.querySelectorAll('img');
+    expect(imagenes.length).toBe(1);
+    expect(imagenes[0].getAttribute('src')).toBe('/assets/fig1.png');
+  });
+
   it('aplica maquetación editorial tipo libro con tipografía y estilo académico', () => {
     const { container } = render(
       <LecturaProsaSeccion
@@ -293,5 +307,65 @@ describe('LecturaProsaSeccion', () => {
     );
 
     expect(screen.getByText(/selecciona un capítulo o sección/i)).toBeInTheDocument();
+  });
+
+  it('muestra una lista numerada como contenido, no como vacío', () => {
+    const nodo = {
+      id: 'h2-1', elementoId: 'h2-1', titulo: 'Objetivos específicos', nivel: 2,
+      palabras: 12, figuras: 0, tablas: 0, citas: 0, hijos: [], fase: null,
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'h2-1', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'l1', type: 'numbered_list', text: 'Diseñar el sistema.' },
+      { id: 'l2', type: 'numbered_list', text: 'Implementar el plan.' },
+      { id: 'h2-2', type: 'heading', text: 'Marco teórico', heading_level: 1 },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.queryByText(/no contiene párrafos de prosa/i)).toBeNull();
+    expect(screen.getByText('Diseñar el sistema.')).toBeTruthy();
+  });
+
+  it('no confunde la sección con un título duplicado anterior (TOC)', () => {
+    const nodo = {
+      id: 'h2-1', elementoId: 'h2-1', titulo: 'Objetivos específicos', nivel: 2,
+      palabras: 8, figuras: 0, tablas: 0, citas: 0, hijos: [], fase: null,
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'toc-h', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'toc-p', type: 'paragraph', text: 'Índice (TOC).' },
+      { id: 'h1', type: 'heading', text: 'Objetivos', heading_level: 1 },
+      { id: 'h2-1', type: 'heading', text: 'Objetivos específicos', heading_level: 2 },
+      { id: 'p1', type: 'paragraph', text: 'El objetivo específico es medir.' },
+      { id: 'h1b', type: 'heading', text: 'Marco teórico', heading_level: 1 },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.getByText('El objetivo específico es medir.')).toBeTruthy();
+  });
+
+  it('previsualiza las tablas de la sección en vez de omitirlas (Anexos)', () => {
+    const nodo = {
+      id: 'h1-t', elementoId: 'h1-t', titulo: 'Anexos', nivel: 1,
+      palabras: 6, figuras: 0, tablas: 1, citas: 0, hijos: [], fase: 'anexos',
+    } as unknown as NodoJerarquia;
+    const elementos = [
+      { id: 'h1-t', type: 'heading', text: 'Anexos', heading_level: 1 },
+      {
+        id: 'tbl1',
+        type: 'table',
+        text: '',
+        table_info: {
+          element_id: 'tbl1',
+          headers: ['Variable', 'M'],
+          rows: [['Asistencia', '4.6']],
+          caption: 'Datos recopilados',
+          table_number: 2,
+        },
+      },
+    ] as unknown as ElementModel[];
+    render(<LecturaProsaSeccion seccionActiva={nodo} elementos={elementos} />);
+    expect(screen.queryByText(/no contiene párrafos de prosa/i)).toBeNull();
+    expect(screen.getByText(/Tabla 2\./)).toBeTruthy();
+    expect(screen.getByText('Datos recopilados')).toBeTruthy();
+    expect(screen.getByText('Asistencia')).toBeTruthy();
   });
 });

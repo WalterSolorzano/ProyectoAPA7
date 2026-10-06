@@ -50,6 +50,19 @@ W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 
+def runs_mayoria_negrita(runs) -> bool:
+    """True si más de la mitad de los runs con texto están en negrita.
+
+    Antes bastaba UN run en negrita (semántica OR) para que un párrafo de
+    cuerpo con una sola palabra destacada se clasificara como Heading 4.
+    """
+    con_texto = [r for r in runs if (getattr(r, "text", "") or "").strip()]
+    if not con_texto:
+        return False
+    negritas = sum(1 for r in con_texto if getattr(r, "bold", False))
+    return negritas * 2 > len(con_texto)
+
+
 def _extract_footnotes_and_endnotes(file_bytes: bytes) -> tuple[list[dict], list[dict]]:
     """
     Extrae las notas al pie (word/footnotes.xml) y notas finales (word/endnotes.xml)
@@ -342,6 +355,22 @@ def _normalize_multiline_field(value: str) -> str:
     return '\n'.join(deduped)
 
 
+# Leyendas numeradas de figuras/tablas: NUNCA son campos de portada.
+# Bug reportado: "Figura 9. Recepcion de la materia prima..." se colaba como
+# asignatura (la subcadena "materia" esta en COURSE_KW) y "Figura 1. ..." como
+# titulo (era el texto no asignado mas largo).
+_CAPTION_RE = re.compile(
+    r'^\s*(?:fig(?:ura)?\.?|tabla|gr[áa]fic[oa]|imagen|cuadro|ilustraci[óo]n|anexo)'
+    r'[\s.:º°]*\d',
+    re.IGNORECASE,
+)
+
+
+def _is_caption_text(text: str) -> bool:
+    """True si el texto es una leyenda numerada (Figura/Tabla/Grafico N...)."""
+    return bool(text and _CAPTION_RE.match(text.strip()))
+
+
 def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     """
     Analiza el texto extraido de cuadros de texto/shapes de Word e infiere
@@ -365,8 +394,9 @@ def _infer_portada_from_textboxes(textbox_texts: list[str]) -> dict[str, str]:
     if not textbox_texts:
         return fields
 
-    # Normalizar: eliminar textos vacios y limpiar whitespace
-    cleaned = [t.strip() for t in textbox_texts if t.strip()]
+    # Normalizar: eliminar textos vacios, leyendas de figura/tabla y limpiar
+    # whitespace. Las leyendas nunca son datos de portada.
+    cleaned = [t.strip() for t in textbox_texts if t.strip() and not _is_caption_text(t)]
     if not cleaned:
         return fields
 
@@ -663,7 +693,7 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
             # Si ya tenemos autores, no necesitamos procesar parrafos
             if fields.get("author"):
                 # Aun buscar titulo e institution en parrafos
-                cover_elems = [e for e in elements[:15] if e.text and e.text.strip()]
+                cover_elems = [e for e in elements[:15] if e.text and e.text.strip() and not _is_caption_text(e.text)]
                 for e in cover_elems:
                     txt = e.text.strip()
                     txt_lower = txt.lower()
@@ -678,7 +708,7 @@ def _infer_portada_from_paragraphs(elements: List[ElementModel], textbox_texts: 
                 return fields
 
     # PRIORIDAD 2: No hay textboxes, inferir desde parrafos
-    cover_elems = [e for e in elements[:20] if e.text and e.text.strip()]
+    cover_elems = [e for e in elements[:20] if e.text and e.text.strip() and not _is_caption_text(e.text)]
     if not cover_elems:
         return fields
 
@@ -1019,19 +1049,14 @@ def parse_docx_bytes(
             if text:
                 total_words += len(text.split())
 
-            # Detectar formato directo
-            is_bold: bool = False
-            is_italic: bool = False
-            font_size: Optional[float] = None
-            font_name: Optional[str] = None
-
-            # First-run-wins for font_size and font_name: the first run with
-            # explicit formatting sets the value. This prevents a 14pt title
-            # run from being overwritten by subsequent 12pt body runs.
-            # is_bold/is_italic correctly use any-run (OR) semantics.
+            # Detectar formato directo. is_bold por mayoria de runs; para
+            # font_size/font_name gana el primer run con formato explicito (así
+            # un título de 14pt no lo pisa el cuerpo de 12pt que le sigue).
+            is_bold = runs_mayoria_negrita(p.runs)
+            is_italic = False
+            font_size = None
+            font_name = None
             for r in p.runs:
-                if r.bold:
-                    is_bold = True
                 if r.italic:
                     is_italic = True
                 if font_size is None and r.font.size and r.font.size.pt:
@@ -1044,6 +1069,22 @@ def parse_docx_bytes(
                 font_size = 12.0
             if font_name is None:
                 font_name = "Times New Roman"
+
+            # Outline real de Word (`w:outlineLvl` en pPr): 0 = nivel 1, hasta 8.
+            # Un documento puede marcar sus titulos SOLO con esto (sin estilo
+            # Heading ni negrita), asi que es una senal que el clasificador por
+            # formato no ve. None si el parrafo no lo declara.
+            outline_level = None
+            try:
+                pPr = p._element.find(f'{{{W_NS}}}pPr')
+                if pPr is not None:
+                    ol = pPr.find(f'{{{W_NS}}}outlineLvl')
+                    if ol is not None:
+                        val = ol.get(f'{{{W_NS}}}val')
+                        if val is not None and val.isdigit():
+                            outline_level = int(val)
+            except Exception:
+                outline_level = None
 
             # Determinar alineacion
             align_str: str = "left"
@@ -1343,6 +1384,7 @@ def parse_docx_bytes(
                     number_style=detected_number_style,
                     list_level=(num_level + 1) if num_level is not None else 1,
                     heading_level=None,
+                    outline_level=outline_level,
                     has_math=p_has_math,
                     has_fields=p_has_fields,
                     has_shading_residue=p_has_shading,
@@ -1504,17 +1546,25 @@ def parse_docx_bytes(
     # de portada (guardados en doc_model.portada). La portada original NO se toca —
     # el usuario llena el formulario y se genera una portada APA limpia.
 
-    # Detectar si hay elementos que parecen portada (antes del primer heading)
-    portada_detected: bool = False
+    # Detectar portada (cabecera del documento) con SEÑALES MÚLTIPLES.
+    # Antes UNA sola señal, en CUALQUIER parte del documento, bastaba: una
+    # figura del cuerpo (IMAGE) o un párrafo que dijera "la escuela de..." en
+    # la página 8 marcaban portada fantasma, y eso descolocaba la UI de
+    # portada. Ahora se mira solo la cabecera (antes del primer heading o
+    # primeros elementos) y se exigen al menos dos señales: dos párrafos con
+    # palabra de portada, o una imagen de cabecera + una palabra de portada.
+    _COVER_KWS = ["universidad", "facultad", "escuela", "tesis", "monografía", "monografia"]
+    _header_elems: list = []
     for elem in elements:
-        if elem.type == ElementType.IMAGE or (
-            elem.text and any(
-                kw in elem.text.lower()
-                for kw in ["universidad", "facultad", "escuela", "tesis", "monografia"]
-            )
-        ):
-            portada_detected = True
+        if elem.type == ElementType.HEADING or len(_header_elems) >= 15:
             break
+        _header_elems.append(elem)
+    _kw_hits = sum(
+        1 for e in _header_elems
+        if e.text and any(kw in e.text.lower() for kw in _COVER_KWS)
+    )
+    _header_image = any(e.type == ElementType.IMAGE for e in _header_elems[:4])
+    portada_detected: bool = _kw_hits >= 2 or (_kw_hits >= 1 and _header_image)
 
     # Deduplicar IDs de elementos para garantizar unicidad absoluta
     seen_ids = set()

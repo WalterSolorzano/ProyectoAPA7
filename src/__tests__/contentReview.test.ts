@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reviewContent } from '../lib/contentReview';
+import { reviewContent, objetivosBloom, reemplazarVerbo } from '../lib/contentReview';
 
 function el(id: string, text: string, type = 'paragraph'): any {
   return { id, text, type, heading_level: type === 'heading' ? 2 : 1 };
@@ -139,5 +139,85 @@ describe('reviewContent — general y específicos salen del documento, no de la
     const hit = f.find((x) => x.rule === 'objetivos_cantidad');
     expect(hit?.message).toContain('2 objetivos específicos');
     expect(hit?.elementIds).toEqual(['e1', 'e2']);
+  });
+});
+
+describe('objetivosBloom — nivel actual y propuesto para el informe', () => {
+  it('usa la misma separación general/específicos y propone nivel 4 al específico bajo', () => {
+    const r = objetivosBloom([
+      el('h1', 'Objetivos', 'heading'),
+      el('g', 'Desarrollar un sistema de gestión.'),
+      el('e1', 'Identificar los tiempos muertos.'),
+      el('e2', 'Analizar las causas.'),
+    ] as any);
+    expect(r.map((x) => x.elementId)).toEqual(['g', 'e1', 'e2']);
+    const general = r.find((x) => x.elementId === 'g')!;
+    expect(general.nivelActual).toBe(6);
+    expect(general.nivelPropuesto).toBe(6);
+    expect(general.verboPropuesto).toBe('desarrollar');
+    const e1 = r.find((x) => x.elementId === 'e1')!;
+    expect(e1.nivelActual).toBe(1);
+    expect(e1.nivelPropuesto).toBe(4);
+    expect(e1.verboPropuesto.length).toBeGreaterThan(0);
+  });
+
+  it('marca nivelActual null y propone el mínimo cuando el verbo no es medible', () => {
+    const r = objetivosBloom([
+      el('h1', 'Objetivos', 'heading'),
+      el('g', 'Desarrollar un sistema.'),
+      el('e1', 'Conocer los tiempos muertos.'),
+    ] as any);
+    const e1 = r.find((x) => x.elementId === 'e1')!;
+    expect(e1.verboActual).toBe('conocer');
+    expect(e1.nivelActual).toBeNull();
+    expect(e1.nivelPropuesto).toBe(4);
+  });
+
+  it('devuelve lista vacía cuando no hay sección de objetivos', () => {
+    expect(objetivosBloom([el('p', 'Solo texto sin objetivos.')] as any)).toEqual([]);
+  });
+});
+
+describe('objetivosBloom — análisis, alternativas y detección de verbos', () => {
+  const base = [
+    el('h1', 'Objetivos', 'heading'),
+    el('g', 'Desarrollar un sistema de gestión.'),
+    el('e1', 'Identificar los tiempos muertos.'),
+    el('e2', 'Analizar las causas y describir los efectos.'),
+    el('e3', 'Conocer'),
+  ];
+
+  it('marca general/específico y ofrece alternativas por encima del verbo actual', () => {
+    const r = objetivosBloom(base as any);
+    const g = r.find((x) => x.elementId === 'g')!;
+    const e1 = r.find((x) => x.elementId === 'e1')!;
+    expect(g.esGeneral).toBe(true);
+    expect(e1.esGeneral).toBe(false);
+    expect(g.alternativas.length).toBeGreaterThan(0);
+    expect(e1.alternativas).toContain('analizar');
+    expect(e1.alternativas).not.toContain('identificar');
+    expect(e1.analisis.length).toBeGreaterThan(0);
+  });
+
+  it('detecta un segundo verbo dentro de la frase', () => {
+    const e2 = objetivosBloom(base as any).find((x) => x.elementId === 'e2')!;
+    expect(e2.tieneDosVerbos).toBe(true);
+    expect(e2.verboExtra).toBe('describir');
+    const e1 = objetivosBloom(base as any).find((x) => x.elementId === 'e1')!;
+    expect(e1.tieneDosVerbos).toBe(false);
+    expect(e1.verboExtra).toBeNull();
+  });
+
+  it('marca sinVariable cuando el objetivo no dice sobre qué actúa', () => {
+    const r = objetivosBloom(base as any);
+    expect(r.find((x) => x.elementId === 'e3')!.sinVariable).toBe(true);
+    expect(r.find((x) => x.elementId === 'e1')!.sinVariable).toBe(false);
+  });
+});
+
+describe('reemplazarVerbo', () => {
+  it('cambia solo el primer verbo y conserva la mayúscula inicial', () => {
+    expect(reemplazarVerbo('Identificar los tiempos muertos.', 'analizar')).toBe('Analizar los tiempos muertos.');
+    expect(reemplazarVerbo('conocer', 'determinar')).toBe('determinar');
   });
 });

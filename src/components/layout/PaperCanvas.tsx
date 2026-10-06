@@ -1,11 +1,15 @@
 /* WordAPA7 — Interactive Canvas with Faithful Original Document Layout */
 
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { useDocStore, cleanHeadingPrefix, toRoman } from '../../store/useDocStore';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useDocStore } from '../../store/useDocStore';
+import { construirTextosDeTitulo, esTituloDeReferencias } from '../../lib/numeracionTitulos';
+import { paginasPorElemento } from '../../lib/paginasDeElementos';
 import { ElementModel } from '../../types';
 import { ZoomIn, ZoomOut, Undo2, Redo2, Maximize2, Minimize2, Check, X, Flame, Wand2, Loader2, RotateCw, UploadCloud, Image as ImageIcon, PanelRight, Edit3, Sparkles, AlertTriangle } from 'lucide-react';
 import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend';
 import { APACoverEditor } from './APACoverEditor';
+import { ReferenciaLinea } from '../referencias/ReferenciaLinea';
+import { APA_LISTA } from '../../lib/apaLayout';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
@@ -15,6 +19,7 @@ import { aplicarPageSizeEnHtml } from '../../lib/pageSizeEnHtml';
 import { applyPageFlow } from '../../lib/pageSplitter';
 import { expandByLineCuts } from '../../lib/lineCuts';
 import { useLayoutRepaginate } from '../../lib/useLayoutRepaginate';
+import { altoImagenAjustado } from '../../lib/figuraAjuste';
 import { usePdfRestLayer } from '../../lib/usePdfRestLayer';
 import { PdfRestLayer } from './PdfRestLayer';
 import { InlineTextEditor } from './InlineTextEditor';
@@ -28,6 +33,10 @@ import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { ReadingText, type MarkSource } from '../review/ReadingText';
 import { InlineAILens } from '../canvas/InlineAILens';
 import { CaptionSuggestionBadge } from '../canvas/CaptionSuggestionBadge';
+import { TablaRender } from '../figures/TablaRender';
+import { MascotaLeyendaIA } from '../figures/MascotaLeyendaIA';
+import { TablaEstiloSelector } from '../figures/TablaEstiloSelector';
+import { rebanadaDeTabla } from '../../lib/tablaRender';
 
 // Máximo de burbujas de comentario visibles por página (el resto se resume).
 const MAX_GUTTER = 6;
@@ -475,7 +484,6 @@ export const computeRenderedPages = ({
 
 export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean; onlyCover?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly, onlyCover }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
-  const tableStyles = useDocStore((s) => s.tableStyles);
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
   const setImagePanelOpen = useDocStore((s) => s.setImagePanelOpen);
@@ -584,6 +592,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
   const [brokenFigureIds, setBrokenFigureIds] = useState<Record<string, string>>({});
+  const [leyendaSugerida, setLeyendaSugerida] = useState<Record<string, string>>({});
+  const [leyendaCargando, setLeyendaCargando] = useState<Record<string, boolean>>({});
+  const [leyendaError, setLeyendaError] = useState<Record<string, string>>({});
   const [resizeState, setResizeState] = useState<{
     id: string;
     startX: number;
@@ -691,6 +702,30 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
     } finally {
       setAiLoadingId(null);
       setContextMenuElemId(null);
+    }
+  };
+
+  const generarLeyendaTabla = async (elem: ElementModel) => {
+    if (!doc) return;
+    setLeyendaCargando((p) => ({ ...p, [elem.id]: true }));
+    setLeyendaError((p) => ({ ...p, [elem.id]: '' }));
+    try {
+      const idx = doc.elements.findIndex((e) => e.id === elem.id);
+      const ctx: string[] = [];
+      for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+        const e = doc.elements[i];
+        if (e.id === elem.id) continue;
+        if (e.type === 'paragraph' || e.type === 'heading' || e.type === 'bullet' || e.type === 'numbered_list') {
+          const t = (e.text || '').trim();
+          if (t) ctx.push(t);
+        }
+      }
+      const texto = await suggestCaption(doc.session_id, elem.id, ctx.join('\n'), useDocStore.getState().apiKey);
+      setLeyendaSugerida((p) => ({ ...p, [elem.id]: texto }));
+    } catch (err: any) {
+      setLeyendaError((p) => ({ ...p, [elem.id]: err?.message || 'No se pudo generar la leyenda' }));
+    } finally {
+      setLeyendaCargando((p) => ({ ...p, [elem.id]: false }));
     }
   };
 
@@ -976,48 +1011,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
   let globalListCounter = 0;
 
   // Numeración JERÁRQUICA de títulos (1, 1.1, 1.1.1) aplicada SOLO en el preview.
-  // Filtra headings de portada/TOC y la sección de Referencias (que no se numera).
-  const isRefHeading = (txt: string): boolean => {
-    const n = (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    return /^(referencias?|bibliografia|obras consultadas|works cited)\b/.test(n.trim());
-  };
-  const hCounters: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
-  const headingDisplayText = new Map<string, string>();
-  for (const e of doc.elements) {
-    if (e.type !== 'heading') continue;
-    if (e.is_cover_section) continue;
-    if (isRefHeading(e.text || '')) continue;
-    const lvl = e.heading_level || 1;
-    if (lvl > 3) continue;
-
-    const explicitMultiMatch = (e.text || '').trim().match(/^(\d+)\.(\d+)/);
-    if (explicitMultiMatch && lvl >= 2) {
-      const maj = parseInt(explicitMultiMatch[1], 10);
-      const min = parseInt(explicitMultiMatch[2], 10);
-      if (maj > 0) hCounters[1] = maj;
-      if (min > 0 && lvl === 2) hCounters[2] = min;
-      if (lvl === 3) hCounters[3] = (hCounters[3] || 0) + 1;
-    } else {
-      hCounters[lvl] = (hCounters[lvl] || 0) + 1;
-      if (lvl === 1) { hCounters[2] = 0; hCounters[3] = 0; }
-      if (lvl === 2) { hCounters[3] = 0; }
-    }
-    const style = rules[`heading_numbering_style_lvl${lvl}` as keyof typeof rules] as string || 'decimal';
-    const base = cleanHeadingPrefix(e.text || '');
-    if (style === 'none') {
-      headingDisplayText.set(e.id, base);
-    } else {
-      let num: string;
-      if (lvl === 1) {
-        num = style === 'roman' ? `${toRoman(hCounters[1])}.` : `${hCounters[1]}.`;
-      } else if (lvl === 2) {
-        num = `${hCounters[1]}.${hCounters[2]}.`;
-      } else {
-        num = `${hCounters[1]}.${hCounters[2]}.${hCounters[3]}.`;
-      }
-      headingDisplayText.set(e.id, `${num} ${base}`);
-    }
-  }
+  // La lógica vive en `numeracionTitulos` para que la vista previa del índice
+  // consuma exactamente la misma fuente que la hoja.
+  const headingDisplayText = construirTextosDeTitulo(doc.elements, rules);
+  /* La página REAL de cada encabezado, con las MISMAS páginas que dibuja el
+   * lienzo. Antes el índice inventaba un número a mano; donde no hay dato va un
+   * guion, que es la respuesta honesta. */
+  const paginaDe = useMemo(() => paginasPorElemento(pages), [pages]);
 
   return (
     <div
@@ -1273,6 +1273,12 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               }}>
               <Wand2 size={11} /> Sugerir leyenda IA
             </button>
+            {!isImage && selElem.table_info && (
+              <TablaEstiloSelector
+                valor={selElem.table_info.style}
+                onChange={(p) => useDocStore.getState().updateElementTable(selElem.id, { ...selElem.table_info!, style: p })}
+              />
+            )}
             {/* C5: Panel de edición completo — solo para imágenes */}
             {isImage && (
             <button
@@ -1739,7 +1745,6 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                     const isContextMenuOpen = contextMenuElemId === elem.id;
                     const showFigureLabel = elem.type === 'image' && elem.image_info && (elem.image_info.figure_number || 0) > 0 && !elem.is_cover_section;
                     const captionPosition = elem.image_info?.caption_position ?? 'below';
-                    const tableStyle = elem.type === 'table' ? (tableStyles[elem.id] || 'standard') : 'standard';
                     const imgAlign = (elem.type === 'image' && elem.image_info?.alignment) || 'center';
                     const imgOuterTextAlign = imgAlign === 'left' ? 'left' : imgAlign === 'right' ? 'right' : 'center';
                     const imgInnerMargin = imgAlign === 'left' ? '8px auto 8px 0' : imgAlign === 'right' ? '8px 0 8px auto' : '8px auto';
@@ -2037,7 +2042,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         ) : elem.type !== 'image' ? (
                           <>
                             {elem.type === 'heading' && (() => {
-                              const isRef = isRefHeading(elem.text || '');
+                              const isRef = esTituloDeReferencias(elem.text || '');
                               if (isRef) {
                                 return (
                                   <div style={{ marginTop: '20px', marginBottom: '8px' }}>
@@ -2061,19 +2066,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     </p>
                                     {/* Lista de referencias estructuradas */}
                                     {doc.referencias && doc.referencias.length > 0 ? (
-                                      <div style={{ paddingLeft: 0 }}>
+                                      <div style={{ ...APA_LISTA }}>
                                         {doc.referencias.map((ref, ri) => (
-                                          <p key={ref.id || ri} style={{
-                                            fontFamily: fontFamily,
-                                            fontSize: '11pt', lineHeight: 2.0, textAlign: 'left',
-                                            textIndent: '-0.5in', marginLeft: '0.5in',
-                                            marginBottom: '8px', marginTop: 0, marginRight: 0,
-                                            paddingLeft: 0,
-                                          }}>
-                                            {ref.formatted_apa || (
-                                              <>{[...(ref.authors || [])].join(', ')}{ref.year ? ` (${ref.year}).` : '.'} {ref.title}.{ref.source ? ` ${ref.source}.` : ''}{ref.doi_or_url ? ` ${ref.doi_or_url}` : ''}</>
-                                            )}
-                                          </p>
+                                          <ReferenciaLinea key={ref.id || ri} referencia={ref} />
                                         ))}
                                       </div>
                                     ) : null}
@@ -2207,7 +2202,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                           </span>
                                           <span style={{ flex: 1, borderBottom: '1px dotted var(--paper-faint)', margin: '0 8px', minWidth: '20px' }}></span>
                                           <span style={{ fontSize: '10pt', color: 'var(--paper-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                                            {hIdx + 3}
+                                            {paginaDe.get(h.id) ?? '—'}
                                           </span>
                                         </div>
                                       );
@@ -2339,7 +2334,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                     <div
                                       style={{
                                         width: '100%',
-                                        height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 30}px` : '170px',
+                                        height: (() => {
+                                          const declarado = elem.image_info?.height_cm ? elem.image_info.height_cm * 30 : null;
+                                          const alto = altoImagenAjustado(declarado, geom.contentH);
+                                          return alto === null ? '170px' : `${alto}px`;
+                                        })(),
                                         backgroundColor: 'var(--paper-bg)',
                                         border: '1px solid var(--paper-line)',
                                         borderRadius: 'var(--radius-xs)',
@@ -2378,7 +2377,11 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   order: 1,
                                   margin: '0 auto',
                                   width: '100%', maxWidth: '100%',
-                                  height: elem.image_info?.height_cm ? `${elem.image_info.height_cm * 37.8}px` : '200px',
+                                  height: (() => {
+                                    const declarado = elem.image_info?.height_cm ? elem.image_info.height_cm * 37.8 : null;
+                                    const alto = altoImagenAjustado(declarado, geom.contentH);
+                                    return alto === null ? '200px' : `${alto}px`;
+                                  })(),
                                   minWidth: '120px',
                                   minHeight: '120px',
                                   overflow: 'hidden',
@@ -2457,93 +2460,35 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         )}
 
                         {elem.type === 'table' && elem.table_info && (() => {
-                          const isCompact = tableStyle === 'compact';
-                          const isExpanded = tableStyle === 'expanded';
-                          const borderW = isExpanded ? '2px' : '1px';
-                          const cellPad = isCompact ? '3px' : isExpanded ? '10px' : '6px';
-                          const cellFont = isCompact ? '9pt' : isExpanded ? '12pt' : '11pt';
-                          const styleLabel = tableStyle === 'compact' ? 'Compacto' : tableStyle === 'expanded' ? 'Expandido' : 'Estándar';
+                          const tabla = elem.table_slice
+                            ? rebanadaDeTabla(elem.table_info, elem.table_slice.start, elem.table_slice.end)
+                            : elem.table_info;
+                          const esContinuacion = (elem.table_slice?.start ?? 0) > 0;
+                          const mostrandoLeyenda = (elem.table_slice?.start ?? 0) === 0;
+                          const esUltima =
+                            !elem.table_slice ||
+                            elem.table_slice.end >= (elem.table_info.rows?.length ?? 0);
                           return (
-                          <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'auto', backgroundColor: reviewHighlightIds?.has(elem.id) ? 'var(--color-accent-soft)' : 'transparent' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 2px 0' }}>
-                              <p style={{ fontWeight: 'bold', margin: 0 }}>
-                                Tabla {elem.table_info.table_number || 1}
-                                <span style={{ fontWeight: 500, fontStyle: 'italic', fontSize: '9pt', color: 'var(--paper-slate2)', marginLeft: '8px' }}>
-                                  · estilo {styleLabel}
-                                </span>
-                              </p>
-                              {(!elem.table_info.caption || elem.table_info.caption.trim() === '') && (
-                                <button
-                                  className="btn btn-xs"
-                                  title="Generar leyenda APA 7 para esta tabla"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    padding: '4px 12px',
-                                    borderRadius: 'var(--radius-sm)',
-                                    backgroundColor: 'var(--accent-primary)',
-                                    color: 'var(--color-text-on-accent)',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    fontFamily: 'inherit',
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSuggestCaption(elem);
-                                  }}
-                                >
-                                  <Wand2 size={11} />
-                                  Generar leyenda
-                                </button>
+                            <div style={{ margin: '16px 0', width: '100%', maxWidth: '100%', boxSizing: 'border-box', ...reviewHighlightStyle(elem.id) }}>
+                              <TablaRender
+                                tabla={tabla}
+                                mostrarLeyenda={mostrandoLeyenda}
+                                esContinuacion={esContinuacion}
+                                esUltima={esUltima}
+                              />
+                              {mostrandoLeyenda && !elem.table_info.caption && (
+                                <div style={{ marginTop: 'var(--space-2)' }}>
+                                  <MascotaLeyendaIA
+                                    sugerida={leyendaSugerida[elem.id] ? { titulo: leyendaSugerida[elem.id] } : undefined}
+                                    cargando={!!leyendaCargando[elem.id]}
+                                    error={leyendaError[elem.id] || undefined}
+                                    onGenerar={() => generarLeyendaTabla(elem)}
+                                    onAplicar={(s) => updateElementTable(elem.id, { ...elem.table_info!, caption: s.titulo })}
+                                    onRegenerar={() => generarLeyendaTabla(elem)}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {elem.table_info.caption && <p style={{ fontStyle: 'italic', margin: '0 0 8px 0' }}>{elem.table_info.caption.replace(/\*/g, '')}</p>}
-                            <table style={{
-                              width: '100%',
-                              maxWidth: '100%',
-                              borderCollapse: 'collapse',
-                              tableLayout: 'auto',
-                              borderTop: `${borderW} solid var(--paper-ink)`,
-                              borderBottom: `${borderW} solid var(--paper-ink)`,
-                              margin: '8px 0',
-                              wordBreak: 'break-word',
-                              overflowWrap: 'break-word',
-                            }}>
-                              {elem.table_info.headers && (
-                                <thead>
-                                  <tr style={{ borderBottom: `${borderW} solid var(--paper-ink)` }}>
-                                    {elem.table_info.headers.map((h, i) => (
-                                      <th key={i} style={{ padding: cellPad, textAlign: 'left', fontWeight: 'bold', fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{h}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                              )}
-                              <tbody>
-                                {elem.table_info.rows.map((row, rIdx) => (
-                                  <tr key={rIdx}>
-                                    {row.map((cell, cIdx) => (
-                                      <td key={cIdx} style={{ padding: cellPad, fontSize: cellFont, wordBreak: 'break-word', overflowWrap: 'break-word', verticalAlign: 'top' }}>{cell}</td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            {elem.table_info.note && (
-                              <p style={{ fontSize: '11px', marginTop: '6px', color: 'var(--paper-slate)' }}>
-                                <span style={{ fontStyle: 'italic', fontWeight: 600 }}>Nota.</span> {elem.table_info.note}
-                              </p>
-                            )}
-                            {/* Floating AI caption badge for table — when no caption yet */}
-                            {!elem.table_info.caption && (
-                              <CaptionSuggestionBadge
-                                elementId={elem.id}
-                                onApply={(cap) => updateElementTable(elem.id, { ...elem.table_info, caption: cap })}
-                              />
-                            )}
-                          </div>
                           );
                         })()}
 

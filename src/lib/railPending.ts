@@ -10,7 +10,7 @@
    el workbench— es la misma que cuenta la fase 5. Si mañana un motor nuevo
    entra a la pantalla, entra a esta función y el rail no puede quedarse atrás. */
 
-import { collectAuditItems } from './auditItems';
+import { reviewItems } from './auditItems';
 import { needsReview } from './portadaAuthors';
 import type { ActaDocumento, ElementModel, PortadaData, ProofreadFinding } from '../types';
 
@@ -37,6 +37,11 @@ export interface RailPendingInput {
   reviewResult: { paragraphs?: { element_id?: string; text?: string; ai_score?: number; ai_category?: string }[] } | null;
   proofreadFindings: readonly ProofreadFinding[];
   citationAuditResult: { ghost_citations?: unknown[]; orphan_references?: unknown[] } | null;
+  /** Los hallazgos que la persona ya descartó en la pantalla. El rail no puede
+   *  seguir contándolos: si lo hiciera, la fase 5 quedaría "pendiente" después
+   *  de que el usuario la dejó limpia, que es la misma contradicción de siempre
+   *  con el signo cambiado. */
+  dismissedFindingIds?: readonly string[];
 }
 
 /* Figuras y tablas que la fase 3 puede resolver: numeradas y sin error de
@@ -81,12 +86,16 @@ export function readPhaseStates(input: RailPendingInput): Record<number, PhaseSt
 
   const headings = input.elements.filter((e) => e.type === 'heading' && needsReview(e)).length;
   const figures = input.elements.filter((e) => figuraAccionable(e) && needsReview(e)).length;
-  const review = collectAuditItems({
-    elements: input.elements,
-    reviewResult: input.reviewResult,
-    proofreadFindings: input.proofreadFindings,
-    citationAuditResult: input.citationAuditResult,
-  }).length;
+  const review = reviewItems(
+    {
+      elements: input.elements,
+      reviewResult: input.reviewResult,
+      proofreadFindings: input.proofreadFindings,
+      citationAuditResult: input.citationAuditResult,
+    },
+    undefined,
+    input.dismissedFindingIds,
+  ).length;
 
   // La portada tiene dos verdades —los campos vacíos y la confirmación del
   // usuario— y si no seajan con una, un "Listo" puede convivir con dos campos

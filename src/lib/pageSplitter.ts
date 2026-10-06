@@ -98,13 +98,27 @@ export function applyPageFlow(
 
     const items: MeasuredElement[] = page.map((elem) => {
       const isCover = !!elem.is_cover_section || elem.type === 'portada_block';
+      const filas = elem.type === 'table' ? (elem.table_info?.rows?.length ?? 0) : 0;
+      const altoTabla = heights.get(elem.id) ?? null;
+      const tableRows =
+        elem.type === 'table' && !isCover && filas > 0 && altoTabla !== null && altoTabla > geom.contentH
+          ? (() => {
+              const headerHeightPx = Math.min(altoTabla, geom.lineHeightPx * 1.5);
+              const altoFilas = (altoTabla - headerHeightPx) / filas;
+              return {
+                headerHeightPx,
+                rowHeightsPx: Array.from({ length: filas }, () => altoFilas),
+              };
+            })()
+          : undefined;
       return {
         elem,
-        heightPx: heights.get(elem.id) ?? null,
+        heightPx: altoTabla,
         // Fragmento ya cortado por Word (split_chunk): atómico — su corte
         // es exacto; volver a partirlo usaría la altura STALE del completo.
         splittable: !isCover && SPLITTABLE_TYPES.has(elem.type)
           && elem.split_chunk === undefined,
+        tableRows,
       };
     });
 
@@ -142,6 +156,16 @@ export function applyPageFlow(
           const idx = seen.get(c.elem.id) || 0;
           seen.set(c.elem.id, idx + 1);
           if (c.elem.split_chunk !== undefined) return c.elem; // corte Word: texto ya exacto
+          if (c.elem.type === 'table' && c.startRow !== undefined) {
+            return {
+              ...c.elem,
+              table_slice: {
+                start: c.startRow,
+                end: c.endRow ?? (c.elem.table_info?.rows?.length ?? 0),
+              },
+              split_chunk: idx,
+            };
+          }
           if (total === 1) return c.elem;
           const lines = totalLinesOf(c.elem, heights, geom);
           const f0 = c.startLine / lines;

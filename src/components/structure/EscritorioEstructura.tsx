@@ -34,6 +34,15 @@ import { FaltasApa7 } from './FaltasApa7';
 import { DistribucionVolumen } from './DistribucionVolumen';
 import { MatrizEvidencias } from './MatrizEvidencias';
 import { ReorganizadorCapitulos } from './ReorganizadorCapitulos';
+import { RailEstructura, type DestinoEstructura } from './RailEstructura';
+import { IndicePrevisualizacion } from './IndicePrevisualizacion';
+import { ControlesIndice, type ProfundidadIndice } from './ControlesIndice';
+import { useWindowWidth } from '../../hooks/useWindowWidth';
+import { usePageIndex } from '../../hooks/usePageIndex';
+import { construirTextosDeTitulo } from '../../lib/numeracionTitulos';
+
+/** Con esta ventana, el panel derecho vive cómodo. */
+export const ANCHO_ESTRUCTURA_COMPLETO = 1280;
 
 export interface EscritorioEstructuraProps {
   nodoInicial?: NodoJerarquia | null;
@@ -73,6 +82,49 @@ const buscarEn = (nodos: readonly NodoJerarquia[], id: string | null): NodoJerar
   return null;
 };
 
+/**
+ * Calcula el nuevo orden de ids al reubicar una rama entera delante del
+ * destino. Se mueve TODO el bloque de la rama de origen —su encabezado y su
+ * cuerpo hasta la próxima sección del mismo nivel o superior— para que la prosa
+ * nunca quede huérfana ni cambie de padre.
+ *
+ * Devuelve `null` cuando la operación no tiene sentido (ids ausentes, el
+ * destino ya está dentro de la rama o el origen es el propio destino). Es una
+ * función pura para poder probarla sin montar el store.
+ */
+export const calcularReubicacion = (
+  elementos: readonly ElementModel[],
+  origenId: string,
+  destinoId: string,
+): string[] | null => {
+  const inicioDe = (id: string): number => elementos.findIndex((e) => e.id === id);
+  const ini = inicioDe(origenId);
+  const iniDestino = inicioDe(destinoId);
+  if (ini < 0 || iniDestino < 0 || ini === iniDestino) return null;
+
+  const nivelOrigen = elementos[ini].heading_level ?? 1;
+  let fin = ini + 1;
+  while (fin < elementos.length) {
+    const e = elementos[fin];
+    if (e.type === 'heading' && (e.heading_level ?? 1) <= nivelOrigen) break;
+    fin += 1;
+  }
+  // El destino cae dentro de la propia rama: moverla dentro de sí misma la
+  // partiría en dos y dejaría el cuerpo descolgado.
+  if (ini <= iniDestino && iniDestino < fin) return null;
+
+  const bloque = elementos.slice(ini, fin).map((e) => e.id);
+  const resto = elementos.filter((_, i) => i < ini || i >= fin);
+  const iDestino = resto.findIndex((e) => e.id === destinoId);
+  if (iDestino < 0) return null;
+
+  return [
+    ...resto.slice(0, iDestino).map((e) => e.id),
+    ...bloque,
+    ...resto.slice(iDestino).map((e) => e.id),
+  ];
+};
+
 const Plegable: React.FC<{ titulo: string; children: React.ReactNode }> = ({ titulo, children }) => {
   const [abierto, setAbierto] = useState(false);
   return (
@@ -110,9 +162,18 @@ const Plegable: React.FC<{ titulo: string; children: React.ReactNode }> = ({ tit
 
 export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodoInicial }) => {
   const doc = useDocStore((s) => s.doc);
+  const reorderElements = useDocStore((s) => s.reorderElements);
   const reviewResult = useDocStore((s) => s.reviewResult);
   const proofreadFindings = useDocStore((s) => s.proofreadFindings);
   const citationAuditResult = useDocStore((s) => s.citationAuditResult);
+  const reglas = useDocStore((s) => s.rules);
+  const setRules = useDocStore((s) => s.setRules);
+  const insertarToc = useDocStore((s) => s.insertTocElement);
+  const quitarToc = useDocStore((s) => s.removeTocElement);
+
+  /* Páginas y numeración para el índice: la MISMA paginación del lienzo y la
+   * MISMA numeración de títulos, para que la preview no contradiga a la hoja. */
+  const pageIndex = usePageIndex();
 
   const elementos = (doc?.elements ?? null) as readonly ElementModel[] | null;
 
@@ -135,10 +196,27 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
     [elementos, faseConocida],
   );
 
+  const textosTitulo = useMemo(
+    () => construirTextosDeTitulo(elementos ?? [], reglas),
+    [elementos, reglas],
+  );
+
   const [elegidoId, setElegidoId] = useState<string | null>(nodoInicial?.id ?? null);
   const [tab, setTab] = useState<'prosa' | 'herramientas'>('prosa');
   const [ampliado, setAmpliado] = useState(false);
   const [cerrado, setCerrado] = useState(false);
+  const [destino, setDestino] = useState<DestinoEstructura>('esquema');
+  const [profundidad, setProfundidad] = useState<ProfundidadIndice>(3);
+
+  /* El ancho de la ventana manda. Por debajo del ancho cómodo el panel derecho
+   * se pliega solo: entre 900 y 1279px todavía hay lugar para el centro, pero
+   * no para reservarle 452px al panel; por debajo de 900 se plegaría de todos
+   * modos. El estado local (`cerrado`) sigue existiendo para que el usuario lo
+   * cierre a mano aunque haya lugar. */
+  const anchoVentana = useWindowWidth();
+  const panelCerrado = cerrado || anchoVentana < ANCHO_ESTRUCTURA_COMPLETO;
+
+  const hayIndice = (doc?.elements ?? []).some((e) => e.type === 'toc');
 
   const elegido = useMemo(
     () => buscarEn(raices, elegidoId) ?? raices[0] ?? null,
@@ -157,6 +235,21 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
     setCerrado(false);
   }, []);
 
+  /**
+   * Reubicar una rama entera: se mueve TODO el bloque de elementos de la rama
+   * de origen —su encabezado y su cuerpo hasta la próxima sección— delante del
+   * destino, conservando el orden relativo. Mover solo el encabezado dejaría su
+   * prosa huérfana.
+   */
+  const manejarReubicar = useCallback(
+    (origenId: string, destinoId: string) => {
+      const elementos = doc?.elements ?? [];
+      const orden = calcularReubicacion(elementos, origenId, destinoId);
+      if (orden) void reorderElements(orden);
+    },
+    [doc, reorderElements],
+  );
+
   const anchoPanel = ampliado ? 760 : 452;
 
   return (
@@ -164,12 +257,16 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
       className="escritorio-estructura"
       style={{
         display: 'grid',
-        gridTemplateColumns: cerrado ? '308px minmax(0, 1fr) 44px' : `308px minmax(0, 1fr) ${anchoPanel}px`,
+        gridTemplateColumns: panelCerrado
+          ? '56px 308px minmax(0, 1fr) 44px'
+          : `56px 308px minmax(0, 1fr) ${anchoPanel}px`,
         height: '100%',
         minHeight: 0,
         background: 'var(--color-bg-canvas)',
       }}
     >
+      <RailEstructura destino={destino} onDestino={setDestino} />
+
       <div style={{ minWidth: 0, minHeight: 0, background: 'var(--color-bg-surface)', borderRight: '1px solid var(--color-border-subtle)' }}>
         <IndiceEstructura
           elementos={elementos}
@@ -179,16 +276,57 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
         />
       </div>
 
-      <div style={{ minWidth: 0, minHeight: 0, overflow: 'auto', padding: 'var(--space-4)' }}>
-        <MapaEstructura raices={raices} onSelect={abrir} nodoSeleccionadoId={elegido?.id ?? null} />
+      <div
+        style={{
+          minWidth: 0,
+          minHeight: 0,
+          overflow: 'auto',
+          padding: destino === 'esquema' ? 'var(--space-4)' : 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {destino === 'esquema' ? (
+          <MapaEstructura
+            raices={raices}
+            onSelect={abrir}
+            nodoSeleccionadoId={elegido?.id ?? null}
+            onReubicar={manejarReubicar}
+          />
+        ) : (
+          <IndicePrevisualizacion
+            raices={raices}
+            onSelect={abrir}
+            nodoSeleccionadoId={elegido?.id ?? null}
+            profundidadMaxima={profundidad}
+            textosTitulo={textosTitulo}
+            paginaDe={pageIndex.pageOf}
+          />
+        )}
       </div>
 
-      {cerrado ? (
+      {panelCerrado ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'var(--space-3)', background: 'var(--color-bg-surface)', borderLeft: '1px solid var(--color-border-subtle)' }}>
           <button type="button" onClick={() => setCerrado(false)} title="Mostrar panel" style={estiloIcono}>
             <BookOpen size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
           </button>
         </div>
+      ) : destino === 'indice' ? (
+        <aside
+          aria-label="Diseño del índice"
+          style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'auto', background: 'var(--color-bg-surface)', borderLeft: '1px solid var(--color-border-subtle)' }}
+        >
+          <ControlesIndice
+            profundidad={profundidad}
+            onProfundidad={setProfundidad}
+            onRegla={(clave, valor) => setRules({ [clave]: valor } as never)}
+            hayIndice={hayIndice}
+            onInsertar={() => insertarToc()}
+            onQuitar={() => quitarToc()}
+            numeracionH1={reglas.heading_numbering_style_lvl1 ?? 'none'}
+            numeracionH2={reglas.heading_numbering_style_lvl2 ?? 'none'}
+          />
+        </aside>
       ) : (
         <aside
           aria-label="Panel de la sección"

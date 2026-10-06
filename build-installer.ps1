@@ -69,9 +69,92 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Output "=== STEP 0.5: Packaging AI API keys and syncing Python runtime ==="
+Write-Output "=== STEP 0.5: Building embedded Python runtime + AI keys ==="
+# ── Claves de IA ofuscadas (payload) ────────────────────────────────────────
 & python "$projectDir\python\embed_payload.py"
-& python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; pkg = Path('$($projectDir -replace '\\', '/')') / 'package.json'; shutil.copy2(str(pkg), str(src_dest / 'package.json')) if pkg.exists() else None; shutil.copy2(str(pkg), str(OUTPUT_DIR / 'package.json')) if pkg.exists() else None; vjson = Path('$($projectDir -replace '\\', '/')') / 'dist' / 'version.json'; shutil.copy2(str(vjson), str(src_dest / 'version.json')) if vjson.exists() else None; shutil.copy2(str(vjson), str(OUTPUT_DIR / 'version.json')) if vjson.exists() else None; print('Payload, package.json, version.json and Python sources synchronized to dist-python.')"
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: embed_payload.py failed with exit code $LASTEXITCODE. Aborting installer build."
+    exit 1
+}
+
+# ── Runtime embebido (python.exe + DLLs + Lib/site-packages) ────────────────
+# ANTES este script solo copiaba el código fuente a dist-python/python-runtime
+# y asumía que el intérprete ya estaba ahí. Si dist-python se limpiaba (o el
+# desarrollador nunca corría `npm run build:backend`), el instalador empaquetaba
+# un runtime sin python.exe y la app crasheaba al arrancar con:
+#   Error: spawn ...resources\python-runtime\python.exe ENOENT
+#
+# Estrategia:
+#   - Si el runtime YA está completo e importable → refrescar SOLO el código
+#     fuente (rápido, sin red). Garantiza que los cambios de python/ viajen.
+#   - Si está ausente o incompleto → build_embedded.py completo (idempotente:
+#     usa el zip embebido cacheado, instala pip + requirements, copia python/).
+$runtimeExe = "dist-python\python-runtime\python.exe"
+$runtimeW   = "dist-python\python-runtime\pythonw.exe"
+$runtimeLib = "dist-python\python-runtime\Lib\site-packages"
+$runtimeReady = $false
+if ((Test-Path $runtimeExe) -and (Test-Path $runtimeW) -and (Test-Path $runtimeLib)) {
+    & $runtimeExe -c "import fastapi, uvicorn, docx, lxml, PIL, pydantic, cryptography, networkx, openai, aiofiles, psutil" 2>$null
+    if ($LASTEXITCODE -eq 0) { $runtimeReady = $true }
+}
+
+if ($runtimeReady) {
+    Write-Output "=== STEP 0.5b: Runtime presente y verificado; refrescando código fuente ==="
+    & python -c "import shutil, sys; from pathlib import Path; sys.path.insert(0, '$($projectDir -replace '\\', '/')/python'); from build_embedded import _ignore_fn, PYTHON_SRC, OUTPUT_DIR; src_dest = OUTPUT_DIR / 'python'; shutil.copytree(str(PYTHON_SRC), str(src_dest), ignore=_ignore_fn, dirs_exist_ok=True); payload = PYTHON_SRC / '_embedded_payload.json'; shutil.copy2(str(payload), str(src_dest / '_embedded_payload.json')) if payload.exists() else None; print('Fuente y payload sincronizados en dist-python/python-runtime/python.')"
+} else {
+    Write-Output "=== STEP 0.5b: Runtime ausente/incompleto; build completo (build_embedded.py) ==="
+    & python "$projectDir\python\build_embedded.py"
+}
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: construcción/sincronización del runtime embebido falló (exit $LASTEXITCODE). Aborting installer build."
+    exit 1
+}
+
+# ── Sincronizar package.json / version.json al runtime ──────────────────────
+# build_embedded.py no copia estos dos archivos; la app los usa para reportar
+# versión en /api/health y para el chequeo de adopción del backend.
+Copy-Item "$projectDir\package.json" "dist-python\python-runtime\package.json" -Force -ErrorAction SilentlyContinue
+Copy-Item "$projectDir\package.json" "dist-python\python-runtime\python\package.json" -Force -ErrorAction SilentlyContinue
+if (Test-Path "$projectDir\dist\version.json") {
+    Copy-Item "$projectDir\dist\version.json" "dist-python\python-runtime\version.json" -Force -ErrorAction SilentlyContinue
+    Copy-Item "$projectDir\dist\version.json" "dist-python\python-runtime\python\version.json" -Force -ErrorAction SilentlyContinue
+}
+
+# ── STEP 0.6: Verificación dura del runtime (fail-closed) ───────────────────
+# Si CUALQUIERA de estos archivos falta, el instalador produciría el crash
+# ENOENT. Abortamos antes de empaquetar en lugar de enviar un build roto.
+Write-Output "=== STEP 0.6: Verifying embedded Python runtime ==="
+$pyTag = (& python -c "import sys; print(f'python{sys.version_info.major}{sys.version_info.minor}')").Trim()
+$runtimeChecks = @(
+    "dist-python\python-runtime\python.exe",
+    "dist-python\python-runtime\pythonw.exe",
+    "dist-python\python-runtime\$pyTag.dll",
+    "dist-python\python-runtime\python\main.py",
+    "dist-python\python-runtime\python\_embedded_payload.json",
+    "dist-python\python-runtime\Lib\site-packages"
+)
+$runtimeMissing = @()
+foreach ($p in $runtimeChecks) {
+    if (-not (Test-Path $p)) { $runtimeMissing += $p }
+}
+if ($runtimeMissing.Count -gt 0) {
+    Write-Output "ERROR: Runtime embebido INCOMPLETO. Faltan:"
+    $runtimeMissing | ForEach-Object { Write-Output "  - $_" }
+    Write-Output "El instalador saldría sin python.exe (crash ENOENT). Abortando."
+    exit 1
+}
+Write-Output "Runtime verificado: python.exe + pythonw.exe + $pyTag.dll + site-packages + main.py"
+
+# El payload embebido puede existir pero estar vacío ({}): en ese caso el
+# instalador arrancaría sin ninguna clave. Presencia no basta, hay que
+# verificar que tenga contenido real.
+$payloadPath = "dist-python\python-runtime\python\_embedded_payload.json"
+$payloadRaw = (Get-Content $payloadPath -Raw -ErrorAction SilentlyContinue)
+if ([string]::IsNullOrWhiteSpace($payloadRaw) -or $payloadRaw.Trim() -eq "{}") {
+    Write-Output "ERROR: $payloadPath está vacío. Corre embed_payload.py con un .env válido. Abortando."
+    exit 1
+}
+Write-Output "Payload embebido verificado: presente y no vacío."
 
 Write-Output "=== STEP 1: Building unpacked app (--dir) ==="
 

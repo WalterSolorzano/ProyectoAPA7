@@ -1,11 +1,17 @@
 import React from 'react';
-import { RotateCw, Image as ImageIcon, Sparkles, Check } from 'lucide-react';
+import { RotateCw, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import { IconoLeyenda } from './IconosFiguras';
+import { TablaRender } from './TablaRender';
+import { MascotaLeyendaIA } from './MascotaLeyendaIA';
+import { medidaDeFigura, type TipoFigura } from '../../lib/figuras';
+import type { DesignStyle, TableModel, CellSpan, TableStylePreset } from '../../types';
 
 export interface AISuggestionData {
   suggestedTitle: string;
   suggestedNote: string;
-  confidence: number;
+  /** Opcional: el endpoint de sugerencia devuelve solo el texto, y un número de
+   *  confianza inventado sería un dato falso. Cuando no viene, no se pinta. */
+  confidence?: number;
 }
 
 export interface LienzoEditorialActivoProps {
@@ -13,26 +19,161 @@ export interface LienzoEditorialActivoProps {
   figureTitle: string;
   figureNote?: string;
   imageUrl?: string;
+  /** El tipo de activo. Decide el rótulo (Figura/Tabla) y qué cuerpo se pinta. */
+  tipo?: TipoFigura;
+  /** Datos de la tabla cuando `tipo` es `'table'`. */
+  tabla?: {
+    headers: string[];
+    rows: string[][];
+    header_spans?: CellSpan[];
+    row_spans?: CellSpan[][];
+    style?: TableStylePreset;
+  } | null;
+  /** Tamaño DECLARADO en el `.docx`, para pintar la imagen a escala real. */
+  anchoCm?: number | null;
+  altoCm?: number | null;
   prevParagraph?: string;
   nextParagraph?: string;
   aiSuggestion?: AISuggestionData;
   onRotate?: () => void;
   onReplaceImage?: () => void;
   onApplyCaption?: (caption: { title: string; note: string }) => void;
+  /** Edición de una celda de tabla: devuelve el patch de encabezados o filas. */
+  onEditarCeldaTabla?: (patch: { headers?: string[]; rows?: string[][] }) => void;
+  /** Vuelve a pedir la sugerencia al motor de IA para el activo actual. */
+  onRegenerateSuggestion?: () => void;
+  /** Genera la sugerencia bajo demanda (opt-in; sin gasto automático de tokens). */
+  onGenerarSuggestion?: () => void;
+  /** Presentación del marco (tokens, no valores crudos). */
+  border?: 'none' | 'subtle' | 'strong';
+  shadow?: boolean;
+  cornerRadius?: 'none' | 'sm' | 'md' | 'lg';
+  /** Rotación exacta en grados (0 por defecto). */
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  /** Preset de diseño; multipanel y corner dibujan malla de subfiguras. */
+  designStyle?: DesignStyle;
+  /** Paneles adicionales ya resueltos: (b), (c), (d)... */
+  subfiguras?: SubfiguraVista[];
+  /** Abre el selector de archivo para llenar el slot indicado. */
+  onImportSubfigure?: (slot: number) => void;
 }
+
+export interface SubfiguraVista {
+  label: string;
+  title?: string;
+  url?: string;
+}
+
+const BORDE_MARCO: Record<'none' | 'subtle' | 'strong', string> = {
+  none: 'none',
+  subtle: '1px solid var(--color-border-subtle)',
+  strong: '1px solid var(--color-border-strong)',
+};
+const RADIO_MARCO: Record<'none' | 'sm' | 'md' | 'lg', string> = {
+  none: '0px',
+  sm: 'var(--radius-sm)',
+  md: 'var(--radius-md)',
+  lg: 'var(--radius-lg)',
+};
 
 export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   figureNumber,
   figureTitle,
   figureNote,
   imageUrl,
+  tipo = 'image',
+  tabla,
+  anchoCm,
+  altoCm,
   prevParagraph,
   nextParagraph,
   aiSuggestion,
   onRotate,
   onReplaceImage,
   onApplyCaption,
+  onEditarCeldaTabla,
+  onRegenerateSuggestion,
+  onGenerarSuggestion,
+  border = 'none',
+  shadow = false,
+  cornerRadius = 'none',
+  rotation = 0,
+  flipH = false,
+  flipV = false,
+  designStyle,
+  subfiguras,
+  onImportSubfigure,
 }) => {
+  const esTabla =
+    tipo === 'table' &&
+    Array.isArray(tabla?.headers) &&
+    Array.isArray(tabla?.rows) &&
+    (tabla!.headers.length > 0 || tabla!.rows.length > 0);
+  const tablaCompleta: TableModel | null =
+    esTabla && tabla
+      ? {
+          element_id: 'lienzo-activo',
+          headers: tabla.headers,
+          rows: tabla.rows,
+          caption: figureTitle,
+          table_number: figureNumber,
+          header_spans: tabla.header_spans,
+          row_spans: tabla.row_spans,
+          style: tabla.style,
+        }
+      : null;
+  const rotulo = tipo === 'table' ? 'Tabla' : tipo === 'equation' ? 'Ecuación' : 'Figura';
+  const medida = medidaDeFigura({ width_cm: anchoCm ?? undefined, height_cm: altoCm ?? undefined });
+  // Multipanel: la imagen principal ocupa (a) y los demás paneles se importan.
+  const esMultipanel = tipo === 'image' && (designStyle === 'multipanel' || designStyle === 'corner');
+  const numeroSlots = designStyle === 'corner' ? 4 : 2;
+  const renderSlot = (i: number) => {
+    const etiqueta = `(${String.fromCharCode(97 + i)})`;
+    const sub = i === 0 ? undefined : subfiguras?.[i - 1];
+    const url = i === 0 ? imageUrl : sub?.url;
+    if (url) {
+      return (
+        <figure key={i} style={{ margin: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <img
+            src={url}
+            alt={sub?.title || `Subfigura ${etiqueta}`}
+            style={{ width: '100%', maxHeight: '220px', objectFit: 'contain', display: 'block' }}
+          />
+          <figcaption style={{ textAlign: 'center', fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+            {etiqueta}{sub?.title ? ` ${sub.title}` : ''}
+          </figcaption>
+        </figure>
+      );
+    }
+    return (
+      <button
+        key={i}
+        type="button"
+        aria-label={`Importar subfigura ${etiqueta}`}
+        onClick={() => onImportSubfigure?.(i)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          minHeight: '140px',
+          padding: 'var(--space-3)',
+          border: '1px dashed var(--color-border-subtle)',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'var(--color-bg-surface)',
+          color: 'var(--color-text-tertiary)',
+          cursor: 'pointer',
+          fontSize: '12px',
+        }}
+      >
+        <ImagePlus size={22} />
+        <span>{etiqueta} Importar</span>
+      </button>
+    );
+  };
   return (
     <div
       data-testid="editorial-reading-canvas"
@@ -66,7 +207,7 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           className="font-bold"
           style={{ fontSize: '14px', color: 'var(--paper-ink)', letterSpacing: '0.01em' }}
         >
-          Figura {figureNumber}
+          {rotulo} {figureNumber}
         </div>
 
         {/* Título: cursiva, línea separada (APA 7) */}
@@ -77,12 +218,33 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
           {figureTitle}
         </div>
 
+        {esTabla && tablaCompleta ? (
+          <TablaRender
+            tabla={tablaCompleta}
+            editable
+            mostrarLeyenda={false}
+            onEditarCelda={(fila, col, texto) => {
+              if (fila === 0) {
+                const headers = [...tablaCompleta.headers];
+                headers[col] = texto;
+                onEditarCeldaTabla?.({ headers });
+              } else {
+                const rows = tablaCompleta.rows.map((r) => [...r]);
+                if (rows[fila - 1]) rows[fila - 1][col] = texto;
+                onEditarCeldaTabla?.({ rows });
+              }
+            }}
+          />
+        ) : (
+          <>
         {/* Marco de imagen plano con controles flotantes */}
         <div
+          data-testid="figura-marco"
           style={{
             position: 'relative',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-sm)',
+            border: BORDE_MARCO[border],
+            borderRadius: RADIO_MARCO[cornerRadius],
+            boxShadow: shadow ? 'var(--shadow-sm)' : 'none',
             backgroundColor: 'var(--color-bg-surface-alt)',
             minHeight: '220px',
             display: 'flex',
@@ -91,18 +253,36 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
             overflow: 'hidden',
           }}
         >
-          {imageUrl ? (
+          {esMultipanel ? (
+            <div
+              data-testid="marco-multipanel"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 'var(--space-2)',
+                width: '100%',
+                alignContent: 'center',
+              }}
+            >
+              {Array.from({ length: numeroSlots }, (_, i) => renderSlot(i))}
+            </div>
+          ) : imageUrl ? (
             <img
               src={imageUrl}
               alt={`Figura ${figureNumber}`}
               className="fig-media-img"
               style={{
-                maxHeight: '380px',
+                width: medida.declarada ? `${medida.anchoPx}px` : undefined,
+                maxHeight: medida.declarada ? undefined : '380px',
+                height: medida.declarada ? `${medida.altoPx}px` : 'auto',
                 maxWidth: '100%',
-                height: 'auto',
                 objectFit: 'contain',
                 display: 'block',
                 margin: '0 auto',
+                transform:
+                  rotation || flipH || flipV
+                    ? `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`
+                    : undefined,
               }}
             />
           ) : (
@@ -163,6 +343,8 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
             </div>
           )}
         </div>
+          </>
+        )}
 
         {/* Nota de la figura */}
         {figureNote && (
@@ -179,82 +361,25 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
         )}
       </figure>
 
-      {/* Sugerencia IA — banda plana, no tarjeta anidada */}
-      {aiSuggestion && (
-        <div
-          style={{
-            marginTop: 'var(--space-4)',
-            paddingTop: 'var(--space-3)',
-            borderTop: '1px solid var(--color-border-subtle)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 'var(--space-2)',
-              marginBottom: 'var(--space-2)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              <Sparkles size={14} style={{ color: 'var(--color-accent)' }} />
-              <span>Sugerencia editorial de leyenda (IA)</span>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  color: 'var(--color-text-tertiary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {Math.round(aiSuggestion.confidence * 100)}%
-              </span>
-            </div>
-            {onApplyCaption && (
-              <button
-                type="button"
-                onClick={() =>
-                  onApplyCaption({
-                    title: aiSuggestion.suggestedTitle,
-                    note: aiSuggestion.suggestedNote,
-                  })
-                }
-                className="fig-apply-btn"
-                aria-label="Aplicar sugerencia"
-              >
-                <Check size={13} />
-                <span>Aplicar sugerencia</span>
-              </button>
-            )}
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gap: 'var(--space-1)',
-              fontSize: '12px',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            <p style={{ margin: 0 }}>
-              <span className="fig-kicker">Título sugerido</span>{' '}
-              <span className="italic">{aiSuggestion.suggestedTitle}</span>
-            </p>
-            <p style={{ margin: 0 }}>
-              <span className="fig-kicker">Nota sugerida</span> {aiSuggestion.suggestedNote}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Leyenda IA — la mascota propone; el botón es la única puerta (D-8) */}
+      <MascotaLeyendaIA
+        sugerida={
+          aiSuggestion
+            ? {
+                titulo: aiSuggestion.suggestedTitle,
+                nota: aiSuggestion.suggestedNote,
+                confianza: aiSuggestion.confidence,
+              }
+            : undefined
+        }
+        onGenerar={onGenerarSuggestion ?? (() => {})}
+        onAplicar={
+          onApplyCaption
+            ? (s) => onApplyCaption({ title: s.titulo, note: s.nota ?? '' })
+            : undefined
+        }
+        onRegenerar={onRegenerateSuggestion}
+      />
 
       {/* Párrafo posterior */}
       {nextParagraph && (

@@ -181,3 +181,58 @@ def test_violacion_portada_imposible_guard(tmp_path, monkeypatch):
         pass
     apply_inplace(src, out, EvilModel(), _Rules())  # flujo normal no debe lanzar
     assert out.exists() and orig_loop
+
+
+def _build_doc_con_math_e_imagen(tmp_path: Path) -> Path:
+    """Documento con una ecuación OMML y una imagen en párrafos SIN texto.
+
+    `.text` de python-docx no ve `m:t` ni `a:blip`, así que esos párrafos
+    llegan al purge con texto vacío: es exactamente el caso que el guard de
+    contenido no textual tiene que proteger (hallazgo #2)."""
+    import struct
+    import zlib
+
+    from docx.oxml import parse_xml
+    from docx.oxml.ns import nsdecls
+
+    def _png_1x1() -> bytes:
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            body = tag + data
+            return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)  # 1x1 RGB
+        return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+                + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00")) + chunk(b"IEND", b""))
+
+    doc = Document()
+    for ln in ["UNIVERSIDAD NACIONAL", "Facultad de Ingeniería", "Título del Trabajo", "Autor Ejemplo", "Managua, 2026"]:
+        doc.add_paragraph(ln)
+    doc.add_heading("Introducción", level=1)
+    doc.add_paragraph("Cuerpo de prueba con texto suficiente. " * 2)
+
+    p_eq = doc.add_paragraph()  # sin texto: solo la ecuación
+    p_eq._element.append(parse_xml(
+        '<m:oMath %s><m:r><m:t>E=mc2</m:t></m:r></m:oMath>' % nsdecls("m")
+    ))
+
+    png = tmp_path / "px.png"
+    png.write_bytes(_png_1x1())
+    doc.add_picture(str(png))  # párrafo sin texto: solo la imagen
+
+    doc.add_heading("Referencias", level=1)
+    doc.add_paragraph("Chase, R. (2019). Libro de operaciones muy citado en la literatura académica moderna.")
+
+    path = tmp_path / "orig_math.docx"
+    doc.save(path)
+    return path
+
+
+def test_ecuaciones_e_imagenes_sobreviven(tmp_path):
+    """apply_inplace no debe borrar ecuaciones OMML ni imágenes (hallazgo #2)."""
+    src = _build_doc_con_math_e_imagen(tmp_path)
+    out = tmp_path / "out_math.docx"
+    apply_inplace(src, out, _Model(), _Rules())
+
+    with zipfile.ZipFile(str(out)) as z:
+        xml = z.read("word/document.xml").decode("utf-8", "ignore")
+    assert "oMath" in xml, "la ecuacion OMML se perdio en la ruta in-place"
+    assert "w:drawing" in xml or "a:blip" in xml, "la imagen se perdio en la ruta in-place"

@@ -33,6 +33,7 @@ vi.mock('../components/layout/PaperCanvas', () => ({
 }));
 
 import { useDocStore } from '../store/useDocStore';
+import { clasificarAutoresDePortada } from '../components/layout/UNICoverPreview';
 import { defaultActa, defaultPortada } from '../store/slices/coverSlice';
 import { CarruselPortada, HOJA_DE_DATOS_TESTID, pasoDeArrastre, UMBRAL_DE_ARRASTRE_PX } from '../components/wizard/portada/CarruselPortada';
 import { HojaDatosPortada } from '../components/wizard/portada/HojaDatosPortada';
@@ -303,6 +304,31 @@ describe('carrusel de portada', () => {
     const catalogo = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === 'UNAN')!;
     const imagenes = within(tarjeta('uni')).queryAllByRole('img');
     expect(imagenes.some((i) => i.getAttribute('src')?.includes(catalogo.logoUrl!))).toBe(true);
+  });
+
+  it('separa estudiantes y docente por DATO, no por el prefijo del nombre', () => {
+    /* La heurística anterior (`/^(ing\.|dr\.|...)/`) clasificaba por el texto del
+       nombre: un estudiante que se escribió "Ing. Ana Pérez" se volvía tutor y un
+       docente sin título se volvía estudiante. Eso hacía que la preview mostrara
+       u ocultara al tutor distinto de lo que escribe `portada_uni.py`. */
+    const autores = [
+      { nombre: 'Ing. Ana Pérez', carnet: '1' },
+      { nombre: 'Br. Luis López', carnet: '2' },
+      { nombre: 'Carlos Docente', carnet: '' },
+    ];
+
+    // Sin docente declarado: nadie es tutor, aunque un estudiante lleve "Ing.".
+    const sinDocente = clasificarAutoresDePortada(autores, []);
+    expect(sinDocente.estudiantes).toHaveLength(3);
+    expect(sinDocente.tutor).toBe('');
+
+    // El docente declarado se separa por dato y no se duplica como estudiante.
+    const conDocente = clasificarAutoresDePortada(autores, ['Carlos Docente']);
+    expect(conDocente.tutor).toBe('Carlos Docente');
+    expect(conDocente.estudiantes.map((e) => e.nombre)).toEqual([
+      'Ing. Ana Pérez',
+      'Br. Luis López',
+    ]);
   });
 });
 
