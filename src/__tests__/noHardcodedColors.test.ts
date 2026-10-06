@@ -689,11 +689,13 @@ describe('T20 — el lint de tokens del rediseño', () => {
     /* Los que el rediseño creó, para que un archivo nuevo caiga dentro sin que
        nadie tenga que acordarse de añadirlo a una lista. */
     for (const esperado of [
-      'EngineGroupCard.tsx',
+      'ReviewGate.tsx',
+      'RevisionRoom.tsx',
+      'RevisionDetail.tsx',
+      'AiRoom.tsx',
+      'AiDashboard.tsx',
       'FocusReadingCard.tsx',
       'ReadingText.tsx',
-      'ReviewStrip.tsx',
-      'ReviewWorkbench.tsx',
       'IconRail.tsx',
       'RailFlyout.tsx',
       'AppShell.tsx',

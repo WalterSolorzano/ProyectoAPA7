@@ -196,24 +196,6 @@ describe('T12 — useReviewWorkbench', () => {
     expect(result.current.hasFindings).toBe(false);
   });
 
-  it('el filtro también recorta las marcas del minimapa', () => {
-    useDocStore.setState({
-      proofreadFindings: [
-        hallazgo(),
-        hallazgo({ element_id: 'e2', excerpt: 'redundancia', kind: 'muletilla', suggestion: '' }),
-      ],
-    });
-    const { result } = renderHook(() => useReviewWorkbench());
-    // Las dos caen en la página 1: sin filtro, la marca cuenta 2 hallazgos.
-    expect(result.current.marks.get(1)?.count).toBe(2);
-
-    act(() => result.current.setFilter('spelling'));
-    const marcas = [...result.current.marks.values()];
-    expect(marcas).toHaveLength(1);
-    expect(marcas[0].count).toBe(1);
-    expect(marcas[0].label).toBe(ENGINE_META.spelling.title);
-  });
-
   it('el grupo que abre por defecto es el de mayor severidad, no el primero', () => {
     useDocStore.setState({
       proofreadFindings: [hallazgo()],
@@ -503,22 +485,6 @@ describe('T12 — useReviewWorkbench', () => {
     });
     expect(result.current.totalPages).toBe(1);
     expect(result.current.currentPage).toBe(1);
-  });
-
-  it('la marca de la página la tiñe el motor más grave, no el primero que aparece', () => {
-    useDocStore.setState({
-      proofreadFindings: [
-        // El primero en insertarse es de IA (medium); el segundo es de
-        // ortografía (high). La marca tiene que ser del segundo.
-        hallazgo({ kind: 'muletilla', message: 'Muletilla repetitiva', suggestion: '' }),
-        hallazgo({ element_id: 'e2', excerpt: 'tambien' }),
-      ],
-    });
-    const { result } = renderHook(() => useReviewWorkbench());
-    const marca = result.current.marks.get(1);
-    expect(marca?.label).toBe('Ortografía');
-    expect(marca?.color).toBe('var(--color-danger)');
-    expect(marca?.count).toBe(2);
   });
 
   it('un párrafo IA sin puntuación no muestra un porcentaje inventado', () => {

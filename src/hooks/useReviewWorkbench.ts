@@ -33,7 +33,6 @@ import {
 } from 'react';
 import { useDocStore } from '../store/useDocStore';
 import { usePageIndex } from './usePageIndex';
-import type { MinimapMark } from '../components/review/ReviewMinimap';
 import {
   summarizeScanOutcomes,
   toReason,
@@ -116,8 +115,6 @@ export interface ReviewWorkbenchApi {
    *  la pantalla vacía" tiene que NOMBRAR el filtro, o deja al usuario adivinando
    *  cuál de los cinco sacar—. */
   filterLabel: string | null;
-  /** Una marca por página con hallazgo: color = motor dominante de ESA página */
-  marks: Map<number, MinimapMark>;
   /** Ids de elemento con ALGÚN hallazgo, ya recortados por el filtro. Es lo que
    *  el lienzo usa para teñir de acento los bloques con hallazgos en el modo
    *  Hoja (`reviewHighlightIds`). Sale de `visibles` y no de `items`: el
@@ -629,34 +626,6 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     if (masCritico) setOpenEngines([masCritico.engine]);
   }, [groups]);
 
-  const marks = useMemo(() => {
-    const porPagina = new Map<number, { motores: EngineId[]; count: number; peor: Map<EngineId, number> }>();
-    for (const it of items) {
-      if (it.pageNumber == null) continue;
-      if (filter !== 'all' && it.category !== filter) continue;
-      let v = porPagina.get(it.pageNumber);
-      if (!v) {
-        v = { motores: [], count: 0, peor: new Map() };
-        porPagina.set(it.pageNumber, v);
-      }
-      if (!v.motores.includes(it.category)) v.motores.push(it.category);
-      v.count += 1;
-      v.peor.set(it.category, Math.min(v.peor.get(it.category) ?? 99, SEVERITY_RANK[it.severity]));
-    }
-    const salida = new Map<number, MinimapMark>();
-    for (const [pagina, v] of porPagina) {
-      // La marca de la página la tiñe el motor más grave de ESA página, no el
-      // primero que aparezca.
-      const dominante = [...v.motores].sort((a, b) => (v.peor.get(a) ?? 99) - (v.peor.get(b) ?? 99))[0];
-      salida.set(pagina, {
-        color: ENGINE_META[dominante].color,
-        count: v.count,
-        label: ENGINE_META[dominante].title,
-      });
-    }
-    return salida;
-  }, [items, filter]);
-
   const selected = useMemo(() => items.find((i) => i.id === selectedId) || null, [items, selectedId]);
 
   const select = useCallback(
@@ -868,7 +837,6 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     hasFindings: items.length > 0,
     visibleCount: visibles.length,
     filterLabel: filter === 'all' ? null : ENGINE_META[filter].title,
-    marks,
     highlightIds,
     filter,
     setFilter,
