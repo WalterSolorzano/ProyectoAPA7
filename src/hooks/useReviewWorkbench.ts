@@ -189,7 +189,7 @@ export const ENGINE_META: Record<EngineId, { title: string; chip: string; color:
   spelling: { title: 'Ortografía', chip: 'Ortografía', color: 'var(--color-danger)' },
   structure: { title: 'Estructura', chip: 'Estructura', color: 'var(--color-info)' },
   citations: { title: 'Citas', chip: 'Citas', color: 'var(--color-success)' },
-  style: { title: 'Redacción & Bloom', chip: 'Redacción & Bloom', color: 'var(--color-warning)' },
+  style: { title: 'Redacción', chip: 'Redacción', color: 'var(--color-warning)' },
   ai: { title: 'Patrones IA', chip: 'Patrones IA', color: 'var(--color-engine-ia)' },
 };
 

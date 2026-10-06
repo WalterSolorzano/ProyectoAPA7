@@ -131,7 +131,7 @@ describe('T12 — useReviewWorkbench', () => {
     useDocStore.setState({
       proofreadFindings: [
         hallazgo(),
-        hallazgo({ element_id: 'e2', excerpt: 'objetivo', kind: 'bloom_vague', message: 'Verbo impreciso' }),
+        hallazgo({ element_id: 'e2', excerpt: 'yo', kind: 'first_person', message: 'Primera persona' }),
       ],
     });
     const { result } = renderHook(() => useReviewWorkbench());
@@ -150,7 +150,7 @@ describe('T12 — useReviewWorkbench', () => {
     useDocStore.setState({
       proofreadFindings: [
         hallazgo(),
-        hallazgo({ element_id: 'e2', excerpt: 'objetivo', kind: 'bloom_vague', message: 'Verbo impreciso' }),
+        hallazgo({ element_id: 'e2', excerpt: 'yo', kind: 'first_person', message: 'Primera persona' }),
         hallazgo({ element_id: 'e2', kind: 'muletilla', message: 'Muletilla repetitiva' }),
       ],
     });
@@ -421,12 +421,12 @@ describe('T12 — useReviewWorkbench', () => {
   });
 
   it('una edición en el documento NO vuelve a elegir el grupo', () => {
-    // Ortografía y Bloom empatan en gravedad, así que la siembra elige el
-    // primero de ENGINE_ORDER: 'spelling'. La persona abre el otro.
+    // Ortografía (severidad alta) gana la siembra sobre el estilo, así que se
+    // elige el primero de ENGINE_ORDER: 'spelling'. La persona abre el otro.
     useDocStore.setState({
       proofreadFindings: [
         hallazgo(),
-        hallazgo({ element_id: 'e2', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'x' }),
+        hallazgo({ element_id: 'e2', kind: 'first_person', message: 'Primera persona', suggestion: 'x' }),
       ],
     });
     const { result } = renderHook(() => useReviewWorkbench());
@@ -558,7 +558,7 @@ describe('T12 — useReviewWorkbench', () => {
         ...DOC_CON_ESTRUCTURA,
         proofreadFindings: [
           hallazgo(),
-          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso' }),
+          hallazgo({ element_id: 'e1', kind: 'first_person', message: 'Primera persona' }),
           hallazgo({ element_id: 'e1', kind: 'muletilla', message: 'Muletilla' }),
         ],
         citationAuditResult: {
@@ -655,8 +655,8 @@ describe('T12 — useReviewWorkbench', () => {
       useDocStore.setState({
         updateElementText,
         proofreadFindings: [
-          hallazgo({ kind: 'bloom_vague', message: 'Verbo impreciso' }),
-          hallazgo({ element_id: 'e2', kind: 'bloom_low', message: 'Nivel bajo' }),
+          hallazgo({ kind: 'first_person', message: 'Primera persona', suggestion: 'en el estudio' }),
+          hallazgo({ element_id: 'e2', kind: 'first_person', message: 'Primera persona', suggestion: 'se observa' }),
         ],
       });
       const { result } = renderHook(() => useReviewWorkbench());
@@ -665,7 +665,7 @@ describe('T12 — useReviewWorkbench', () => {
       await act(async () => {
         await result.current.runGroupAction(estilo);
       });
-      // El motor da la sugerencia por defecto para Bloom, y se aplica a los dos.
+      // Las dos correcciones objetivas de estilo se escriben.
       expect(updateElementText).toHaveBeenCalledTimes(2);
       expect(result.current.items).toHaveLength(0);
     });
@@ -680,7 +680,7 @@ describe('T12 — useReviewWorkbench', () => {
       useDocStore.setState({
         updateElementText,
         proofreadFindings: [
-          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'verbo preciso' }),
+          hallazgo({ element_id: 'e1', kind: 'first_person', message: 'Primera persona', suggestion: 'en el estudio' }),
           hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante', suggestion: 'prosa' }),
         ],
       });
@@ -713,7 +713,7 @@ describe('T12 — useReviewWorkbench', () => {
       useDocStore.setState({
         updateElementText,
         proofreadFindings: [
-          hallazgo({ element_id: 'e1', kind: 'bloom_vague', message: 'Verbo impreciso', suggestion: 'verbo preciso' }),
+          hallazgo({ element_id: 'e1', kind: 'first_person', message: 'Primera persona', suggestion: 'en el estudio' }),
           // Los dos de abajo llevan `suggestion` a propósito: sin ella, un apply
           // indebido caería en la red y el doble no se vería llamado.
           hallazgo({ element_id: 'e2', kind: 'incompleta', message: 'Oración colgante', suggestion: 'prosa inventada' }),
@@ -725,18 +725,18 @@ describe('T12 — useReviewWorkbench', () => {
       expect(estilo.massAction).toBe('accept');
       // El motor mixto: un subtipo 'accept' y dos 'mark'.
       expect(estilo.groups.map((g) => [g.label, g.action])).toEqual([
-        ['Verbo impreciso en objetivo (Bloom)', 'accept'],
         ['Idea incompleta', 'mark'],
+        ['Primera persona gramatical', 'accept'],
         ['Palabra repetida', 'mark'],
       ]);
 
       await act(async () => {
         await result.current.runGroupAction(estilo);
       });
-      // Solo el Bloom se escribe. Los otros dos siguen ahí, sin marcar y sin
-      // tocar: el rótulo era "aceptar", no "marcar por detrás".
+      // Solo la corrección objetiva se escribe. Los otros dos siguen ahí, sin
+      // marcar y sin tocar: el rótulo era "aceptar", no "marcar por detrás".
       expect(updateElementText).toHaveBeenCalledTimes(1);
-      expect(updateElementText).toHaveBeenCalledWith('e1', 'verbo preciso');
+      expect(updateElementText).toHaveBeenCalledWith('e1', 'en el estudio');
       expect(result.current.items.map((i) => i.subtype)).toEqual(['idea_incompleta', 'palabra_repetida']);
       expect(result.current.markedIds).toEqual([]);
     });

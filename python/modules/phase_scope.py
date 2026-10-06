@@ -77,7 +77,10 @@ PHASES: Tuple[PhaseConfig, ...] = (
                 ("metodo", "metodologia", "materiales y metodos",
                  "diseno metodologico", "metodologia de la investigacion",
                  "enfoque metodologico"),
-                criteria=("bloom_verb", "paragraph_words", "metodo_sin_detalle"),
+                # Sin `bloom_verb`: el verbo medible se juzga SOLO en la fase de
+                # Objetivos, que tiene su propio analizador (REV-L2). Un párrafo
+                # de método se mide por longitud y por detalle, no por Bloom.
+                criteria=("paragraph_words", "metodo_sin_detalle"),
                 paragraph_words=(80, 200)),
     PhaseConfig("resultados", "Resultados", ("resultados", "resultado"),
                 criteria=("verbo_pasado",)),

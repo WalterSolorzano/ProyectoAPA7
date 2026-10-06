@@ -117,6 +117,24 @@ export const PHASE_LABELS: Record<string, string> = {
 };
 
 /**
+ * Reglas que pertenecen al ANALIZADOR DE OBJETIVOS (REV-L2), no al workbench.
+ *
+ * El backend las emite igual —viven en la fase `objetivos` y en `bloom_verb`—,
+ * pero el analizador las recalcula desde los elementos con `objetivosBloom`, así
+ * que incluirlas acá las contaría dos veces: una con chip propio en el motor de
+ * Redacción y otra en su sala. La regla es una sola: estas `kind` no entran a la
+ * lista compartida (`reviewItems`), y por eso ni el workbench ni el rail las
+ * cuentan; el analizador es su única superficie.
+ */
+export const OBJETIVOS_KINDS: ReadonlySet<string> = new Set([
+  'bloom_vague',
+  'bloom_low',
+  'objetivo_sin_variable',
+  'objetivo_sin_infinitivo',
+  'objetivo_multi_verbo',
+]);
+
+/**
  * `null` = el hallazgo es de una regla general, que no pertenece a ninguna
  * fase. Una clave desconocida NO se inventa: sale como sección sin nombre.
  */
@@ -287,6 +305,9 @@ export function collectAuditItems(
 
   // 2. Hallazgos proactivos locales: TODOS los `kind` que emite el auditor.
   for (const f of proofreadFindings ?? []) {
+    // Las reglas de objetivos no se mezclan con el workbench: su superficie es
+    // el analizador de Objetivos (REV-L2). Ver `OBJETIVOS_KINDS`.
+    if (OBJETIVOS_KINDS.has(String(f.kind))) continue;
     const row = proofreadRow(String(f.kind), f);
     out.push({
       // Elemento + tipo + rango: el tipo porque dos auditores señalan el mismo

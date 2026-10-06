@@ -186,15 +186,15 @@ def test_metodologia_en_el_cuerpo_no_atribuye_a_objetivos():
     # "metodologia") y un verbo impreciso. Sin el verbo el test pasaba sin
     # probar nada, porque el bug nunca habria disparado.
     #
-    # Lo que se asserta es la ATRIBUCION, no la ausencia: la fase de metodo
-    # si tiene criterio de verbo medible (D5), asi que un hallazgo aqui es
-    # legitimo. Lo ilegitimo era que se le atribuyera a la fase de objetivos.
+    # El verbo medible (bloom_verb) vive SOLO en la fase de objetivos: la fase
+    # de metodo ya no lo evalua, asi que aqui no debe salir ningun bloom_vague.
+    # Lo que se asserta es que nada se le atribuya a objetivos y que el verbo
+    # impreciso no se cuele por el metodo.
     els = [_h("h1", "Metodologia"),
            _para("El objetivo de este trabajo es conocer la percepcion.")]
     f = audit_elements(els)
     assert all(x["phase"] != "objetivos" for x in f), f
-    # Y el hallazgo que sí sale pertenece a la fase que realmente lo contiene.
-    assert [x["phase"] for x in _kinds(f, "bloom_vague")] == ["metodo"]
+    assert _kinds(f, "bloom_vague") == []
 
 
 def test_metodologia_como_palabra_suelta_no_atribuye_a_objetivos():

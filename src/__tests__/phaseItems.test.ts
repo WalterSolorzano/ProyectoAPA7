@@ -13,7 +13,7 @@ const base: ProofreadFinding = {
   start: 0,
   end: 6,
   excerpt: 'Conocer',
-  kind: 'bloom_vague',
+  kind: 'paragraph_words',
   severity: 'warn',
   message: 'verbo impreciso',
   source: 'local',
@@ -35,8 +35,8 @@ describe('fase en los hallazgos', () => {
   });
 
   it('un hallazgo con fase la conserva', () => {
-    const items = collectAuditItems(sources([{ ...base, phase: 'objetivos' }]));
-    expect(items[0].phase).toBe('objetivos');
+    const items = collectAuditItems(sources([{ ...base, phase: 'metodo' }]));
+    expect(items[0].phase).toBe('metodo');
   });
 
   it('una regla general declarada como "global" se traduce a null', () => {
@@ -60,6 +60,18 @@ describe('fase en los hallazgos', () => {
       { ...base, kind: 'portada_title_larga', phase: 'portada', read_only: true },
     ]));
     expect(items[0].suggestedText).toBeUndefined();
+  });
+
+  it('las reglas de OBJETIVOS no entran al workbench: viven en su analizador', () => {
+    // Si entraran, el motor de Redacción contaría dos veces el mismo verbo y el
+    // rail prometería trabajo que la sala de revisión no muestra.
+    const items = collectAuditItems(sources([
+      { ...base, kind: 'bloom_vague', phase: 'objetivos' },
+      { ...base, kind: 'objetivo_sin_variable', phase: 'objetivos' },
+      { ...base, kind: 'paragraph_words', phase: 'metodo' },
+    ]));
+    expect(items).toHaveLength(1);
+    expect(items[0].subtype).toBe('largo_parrafo');
   });
 });
 
