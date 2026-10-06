@@ -7,6 +7,16 @@ import type { AIReviewParagraph } from '../../api/backend';
 import { BANDAS_IA } from '../../lib/aiPerfil';
 import { PaperCanvas } from '../layout/PaperCanvas';
 
+/** Los cuatro tokens de mancha declarados en `design-system.css`. Un array
+ *  explícito (no un template `--ia-mancha-${i}`) para que el lint de tokens lea
+ *  nombres declarados y no un nombre dinámico. */
+const MANCHA_TOKENS = [
+  'var(--ia-mancha-1)',
+  'var(--ia-mancha-2)',
+  'var(--ia-mancha-3)',
+  'var(--ia-mancha-4)',
+] as const;
+
 export interface AiDocumentPreviewProps {
   paragraphs: readonly AIReviewParagraph[];
   onClose: () => void;
@@ -35,7 +45,7 @@ export const AiDocumentPreview: React.FC<AiDocumentPreviewProps> = ({ paragraphs
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             {BANDAS_IA.map((b, i) => (
               <span key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                <i style={{ width: 12, height: 12, borderRadius: 3, background: `var(--ia-mancha-${i + 1})`, border: '1px solid var(--color-border-subtle)' }} />{b.label}
+                <i style={{ width: 12, height: 12, borderRadius: 'var(--radius-2xs)', background: MANCHA_TOKENS[i], border: '1px solid var(--color-border-subtle)' }} />{b.label}
               </span>
             ))}
           </div>

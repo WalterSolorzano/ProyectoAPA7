@@ -47,7 +47,7 @@ export const AiDashboard: React.FC<AiDashboardProps> = ({ perfil, onOpenSection,
             <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', marginTop: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
               {BANDAS_IA.map((b, i) => (
                 <span key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <i style={{ width: 9, height: 9, borderRadius: 2, background: b.color, display: 'inline-block' }} />{b.label} · {perfil.porBanda[i]}
+                  <i style={{ width: 9, height: 9, borderRadius: 'var(--radius-2xs)', background: b.color, display: 'inline-block' }} />{b.label} · {perfil.porBanda[i]}
                 </span>
               ))}
             </div>

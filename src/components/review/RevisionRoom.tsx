@@ -212,7 +212,7 @@ const BloomChart: React.FC<{ objetivos: ObjetivoBloom[] }> = ({ objetivos }) => 
   });
   return (
     <div style={{ position: 'relative', height: 128, margin: '1.6rem .5rem .2rem' }}>
-      <span style={{ position: 'absolute', top: 6, bottom: 26, left: `${(NIVEL_EXIGIDO / 6) * 100}%`, right: 0, background: 'var(--color-accent-a08)', borderLeft: '1px dashed var(--color-accent-a65)', borderRadius: '0 var(--radius-md) var(--radius-md) 0' }} />
+      <span style={{ position: 'absolute', top: 6, bottom: 26, left: `${(NIVEL_EXIGIDO / 6) * 100}%`, right: 0, background: 'var(--color-accent-a08)', borderLeft: '1px dashed var(--color-accent-a65)', borderTopRightRadius: 'var(--radius-md)', borderBottomRightRadius: 'var(--radius-md)' }} />
       <span style={{ position: 'absolute', top: '-1.1rem', left: `${(NIVEL_EXIGIDO / 6) * 100}%`, paddingLeft: 8, fontSize: 'var(--text-xs)', color: 'var(--color-accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>nivel exigido</span>
       <span style={{ position: 'absolute', left: 0, right: 0, bottom: 26, height: 2, background: 'var(--color-border-strong)' }} />
       {POSICIONES_BLOOM.map((t) => (
@@ -223,7 +223,7 @@ const BloomChart: React.FC<{ objetivos: ObjetivoBloom[] }> = ({ objetivos }) => 
       ))}
       {marcas.map(({ o, etiqueta, color }, i) => o.nivelActual === null ? null : (
         <React.Fragment key={i}>
-          <span style={{ position: 'absolute', bottom: 26, left: posNivel(o.nivelActual), transform: 'translate(-50%, 50%)', width: o.esGeneral ? 22 : 15, height: o.esGeneral ? 22 : 15, borderRadius: '50%', border: '2px solid var(--color-bg-surface)', boxShadow: '0 0 0 1px var(--color-border-strong)', background: color, display: 'block' }} />
+          <span style={{ position: 'absolute', bottom: 26, left: posNivel(o.nivelActual), transform: 'translate(-50%, 50%)', width: o.esGeneral ? 22 : 15, height: o.esGeneral ? 22 : 15, borderRadius: 'var(--radius-full)', border: '2px solid var(--color-bg-surface)', boxShadow: '0 0 0 1px var(--color-border-strong)', background: color, display: 'block' }} />
           <span style={{ position: 'absolute', bottom: o.esGeneral ? 40 : 34, left: posNivel(o.nivelActual), transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 'var(--text-xs)', fontWeight: 700, color }}>{etiqueta}</span>
         </React.Fragment>
       ))}
@@ -241,7 +241,7 @@ const BloomLeyenda: React.FC = () => (
 
 const Leyenda: React.FC<{ color: string; texto: string }> = ({ color, texto }) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-    <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: color, flex: '0 0 auto' }} />
+    <span aria-hidden style={{ width: 10, height: 10, borderRadius: 'var(--radius-2xs)', background: color, flex: '0 0 auto' }} />
     <span>{texto}</span>
   </span>
 );

@@ -224,7 +224,7 @@ const EscalaBloom: React.FC<{ objetivos: ObjetivoBloom[] }> = ({ objetivos }) =>
           return (
             <span key={o.elementId} style={{ position: 'absolute', top: 44, left: `${((o.nivelActual - 1) / 5) * 100}%`, transform: 'translate(-50%,-50%)' }}>
               <span style={{ position: 'absolute', bottom: 15, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap', padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-surface-alt)', border: '1px solid var(--color-border-subtle)', color: tinta }}>{etiqueta}</span>
-              <span style={{ display: 'block', width: o.esGeneral ? 14 : 10, height: o.esGeneral ? 14 : 10, borderRadius: '50%', background: tinta, border: '2px solid var(--color-bg-surface)', boxShadow: '0 0 0 1.5px var(--color-border-strong)' }} />
+              <span style={{ display: 'block', width: o.esGeneral ? 14 : 10, height: o.esGeneral ? 14 : 10, borderRadius: 'var(--radius-full)', background: tinta, border: '2px solid var(--color-bg-surface)', boxShadow: '0 0 0 1.5px var(--color-border-strong)' }} />
             </span>
           );
         })}

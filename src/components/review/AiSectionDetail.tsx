@@ -115,7 +115,7 @@ export const AiSectionDetail: React.FC<AiSectionDetailProps> = ({ fila, paragrap
                 <ul style={{ listStyle: 'none', margin: 'var(--space-2) 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {detalle.findings.map((f, i) => (
                     <li key={`${f.phrase}-${i}`} style={{ display: 'flex', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-text-primary)' }}>
-                      <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-engine-ia)', marginTop: 6, flexShrink: 0 }} />
+                      <span aria-hidden style={{ width: 7, height: 7, borderRadius: 'var(--radius-full)', background: 'var(--color-engine-ia)', marginTop: 6, flexShrink: 0 }} />
                       <span>{f.detail}</span>
                     </li>
                   ))}
@@ -165,7 +165,7 @@ function marcarFrases(texto: string, frases: string[]): React.ReactNode[] {
   const patron = new RegExp(`(${utiles.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
   return texto.split(patron).map((parte, i) =>
     utiles.some((f) => f.toLowerCase() === parte.toLowerCase())
-      ? <mark key={i} style={{ background: 'var(--ia-nivel-2)', borderBottom: '2px solid var(--color-engine-ia)', borderRadius: 2, padding: '0 1px' }}>{parte}</mark>
+      ? <mark key={i} style={{ background: 'var(--ia-nivel-2)', borderBottom: '2px solid var(--color-engine-ia)', borderRadius: 'var(--radius-2xs)', padding: '0 1px' }}>{parte}</mark>
       : <React.Fragment key={i}>{parte}</React.Fragment>,
   );
 }
