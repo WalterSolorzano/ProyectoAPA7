@@ -8,6 +8,7 @@ import config
 from content.builder import build_content_document
 from content.emit import emit_docx
 from content.oneshot import build_from_files as _build_from_files
+from content.rubric import build_rubric_report as _build_rubric_report
 from diagrams.parser import SUPPORTED_KINDS
 from diagrams.render import render_diagram
 
@@ -23,7 +24,10 @@ SCHEMA_HINT = (
     "DSL: flow 'A > B' y 'A >|etiqueta| B'; tree 'Raíz' luego '- Hijo' y '-- Nieto'; "
     "net 'A -- B' (no dirigido) y 'A -> B' (dirigido). "
     "Herramientas de archivo: build_document emite el .docx y devuelve 'path'; "
-    "build_from_files toma rutas de .docx/.xlsx y devuelve el .docx formateado."
+    "build_from_files toma rutas de .docx/.xlsx y devuelve el .docx formateado. "
+    "analyze_rubric(rubric_path, docx_path) = Traductor de Rubrica: lee la rubrica "
+    "(Word/Excel) y el documento y devuelve un informe JSON de cumplimiento "
+    "(criterio -> peso -> puntaje -> evidencia), determinista y sin IA (0 tokens)."
 )
 
 
@@ -84,6 +88,11 @@ def render_diagram_png(kind: str, dsl: str) -> bytes:
     return render_diagram(kind, dsl).png
 
 
+def analyze_rubric(rubric_path: str, docx_path: str) -> dict[str, Any]:
+    """Traductor de Rúbrica: rúbrica (Word/Excel) + documento -> informe de cumplimiento."""
+    return _build_rubric_report(rubric_path, docx_path)
+
+
 def build_server():
     try:
         from mcp.server.fastmcp import FastMCP
@@ -119,6 +128,10 @@ def build_server():
     @server.tool()
     def tool_render_diagram(kind: str, dsl: str) -> bytes:
         return render_diagram_png(kind, dsl)
+
+    @server.tool()
+    def tool_analyze_rubric(rubric_path: str, docx_path: str) -> dict:
+        return analyze_rubric(rubric_path, docx_path)
 
     return server
 

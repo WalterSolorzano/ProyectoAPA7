@@ -47,7 +47,7 @@ Notas de registro:
 
 ## Herramientas expuestas
 
-El servidor FastMCP (`FastMCP("wordapa7-content")`) registra cuatro herramientas:
+El servidor FastMCP (`FastMCP("wordapa7-content")`) registra cinco herramientas:
 
 | Herramienta | Argumentos | Devuelve |
 |---|---|---|
@@ -55,8 +55,9 @@ El servidor FastMCP (`FastMCP("wordapa7-content")`) registra cuatro herramientas
 | `tool_build_document` | `payload: dict` | Construye **y emite** el `.docx`. Devuelve `{session_id, elements, warnings, path}` donde `path` es la ruta final del archivo (por defecto bajo `STORAGE_DIR/sessions/<session_id>/`). |
 | `tool_build_from_files` | `docx_path?`, `xlsx_path?`, `cover_mode?`, `title?`, `out_path?` | One-shot: toma rutas de `.docx`/`.xlsx` existentes y devuelve el `.docx` APA 7 formateado. |
 | `tool_render_diagram` | `kind: str`, `dsl: str` | Devuelve los bytes PNG de un diagrama renderizado (para preview). |
+| `tool_analyze_rubric` | `rubric_path: str`, `docx_path: str` | Traductor de Rúbrica: lee una rúbrica (`.docx`/`.xlsx`) y un documento, y devuelve un informe JSON de cumplimiento (`criterio -> peso -> puntaje -> evidencia`). Determinista, sin IA (0 tokens). |
 
-Flujo típico de un agente: `tool_content_schema` para conocer el formato, `tool_build_document` para emitir el documento, `tool_render_diagram` si necesita previsualizar un diagrama.
+Flujo típico de un agente: `tool_content_schema` para conocer el formato, `tool_build_document` para emitir el documento, `tool_build_from_files` para un Word/Excel existente, `tool_analyze_rubric` para medir el cumplimiento de una rúbrica y `tool_render_diagram` si necesita previsualizar un diagrama.
 
 ## CLI sin tokens
 
