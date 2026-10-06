@@ -111,7 +111,7 @@ function collectSections(elements: readonly ElementLike[]): Record<string, Eleme
  * no trae H2 que los separe, se conserva la convención (el primero es el
  * general), que es lo que hace un estudiante cuando escribe una lista sola.
  */
-function separarGeneralDeEspecificos(
+export function separarGeneralDeEspecificos(
   elements: readonly ElementLike[],
   planos: readonly ElementLike[],
 ): { general: ElementLike[]; especificos: ElementLike[] } {
@@ -147,7 +147,7 @@ function separarGeneralDeEspecificos(
   return { general, especificos };
 }
 
-function reviewObjectives(general: ElementLike[], especificos: ElementLike[]): ContentFinding[] {
+export function reviewObjectives(general: ElementLike[], especificos: ElementLike[]): ContentFinding[] {
   const out: ContentFinding[] = [];
   const items = [...general, ...especificos];
 

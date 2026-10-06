@@ -9,6 +9,7 @@ import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
 import { RevisionRoom } from '../review/RevisionRoom';
 import { RevisionDetail } from '../review/RevisionDetail';
+import { ObjetivosAnalyzer } from '../review/ObjetivosAnalyzer';
 import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
 import { AiDocumentPreview } from '../review/AiDocumentPreview';
@@ -180,6 +181,25 @@ export const Step5AuditIAWizard: React.FC = () => {
     return (
       <div className="revision-phase rev-screen" style={PHASE_WRAP}>
         <RevisionDetail foco={foco} onBack={() => setPantalla('rev-l0')} />
+      </div>
+    );
+  }
+
+  if (pantalla === 'rev-l2') {
+    return (
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+        <ObjetivosAnalyzer
+          elements={elements}
+          onApply={async (elementId, texto) => {
+            try {
+              await updateElementText(elementId, texto);
+              showToast('Propuesta de objetivo aplicada', 'success');
+            } catch {
+              showToast('Error al aplicar la propuesta', 'error');
+            }
+          }}
+          onBack={() => setPantalla('rev-l0')}
+        />
       </div>
     );
   }
