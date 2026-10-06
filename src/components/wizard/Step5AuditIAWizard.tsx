@@ -9,6 +9,8 @@ import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
 import { ReviewWorkbench } from '../review/ReviewWorkbench';
 import { AiRoom } from '../review/AiRoom';
+import { AiSectionDetail } from '../review/AiSectionDetail';
+import { construirPerfilIA } from '../../lib/aiPerfil';
 import '../../styles/revision.css';
 
 type Pantalla = 'gate' | 'review' | 'ai';
@@ -113,7 +115,24 @@ export const Step5AuditIAWizard: React.FC = () => {
 
   const aiItems = useMemo(() => items.filter((it) => it.category === 'ai'), [items]);
 
+  const perfilIA = useMemo(() => construirPerfilIA(reviewResult?.paragraphs ?? [], elements), [reviewResult, elements]);
+
   if (pantalla === 'ai') {
+    if (iaNivel === 'l1' && iaH1) {
+      const fila = perfilIA.filas.find((f) => f.h1Id === iaH1);
+      if (fila) {
+        return (
+          <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+            <AiSectionDetail
+              fila={fila}
+              paragraphs={reviewResult?.paragraphs ?? []}
+              onBack={() => setIaNivel('l0')}
+              onMark={(id) => handleMark({ element_id: id } as AuditItem)}
+            />
+          </div>
+        );
+      }
+    }
     return (
       <div className="revision-phase rev-screen" style={PHASE_WRAP}>
         <AiRoom

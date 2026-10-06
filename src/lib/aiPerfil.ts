@@ -32,6 +32,10 @@ export interface ParrafoPerfilIA {
   excerpt: string;
   /** Carril vertical (0..2) para no superponer puntos con scores cercanos. */
   carril: number;
+  /** H2 ancestro del párrafo, o `null` si cuelga directo del H1. La lista de
+   *  IA-L1 se agrupa por H2; derivarlo en la vista sería una segunda verdad. */
+  h2Id: string | null;
+  h2Titulo: string | null;
 }
 
 export interface FilaPerfilIA {
@@ -62,6 +66,8 @@ interface H1Actual {
   id: string;
   titulo: string;
   fase: string | null;
+  h2Id: string | null;
+  h2Titulo: string | null;
 }
 
 const CARRILES = 3;
@@ -121,8 +127,19 @@ export function construirPerfilIA(
         id: nodo?.id ?? el.id,
         titulo: (nodo?.titulo ?? el.text ?? '').trim(),
         fase: nodo?.fase ?? null,
+        h2Id: null,
+        h2Titulo: null,
       };
       asegurar(actual.id, actual.titulo || 'Sección sin nombre', actual.fase);
+    } else if (el.heading_level === 2 && actual) {
+      const conH2: H1Actual = {
+        id: actual.id,
+        titulo: actual.titulo,
+        fase: actual.fase,
+        h2Id: el.id,
+        h2Titulo: (el.text ?? '').trim() || null,
+      };
+      actual = conH2;
     }
     h1DeIndex.push(actual);
   }
@@ -139,6 +156,8 @@ export function construirPerfilIA(
       categoria: p.ai_category,
       excerpt: recortar(p.text),
       carril: 0,
+      h2Id: h1?.h2Id ?? null,
+      h2Titulo: h1?.h2Titulo ?? null,
     });
   }
 

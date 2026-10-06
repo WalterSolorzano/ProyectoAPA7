@@ -128,6 +128,19 @@ describe('construirPerfilIA — identidad de fase, fases vacías y carriles', ()
     expect(perfil.filas[0].titulo).toBe('Introducción');
   });
 
+  it('registra el H2 ancestro de cada párrafo', () => {
+    const els = [
+      h1('h1-1', 'Desarrollo'),
+      h1('h2-1', 'Desarrollo del marco'),
+      p('p-1', 'uno'),
+      h1('h2-2', 'Discusión'),
+      p('p-2', 'dos'),
+    ].map((e, i) => (i === 1 || i === 3 ? { ...e, type: 'heading', heading_level: 2 } : e));
+    const perfil = construirPerfilIA([par(2, 80, 'uno'), par(4, 40, 'dos')], els as never);
+    expect(perfil.filas[0].parrafos[0].h2Titulo).toBe('Desarrollo del marco');
+    expect(perfil.filas[0].parrafos[1].h2Titulo).toBe('Discusión');
+  });
+
   it('separa en carriles los párrafos con scores cercanos', () => {
     const els = [h1('h1-1', 'Introducción'), p('p-1', ''), p('p-2', ''), p('p-3', '')];
     const perfil = construirPerfilIA([par(1, 50), par(2, 51), par(3, 52)], els);
