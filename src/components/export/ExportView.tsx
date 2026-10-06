@@ -115,21 +115,22 @@ export const ExportView: React.FC = () => {
      sin guardar" informa y no deja decidir, que es el mismo defecto que el
      aviso de citas fantasma que reaparecía al siguiente clic. */
   const [sinGuardar, setSinGuardar] = useState<string | null>(null);
-  /* Dónde quedó la copia de seguridad, DICHA en la pantalla y no solo en un
-     toast que se va solo. Un `.bak` que la persona no sabe nombrar no lo puede
-     ir a buscar, y un respaldo que no se encuentra no es un respaldo. */
-  const [respaldo, setRespaldo] = useState<string | null>(null);
+  /* Dónde quedó la copia de trabajo, DICHA en la pantalla y no solo en un
+     toast que se va solo. Una copia que la persona no sabe nombrar no la puede
+     ir a buscar, y el aviso de "tu original no se tocó" tiene que venir con la
+     ruta, o es una promesa sin prueba. */
+  const [copiaDeTrabajo, setCopiaDeTrabajo] = useState<string | null>(null);
 
   const enviarAWord = useCallback(async (opcion: { guardar?: boolean; forzar?: boolean } = {}) => {
     if (!doc?.session_id || !activeFilePath) return;
     setIsSending(true);
     setSinGuardar(null);
-    setRespaldo(null);
+    setCopiaDeTrabajo(null);
     try {
       const res = await fetch(`${getApiBase()}/send-to-word/${doc.session_id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dest_path: activeFilePath, ...opcion }),
+        body: JSON.stringify({ nombre: activeFilePath, ...opcion }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.requiere_confirmacion) {
@@ -143,7 +144,7 @@ export const ExportView: React.FC = () => {
         return;
       }
       showToast(data.message ?? 'Documento APA enviado a Word', data.method === 'com' ? 'success' : 'info');
-      if (data.backup) setRespaldo(data.backup);
+      if (data.working_path) setCopiaDeTrabajo(data.working_path);
     } catch (e) {
       showToast('No se pudo conectar al motor para enviar a Word', 'error');
     } finally {
@@ -461,7 +462,7 @@ export const ExportView: React.FC = () => {
                   type="button"
                   onClick={() => enviarAWord()}
                   disabled={isSending || isLoading}
-                  title={`Reemplazar ${activeFilePath.split(/[\\/]/).pop()} con la versión APA 7. Deja una copia .bak al lado.`}
+                  title="Abre una copia APA 7 en Word. Tu archivo original no se modifica."
                   style={{
                     display: 'flex', alignItems: 'center', gap: '7px',
                     padding: '8px 14px',
@@ -476,17 +477,17 @@ export const ExportView: React.FC = () => {
                   }}
                 >
                   <Upload size={14} strokeWidth={1.75} aria-hidden />
-                  {isSending ? 'Enviando...' : 'Enviar a Word'}
+                  {isSending ? 'Abriendo copia…' : 'Abrir copia en Word'}
                 </button>
               </>
             )}
           </div>
         )}
 
-        {/* Dónde quedó la copia de seguridad, escrita y no sólo dicha. */}
-        {respaldo && (
+        {/* Dónde quedó la copia que Word abrió, dicha y no solo implícita. */}
+        {copiaDeTrabajo && (
           <p
-            data-testid="ruta-del-respaldo"
+            data-testid="ruta-de-la-copia"
             style={{
               margin: 0, width: '100%', display: 'flex', alignItems: 'flex-start', gap: '7px',
               fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 'var(--leading-normal)',
@@ -494,7 +495,7 @@ export const ExportView: React.FC = () => {
           >
             <ShieldCheck size={14} strokeWidth={1.75} aria-hidden style={{ flexShrink: 0, marginTop: '1px' }} />
             <span>
-              {`Tu archivo original quedó respaldado en ${respaldo}. Si el resultado no era lo que esperabas, ese archivo es el tuyo.`}
+              {`Word abrió una copia de trabajo en ${copiaDeTrabajo}. Tu archivo original no se modificó.`}
             </span>
           </p>
         )}
@@ -565,7 +566,7 @@ export const ExportView: React.FC = () => {
               </button>
             </div>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 'var(--leading-normal)' }}>
-              El archivo original no se tocó: sigue como está, y la copia de seguridad todavía no se hizo.
+              Tu archivo original no se tocó: la copia se actualiza recién cuando elijas.
             </span>
           </div>
         )}

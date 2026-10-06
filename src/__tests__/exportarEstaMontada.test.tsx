@@ -196,7 +196,7 @@ describe('F6 — el write-back ofrece las dos salidas', () => {
     expect(vista).toContain('enviarAWord({ forzar: true })');
     /* Y el pedido se arma por expansión, no con una bandera fija: así el
        primer clic no manda ninguna de las dos. */
-    expect(vista).toContain('JSON.stringify({ dest_path: activeFilePath, ...opcion })');
+    expect(vista).toContain('JSON.stringify({ nombre: activeFilePath, ...opcion })');
   });
 
   it('la vista no puede decidir sola: pregunta, y el boton de discardar lo dice', () => {

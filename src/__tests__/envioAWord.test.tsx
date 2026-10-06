@@ -1,20 +1,10 @@
 /**
- * El write-back a Word no puede decidir por la persona si tiene trabajo sin
- * guardar, y el frontend tiene que ofrecer las DOS salidas, no avisar.
+ * La copia de trabajo en Word.
  *
- * CONTEXTO. `POST /api/send-to-word/{session_id}` pisa el `.docx` original del
- * estudiante. Con el documento abierto en Word y cambios sin guardar,
- * `Close(SaveChanges=0)` los borra. El backend ya no lo hace: devuelve 409 con
- * `requiere_confirmacion` y no toca nada.
- *
- * LO QUE SE AFIRMA ACA. Que la respuesta de 409 produce DOS BOTONES y no un
- * aviso, que cada uno manda su bandera explícita en el body (`guardar` o
- * `forzar`), y que ninguno de los dos se dispara solo.
- *
- * Un toast con el texto "tenés cambios sin guardar" es exactamente el mismo
- * defecto que el aviso de citas fantasma que no se reseteaba: informa y no
- * deja decidir. Por eso la prueba mira `document.body` y no un toast concreto:
- * si la confirmación se arma como aviso, esto se cae igual.
+ * `POST /api/send-to-word/{session_id}` ya no pisa el `.docx` original. El
+ * frontend manda `nombre` (solo para nombrar la copia) y nunca una ruta de
+ * escritura. Con cambios sin guardar en la copia, el backend devuelve 409 y la
+ * UI ofrece las DOS salidas.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -35,14 +25,12 @@ vi.mock('../components/export/QuickReferenceSearch', () => ({
   QuickReferenceSearch: () => <div data-testid="crossref" />,
 }));
 
-/** Lo que devuelve el backend cuando hay cambios sin guardar. */
 const SIN_GUARDAR = {
   ok: false,
   requiere_confirmacion: true,
-  message: 'Tenés cambios sin guardar en Word. Guardalos antes de enviar, o confirmá para descartarlos.',
+  message: 'Tenés cambios sin guardar en la copia abierta en Word. Guardalos antes de abrirla, o confirmá para descartarlos.',
 };
 
-/** Los cuerpos que se mandaron, en orden. */
 let enviados: Array<Record<string, unknown>> = [];
 let responder: (url: string) => { status: number; body: unknown };
 
@@ -60,12 +48,7 @@ const MOSTRAR_TOAST = vi.fn();
 
 const cargar = () => {
   useDocStore.setState({
-    doc: {
-      session_id: 's-envio',
-      file_name: 'Tesis.docx',
-      elements: [],
-      referencias: [],
-    } as never,
+    doc: { session_id: 's-envio', file_name: 'Tesis.docx', elements: [], referencias: [] } as never,
     isLoading: false,
     atHome: false,
     activeFilePath: 'C:/tesis/Tesis.docx',
@@ -83,103 +66,75 @@ const cargar = () => {
 beforeEach(() => {
   vi.clearAllMocks();
   enviados = [];
-  responder = () => ({ status: 200, body: { ok: true, method: 'com', backup: null, message: 'Listo' } });
+  responder = () => ({ status: 200, body: { ok: true, method: 'com', working_path: 'C:/storage/sessions/s-envio/word/Tesis_APA7.docx', message: 'Listo' } });
   vi.stubGlobal('fetch', mockFetch);
   cargar();
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+afterEach(() => { vi.unstubAllGlobals(); });
 
-/** El boton de enviar a Word, que solo existe con formato docx y archivo. */
-const botonEnviar = () => screen.getByRole('button', { name: /Enviar a Word/i });
+const botonEnviar = () => screen.getByRole('button', { name: /Abrir copia en Word/i });
 
-describe('enviar a Word sin perder lo que esta sin guardar', () => {
+describe('la copia de trabajo en Word', () => {
+  it('manda nombre, nunca una ruta de escritura', async () => {
+    render(<ExportView />);
+    await act(async () => { fireEvent.click(botonEnviar()); });
+    await waitFor(() => expect(enviados.length).toBe(1));
+    expect(enviados[0]).toMatchObject({ nombre: 'C:/tesis/Tesis.docx' });
+    expect(enviados[0].dest_path).toBeUndefined();
+  });
+
   it('un aviso de cambios sin guardar NO alcanza: tiene que haber dos botones', async () => {
     responder = () => ({ status: 409, body: SIN_GUARDAR });
     render(<ExportView />);
-
     await act(async () => { fireEvent.click(botonEnviar()); });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('confirmacion-sin-guardar')).toBeTruthy();
-    });
+    await waitFor(() => expect(screen.getByTestId('confirmacion-sin-guardar')).toBeTruthy());
     expect(screen.getByRole('button', { name: /Guardar y enviar/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Descartar y enviar/i })).toBeTruthy();
-
-    /* Y no hay un toast: un toast informa, no deja decidir. */
     expect(MOSTRAR_TOAST).not.toHaveBeenCalled();
   });
 
   it('"Guardar y enviar" manda guardar:true, y no forzar', async () => {
     responder = (url) => (url.includes('send-to-word') && enviados.length === 0
       ? { status: 409, body: SIN_GUARDAR }
-      : { status: 200, body: { ok: true, method: 'com', backup: null, message: 'Listo' } });
+      : { status: 200, body: { ok: true, method: 'com', working_path: 'C:/x.docx', message: 'Listo' } });
     render(<ExportView />);
-
     await act(async () => { fireEvent.click(botonEnviar()); });
     await waitFor(() => screen.getByTestId('confirmacion-sin-guardar'));
-
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Guardar y enviar/i })); });
-
     await waitFor(() => expect(enviados.length).toBe(2));
-    expect(enviados[1]).toMatchObject({ dest_path: 'C:/tesis/Tesis.docx', guardar: true });
+    expect(enviados[1]).toMatchObject({ nombre: 'C:/tesis/Tesis.docx', guardar: true });
     expect(enviados[1].forzar).toBeUndefined();
   });
 
   it('"Descartar y enviar" manda forzar:true, y no guardar', async () => {
     responder = (url) => (url.includes('send-to-word') && enviados.length === 0
       ? { status: 409, body: SIN_GUARDAR }
-      : { status: 200, body: { ok: true, method: 'com', backup: null, message: 'Listo' } });
+      : { status: 200, body: { ok: true, method: 'com', working_path: 'C:/x.docx', message: 'Listo' } });
     render(<ExportView />);
-
     await act(async () => { fireEvent.click(botonEnviar()); });
     await waitFor(() => screen.getByTestId('confirmacion-sin-guardar'));
-
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Descartar y enviar/i })); });
-
     await waitFor(() => expect(enviados.length).toBe(2));
-    /* `guardar` se afirma con `=== undefined` y no con `toBeFalsy()`: con
-     * `toBeFalsy` un boton que mande la OTRA bandera sigue pasando, y asi los
-     * dos botones podrian estar cambiados de nombre sin que nada se cayera. */
-    expect(enviados[1]).toMatchObject({ dest_path: 'C:/tesis/Tesis.docx', forzar: true });
+    expect(enviados[1]).toMatchObject({ nombre: 'C:/tesis/Tesis.docx', forzar: true });
     expect(enviados[1].guardar).toBeUndefined();
   });
 
   it('la confirmacion se puede cerrar sin mandar nada', async () => {
     responder = () => ({ status: 409, body: SIN_GUARDAR });
     render(<ExportView />);
-
     await act(async () => { fireEvent.click(botonEnviar()); });
     await waitFor(() => screen.getByTestId('confirmacion-sin-guardar'));
-
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Mejor no/i })); });
-
     expect(screen.queryByTestId('confirmacion-sin-guardar')).toBeNull();
     expect(enviados).toHaveLength(1);
   });
 
-  it('sin cambios sin guardar no aparece ninguna confirmacion', async () => {
-    responder = () => ({ status: 200, body: { ok: true, method: 'com', backup: 'Tesis.docx.bak', message: 'Listo' } });
+  it('dice dónde quedó la copia, no solo "listo"', async () => {
     render(<ExportView />);
-
     await act(async () => { fireEvent.click(botonEnviar()); });
-
-    expect(screen.queryByTestId('confirmacion-sin-guardar')).toBeNull();
-    expect(MOSTRAR_TOAST).toHaveBeenCalled();
-  });
-
-  it('el respaldo se dice por su nombre, no solo "listo"', async () => {
-    /* Si no se le dice a la persona dónde quedó la copia, no puede ir a
-       buscarla, y un respaldo que no se encuentra no es un respaldo. */
-    responder = () => ({ status: 200, body: { ok: true, method: 'com', backup: 'C:/tesis/Tesis.docx.bak', message: 'Listo' } });
-    render(<ExportView />);
-
-    await act(async () => { fireEvent.click(botonEnviar()); });
-
     await waitFor(() => {
-      expect(document.body.textContent).toContain('Tesis.docx.bak');
+      expect(document.body.textContent).toContain('Tesis_APA7.docx');
     });
   });
 });
