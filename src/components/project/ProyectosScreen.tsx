@@ -43,6 +43,7 @@ export const ProyectosScreen: React.FC = () => {
   const projectImages = useStore(s => s.projectImages);
   const cerrarProyecto = useStore(s => s.cerrarProyecto);
   const marcarVersionActiva = useStore(s => s.marcarVersionActiva);
+  const restaurarVersion = useStore(s => s.restaurarVersion);
   const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
 
   const nadaAun = proyectos.length === 0 && tabs.length === 0 && projectImages.length === 0;
@@ -237,6 +238,7 @@ export const ProyectosScreen: React.FC = () => {
                 <VersionTimeline
                   versiones={seleccionado.versiones}
                   onMarcarActiva={(versionId) => marcarVersionActiva(seleccionado.id, versionId)}
+                  onRestaurar={(versionId) => restaurarVersion(seleccionado.id, versionId)}
                 />
               )}
             </div>

@@ -25,6 +25,7 @@ export interface ProyectoSlice {
   crearProyecto: (nombre: string, filename: string) => Promise<void>;
   agregarVersion: (proyectoId: string, filename: string) => Promise<void>;
   marcarVersionActiva: (proyectoId: string, versionId: string) => void;
+  restaurarVersion: (proyectoId: string, versionId: string) => Promise<void>;
   cerrarProyecto: (proyectoId?: string) => Promise<void> | void;
   evaluarProyectoParaArchivo: (file: File) => Promise<void>;
   inicializarPapelera: () => Promise<void>;
@@ -81,6 +82,33 @@ export const createProyectoSlice: StateCreator<any, [], [], ProyectoSlice> = (se
     });
     set({ proyectos });
     guardarProyectos(proyectos);
+  },
+
+  /* RESTAURAR UNA VERSIÓN ARCHIVADA. El archivo vive en la papelera del
+     backend (`_Papelera/<proyecto_id>/<archivo>`); el backend lo copia de
+     vuelta a la carpeta del proyecto y recién DESPUÉS de que respondió bien se
+     marca la versión como activa en la vista. Marcarla antes mentiría: la
+     pantalla diría "activa" con el archivo todavía en la papelera. */
+  restaurarVersion: async (proyectoId: string, versionId: string) => {
+    const proyecto = get().proyectos.find((p: Proyecto) => p.id === proyectoId);
+    const version = proyecto?.versiones.find((v: VersionDocumento) => v.id === versionId);
+    if (!version) return;
+    try {
+      const resp = await fetch('/api/proyectos-archivo/restaurar-version', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proyecto_id: proyectoId, archivo: version.filename }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}) as { detail?: string });
+        throw new Error(data.detail || 'el backend no devolvió un motivo');
+      }
+      get().marcarVersionActiva(proyectoId, versionId);
+      get().showToast(`Versión restaurada: ${version.filename}`, 'success');
+    } catch (e) {
+      const detalle = e instanceof Error ? e.message : 'sin conexión con el backend';
+      get().showToast(`No se pudo restaurar "${version.filename}": ${detalle}`, 'error');
+    }
   },
 
   cerrarProyecto: async (proyectoId?: string) => {

@@ -4,6 +4,7 @@ import type { VersionDocumento } from '../../lib/proyectoStore';
 interface VersionTimelineProps {
   versiones: VersionDocumento[];
   onMarcarActiva?: (versionId: string) => void;
+  onRestaurar?: (versionId: string) => void;
 }
 
 const MAX_VISIBLES = 3;
@@ -12,7 +13,7 @@ const MAX_VISIBLES = 3;
  * Línea de tiempo de versiones de un proyecto.
  * Componente puro: recibe versiones y callbacks. No tiene estado de red.
  */
-export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onMarcarActiva }) => {
+export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onMarcarActiva, onRestaurar }) => {
   if (versiones.length === 0) {
     return (
       <div style={{ padding: 'var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
@@ -84,6 +85,24 @@ export const VersionTimeline: React.FC<VersionTimelineProps> = ({ versiones, onM
                 }}
               >
                 Marcar como activa
+              </button>
+            )}
+            {!v.esActiva && onRestaurar && (
+              <button
+                type="button"
+                onClick={() => onRestaurar(v.id)}
+                style={{
+                  marginTop: 'var(--space-2)',
+                  padding: 'var(--space-1) var(--space-2)',
+                  fontSize: 'var(--text-xs)',
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                Restaurar
               </button>
             )}
           </article>
