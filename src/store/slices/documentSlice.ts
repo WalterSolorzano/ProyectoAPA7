@@ -438,6 +438,40 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       get().showToast(err.message || 'Error al guardar', 'error');
     }
   },
+  snapshots: [],
+  loadSnapshots: async () => {
+    const { doc } = get();
+    if (!doc) return;
+    try {
+      const snapshots = await api.listSessionSnapshots(doc.session_id);
+      set({ snapshots });
+    } catch (err: any) {
+      get().showToast(err.message || 'No se pudo cargar el historial', 'error');
+    }
+  },
+  restoreSnapshot: async (snapshotId) => {
+    const { doc } = get();
+    if (!doc) return;
+    set({ isSaving: true });
+    try {
+      await api.restoreSessionSnapshot(doc.session_id, snapshotId);
+      /* Igual que `aplicarRefresco`: la pantalla se recarga desde el backend
+         restaurado, para que no quede una mezcla de versiones en la vista. */
+      const recargado = migrateDocument(await api.recoverSession(doc.session_id));
+      set((state) => ({
+        doc: recargado,
+        references: recargado.referencias || [],
+        tabDocs: { ...state.tabDocs, [doc.session_id]: recargado },
+        hasUnsavedChanges: false,
+        lastSavedAt: Date.now(),
+        isSaving: false,
+      }));
+      get().showToast('Versión restaurada', 'success');
+    } catch (err: any) {
+      set({ isSaving: false });
+      get().showToast(err.message || 'No se pudo restaurar la versión', 'error');
+    }
+  },
   exportLatex: async () => {
     const { doc } = get();
     if (!doc) return;

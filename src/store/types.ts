@@ -279,6 +279,9 @@ export interface DocState {
    */
   aplicarRefresco: (diff: DiffWord) => Promise<RefrescoResultado>;
   saveSnapshot: () => Promise<void>;
+  snapshots: import('../api/backend').SessionSnapshot[];
+  loadSnapshots: () => Promise<void>;
+  restoreSnapshot: (snapshotId: number) => Promise<void>;
 
   // Revisor IA + Ortografía (Fase F)
   /* `isReviewOpen` y su setter se fueron con la Fase 7: ningún componente los

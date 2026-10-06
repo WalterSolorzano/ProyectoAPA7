@@ -911,6 +911,29 @@ export async function saveSessionSnapshot(sessionId: string): Promise<void> {
   }
 }
 
+export interface SessionSnapshot {
+  id: number;
+  created_at: string;
+  element_count: number;
+  file_name: string;
+}
+
+export async function listSessionSnapshots(sessionId: string): Promise<SessionSnapshot[]> {
+  const res = await fetchWithTrace(`${getApiBase()}/sessions/${sessionId}/snapshots`);
+  if (!res.ok) throw new Error('Error al listar el historial');
+  const data = await res.json();
+  return data.snapshots ?? [];
+}
+
+export async function restoreSessionSnapshot(sessionId: string, snapshotId: number): Promise<DocumentModel> {
+  const res = await fetchWithTrace(
+    `${getApiBase()}/sessions/${sessionId}/restore-snapshot/${snapshotId}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw new Error('Error al restaurar la versión');
+  return res.json();
+}
+
 export interface AIReviewFinding {
   phrase: string;
   detail: string;
