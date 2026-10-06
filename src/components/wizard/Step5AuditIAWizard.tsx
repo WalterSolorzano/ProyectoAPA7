@@ -1,20 +1,20 @@
 /* WordAPA7 — Paso 5: orquestador de Revisión & IA.
-   Tres pantallas: la puerta de estado (`gate`), la superficie secuencial de
-   revisión (`review`, un hallazgo a la vez) y la sala de IA (`ai`). La puerta
-   es la entrada; el workbench de columna única es la revisión. */
+   La puerta (`gate`) es la entrada. La revisión es una sala con tres niveles:
+   el panorama (`rev-l0`), el detalle filtrado por motor/fase (`rev-l1`) y el
+   analizador de objetivos (`rev-l2`). La sala de IA es `ai`. */
 import React, { useMemo, useState } from 'react';
 import { useDocStore } from '../../store/useDocStore';
 import { reviewItems, type AuditItem, type EngineId } from '../../lib/auditItems';
 import { usePageIndex } from '../../hooks/usePageIndex';
 import { ReviewGate } from '../review/ReviewGate';
-import { ReviewWorkbench } from '../review/ReviewWorkbench';
+import { RevisionRoom } from '../review/RevisionRoom';
 import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
 import { AiDocumentPreview } from '../review/AiDocumentPreview';
 import { construirPerfilIA } from '../../lib/aiPerfil';
 import '../../styles/revision.css';
 
-type Pantalla = 'gate' | 'review' | 'ai';
+type Pantalla = 'gate' | 'rev-l0' | 'rev-l1' | 'rev-l2' | 'ai';
 
 /** El foco con el que una sala abre su detalle: un motor y/o una fase. */
 type FocoRevision = { phase?: string; engine?: EngineId; motor?: EngineId };
@@ -161,13 +161,15 @@ export const Step5AuditIAWizard: React.FC = () => {
     );
   }
 
-  if (pantalla === 'review') {
+  if (pantalla === 'rev-l0') {
     return (
       <div className="revision-phase rev-screen" style={PHASE_WRAP}>
-        <ReviewWorkbench
-          onExit={volverAPuerta}
-          initialPhase={foco?.phase ?? null}
-          initialEngine={foco?.engine ?? null}
+        <RevisionRoom
+          items={items}
+          elements={elements}
+          onOpenDetail={(foco) => { setFoco(foco); setPantalla('rev-l1'); }}
+          onOpenObjetivos={() => setPantalla('rev-l2')}
+          onBack={volverAPuerta}
         />
       </div>
     );
@@ -181,7 +183,7 @@ export const Step5AuditIAWizard: React.FC = () => {
         paragraphs={reviewResult?.paragraphs ?? []}
         isScanning={isScanning}
         onScan={handleScan}
-        onStartRevision={() => setPantalla('review')}
+        onStartRevision={() => setPantalla('rev-l0')}
         onOpenAiRoom={() => setPantalla('ai')}
       />
     </div>
