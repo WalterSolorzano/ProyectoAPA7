@@ -564,6 +564,30 @@ export async function validateCitations(
   return res.json();
 }
 
+/** Reordena la bibliografía con la clave APA del backend (apellido sin tildes). */
+export async function sortReferences(sessionId: string): Promise<ReferenciaModel[]> {
+  const res = await fetchWithTrace(`${getApiBase()}/references/sort/${sessionId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Error al reordenar las referencias');
+  const data = await res.json();
+  return data.referencias || [];
+}
+
+export interface CitationStyleReport {
+  mixed: boolean;
+  ieee: number;
+  vancouver: number;
+  apa: number;
+}
+
+/** Estilo de cita detectado en el cuerpo: APA, numérica o ambos. */
+export async function detectCitationStyle(sessionId: string): Promise<CitationStyleReport> {
+  const res = await fetchWithTrace(`${getApiBase()}/citation-style/${sessionId}`);
+  if (!res.ok) throw new Error('Error al detectar el estilo de citas');
+  return res.json();
+}
+
 export async function generatePreview(
   sessionId: string,
   rules: APARuleSet,

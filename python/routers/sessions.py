@@ -821,6 +821,35 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
     return doc
 
 
+@router.post("/api/references/sort/{session_id}")
+async def sort_references_endpoint(session_id: str) -> DocumentModel:
+    """Reordena la bibliografia por apellido APA 7 y persiste el orden.
+
+    No reescribe el .docx: la seccion exportada se genera desde
+    `doc.referencias` con la misma funcion (`format_apa_referencias_section`),
+    asi que este endpoint alinea el modelo con lo que se va a escribir.
+    """
+    from modules.referencias_module import sort_referencias_alphabetically
+
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+    doc.referencias = sort_referencias_alphabetically(list(doc.referencias or []))
+    save_session_state(doc, STORAGE_DIR)
+    return doc
+
+
+@router.get("/api/citation-style/{session_id}")
+async def citation_style_endpoint(session_id: str) -> dict:
+    """Estilo de las citas del cuerpo: APA, numerica (IEEE/Vancouver) o mezcla."""
+    from parsing.citation_matcher import detect_citation_style
+
+    doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sesion no encontrada.")
+    return detect_citation_style(doc)
+
+
 @router.post("/api/elements/insert")
 async def insert_element(req: InsertElementRequest) -> DocumentModel:
     """FASE 3 — Inserta un párrafo físico en original.docx y un elemento en

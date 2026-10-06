@@ -55,6 +55,7 @@ export const SUBTYPE_LABELS: Record<string, string> = {
   verbo_bloom: 'Verbo impreciso en objetivo (Bloom)',
   ortografia: 'Falta ortográfica o tilde',
   texto_pegado: 'Texto pegado sin espaciado',
+  forma_apa: 'Forma APA de la referencia',
   palabra_repetida: 'Palabra repetida',
   pronombre_ambiguo: 'Pronombre ambiguo',
   voz_pasiva: 'Voz pasiva',
@@ -150,6 +151,15 @@ export const PROOFREAD_SPECS: Record<string, ProofreadSpec> = {
     severity: 'medium',
     summary: 'Texto pegado sin espaciado correcto',
   },
+
+  /* Lint APA 7 de la bibliografia: forma objetiva y determinista, asi que se
+     corrige con "Aceptar". El mensaje lo pone el motor (nombra el campo). */
+  apa_ampersand: { category: 'style', subtype: 'forma_apa', severity: 'medium', summary: DEL_MOTOR },
+  apa_doi_forma: { category: 'style', subtype: 'forma_apa', severity: 'medium', summary: DEL_MOTOR },
+  apa_edicion: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_et_al: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_espaciado: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
+  apa_punto_final: { category: 'style', subtype: 'forma_apa', severity: 'low', summary: DEL_MOTOR },
 
   // Redacción y Bloom.
   first_person: {

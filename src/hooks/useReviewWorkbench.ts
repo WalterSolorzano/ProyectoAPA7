@@ -250,6 +250,7 @@ const SUBTYPE_ACTION: Record<string, SubtypeAction> = {
   verbo_bloom: 'accept',
   ortografia: 'accept',
   texto_pegado: 'accept',
+  forma_apa: 'accept',
   cita_fantasma: 'resolveGhosts',
   referencia_huerfana: 'none',
   encabezado: 'none',

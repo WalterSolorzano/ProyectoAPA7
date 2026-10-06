@@ -11,6 +11,7 @@ Genera y formatea la seccion de Referencias:
 """
 
 import re
+import unicodedata
 from typing import List, Optional
 from urllib.parse import quote
 
@@ -480,6 +481,25 @@ async def resolve_dois_batch(raw_references: List[str]) -> List[dict]:
 
 # â”€â”€ Seccion de Referencias â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+def _clave_orden_apa(texto: str) -> str:
+    """Clave alfabetica APA 7: apellido sin tildes ni iniciales.
+
+    APA 7 ordena letra a letra por el APELLIDO, no por el nombre completo con
+    iniciales. "Gutiérrez Pulido, H." y "Gutierrez, J." tienen que caer en el
+    mismo lugar, y para eso hay que quitar la tilde: el orden viejo comparaba
+    ``authors[0].lower()`` completo, asi que "Gutiérrez" ordenaba DESPUES de
+    "Guzman" porque la tilde tiene otro punto de codigo. Las particulas ("de la
+    Cruz") se conservan: APA las alfabetiza con el apellido.
+    """
+    if not texto:
+        return ""
+    apellido = texto.split(",")[0]
+    normal = unicodedata.normalize("NFKD", apellido)
+    normal = "".join(c for c in normal if not unicodedata.combining(c)).lower()
+    normal = re.sub(r"[^a-z0-9\s]", " ", normal)
+    return " ".join(normal.split())
+
+
 def sort_referencias_alphabetically(references: List[ReferenciaModel]) -> List[ReferenciaModel]:
     """
     Ordena alfabeticamente las referencias por el apellido del primer autor
@@ -487,10 +507,10 @@ def sort_referencias_alphabetically(references: List[ReferenciaModel]) -> List[R
     """
     def get_sort_key(ref: ReferenciaModel) -> str:
         if ref.authors:
-            return ref.authors[0].lower()
+            return _clave_orden_apa(ref.authors[0])
         elif ref.title:
-            return ref.title.lower()
-        return ref.raw_text.lower()
+            return _clave_orden_apa(ref.title)
+        return _clave_orden_apa(ref.raw_text)
 
     return sorted(references, key=get_sort_key)
 

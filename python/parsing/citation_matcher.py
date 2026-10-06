@@ -251,3 +251,36 @@ def cross_check_citations_and_references(doc: DocumentModel) -> Dict[str, Any]:
         "ghost_citations": ghost_citations,
         "orphan_references": orphan_references
     }
+
+
+# Citas numericas: corchete (IEEE) y parentesis corto (Vancouver). El anio APA
+# tiene cuatro digitos, asi que "(12)" no lo confunde con una cita de autor-fecha.
+_CITA_IEEE_RE = re.compile(r"\[\s*\d+(?:\s*[,\-–]\s*\d+)*\s*\]")
+_CITA_VANCOUVER_RE = re.compile(r"\(\s*\d{1,3}\s*\)")
+_CITA_APA_ANIO_RE = re.compile(r"\((?:[^()]{0,80}?)(?:1[89]|20)\d{2}[a-z]?\)")
+
+
+def detect_citation_style(doc: DocumentModel) -> Dict[str, Any]:
+    """Cuenta el estilo de las citas del CUERPO y avisa si hay mezcla.
+
+    No convierte nada: decir "el documento mezcla IEEE y APA" es determinista;
+    convertir exige los metadatos de cada fuente, que es otro trabajo. Se mira
+    el texto de los parrafos, no la bibliografia, porque el estilo de cita es
+    una propiedad del cuerpo.
+    """
+    ieee = vancouver = apa = 0
+    for el in getattr(doc, "elements", []) or []:
+        t = getattr(el, "type", "")
+        et = str(getattr(t, "value", t) or "")
+        if et not in ("paragraph", "para"):
+            continue
+        texto = getattr(el, "text", "") or ""
+        if not texto:
+            continue
+        ieee += len(_CITA_IEEE_RE.findall(texto))
+        vancouver += len(_CITA_VANCOUVER_RE.findall(texto))
+        apa += len(_CITA_APA_ANIO_RE.findall(texto))
+
+    estilos = {"ieee": ieee, "vancouver": vancouver, "apa": apa}
+    presentes = [k for k, v in estilos.items() if v > 0]
+    return {"mixed": len(presentes) > 1, **estilos}

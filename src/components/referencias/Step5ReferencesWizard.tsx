@@ -11,8 +11,9 @@ import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
   Trash2, Copy, Check, Pencil,
-  ArrowRight, X, HelpCircle, FileText
+  ArrowRight, ArrowDownAZ, X, HelpCircle, FileText
 } from 'lucide-react';
+import { sortReferences, detectCitationStyle } from '../../api/backend';
 import { ReferenciaModel } from '../../types';
 import {
   ROTULO_DE_ESTADO,
@@ -116,6 +117,36 @@ export const Step5ReferencesWizard: React.FC = () => {
       runCitationAudit();
     }
   }, [citationAuditResult, doc, runCitationAudit]);
+
+  /* Estilo de cita del cuerpo. Es un AVISO, no una conversión: unificar estilos
+     exige los metadatos de cada fuente y eso no vive acá. Si la consulta falla,
+     el aviso simplemente no aparece: es accesorio, no bloquea la pantalla. */
+  const [estiloMezclado, setEstiloMezclado] = useState(false);
+  useEffect(() => {
+    if (!doc?.session_id) return;
+    let activo = true;
+    detectCitationStyle(doc.session_id)
+      .then((r) => { if (activo) setEstiloMezclado(Boolean(r?.mixed)); })
+      .catch(() => { if (activo) setEstiloMezclado(false); });
+    return () => { activo = false; };
+  }, [doc?.session_id]);
+
+  const [reordering, setReordering] = useState(false);
+  /* Reordenar es una operación de LISTA: el orden lo calcula el backend con la
+     clave APA y acá solo se pide y se refleja en el store. */
+  const handleReorder = async () => {
+    if (!doc?.session_id || reordering) return;
+    setReordering(true);
+    try {
+      const ordenadas = await sortReferences(doc.session_id);
+      updateReferences(ordenadas);
+      showToast('Bibliografía reordenada alfabéticamente', 'success');
+    } catch {
+      showToast('No se pudo reordenar la bibliografía', 'warning');
+    } finally {
+      setReordering(false);
+    }
+  };
 
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
@@ -560,6 +591,42 @@ export const Step5ReferencesWizard: React.FC = () => {
               style={{ ...inputFullStyle, paddingLeft: '34px' }}
             />
           </div>
+
+          {/* Operación de LISTA, no de fila: reordenar aplica a la bibliografía
+              completa. El orden lo calcula el backend con la clave APA (apellido
+              sin tildes); acá solo se pide y se refleja. */}
+          {references.length > 1 && (
+            <button
+              type="button"
+              onClick={handleReorder}
+              disabled={reordering}
+              style={{ ...botonInline(), opacity: reordering ? 0.6 : 1 }}
+            >
+              {reordering
+                ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                : <ArrowDownAZ size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />}
+              <span>Reordenar alfabéticamente</span>
+            </button>
+          )}
+
+          {/* Aviso de estilo mezclado: solo informa. Convertir una cita numérica
+              a APA exige los metadatos de la fuente, que es otro trabajo. */}
+          {estiloMezclado && (
+            <div
+              role="status"
+              style={{
+                display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start',
+                padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-warning)',
+                backgroundColor: 'var(--color-warning-a08)',
+                fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+              }}
+            >
+              <AlertTriangle size={14} strokeWidth="var(--icon-stroke)" aria-hidden="true"
+                style={{ flexShrink: 0, color: 'var(--color-warning)' }} />
+              <span>Hay citas con más de un estilo en el texto. Unifica APA o numérica antes de exportar.</span>
+            </div>
+          )}
 
           {/* PESTAÑAS: UNA CATEGORÍA A LA VEZ.
               Antes los tres grupos eran encabezados plegables apilados y el
