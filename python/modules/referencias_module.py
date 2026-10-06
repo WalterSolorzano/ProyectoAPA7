@@ -23,8 +23,11 @@ from docx.shared import Inches, Pt, RGBColor
 from generation.style_engine import set_run_font
 from models import APARuleSet, ReferenciaModel
 
+# Quita marcadores de lista al inicio ("1.", "(a)", "•"), pero NO debe comerse
+# un "(s.f.)." legítimo: la alternativa de letra no matchea si sigue otra letra,
+# evitando dejar el residuo "f.)." al recortar "(s." de "(s.f.)".
 _REF_PREFIX_RE = re.compile(
-    r'^(?:[•○▪–\-*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)])\s*'
+    r'^(?:[•○▪–\-*]|\(?\d+[\.\)]|\(?[a-zA-Z][\.\)](?![a-zA-Z]))\s*'
 )
 
 

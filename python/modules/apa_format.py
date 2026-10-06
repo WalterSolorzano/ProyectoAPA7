@@ -76,14 +76,20 @@ def formatear_autores(authors: List[str]) -> str:
     return ", ".join(cleaned[:-1]) + ", & " + cleaned[-1]
 
 
-def limpiar_artefactos(texto: str) -> str:
-    """Elimina artefactos de exportación automática en cualquier posición."""
+def limpiar_artefactos(texto: str, strip_punct: bool = True) -> str:
+    """Elimina artefactos de exportación automática en cualquier posición.
+
+    `strip_punct=False` conserva la puntuación de cierre (p. ej. el punto final
+    de una referencia cruda), quitando solo espacios sobrantes.
+    """
     if not texto:
         return ""
     t = _ACCESSED_RE.sub(" ", texto)
     t = _AVAILABLE_RE.sub(" ", t)
     t = _RETRIEVAL_RE.sub(" ", t)
-    t = re.sub(r"\s+", " ", t).strip(" .,;:")
+    t = re.sub(r"\s+", " ", t).strip()
+    if strip_punct:
+        t = t.strip(" .,;:")
     return t
 
 
@@ -164,7 +170,7 @@ def build_apa_segments(ref: Any) -> List[Any]:
     # mira `doi_or_url`: una referencia que solo trae raw_text/formatted_apa y un
     # DOI no debe fabricar "(s.f.). <url>" y perder autor/título.
     if not authors and not title and not source:
-        return [_seg(limpiar_artefactos(raw))] if raw else []
+        return [_seg(limpiar_artefactos(raw, strip_punct=False))] if raw else []
 
     author_str = formatear_autores(authors)
     # APA 7: un autor corporativo (sin iniciales) cierra con punto antes del

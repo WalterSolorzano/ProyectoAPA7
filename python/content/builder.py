@@ -117,7 +117,10 @@ def _table_element(item: ContentItem, table_number: int) -> ElementModel:
 def _references(refs: list[str]) -> list[ReferenciaModel]:
     out = []
     for i, raw in enumerate(refs):
-        out.append(ReferenciaModel(id=f"ref-{i + 1}", raw_text=raw, formatted_apa=raw, title=raw))
+        # Solo texto crudo: NO setear `title`. Hacerlo marcaba la referencia como
+        # estructurada y el formateador APA fabricaba un prefijo "(s.f.)." que
+        # luego se recortaba a un residuo "f.).".
+        out.append(ReferenciaModel(id=f"ref-{i + 1}", raw_text=raw, formatted_apa=raw))
     return out
 
 

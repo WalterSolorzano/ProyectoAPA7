@@ -63,3 +63,29 @@ def test_rejects_too_many_blocks(tmp_path):
     payload = {"content": [{"p": "x"} for _ in range(MAX_CONTENT_BLOCKS + 1)]}
     with pytest.raises(ValueError):
         build_content_document(payload, tmp_path, session_id=_sid())
+
+
+def test_raw_reference_not_mangled(tmp_path):
+    # Regresión: una referencia que solo trae texto crudo no debe fabricar el
+    # prefijo "(s.f.)." ni perder texto al quitarse el marcador de lista.
+    from modules.apa_format import format_apa_plain
+
+    raw = "Pérez, A. (2020). Inteligencia artificial y educación. Editorial UNI."
+    payload = {"meta": {"title": "Informe"}, "references": [raw]}
+    result = build_content_document(payload, tmp_path, session_id=_sid())
+    ref = result.document.referencias[0]
+    plain = format_apa_plain(ref)
+    assert plain.startswith("Pérez, A. (2020).")
+    assert "f.)." not in plain
+    assert "(s.f.)" not in plain
+    assert "Editorial UNI." in plain
+
+
+def test_strip_ref_prefix_keeps_no_date():
+    # El recorte de marcadores de lista no debe mutilar un "(s.f.)" de APA.
+    from modules.referencias_module import _strip_ref_prefix
+
+    assert _strip_ref_prefix("(s.f.). Título de la obra.") == "(s.f.). Título de la obra."
+    assert _strip_ref_prefix("(a) Texto") == "Texto"
+    assert _strip_ref_prefix("1. Texto") == "Texto"
+    assert _strip_ref_prefix("• Texto") == "Texto"
