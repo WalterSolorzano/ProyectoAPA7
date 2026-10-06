@@ -1226,6 +1226,28 @@ async def save_session_snapshot_endpoint(session_id: str) -> dict:
     return {"status": "ok", "message": "Progreso guardado", "session_id": session_id}
 
 
+@router.get("/api/sessions/{session_id}/snapshots")
+async def list_session_snapshots_endpoint(session_id: str) -> dict:
+    """Historial de puntos guardados de la sesión, del más nuevo al más viejo."""
+    from persistence.session_manager import list_session_snapshots
+    return {"snapshots": list_session_snapshots(session_id, STORAGE_DIR)}
+
+
+@router.post("/api/sessions/{session_id}/restore-snapshot/{snapshot_id}")
+async def restore_session_snapshot_endpoint(session_id: str, snapshot_id: int) -> DocumentModel:
+    """Restaura un snapshot como estado actual y lo persiste.
+
+    Rechaza un snapshot que no pertenezca a esta sesión: sin ese control, un id
+    adivinado podría traer el documento de otra persona.
+    """
+    from persistence.session_manager import load_session_snapshot, save_session_state
+    snap = load_session_snapshot(snapshot_id, STORAGE_DIR)
+    if not snap or snap.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Snapshot no encontrado")
+    save_session_state(snap, STORAGE_DIR)
+    return snap
+
+
 @router.post("/api/refresh-from-word/{session_id}")
 async def refresh_from_word(session_id: str, ruta: str = Query(...)) -> dict:
     """Relee el `.docx` que tiene Word abierto y devuelve el diff por elemento.

@@ -216,6 +216,57 @@ def save_session_snapshot(doc_model, storage_dir: Path):
         return None
 
 
+def list_session_snapshots(session_id: str, storage_dir: Path) -> list[dict]:
+    """Los snapshots de una sesión, del más nuevo al más viejo.
+
+    Solo metadatos: el `data` completo puede pesar, y la UI que lista no lo
+    necesita. Un snapshot corrupto se saltea en vez de tumbar la lista.
+    """
+    if DB_PATH is None:
+        init_db(storage_dir)
+    out: list[dict] = []
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        rows = conn.execute(
+            "SELECT id, created_at, data FROM session_snapshots "
+            "WHERE session_id = ? ORDER BY id DESC",
+            (session_id,),
+        ).fetchall()
+        conn.close()
+        for sid, created, data in rows:
+            try:
+                d = json.loads(data)
+                out.append({
+                    "id": sid,
+                    "created_at": created,
+                    "element_count": len(d.get("elements", [])),
+                    "file_name": d.get("file_name", ""),
+                })
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[WARN] Error listando snapshots: {e}")
+    return out
+
+
+def load_session_snapshot(snapshot_id: int, storage_dir: Path) -> Optional[DocumentModel]:
+    """El `DocumentModel` guardado en un snapshot, o `None` si no existe/está roto."""
+    if DB_PATH is None:
+        init_db(storage_dir)
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        row = conn.execute(
+            "SELECT data FROM session_snapshots WHERE id = ?", (snapshot_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None
+        return DocumentModel.model_validate(json.loads(row[0]))
+    except Exception as e:
+        print(f"[WARN] Error cargando snapshot {snapshot_id}: {e}")
+        return None
+
+
 def _tamano_de(ruta: Path) -> int:
     """Bytes que ocupa un archivo o una carpeta, sin seguir enlaces simbolicos. Si
     algo falla devuelve 0: el contador es INFORMATIVO, y una excepcion al medir
