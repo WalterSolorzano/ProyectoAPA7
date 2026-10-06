@@ -29,4 +29,30 @@ describe('ObjetivosAnalyzer (REV-L2)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(onApply).toHaveBeenCalledWith('e1', expect.stringContaining('Analizar'));
   });
+
+  it('aplica todas las propuestas con el botón de lote', () => {
+    const onApply = vi.fn();
+    render(<ObjetivosAnalyzer elements={elements} onApply={onApply} onBack={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aceptar todas las propuestas' }));
+    expect(onApply).toHaveBeenCalledWith('e1', expect.stringContaining('Analizar'));
+  });
+
+  it('ofrece marcar para revisar cuando hay handler', () => {
+    const onMark = vi.fn();
+    render(<ObjetivosAnalyzer elements={elements} onApply={vi.fn()} onMark={onMark} onBack={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar para revisar' }));
+    expect(onMark).toHaveBeenCalledWith('e1');
+  });
+
+  it('no ofrece aplicar cuando el único problema es que no declara variable', () => {
+    const soloVariable = [
+      { id: 'h1', type: 'heading', heading_level: 1, text: 'Objetivos' },
+      { id: 'h2g', type: 'heading', heading_level: 2, text: 'Objetivo general' },
+      { id: 'g', type: 'paragraph', heading_level: null, text: 'Evaluar.' },
+    ] as ElementModel[];
+    render(<ObjetivosAnalyzer elements={soloVariable} onApply={vi.fn()} onBack={vi.fn()} />);
+    expect(screen.getByText('No declara variable')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Aplicar' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Aceptar todas las propuestas' })).toBeDisabled();
+  });
 });

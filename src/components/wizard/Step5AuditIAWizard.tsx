@@ -198,6 +198,7 @@ export const Step5AuditIAWizard: React.FC = () => {
               showToast('Error al aplicar la propuesta', 'error');
             }
           }}
+          onMark={(elementId) => handleMark({ element_id: elementId } as AuditItem)}
           onBack={() => setPantalla('rev-l0')}
         />
       </div>
