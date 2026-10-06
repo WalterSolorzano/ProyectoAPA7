@@ -39,11 +39,13 @@ from parsing.image_extractor_recursive import (
 from parsing.pre_classifier import pre_classify_elements
 from parsing.xml_deep_parser import (
     _deduplicate_textbox_texts,
+    extract_cover_table_texts,
     extract_textbox_paragraphs,
     extract_unique_textbox_pairs,
     get_section_orientation_info,
     process_numbering_single_pass,
 )
+from parsing.institution_detector import detect_institution
 
 # Namespace OOXML para constantes
 W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
@@ -998,7 +1000,12 @@ def parse_docx_bytes(
     # Extraer texto de cuadros de texto y shapes ANTES de recorrer parrafos
     # (para detectar portadas basadas en shapes que no tienen parrafos normales)
     textbox_texts = extract_textbox_paragraphs(doc)
+    # Portadas maquetadas en tabla: se leen solo dentro de la zona de portada.
+    cover_table_texts = extract_cover_table_texts(doc)
     textbox_has_content = any(t.strip() for t in textbox_texts)
+    # Textos de portada combinados (textboxes + tablas) para la inferencia.
+    portada_texts = textbox_texts + cover_table_texts
+    portada_texts_has_content = any(t.strip() for t in portada_texts)
 
     # PRIMERO: Pre-deteccion de parrafos TOC para marcar todo el rango del campo
     # (desde w:fldChar begin hasta w:fldChar end, incluyendo el texto generado)
@@ -1709,11 +1716,11 @@ def parse_docx_bytes(
 
     # Inferir campos de portada desde el texto de cuadros de texto/shapes o parrafos iniciales
     inferred_portada_fields: dict[str, str] = {}
-    if textbox_has_content:
-        inferred_portada_fields = _infer_portada_from_textboxes(textbox_texts)
+    if portada_texts_has_content:
+        inferred_portada_fields = _infer_portada_from_textboxes(portada_texts)
 
     if not inferred_portada_fields or not inferred_portada_fields.get("title"):
-        para_fields = _infer_portada_from_paragraphs(elements, textbox_texts if textbox_has_content else None)
+        para_fields = _infer_portada_from_paragraphs(elements, portada_texts if portada_texts_has_content else None)
         inferred_portada_fields = {**para_fields, **inferred_portada_fields}
 
     # La fecha de portada suele ser un párrafo normal (no un textbox): si las
@@ -1738,6 +1745,22 @@ def parse_docx_bytes(
                 inferred_portada_fields["date"] = _etxt
                 break
 
+    # (1) Detección REAL de institución (nombre + área + ciudad). Si no hay
+    # evidencia, no se inventa: el editor la deja tras "Agregar institución".
+    portada_confidence: dict[str, float] = {}
+    portada_evidence: dict[str, list] = {}
+    if not inferred_portada_fields.get("institution"):
+        _inst_texts = list(portada_texts) + [
+            e.text for e in elements[:40]
+            if getattr(e, "text", None) and e.text.strip()
+        ]
+        _inst = detect_institution(_inst_texts)
+        if _inst.get("codigo"):
+            inferred_portada_fields["institution"] = str(_inst["nombre"])
+            inferred_portada_fields["institucion_codigo"] = str(_inst["codigo"])
+            portada_confidence["institution"] = float(_inst["confidence"])
+            portada_evidence["institution"] = list(_inst["evidence"])
+
     # Detectar inicio del cuerpo usando el parser ultra-rápido en memoria C-binding
     # (evita recorrer todos los elementos extraídos y regex lento)
     body_start_paragraph_idx = fast_parse_body_start(sanitized_bytes)
@@ -1758,20 +1781,23 @@ def parse_docx_bytes(
     # Guardar texto de textboxes y campos inferidos en el modelo
     # para que el frontend pueda pre-llenar el formulario de portada
     # y el generador pueda preservar el contenido original
-    if textbox_has_content or inferred_portada_fields:
+    if portada_texts_has_content or inferred_portada_fields:
         cleaned_portada_fields = {
             key: (value.strip() if isinstance(value, str) else value)
             for key, value in inferred_portada_fields.items()
         }
         doc_model.portada = {
-            "detected": portada_detected or textbox_has_content or bool(inferred_portada_fields),
+            "detected": portada_detected or portada_texts_has_content or bool(inferred_portada_fields),
             "element_ids": [
                 e.id for e in elements
                 if e.type == ElementType.PORTADA_BLOCK
             ],
-            "textbox_texts": textbox_texts,
+            "textbox_texts": portada_texts,
+            "cover_table_texts": cover_table_texts,
             "fields": cleaned_portada_fields,
             "profile_name": None,
+            "confidence": portada_confidence,
+            "evidence": portada_evidence,
             "body_start_paragraph_idx": body_start_paragraph_idx,
         }
     else:

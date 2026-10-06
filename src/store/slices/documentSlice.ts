@@ -525,16 +525,21 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
           if (f.grupo) updatedActa.grupo = toStr(f.grupo);
 
           const instStr = toStr(f.institution);
+          const instCodigo = toStr(f.institucion_codigo).toUpperCase();
           const esUni = /uni\b|universidad nacional de ingenier[ií]a/i.test(instStr);
-          const uniPreset = CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === 'UNI');
+          const presetPorCodigo = instCodigo
+            ? CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === instCodigo)
+            : undefined;
+          const uniPreset = presetPorCodigo
+            ?? (esUni ? CATALOGO_DE_UNIVERSIDADES.find((u) => u.codigo === 'UNI') : undefined);
 
           updatedPortada = {
             ...updatedPortada,
             title: toStr(f.title) || updatedPortada.title,
-            institution: (esUni && uniPreset) ? uniPreset.nombre : (toStr(f.institution) || updatedPortada.institution),
-            departamento: (esUni && uniPreset) ? uniPreset.areaDefault : updatedPortada.departamento,
-            institucionSeleccionada: (esUni && uniPreset) ? 'UNI' : updatedPortada.institucionSeleccionada,
-            logos: (esUni && uniPreset && uniPreset.logoUrl)
+            institution: uniPreset ? uniPreset.nombre : (instStr || updatedPortada.institution),
+            departamento: uniPreset ? uniPreset.areaDefault : updatedPortada.departamento,
+            institucionSeleccionada: uniPreset ? uniPreset.codigo : updatedPortada.institucionSeleccionada,
+            logos: (uniPreset && uniPreset.logoUrl)
               ? [{ asset: uniPreset.logoUrl.split('/').pop() as string, ancho_fraccion: FRACCION_DE_ANCHO_DEL_LOGO }]
               : updatedPortada.logos,
             course: toStr(f.course) || updatedPortada.course || '',

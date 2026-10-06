@@ -168,6 +168,70 @@ def extract_textbox_paragraphs(doc_element) -> List[str]:
     return textbox_texts
 
 
+# Señales que delatan una portada maquetada en tabla. Una tabla del cuerpo con
+# datos no las tiene, así que no se confunde.
+_COVER_TABLE_KW = (
+    'universidad', 'facultad', 'carrera', 'elaborado por', 'br.',
+    'carnet:', 'grupo:', 'tutor', 'docente', 'asesor', 'integrante',
+    'título', 'titulo', 'proyecto',
+)
+
+
+def extract_cover_table_texts(doc_element, max_body_index: int = 12) -> List[str]:
+    """Extrae texto de celdas de tablas que pertenecen a la PORTADA.
+
+    Una portada puede vivir dentro de un ``w:tbl`` (logo + universidad +
+    integrantes en una rejilla). Solo se miran las primeras ``max_body_index``
+    posiciones del cuerpo y se exige una señal de portada en las celdas, para
+    no arrastrar una tabla de datos del cuerpo. Reutiliza el mismo formato de
+    líneas que ``extract_textbox_paragraphs`` para que
+    ``extract_unique_textbox_pairs`` las agrupe igual.
+    """
+    seen: set[str] = set()
+    out: List[str] = []
+    W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    try:
+        if not hasattr(doc_element, '_element'):
+            return out
+        body = doc_element._element.body
+        for idx, child in enumerate(body):
+            if idx >= max_body_index:
+                break
+            tag = child.tag if isinstance(child.tag, str) else ''
+            if not tag.endswith('tbl'):
+                continue
+
+            cells: List[str] = []
+            for tc in child.iter(f'{{{W}}}tc'):
+                parts: List[str] = []
+                for el in tc.iter():
+                    t = el.tag.split('}')[-1] if '}' in el.tag else el.tag
+                    if t == 't' and el.text:
+                        parts.append(el.text)
+                    elif t == 'br':
+                        parts.append('\n')
+                cell_text = ''.join(parts).strip()
+                if cell_text:
+                    cells.append(cell_text)
+
+            joined = ' '.join(cells).lower()
+            if not any(kw in joined for kw in _COVER_TABLE_KW):
+                continue
+
+            for cell_text in cells:
+                for line in cell_text.split('\n'):
+                    line = line.strip().replace('\t', ' ')
+                    if len(line) <= 1:
+                        continue
+                    norm = line.lower().replace('  ', ' ').strip()
+                    if norm not in seen:
+                        seen.add(norm)
+                        out.append(line)
+    except Exception as e:
+        print(f"[WARN] Error en extract_cover_table_texts: {e}")
+    return out
+
+
 def extract_unique_textbox_pairs(textbox_texts: List[str]) -> List[dict]:
     """
     Agrupa textos de textboxes en pares (nombre + carnet/grupo) detectando
