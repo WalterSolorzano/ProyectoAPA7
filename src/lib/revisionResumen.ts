@@ -39,7 +39,7 @@ export function resumenMotores(items: readonly AuditItem[]): ResumenMotor[] {
 
 /** Las fases que se grafican como columnas: ni portada (bloqueada), ni objetivos
  *  (panel propio), ni referencias (fase propia), ni anexos/sin_fase. */
-const FASES_GRAFICO = ['introduccion', 'marco_teorico', 'metodo', 'resultados', 'discusion', 'conclusiones', 'resumen'] as const;
+export const FASES_GRAFICO = ['introduccion', 'marco_teorico', 'metodo', 'resultados', 'discusion', 'conclusiones', 'resumen'] as const;
 
 export interface CalificacionFase {
   phase: string;
@@ -87,6 +87,12 @@ export interface ResumenObjetivos {
   conVariable: number;
   nivelGeneral: number | null;
   veredicto: string;
+  /** Todos los objetivos del documento (general + específicos): el denominador
+   *  honesto de los KPIs. */
+  total: number;
+  /** Reparto para la barra de severidad del panel: verbo sin nivel Bloom,
+   *  objetivo sin variable declarada, y objetivo medible. */
+  porEstado: { noMedibles: number; sinVariable: number; cumplen: number };
 }
 
 export function resumenObjetivos(elements: readonly ElementModel[]): ResumenObjetivos {
@@ -99,6 +105,12 @@ export function resumenObjetivos(elements: readonly ElementModel[]): ResumenObje
   const medibles = objetivos.filter(esMedible).length;
   const conVariable = objetivos.filter((o) => !o.sinVariable).length;
   const noCumplen = objetivos.filter((o) => !esMedible(o) || (o.nivelActual ?? 0) < 4).length;
+  const porEstado = { noMedibles: 0, sinVariable: 0, cumplen: 0 };
+  for (const o of objetivos) {
+    if (o.nivelActual === null) porEstado.noMedibles += 1;
+    else if (o.sinVariable) porEstado.sinVariable += 1;
+    else porEstado.cumplen += 1;
+  }
   return {
     general,
     especificos,
@@ -106,5 +118,7 @@ export function resumenObjetivos(elements: readonly ElementModel[]): ResumenObje
     conVariable,
     nivelGeneral: general?.nivelActual ?? null,
     veredicto: `${noCumplen} de ${objetivos.length} objetivos no cumplen el nivel exigido`,
+    total: objetivos.length,
+    porEstado,
   };
 }

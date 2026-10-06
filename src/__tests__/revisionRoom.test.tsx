@@ -26,4 +26,16 @@ describe('RevisionRoom (REV-L0)', () => {
     fireEvent.click(screen.getByText('Analizar objetivos'));
     expect(onOpenObjetivos).toHaveBeenCalled();
   });
+
+  it('replica las leyendas y el panel de fases del mockup (REV-L0)', () => {
+    render(<RevisionRoom items={[item('1', 'spelling')]} elements={[] as never} onOpenDetail={vi.fn()} onOpenObjetivos={vi.fn()} onBack={vi.fn()} />);
+    expect(screen.getByText('90+ · «Esto está sólido, sigue así.»')).toBeTruthy();
+    expect(screen.getByText('Bloom · nivel 4 exigido')).toBeTruthy();
+    expect(screen.getByText(/misma normalización por tamaño/)).toBeTruthy();
+  });
+
+  it('omite el sufijo de secciones cuando el motor no declara fase', () => {
+    render(<RevisionRoom items={[item('1', 'spelling')]} elements={[] as never} onOpenDetail={vi.fn()} onOpenObjetivos={vi.fn()} onBack={vi.fn()} />);
+    expect(screen.queryByText(/secciones/)).toBeNull();
+  });
 });
