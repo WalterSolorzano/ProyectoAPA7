@@ -30,3 +30,6 @@ docx2pdf>=0.0.1; sys_platform == "win32"
 # Office Add-ins require HTTPS even on localhost; cryptography generates the
 # certs at runtime without depending on external CLI tools (mkcert).
 cryptography>=42.0.0
+# Servidor MCP (FastMCP) para que un agente de IA construya y formatee .docx
+# sin leer el repositorio. Se bundlea en el runtime embebido del instalador.
+mcp>=1.2.0

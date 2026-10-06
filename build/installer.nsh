@@ -199,6 +199,16 @@ WriteRegStr HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5
 WriteRegStr HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}" "Id" "{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}"
 WriteRegDWORD HKCU "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{B7A2F3D1-5C4E-4E8A-9A21-0C0FFEED}" "Flags" 1
 DetailPrint "Complemento de Word: catálogo confiable registrado"
+
+  ; ── Config MCP lista para usar (WordAPA7 como servidor de IA) ────────────
+  ; El runtime embebido ya incluye mcp_server.py y la dependencia `mcp`, así
+  ; que un cliente de IA (Claude, Cursor, opencode...) puede usar WordAPA7
+  ; como servidor MCP. Generamos mcp.json con ConvertTo-Json para que las
+  ; barras invertidas de Windows queden escapadas de forma válida. Es
+  ; best-effort: si PowerShell no está, la app se instala igual.
+  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -Command "$$d = $$env:LOCALAPPDATA + '\Programs\WordAPA7\resources\python-runtime'; $$o = @{ mcpServers = @{ 'wordapa7-content' = @{ command = ($$d + '\python.exe'); args = @(($$d + '\python\mcp_server.py')); env = @{ PYTHONPATH = ($$d + '\python') } } } }; [IO.File]::WriteAllText(($$env:APPDATA + '\WordAPA7\mcp.json'), ($$o | ConvertTo-Json -Depth 6))"`
+  Pop $0
+  DetailPrint "Config MCP escrita en $APPDATA\WordAPA7\mcp.json"
 !macroend
 
 !macro customUnInstall
@@ -238,6 +248,9 @@ DetailPrint "Complemento de Word: catálogo confiable registrado"
   ; ── Limpiar archivos del Add-in (manifiesto + catálogo compartido) ────
   ; El manifiesto principal registrado en Office:
   Delete "$APPDATA\WordAPA7\storage\manifest.xml"
+
+  ; Config MCP generada en la instalación.
+  Delete "$APPDATA\WordAPA7\mcp.json"
 
   ; El catálogo compartido (fallback usado por register_addin.ps1 / auto-setup).
   ; Si no se borra, queda una referencia a un manifiesto inexistente y Word

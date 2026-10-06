@@ -10,13 +10,13 @@ El CLI sin tokens ofrece la misma capacidad por línea de comandos, sin red ni c
 
 - Python 3.11 o superior.
 - Repositorio de WordAPA7 clonado en disco.
-- Paquete `mcp` instalado en el entorno de Python que ejecutará el servidor:
+- Paquete `mcp` instalado en el entorno de Python que ejecutará el servidor. Ya está declarado en `requirements.txt` y **viene incluido en el runtime embebido del instalador**; si trabajas desde el código fuente, instálalo con:
 
   ```bash
   pip install mcp
   ```
 
-  El paquete `mcp`/`fastmcp` **no** está en `requirements.txt`. Si falta, `python/mcp_server.py` lanza `RuntimeError: MCP no instalado`.
+  Si falta, `python/mcp_server.py` lanza `RuntimeError: MCP no instalado`.
 - Microsoft Word **no** es obligatorio: el servidor y el CLI aceptan `--no-com` / `try_com=False` para emitir sin COM.
 - El módulo importa `config` (`import config`) y usa `config.STORAGE_DIR`, por lo que el directorio `python/` del repositorio debe estar en `PYTHONPATH` (o ser el directorio de trabajo) al ejecutar el servidor.
 
@@ -44,6 +44,22 @@ Notas de registro:
 - `args` apunta al archivo del servidor con ruta absoluta (así el cliente no depende del directorio de trabajo).
 - `env.PYTHONPATH` **debe** apuntar al directorio `python/` del repositorio: sin él, los imports `config`, `content.*` y `diagrams.*` fallan.
 - El transporte es stdio (el cliente lanza el proceso y habla JSON-RPC por la entrada/salida estándar).
+
+### App instalada (Windows)
+
+Si instalaste WordAPA7 con el instalador, **no necesitas clonar el repositorio ni instalar `mcp` a mano**: el instalador bundlea el runtime de Python con `mcp_server.py` y la dependencia `mcp`, y además escribe una configuración lista en:
+
+```
+%APPDATA%\WordAPA7\mcp.json
+```
+
+Esa configuración apunta a:
+
+- `command`: `%LOCALAPPDATA%\Programs\WordAPA7\resources\python-runtime\python.exe`
+- `args`: `...\resources\python-runtime\python\mcp_server.py`
+- `env.PYTHONPATH`: `...\resources\python-runtime\python`
+
+Copia ese archivo (o su entrada `mcpServers`) dentro de tu cliente MCP. El instalador la regenera en cada instalación y la elimina al desinstalar.
 
 ## Herramientas expuestas
 
