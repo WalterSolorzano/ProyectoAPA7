@@ -10,6 +10,7 @@ import { ReviewGate } from '../review/ReviewGate';
 import { ReviewWorkbench } from '../review/ReviewWorkbench';
 import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
+import { AiDocumentPreview } from '../review/AiDocumentPreview';
 import { construirPerfilIA } from '../../lib/aiPerfil';
 import '../../styles/revision.css';
 
@@ -132,6 +133,20 @@ export const Step5AuditIAWizard: React.FC = () => {
           </div>
         );
       }
+    }
+    if (iaNivel === 'preview') {
+      return (
+        <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+          <AiDocumentPreview
+            paragraphs={reviewResult?.paragraphs ?? []}
+            onClose={() => setIaNivel('l0')}
+            onOpenParagraph={(elementId) => {
+              const fila = perfilIA.filas.find((f) => f.parrafos.some((p) => p.elementId === elementId));
+              if (fila) { setIaH1(fila.h1Id); setIaNivel('l1'); }
+            }}
+          />
+        </div>
+      );
     }
     return (
       <div className="revision-phase rev-screen" style={PHASE_WRAP}>

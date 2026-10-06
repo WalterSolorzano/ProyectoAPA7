@@ -81,6 +81,13 @@
   --ia-nivel-2: var(--color-engine-ia-a20);
   --ia-nivel-3: var(--color-engine-ia-a40);
   --ia-nivel-4: var(--color-engine-ia);
+  /* La rampa de manchas de la vista previa (tarjeta 3 de Revisión & IA):
+     la misma tinta del motor IA en cuatro pasos de alfa. El papel es blanco
+     en ambos temas, así que un solo set alcanza; no se declara en oscuro. */
+  --ia-mancha-1: rgba(124, 58, 237, 0.08);
+  --ia-mancha-2: rgba(124, 58, 237, 0.15);
+  --ia-mancha-3: rgba(124, 58, 237, 0.24);
+  --ia-mancha-4: rgba(124, 58, 237, 0.34);
   --severity-critical-tint: rgba(220, 38, 38, 0.05);
   --severity-success-tint: rgba(22, 163, 74, 0.05);
   --color-paper: #ffffff;

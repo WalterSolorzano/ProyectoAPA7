@@ -10,6 +10,7 @@ import { suggestCaption, rewriteText, resolveAssetUrl } from '../../api/backend'
 import { APACoverEditor } from './APACoverEditor';
 import { ReferenciaLinea } from '../referencias/ReferenciaLinea';
 import { APA_LISTA } from '../../lib/apaLayout';
+import { manchaDe } from '../../lib/aiPerfil';
 import { UNICoverPreview } from './UNICoverPreview';
 import { getWhatsAppComment, WhatsAppComment, WhatsAppCommentData } from './WhatsAppComment';
 import { getPageGeometry, type PageGeometry } from '../../lib/pageGeometry';
@@ -482,7 +483,7 @@ export const computeRenderedPages = ({
   };
 };
 
-export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; readOnly?: boolean; onlyCover?: boolean }> = ({ onElementClick, reviewHighlightIds, readOnly, onlyCover }) => {
+export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: DOMRect, element: any) => void; reviewHighlightIds?: Set<string>; aiMarks?: ReadonlyMap<string, number>; readOnly?: boolean; onlyCover?: boolean }> = ({ onElementClick, reviewHighlightIds, aiMarks, readOnly, onlyCover }) => {
   const { doc, rules, portada, selectedElementId, setSelectedElementId, setSelectedReferenceId, updateElementType, updateElementTable, zoomLevel, setZoomLevel, setForceRightPanelOpen, setWizardStep, setScrollTargetId, dismissComment, undo, redo, history, historyIndex, focusMode, setFocusMode, actionToast, clearActionToast } = useDocStore();
   const dismissedCommentIds = useDocStore((s) => s.dismissedCommentIds);
   const imagePanelOpen = useDocStore((s) => s.imagePanelOpen);
@@ -499,6 +500,16 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
      los tipos de elemento cuyo id esté en reviewHighlightIds. Sin prop → valores
      por defecto (fondo transparente), render idéntico al actual. */
   const reviewHighlightStyle = (id: string) => {
+    /* Vista previa con manchas (Task 9): cuando hay marcas de IA, su tinte
+       tiene precedencia sobre el resaltado de revisión. En el editor `aiMarks`
+       llega ausente y este sino queda idéntico al anterior. */
+    if (aiMarks?.has(id)) {
+      return {
+        backgroundColor: manchaDe(aiMarks.get(id) as number),
+        borderRadius: 'var(--radius-sm)',
+        transition: 'background-color 0.15s ease',
+      };
+    }
     const on = reviewHighlightIds?.has(id);
     return {
       backgroundColor: on ? 'var(--color-accent-soft)' : 'transparent',
@@ -1789,6 +1800,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                       <div
                         key={elem.id}
                         id={`paper-elem-${elem.id}`}
+                        data-element-id={elem.id}
                         title={hasGhostCitation ? 'Este párrafo contiene una cita sin referencia bibliográfica.' : (tooltipText || aiTooltip)}
                         onMouseEnter={(e) => {
                           if (elem.type !== 'image' && elem.type !== 'table') {
